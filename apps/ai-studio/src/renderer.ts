@@ -20,6 +20,7 @@ import {
   type SafeLogSummary,
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
+import { defineSplitComponents, type GESplit, type GESplitRatioChangeDetail } from '@haiyue/ui';
 
 declare global {
   interface Window {
@@ -69,6 +70,7 @@ let conversationRevision = -1;
 let agentPoll: number | null = null;
 let handledPreviewCommand: StableId | null = null;
 const DEMO_SCRIPT = `const transform = entity.getComponent('CartesianTransform3D') as unknown as { setPosition(x: number, y: number, z: number): unknown } | null;\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`;
+const SPLIT_LAYOUT_STORAGE_PREFIX = 'haiyue.ai-studio.split.';
 
 async function invoke<T extends JsonObject>(channel: StudioIpcMethod, payload: JsonObject = {}): Promise<T> {
   const sequence = ++requestSequence;
@@ -288,6 +290,7 @@ class SandboxedPreviewFrame {
 }
 
 async function boot(): Promise<void> {
+  setupSplitLayout();
   setStatus('Starting typed editor services…');
   const status = await invoke<ProjectSnapshot & JsonObject>('app/status');
   project = status;
@@ -309,6 +312,37 @@ async function boot(): Promise<void> {
     await reportViewport('failed', errorMessage(cause), scene?.revision ?? 0).catch(() => {});
     throw cause;
   }
+}
+
+function setupSplitLayout(): void {
+  defineSplitComponents();
+  const splits = [...document.querySelectorAll<GESplit>('ge-split[data-layout-key]')];
+  if (splits.length !== 4) throw new Error(`Expected 4 editor split regions, found ${splits.length}.`);
+  for (const split of splits) {
+    const key = split.dataset.layoutKey;
+    if (!key) continue;
+    const savedRatio = readStoredSplitRatio(key);
+    if (savedRatio !== null) split.ratio = savedRatio;
+    split.addEventListener('ratio-change', (event) => {
+      const detail = (event as CustomEvent<GESplitRatioChangeDetail>).detail;
+      if (Number.isFinite(detail.ratio)) writeStoredSplitRatio(key, detail.ratio);
+    });
+  }
+  document.body.dataset.splitLayout = 'ready';
+}
+
+function readStoredSplitRatio(key: string): number | null {
+  try {
+    const value = localStorage.getItem(`${SPLIT_LAYOUT_STORAGE_PREFIX}${key}`);
+    if (value === null) return null;
+    const ratio = Number(value);
+    return Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : null;
+  } catch { return null; }
+}
+
+function writeStoredSplitRatio(key: string, ratio: number): void {
+  try { localStorage.setItem(`${SPLIT_LAYOUT_STORAGE_PREFIX}${key}`, String(ratio)); }
+  catch { /* Layout persistence is optional when storage is unavailable. */ }
 }
 
 function bindUi(): void {

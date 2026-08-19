@@ -17,7 +17,7 @@ test('real Electron loads a sandboxed renderer through the typed preload and clo
     HAIYUE_ELECTRON_PIXEL_CANDIDATE: pixelCandidate,
   });
   assert.equal(result.code, 0, result.output);
-  assert.match(result.output, /\[ai-studio-smoke\] renderer-ready webgpu-script-agent-ui structured-logs pixel-candidate reload-safe secure-preload-only/);
+  assert.match(result.output, /\[ai-studio-smoke\] renderer-ready webgpu-script-agent-ui resizable-split-layout structured-logs pixel-candidate reload-safe secure-preload-only/);
   const png = await readFile(pixelCandidate);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.ok(png.byteLength > 10_000, `pixel candidate is unexpectedly small: ${png.byteLength}`);

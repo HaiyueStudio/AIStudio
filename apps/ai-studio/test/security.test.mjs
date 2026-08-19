@@ -24,6 +24,8 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(html, /Content-Security-Policy/);
   assert.match(html, /href="\.\/styles\.css"/);
   assert.doesNotMatch(html, /<style[\s>]/);
+  assert.match(html, /script-src 'self'; style-src 'self' 'unsafe-inline'/);
+  assert.doesNotMatch(html, /script-src[^;]*unsafe-inline/);
   assert.match(html, /connect-src 'none'/);
   assert.match(html, /frame-src haiyue-preview:/);
   assert.doesNotMatch(html, /unsafe-eval/);

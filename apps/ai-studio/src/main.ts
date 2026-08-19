@@ -275,11 +275,12 @@ function createWindow(): void {
     window.webContents.once('did-fail-load', (_event, code, description) => finishSmoke(1, `renderer load failed ${code}: ${description}`));
     window.webContents.on('did-finish-load', async () => {
       try {
-        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => document.body.dataset.status === 'loading' ? setTimeout(check, 10) : resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState}); check(); })`);
+        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => { if (document.body.dataset.status === 'loading') return setTimeout(check, 10); const split = document.querySelector('ge-split'); const bar = split?.shadowRoot?.querySelector('[role="separator"]'); const before = Number(split?.getAttribute('ratio')); bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); const after = Number(split?.getAttribute('ratio')); const rect = (id) => { const value = document.querySelector(id)?.getBoundingClientRect(); return value && {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; }; const hierarchy = rect('#hierarchy-panel'); const viewport = rect('#viewport-panel'); const inspector = rect('#inspector-panel'); const script = rect('#script-panel'); const chat = rect('#chat-panel'); const splitGeometry = hierarchy && viewport && inspector && script && chat && hierarchy.right <= viewport.left && viewport.right <= inspector.left && viewport.bottom <= script.top && inspector.bottom <= chat.top; resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState,splitLayout:document.body.dataset.splitLayout,splitCount:document.querySelectorAll('ge-split').length,splitKeyboard:after > before,splitGeometry,rects:{hierarchy,viewport,inspector,script,chat}}); }; check(); })`);
         if (result.status !== 'ready' || result.node !== 'undefined' || result.api !== 'object' || result.webgpu !== 'ready'
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-play-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
-          || result.agentBackendState !== 'ready') throw new Error(JSON.stringify(result));
+          || result.agentBackendState !== 'ready' || result.splitLayout !== 'ready' || result.splitCount !== 4
+          || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));
         smokeLoads += 1;
         if (smokeLoads === 1) window.webContents.reload();
         else {
@@ -288,7 +289,7 @@ function createWindow(): void {
             await mkdir(path.dirname(candidate), { recursive: true });
             await writeFile(candidate, (await window.webContents.capturePage()).toPNG());
           }
-          finishSmoke(0, 'renderer-ready webgpu-script-agent-ui structured-logs pixel-candidate reload-safe secure-preload-only');
+          finishSmoke(0, 'renderer-ready webgpu-script-agent-ui resizable-split-layout structured-logs pixel-candidate reload-safe secure-preload-only');
         }
       } catch (cause) { finishSmoke(1, errorMessage(cause)); }
     });
