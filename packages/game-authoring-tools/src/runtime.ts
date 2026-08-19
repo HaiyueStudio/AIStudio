@@ -243,6 +243,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return Object.freeze({ scriptId: resource.id, entityId: resource.entityId, textRevision: resource.textRevision, revision: options.scripts.snapshot().documentRevision });
     }
     case 'preview.validate': {
+      if (!scene.entities.some((item) => item.kind === 'cube')) throw new GameToolProtocolError('tool.preview-no-renderables', 'Preview scene has no renderable entities. Create at least one Cube before Play.');
       const plan = await options.scripts.prepare(args.scriptId as StableId, args.capabilities as ScriptCapabilityName[] | undefined); plans.set(plan.id, plan);
       return Object.freeze({ planId: plan.id, scriptId: plan.scriptId, entityId: plan.entityId, documentRevision: plan.documentRevision, textRevision: plan.textRevision, digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk, diagnostics: plan.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })) });
     }

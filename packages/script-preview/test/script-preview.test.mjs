@@ -44,6 +44,9 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
     const invalid = await worker.validate({ scriptId, textRevision: 2, sourcePath: 'scripts/test.ts', text: `const value: number = 'bad';\nfetch('https://invalid');` });
     assert.ok(invalid.diagnostics.some((item) => item.code === 'script.ts.2322' && item.line === 1), JSON.stringify(invalid.diagnostics));
     assert.ok(invalid.diagnostics.some((item) => item.code === 'script.capability.global-forbidden' && item.line === 2), JSON.stringify(invalid.diagnostics));
+    const exported = await worker.validate({ scriptId, textRevision: 3, sourcePath: 'scripts/test.ts', text: 'export function start(): void {}' });
+    assert.ok(exported.diagnostics.some((item) => item.code === 'script.capability.module-forbidden' && item.line === 1), JSON.stringify(exported.diagnostics));
+    assert.match(exported.emittedText, /exports/);
     const first = worker.validate({ scriptId, textRevision: 3, sourcePath: 'scripts/test.ts', text: movementScript });
     const second = worker.validate({ scriptId, textRevision: 4, sourcePath: 'scripts/test.ts', text: movementScript });
     assert.equal((await first).stale, true);

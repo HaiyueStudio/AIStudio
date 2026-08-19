@@ -29,6 +29,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
 
 async function start(snapshot: SceneSnapshot, plan: PreviewPlan): Promise<void> {
   if (engine) stop('restart');
+  if (!snapshot.entities.some((item) => item.kind === 'cube')) throw new Error('Preview scene has no renderable entities. Create at least one Cube before Play.');
   const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas');
   if (!canvas) throw new Error('Preview canvas is missing.');
   const ownedEngine = new HaiyueEngine({ canvas, renderProfile: 'batched', clearColor: { r: 0.03, g: 0.03, b: 0.03, a: 1 }, recoverDeviceLost: true });

@@ -530,6 +530,7 @@ function render(): void {
   element<HTMLButtonElement>('redo').disabled = !project?.history.canRedo;
   element('project-name').textContent = project?.document?.name ?? 'No project';
   element('revision').textContent = `Document r${project?.document?.revision ?? 0} · Scene r${scene?.revision ?? 0}`;
+  element('viewport-empty-state').hidden = (scene?.entities.some((entity) => entity.kind === 'cube') ?? false) || playing;
   renderScriptPanel(selected);
   if (scene && viewport && !playing) viewport.apply(scene, selection.activeEntityId);
 }
@@ -577,6 +578,9 @@ async function preparePreview(): Promise<void> {
   const entityId = selection.activeEntityId;
   const script = scripts.resources.find((resource) => resource.entityId === entityId);
   if (!script) throw new Error('Commit a valid script before Play.');
+  if (!scene?.entities.some((entity) => entity.kind === 'cube')) {
+    throw new Error('Preview scene has no renderable entities. Create at least one Cube before Play.');
+  }
   previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: script.id, capabilities: ['read', 'input', 'debug'] });
   element('preview-disclosure').textContent = `Risk: ${previewDisclosure.risk}. Capabilities: ${previewDisclosure.capabilities.join(', ')}. Script r${script.textRevision}.`;
   renderScriptPanel(scene?.entities.find((entity) => entity.id === entityId) ?? null);
@@ -592,6 +596,9 @@ async function approveAndStartPreview(): Promise<void> {
 
 async function startPreview(plan: ConsumedPreviewPlan): Promise<void> {
   if (!scene) throw new Error('No scene is available for preview.');
+  if (!scene.entities.some((entity) => entity.kind === 'cube')) {
+    throw new Error('Preview scene has no renderable entities. Create at least one Cube before Play.');
+  }
   viewport?.dispose();
   viewport = null;
   const frame = new SandboxedPreviewFrame(plan.entityId);
@@ -606,6 +613,7 @@ async function startPreview(plan: ConsumedPreviewPlan): Promise<void> {
     throw cause;
   }
   playing = true;
+  element('viewport-empty-state').hidden = true;
   document.body.dataset.preview = 'playing';
   element('preview-disclosure').textContent = `Playing isolated trusted-project preview with ${plan.capabilities.join(', ')}.`;
   renderScriptPanel(scene.entities.find((entity) => entity.id === plan.entityId) ?? null);
@@ -626,6 +634,7 @@ async function stopPreview(): Promise<void> {
   await viewport.initialize();
   document.body.dataset.smokeStage = 'authoring-viewport-restored';
   if (scene) viewport.apply(scene, selection.activeEntityId);
+  element('viewport-empty-state').hidden = scene?.entities.some((entity) => entity.kind === 'cube') ?? false;
   element('preview-disclosure').textContent = 'Preview stopped; authoring Scene restored.';
   renderScriptPanel(scene?.entities.find((entity) => entity.id === selection.activeEntityId) ?? null);
 }

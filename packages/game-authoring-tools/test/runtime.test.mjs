@@ -85,6 +85,18 @@ test('script proposal, trusted apply and runtime start preserve separate approva
   } finally { await dispose(value); }
 });
 
+test('preview validation rejects scenes that contain only logic entities', async () => {
+  const value = await fixture();
+  try {
+    const create = await approveAndExecute(value.runtime, call('call:create-empty-script-entity', 'entity.create', { baseRevision: 1, kind: 'empty', name: 'Logic Root' }));
+    const proposed = await executeReady(value.runtime, call('call:propose-empty-scene', 'script.propose', { baseRevision: 2, entityId: create.value.entity.id, text: movementScript, capabilities: ['read', 'debug'] }));
+    const applied = await approveAndExecute(value.runtime, call('call:apply-empty-scene', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId }));
+    const prepared = await value.runtime.prepare(call('call:validate-empty-scene', 'preview.validate', { scriptId: applied.value.scriptId, capabilities: ['read', 'debug'] }));
+    await assert.rejects(value.runtime.execute(prepared.id), /no renderable entities/);
+    assert.equal(value.preview.starts, 0);
+  } finally { await dispose(value); }
+});
+
 test('schema spoof, rejection, expiry and revision drift fail closed without mutation', async () => {
   const value = await fixture();
   try {

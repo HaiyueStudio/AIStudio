@@ -25,7 +25,10 @@ header { display: flex; align-items: center; gap: 7px; padding: 6px 10px; backgr
 #viewport-panel { position: relative; overflow: hidden; background: radial-gradient(circle at center, #152437, #070b10); }
 #viewport { display: block; width: 100%; height: 100%; outline: none; }
 #preview-frame { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border: 0; background: #111; }
-.viewport-badge { position: absolute; top: 9px; left: 9px; padding: 4px 7px; border-radius: 4px; background: #0a1018cc; color: #8ec7ff; pointer-events: none; }
+.viewport-badge { position: absolute; z-index: 3; top: 9px; left: 9px; padding: 4px 7px; border-radius: 4px; background: #0a1018cc; color: #8ec7ff; pointer-events: none; }
+#viewport-empty-state { position: absolute; z-index: 2; inset: 0; display: grid; place-content: center; gap: 6px; padding: 24px; text-align: center; color: #9eb4ca; pointer-events: none; }
+#viewport-empty-state strong { color: #dce7f2; font-size: 15px; }
+#viewport-empty-state[hidden] { display: none; }
 .section { padding: 10px; border-bottom: 1px solid #263447; }
 .section-title { font-weight: 650; margin-bottom: 9px; }
 .vector { display: grid; grid-template-columns: 55px repeat(3, 1fr); gap: 5px; align-items: center; margin: 6px 0; }

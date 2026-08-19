@@ -19,6 +19,9 @@ test('editor panels use the public HaiYue UI split component', async () => {
   assert.match(renderer, /from '@haiyue\/ui'/);
   assert.match(renderer, /defineSplitComponents\(\)/);
   assert.match(renderer, /addEventListener\('ratio-change'/);
+  assert.match(html, /id="viewport-empty-state"/);
+  assert.match(renderer, /Preview scene has no renderable entities/);
+  assert.match(renderer, /async function preparePreview[\s\S]*scene\?\.entities\.some/);
   assert.doesNotMatch(styles, /#workspace\s*\{[^}]*grid-template-columns/);
   assert.equal(manifest.dependencies['@haiyue/ui'], '0.1.0');
 });

@@ -84,7 +84,7 @@ function capabilityDiagnostics(text: string, sourcePath: string): ScriptDiagnost
   const visit = (node: ts.Node): void => {
     let code: string | null = null;
     let message = '';
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || node.kind === ts.SyntaxKind.ImportKeyword) {
+    if (isModuleSyntax(node)) {
       code = 'script.capability.module-forbidden'; message = 'Project scripts cannot import or export modules.';
     } else if (ts.isIdentifier(node) && forbiddenGlobals.has(node.text) && !isPropertyName(node)) {
       code = 'script.capability.global-forbidden'; message = `Global ${node.text} is outside the trusted-project capability contract.`;
@@ -97,6 +97,15 @@ function capabilityDiagnostics(text: string, sourcePath: string): ScriptDiagnost
   };
   visit(source);
   return diagnostics;
+}
+
+function isModuleSyntax(node: ts.Node): boolean {
+  return ts.isImportDeclaration(node)
+    || ts.isImportEqualsDeclaration(node)
+    || ts.isExportDeclaration(node)
+    || ts.isExportAssignment(node)
+    || node.kind === ts.SyntaxKind.ImportKeyword
+    || ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false);
 }
 
 function isPropertyName(node: ts.Identifier): boolean {
