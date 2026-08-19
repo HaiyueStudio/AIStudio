@@ -1,0 +1,26 @@
+{
+  "name": "@haiyue/ai-studio-operation-log",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./plugin": { "types": "./dist/plugin.d.ts", "import": "./dist/plugin.js" }
+  },
+  "engines": { "node": ">=22.19.0" },
+  "scripts": {
+    "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "npm run build -w @haiyue/ai-studio-contracts",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@haiyue/ai-studio-contracts": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.13"
+  }
+}

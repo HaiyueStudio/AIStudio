@@ -1,0 +1,74 @@
+{
+  "valid": [
+    {
+      "schemaId": "haiyue://contracts/plugin-manifest/v1",
+      "value": { "schemaVersion": 1, "id": "studio.viewport", "version": "0.0.0", "apiVersion": "1.0", "capabilities": { "required": ["studio.document"], "optional": ["studio.gpu"] }, "contributions": ["panel.viewport"], "activationPolicy": "default", "config": { "device": "webgpu" } }
+    },
+    {
+      "schemaId": "haiyue://contracts/profile-definition/v1",
+      "value": { "schemaVersion": 1, "id": "profile.poc", "plugins": ["studio.document", "studio.viewport", "studio.agent"], "patches": [{ "pluginId": "studio.agent", "config": { "backend": "fake" } }] }
+    },
+    {
+      "schemaId": "haiyue://contracts/lifecycle-effect/v1",
+      "value": { "schemaVersion": 1, "effectId": "effect:0001", "ownerId": "scope:root", "pluginId": "studio.viewport", "kind": "gpu-owner", "state": "active" }
+    },
+    {
+      "schemaId": "haiyue://contracts/durable-event/v1",
+      "value": { "schemaVersion": 1, "eventId": "evt:0001", "sequence": 1, "timestamp": "2026-08-19T00:00:00.000Z", "kind": "document/command-committed", "severity": "info", "source": "studio.document", "correlation": { "sessionId": "session:fixture", "commandId": "command:fixture", "documentId": "document:fixture" }, "payload": { "revision": 2 }, "redactedFields": [] }
+    },
+    {
+      "schemaId": "haiyue://contracts/agent-backend-event/v1",
+      "value": { "schemaVersion": 1, "backendId": "backend:harness", "sessionId": "session:fixture", "turnId": "turn:fixture", "kind": "tool-request", "payload": { "toolCallId": "tool:fixture", "toolId": "project.snapshot" } }
+    },
+    {
+      "schemaId": "haiyue://contracts/agent-backend-descriptor/v1",
+      "value": { "schemaVersion": 1, "id": "backend:codex", "kind": "codex-app-server", "protocolVersion": "0.148.0", "capabilities": { "resume": true, "questions": true, "structuredTools": true, "backendApprovals": true, "usage": true, "rateLimits": true } }
+    },
+    {
+      "schemaId": "haiyue://contracts/conversation-node/v1",
+      "value": { "schemaVersion": 1, "id": "node:fixture", "kind": "tool-call", "status": "pending", "createdAt": "2026-08-19T00:00:00.000Z", "provenance": { "backendId": "backend:harness", "sessionId": "session:fixture", "turnId": "turn:fixture", "stepId": "step:fixture" }, "content": { "toolId": "project.snapshot" } }
+    },
+    {
+      "schemaId": "haiyue://contracts/tool-definition/v1",
+      "value": { "schemaVersion": 1, "id": "project.snapshot", "version": "1.0.0", "effect": "observe", "risk": "low", "requiredCapabilities": ["studio.document.read"], "inputSchema": { "type": "object", "additionalProperties": false }, "outputSchema": { "type": "object" }, "redactedFields": [] }
+    },
+    {
+      "schemaId": "haiyue://contracts/approval-record/v1",
+      "value": { "schemaVersion": 1, "approvalId": "approval:fixture", "toolCallId": "toolcall:fixture", "toolId": "script.apply", "toolVersion": "1.0.0", "effect": "trusted-code", "argsDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "previewDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "documentId": "document:fixture", "baseRevision": 4, "expiresAt": "2026-08-19T00:05:00.000Z", "decision": "pending" }
+    },
+    {
+      "schemaId": "haiyue://contracts/project-command/v1",
+      "value": { "schemaVersion": 1, "commandId": "command:fixture", "documentId": "document:fixture", "baseRevision": 4, "label": "Create Cube", "payload": { "kind": "entity.create", "primitive": "cube" } }
+    },
+    {
+      "schemaId": "haiyue://contracts/scene-snapshot/v1",
+      "value": { "schemaVersion": 1, "documentId": "document:fixture", "revision": 4, "coordinateSystem": "right-handed-y-up", "entities": [{ "id": "entity:player", "name": "Player", "primitive": "cube", "parentId": null, "transform": { "position": [0, 0, 0], "rotationDegrees": [0, 0, 0], "scale": [1, 1, 1] }, "scriptId": "script:player" }] }
+    },
+    {
+      "schemaId": "haiyue://contracts/script-resource/v1",
+      "value": { "schemaVersion": 1, "id": "script:player", "name": "player-orbit", "language": "typescript", "source": "export function update() {}", "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "validation": "valid" }
+    },
+    {
+      "schemaId": "haiyue://contracts/project-document/v1",
+      "value": { "schemaVersion": 1, "id": "document:fixture", "revision": 4, "savedRevision": 3, "dirty": true, "scene": { "schemaVersion": 1, "documentId": "document:fixture", "revision": 4, "coordinateSystem": "right-handed-y-up", "entities": [] }, "scripts": [] }
+    },
+    {
+      "schemaId": "haiyue://contracts/operation-log-query/v1",
+      "value": { "schemaVersion": 1, "sessionId": "session:fixture", "severity": ["warning", "error"], "afterSequence": 0, "limit": 100, "traverseCorrelation": true }
+    },
+    {
+      "schemaId": "haiyue://contracts/ipc-message/v1",
+      "value": { "schemaVersion": 1, "direction": "request", "channel": "studio:project/snapshot", "id": "request:fixture", "correlationId": "correlation:fixture", "payload": { "documentId": "document:fixture" } }
+    }
+  ],
+  "invalid": [
+    { "name": "unknown schema version", "schemaId": "haiyue://contracts/plugin-manifest/v1", "value": { "schemaVersion": 2, "id": "studio.viewport", "version": "0.0.0", "apiVersion": "1.0", "capabilities": { "required": [], "optional": [] }, "contributions": [], "activationPolicy": "default", "config": {} } },
+    { "name": "unknown effect", "schemaId": "haiyue://contracts/tool-definition/v1", "value": { "schemaVersion": 1, "id": "project.delete", "version": "1.0.0", "effect": "destructive", "risk": "high", "requiredCapabilities": [], "inputSchema": {}, "outputSchema": {}, "redactedFields": [] } },
+    { "name": "negative revision", "schemaId": "haiyue://contracts/project-command/v1", "value": { "schemaVersion": 1, "commandId": "command:bad", "documentId": "document:fixture", "baseRevision": -1, "label": "Bad", "payload": {} } },
+    { "name": "secret-bearing durable payload", "invalidReason": "forbidden-secret-key", "schemaId": "haiyue://contracts/durable-event/v1", "value": { "schemaVersion": 1, "eventId": "evt:secret", "sequence": 2, "timestamp": "2026-08-19T00:00:00.000Z", "kind": "provider/configured", "severity": "info", "source": "studio.backend", "correlation": {}, "payload": { "apiKey": "SECRET_CANARY" }, "redactedFields": [] } },
+    { "name": "approval digest mismatch", "schemaId": "haiyue://contracts/approval-record/v1", "value": { "schemaVersion": 1, "approvalId": "approval:bad", "toolCallId": "toolcall:bad", "toolId": "script.apply", "toolVersion": "1.0.0", "effect": "trusted-code", "argsDigest": "bad", "previewDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "documentId": "document:fixture", "baseRevision": 1, "expiresAt": "2026-08-19T00:05:00.000Z", "decision": "allow-once" } },
+    { "name": "unapproved ipc channel", "schemaId": "haiyue://contracts/ipc-message/v1", "value": { "schemaVersion": 1, "direction": "request", "channel": "shell:exec", "correlationId": "correlation:bad", "payload": {} } },
+    { "name": "unbounded log query", "schemaId": "haiyue://contracts/operation-log-query/v1", "value": { "schemaVersion": 1, "limit": 1000000, "traverseCorrelation": true } },
+    { "name": "backend without structured tools", "schemaId": "haiyue://contracts/agent-backend-descriptor/v1", "value": { "schemaVersion": 1, "id": "backend:bad", "kind": "codex-app-server", "protocolVersion": "unknown", "capabilities": { "resume": true, "questions": true, "structuredTools": false, "backendApprovals": true, "usage": true, "rateLimits": true } } }
+  ]
+}

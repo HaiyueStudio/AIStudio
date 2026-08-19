@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/agent-backend-descriptor/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "kind", "protocolVersion", "capabilities"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "kind": { "enum": ["harness-api-key", "codex-app-server"] },
+    "protocolVersion": { "type": "string", "minLength": 1 },
+    "capabilities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["resume", "questions", "structuredTools", "backendApprovals", "usage", "rateLimits"],
+      "properties": {
+        "resume": { "type": "boolean" }, "questions": { "type": "boolean" },
+        "structuredTools": { "const": true }, "backendApprovals": { "type": "boolean" },
+        "usage": { "type": "boolean" }, "rateLimits": { "type": "boolean" }
+      }
+    }
+  }
+}

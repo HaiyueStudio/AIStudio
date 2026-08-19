@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/operation-log-query/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "limit", "traverseCorrelation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "sessionId": { "$ref": "#/definitions/id" }, "turnId": { "$ref": "#/definitions/id" },
+    "toolCallId": { "$ref": "#/definitions/id" }, "entityId": { "$ref": "#/definitions/id" },
+    "pluginId": { "$ref": "#/definitions/id" },
+    "severity": { "type": "array", "uniqueItems": true, "items": { "enum": ["debug", "info", "warning", "error"] } },
+    "afterSequence": { "type": "integer", "minimum": 0 }, "beforeSequence": { "type": "integer", "minimum": 0 },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 200 }, "traverseCorrelation": { "type": "boolean" }
+  },
+  "definitions": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" } }
+}

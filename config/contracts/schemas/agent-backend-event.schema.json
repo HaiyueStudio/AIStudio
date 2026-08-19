@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/agent-backend-event/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "backendId", "sessionId", "turnId", "kind", "payload"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "backendId": { "$ref": "#/definitions/id" }, "sessionId": { "$ref": "#/definitions/id" }, "turnId": { "$ref": "#/definitions/id" },
+    "kind": { "enum": ["status", "conversation-node", "tool-request", "question", "approval", "usage", "completed", "diagnostic"] },
+    "payload": { "type": "object" }
+  },
+  "definitions": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" } }
+}

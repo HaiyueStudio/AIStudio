@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/conversation-node/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "kind", "status", "createdAt", "provenance", "content"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "id": { "$ref": "#/definitions/id" },
+    "kind": { "enum": ["text", "progress", "question", "plan", "tool-call", "tool-result", "approval", "diagnostic", "completion"] },
+    "status": { "enum": ["pending", "streaming", "completed", "failed", "cancelled"] },
+    "createdAt": { "type": "string", "minLength": 20 },
+    "provenance": {
+      "type": "object", "additionalProperties": false, "required": ["backendId", "sessionId", "turnId"],
+      "properties": { "backendId": { "$ref": "#/definitions/id" }, "sessionId": { "$ref": "#/definitions/id" }, "turnId": { "$ref": "#/definitions/id" }, "stepId": { "$ref": "#/definitions/id" } }
+    },
+    "content": { "type": "object" }
+  },
+  "definitions": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" } }
+}

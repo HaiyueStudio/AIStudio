@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "milestone": "m03-unified-editor-platform",
+  "requiredMilestoneStatus": "complete",
+  "packages": [
+    {
+      "name": "@haiyue/editor-plugin-sdk",
+      "version": "0.1.0",
+      "license": "MIT",
+      "tarball": "vendor/haiyue-editor-plugin-sdk-0.1.0.tgz",
+      "tarballSha256": "168f290ca44bcd579c0cdf5ef15820c90151d83d10137f20eb141d1f0c613a1b",
+      "integrity": "sha512-ZT43u4tgcda4SdKaRZhxxm4HsusEyvjn43uItj/HaeWcujOgRpgTdtWBYZP7Y2Ee6lBH1k4mI0DMZ4kH51kLxA==",
+      "requiredExports": ["."],
+      "requiredRuntimeExports": ["EDITOR_PLUGIN_API_VERSION", "createEditorServiceToken", "defineEditorPlugin", "defineEditorProduct"]
+    },
+    {
+      "name": "@haiyue/editor-platform",
+      "version": "0.1.0",
+      "license": "MIT",
+      "tarball": "vendor/haiyue-editor-platform-0.1.0.tgz",
+      "tarballSha256": "f49d60b5c3cc26f8a9c6a9448b72c67af894cc360c5e8011c8497d3e2ed593e7",
+      "integrity": "sha512-LXHtWGYIbOz/ju9ZUzFcD5bZnGbqazJspU7e8rfTt0vbQjZwwdD6gqsD6N0iBw4mPaiuEg0P6yNdHj6UCywbyg==",
+      "requiredExports": [".", "./conformance"],
+      "requiredRuntimeExports": ["EditorDocumentHost", "EditorHistoryService", "EditorSelectionService", "EditorTaskCoordinator"],
+      "requiredConformanceExports": ["runEditorPluginConformance", "runEditorDocumentConformance"]
+    },
+    {
+      "name": "@haiyue/editor-shell",
+      "version": "0.1.0",
+      "license": "MIT",
+      "tarball": "vendor/haiyue-editor-shell-0.1.0.tgz",
+      "tarballSha256": "7fb97069d33a7181986af4735dd58857ddae7a324dc583f82eea44faf66d296e",
+      "integrity": "sha512-vuP8CNiAAVN1V+l8K3KOTKvX/Ky+zRjOyqWG5WCDhCX5+S5D1y3d2ZT5QuLsS4BqAwWfuNpTi2PbGJ8YXb0MNg==",
+      "requiredExports": ["."],
+      "requiredRuntimeExports": ["BrowserEditorShell", "EditorLazyPluginLoader", "registerHistoryShortcuts"]
+    },
+    {
+      "name": "@haiyue/editor-app-kit",
+      "version": "0.1.0",
+      "license": "MIT",
+      "tarball": "vendor/haiyue-editor-app-kit-0.1.0.tgz",
+      "tarballSha256": "50f0e8c62aec4a67d220666bf27fde90aa3bdce00faffeb70a389e05d914d912",
+      "integrity": "sha512-Ng19nu1aftNGG+154RHL0BwruXj74PTG5Fk99pdAjNA0K9aiy0DgwPz41coNI2XrdveRBEZHI0PCOhQRHJVMUw==",
+      "requiredExports": [".", "./node"],
+      "requiredRuntimeExports": ["defineEditorAppDescriptor", "validateEditorAppDescriptor"]
+    }
+  ],
+  "forbiddenRuntimeExports": ["EditorStore", "World", "GPUDevice", "HTMLElement"]
+}

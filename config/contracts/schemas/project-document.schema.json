@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/project-document/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "revision", "savedRevision", "dirty", "scene", "scripts"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "revision": { "type": "integer", "minimum": 0 }, "savedRevision": { "type": "integer", "minimum": 0 },
+    "dirty": { "type": "boolean" }, "scene": { "$ref": "haiyue://contracts/scene-snapshot/v1" },
+    "scripts": { "type": "array", "items": { "$ref": "haiyue://contracts/script-resource/v1" } }
+  }
+}

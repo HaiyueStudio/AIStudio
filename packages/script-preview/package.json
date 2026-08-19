@@ -1,0 +1,7 @@
+{
+  "name": "@haiyue/ai-studio-script-preview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.19.0" }
+}

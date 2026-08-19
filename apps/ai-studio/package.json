@@ -1,0 +1,30 @@
+{
+  "name": "@haiyue/ai-studio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "engines": { "node": ">=22.19.0" },
+  "scripts": {
+    "pretypecheck": "npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-shell",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-shell",
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "test:electron": "npm run build && electron dist/main.js"
+  },
+  "dependencies": {
+    "@haiyue/ai-studio-contracts": "0.0.0",
+    "@haiyue/ai-studio-editor-plugins": "0.0.0",
+    "@haiyue/ai-studio-harness-bridge": "0.0.0",
+    "@haiyue/ai-studio-kernel": "0.0.0",
+    "@haiyue/ai-studio-operation-log": "0.0.0",
+    "@haiyue/ai-studio-shell": "0.0.0",
+    "@haiyue/editor-app-kit": "0.1.0",
+    "@haiyue/editor-platform": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.13",
+    "electron": "43.2.0"
+  }
+}

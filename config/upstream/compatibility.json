@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "deepseekHarness": {
+    "bridgeOnly": true,
+    "requiredPackages": [
+      "@deepseek-ai/cordis",
+      "@deepseek-ai/dsh-agent",
+      "@deepseek-ai/dsh-agent-loop",
+      "@deepseek-ai/dsh-llm",
+      "@deepseek-ai/dsh-llm-deepseek",
+      "@deepseek-ai/dsh-session",
+      "@deepseek-ai/dsh-tools",
+      "@deepseek-ai/dsh-user-approval"
+    ],
+    "requiredPackageFields": ["name", "version", "license", "exports"]
+  },
+  "codexAppServer": {
+    "adapterOnly": true,
+    "requiredSchemaFiles": [
+      "codex_app_server_protocol.schemas.json",
+      "ClientRequest.json",
+      "ClientNotification.json",
+      "ServerRequest.json",
+      "ServerNotification.json",
+      "DynamicToolCallParams.json",
+      "DynamicToolCallResponse.json",
+      "CommandExecutionRequestApprovalParams.json",
+      "FileChangeRequestApprovalParams.json",
+      "v1/InitializeParams.json",
+      "v1/InitializeResponse.json",
+      "v2/GetAccountResponse.json",
+      "v2/LoginAccountParams.json",
+      "v2/ThreadStartParams.json",
+      "v2/TurnStartParams.json",
+      "v2/TurnInterruptParams.json",
+      "v2/GetAccountRateLimitsResponse.json"
+    ],
+    "requiredProtocolMethods": [
+      "initialize",
+      "initialized",
+      "account/read",
+      "account/login/start",
+      "account/login/completed",
+      "account/rateLimits/read",
+      "account/rateLimits/updated",
+      "thread/start",
+      "thread/started",
+      "turn/start",
+      "turn/started",
+      "turn/interrupt",
+      "turn/completed",
+      "dynamicToolCall"
+    ],
+    "deniedBuiltinEffects": ["shell", "network", "package-install", "arbitrary-filesystem"]
+  }
+}

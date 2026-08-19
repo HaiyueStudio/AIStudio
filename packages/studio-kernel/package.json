@@ -1,0 +1,27 @@
+{
+  "name": "@haiyue/ai-studio-kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./conformance": { "types": "./dist/conformance.d.ts", "import": "./dist/conformance.js" }
+  },
+  "engines": { "node": ">=22.19.0" },
+  "scripts": {
+    "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "npm run build -w @haiyue/ai-studio-contracts",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@haiyue/ai-studio-contracts": "0.0.0"
+  },
+  "peerDependencies": {
+    "@haiyue/editor-platform": "0.1.0",
+    "@haiyue/editor-plugin-sdk": "0.1.0"
+  }
+}

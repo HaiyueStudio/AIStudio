@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/lifecycle-effect/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "effectId", "ownerId", "pluginId", "kind", "state"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "effectId": { "$ref": "#/definitions/id" }, "ownerId": { "$ref": "#/definitions/id" },
+    "pluginId": { "$ref": "#/definitions/id" },
+    "kind": { "enum": ["registration", "subscription", "timer", "worker", "process", "file-handle", "object-url", "runtime", "gpu-owner"] },
+    "state": { "enum": ["active", "disposing", "disposed", "failed"] }
+  },
+  "definitions": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" } }
+}
