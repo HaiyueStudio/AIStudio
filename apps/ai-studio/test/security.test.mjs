@@ -16,9 +16,13 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(main, /setWindowOpenHandler/);
   assert.match(main, /will-navigate/);
   assert.match(main, /persist:haiyue-ai-studio/);
+  assert.match(main, /setPath\('userData',[\s\S]*descriptor\.productName/);
   assert.match(preload, /studio:request/);
   assert.match(preload, /studio:cancel/);
+  assert.match(preload, /studio:conversation-changed/);
+  assert.match(preload, /removeListener\(CONVERSATION_CHANGED_CHANNEL/);
   assert.doesNotMatch(preload, /child_process|node:fs|shell\.openExternal/);
+  assert.doesNotMatch(preload, /event\.sender|webContents|conversation\/replay/);
   assert.doesNotMatch(renderer, /node:fs|child_process|ipcRenderer|require\(/);
   assert.doesNotMatch(previewRuntime, /node:fs|child_process|ipcRenderer|require\(/);
   assert.match(html, /Content-Security-Policy/);

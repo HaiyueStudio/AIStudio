@@ -85,6 +85,26 @@ test('scene IPC exposes immutable JSON projections and routes typed intents thro
   router.dispose();
 });
 
+test('new-project IPC persists the initial document before reporting success', async () => {
+  const calls = [];
+  const workspace = {
+    snapshot: () => ({ document: null }),
+    cancelAll() {},
+    async newProject(root, name) { calls.push(['new', root, name]); return { document: { revision: 1, dirty: true } }; },
+    async save() { calls.push(['save']); return { document: { revision: 1, savedRevision: 1, dirty: false } }; },
+  };
+  const operationLog = { async append() { return {}; } };
+  const router = new StudioIpcRouter({
+    workspace, operationLog, ...agentOwners,
+    selectProjectRoot: async (purpose) => purpose === 'new' ? 'D:\\fixture-project' : null,
+  });
+  const response = await router.handle(request('project/new', { name: 'Fixture' }));
+  assert.equal(response.ok, true);
+  assert.equal(response.payload.document.dirty, false);
+  assert.deepEqual(calls, [['new', 'D:\\fixture-project', 'Fixture'], ['save']]);
+  router.dispose();
+});
+
 test('script preview IPC discloses risk before one-shot code delivery and logs no source text', async () => {
   const events = [];
   const emittedText = 'compiled-secret-script();';

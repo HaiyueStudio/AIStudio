@@ -15,6 +15,7 @@ import type { StudioConversationHost } from './conversation-host.js';
 
 export const STUDIO_IPC_CHANNEL = 'studio:request' as const;
 export const STUDIO_IPC_CANCEL_CHANNEL = 'studio:cancel' as const;
+export const STUDIO_CONVERSATION_CHANGED_CHANNEL = 'studio:conversation-changed' as const;
 export const STUDIO_IPC_SCHEMA_VERSION = 1 as const;
 
 export type StudioIpcMethod =
@@ -146,7 +147,8 @@ export class StudioIpcRouter {
       case 'project/new': {
         const root = await this.options.selectProjectRoot('new');
         if (!root) throw new IpcDiagnosticError('project-selection-cancelled', 'Project creation was cancelled.');
-        return toJson(await this.options.workspace.newProject(root, request.payload.name as string));
+        await this.options.workspace.newProject(root, request.payload.name as string);
+        return toJson(await this.options.workspace.save());
       }
       case 'project/open': {
         const root = await this.options.selectProjectRoot('open');

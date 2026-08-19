@@ -20,6 +20,7 @@ import {
   type SafeLogSummary,
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
+import { AgentPollScheduler } from './agent-poll-scheduler.js';
 import { defineSplitComponents, type GESplit, type GESplitRatioChangeDetail } from '@haiyue/ui';
 
 declare global {
@@ -27,6 +28,7 @@ declare global {
     readonly haiyueStudio: Readonly<{
       invoke(request: StudioIpcRequest): Promise<StudioIpcResponse>;
       cancel(requestId: string): void;
+      onConversationChanged(listener: () => void): () => void;
     }>;
   }
 }
@@ -67,7 +69,8 @@ let playing = false;
 let loadedScriptIdentity = '';
 const conversationProjector = new ConversationProjector();
 let conversationRevision = -1;
-let agentPoll: number | null = null;
+let agentPoll: AgentPollScheduler | null = null;
+let disposeConversationChanged: (() => void) | null = null;
 let handledPreviewCommand: StableId | null = null;
 const DEMO_SCRIPT = `const transform = entity.getComponent('CartesianTransform3D') as unknown as { setPosition(x: number, y: number, z: number): unknown } | null;\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`;
 const SPLIT_LAYOUT_STORAGE_PREFIX = 'haiyue.ai-studio.split.';
@@ -298,7 +301,16 @@ async function boot(): Promise<void> {
   bindUi();
   await refreshConversation(true);
   await refreshLogs();
-  agentPoll = window.setInterval(() => void pollAgent(), 300);
+  agentPoll = new AgentPollScheduler({
+    intervalMs: 2_000,
+    poll: pollAgent,
+    onError: (cause) => setStatus(errorMessage(cause)),
+    schedule: (task, delayMs) => window.setTimeout(task, delayMs),
+    cancel: (handle) => window.clearTimeout(handle as number),
+  });
+  disposeConversationChanged = window.haiyueStudio.onConversationChanged(() => agentPoll?.trigger());
+  agentPoll.start();
+  document.body.dataset.agentSync = 'push-single-flight';
   viewport = new WebGpuViewportRuntime(element<HTMLCanvasElement>('viewport'));
   try {
     await viewport.initialize();
@@ -374,13 +386,14 @@ function bindUi(): void {
   element('refresh-logs').addEventListener('click', () => void action(refreshLogs));
   element('export-logs').addEventListener('click', () => void action(exportBugBundle));
   window.addEventListener('beforeunload', () => {
-    if (agentPoll !== null) window.clearInterval(agentPoll);
+    agentPoll?.stop(); agentPoll = null;
+    disposeConversationChanged?.(); disposeConversationChanged = null;
     viewport?.dispose(); void previewFrame?.dispose();
   }, { once: true });
 }
 
 async function pollAgent(): Promise<void> {
-  await Promise.all([refreshConversation(false), processAgentPreviewCommand()]).catch((cause) => setStatus(errorMessage(cause)));
+  await Promise.all([refreshConversation(false), processAgentPreviewCommand()]);
 }
 
 async function refreshConversation(force: boolean): Promise<void> {
@@ -398,9 +411,9 @@ async function dispatchConversation(intent: ConversationIntent): Promise<void> {
   try {
     setStatus('Agent intent pending…');
     await invoke('conversation/intent', { intent: intent as unknown as JsonObject });
-    await refreshConversation(true);
     setStatus('Agent intent accepted');
   } catch (cause) { setStatus(errorMessage(cause)); }
+  finally { agentPoll?.trigger(); }
 }
 
 function defaultLogQuery(): LogQueryIntent {

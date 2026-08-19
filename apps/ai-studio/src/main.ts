@@ -19,6 +19,7 @@ import { createOperationLogPlugin, operationLogServiceToken } from '@haiyue/ai-s
 import { createScriptPreviewPlugin, scriptPreviewServiceToken } from '@haiyue/ai-studio-script-preview';
 import { createStudioWorkspaceLayoutPlugin, studioWorkspaceLayoutToken } from '@haiyue/ai-studio-shell';
 import {
+  STUDIO_CONVERSATION_CHANGED_CHANNEL,
   STUDIO_IPC_CANCEL_CHANNEL,
   STUDIO_IPC_CHANNEL,
   StudioIpcRouter,
@@ -58,7 +59,8 @@ protocol.registerSchemesAsPrivileged([{
   scheme: previewScheme,
   privileges: { standard: true, secure: true, supportFetchAPI: false, corsEnabled: true },
 }]);
-if (process.env.HAIYUE_ELECTRON_USER_DATA) app.setPath('userData', process.env.HAIYUE_ELECTRON_USER_DATA);
+const configuredUserData = process.env.HAIYUE_ELECTRON_USER_DATA?.trim();
+app.setPath('userData', configuredUserData || path.join(app.getPath('appData'), descriptor.productName));
 const root = createHarnessStudioRoot();
 const agentPreview = new AgentPreviewBroker();
 let mainWindow: BrowserWindow | null = null;
@@ -104,6 +106,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         runtime: agentRuntime,
         tools: gameTools,
         operationLog,
+        isProjectOpen: () => workspace.snapshot().document !== null,
         async openLoginHandoff(_backendId, handoff) {
           if (handoff.url) {
             const url = new URL(handoff.url);
@@ -119,6 +122,14 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         },
       });
       await conversation.initialize();
+      let conversationNotification: ReturnType<typeof setTimeout> | null = null;
+      const conversationChanges = conversation.subscribe(() => {
+        if (conversationNotification !== null) return;
+        conversationNotification = setTimeout(() => {
+          conversationNotification = null;
+          if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send(STUDIO_CONVERSATION_CHANGED_CHANNEL);
+        }, 50);
+      });
       const router = new StudioIpcRouter({
         workspace,
         scene,
@@ -170,6 +181,8 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       ipcMain.handle(STUDIO_IPC_CHANNEL, handle);
       ipcMain.on(STUDIO_IPC_CANCEL_CHANNEL, cancel);
       context.effects.own('electron-ipc.dispose', async () => {
+        conversationChanges.dispose();
+        if (conversationNotification !== null) { clearTimeout(conversationNotification); conversationNotification = null; }
         await operationLog.append({
           kind: 'app/stopping', severity: 'info', source: asStableId('studio.electron'),
           correlation: {}, payload: { activeRequests: router.activeCount },
@@ -275,11 +288,11 @@ function createWindow(): void {
     window.webContents.once('did-fail-load', (_event, code, description) => finishSmoke(1, `renderer load failed ${code}: ${description}`));
     window.webContents.on('did-finish-load', async () => {
       try {
-        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => { if (document.body.dataset.status === 'loading') return setTimeout(check, 10); const split = document.querySelector('ge-split'); const bar = split?.shadowRoot?.querySelector('[role="separator"]'); const before = Number(split?.getAttribute('ratio')); bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); const after = Number(split?.getAttribute('ratio')); const rect = (id) => { const value = document.querySelector(id)?.getBoundingClientRect(); return value && {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; }; const hierarchy = rect('#hierarchy-panel'); const viewport = rect('#viewport-panel'); const inspector = rect('#inspector-panel'); const script = rect('#script-panel'); const chat = rect('#chat-panel'); const splitGeometry = hierarchy && viewport && inspector && script && chat && hierarchy.right <= viewport.left && viewport.right <= inspector.left && viewport.bottom <= script.top && inspector.bottom <= chat.top; resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState,splitLayout:document.body.dataset.splitLayout,splitCount:document.querySelectorAll('ge-split').length,splitKeyboard:after > before,splitGeometry,rects:{hierarchy,viewport,inspector,script,chat}}); }; check(); })`);
+        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => { if (document.body.dataset.status === 'loading') return setTimeout(check, 10); const split = document.querySelector('ge-split'); const bar = split?.shadowRoot?.querySelector('[role="separator"]'); const before = Number(split?.getAttribute('ratio')); bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); const after = Number(split?.getAttribute('ratio')); const rect = (id) => { const value = document.querySelector(id)?.getBoundingClientRect(); return value && {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; }; const hierarchy = rect('#hierarchy-panel'); const viewport = rect('#viewport-panel'); const inspector = rect('#inspector-panel'); const script = rect('#script-panel'); const chat = rect('#chat-panel'); const splitGeometry = hierarchy && viewport && inspector && script && chat && hierarchy.right <= viewport.left && viewport.right <= inspector.left && viewport.bottom <= script.top && inspector.bottom <= chat.top; resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState,agentSync:document.body.dataset.agentSync,splitLayout:document.body.dataset.splitLayout,splitCount:document.querySelectorAll('ge-split').length,splitKeyboard:after > before,splitGeometry,rects:{hierarchy,viewport,inspector,script,chat}}); }; check(); })`);
         if (result.status !== 'ready' || result.node !== 'undefined' || result.api !== 'object' || result.webgpu !== 'ready'
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-play-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
-          || result.agentBackendState !== 'ready' || result.splitLayout !== 'ready' || result.splitCount !== 4
+          || result.agentBackendState !== 'ready' || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4
           || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));
         smokeLoads += 1;
         if (smokeLoads === 1) window.webContents.reload();
@@ -289,7 +302,7 @@ function createWindow(): void {
             await mkdir(path.dirname(candidate), { recursive: true });
             await writeFile(candidate, (await window.webContents.capturePage()).toPNG());
           }
-          finishSmoke(0, 'renderer-ready webgpu-script-agent-ui resizable-split-layout structured-logs pixel-candidate reload-safe secure-preload-only');
+          finishSmoke(0, 'renderer-ready webgpu-script-agent-ui agent-sync-push-single-flight resizable-split-layout structured-logs pixel-candidate reload-safe secure-preload-only');
         }
       } catch (cause) { finishSmoke(1, errorMessage(cause)); }
     });

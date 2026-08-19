@@ -19,6 +19,7 @@ export interface ConversationHostOptions {
   readonly runtime: AgentRuntimeService;
   readonly tools: GameAuthoringToolService;
   readonly operationLog: OperationLog;
+  readonly isProjectOpen?: () => boolean;
   readonly openLoginHandoff?: (backendId: StableId, handoff: AgentLoginHandoff) => Promise<void>;
 }
 
@@ -28,6 +29,7 @@ export class StudioConversationHost {
   private readonly nodes = new Map<StableId, ConversationNodeReadModel>();
   private readonly approvals = new Map<StableId, PendingApproval>();
   private readonly questions = new Map<StableId, PendingQuestion>();
+  private readonly listeners = new Set<() => void>();
   private backends: readonly ConversationBackendReadModel[] = Object.freeze([]);
   private backendId: StableId | null = null;
   private active: ActiveTurn | null = null;
@@ -39,6 +41,13 @@ export class StudioConversationHost {
   constructor(private readonly options: ConversationHostOptions) {}
 
   async initialize(): Promise<void> { await this.refreshBackends(); }
+
+  subscribe(listener: () => void): Readonly<{ dispose(): void }> {
+    this.assertActive();
+    this.listeners.add(listener);
+    let active = true;
+    return Object.freeze({ dispose: () => { if (active) { active = false; this.listeners.delete(listener); } } });
+  }
 
   replay(): ConversationReplaySnapshot {
     this.assertActive();
@@ -90,7 +99,7 @@ export class StudioConversationHost {
       case 'backend/select':
         if (this.active) throw new Error('Cannot switch backend during an active turn.');
         if (!this.backends.some((backend) => backend.id === intent.backendId)) throw new Error('Backend is unavailable in this profile.');
-        this.backendId = intent.backendId; this.stateRevision += 1; return;
+        this.backendId = intent.backendId; this.changed(); return;
       case 'backend/authenticate': {
         const backend = this.options.runtime.registry.get(intent.backendId);
         const handoff = await backend.authenticate(signal);
@@ -110,9 +119,10 @@ export class StudioConversationHost {
 
   async dispose(): Promise<void> {
     if (this.disposed) return;
-    this.disposed = true;
     this.cancelPending('Conversation host disposed.');
     this.questions.clear();
+    this.listeners.clear();
+    this.disposed = true;
   }
 
   cancelPending(reason = 'Renderer owner changed.'): void {
@@ -125,31 +135,32 @@ export class StudioConversationHost {
       pending.reject(new Error(reason));
     }
     this.approvals.clear();
-    this.stateRevision += 1;
+    this.changed();
   }
 
   private async start(backendId: StableId, prompt: string): Promise<void> {
     const controller = new AbortController();
     this.active = { backendId, sessionId: null, turnId: null, controller };
-    this.stateRevision += 1;
+    this.changed();
     const tools = this.options.tools.definitions().map((definition) => Object.freeze({
       id: definition.id,
-      description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`,
+      description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Call this before deciding whether a Studio project is open and before planning mutations.' : ''}`,
       inputSchema: definition.inputSchema,
     }));
+    const contextualPrompt = agentPrompt(prompt, this.options.isProjectOpen?.() === true);
     try {
-      await this.consume(backendId, this.options.runtime.turns.start(backendId, { prompt, contextArtifactIds: Object.freeze([]), tools }, controller.signal), controller.signal);
+      await this.consume(backendId, this.options.runtime.turns.start(backendId, { prompt: contextualPrompt, contextArtifactIds: Object.freeze([]), tools }, controller.signal), controller.signal);
     } catch (cause) { await this.captureFailure(backendId, cause); }
-    finally { if (this.active?.controller === controller) { this.active = null; this.stateRevision += 1; } }
+    finally { if (this.active?.controller === controller) { this.active = null; this.changed(); } }
   }
 
   private async resume(backendId: StableId, sessionId: StableId, turnId: StableId): Promise<void> {
     const controller = new AbortController();
     this.active = { backendId, sessionId, turnId, controller };
-    this.stateRevision += 1;
+    this.changed();
     try { await this.consume(backendId, this.options.runtime.turns.resume(backendId, sessionId, turnId, controller.signal), controller.signal); }
     catch (cause) { await this.captureFailure(backendId, cause, sessionId, turnId); }
-    finally { if (this.active?.controller === controller) { this.active = null; this.stateRevision += 1; } }
+    finally { if (this.active?.controller === controller) { this.active = null; this.changed(); } }
   }
 
   private async consume(backendId: StableId, stream: AsyncIterable<AgentBackendEvent>, signal: AbortSignal): Promise<void> {
@@ -255,7 +266,7 @@ export class StudioConversationHost {
     }
     this.backends = Object.freeze(values);
     if (!this.backendId || !values.some((value) => value.id === this.backendId)) this.backendId = values[0]?.id ?? null;
-    this.stateRevision += 1;
+    this.changed();
   }
 
   private async captureFailure(backendId: StableId, cause: unknown, sessionId?: StableId, turnId?: StableId): Promise<void> {
@@ -274,7 +285,15 @@ export class StudioConversationHost {
     this.eventSequence += 1;
     this.events.push(Object.freeze({ schemaVersion: 1, sequence: this.eventSequence, source: 'live', node }));
     if (this.events.length > 2_000) this.events.splice(0, this.events.length - 2_000);
+    this.changed();
+  }
+
+  private changed(): void {
     this.stateRevision += 1;
+    if (this.listeners.size === 0) return;
+    for (const listener of [...this.listeners]) {
+      try { listener(); } catch { /* Projection observers cannot break the turn owner. */ }
+    }
   }
 
   private finishNode(id: StableId, status: ConversationNodeReadModel['status']): void {
@@ -291,10 +310,11 @@ function approvalContent(preparation: GameToolPreparation, approval: GameToolApp
   return Object.freeze({
     approvalId: approval.approvalId, toolCallId: approval.toolCallId, toolId: approval.toolId, toolVersion: approval.toolVersion,
     target: approval.target, effect: approval.effect, risk: approval.risk, argumentsSummary: preparation.preview.summary,
-    previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: approval.argumentsDigest,
-    previewDigest: approval.previewDigest, expiresAt: approval.expiresAt, decision: approval.decision,
+    previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: presentationDigest(approval.argumentsDigest),
+    previewDigest: presentationDigest(approval.previewDigest), expiresAt: approval.expiresAt, decision: approval.decision,
   });
 }
+function presentationDigest(value: string): string { return value.startsWith('sha256:') ? value : `sha256:${value}`; }
 function intentLogPayload(intent: ConversationIntent): JsonObject {
   if (intent.type === 'conversation/send') return Object.freeze({ type: intent.type, backendId: intent.backendId, promptDigest: sha256(intent.prompt), promptBytes: Buffer.byteLength(intent.prompt) });
   return Object.freeze({ type: intent.type, ...('backendId' in intent ? { backendId: intent.backendId } : {}), ...('approvalId' in intent ? { approvalId: intent.approvalId, decision: intent.decision } : {}) });
@@ -307,6 +327,18 @@ function stablePayloadId(value: unknown, label: string): StableId { if (typeof v
 function terminalStatus(value: unknown): 'completed' | 'cancelled' | 'failed' | 'interrupted' { return value === 'completed' || value === 'cancelled' || value === 'failed' || value === 'interrupted' ? value : 'failed'; }
 function stringField(value: unknown, fallback: string): string { return typeof value === 'string' ? value.slice(0, 2_000) : fallback; }
 function boundedJson(value: JsonObject): string { const text = JSON.stringify(value); return text.length > 2_000 ? `${text.slice(0, 1_997)}...` : text; }
+function agentPrompt(prompt: string, projectOpen: boolean): string {
+  return [
+    'Authoritative AIStudio runtime context:',
+    JSON.stringify({ schemaVersion: 1, project: { open: projectOpen } }),
+    'Treat this project-open state as newer than assumptions from the user request. Call project.snapshot before deciding availability or using a base revision.',
+    projectOpen
+      ? 'A project is open. Do not claim that no AIStudio project is open.'
+      : 'No project is open. Ask the user to create or open one, then resend the complete request; do not tell them to reply only with "continue" because turns may be independent.',
+    'User request:',
+    prompt,
+  ].join('\n');
+}
 function errorCode(value: unknown): string { return value && typeof value === 'object' && 'code' in value ? String((value as { code: unknown }).code).slice(0, 96) : 'conversation.operation-failed'; }
 function errorMessage(value: unknown): string { return (value instanceof Error ? value.message : String(value)).slice(0, 2_000); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
