@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "generatedAt": "2026-08-19",
-  "baseCommit": "c575ccf8ab5e21015ea963723325bd3116931c23",
+  "baseCommit": "e4625bb62cfc973c60957997429876a0b455166a",
   "profiles": {
     "poc-editor-harness": { "backend": "harness-api-key", "auth": "api-key" },
     "poc-editor-codex": { "backend": "codex-app-server", "auth": "chatgpt" }

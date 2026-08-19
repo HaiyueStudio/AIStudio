@@ -1,6 +1,7 @@
 # M06 POC go/no-go
 
-结论（2026-08-19）：**技术 GO，正式 milestone 状态暂 HOLD**。
+结论（2026-08-19）：**GO，G10/M06 可正式完成**。正式复验绑定 AIStudio commit
+`e4625bb62cfc973c60957997429876a0b455166a`。
 
 POC 已证明同一插件化编辑器可以替换 Harness 与 Codex backend，而不分叉 Scene、Document/History、工具、授权、日志或 Chat UI。
 用户既能手工完成 Cube/Transform/脚本/预览，也能让真实 Agent 通过固定工具完成同一 revision-safe mutation。结构化日志对脚本故障、
@@ -10,9 +11,11 @@ stale revision、backend crash、plugin rollback、partial tail 和 restart 提�
 
 - 两个真实 backend fixture 均成功，工具结果一致；本轮未出现 retry，端到端 real-agent smoke 约 27 秒。
 - Electron profile smoke 分别约 43–57 秒，包含 WebGPU device-loss recovery、脚本 fault、两次 renderer load 与 teardown，不能视为普通启动延迟。
-- deterministic operation-log workload（隔离 runner）：append p95 `20.52 ms`、flush `1.89 ms`、query `4.46 ms`、recovery `30.37 ms`，
+- deterministic operation-log workload（提交 revision、隔离 runner）：append p95 `7.62 ms`、flush `1.65 ms`、query `1.31 ms`、recovery `17.73 ms`，
   200 retained events、journal `116470` bytes、0 retained file handles。
 - 真实集成发现并修复一项 Node-only smoke 无法发现的 Electron/Codex child 启动缺陷，说明双 profile 的 app-level 验收有实际价值。
+- 正式复验中 Codex Electron 首次 account status 曾瞬时为 `error`；独立 pinned App Server 随即为 `ready/pro`，同 revision
+  Electron 复跑通过。当前 Reconnect intent 可恢复，但 M07 应增加有限状态重试、诊断展示和启动成功率指标。
 
 ## Safety and productization gaps
 
@@ -32,8 +35,8 @@ stale revision、backend crash、plugin rollback、partial tail 和 restart 提�
 5. product-grade Play realm、capability grants、crash dump redaction、soak/latency telemetry 与 Windows packaging。
 6. upstream update bot 只生成 candidate 与 compatibility report，不自动提升 pin/baseline。
 
-## Formal completion hold
+## Formal completion
 
-当前 G10/M06 尚不应标记 `complete`：本轮实现尚未由用户提交为 clean reviewed revision，而 G10 contract 明确要求正式 evidence
-绑定同一 clean revision。提交后需在该 commit 上至少复跑 `npm run check`、`npm run g10:evidence:check`、app tests、两个真实
-backend smoke 与 `git status --short` clean 证明；全部仍绿即可把 G10 和 M06 更新为 `complete`。
+提交 revision 上的 root/evidence gates、59 项 package fault/lifecycle tests、隔离 performance workload、9 项 app tests、
+Harness/Codex 双 Electron/WebGPU smoke、双真实 backend fixture 和 0-vulnerability audit 均通过。未发现 secret/tool bypass、
+log integrity failure 或 owner residual no-go；G10 与 M06 completion gate 已关闭。

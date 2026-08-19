@@ -1,8 +1,8 @@
 # G10 POC acceptance evidence
 
-日期：2026-08-19。基础 commit：`c575ccf8ab5e21015ea963723325bd3116931c23`。本记录覆盖其上的 G05-G10
-实现工作树；正式 M06 completion 仍需用户提交后在 clean reviewed revision 复跑总门禁。证据与 smoke 均在本机临时 project/user-data
-目录生成，不提交项目、日志、截图、bug bundle 或凭据。
+日期：2026-08-19。正式 reviewed implementation commit：`e4625bb62cfc973c60957997429876a0b455166a`。该 revision
+在复验开始与全部 build/test 结束后均为 clean；本记录随后只更新 evidence binding。证据与 smoke 均在本机临时
+project/user-data 目录生成，不提交项目、日志、截图、bug bundle 或凭据。
 
 ## Frozen composition and provenance
 
@@ -60,9 +60,10 @@ Log Viewer IPC 只返回 payload digest、redaction count 与 allowlisted correl
 - `npm run g10:evidence:check`
 - package functional/fault/lifecycle：59 tests（包括 Electron Node-mode regression），0 failure；Operation Log performance
   workload 按正式隔离 runner 单独执行：1 test，0 failure。曾将全部 test files 并发时产生磁盘争用，append p95 为
-  `320.38 ms` 并正确失败；未提升 baseline，隔离复跑 p95 为 `20.52 ms`。
+  `320.38 ms` 并正确失败；未提升 baseline。正式提交 revision 的隔离复跑 p95 为 `7.62 ms`。
 - app focused tests: profile/conversation/IPC/security/bundle tests，0 failure
-- real Electron smoke：Codex profile PASS；Harness profile PASS
+- real Electron smoke：Codex profile PASS；Harness profile PASS。Codex 首次状态探测曾瞬时返回 `error`；独立 pinned
+  App Server 探针为 `ready/pro`，同 revision Electron 复跑通过。该稳定性风险保留在 go/no-go，不放宽断言。
 - real backend smoke：Harness PASS；Codex PASS
 - `npm audit --json`：132 dependencies，0 known vulnerability
 
