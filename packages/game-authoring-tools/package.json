@@ -3,5 +3,29 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.19.0" }
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "engines": { "node": ">=22.19.0" },
+  "scripts": {
+    "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log && npm run build -w @haiyue/ai-studio-script-preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log && npm run build -w @haiyue/ai-studio-script-preview",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "smoke:real-backends": "npm run build && node test/real-backends.smoke.mjs"
+  },
+  "dependencies": {
+    "@haiyue/ai-studio-agent-runtime": "0.0.0",
+    "@haiyue/ai-studio-contracts": "0.0.0",
+    "@haiyue/ai-studio-editor-plugins": "0.0.0",
+    "@haiyue/ai-studio-operation-log": "0.0.0",
+    "@haiyue/ai-studio-script-preview": "0.0.0"
+  },
+  "devDependencies": {
+    "@haiyue/ai-studio-agent-backends": "0.0.0",
+    "@haiyue/ai-studio-harness-bridge": "0.0.0",
+    "@haiyue/editor-platform": "0.1.0",
+    "@types/node": "22.19.13"
+  }
 }

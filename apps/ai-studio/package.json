@@ -4,27 +4,36 @@
   "private": true,
   "type": "module",
   "main": "dist/main.js",
-  "engines": { "node": ">=22.19.0" },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
-    "pretypecheck": "npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-shell",
+    "pretypecheck": "npm run build -w @haiyue/ai-studio-agent-backends && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio-shell && npm run build -w @haiyue/ai-studio-script-preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prebuild": "npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-shell",
-    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "prebuild": "npm run build -w @haiyue/ai-studio-agent-backends && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio-shell && npm run build -w @haiyue/ai-studio-script-preview",
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs && node scripts/build-renderer.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "test:electron": "npm run build && electron dist/main.js"
   },
   "dependencies": {
+    "@haiyue/ai-studio-agent-backends": "0.0.0",
+    "@haiyue/ai-studio-agent-runtime": "0.0.0",
     "@haiyue/ai-studio-contracts": "0.0.0",
     "@haiyue/ai-studio-editor-plugins": "0.0.0",
+    "@haiyue/ai-studio-game-authoring-tools": "0.0.0",
     "@haiyue/ai-studio-harness-bridge": "0.0.0",
     "@haiyue/ai-studio-kernel": "0.0.0",
     "@haiyue/ai-studio-operation-log": "0.0.0",
+    "@haiyue/ai-studio-script-preview": "0.0.0",
     "@haiyue/ai-studio-shell": "0.0.0",
     "@haiyue/editor-app-kit": "0.1.0",
-    "@haiyue/editor-platform": "0.1.0"
+    "@haiyue/editor-platform": "0.1.0",
+    "@haiyue/engine": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "22.19.13",
-    "electron": "43.2.0"
+    "@webgpu/types": "0.1.72",
+    "electron": "43.2.0",
+    "esbuild": "0.28.2"
   }
 }

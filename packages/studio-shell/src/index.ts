@@ -50,9 +50,13 @@ export const DEFAULT_STUDIO_PANELS: readonly StudioPanelDescriptor[] = Object.fr
   panel(STUDIO_PANEL_IDS.viewport, 'Viewport', 'center', 10),
   panel(STUDIO_PANEL_IDS.inspector, 'Inspector', 'right', 10),
   panel(STUDIO_PANEL_IDS.script, 'Script', 'bottom', 10),
-  panel(STUDIO_PANEL_IDS.chat, 'Chat', 'right', 20),
-  panel(STUDIO_PANEL_IDS.logs, 'Logs', 'bottom', 20),
+  panel(STUDIO_PANEL_IDS.chat, 'Chat', 'right', 20, false),
+  panel(STUDIO_PANEL_IDS.logs, 'Logs', 'bottom', 20, false),
 ]);
+
+export * from './conversation/index.js';
+export * from './panels/chat/index.js';
+export * from './panels/logs/index.js';
 
 export function createStudioWorkspaceLayoutPlugin(): StudioPluginDefinition<JsonObject> {
   return defineStudioPlugin({
@@ -135,6 +139,6 @@ class WorkspaceLayoutService implements StudioWorkspaceLayoutService {
   private assertActive(): void { if (this.disposed) throw new Error('Workspace layout is disposed.'); }
 }
 
-function panel(id: StableId, title: string, region: StudioPanelDescriptor['region'], order: number): StudioPanelDescriptor {
-  return Object.freeze({ id: id as StudioPanelId, editorKind: 'panel', title, region, order, placeholder: true });
+function panel(id: StableId, title: string, region: StudioPanelDescriptor['region'], order: number, placeholder = true): StudioPanelDescriptor {
+  return Object.freeze({ id: id as StudioPanelId, editorKind: 'panel', title, region, order, placeholder });
 }

@@ -1,6 +1,17 @@
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import type { OperationLog } from '@haiyue/ai-studio-operation-log';
-import type { ProjectWorkspace } from '@haiyue/ai-studio-editor-plugins';
+import { validateConversationIntent, type LogQueryIntent } from '@haiyue/ai-studio-shell';
+import type { ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
+import type {
+  ProjectWorkspace,
+  SceneAuthoringService,
+  SceneSelectionService,
+  SceneEntityKind,
+  SelectionIntentSource,
+  TransformSnapshot,
+} from '@haiyue/ai-studio-editor-plugins';
+import type { AgentPreviewBroker } from './agent-preview-broker.js';
+import type { StudioConversationHost } from './conversation-host.js';
 
 export const STUDIO_IPC_CHANNEL = 'studio:request' as const;
 export const STUDIO_IPC_CANCEL_CHANNEL = 'studio:cancel' as const;
@@ -15,7 +26,26 @@ export type StudioIpcMethod =
   | 'project/command'
   | 'history/undo'
   | 'history/redo'
-  | 'project/close';
+  | 'project/close'
+  | 'project/reopen'
+  | 'scene/snapshot'
+  | 'scene/create'
+  | 'scene/select'
+  | 'scene/transform'
+  | 'viewport/report'
+  | 'script/snapshot'
+  | 'script/propose'
+  | 'script/commit'
+  | 'preview/prepare'
+  | 'preview/authorize'
+  | 'preview/consume'
+  | 'preview/report'
+  | 'preview/agent-command'
+  | 'preview/agent-result'
+  | 'conversation/replay'
+  | 'conversation/intent'
+  | 'logs/query'
+  | 'logs/export';
 
 export interface StudioIpcRequest {
   readonly schemaVersion: 1;
@@ -35,8 +65,16 @@ export interface StudioIpcResponse {
 
 export interface StudioIpcRouterOptions {
   readonly workspace: ProjectWorkspace;
+  readonly scene: SceneAuthoringService;
+  readonly selection: SceneSelectionService;
+  readonly scripts: ScriptPreviewStudioService;
   readonly operationLog: OperationLog;
+  readonly conversation: StudioConversationHost;
+  readonly agentPreview: AgentPreviewBroker;
+  readonly bugBundleRoot: string;
+  readonly versions: Readonly<{ app: string; schema: string; upstream: Readonly<Record<string, string>> }>;
   readonly selectProjectRoot: (purpose: 'new' | 'open') => Promise<string | null>;
+  readonly smoke?: boolean;
 }
 
 export class StudioIpcRouter {
@@ -94,6 +132,8 @@ export class StudioIpcRouter {
     for (const controller of this.active.values()) controller.abort(new Error('Renderer or window owner disposed.'));
     this.active.clear();
     this.options.workspace.cancelAll();
+    this.options.conversation.cancelPending();
+    this.options.agentPreview.cancelPending();
   }
 
   get activeCount(): number { return this.active.size; }
@@ -101,6 +141,7 @@ export class StudioIpcRouter {
   private async dispatch(request: StudioIpcRequest, signal: AbortSignal): Promise<JsonObject> {
     switch (request.channel) {
       case 'app/status':
+        return toJson({ ...this.options.workspace.snapshot(), smoke: this.options.smoke === true });
       case 'project/snapshot': return toJson(this.options.workspace.snapshot());
       case 'project/new': {
         const root = await this.options.selectProjectRoot('new');
@@ -123,6 +164,84 @@ export class StudioIpcRouter {
       case 'history/undo': return toJson(await this.options.workspace.undo(request.payload.baseRevision as number));
       case 'history/redo': return toJson(await this.options.workspace.redo(request.payload.baseRevision as number));
       case 'project/close': await this.options.workspace.closeProject(); return Object.freeze({ closed: true });
+      case 'project/reopen': return toJson(await this.options.workspace.reopen());
+      case 'scene/snapshot': return toJson(this.options.scene.snapshot());
+      case 'scene/create': return toJson(await this.options.scene.createEntity({
+        commandId: request.payload.commandId as StableId,
+        baseRevision: request.payload.baseRevision as number,
+        kind: request.payload.kind as SceneEntityKind,
+        name: request.payload.name as string | undefined,
+        parentId: request.payload.parentId as StableId | null | undefined,
+      }, signal));
+      case 'scene/select': return toJson(await this.options.selection.select(
+        request.payload.entityId as StableId | null,
+        request.payload.source as SelectionIntentSource,
+        request.correlationId,
+      ));
+      case 'scene/transform': return toJson(await this.options.scene.setTransform({
+        commandId: request.payload.commandId as StableId,
+        baseRevision: request.payload.baseRevision as number,
+        entityId: request.payload.entityId as StableId,
+        transform: request.payload.transform as unknown as TransformSnapshot,
+      }, signal));
+      case 'viewport/report': {
+        const event = request.payload.event as ViewportReportEvent;
+        await this.options.operationLog.append({
+          kind: `viewport/${event}`, severity: event === 'ready' || event === 'rendered' ? 'info' : 'error',
+          source: asStableId('studio.viewport.renderer'), correlation: {
+            commandId: request.id,
+            entityId: request.payload.entityId as StableId | undefined,
+          },
+          payload: { message: request.payload.message as string, sceneRevision: request.payload.sceneRevision as number },
+        });
+        return Object.freeze({ recorded: true });
+      }
+      case 'script/snapshot': return toJson(this.options.scripts.snapshot());
+      case 'script/propose': return toJson(await this.options.scripts.proposeEdit({
+        entityId: request.payload.entityId as StableId,
+        text: request.payload.text as string,
+        baseRevision: request.payload.baseRevision as number,
+        capabilities: request.payload.capabilities as never,
+      }));
+      case 'script/commit': return toJson(await this.options.scripts.commitProposal(
+        request.payload.proposalId as StableId,
+        request.payload.commandId as StableId,
+        signal,
+      ));
+      case 'preview/prepare': {
+        const plan = await this.options.scripts.prepare(request.payload.scriptId as StableId, request.payload.capabilities as never);
+        const { emittedText: _emittedText, ...disclosure } = plan;
+        return toJson(disclosure);
+      }
+      case 'preview/authorize': {
+        const grant = await this.options.scripts.decide(request.payload.planId as StableId, request.payload.approved as boolean);
+        return grant ? toJson(grant) : Object.freeze({ denied: true });
+      }
+      case 'preview/consume': return toJson(this.options.scripts.consume(request.payload.grantId as StableId));
+      case 'preview/report': {
+        const event = request.payload.event as string;
+        await this.options.operationLog.append({
+          kind: `preview/${event}`, severity: event === 'runtime-error' ? 'error' : 'info', source: asStableId('studio.preview.renderer'),
+          correlation: { previewId: request.payload.previewId as StableId | undefined, entityId: request.payload.entityId as StableId | undefined },
+          payload: { message: request.payload.message as string, disposableCount: request.payload.disposableCount as number },
+        });
+        return Object.freeze({ recorded: true });
+      }
+      case 'preview/agent-command': return this.options.agentPreview.command();
+      case 'preview/agent-result': {
+        const commandId = request.payload.commandId as StableId;
+        if (request.payload.ok === true) this.options.agentPreview.resolve(commandId, request.payload.snapshot);
+        else this.options.agentPreview.reject(commandId, request.payload.message as string);
+        return Object.freeze({ recorded: true });
+      }
+      case 'conversation/replay': return toJson(this.options.conversation.replay());
+      case 'conversation/intent': await this.options.conversation.dispatch(request.payload.intent, signal); return Object.freeze({ accepted: true });
+      case 'logs/query': return toJson(await this.options.operationLog.logViewer(logQuery(request.payload.query)));
+      case 'logs/export': return toJson(await this.options.operationLog.exportBugBundle({
+        destinationRoot: this.options.bugBundleRoot,
+        query: logQuery(request.payload.query),
+        versions: this.options.versions,
+      }));
     }
   }
 }
@@ -141,6 +260,74 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     commandId: 'string', label: 'string', baseRevision: 'number', key: 'string', value: 'json',
   });
   else if (channel === 'history/undo' || channel === 'history/redo') requireShape(payload, keys, ['baseRevision'], { baseRevision: 'number' });
+  else if (channel === 'scene/create') {
+    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId']);
+    if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || (payload.kind !== 'empty' && payload.kind !== 'cube')
+      || (payload.name !== undefined && typeof payload.name !== 'string')
+      || (payload.parentId !== undefined && payload.parentId !== null && typeof payload.parentId !== 'string')) {
+      throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/create payload is invalid.');
+    }
+  }
+  else if (channel === 'scene/select') {
+    requireShape(payload, keys, ['entityId', 'source'], { entityId: 'json', source: 'string' });
+    if ((payload.entityId !== null && typeof payload.entityId !== 'string') || !selectionSources.has(payload.source as SelectionIntentSource)) {
+      throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/select payload is invalid.');
+    }
+  }
+  else if (channel === 'scene/transform') {
+    requireShape(payload, keys, ['commandId', 'baseRevision', 'entityId', 'transform'], {
+      commandId: 'string', baseRevision: 'number', entityId: 'string', transform: 'json',
+    });
+  }
+  else if (channel === 'viewport/report') {
+    requireAllowedShape(payload, keys, ['event', 'message', 'sceneRevision'], ['entityId']);
+    if (typeof payload.event !== 'string' || typeof payload.message !== 'string' || typeof payload.sceneRevision !== 'number'
+      || (payload.entityId !== undefined && typeof payload.entityId !== 'string')
+      || !viewportReportEvents.has(payload.event as ViewportReportEvent)) {
+      throw new IpcDiagnosticError('ipc-payload-rejected', 'viewport/report event is invalid.');
+    }
+  }
+  else if (channel === 'script/propose') {
+    requireAllowedShape(payload, keys, ['entityId', 'text', 'baseRevision'], ['capabilities']);
+    if (typeof payload.entityId !== 'string' || typeof payload.text !== 'string' || payload.text.length > 100_000
+      || typeof payload.baseRevision !== 'number' || !validCapabilities(payload.capabilities)) {
+      throw new IpcDiagnosticError('ipc-payload-rejected', 'script/propose payload is invalid.');
+    }
+  }
+  else if (channel === 'script/commit') requireShape(payload, keys, ['proposalId', 'commandId'], { proposalId: 'string', commandId: 'string' });
+  else if (channel === 'preview/prepare') {
+    requireAllowedShape(payload, keys, ['scriptId'], ['capabilities']);
+    if (typeof payload.scriptId !== 'string' || !validCapabilities(payload.capabilities)) throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/prepare payload is invalid.');
+  }
+  else if (channel === 'preview/authorize') {
+    requireShape(payload, keys, ['planId', 'approved'], { planId: 'string', approved: 'json' });
+    if (typeof payload.approved !== 'boolean') throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/authorize decision is invalid.');
+  }
+  else if (channel === 'preview/consume') requireShape(payload, keys, ['grantId'], { grantId: 'string' });
+  else if (channel === 'preview/report') {
+    requireAllowedShape(payload, keys, ['event', 'message', 'disposableCount'], ['previewId', 'entityId']);
+    if (!previewReportEvents.has(payload.event as string) || typeof payload.message !== 'string' || payload.message.length > 2_000
+      || typeof payload.disposableCount !== 'number' || !Number.isSafeInteger(payload.disposableCount) || payload.disposableCount < 0
+      || (payload.previewId !== undefined && typeof payload.previewId !== 'string') || (payload.entityId !== undefined && typeof payload.entityId !== 'string')) {
+      throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/report payload is invalid.');
+    }
+  }
+  else if (channel === 'preview/agent-result') {
+    requireAllowedShape(payload, keys, ['commandId', 'ok'], ['snapshot', 'message']);
+    if (typeof payload.commandId !== 'string' || typeof payload.ok !== 'boolean'
+      || (payload.ok === true && !isRecord(payload.snapshot))
+      || (payload.ok === false && (typeof payload.message !== 'string' || payload.message.length > 2_000))) {
+      throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/agent-result payload is invalid.');
+    }
+  }
+  else if (channel === 'conversation/intent') {
+    requireShape(payload, keys, ['intent'], { intent: 'json' });
+    validateConversationIntent(payload.intent);
+  }
+  else if (channel === 'logs/query' || channel === 'logs/export') {
+    requireShape(payload, keys, ['query'], { query: 'json' });
+    logQuery(payload.query);
+  }
   else if (keys.length > 0) throw new IpcDiagnosticError('ipc-payload-rejected', `${channel} does not accept payload fields.`);
   return Object.freeze({
     schemaVersion: 1,
@@ -157,8 +344,17 @@ export class IpcDiagnosticError extends Error {
 
 const allowedChannels = new Set<StudioIpcMethod>([
   'app/status', 'project/new', 'project/open', 'project/save', 'project/snapshot',
-  'project/command', 'history/undo', 'history/redo', 'project/close',
+  'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',
+  'scene/snapshot', 'scene/create', 'scene/select', 'scene/transform', 'viewport/report',
+  'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
+  'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'logs/query', 'logs/export',
 ]);
+
+type ViewportReportEvent = 'ready' | 'rendered' | 'device-lost' | 'failed' | 'picking-failed';
+const viewportReportEvents = new Set<ViewportReportEvent>(['ready', 'rendered', 'device-lost', 'failed', 'picking-failed']);
+const selectionSources = new Set<SelectionIntentSource>(['hierarchy', 'viewport', 'inspector', 'system']);
+const previewReportEvents = new Set(['started', 'stopped', 'hot-reloaded', 'runtime-error', 'cleanup-complete']);
+const scriptCapabilities = new Set(['read', 'scene', 'asset', 'input', 'physics', 'debug']);
 
 function requireShape(payload: Record<string, unknown>, keys: readonly string[], required: readonly string[], types: Readonly<Record<string, 'string' | 'number' | 'json'>>): void {
   if (keys.length !== required.length || required.some((key) => !Object.hasOwn(payload, key))) throw new IpcDiagnosticError('ipc-payload-rejected', 'IPC payload fields are invalid.');
@@ -168,12 +364,26 @@ function requireShape(payload: Record<string, unknown>, keys: readonly string[],
   }
 }
 
+function requireAllowedShape(payload: Record<string, unknown>, keys: readonly string[], required: readonly string[], optional: readonly string[]): void {
+  if (required.some((key) => !Object.hasOwn(payload, key)) || keys.some((key) => !required.includes(key) && !optional.includes(key))) {
+    throw new IpcDiagnosticError('ipc-payload-rejected', 'IPC payload fields are invalid.');
+  }
+}
+
+function validCapabilities(value: unknown): boolean {
+  return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === 'string' && scriptCapabilities.has(item)));
+}
+
 function assertJson(value: unknown): asserts value is JsonValue {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
   if (typeof value === 'number' && Number.isFinite(value)) return;
   if (Array.isArray(value)) { value.forEach(assertJson); return; }
   if (isRecord(value) && Object.values(value).every((member) => { try { assertJson(member); return true; } catch { return false; } })) return;
   throw new IpcDiagnosticError('ipc-payload-rejected', 'IPC value must be bounded JSON data.');
+}
+
+function logQuery(value: unknown): LogQueryIntent {
+  return (validateConversationIntent(Object.freeze({ type: 'logs/export-bug-bundle', query: value })) as Extract<ReturnType<typeof validateConversationIntent>, { type: 'logs/export-bug-bundle' }>).query;
 }
 
 function failure(id: string, correlationId: string, code: string, message: string): StudioIpcResponse {

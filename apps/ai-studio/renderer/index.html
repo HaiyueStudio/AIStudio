@@ -2,10 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src haiyue-preview:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HaiYue AIStudio</title>
-    <style>body{margin:0;background:#10151d;color:#e5edf5;font:14px system-ui}main{display:grid;place-items:center;min-height:100vh}</style>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body data-status="loading"><main><p id="status">Starting AIStudio…</p></main><script type="module" src="./renderer.js"></script></body>
+  <body data-status="loading">
+    <main id="app">
+      <header>
+        <span class="brand">HaiYue AIStudio</span>
+        <button id="new-project" type="button">New</button><button id="open-project" type="button">Open</button><button id="save-project" type="button">Save</button>
+        <span class="spacer"></span><button id="undo" type="button">Undo</button><button id="redo" type="button">Redo</button><span id="project-name">No project</span>
+      </header>
+      <section id="workspace">
+        <aside id="hierarchy-panel" class="panel"><h2>Scene</h2><div class="panel-tools"><button id="create-empty" type="button">+ Empty</button><button id="create-cube" type="button">+ Cube</button></div><div id="hierarchy-items"></div></aside>
+        <section id="viewport-panel" class="panel"><canvas id="viewport" tabindex="0"></canvas><span class="viewport-badge">WebGPU · Authoring</span></section>
+        <aside id="inspector-panel" class="panel"><h2>Inspector</h2><div class="section"><div id="selection-label" class="section-title">No entity selected</div><div class="muted">Transform values are committed through History.</div></div><div class="section"><div class="vector"><span>Position</span><input id="position-x" type="number" step="0.1"><input id="position-y" type="number" step="0.1"><input id="position-z" type="number" step="0.1"></div><div class="vector"><span>Rotation</span><input id="rotation-x" type="number" step="1"><input id="rotation-y" type="number" step="1"><input id="rotation-z" type="number" step="1"></div><div class="vector"><span>Scale</span><input id="scale-x" type="number" step="0.1"><input id="scale-y" type="number" step="0.1"><input id="scale-z" type="number" step="0.1"></div><button id="apply-transform" type="button" disabled>Apply Transform</button></div></aside>
+        <section id="script-panel" class="panel"><h2>Script Editor · Trusted Project</h2><div class="script-editor"><textarea id="script-source" spellcheck="false" aria-label="Entity script source"></textarea><div class="script-actions"><button id="propose-script" type="button">1. Validate Proposal</button><button id="commit-script" type="button" disabled>2. Commit</button><button id="prepare-preview" type="button" disabled>3. Prepare Play</button><button id="approve-preview" type="button" disabled>Approve &amp; Play</button><button id="stop-preview" type="button" disabled>Stop</button></div><pre id="script-diagnostics">Select an entity to author a script.</pre><div id="preview-disclosure" class="risk">Preview requires capability disclosure and explicit approval.</div></div></section>
+        <section id="chat-panel" class="panel"><h2>AI Agent</h2><div id="chat-content" class="chat-content" aria-label="Agent conversation"></div><details id="logs-panel"><summary>Structured Logs</summary><div class="panel-tools"><button id="refresh-logs" type="button">Refresh</button><button id="export-logs" type="button">Export safe bug bundle</button><span id="log-health">Loading…</span></div><ol id="log-items" class="log-items"></ol></details></section>
+      </section>
+      <footer><span id="status">Starting AIStudio…</span><span id="revision">Document r0 · Scene r0</span></footer>
+    </main>
+    <script type="module" src="./renderer.js"></script>
+  </body>
 </html>

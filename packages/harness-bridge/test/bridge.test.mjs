@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { asStableId, createStudioServiceToken, defineStudioPlugin } from '@haiyue/ai-studio-contracts';
 import { createHarnessStudioRoot } from '../dist/index.js';
 import { runHarnessBridgeUpstreamConformance } from '../dist/conformance.js';
+import { createPinnedHarnessAgentTransport, harnessToolName } from '../dist/harness-agent.js';
 
 const valueToken = createStudioServiceToken('fixture.value');
 const capability = asStableId('fixture.capability');
@@ -166,4 +167,22 @@ test('fixed Cordis compatibility and lazy closure remain explicit', async () => 
   assert.doesNotMatch(source, /dsh-agent|dsh-llm|dsh-tools|agent-backends/);
   const declarations = await readFile(new URL('../dist/index.d.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(declarations, /@deepseek-ai\/cordis|\bContext\b|\bFiber(?:State)?\b/);
+});
+
+test('pinned Harness agent composition fails closed without a credential and disposes idempotently', async () => {
+  const transport = await createPinnedHarnessAgentTransport({ resolveApiKey: async () => null });
+  assert.equal(await transport.configured(), false);
+  const events = [];
+  for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [] })) events.push(event);
+  assert.deepEqual(events.map((event) => event.type), ['turn-start', 'turn-end']);
+  assert.equal(events.at(-1).status, 'failed');
+  assert.ok(events.at(-1).diagnostic?.code);
+  await transport.dispose();
+  await transport.dispose();
+});
+
+test('Harness maps dotted Studio tool ids to provider-safe deterministic names', () => {
+  assert.equal(harnessToolName('entity.create', 0), 'studio_0_entity_create');
+  assert.equal(harnessToolName('preview.start', 12), 'studio_12_preview_start');
+  assert.match(harnessToolName('studio.tool/unsafe value', 1), /^[a-zA-Z0-9_-]+$/);
 });

@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "check": "npm run contracts:check && npm run typecheck && npm run boundaries:check && npm run upstream:check && npm run spike:check",
     "g01:check": "npm run check && npm run editor:candidate:check",
-    "codex:schema:generate": "node scripts/generate-codex-schema.mjs"
+    "codex:schema:generate": "node scripts/generate-codex-schema.mjs",
+    "g10:evidence:check": "node scripts/verify-g10-evidence.mjs"
   },
   "devDependencies": {
     "@openai/codex": "0.148.0",

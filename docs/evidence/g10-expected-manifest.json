@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-19",
+  "baseCommit": "c575ccf8ab5e21015ea963723325bd3116931c23",
+  "profiles": {
+    "poc-editor-harness": { "backend": "harness-api-key", "auth": "api-key" },
+    "poc-editor-codex": { "backend": "codex-app-server", "auth": "chatgpt" }
+  },
+  "commonPluginIds": [
+    "studio.editor-foundations",
+    "studio.operation-log.plugin",
+    "studio.project-workspace.plugin",
+    "studio.workspace-layout.plugin",
+    "studio.scene.plugin",
+    "studio.hierarchy.plugin",
+    "studio.selection.plugin",
+    "studio.transform.plugin",
+    "studio.viewport.plugin",
+    "studio.script-preview.plugin",
+    "studio.game-authoring-tools.plugin",
+    "studio.agent-runtime.plugin",
+    "studio.electron-ipc.plugin"
+  ],
+  "versions": {
+    "nodeMinimum": "22.19.0",
+    "nodeRunner": "24.19.0",
+    "electron": "43.2.0",
+    "engineMinimumLatestCandidate": "0.1.0",
+    "uiMinimumLatestCandidate": "0.1.0",
+    "editorMinimumLatestCandidate": "0.1.0",
+    "deepseekHarnessTag": "dsh-v0.1.0-rc.7",
+    "deepseekHarnessCommit": "99f6f02fecdb7dff40c3fbc9470f5907c29f74ca",
+    "deepseekHarnessLicense": "MIT",
+    "codexCli": "0.148.0",
+    "codexSchemaSha256": "dc3613ce823c95087e660f8d12dac89856863eff653f2c8dd8f1ad0cac98ef11"
+  },
+  "editorCandidates": [
+    { "file": "haiyue-editor-app-kit-0.1.0.tgz", "sha256": "50f0e8c62aec4a67d220666bf27fde90aa3bdce00faffeb70a389e05d914d912" },
+    { "file": "haiyue-editor-platform-0.1.0.tgz", "sha256": "f49d60b5c3cc26f8a9c6a9448b72c67af894cc360c5e8011c8497d3e2ed593e7" },
+    { "file": "haiyue-editor-plugin-sdk-0.1.0.tgz", "sha256": "168f290ca44bcd579c0cdf5ef15820c90151d83d10137f20eb141d1f0c613a1b" },
+    { "file": "haiyue-editor-shell-0.1.0.tgz", "sha256": "7fb97069d33a7181986af4735dd58857ddae7a324dc583f82eea44faf66d296e" }
+  ],
+  "environment": {
+    "os": "Microsoft Windows 10 Pro 10.0.19045 build 19045",
+    "gpu": "NVIDIA GeForce GTX 1070 Ti",
+    "gpuDriver": "32.0.15.6094",
+    "renderer": "WebGPU"
+  },
+  "manualGolden": {
+    "workflow": "create-pick-transform-undo-redo-save-reopen",
+    "entity": { "kind": "cube", "name": "Smoke Cube", "position": { "x": 0.4, "y": 0.2, "z": 0 } },
+    "scriptWorkflow": "proposal-commit-approve-play-hot-reload-fault-stop-isolated",
+    "screenshot": { "format": "png", "minimumBytes": 10000, "baselinePromotion": false }
+  },
+  "realAgentGolden": {
+    "toolIds": ["entity.create", "transform.set"],
+    "entity": { "kind": "cube", "name": "Agent Smoke Cube", "position": { "x": 1, "y": 2, "z": 3 }, "rotationDegrees": { "x": 0, "y": 15, "z": 0 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    "finalDocumentRevision": 3,
+    "backends": ["harness-api-key", "codex-app-server"]
+  },
+  "approvalAudit": {
+    "trustedScriptWrite": "exact-one-shot",
+    "firstRuntimeStart": "exact-one-shot",
+    "reversibleMutation": "exact-one-shot",
+    "negativeDecisions": ["reject", "cancel", "expired", "stale", "unavailable"],
+    "negativeMutationCount": 0
+  },
+  "requiredLogGraphKinds": [
+    "app/started",
+    "profile/activation-observed",
+    "plugin/activation-observed",
+    "agent/context-prepared",
+    "agent/tool-request",
+    "tool/prepared",
+    "approval/decided",
+    "document/command-committed",
+    "preview/runtime-error",
+    "project/reopened"
+  ]
+}

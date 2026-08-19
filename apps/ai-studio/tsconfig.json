@@ -3,10 +3,12 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "noEmit": false,
     "declaration": false,
     "sourceMap": true,
-    "types": ["node"]
+    "types": ["node", "@webgpu/types"]
   },
   "include": ["src/**/*.ts"]
 }

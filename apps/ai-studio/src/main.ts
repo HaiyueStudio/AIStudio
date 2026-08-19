@@ -1,18 +1,31 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { defineEditorAppDescriptor } from '@haiyue/editor-app-kit';
 import { asStableId, defineStudioPlugin, type JsonObject, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
-import { createProjectWorkspacePlugin, projectWorkspaceServiceToken } from '@haiyue/ai-studio-editor-plugins';
+import {
+  createProjectWorkspacePlugin,
+  createSceneAuthoringPlugins,
+  projectWorkspaceServiceToken,
+  sceneAuthoringToken,
+  sceneSelectionToken,
+} from '@haiyue/ai-studio-editor-plugins';
 import { createHarnessStudioRoot } from '@haiyue/ai-studio-harness-bridge';
+import { agentRuntimeServiceToken } from '@haiyue/ai-studio-agent-runtime';
+import { gameAuthoringToolServiceToken } from '@haiyue/ai-studio-game-authoring-tools';
 import { createEditorFoundationProviderPlugin } from '@haiyue/ai-studio-kernel';
 import { createOperationLogPlugin, operationLogServiceToken } from '@haiyue/ai-studio-operation-log';
+import { createScriptPreviewPlugin, scriptPreviewServiceToken } from '@haiyue/ai-studio-script-preview';
 import { createStudioWorkspaceLayoutPlugin, studioWorkspaceLayoutToken } from '@haiyue/ai-studio-shell';
 import {
   STUDIO_IPC_CANCEL_CHANNEL,
   STUDIO_IPC_CHANNEL,
   StudioIpcRouter,
 } from './ipc.js';
+import { AgentPreviewBroker } from './agent-preview-broker.js';
+import { StudioConversationHost } from './conversation-host.js';
+import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
 
 const descriptor = defineEditorAppDescriptor({
   schemaVersion: 1,
@@ -23,8 +36,8 @@ const descriptor = defineEditorAppDescriptor({
   artifactName: 'haiyue-ai-studio',
   storageNamespace: 'haiyue-ai-studio-poc',
   supportTier: 'experimental',
-  entries: ['main.js', 'preload.cjs', 'renderer.js', 'index.html'],
-  staticFiles: ['index.html'],
+  entries: ['main.js', 'preload.cjs', 'renderer.js', 'preview-runtime.js', 'chunks/chunk.js', 'index.html', 'styles.css', 'preview.html', 'preview.css'],
+  staticFiles: ['index.html', 'styles.css', 'preview.html', 'preview.css'],
   workers: [],
   distDirectory: 'dist',
   outputDirectory: 'release',
@@ -35,18 +48,25 @@ const descriptor = defineEditorAppDescriptor({
 });
 
 const smoke = process.env.HAIYUE_ELECTRON_SMOKE === '1';
+const previewScheme = 'haiyue-preview';
+const previewAssets = new Map<string, string>([
+  ['/preview.html', 'preview.html'],
+  ['/preview.css', 'preview.css'],
+  ['/preview-runtime.js', 'preview-runtime.js'],
+]);
+protocol.registerSchemesAsPrivileged([{
+  scheme: previewScheme,
+  privileges: { standard: true, secure: true, supportFetchAPI: false, corsEnabled: true },
+}]);
 if (process.env.HAIYUE_ELECTRON_USER_DATA) app.setPath('userData', process.env.HAIYUE_ELECTRON_USER_DATA);
 const root = createHarnessStudioRoot();
+const agentPreview = new AgentPreviewBroker();
 let mainWindow: BrowserWindow | null = null;
 let activeRouter: StudioIpcRouter | null = null;
 let shuttingDown = false;
-const pocPluginIds = Object.freeze([
-  asStableId('studio.editor-foundations'),
-  asStableId('studio.operation-log.plugin'),
-  asStableId('studio.project-workspace.plugin'),
-  asStableId('studio.workspace-layout.plugin'),
-  asStableId('studio.electron-ipc.plugin'),
-]);
+let smokeDeadline: ReturnType<typeof setTimeout> | null = null;
+const agentProfile = selectPocEditorProfile(process.env.HAIYUE_AGENT_PROFILE);
+const pocPluginIds = POC_COMMON_PLUGIN_IDS;
 
 function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
   return defineStudioPlugin({
@@ -59,6 +79,11 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         { id: asStableId('studio.project-workspace'), version: '1.0.0' },
         { id: asStableId('studio.operation-log'), version: '1.0.0' },
         { id: asStableId('studio.workspace-layout'), version: '1.0.0' },
+        { id: asStableId('studio.scene-authoring'), version: '1.0.0' },
+        { id: asStableId('studio.scene-selection'), version: '1.0.0' },
+        { id: asStableId('studio.script-preview'), version: '1.0.0' },
+        { id: asStableId('studio.game-authoring-tools'), version: '1.0.0' },
+        { id: asStableId('studio.agent-runtime'), version: '1.0.0' },
       ],
       optional: [], provides: [], contributions: [], activationPolicy: 'required',
     },
@@ -70,10 +95,50 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       const workspace = context.services.get(projectWorkspaceServiceToken);
       const operationLog = context.services.get(operationLogServiceToken).log;
       const layout = context.services.get(studioWorkspaceLayoutToken);
+      const scene = context.services.get(sceneAuthoringToken);
+      const selection = context.services.get(sceneSelectionToken);
+      const scripts = context.services.get(scriptPreviewServiceToken);
+      const agentRuntime = context.services.get(agentRuntimeServiceToken);
+      const gameTools = context.services.get(gameAuthoringToolServiceToken);
+      const conversation = new StudioConversationHost({
+        runtime: agentRuntime,
+        tools: gameTools,
+        operationLog,
+        async openLoginHandoff(_backendId, handoff) {
+          if (handoff.url) {
+            const url = new URL(handoff.url);
+            if (url.protocol !== 'https:') throw new Error('Backend login handoff URL must use HTTPS.');
+            await shell.openExternal(url.href);
+          }
+          if (handoff.kind === 'device-code' && handoff.userCode) {
+            const options: Electron.MessageBoxOptions = {
+              type: 'info', title: 'Sign in to Codex', message: 'Enter this one-time code in the browser:', detail: handoff.userCode,
+            };
+            if (mainWindow) await dialog.showMessageBox(mainWindow, options); else await dialog.showMessageBox(options);
+          }
+        },
+      });
+      await conversation.initialize();
       const router = new StudioIpcRouter({
         workspace,
+        scene,
+        selection,
+        scripts,
         operationLog,
+        conversation,
+        agentPreview,
+        bugBundleRoot: path.join(app.getPath('userData'), 'bug-bundles'),
+        versions: Object.freeze({ app: descriptor.version, schema: 'm06-g10-v1', upstream: Object.freeze({
+          deepseekHarness: 'dsh-v0.1.0-rc.7@99f6f02fecdb7dff40c3fbc9470f5907c29f74ca',
+          profile: agentProfile.id,
+        }) }),
+        smoke,
         async selectProjectRoot(purpose) {
+          if (smoke) {
+            const root = path.join(app.getPath('userData'), 'smoke-project');
+            await mkdir(root, { recursive: true });
+            return root;
+          }
           const options: Electron.OpenDialogOptions = {
             title: purpose === 'new' ? 'Select folder for new HaiYue project' : 'Open HaiYue project',
             properties: ['openDirectory', 'createDirectory'],
@@ -90,12 +155,12 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       });
       await operationLog.append({
         kind: 'profile/activation-observed', severity: 'info', source: asStableId('studio.electron'),
-        correlation: {}, payload: { profileId: 'profile:ai-studio-poc', plugins: pocPluginIds },
+        correlation: {}, payload: { profileId: agentProfile.id, backend: agentProfile.backend, auth: agentProfile.auth, plugins: pocPluginIds },
       });
       for (const pluginId of pocPluginIds) {
         await operationLog.append({
           kind: 'plugin/activation-observed', severity: 'info', source: asStableId('studio.electron'),
-          correlation: { pluginId }, payload: { profileId: 'profile:ai-studio-poc' },
+          correlation: { pluginId }, payload: { profileId: agentProfile.id },
         });
       }
       activeRouter = router;
@@ -110,6 +175,8 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
           correlation: {}, payload: { activeRequests: router.activeCount },
         }).catch(() => {});
         router.dispose();
+        await conversation.dispose();
+        agentPreview.dispose();
         if (activeRouter === router) activeRouter = null;
         ipcMain.removeHandler(STUDIO_IPC_CHANNEL);
         ipcMain.removeListener(STUDIO_IPC_CANCEL_CHANNEL, cancel);
@@ -125,11 +192,19 @@ async function boot(): Promise<void> {
     createOperationLogPlugin(),
     createProjectWorkspacePlugin(),
     createStudioWorkspaceLayoutPlugin(),
+    ...createSceneAuthoringPlugins(),
+    createScriptPreviewPlugin(),
+    ...createPocAgentGameAuthoringPlugins({
+      backend: agentProfile.backend,
+      preview: agentPreview,
+      resolveDeepSeekApiKey: async () => process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET?.trim() || process.env.DEEPSEEK_API_KEY?.trim() || null,
+      clearDeepSeekApiKey: async () => { delete process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET; delete process.env.DEEPSEEK_API_KEY; },
+    }),
     createElectronIpcPlugin(),
   ];
   await root.activate({
     schemaVersion: 1,
-    id: asStableId('profile:ai-studio-poc'),
+    id: asStableId(`profile:${agentProfile.id}`),
     bundles: [{
       id: asStableId('bundle:ai-studio-core'),
       rows: plugins.map((plugin, index) => ({
@@ -163,6 +238,22 @@ function createWindow(): void {
     },
   });
   mainWindow = window;
+  window.webContents.session.protocol.handle(previewScheme, async (request) => {
+    const url = new URL(request.url);
+    const asset = url.hostname === 'app'
+      ? previewAssets.get(url.pathname) ?? (/^\/chunks\/[a-z0-9-]+\.js$/iu.test(url.pathname) ? url.pathname.slice(1) : undefined)
+      : undefined;
+    if (!asset) return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+    const bytes = await readFile(path.join(import.meta.dirname, asset));
+    const contentType = asset.endsWith('.html') ? 'text/html; charset=utf-8'
+      : asset.endsWith('.css') ? 'text/css; charset=utf-8'
+        : 'text/javascript; charset=utf-8';
+    return new Response(new Uint8Array(bytes), { status: 200, headers: {
+      'content-type': contentType,
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
+    } });
+  });
   const entry = path.join(import.meta.dirname, 'index.html');
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
@@ -171,17 +262,34 @@ function createWindow(): void {
   });
   window.webContents.on('did-start-navigation', () => activeRouter?.cancelPending());
   window.webContents.on('render-process-gone', () => activeRouter?.cancelPending());
+  if (smoke) window.webContents.on('console-message', (_event, level, message) => console.log(`[ai-studio-renderer:${level}] ${message}`));
   window.once('closed', () => { activeRouter?.cancelPending(); if (mainWindow === window) mainWindow = null; });
   if (smoke) {
+    smokeDeadline = setTimeout(async () => {
+      try {
+        const state = await window.webContents.executeJavaScript(`({status:document.body.dataset.status,stage:document.body.dataset.smokeStage,message:document.querySelector('#status')?.textContent})`);
+        finishSmoke(1, `workflow deadline exceeded: ${JSON.stringify(state)}`);
+      } catch (cause) { finishSmoke(1, `workflow deadline inspection failed: ${errorMessage(cause)}`); }
+    }, 65_000);
     let smokeLoads = 0;
     window.webContents.once('did-fail-load', (_event, code, description) => finishSmoke(1, `renderer load failed ${code}: ${description}`));
     window.webContents.on('did-finish-load', async () => {
       try {
-        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => document.body.dataset.status === 'loading' ? setTimeout(check, 10) : resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio}); check(); })`);
-        if (result.status !== 'ready' || result.node !== 'undefined' || result.api !== 'object') throw new Error(JSON.stringify(result));
+        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => document.body.dataset.status === 'loading' ? setTimeout(check, 10) : resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState}); check(); })`);
+        if (result.status !== 'ready' || result.node !== 'undefined' || result.api !== 'object' || result.webgpu !== 'ready'
+          || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
+          || result.scriptWorkflow !== 'proposal-commit-approve-play-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
+          || result.agentBackendState !== 'ready') throw new Error(JSON.stringify(result));
         smokeLoads += 1;
         if (smokeLoads === 1) window.webContents.reload();
-        else finishSmoke(0, 'renderer-ready reload-safe secure-preload-only');
+        else {
+          const candidate = process.env.HAIYUE_ELECTRON_PIXEL_CANDIDATE;
+          if (candidate) {
+            await mkdir(path.dirname(candidate), { recursive: true });
+            await writeFile(candidate, (await window.webContents.capturePage()).toPNG());
+          }
+          finishSmoke(0, 'renderer-ready webgpu-script-agent-ui structured-logs pixel-candidate reload-safe secure-preload-only');
+        }
       } catch (cause) { finishSmoke(1, errorMessage(cause)); }
     });
   }
@@ -189,6 +297,7 @@ function createWindow(): void {
 }
 
 function finishSmoke(code: number, message: string): void {
+  if (smokeDeadline) { clearTimeout(smokeDeadline); smokeDeadline = null; }
   console.log(`[ai-studio-smoke] ${message}`);
   void shutdown().finally(() => app.exit(code));
 }

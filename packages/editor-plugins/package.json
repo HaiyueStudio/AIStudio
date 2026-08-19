@@ -8,7 +8,8 @@
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./project": { "types": "./dist/project/index.d.ts", "import": "./dist/project/index.js" },
-    "./history": { "types": "./dist/history/index.d.ts", "import": "./dist/history/index.js" }
+    "./history": { "types": "./dist/history/index.d.ts", "import": "./dist/history/index.js" },
+    "./scene-authoring": { "types": "./dist/scene-authoring.d.ts", "import": "./dist/scene-authoring.js" }
   },
   "engines": { "node": ">=22.19.0" },
   "scripts": {
