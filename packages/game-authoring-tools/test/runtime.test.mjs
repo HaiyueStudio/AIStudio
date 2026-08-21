@@ -57,6 +57,29 @@ test('reversible edits require exact one-shot approval and share manual History/
   } finally { await dispose(value); }
 });
 
+test('allow always auto-approves only the same tool, version, target and project session scope', async () => {
+  const value = await fixture();
+  try {
+    const first = await value.runtime.prepare(call('call:always-first', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'First' }));
+    assert.equal(first.status, 'approval-required');
+    assert.equal((await value.runtime.decide(first.approvalId, 'allow-always')).decision, 'allow-always');
+    const created = await value.runtime.execute(first.id);
+    assert.equal(value.runtime.snapshot().activeApprovalGrants, 1);
+
+    const second = await value.runtime.prepare(call('call:always-second', 'entity.create', { baseRevision: 2, kind: 'empty', name: 'Second' }));
+    assert.equal(second.status, 'ready');
+    assert.equal(second.approvalId, undefined);
+    await value.runtime.execute(second.id);
+
+    const differentTool = await value.runtime.prepare(call('call:always-rename', 'entity.rename', { baseRevision: 3, entityId: created.value.entity.id, name: 'Renamed' }));
+    assert.equal(differentTool.status, 'approval-required');
+    const facts = await value.operationLog.query({ toolCallId: asStableId('call:always-second'), limit: 20, traverseCorrelation: false });
+    assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/') || item.kind.startsWith('approval/')).map((item) => item.kind), [
+      'tool/call-prepared', 'approval/auto-allowed', 'tool/execution-started', 'tool/execution-completed',
+    ]);
+  } finally { await dispose(value); }
+});
+
 test('script proposal, trusted apply and runtime start preserve separate approvals', async () => {
   const value = await fixture();
   try {

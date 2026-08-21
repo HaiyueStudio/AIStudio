@@ -1,10 +1,10 @@
 import { asStableId, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
 import type { AgentBackend, AgentBackendEvent } from '@haiyue/ai-studio-agent-runtime';
 import type { GameAuthoringToolRuntime } from './runtime.js';
-import type { GameToolApproval, GameToolPreparation, GameToolResult } from './types.js';
+import type { GameToolApproval, GameToolApprovalResolution, GameToolPreparation, GameToolResult } from './types.js';
 
 export interface GameToolApprovalPort {
-  request(preparation: GameToolPreparation, approval: GameToolApproval, signal?: AbortSignal): Promise<'allow-once' | 'reject' | 'cancel'>;
+  request(preparation: GameToolPreparation, approval: GameToolApproval, signal?: AbortSignal): Promise<GameToolApprovalResolution>;
 }
 
 export interface AgentGameTurnInput {

@@ -50,6 +50,8 @@ pre { margin: 0; color: #87d6a6; white-space: pre-wrap; font-size: 11px; max-hei
 .chat-backend-controls select, .chat-composer textarea { min-width: 0; border: 1px solid #34475d; background: #0b121b; border-radius: 4px; padding: 5px; }
 .chat-connection, #chat-composer-status { color: #8fa2b7; font-size: 11px; }
 .chat-feed { list-style: none; margin: 6px 0; padding: 0; max-height: 190px; overflow: auto; }
+.chat-jump-latest { display: block; margin: -2px 0 5px auto; padding: 3px 8px; border-radius: 999px; color: #9dcbf5; font-size: 10px; }
+.chat-jump-latest[hidden] { display: none; }
 .chat-card { margin: 5px 0; padding: 7px; border-left: 3px solid #4679a8; background: #0c141e; }
 .chat-card.tone-danger { border-color: #ef6b68; } .chat-card.tone-success { border-color: #5acb82; } .chat-card.tone-warning { border-color: #e5a94e; }
 .chat-card h3, .chat-card p { margin: 0 0 5px; font-size: 11px; white-space: pre-wrap; }

@@ -56,6 +56,21 @@ test('concurrent append is monotonic and restart replay equals the live projecti
   await reopened.close();
 });
 
+test('sequence windows keep large retained journals within the query scan budget', async () => {
+  const root = await tempRoot('operation-query-window');
+  const log = await OperationLog.open(options(root, { maxQueryScan: 3 }));
+  for (let index = 0; index < 6; index += 1) await log.append(event(index));
+
+  await assert.rejects(log.query(allQuery), hasCode('query-scan-budget-exceeded'));
+  const tail = await log.query({ ...allQuery, afterSequence: 2 });
+  assert.equal(tail.scanned, 3);
+  assert.deepEqual(tail.events.map((item) => item.sequence), [3, 4, 5]);
+  const middle = await log.query({ ...allQuery, afterSequence: 0, beforeSequence: 4 });
+  assert.equal(middle.scanned, 3);
+  assert.deepEqual(middle.events.map((item) => item.sequence), [1, 2, 3]);
+  await log.close();
+});
+
 test('source redaction, taint, immutable artifacts and bug bundle contain no secret canary', async () => {
   const root = await tempRoot('operation-redaction');
   const bundles = await tempRoot('operation-bundles');

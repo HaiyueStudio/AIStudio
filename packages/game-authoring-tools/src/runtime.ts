@@ -8,6 +8,7 @@ import {
   GameToolProtocolError,
   type GamePreviewControl,
   type GameToolApproval,
+  type GameToolApprovalResolution,
   type GameToolCall,
   type GameToolDefinition,
   type GameToolPreparation,
@@ -34,6 +35,7 @@ interface StoredPreparation {
   readonly preview: GameToolPreview;
   view: GameToolPreparation;
   approval?: GameToolApproval;
+  approvalScopeDigest?: string;
 }
 
 export class GameAuthoringToolRuntime {
@@ -41,6 +43,7 @@ export class GameAuthoringToolRuntime {
   private readonly proposals = new Map<StableId, ScriptEditProposal>();
   private readonly previewPlans = new Map<StableId, PreviewPlan>();
   private readonly active = new Map<StableId, AbortController>();
+  private readonly approvalGrants = new Set<string>();
   private mutationTail: Promise<void> = Promise.resolve();
   private disposed = false;
   private readonly clock: () => number;
@@ -52,7 +55,7 @@ export class GameAuthoringToolRuntime {
   }
 
   definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
-  snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: GAME_AUTHORING_TOOL_DEFINITIONS, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, disposed: this.disposed }); }
+  snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: GAME_AUTHORING_TOOL_DEFINITIONS, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, activeApprovalGrants: this.approvalGrants.size, disposed: this.disposed }); }
 
   async prepare(value: unknown, signal?: AbortSignal): Promise<GameToolPreparation> {
     this.assertActive();
@@ -68,7 +71,9 @@ export class GameAuthoringToolRuntime {
     const argumentsDigest = sha256(canonicalStringify(args));
     const previewDigest = sha256(canonicalStringify(preview as unknown as JsonObject));
     const preparationId = asStableId(`tool-preparation:${randomUUID()}`);
-    const approvalId = definition.requiresApproval ? asStableId(`approval:${randomUUID()}`) : undefined;
+    const approvalScopeDigest = definition.requiresApproval ? approvalGrantDigest(document.documentId, definition, preview.target) : undefined;
+    const autoAllowed = approvalScopeDigest !== undefined && this.approvalGrants.has(approvalScopeDigest);
+    const approvalId = definition.requiresApproval && !autoAllowed ? asStableId(`approval:${randomUUID()}`) : undefined;
     const expiresAt = approvalId ? new Date(this.clock() + this.approvalTtlMs).toISOString() : undefined;
     const status = approvalId ? 'approval-required' : 'ready';
     const view: GameToolPreparation = Object.freeze({
@@ -77,7 +82,7 @@ export class GameAuthoringToolRuntime {
       documentId: document.documentId, baseRevision: document.revision, argumentsDigest, previewDigest, preview, status,
       ...(approvalId ? { approvalId, expiresAt } : {}),
     });
-    const stored: StoredPreparation = { call, definition, arguments: args, preview, view };
+    const stored: StoredPreparation = { call, definition, arguments: args, preview, view, ...(approvalScopeDigest ? { approvalScopeDigest } : {}) };
     if (approvalId && expiresAt) stored.approval = Object.freeze({
       schemaVersion: 1, approvalId, preparationId, toolCallId: call.id, toolId: definition.id, toolVersion: definition.version,
       effect: definition.effect as Exclude<GameToolDefinition['effect'], 'observe'>,
@@ -94,22 +99,27 @@ export class GameAuthoringToolRuntime {
       kind: 'approval/requested', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(call, stored.approval.approvalId),
       payload: { preparationId, toolId: definition.id, effect: definition.effect, risk: definition.risk, target: preview.target, argumentsDigest, previewDigest, documentId: document.documentId, baseRevision: document.revision, expiresAt: stored.approval.expiresAt },
     }, { signal });
+    else if (autoAllowed && approvalScopeDigest) await this.options.operationLog.append({
+      kind: 'approval/auto-allowed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
+      payload: { preparationId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target: preview.target, documentId: document.documentId, scope: 'project-session', scopeDigest: approvalScopeDigest, argumentsDigest, previewDigest },
+    }, { signal });
     return view;
   }
 
   approval(id: StableId): GameToolApproval | undefined { this.assertActive(); return [...this.preparations.values()].find((item) => item.approval?.approvalId === id)?.approval; }
 
-  async decide(approvalId: StableId, decision: 'allow-once' | 'reject' | 'cancel'): Promise<GameToolApproval> {
+  async decide(approvalId: StableId, decision: GameToolApprovalResolution): Promise<GameToolApproval> {
     this.assertActive();
     const stored = [...this.preparations.values()].find((item) => item.approval?.approvalId === approvalId);
     if (!stored?.approval || stored.approval.decision !== 'pending') throw new GameToolProtocolError('approval.unavailable', `Approval ${approvalId} is not pending.`);
     const expired = Date.parse(stored.approval.expiresAt) <= this.clock();
     const nextDecision = expired ? 'expired' : decision;
+    if (nextDecision === 'allow-always' && stored.approvalScopeDigest) this.approvalGrants.add(stored.approvalScopeDigest);
     stored.approval = Object.freeze({ ...stored.approval, decision: nextDecision });
-    stored.view = Object.freeze({ ...stored.view, status: nextDecision === 'allow-once' ? 'ready' : nextDecision === 'expired' ? 'expired' : 'rejected' });
+    stored.view = Object.freeze({ ...stored.view, status: isAllowDecision(nextDecision) ? 'ready' : nextDecision === 'expired' ? 'expired' : 'rejected' });
     await this.options.operationLog.append({
-      kind: `approval/${nextDecision}`, severity: nextDecision === 'allow-once' ? 'info' : 'warning', source: asStableId('studio.game-tools'),
-      correlation: correlation(stored.call, approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, decision: nextDecision, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest },
+      kind: `approval/${nextDecision}`, severity: isAllowDecision(nextDecision) ? 'info' : 'warning', source: asStableId('studio.game-tools'),
+      correlation: correlation(stored.call, approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, toolVersion: stored.definition.version, decision: nextDecision, scope: nextDecision === 'allow-always' ? 'project-session' : 'operation', scopeDigest: stored.approvalScopeDigest ?? null, target: stored.preview.target, documentId: stored.view.documentId, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest },
     });
     return stored.approval;
   }
@@ -120,7 +130,7 @@ export class GameAuthoringToolRuntime {
     if (!stored) throw new GameToolProtocolError('tool.preparation-missing', `Preparation ${preparationId} is missing or consumed.`);
     if (stored.view.status === 'rejected' && !stored.approval) return this.finishWithoutExecution(stored, 'cancelled');
     if (stored.approval?.decision === 'pending') throw new GameToolProtocolError('approval.required', 'The exact tool operation still requires approval.');
-    if (stored.approval && stored.approval.decision !== 'allow-once') return this.finishWithoutExecution(stored, stored.approval.decision === 'cancel' ? 'cancelled' : 'rejected');
+    if (stored.approval && !isAllowDecision(stored.approval.decision)) return this.finishWithoutExecution(stored, stored.approval.decision === 'cancel' ? 'cancelled' : 'rejected');
     if (stored.view.expiresAt && Date.parse(stored.view.expiresAt) <= this.clock()) {
       stored.view = Object.freeze({ ...stored.view, status: 'expired' });
       if (stored.approval) stored.approval = Object.freeze({ ...stored.approval, decision: 'expired' });
@@ -146,7 +156,7 @@ export class GameAuthoringToolRuntime {
     if (this.disposed) return;
     this.disposed = true;
     for (const controller of this.active.values()) controller.abort(new GameToolProtocolError('tool.runtime-disposed', 'Game tool runtime disposed.'));
-    this.active.clear(); this.preparations.clear(); this.proposals.clear(); this.previewPlans.clear();
+    this.active.clear(); this.preparations.clear(); this.proposals.clear(); this.previewPlans.clear(); this.approvalGrants.clear();
   }
 
   private async executeStored(stored: StoredPreparation, signal?: AbortSignal): Promise<GameToolResult> {
@@ -301,6 +311,12 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
     default: return preview(GAME_AUTHORING_TOOL_BY_ID.get(toolId)?.title ?? toolId, snapshot.documentId, `Execute ${toolId}.`, 'No Document mutation in this step.');
   }
 }
+
+function approvalGrantDigest(documentId: StableId, definition: GameToolDefinition, target: string): string {
+  return sha256(canonicalStringify({ schemaVersion: 1, documentId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target }));
+}
+
+function isAllowDecision(decision: GameToolApproval['decision']): boolean { return decision === 'allow-once' || decision === 'allow-always'; }
 
 function preview(title: string, target: string, summary: string, diff: string): GameToolPreview { return Object.freeze({ title, target, summary, diff }); }
 function requireDocument(workspace: ProjectWorkspace): NonNullable<ReturnType<ProjectWorkspace['snapshot']>['document']> { const document = workspace.snapshot().document; if (!document) throw new GameToolProtocolError('tool.project-missing', 'No project is open.'); return document; }

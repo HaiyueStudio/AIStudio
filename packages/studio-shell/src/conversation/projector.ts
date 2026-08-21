@@ -144,7 +144,7 @@ export class ConversationController implements StudioDisposable {
     await this.dispatchOnce(nodeId, Object.freeze({ type: 'conversation/accept-plan', nodeId, acceptedItemIds: Object.freeze([...acceptedItemIds]), ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) }));
   }
 
-  async resolveApproval(nodeId: StableId, decision: 'allow-once' | 'reject'): Promise<void> {
+  async resolveApproval(nodeId: StableId, decision: 'allow-once' | 'allow-always' | 'reject'): Promise<void> {
     const node = this.snapshot().nodes.find((item) => item.id === nodeId);
     if (!node) throw new Error('Approval is unavailable.');
     const approval = approvalFromNode(node);

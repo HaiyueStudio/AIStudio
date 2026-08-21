@@ -146,12 +146,13 @@ class WebStudioHost {
 
   private projectSnapshot(): JsonObject {
     const project = this.project;
-    if (!project) return json({ projectId: null, document: null, history: { canUndo: false, canRedo: false }, logging: { health: 'healthy', canPersist: true } });
+    const logging = { health: 'healthy', canPersist: true, nextSequence: (this.logs.at(-1)?.sequence ?? 0) + 1, eventCount: this.logs.length };
+    if (!project) return json({ projectId: null, document: null, history: { canUndo: false, canRedo: false }, logging });
     return json({
       projectId: project.projectId,
       document: { documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.revision !== project.savedRevision, settings: {} },
       history: { canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0 },
-      logging: { health: 'healthy', canPersist: true },
+      logging,
     });
   }
 

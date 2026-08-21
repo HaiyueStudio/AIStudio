@@ -9,7 +9,7 @@ const turnId = 'turn:test-agent';
 const toolCallId = 'tool-call:test-agent';
 const approvalId = 'approval:test-agent';
 
-test('G10 conversation host runs typed tools through exact one-shot approval and replay', async () => {
+test('G10 conversation host runs typed tools through scoped approval and replay', async () => {
   let submitted;
   let startedInput;
   let openedHandoff;
@@ -58,9 +58,9 @@ test('G10 conversation host runs typed tools through exact one-shot approval and
   assert.deepEqual(openedHandoff, { id: backendId, handoff: { id: 'login:test-agent', kind: 'browser', url: 'https://example.invalid/login' } });
   await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create a Player cube' });
   await waitFor(() => nodes(host).some((node) => node.kind === 'approval' && node.status === 'pending'));
-  await host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-once' });
+  await host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-always' });
   await waitFor(() => host.replay().busy === false);
-  assert.equal(decision, 'allow-once');
+  assert.equal(decision, 'allow-always');
   assert.match(startedInput.prompt, /"open":true/);
   assert.match(startedInput.prompt, /A project is open\. Do not claim that no AIStudio project is open\./);
   assert.match(startedInput.prompt, /User request:\nCreate a Player cube$/);
@@ -75,7 +75,7 @@ test('G10 conversation host runs typed tools through exact one-shot approval and
   assert.ok(observedBusy.includes(true));
   assert.equal(observedBusy.at(-1), false);
   assert.ok(logEvents.some((item) => item.kind === 'conversation/intent' && item.payload.promptDigest && !JSON.stringify(item).includes('Create a Player cube')));
-  await assert.rejects(host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-once' }), /stale|already resolved/);
+  await assert.rejects(host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-always' }), /stale|already resolved/);
   subscription.dispose();
   await host.dispose();
   await host.dispose();

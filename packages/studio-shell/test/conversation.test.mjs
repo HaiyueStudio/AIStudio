@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ChatComposerKeyboardController,
+  chatFeedIsNearLatest,
   ConversationController,
   ConversationProjector,
   normalizeConversationNode,
@@ -95,6 +96,21 @@ test('auth handoff carries backend identity only and IME Enter never sends prema
   assert.equal(keyboard.handleKeyDown({ key: 'Enter', shiftKey: true, preventDefault() { prevented += 1; } }), 'none');
   assert.equal(prevented, 1);
   controller.dispose();
+});
+
+test('chat feed follows new content only while the reader is near the latest message', () => {
+  assert.equal(chatFeedIsNearLatest({ scrollTop: 700, clientHeight: 300, scrollHeight: 1_000 }), true);
+  assert.equal(chatFeedIsNearLatest({ scrollTop: 680, clientHeight: 300, scrollHeight: 1_000 }), true);
+  assert.equal(chatFeedIsNearLatest({ scrollTop: 500, clientHeight: 300, scrollHeight: 1_000 }), false);
+});
+
+test('approval cards expose a validated project-session Allow always action', () => {
+  const model = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending'), 'replay')])), Date.parse('2026-08-19T00:00:00.000Z'));
+  const card = model.cards[0];
+  const always = card.actions.find((action) => action.id === 'approval-allow-always');
+  assert.deepEqual(always.intent, { type: 'conversation/resolve-approval', approvalId: 'approval:fixture', decision: 'allow-always' });
+  assert.match(card.body, /current project session/);
+  assert.deepEqual(validateConversationIntent(always.intent), always.intent);
 });
 
 test('expired approvals are inert and IPC-spoofed intents fail closed', () => {

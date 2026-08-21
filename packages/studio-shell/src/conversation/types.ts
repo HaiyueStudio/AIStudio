@@ -78,7 +78,7 @@ export type ConversationIntent =
   | Readonly<{ type: 'conversation/reconnect' }>
   | Readonly<{ type: 'conversation/answer-question'; nodeId: StableId; answer: JsonObject }>
   | Readonly<{ type: 'conversation/accept-plan'; nodeId: StableId; acceptedItemIds: readonly StableId[]; note?: string }>
-  | Readonly<{ type: 'conversation/resolve-approval'; approvalId: StableId; decision: 'allow-once' | 'reject' }>
+  | Readonly<{ type: 'conversation/resolve-approval'; approvalId: StableId; decision: 'allow-once' | 'allow-always' | 'reject' }>
   | Readonly<{ type: 'backend/select'; backendId: StableId }>
   | Readonly<{ type: 'backend/authenticate'; backendId: StableId }>
   | Readonly<{ type: 'backend/logout'; backendId: StableId }>
@@ -154,7 +154,7 @@ export interface ApprovalCardReadModel {
   readonly argsDigest: string;
   readonly previewDigest: string;
   readonly expiresAt: string;
-  readonly decision: 'pending' | 'allow-once' | 'reject' | 'cancel' | 'expired' | 'stale' | 'unavailable';
+  readonly decision: 'pending' | 'allow-once' | 'allow-always' | 'reject' | 'cancel' | 'expired' | 'stale' | 'unavailable';
 }
 
 export interface QuestionCardReadModel {

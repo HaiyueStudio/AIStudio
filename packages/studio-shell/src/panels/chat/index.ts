@@ -60,8 +60,21 @@ export class ChatComposerKeyboardController {
   }
 }
 
+export interface ChatFeedScrollPosition {
+  readonly scrollTop: number;
+  readonly clientHeight: number;
+  readonly scrollHeight: number;
+}
+
+export function chatFeedIsNearLatest(position: ChatFeedScrollPosition, threshold = 24): boolean {
+  return position.scrollHeight - position.clientHeight - position.scrollTop <= threshold;
+}
+
 export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void): void {
   const document = root.ownerDocument;
+  const previousFeed = root.querySelector?.('.chat-feed') as HTMLElement | null | undefined;
+  const followLatest = !previousFeed || chatFeedIsNearLatest(previousFeed);
+  const preservedScrollTop = previousFeed?.scrollTop ?? 0;
   const fragment = document.createDocumentFragment();
   const backendControls = document.createElement('div');
   backendControls.className = 'chat-backend-controls';
@@ -106,6 +119,12 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   feed.setAttribute('aria-live', 'polite');
   for (const card of model.cards) feed.append(renderCard(document, card, dispatch));
   fragment.append(feed);
+  const jumpLatest = document.createElement('button');
+  jumpLatest.type = 'button';
+  jumpLatest.className = 'chat-jump-latest';
+  jumpLatest.textContent = '↓ Latest';
+  jumpLatest.setAttribute('aria-label', 'Jump to latest agent message');
+  fragment.append(jumpLatest);
   const live = document.createElement('span');
   live.className = 'visually-hidden';
   live.setAttribute('aria-live', 'polite');
@@ -141,6 +160,12 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const composerStatus = document.createElement('span'); composerStatus.id = 'chat-composer-status'; composerStatus.textContent = model.composer.blockedReason ?? 'Ready to send.'; composer.append(composerStatus);
   fragment.append(composer);
   root.replaceChildren(fragment);
+  const syncLatestButton = (): void => { jumpLatest.hidden = chatFeedIsNearLatest(feed); };
+  if (followLatest) feed.scrollTop = feed.scrollHeight;
+  else feed.scrollTop = Math.min(preservedScrollTop, Math.max(0, feed.scrollHeight - feed.clientHeight));
+  feed.addEventListener('scroll', syncLatestButton, { passive: true });
+  jumpLatest.addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; syncLatestButton(); });
+  syncLatestButton();
 }
 
 function renderCard(document: Document, card: ChatCardReadModel, dispatch: (intent: ConversationIntent) => void): HTMLElement {
@@ -194,9 +219,12 @@ function approvalCard(base: CardBase, node: ConversationNodeReadModel, now: numb
   const enabled = Boolean(approval && node.status === 'pending' && approval.decision === 'pending' && Date.parse(approval.expiresAt) > now);
   const actions: ChatCardAction[] = approval ? [
     Object.freeze({ id: 'approval-allow', label: 'Allow once', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-once' }) }),
+    Object.freeze({ id: 'approval-allow-always', label: 'Allow always', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-always' }) }),
     Object.freeze({ id: 'approval-reject', label: 'Reject', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'reject' }) }),
   ] : [];
-  const body = approval ? `${approval.effect} on ${approval.target}; decision: ${approval.decision}.` : 'Invalid approval payload; actions are disabled.';
+  const body = approval
+    ? `${approval.effect} on ${approval.target}; decision: ${approval.decision}. Allow always is limited to this tool/version and target for the current project session.`
+    : 'Invalid approval payload; actions are disabled.';
   return Object.freeze({ ...base, title: 'Approval required', body, tone: 'danger', actions: Object.freeze(actions), ...(approval ? { approval } : {}) });
 }
 

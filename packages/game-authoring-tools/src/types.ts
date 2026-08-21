@@ -3,6 +3,8 @@ import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-scri
 
 export type GameToolEffect = 'observe' | 'reversible-edit' | 'trusted-code' | 'runtime-start';
 export type GameToolRisk = 'low' | 'medium' | 'high';
+export type GameToolApprovalResolution = 'allow-once' | 'allow-always' | 'reject' | 'cancel';
+export type GameToolApprovalDecision = 'pending' | GameToolApprovalResolution | 'expired' | 'stale' | 'unavailable';
 
 export interface GameToolDefinition {
   readonly schemaVersion: 1;
@@ -76,7 +78,7 @@ export interface GameToolApproval {
   readonly baseRevision: number;
   readonly target: string;
   readonly expiresAt: string;
-  readonly decision: 'pending' | 'allow-once' | 'reject' | 'cancel' | 'expired' | 'stale' | 'unavailable';
+  readonly decision: GameToolApprovalDecision;
 }
 
 export interface GameToolResult {
@@ -102,6 +104,7 @@ export interface GameToolRuntimeSnapshot {
   readonly pendingPreparations: number;
   readonly pendingApprovals: number;
   readonly activeCalls: number;
+  readonly activeApprovalGrants: number;
   readonly disposed: boolean;
 }
 

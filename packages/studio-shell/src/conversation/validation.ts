@@ -131,7 +131,7 @@ export function validateConversationIntent(value: unknown): ConversationIntent {
     }
     case 'conversation/resolve-approval':
       exactKeys(value, ['type', 'approvalId', 'decision']);
-      if (value.decision !== 'allow-once' && value.decision !== 'reject') throw new ConversationReadModelError('conversation.intent-invalid', 'Approval decision is invalid.');
+      if (value.decision !== 'allow-once' && value.decision !== 'allow-always' && value.decision !== 'reject') throw new ConversationReadModelError('conversation.intent-invalid', 'Approval decision is invalid.');
       return Object.freeze({ type, approvalId: stable(value.approvalId, 'approval id'), decision: value.decision });
     case 'backend/select': case 'backend/authenticate': case 'backend/logout':
       exactKeys(value, ['type', 'backendId']); return Object.freeze({ type, backendId: stable(value.backendId, 'backend id') });
@@ -193,7 +193,7 @@ function normalizePlan(value: Record<string, unknown>): JsonObject {
 function normalizeApproval(value: Record<string, unknown>): JsonObject {
   const effect = enumValue(value.effect, ['reversible-edit', 'trusted-code', 'runtime-start']);
   const risk = enumValue(value.risk, ['medium', 'high']);
-  const decision = enumValue(value.decision, ['pending', 'allow-once', 'reject', 'cancel', 'expired', 'stale', 'unavailable']);
+  const decision = enumValue(value.decision, ['pending', 'allow-once', 'allow-always', 'reject', 'cancel', 'expired', 'stale', 'unavailable']);
   if (!effect || !risk || !decision) return Object.freeze({ summary: 'Invalid approval payload; actions are disabled.', decision: 'unavailable' });
   try {
     const argsDigest = digest(value.argsDigest);

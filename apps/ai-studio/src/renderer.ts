@@ -44,6 +44,7 @@ interface ProjectSnapshot {
   readonly smoke?: boolean;
   readonly document: Readonly<{ revision: number; name: string }> | null;
   readonly history: Readonly<{ canUndo: boolean; canRedo: boolean }>;
+  readonly logging: Readonly<{ health: string; canPersist: boolean; nextSequence: number; eventCount: number }>;
 }
 interface SelectionSnapshot { readonly activeEntityId: StableId | null; readonly source: string; }
 interface ScriptResourceSnapshot { readonly id: StableId; readonly entityId: StableId; readonly text: string; readonly textRevision: number; readonly dirty: boolean; }
@@ -54,7 +55,7 @@ interface PreviewDisclosure { readonly id: StableId; readonly scriptId: StableId
 interface PreviewGrant { readonly id: StableId; }
 interface ConsumedPreviewPlan extends PreviewDisclosure { readonly emittedText: string; }
 interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop'; plan?: ConsumedPreviewPlan }> }
-interface LogViewerResult { readonly events: readonly SafeLogSummary[]; readonly nextCursor?: string; readonly status: Readonly<{ health: string; canPersist: boolean }> }
+interface LogViewerResult { readonly events: readonly SafeLogSummary[]; readonly nextCursor?: string; readonly status: Readonly<{ health: string; canPersist: boolean; eventCount?: number }> }
 
 let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
@@ -419,12 +420,24 @@ async function dispatchConversation(intent: ConversationIntent): Promise<void> {
   finally { agentPoll?.trigger(); }
 }
 
-function defaultLogQuery(): LogQueryIntent {
-  return Object.freeze({ limit: 80, traverseCorrelation: false });
+const LOG_VIEW_LIMIT = 80;
+
+function defaultLogQuery(nextSequence: number): LogQueryIntent {
+  const afterSequence = nextSequence > LOG_VIEW_LIMIT ? nextSequence - LOG_VIEW_LIMIT - 1 : undefined;
+  return Object.freeze({
+    limit: LOG_VIEW_LIMIT,
+    traverseCorrelation: false,
+    ...(afterSequence === undefined ? {} : { afterSequence }),
+  });
+}
+
+async function currentLogQuery(): Promise<LogQueryIntent> {
+  const snapshot = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
+  return defaultLogQuery(snapshot.logging.nextSequence);
 }
 
 async function refreshLogs(): Promise<void> {
-  const result = await invoke<LogViewerResult & JsonObject>('logs/query', { query: defaultLogQuery() as unknown as JsonObject });
+  const result = await invoke<LogViewerResult & JsonObject>('logs/query', { query: await currentLogQuery() as unknown as JsonObject });
   const list = element('log-items');
   list.replaceChildren();
   for (const event of result.events) {
@@ -434,11 +447,14 @@ async function refreshLogs(): Promise<void> {
     row.title = `${event.timestamp} · ${event.payloadDigest}`;
     list.append(row);
   }
-  element('log-health').textContent = `${result.status.health} · ${result.events.length} safe summaries`;
+  const retained = result.status.eventCount;
+  element('log-health').textContent = retained !== undefined && retained > result.events.length
+    ? `${result.status.health} · newest ${result.events.length} of ${retained} safe summaries`
+    : `${result.status.health} · ${result.events.length} safe summaries`;
 }
 
 async function exportBugBundle(): Promise<void> {
-  const result = await invoke<JsonObject>('logs/export', { query: defaultLogQuery() as unknown as JsonObject });
+  const result = await invoke<JsonObject>('logs/export', { query: await currentLogQuery() as unknown as JsonObject });
   element('log-health').textContent = `Bug bundle exported · ${String(result.contentDigest ?? '')}`;
 }
 

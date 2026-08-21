@@ -34,7 +34,7 @@
     },
     {
       "schemaId": "haiyue://contracts/approval-record/v1",
-      "value": { "schemaVersion": 1, "approvalId": "approval:fixture", "toolCallId": "toolcall:fixture", "toolId": "script.apply", "toolVersion": "1.0.0", "effect": "trusted-code", "argsDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "previewDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "documentId": "document:fixture", "baseRevision": 4, "expiresAt": "2026-08-19T00:05:00.000Z", "decision": "pending" }
+      "value": { "schemaVersion": 1, "approvalId": "approval:fixture", "toolCallId": "toolcall:fixture", "toolId": "script.apply", "toolVersion": "1.0.0", "effect": "trusted-code", "argsDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "previewDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "documentId": "document:fixture", "baseRevision": 4, "expiresAt": "2026-08-19T00:05:00.000Z", "decision": "allow-always" }
     },
     {
       "schemaId": "haiyue://contracts/project-command/v1",

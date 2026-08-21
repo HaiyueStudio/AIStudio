@@ -243,7 +243,7 @@ export class StudioConversationHost {
     });
   }
 
-  private async resolveApproval(approvalId: StableId, decision: 'allow-once' | 'reject'): Promise<void> {
+  private async resolveApproval(approvalId: StableId, decision: 'allow-once' | 'allow-always' | 'reject'): Promise<void> {
     const pending = this.approvals.get(approvalId);
     if (!pending) throw new Error('Approval is stale or already resolved.');
     this.approvals.delete(approvalId);

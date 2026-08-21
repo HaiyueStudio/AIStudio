@@ -4,14 +4,14 @@ import { diagnosticsQueryServiceToken, operationLogServiceToken } from '@haiyue/
 import { scriptPreviewServiceToken } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import { GameAuthoringToolRuntime } from './runtime.js';
-import type { GamePreviewControl, GameToolApproval, GameToolCall, GameToolPreparation, GameToolResult, GameToolRuntimeSnapshot } from './types.js';
+import type { GamePreviewControl, GameToolApproval, GameToolApprovalResolution, GameToolCall, GameToolPreparation, GameToolResult, GameToolRuntimeSnapshot } from './types.js';
 
 export interface GameAuthoringToolService {
   definitions(): ReturnType<GameAuthoringToolRuntime['definitions']>;
   snapshot(): GameToolRuntimeSnapshot;
   prepare(call: GameToolCall, signal?: AbortSignal): Promise<GameToolPreparation>;
   approval(id: StableId): GameToolApproval | undefined;
-  decide(id: StableId, decision: 'allow-once' | 'reject' | 'cancel'): Promise<GameToolApproval>;
+  decide(id: StableId, decision: GameToolApprovalResolution): Promise<GameToolApproval>;
   execute(preparationId: StableId, signal?: AbortSignal): Promise<GameToolResult>;
   cancel(callId: StableId): Promise<void>;
 }

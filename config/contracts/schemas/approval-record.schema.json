@@ -13,7 +13,7 @@
     "argsDigest": { "$ref": "#/definitions/digest" }, "previewDigest": { "$ref": "#/definitions/digest" },
     "documentId": { "$ref": "#/definitions/id" }, "baseRevision": { "type": "integer", "minimum": 0 },
     "expiresAt": { "type": "string", "minLength": 20 },
-    "decision": { "enum": ["pending", "allow-once", "reject", "cancel", "expired", "stale", "unavailable"] }
+    "decision": { "enum": ["pending", "allow-once", "allow-always", "reject", "cancel", "expired", "stale", "unavailable"] }
   },
   "definitions": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },

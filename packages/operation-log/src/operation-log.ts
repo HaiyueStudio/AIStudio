@@ -230,14 +230,18 @@ export class OperationLog {
   async query(query: OperationLogQuery): Promise<OperationLogQueryPage> {
     this.assertOpen();
     validateQuery(query);
-    if (this.events.length > this.maxQueryScan) {
-      throw new OperationLogError('query-scan-budget-exceeded', `Journal contains ${this.events.length} retained events; scan budget is ${this.maxQueryScan}.`);
-    }
     const normalizedForDigest = compactRecord({ ...query, cursor: undefined });
     const queryDigest = sha256(canonicalStringify(normalizedForDigest));
     const cursor = query.cursor ? decodeCursor(query.cursor, queryDigest) : undefined;
     const after = Math.max(query.afterSequence ?? -1, cursor?.afterSequence ?? -1);
-    let candidates = this.events.map((entry) => entry.event).filter((event) => event.sequence > after);
+    const start = firstIndexAfterSequence(this.events, after);
+    const before = query.beforeSequence;
+    const end = before === undefined ? this.events.length : Math.max(start, firstIndexAtOrAfterSequence(this.events, before));
+    const scanned = end - start;
+    if (scanned > this.maxQueryScan) {
+      throw new OperationLogError('query-scan-budget-exceeded', `Query window contains ${scanned} retained events; scan budget is ${this.maxQueryScan}. Add a sequence window.`);
+    }
+    let candidates = this.events.slice(start, end).map((entry) => entry.event);
     const direct = candidates.filter((event) => matchesQuery(event, query));
     if (query.traverseCorrelation && hasCorrelationFilter(query)) {
       const related = new Set(direct);
@@ -262,7 +266,7 @@ export class OperationLog {
     const nextCursor = candidates.length > query.limit && pageEvents.length > 0
       ? encodeCursor({ version: 1, queryDigest, afterSequence: pageEvents.at(-1)!.sequence })
       : undefined;
-    return Object.freeze({ events: Object.freeze(pageEvents), nextCursor, scanned: this.events.length });
+    return Object.freeze({ events: Object.freeze(pageEvents), nextCursor, scanned });
   }
 
   async logViewer(query: OperationLogQuery): Promise<LogViewerReadModel> {
@@ -628,6 +632,24 @@ function validateQuery(query: OperationLogQuery): void {
   }
   if (query.afterTime) normalizeTimestamp(query.afterTime);
   if (query.beforeTime) normalizeTimestamp(query.beforeTime);
+}
+
+function firstIndexAfterSequence(events: readonly StoredEvent[], sequence: number): number {
+  let low = 0; let high = events.length;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (events[middle]!.event.sequence <= sequence) low = middle + 1; else high = middle;
+  }
+  return low;
+}
+
+function firstIndexAtOrAfterSequence(events: readonly StoredEvent[], sequence: number): number {
+  let low = 0; let high = events.length;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (events[middle]!.event.sequence < sequence) low = middle + 1; else high = middle;
+  }
+  return low;
 }
 
 function matchesQuery(event: DurableOperationEvent, query: OperationLogQuery): boolean {
