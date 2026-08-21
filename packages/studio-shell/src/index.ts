@@ -13,6 +13,7 @@ export const STUDIO_PANEL_IDS = Object.freeze({
   hierarchy: asStableId('studio.panel.hierarchy'),
   viewport: asStableId('studio.panel.viewport'),
   inspector: asStableId('studio.panel.inspector'),
+  assets: asStableId('studio.panel.assets'),
   script: asStableId('studio.panel.script'),
   chat: asStableId('studio.panel.chat'),
   logs: asStableId('studio.panel.logs'),
@@ -47,11 +48,12 @@ export const studioPanelContributionKind = asStableId('studio.contribution.panel
 
 export const DEFAULT_STUDIO_PANELS: readonly StudioPanelDescriptor[] = Object.freeze([
   panel(STUDIO_PANEL_IDS.hierarchy, 'Hierarchy', 'left', 10),
+  panel(STUDIO_PANEL_IDS.inspector, 'Inspector', 'left', 20),
   panel(STUDIO_PANEL_IDS.viewport, 'Viewport', 'center', 10),
-  panel(STUDIO_PANEL_IDS.inspector, 'Inspector', 'right', 10),
-  panel(STUDIO_PANEL_IDS.script, 'Script', 'bottom', 10),
-  panel(STUDIO_PANEL_IDS.chat, 'Chat', 'right', 20, false),
-  panel(STUDIO_PANEL_IDS.logs, 'Logs', 'bottom', 20, false),
+  panel(STUDIO_PANEL_IDS.assets, 'Assets', 'bottom', 10),
+  panel(STUDIO_PANEL_IDS.script, 'Script', 'bottom', 20),
+  panel(STUDIO_PANEL_IDS.chat, 'Chat', 'right', 10, false),
+  panel(STUDIO_PANEL_IDS.logs, 'Logs', 'right', 20, false),
 ]);
 
 export * from './conversation/index.js';
@@ -103,7 +105,7 @@ class WorkspaceLayoutService implements StudioWorkspaceLayoutService {
     return Object.freeze({
       revision: this.revision,
       activePanelId: this.activePanelId,
-      hiddenPanelIds: Object.freeze([]),
+      hiddenPanelIds: Object.freeze([STUDIO_PANEL_IDS.script]),
       panels: this.panels,
       loggingAvailable: this.loggingAvailable,
       diagnosticBanner: this.diagnosticBanner,

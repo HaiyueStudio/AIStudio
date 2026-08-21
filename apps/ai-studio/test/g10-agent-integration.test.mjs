@@ -63,6 +63,9 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   assert.equal(decision, 'allow-always');
   assert.match(startedInput.prompt, /"open":true/);
   assert.match(startedInput.prompt, /A project is open\. Do not claim that no AIStudio project is open\./);
+  assert.match(startedInput.prompt, /Use entity\.create for every authoring-scene object/);
+  assert.match(startedInput.prompt, /create at least one kind="cube" entity before proposing scripts/);
+  assert.match(startedInput.prompt, /Do not retry preview\.start unchanged/);
   assert.match(startedInput.prompt, /User request:\nCreate a Player cube$/);
   assert.equal(submitted.status, 'completed');
   assert.ok(nodes(host).some((node) => node.kind === 'approval' && node.status === 'completed'));
@@ -111,9 +114,11 @@ test('G10 conversation host gives project-missing turns recovery instructions th
 test('G10 renderer preview broker uses one pending command and rejects stale acknowledgements', async () => {
   const broker = new AgentPreviewBroker();
   const plan = { id: 'preview-plan:test', scriptId: 'script:test', entityId: 'entity:test', documentRevision: 1, textRevision: 1, digest: 'digest:test', capabilities: ['read'], risk: 'trusted-project', diagnostics: [], emittedText: 'return;' };
-  const started = broker.start(plan);
+  const scene = { schemaVersion: 1, revision: 1, documentId: 'document:test', entities: [{ id: 'entity:test', name: 'Player', kind: 'cube', parentId: null, order: 0, transform: { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } } }] };
+  const started = broker.start(scene, plan);
   const command = broker.command().command;
   assert.equal(command.kind, 'start');
+  assert.equal(command.scene.entities[0].kind, 'cube');
   broker.resolve(command.id, { instanceId: 'preview:test', state: 'playing', entityId: 'entity:test', position: { x: 0, y: 0, z: 0 }, disposableCount: 0, errors: [] });
   assert.equal((await started).state, 'playing');
   assert.throws(() => broker.resolve(command.id, { instanceId: null, state: 'stopped', entityId: null, position: null, disposableCount: 0, errors: [] }), /missing, stale/);

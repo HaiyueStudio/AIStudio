@@ -25,6 +25,12 @@ app.whenReady().then(async () => {
         setTimeout(() => wait(test, done), 50);
       };
       wait(() => document.body.dataset.status === 'ready', () => {
+        const defaultPreferences = document.body.dataset.language === 'zh-CN' && document.body.dataset.theme === 'ocean';
+        document.querySelector('#settings-button').click();
+        const settingsOpened = document.querySelector('#settings-dialog')?.open === true;
+        document.querySelector('#language-select').dispatchEvent(new CustomEvent('value-change', { detail: { value: 'en' } }));
+        document.querySelector('#theme-select').dispatchEvent(new CustomEvent('value-change', { detail: { value: 'violet' } }));
+        document.querySelector('#settings-done').click();
         document.querySelector('#new-project').click();
         wait(() => document.querySelector('#project-name')?.textContent === 'HaiYue Game', () => {
           document.querySelector('#create-cube').click();
@@ -51,6 +57,11 @@ app.whenReady().then(async () => {
                         preview: document.body.dataset.preview,
                         webgpu: document.body.dataset.webgpu,
                         agentState: document.body.dataset.agentBackendState,
+                        defaultPreferences,
+                        settingsOpened,
+                        language: document.body.dataset.language,
+                        theme: document.body.dataset.theme,
+                        settingsClosed: document.querySelector('#settings-dialog')?.open === false,
                       }));
                     });
                   });
@@ -63,7 +74,8 @@ app.whenReady().then(async () => {
     })`);
     if (result.status !== 'ready' || result.shell !== 'web' || result.node !== 'undefined' || result.host !== 'object'
       || result.project !== 'HaiYue Game' || result.entities !== 1 || result.selected !== 'Cube' || result.preview !== 'stopped'
-      || result.webgpu !== 'ready' || result.agentState !== 'unavailable') {
+      || result.webgpu !== 'ready' || result.agentState !== 'unavailable' || result.defaultPreferences !== true
+      || result.settingsOpened !== true || result.language !== 'en' || result.theme !== 'violet' || result.settingsClosed !== true) {
       throw new Error(JSON.stringify(result));
     }
     await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');

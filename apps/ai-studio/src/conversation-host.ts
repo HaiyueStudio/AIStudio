@@ -335,6 +335,10 @@ function agentPrompt(prompt: string, projectOpen: boolean): string {
     projectOpen
       ? 'A project is open. Do not claim that no AIStudio project is open.'
       : 'No project is open. Ask the user to create or open one, then resend the complete request; do not tell them to reply only with "continue" because turns may be independent.',
+    'Authoring workflow invariants:',
+    '- Use entity.create for every authoring-scene object. A Cube is visible/renderable; an Empty is only a non-renderable logic or grouping node.',
+    '- For a new visual game or any request that includes Play/preview, inspect scene.list-entities and create at least one kind="cube" entity before proposing scripts or calling preview.validate. Do not rely on a script to create the initial authoring scene.',
+    '- After each mutation, use the returned afterRevision as the next baseRevision. Do not retry preview.start unchanged after a no-renderables failure; create a Cube, verify the scene, validate again, then start the new plan.',
     'User request:',
     prompt,
   ].join('\n');

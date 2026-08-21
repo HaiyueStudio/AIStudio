@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('editor panels use the public HaiYue UI split component', async () => {
-  const [html, renderer, styles, manifest] = await Promise.all([
+test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme seams', async () => {
+  const [html, webHtml, renderer, styles, manifest] = await Promise.all([
     readFile(new URL('../renderer/index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../renderer/web.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/renderer.ts', import.meta.url), 'utf8'),
     readFile(new URL('../renderer/styles.css', import.meta.url), 'utf8'),
     readFile(new URL('../package.json', import.meta.url), 'utf8').then(JSON.parse),
@@ -13,15 +14,31 @@ test('editor panels use the public HaiYue UI split component', async () => {
   assert.equal((html.match(/<ge-split\b/g) ?? []).length, 4);
   assert.match(html, /id="workspace-split"[^>]+direction="horizontal"/);
   assert.match(html, /id="authoring-split"[^>]+direction="vertical"/);
-  assert.match(html, /id="sidebar-split"[^>]+direction="vertical"/);
+  assert.match(html, /id="left-sidebar-split"[^>]+direction="vertical"/);
+  assert.match(html, /id="hierarchy-panel"[\s\S]*id="inspector-panel"/);
+  assert.match(html, /id="assets-panel"[\s\S]*id="resource-tabs"/);
+  assert.match(html, /id="right-tabs"[\s\S]*slot="agent"[^>]+id="chat-panel"[\s\S]*slot="logs"[^>]+id="logs-panel"/);
+  assert.match(html, /id="script-panel" hidden aria-hidden="true"/);
+  assert.match(html, /id="settings-dialog"[\s\S]*id="language-select"[\s\S]*id="theme-select"/);
+  assert.match(html, /data-theme="ocean" data-language="zh-CN"/);
+  assert.match(webHtml, /data-shell="web" data-theme="ocean" data-language="zh-CN"/);
   assert.match(html, /min-first="\d+"[^>]+min-second="\d+"/);
   assert.match(html, /style-src 'self' 'unsafe-inline'/);
   assert.match(renderer, /from '@haiyue\/ui'/);
   assert.match(renderer, /defineSplitComponents\(\)/);
+  assert.match(renderer, /defineTabsComponents\(\)/);
+  assert.match(renderer, /defineDialogComponents\(\)/);
+  assert.match(renderer, /defineSelectComponents\(\)/);
+  assert.match(renderer, /haiyue\.ai-studio\.language\.v1/);
+  assert.match(renderer, /haiyue\.ai-studio\.theme\.v1/);
   assert.match(renderer, /addEventListener\('ratio-change'/);
   assert.match(html, /id="viewport-empty-state"/);
   assert.match(renderer, /Preview scene has no renderable entities/);
   assert.match(renderer, /async function preparePreview[\s\S]*scene\?\.entities\.some/);
+  assert.match(renderer, /const editorChanged = await refreshConversation\(false\);[\s\S]*if \(editorChanged\) await refresh\(\);/);
+  assert.match(renderer, /if \(!command\.scene\) await refresh\(\);[\s\S]*startPreview\(command\.plan, command\.scene \?\? scene\)/);
   assert.doesNotMatch(styles, /#workspace\s*\{[^}]*grid-template-columns/);
+  assert.match(styles, /--ge-accent-color:\s*var\(--studio-accent\)/);
+  assert.match(styles, /body\[data-theme="violet"\]/);
   assert.equal(manifest.dependencies['@haiyue/ui'], '0.1.0');
 });

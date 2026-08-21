@@ -1,10 +1,12 @@
 import { asStableId, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
+import type { SceneSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import type { GamePreviewControl } from '@haiyue/ai-studio-game-authoring-tools';
 import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-script-preview';
 
 export interface AgentPreviewCommand {
   readonly id: StableId;
   readonly kind: 'start' | 'stop';
+  readonly scene?: SceneSnapshot;
   readonly plan?: PreviewPlan;
 }
 
@@ -31,8 +33,8 @@ export class AgentPreviewBroker implements GamePreviewControl {
   private sequence = 0;
   private disposed = false;
 
-  start(plan: PreviewPlan, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot> {
-    return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'start', plan }), signal);
+  start(scene: SceneSnapshot, plan: PreviewPlan, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot> {
+    return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'start', scene, plan }), signal);
   }
 
   stop(signal?: AbortSignal): Promise<PreviewRuntimeSnapshot> {

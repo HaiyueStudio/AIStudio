@@ -261,7 +261,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const planId = args.planId as StableId; const plan = plans.get(planId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Validated preview plan is unavailable.');
       const grant = await options.scripts.decide(planId, true); if (!grant) throw new GameToolProtocolError('tool.preview-rejected', 'Preview authorization was rejected.');
       const consumed = options.scripts.consume(grant.id); if (consumed.digest !== plan.digest) throw new GameToolProtocolError('approval.digest-mismatch', 'Preview plan changed after approval.');
-      const runtime = await options.preview.start(consumed, signal); plans.delete(planId); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, entityId: runtime.entityId, disposableCount: runtime.disposableCount });
+      const runtime = await options.preview.start(scene, consumed, signal); plans.delete(planId); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, entityId: runtime.entityId, disposableCount: runtime.disposableCount });
     }
     case 'preview.stop': {
       const runtime = await options.preview.stop(signal); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount });

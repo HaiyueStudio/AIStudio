@@ -1,4 +1,5 @@
 import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
+import type { SceneSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-script-preview';
 
 export type GameToolEffect = 'observe' | 'reversible-edit' | 'trusted-code' | 'runtime-start';
@@ -94,7 +95,7 @@ export interface GameToolResult {
 }
 
 export interface GamePreviewControl {
-  start(plan: PreviewPlan, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot>;
+  start(scene: SceneSnapshot, plan: PreviewPlan, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot>;
   stop(signal?: AbortSignal): Promise<PreviewRuntimeSnapshot>;
   snapshot(): PreviewRuntimeSnapshot;
 }
