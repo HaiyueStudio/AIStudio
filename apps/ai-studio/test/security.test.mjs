@@ -13,6 +13,9 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(main, /nodeIntegration:\s*false/);
   assert.match(main, /sandbox:\s*true/);
   assert.match(main, /webSecurity:\s*true/);
+  assert.match(main, /devTools:\s*true/);
+  assert.match(main, /role:\s*'toggleDevTools'/);
+  assert.match(main, /HAIYUE_OPEN_DEVTOOLS/);
   assert.match(main, /setWindowOpenHandler/);
   assert.match(main, /will-navigate/);
   assert.match(main, /persist:haiyue-ai-studio/);

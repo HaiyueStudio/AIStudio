@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prebuild": "npm run build -w @haiyue/ai-studio-agent-backends && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio-shell && npm run build -w @haiyue/ai-studio-script-preview",
     "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs && node scripts/build-renderer.mjs",
+    "dev:web": "npm run build && node scripts/serve-web.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "test:electron": "npm run build && electron dist/main.js"
   },

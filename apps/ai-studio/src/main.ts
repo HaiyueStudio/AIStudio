@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -49,6 +49,7 @@ const descriptor = defineEditorAppDescriptor({
 });
 
 const smoke = process.env.HAIYUE_ELECTRON_SMOKE === '1';
+const openDevTools = process.env.HAIYUE_OPEN_DEVTOOLS === '1';
 const previewScheme = 'haiyue-preview';
 const previewAssets = new Map<string, string>([
   ['/preview.html', 'preview.html'],
@@ -247,10 +248,12 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      devTools: true,
       partition: 'persist:haiyue-ai-studio',
     },
   });
   mainWindow = window;
+  installApplicationMenu();
   window.webContents.session.protocol.handle(previewScheme, async (request) => {
     const url = new URL(request.url);
     const asset = url.hostname === 'app'
@@ -275,8 +278,9 @@ function createWindow(): void {
   });
   window.webContents.on('did-start-navigation', () => activeRouter?.cancelPending());
   window.webContents.on('render-process-gone', () => activeRouter?.cancelPending());
-  if (smoke) window.webContents.on('console-message', (_event, level, message) => console.log(`[ai-studio-renderer:${level}] ${message}`));
+  if (smoke) window.webContents.on('console-message', (details) => console.log(`[ai-studio-renderer:${details.level}] ${details.message}`));
   window.once('closed', () => { activeRouter?.cancelPending(); if (mainWindow === window) mainWindow = null; });
+  if (openDevTools && !smoke) window.webContents.once('did-finish-load', () => window.webContents.openDevTools({ mode: 'detach' }));
   if (smoke) {
     smokeDeadline = setTimeout(async () => {
       try {
@@ -292,7 +296,8 @@ function createWindow(): void {
         if (result.status !== 'ready' || result.node !== 'undefined' || result.api !== 'object' || result.webgpu !== 'ready'
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-play-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
-          || result.agentBackendState !== 'ready' || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4
+          || result.agentBackend !== 'backend:codex-app-server' || !['ready', 'auth-required', 'error'].includes(result.agentBackendState)
+          || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4
           || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));
         smokeLoads += 1;
         if (smokeLoads === 1) window.webContents.reload();
@@ -308,6 +313,20 @@ function createWindow(): void {
     });
   }
   void window.loadFile(entry);
+}
+
+function installApplicationMenu(): void {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: 'File', submenu: [{ role: 'close' }, { type: 'separator' }, { role: 'quit' }] },
+    { label: 'Edit', submenu: [
+      { role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+    ] },
+    { label: 'View', submenu: [
+      { role: 'reload' }, { role: 'forceReload' }, { type: 'separator' }, { role: 'toggleDevTools', accelerator: 'F12' },
+      { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' },
+    ] },
+    { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'close' }] },
+  ]));
 }
 
 function finishSmoke(code: number, message: string): void {

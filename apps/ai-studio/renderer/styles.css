@@ -7,6 +7,9 @@ button:hover { background: #243247; }
 button:disabled { opacity: .4; cursor: default; }
 #app { height: 100vh; display: grid; grid-template-rows: 44px 1fr 24px; }
 header { display: flex; align-items: center; gap: 7px; padding: 6px 10px; background: #121a24; border-bottom: 1px solid #263447; }
+.web-badge { padding: 3px 7px; border-radius: 999px; background: #173a2b; color: #8fe0b7; font-size: 11px; }
+#web-capability-banner { padding: 5px 10px; border-bottom: 1px solid #5c4920; background: #30260f; color: #f0d58a; font-size: 12px; }
+body[data-shell="web"] #app { grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .brand { font-weight: 700; color: #71b7ff; margin-right: 10px; }
 .spacer { flex: 1; }
 .muted { color: #8fa2b7; font-size: 12px; }

@@ -3,6 +3,7 @@ import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '..');
 await Promise.all([
   copyFile(path.join(root, 'renderer', 'index.html'), path.join(root, 'dist', 'index.html')),
+  copyFile(path.join(root, 'renderer', 'web.html'), path.join(root, 'dist', 'web.html')),
   copyFile(path.join(root, 'renderer', 'styles.css'), path.join(root, 'dist', 'styles.css')),
   copyFile(path.join(root, 'renderer', 'preview.html'), path.join(root, 'dist', 'preview.html')),
   copyFile(path.join(root, 'renderer', 'preview.css'), path.join(root, 'dist', 'preview.css')),

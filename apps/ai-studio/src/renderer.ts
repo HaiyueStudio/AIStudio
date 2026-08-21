@@ -72,7 +72,9 @@ let conversationRevision = -1;
 let agentPoll: AgentPollScheduler | null = null;
 let disposeConversationChanged: (() => void) | null = null;
 let handledPreviewCommand: StableId | null = null;
-const DEMO_SCRIPT = `const transform = entity.getComponent('CartesianTransform3D') as unknown as { setPosition(x: number, y: number, z: number): unknown } | null;\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`;
+const DEMO_SCRIPT = document.body.dataset.shell === 'web'
+  ? `const transform = entity.getComponent('CartesianTransform3D');\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`
+  : `const transform = entity.getComponent('CartesianTransform3D') as unknown as { setPosition(x: number, y: number, z: number): unknown } | null;\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`;
 const SPLIT_LAYOUT_STORAGE_PREFIX = 'haiyue.ai-studio.split.';
 
 async function invoke<T extends JsonObject>(channel: StudioIpcMethod, payload: JsonObject = {}): Promise<T> {
@@ -227,7 +229,7 @@ class SandboxedPreviewFrame {
     this.frame.id = 'preview-frame';
     this.frame.title = 'Isolated trusted-project game preview';
     this.frame.setAttribute('sandbox', 'allow-scripts');
-    this.frame.src = 'haiyue-preview://app/preview.html';
+    this.frame.src = document.body.dataset.shell === 'web' ? './preview.html' : 'haiyue-preview://app/preview.html';
     window.addEventListener('message', this.onMessage);
     element('viewport-panel').append(this.frame);
   }
@@ -314,6 +316,7 @@ async function boot(): Promise<void> {
   viewport = new WebGpuViewportRuntime(element<HTMLCanvasElement>('viewport'));
   try {
     await viewport.initialize();
+    document.body.dataset.webgpu = 'ready';
     await refresh();
     if (status.smoke) await runSmokeWorkflow();
     document.body.dataset.status = 'ready';
