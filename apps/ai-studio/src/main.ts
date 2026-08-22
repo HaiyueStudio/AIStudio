@@ -152,7 +152,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
             return root;
           }
           const options: Electron.OpenDialogOptions = {
-            title: purpose === 'new' ? 'Select folder for new HaiYue project' : 'Open HaiYue project',
+            title: purpose === 'save' ? 'Save HaiYue project to folder' : 'Open HaiYue project',
             properties: ['openDirectory', 'createDirectory'],
           };
           const result = mainWindow
@@ -276,7 +276,9 @@ function createWindow(): void {
     const allowed = pathToFileURL(entry).href;
     if (url !== allowed) event.preventDefault();
   });
-  window.webContents.on('did-start-navigation', () => activeRouter?.cancelPending());
+  window.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
+    if (isMainFrame) activeRouter?.cancelPending();
+  });
   window.webContents.on('render-process-gone', () => activeRouter?.cancelPending());
   if (smoke) window.webContents.on('console-message', (details) => console.log(`[ai-studio-renderer:${details.level}] ${details.message}`));
   window.once('closed', () => { activeRouter?.cancelPending(); if (mainWindow === window) mainWindow = null; });
@@ -292,13 +294,13 @@ function createWindow(): void {
     window.webContents.once('did-fail-load', (_event, code, description) => finishSmoke(1, `renderer load failed ${code}: ${description}`));
     window.webContents.on('did-finish-load', async () => {
       try {
-        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => { if (document.body.dataset.status === 'loading') return setTimeout(check, 10); const split = document.querySelector('ge-split'); const bar = split?.shadowRoot?.querySelector('[role="separator"]'); const before = Number(split?.getAttribute('ratio')); bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); const after = Number(split?.getAttribute('ratio')); const rect = (id) => { const value = document.querySelector(id)?.getBoundingClientRect(); return value && {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; }; const hierarchy = rect('#hierarchy-panel'); const inspector = rect('#inspector-panel'); const viewport = rect('#viewport-panel'); const assets = rect('#assets-panel'); const chat = rect('#chat-panel'); const splitGeometry = hierarchy && inspector && viewport && assets && chat && hierarchy.right <= viewport.left && inspector.right <= viewport.left && hierarchy.bottom <= inspector.top && viewport.bottom <= assets.top && viewport.right <= chat.left && assets.right <= chat.left; resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState,agentSync:document.body.dataset.agentSync,splitLayout:document.body.dataset.splitLayout,splitCount:document.querySelectorAll('ge-split').length,tabCount:document.querySelectorAll('ge-tabs').length,language:document.body.dataset.language,theme:document.body.dataset.theme,settings:Boolean(document.querySelector('#settings-button')),scriptHidden:document.querySelector('#script-panel')?.hidden,splitKeyboard:after > before,splitGeometry,rects:{hierarchy,inspector,viewport,assets,chat}}); }; check(); })`);
+        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => { if (document.body.dataset.status === 'loading') return setTimeout(check, 10); const split = document.querySelector('hy-split'); const bar = split?.shadowRoot?.querySelector('[role="separator"]'); const before = Number(split?.getAttribute('ratio')); bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); const after = Number(split?.getAttribute('ratio')); const rect = (id) => { const value = document.querySelector(id)?.getBoundingClientRect(); return value && {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; }; const hierarchy = rect('#hierarchy-panel'); const inspector = rect('#inspector-panel'); const viewport = rect('#viewport-panel'); const assets = rect('#assets-panel'); const chat = rect('#chat-panel'); const splitGeometry = hierarchy && inspector && viewport && assets && chat && hierarchy.right <= viewport.left && inspector.right <= viewport.left && hierarchy.bottom <= inspector.top && viewport.bottom <= assets.top && viewport.right <= chat.left && assets.right <= chat.left; resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState,agentSync:document.body.dataset.agentSync,splitLayout:document.body.dataset.splitLayout,splitCount:document.querySelectorAll('hy-split').length,tabCount:document.querySelectorAll('hy-tabs').length,language:document.body.dataset.language,theme:document.body.dataset.theme,settings:Boolean(document.querySelector('#settings-button')),scriptHidden:document.querySelector('#script-panel')?.hidden,splitKeyboard:after > before,splitGeometry,rects:{hierarchy,inspector,viewport,assets,chat}}); }; check(); })`);
         if (result.status !== 'ready' || result.node !== 'undefined' || result.api !== 'object' || result.webgpu !== 'ready'
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-play-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
           || result.agentBackend !== 'backend:codex-app-server' || !['ready', 'auth-required', 'error'].includes(result.agentBackendState)
           || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4 || result.tabCount !== 2
-          || !['zh-CN', 'en'].includes(result.language) || !['ocean', 'violet', 'emerald', 'amber'].includes(result.theme)
+          || !['zh-CN', 'en'].includes(result.language) || !['light', 'dark'].includes(result.theme)
           || result.settings !== true || result.scriptHidden !== true
           || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));
         smokeLoads += 1;

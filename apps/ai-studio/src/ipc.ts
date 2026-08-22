@@ -33,6 +33,7 @@ export type StudioIpcMethod =
   | 'scene/create'
   | 'scene/select'
   | 'scene/transform'
+  | 'scene/material'
   | 'viewport/report'
   | 'script/snapshot'
   | 'script/propose'
@@ -74,7 +75,7 @@ export interface StudioIpcRouterOptions {
   readonly agentPreview: AgentPreviewBroker;
   readonly bugBundleRoot: string;
   readonly versions: Readonly<{ app: string; schema: string; upstream: Readonly<Record<string, string>> }>;
-  readonly selectProjectRoot: (purpose: 'new' | 'open') => Promise<string | null>;
+  readonly selectProjectRoot: (purpose: 'open' | 'save') => Promise<string | null>;
   readonly smoke?: boolean;
 }
 
@@ -145,17 +146,19 @@ export class StudioIpcRouter {
         return toJson({ ...this.options.workspace.snapshot(), smoke: this.options.smoke === true });
       case 'project/snapshot': return toJson(this.options.workspace.snapshot());
       case 'project/new': {
-        const root = await this.options.selectProjectRoot('new');
-        if (!root) throw new IpcDiagnosticError('project-selection-cancelled', 'Project creation was cancelled.');
-        await this.options.workspace.newProject(root, request.payload.name as string);
-        return toJson(await this.options.workspace.save());
+        return toJson(await this.options.workspace.newProject(null, request.payload.name as string));
       }
       case 'project/open': {
         const root = await this.options.selectProjectRoot('open');
         if (!root) throw new IpcDiagnosticError('project-selection-cancelled', 'Project open was cancelled.');
         return toJson(await this.options.workspace.openProject(root));
       }
-      case 'project/save': return toJson(await this.options.workspace.save());
+      case 'project/save': {
+        if (this.options.workspace.snapshot().projectRoot) return toJson(await this.options.workspace.save());
+        const root = await this.options.selectProjectRoot('save');
+        if (!root) throw new IpcDiagnosticError('project-selection-cancelled', 'Project save was cancelled.');
+        return toJson(await this.options.workspace.saveAs(root));
+      }
       case 'project/command': return toJson(await this.options.workspace.execute({
         id: request.payload.commandId as StableId,
         label: request.payload.label as string,
@@ -185,6 +188,12 @@ export class StudioIpcRouter {
         baseRevision: request.payload.baseRevision as number,
         entityId: request.payload.entityId as StableId,
         transform: request.payload.transform as unknown as TransformSnapshot,
+      }, signal));
+      case 'scene/material': return toJson(await this.options.scene.setMaterial({
+        commandId: request.payload.commandId as StableId,
+        baseRevision: request.payload.baseRevision as number,
+        entityId: request.payload.entityId as StableId,
+        material: request.payload.material as never,
       }, signal));
       case 'viewport/report': {
         const event = request.payload.event as ViewportReportEvent;
@@ -263,9 +272,10 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
   });
   else if (channel === 'history/undo' || channel === 'history/redo') requireShape(payload, keys, ['baseRevision'], { baseRevision: 'number' });
   else if (channel === 'scene/create') {
-    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId']);
-    if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || (payload.kind !== 'empty' && payload.kind !== 'cube')
+    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId', 'material']);
+    if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || !sceneEntityKinds.has(String(payload.kind))
       || (payload.name !== undefined && typeof payload.name !== 'string')
+      || (payload.material !== undefined && !sceneMaterialKinds.has(String(payload.material)))
       || (payload.parentId !== undefined && payload.parentId !== null && typeof payload.parentId !== 'string')) {
       throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/create payload is invalid.');
     }
@@ -280,6 +290,10 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     requireShape(payload, keys, ['commandId', 'baseRevision', 'entityId', 'transform'], {
       commandId: 'string', baseRevision: 'number', entityId: 'string', transform: 'json',
     });
+  }
+  else if (channel === 'scene/material') {
+    requireShape(payload, keys, ['commandId', 'baseRevision', 'entityId', 'material'], { commandId: 'string', baseRevision: 'number', entityId: 'string', material: 'string' });
+    if (!sceneMaterialKinds.has(String(payload.material))) throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/material payload is invalid.');
   }
   else if (channel === 'viewport/report') {
     requireAllowedShape(payload, keys, ['event', 'message', 'sceneRevision'], ['entityId']);
@@ -347,7 +361,7 @@ export class IpcDiagnosticError extends Error {
 const allowedChannels = new Set<StudioIpcMethod>([
   'app/status', 'project/new', 'project/open', 'project/save', 'project/snapshot',
   'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',
-  'scene/snapshot', 'scene/create', 'scene/select', 'scene/transform', 'viewport/report',
+  'scene/snapshot', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',
   'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
   'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'logs/query', 'logs/export',
 ]);
@@ -355,6 +369,8 @@ const allowedChannels = new Set<StudioIpcMethod>([
 type ViewportReportEvent = 'ready' | 'rendered' | 'device-lost' | 'failed' | 'picking-failed';
 const viewportReportEvents = new Set<ViewportReportEvent>(['ready', 'rendered', 'device-lost', 'failed', 'picking-failed']);
 const selectionSources = new Set<SelectionIntentSource>(['hierarchy', 'viewport', 'inspector', 'system']);
+const sceneEntityKinds = new Set(['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light']);
+const sceneMaterialKinds = new Set(['basic', 'pbr', 'blinn-phong', 'normal']);
 const previewReportEvents = new Set(['started', 'stopped', 'hot-reloaded', 'runtime-error', 'cleanup-complete']);
 const scriptCapabilities = new Set(['read', 'scene', 'asset', 'input', 'physics', 'debug']);
 

@@ -3,10 +3,15 @@ import {
   BasicMaterial,
   CartesianTransform3D,
   createBox3D,
+  createPlane3D,
+  createSphere3D,
   Entity,
   Mesh3D,
+  PbrMaterial,
   World,
 } from '@haiyue/engine';
+import { BlinnPhongMaterial, createCone3D, createCylinder3D, createIcosahedron3D, createTorus3D, NormalMaterial } from '@haiyue/engine/experimental';
+import { AmbientLight, DirectionalLight, PointLight } from '@haiyue/engine/lighting';
 import type { EditorSelectionService } from '@haiyue/editor-platform';
 import {
   asStableId,
@@ -22,7 +27,13 @@ import { operationLogServiceToken, type OperationLog } from '@haiyue/ai-studio-o
 import { projectWorkspaceServiceToken } from './project/index.js';
 import type { ProjectWorkspace, ProjectWorkspaceSnapshot } from './history/index.js';
 
-export type SceneEntityKind = 'empty' | 'cube';
+export const SCENE_GEOMETRY_KINDS = Object.freeze(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] as const);
+export const SCENE_LIGHT_KINDS = Object.freeze(['directional-light', 'point-light', 'ambient-light'] as const);
+export const SCENE_MATERIAL_KINDS = Object.freeze(['basic', 'pbr', 'blinn-phong', 'normal'] as const);
+export type SceneGeometryKind = typeof SCENE_GEOMETRY_KINDS[number];
+export type SceneLightKind = typeof SCENE_LIGHT_KINDS[number];
+export type SceneMaterialKind = typeof SCENE_MATERIAL_KINDS[number];
+export type SceneEntityKind = 'empty' | SceneGeometryKind | SceneLightKind;
 export type SelectionIntentSource = 'hierarchy' | 'viewport' | 'inspector' | 'system';
 
 export interface Vec3Snapshot { readonly x: number; readonly y: number; readonly z: number; }
@@ -38,6 +49,11 @@ export interface SceneEntitySnapshot {
   readonly parentId: StableId | null;
   readonly order: number;
   readonly transform: TransformSnapshot;
+  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
+  readonly light?: Readonly<{
+    color: readonly [number, number, number]; intensity: number; range?: number;
+    direction?: readonly [number, number, number]; castShadow?: boolean;
+  }>;
 }
 export interface SceneSnapshot {
   readonly schemaVersion: 1;
@@ -51,6 +67,8 @@ export interface CreateSceneEntityIntent {
   readonly kind: SceneEntityKind;
   readonly name?: string;
   readonly parentId?: StableId | null;
+  readonly material?: SceneMaterialKind;
+  readonly transform?: TransformSnapshot;
 }
 export interface SetEntityTransformIntent {
   readonly commandId: StableId;
@@ -64,6 +82,12 @@ export interface RenameSceneEntityIntent {
   readonly entityId: StableId;
   readonly name: string;
 }
+export interface SetEntityMaterialIntent {
+  readonly commandId: StableId;
+  readonly baseRevision: number;
+  readonly entityId: StableId;
+  readonly material: SceneMaterialKind;
+}
 
 export interface SceneAuthoringService {
   snapshot(): SceneSnapshot;
@@ -71,6 +95,7 @@ export interface SceneAuthoringService {
   createEntity(intent: CreateSceneEntityIntent, signal?: AbortSignal): Promise<SceneSnapshot>;
   renameEntity(intent: RenameSceneEntityIntent, signal?: AbortSignal): Promise<SceneSnapshot>;
   setTransform(intent: SetEntityTransformIntent, signal?: AbortSignal): Promise<SceneSnapshot>;
+  setMaterial(intent: SetEntityMaterialIntent, signal?: AbortSignal): Promise<SceneSnapshot>;
   subscribe(listener: (snapshot: SceneSnapshot) => void): Readonly<{ dispose(): void }>;
 }
 
@@ -144,7 +169,8 @@ class EngineSceneProjection {
         scale: tuple(item.transform.scale),
       });
       entity.addComponent(transform);
-      if (item.kind === 'cube') entity.addComponent(new Mesh3D(createBox3D(), new BasicMaterial({ color: [0.2, 0.65, 1, 1] })));
+      if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind), createMaterial(item.appearance!)));
+      else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!));
       nextEntities.set(item.id, entity);
     }
     for (const item of snapshot.entities) {
@@ -191,7 +217,8 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
   async createEntity(intent: CreateSceneEntityIntent, signal?: AbortSignal): Promise<SceneSnapshot> {
     this.assertActive();
     try {
-      if (intent.kind !== 'empty' && intent.kind !== 'cube') throw new TypeError(`Unsupported entity kind ${intent.kind}.`);
+      if (!isSceneEntityKind(intent.kind)) throw new TypeError(`Unsupported entity kind ${intent.kind}.`);
+      if (intent.material !== undefined && !isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
       const before = this.current;
       if (intent.parentId && !before.entities.some((item) => item.id === intent.parentId)) throw new Error(`Parent ${intent.parentId} does not exist.`);
       const siblings = before.entities.filter((item) => item.parentId === (intent.parentId ?? null));
@@ -201,12 +228,14 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
         kind: intent.kind,
         parentId: intent.parentId ?? null,
         order: siblings.length,
-        transform: defaultTransform(),
+        transform: intent.transform ? freezeTransform(intent.transform) : defaultTransform(),
+        ...(isSceneGeometryKind(intent.kind) ? { appearance: defaultAppearance(intent.material) } : {}),
+        ...(isSceneLightKind(intent.kind) ? { light: defaultLight(intent.kind) } : {}),
       });
       const next = freezeScene({ ...before, revision: before.revision + 1, entities: [...before.entities, entity] });
       await this.workspace.execute({
         id: intent.commandId,
-        label: `Create ${intent.kind === 'cube' ? 'Cube' : 'Empty'}`,
+        label: `Create ${entityKindLabel(intent.kind)}`,
         baseRevision: intent.baseRevision,
         key: SCENE_SETTING_KEY,
         value: next as unknown as JsonValue,
@@ -243,6 +272,28 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
       await this.appendCommandFact('scene/transform-edited', intent.commandId, {
         entityId: intent.entityId, sceneRevision: this.current.revision,
       });
+      return this.current;
+    } catch (cause) {
+      await this.appendRejectedFact(intent.commandId, cause);
+      throw cause;
+    }
+  }
+
+  async setMaterial(intent: SetEntityMaterialIntent, signal?: AbortSignal): Promise<SceneSnapshot> {
+    this.assertActive();
+    try {
+      if (!isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
+      let found = false;
+      const entities = this.current.entities.map((entity) => {
+        if (entity.id !== intent.entityId) return entity;
+        if (!isSceneGeometryKind(entity.kind) || !entity.appearance) throw new TypeError('Only geometry entities can use materials.');
+        found = true;
+        return freezeEntity({ ...entity, appearance: { ...entity.appearance, material: intent.material } });
+      });
+      if (!found) throw new Error(`Entity ${intent.entityId} does not exist.`);
+      const next = freezeScene({ ...this.current, revision: this.current.revision + 1, entities });
+      await this.workspace.execute({ id: intent.commandId, label: 'Set Material', baseRevision: intent.baseRevision, key: SCENE_SETTING_KEY, value: next as unknown as JsonValue }, signal);
+      await this.appendCommandFact('scene/material-edited', intent.commandId, { entityId: intent.entityId, material: intent.material, sceneRevision: this.current.revision });
       return this.current;
     } catch (cause) {
       await this.appendRejectedFact(intent.commandId, cause);
@@ -323,6 +374,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
 export class UnifiedSceneSelectionService implements SceneSelectionService {
   private source: SelectionIntentSource = 'system';
   private pickGeneration = 0;
+  private pendingFacts: Promise<void> = Promise.resolve();
   constructor(private readonly selection: EditorSelectionService, private readonly scene: SceneAuthoringService, private readonly log: OperationLog) {}
 
   snapshot(): SceneSelectionSnapshot {
@@ -338,16 +390,20 @@ export class UnifiedSceneSelectionService implements SceneSelectionService {
   async select(entityId: StableId | null, source: SelectionIntentSource, correlationId = asStableId(`selection:${randomUUID()}`)): Promise<SceneSelectionSnapshot> {
     this.pickGeneration += 1;
     if (entityId && !this.scene.snapshot().entities.some((item) => item.id === entityId)) throw new Error(`Entity ${entityId} does not exist.`);
-    await this.log.append({
+    const fact = {
       kind: entityId ? 'selection/entity-selected' : 'selection/cleared', severity: 'info', source: asStableId('studio.selection'),
       correlation: { entityId: entityId ?? undefined, commandId: correlationId }, payload: { source },
-    });
+    } as const;
     this.source = source;
     if (entityId) {
       const documentId = this.scene.snapshot().documentId;
       this.selection.set([{ kind: ENTITY_SELECTION_KIND, id: entityId, documentId }]);
     } else this.selection.clear();
-    return this.snapshot();
+    const snapshot = this.snapshot();
+    const previousFacts = this.pendingFacts;
+    this.pendingFacts = new Promise<void>((resolve) => setTimeout(resolve, 0))
+      .then(() => previousFacts).then(async () => { await this.log.append(fact); }).catch(() => {});
+    return snapshot;
   }
 
   async pick(readback: Promise<StableId | null>, source: SelectionIntentSource = 'viewport', correlationId?: StableId): Promise<SceneSelectionSnapshot> {
@@ -357,6 +413,7 @@ export class UnifiedSceneSelectionService implements SceneSelectionService {
     return this.select(result, source, correlationId);
   }
   invalidatePendingPick(): void { this.pickGeneration += 1; }
+  async whenIdle(): Promise<void> { await this.pendingFacts; }
 }
 
 export class OwnedViewportService implements ViewportService {
@@ -541,8 +598,12 @@ export function parseSceneSnapshot(value: JsonValue, documentId: StableId): Scen
 
 function freezeScene(value: SceneSnapshot): SceneSnapshot { return Object.freeze({ ...value, entities: Object.freeze(value.entities.map(freezeEntity)) }); }
 function freezeEntity(value: SceneEntitySnapshot): SceneEntitySnapshot {
-  if (value.kind !== 'empty' && value.kind !== 'cube' || !value.name.trim() || !Number.isSafeInteger(value.order) || value.order < 0) throw new TypeError('Scene entity metadata is invalid.');
-  return Object.freeze({ ...value, transform: freezeTransform(value.transform) });
+  if (!isSceneEntityKind(value.kind) || !value.name.trim() || !Number.isSafeInteger(value.order) || value.order < 0) throw new TypeError('Scene entity metadata is invalid.');
+  return Object.freeze({
+    id: value.id, name: value.name, kind: value.kind, parentId: value.parentId, order: value.order, transform: freezeTransform(value.transform),
+    ...(isSceneGeometryKind(value.kind) ? { appearance: freezeAppearance(value.appearance ?? defaultAppearance()) } : {}),
+    ...(isSceneLightKind(value.kind) ? { light: freezeLight(value.kind, value.light ?? defaultLight(value.kind)) } : {}),
+  });
 }
 function freezeTransform(value: TransformSnapshot): TransformSnapshot {
   const position = freezeVec3(value.position, 'position');
@@ -556,8 +617,56 @@ function freezeVec3(value: Vec3Snapshot, label: string): Vec3Snapshot {
   return Object.freeze({ x: value.x, y: value.y, z: value.z });
 }
 function defaultTransform(): TransformSnapshot { return freezeTransform({ position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }); }
-function normalizeEntityName(value: string | undefined, kind: SceneEntityKind): string { const name = value?.trim() || (kind === 'cube' ? 'Cube' : 'Empty'); if (name.length > 80) throw new TypeError('Entity name is too long.'); return name; }
+function normalizeEntityName(value: string | undefined, kind: SceneEntityKind): string { const name = value?.trim() || entityKindLabel(kind); if (name.length > 80) throw new TypeError('Entity name is too long.'); return name; }
 function normalizeRequiredEntityName(value: string): string { const name = value.trim(); if (!name || name.length > 80) throw new TypeError('Entity name must contain 1-80 characters.'); return name; }
 function tuple(value: Vec3Snapshot): [number, number, number] { return [value.x, value.y, value.z]; }
 function tupleDegreesToRadians(value: Vec3Snapshot): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }
+export function isSceneGeometryKind(value: unknown): value is SceneGeometryKind { return SCENE_GEOMETRY_KINDS.includes(value as SceneGeometryKind); }
+export function isSceneLightKind(value: unknown): value is SceneLightKind { return SCENE_LIGHT_KINDS.includes(value as SceneLightKind); }
+export function isSceneMaterialKind(value: unknown): value is SceneMaterialKind { return SCENE_MATERIAL_KINDS.includes(value as SceneMaterialKind); }
+export function isSceneEntityKind(value: unknown): value is SceneEntityKind { return value === 'empty' || isSceneGeometryKind(value) || isSceneLightKind(value); }
+function defaultAppearance(material: SceneMaterialKind = 'basic'): NonNullable<SceneEntitySnapshot['appearance']> { return Object.freeze({ material, color: Object.freeze([0.16, 0.58, 1, 1] as const) }); }
+function freezeAppearance(value: NonNullable<SceneEntitySnapshot['appearance']>): NonNullable<SceneEntitySnapshot['appearance']> {
+  if (!isSceneMaterialKind(value.material) || !Array.isArray(value.color) || value.color.length !== 4 || !value.color.every((item) => Number.isFinite(item) && item >= 0 && item <= 1)) throw new TypeError('Scene material appearance is invalid.');
+  return Object.freeze({ material: value.material, color: Object.freeze([...value.color] as [number, number, number, number]) });
+}
+function defaultLight(kind: SceneLightKind): NonNullable<SceneEntitySnapshot['light']> {
+  if (kind === 'directional-light') return Object.freeze({ color: Object.freeze([1, 1, 1] as const), intensity: 1, direction: Object.freeze([-0.5, -1, -0.35] as const), castShadow: true });
+  if (kind === 'point-light') return Object.freeze({ color: Object.freeze([1, 0.9, 0.75] as const), intensity: 2, range: 12 });
+  return Object.freeze({ color: Object.freeze([0.7, 0.8, 1] as const), intensity: 0.25 });
+}
+function freezeLight(kind: SceneLightKind, value: NonNullable<SceneEntitySnapshot['light']>): NonNullable<SceneEntitySnapshot['light']> {
+  if (!Array.isArray(value.color) || value.color.length !== 3 || !value.color.every((item) => Number.isFinite(item) && item >= 0) || !Number.isFinite(value.intensity) || value.intensity < 0) throw new TypeError('Scene light is invalid.');
+  const color = Object.freeze([...value.color] as [number, number, number]);
+  if (kind === 'directional-light') {
+    const direction = value.direction ?? [-0.5, -1, -0.35];
+    if (!Array.isArray(direction) || direction.length !== 3 || !direction.every(Number.isFinite)) throw new TypeError('Directional light direction is invalid.');
+    return Object.freeze({ color, intensity: value.intensity, direction: Object.freeze([...direction] as [number, number, number]), castShadow: value.castShadow !== false });
+  }
+  if (kind === 'point-light') {
+    if (!Number.isFinite(value.range) || (value.range ?? 0) <= 0) throw new TypeError('Point light range is invalid.');
+    return Object.freeze({ color, intensity: value.intensity, range: value.range });
+  }
+  return Object.freeze({ color, intensity: value.intensity });
+}
+function createGeometry(kind: SceneGeometryKind) {
+  switch (kind) {
+    case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();
+    case 'plane': return createPlane3D(); case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
+  }
+}
+function createMaterial(appearance: NonNullable<SceneEntitySnapshot['appearance']>) {
+  switch (appearance.material) {
+    case 'basic': return new BasicMaterial({ color: appearance.color });
+    case 'pbr': return new PbrMaterial({ baseColor: appearance.color, metallic: 0.05, roughness: 0.65 });
+    case 'blinn-phong': return new BlinnPhongMaterial({ diffuse: appearance.color });
+    case 'normal': return new NormalMaterial({ space: 'world' });
+  }
+}
+function createLight(kind: SceneLightKind, light: NonNullable<SceneEntitySnapshot['light']>) {
+  if (kind === 'directional-light') return new DirectionalLight({ color: light.color, intensity: light.intensity, direction: [...light.direction!] as [number, number, number], castShadow: light.castShadow });
+  if (kind === 'point-light') return new PointLight({ color: light.color, intensity: light.intensity, range: light.range });
+  return new AmbientLight({ color: light.color, intensity: light.intensity });
+}
+function entityKindLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }

@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AgentPreviewBroker } from '../dist/agent-preview-broker.js';
 import { StudioConversationHost } from '../dist/conversation-host.js';
+import { selectProjectRunScript } from '../dist/run-script-selection.js';
 
 const backendId = 'backend:test-agent';
 const sessionId = 'session:test-agent';
 const turnId = 'turn:test-agent';
 const toolCallId = 'tool-call:test-agent';
+const planToolCallId = 'tool-call:plan-test-agent';
 const approvalId = 'approval:test-agent';
 
 test('G10 conversation host runs typed tools through scoped approval and replay', async () => {
@@ -14,12 +16,14 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   let startedInput;
   let openedHandoff;
   let releaseTool;
+  let releasePlan;
   const toolReleased = new Promise((resolve) => { releaseTool = resolve; });
+  const planReleased = new Promise((resolve) => { releasePlan = resolve; });
   const backend = {
     descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
     async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
     async authenticate() { return { id: 'login:test-agent', kind: 'browser', url: 'https://example.invalid/login' }; }, async logout() {}, async cancelTurn() {}, async dispose() {},
-    async submitToolResult(_id, result) { submitted = result; releaseTool(); },
+    async submitToolResult(id, result) { if (id === planToolCallId) releasePlan(); else { submitted = result; releaseTool(); } },
     async answerQuestion() {}, async resolveBackendApproval() {},
   };
   const runtime = {
@@ -28,6 +32,11 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
       async *start(_backendId, input) {
         startedInput = input;
         yield event('status', { status: 'running' });
+        yield event('tool-request', { toolCallId: planToolCallId, toolId: 'studio.plan.propose', arguments: {
+          title: 'Player scene plan', summary: 'Create one independently editable player entity.',
+          items: [{ label: 'Create Player', details: 'One cube entity owns the visible player geometry and Transform.' }],
+        } });
+        await planReleased;
         yield event('tool-request', { toolCallId, toolId: 'entity.create', arguments: { baseRevision: 1, kind: 'cube', name: 'Player' } });
         await toolReleased;
         yield event('conversation-node', { nodeKind: 'text', status: 'streaming', delta: 'Created the Player cube.' });
@@ -57,24 +66,41 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   await host.dispatch({ type: 'backend/authenticate', backendId });
   assert.deepEqual(openedHandoff, { id: backendId, handoff: { id: 'login:test-agent', kind: 'browser', url: 'https://example.invalid/login' } });
   await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create a Player cube' });
+  await waitFor(() => nodes(host).some((node) => node.kind === 'plan' && node.status === 'pending'));
+  const pendingPlan = nodes(host).find((node) => node.kind === 'plan' && node.status === 'pending');
+  await host.dispatch({ type: 'conversation/accept-plan', nodeId: pendingPlan.id, acceptedItemIds: pendingPlan.content.items.map((item) => item.id), mode: 'approve' });
   await waitFor(() => nodes(host).some((node) => node.kind === 'approval' && node.status === 'pending'));
   await host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-always' });
   await waitFor(() => host.replay().busy === false);
   assert.equal(decision, 'allow-always');
   assert.match(startedInput.prompt, /"open":true/);
   assert.match(startedInput.prompt, /A project is open\. Do not claim that no AIStudio project is open\./);
-  assert.match(startedInput.prompt, /Use entity\.create for every authoring-scene object/);
-  assert.match(startedInput.prompt, /create at least one kind="cube" entity before proposing scripts/);
+  assert.match(startedInput.prompt, /Stable, independently editable scene objects should be authoring entities/);
+  assert.match(startedInput.prompt, /There is no arbitrary entity-count limit/);
+  assert.match(startedInput.prompt, /Repeated or fast-changing gameplay state/);
+  assert.match(startedInput.prompt, /one SnakeBody entity/);
+  assert.match(startedInput.prompt, /studio\.plan\.propose/);
+  assert.match(startedInput.prompt, /geometry cube, sphere, cone, cylinder, plane, torus and icosahedron/);
+  assert.match(startedInput.prompt, /create at least one geometry entity before proposing scripts/);
+  assert.match(startedInput.prompt, /Never emit import, export, require, module\.exports/);
+  assert.match(startedInput.prompt, /If any error exists or canApply is false, do not call script\.apply/);
   assert.match(startedInput.prompt, /Do not retry preview\.start unchanged/);
   assert.match(startedInput.prompt, /User request:\nCreate a Player cube$/);
   assert.equal(submitted.status, 'completed');
+  assert.ok(startedInput.tools.some((tool) => tool.id === 'studio.plan.propose'));
+  assert.ok(nodes(host).some((node) => node.kind === 'plan' && node.status === 'completed' && node.content.decision === 'approved'));
   assert.ok(nodes(host).some((node) => node.kind === 'approval' && node.status === 'completed'));
   const approvalNode = nodes(host).find((node) => node.kind === 'approval');
   assert.equal(approvalNode.content.argsDigest, `sha256:${'a'.repeat(64)}`);
   assert.equal(approvalNode.content.previewDigest, `sha256:${'b'.repeat(64)}`);
   assert.ok(nodes(host).some((node) => node.kind === 'tool-result' && node.status === 'completed'));
+  const toolResult = nodes(host).find((node) => node.kind === 'tool-result' && node.status === 'completed' && node.content.toolId === 'entity.create');
+  assert.match(toolResult.content.summary, /已创建/);
+  assert.match(toolResult.content.details, /entity:player/);
   assert.ok(nodes(host).some((node) => node.kind === 'text' && node.content.text.includes('Player cube')));
   assert.ok(nodes(host).some((node) => node.kind === 'completion' && node.content.terminalStatus === 'completed'));
+  assert.ok(nodes(host).some((node) => node.kind === 'text' && node.content.role === 'user' && node.content.text === 'Create a Player cube'));
+  assert.ok(nodes(host).some((node) => node.kind === 'progress' && node.content.phase === 'awaiting-first-step' && node.status === 'completed'));
   assert.ok(observedBusy.includes(true));
   assert.equal(observedBusy.at(-1), false);
   assert.ok(logEvents.some((item) => item.kind === 'conversation/intent' && item.payload.promptDigest && !JSON.stringify(item).includes('Create a Player cube')));
@@ -82,6 +108,19 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   subscription.dispose();
   await host.dispose();
   await host.dispose();
+});
+
+test('project Run prefers a current controller script over an incidentally selected board script', () => {
+  const entities = [
+    { id: 'entity:game', name: 'SnakeGame', kind: 'empty' },
+    { id: 'entity:board', name: 'Board_20x20', kind: 'cube' },
+  ];
+  const scripts = [
+    { id: 'script:board', entityId: 'entity:board', textRevision: 1 },
+    { id: 'script:game', entityId: 'entity:game', textRevision: 3 },
+  ];
+  assert.equal(selectProjectRunScript(entities, scripts, 'entity:board')?.id, 'script:game');
+  assert.equal(selectProjectRunScript(entities, scripts, 'entity:missing')?.id, 'script:game');
 });
 
 test('G10 conversation host gives project-missing turns recovery instructions that work across independent turns', async () => {
@@ -105,8 +144,8 @@ test('G10 conversation host gives project-missing turns recovery instructions th
   await host.dispatch({ type: 'conversation/send', backendId, prompt: '创建一个游戏' });
   await waitFor(() => host.replay().busy === false);
   assert.match(startedInput.prompt, /"open":false/);
-  assert.match(startedInput.prompt, /resend the complete request/);
-  assert.match(startedInput.prompt, /do not tell them to reply only with "continue"/);
+  assert.match(startedInput.prompt, /click New once/);
+  assert.match(startedInput.prompt, /does not require a folder/);
   assert.match(startedInput.tools.find((tool) => tool.id === 'project.snapshot').description, /before deciding whether a Studio project is open/);
   await host.dispose();
 });

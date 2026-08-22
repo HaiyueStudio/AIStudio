@@ -11,9 +11,27 @@ import {
   type ConversationReplaySnapshot,
 } from '@haiyue/ai-studio-shell';
 
-interface ActiveTurn { readonly backendId: StableId; sessionId: StableId | null; turnId: StableId | null; readonly controller: AbortController; }
+interface ActiveTurn {
+  readonly backendId: StableId;
+  sessionId: StableId | null;
+  turnId: StableId | null;
+  readonly controller: AbortController;
+  readonly initialProgressNodeId: StableId;
+  readonly localSessionId: StableId;
+  readonly localTurnId: StableId;
+}
 interface PendingApproval { readonly preparation: GameToolPreparation; readonly approval: GameToolApproval; readonly nodeId: StableId; readonly resolve: () => void; readonly reject: (cause: unknown) => void; }
 interface PendingQuestion { readonly backend: AgentBackend; readonly nodeId: StableId; readonly backendNodeId: StableId; }
+interface PendingPlan {
+  readonly nodeId: StableId;
+  readonly toolCallId: StableId;
+  readonly sessionId: StableId;
+  readonly turnId: StableId;
+  readonly title: string;
+  readonly items: readonly Readonly<{ id: StableId; label: string; details?: string }>[];
+  readonly resolve: (result: JsonObject) => void;
+  readonly reject: (cause: unknown) => void;
+}
 
 export interface ConversationHostOptions {
   readonly runtime: AgentRuntimeService;
@@ -29,6 +47,8 @@ export class StudioConversationHost {
   private readonly nodes = new Map<StableId, ConversationNodeReadModel>();
   private readonly approvals = new Map<StableId, PendingApproval>();
   private readonly questions = new Map<StableId, PendingQuestion>();
+  private readonly plans = new Map<StableId, PendingPlan>();
+  private readonly approvedPlanTurns = new Set<string>();
   private readonly listeners = new Set<() => void>();
   private backends: readonly ConversationBackendReadModel[] = Object.freeze([]);
   private backendId: StableId | null = null;
@@ -76,9 +96,11 @@ export class StudioConversationHost {
         return;
       case 'conversation/cancel': {
         const active = this.active;
-        if (!active || active.backendId !== intent.backendId || active.sessionId !== intent.sessionId || active.turnId !== intent.turnId) throw new Error('Active turn coordinates changed.');
+        const matchesBackendTurn = active?.sessionId === intent.sessionId && active.turnId === intent.turnId;
+        const matchesInitialProgress = active?.localSessionId === intent.sessionId && active.localTurnId === intent.turnId;
+        if (!active || active.backendId !== intent.backendId || (!matchesBackendTurn && !matchesInitialProgress)) throw new Error('Active turn coordinates changed.');
         active.controller.abort(new Error('Turn cancelled by user.'));
-        await this.options.runtime.turns.cancel(intent.backendId, intent.sessionId, intent.turnId);
+        if (active.sessionId && active.turnId) await this.options.runtime.turns.cancel(intent.backendId, active.sessionId, active.turnId);
         return;
       }
       case 'conversation/retry':
@@ -94,7 +116,7 @@ export class StudioConversationHost {
         this.finishNode(intent.nodeId, 'completed');
         return;
       }
-      case 'conversation/accept-plan': this.finishNode(intent.nodeId, 'completed'); return;
+      case 'conversation/accept-plan': this.resolvePlan(intent.nodeId, intent.acceptedItemIds, intent.note, intent.mode ?? 'approve'); return;
       case 'conversation/resolve-approval': await this.resolveApproval(intent.approvalId, intent.decision); return;
       case 'backend/select':
         if (this.active) throw new Error('Cannot switch backend during an active turn.');
@@ -121,6 +143,8 @@ export class StudioConversationHost {
     if (this.disposed) return;
     this.cancelPending('Conversation host disposed.');
     this.questions.clear();
+    this.plans.clear();
+    this.approvedPlanTurns.clear();
     this.listeners.clear();
     this.disposed = true;
   }
@@ -135,14 +159,25 @@ export class StudioConversationHost {
       pending.reject(new Error(reason));
     }
     this.approvals.clear();
+    for (const pending of this.plans.values()) pending.reject(new Error(reason));
+    this.plans.clear();
+    this.approvedPlanTurns.clear();
     this.changed();
   }
 
   private async start(backendId: StableId, prompt: string): Promise<void> {
     const controller = new AbortController();
-    this.active = { backendId, sessionId: null, turnId: null, controller };
-    this.changed();
-    const tools = this.options.tools.definitions().map((definition) => Object.freeze({
+    const localSessionId = asStableId(`session:pending:${this.nodeSequence + 1}`);
+    const localTurnId = asStableId(`turn:pending:${this.nodeSequence + 1}`);
+    const userNodeId = this.nextNodeId('00-user');
+    const initialProgressNodeId = this.nextNodeId('01-progress');
+    const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
+    this.active = { backendId, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId };
+    this.project(userNodeId, 'text', 'completed', provenance, Object.freeze({ text: prompt, role: 'user' }));
+    this.project(initialProgressNodeId, 'progress', 'pending', provenance, Object.freeze({
+      label: '正在分析需求', message: 'Agent 正在读取项目上下文并规划下一步。', phase: 'awaiting-first-step',
+    }));
+    const tools = [PLAN_TOOL_DEFINITION, ...this.options.tools.definitions()].map((definition) => Object.freeze({
       id: definition.id,
       description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Call this before deciding whether a Studio project is open and before planning mutations.' : ''}`,
       inputSchema: definition.inputSchema,
@@ -151,16 +186,28 @@ export class StudioConversationHost {
     try {
       await this.consume(backendId, this.options.runtime.turns.start(backendId, { prompt: contextualPrompt, contextArtifactIds: Object.freeze([]), tools }, controller.signal), controller.signal);
     } catch (cause) { await this.captureFailure(backendId, cause); }
-    finally { if (this.active?.controller === controller) { this.active = null; this.changed(); } }
+    finally {
+      const progress = this.nodes.get(initialProgressNodeId);
+      if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
+      if (this.active?.sessionId && this.active.turnId) this.approvedPlanTurns.delete(turnKey(this.active.sessionId, this.active.turnId));
+      if (this.active?.controller === controller) { this.active = null; this.changed(); }
+    }
   }
 
   private async resume(backendId: StableId, sessionId: StableId, turnId: StableId): Promise<void> {
     const controller = new AbortController();
-    this.active = { backendId, sessionId, turnId, controller };
-    this.changed();
+    const initialProgressNodeId = this.nextNodeId('progress');
+    this.active = { backendId, sessionId, turnId, controller, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId };
+    this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId, turnId }), Object.freeze({
+      label: '正在恢复任务', message: 'Agent 正在恢复上次任务的上下文。', phase: 'awaiting-first-step',
+    }));
     try { await this.consume(backendId, this.options.runtime.turns.resume(backendId, sessionId, turnId, controller.signal), controller.signal); }
     catch (cause) { await this.captureFailure(backendId, cause, sessionId, turnId); }
-    finally { if (this.active?.controller === controller) { this.active = null; this.changed(); } }
+    finally {
+      const progress = this.nodes.get(initialProgressNodeId);
+      if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
+      if (this.active?.controller === controller) { this.active = null; this.changed(); }
+    }
   }
 
   private async consume(backendId: StableId, stream: AsyncIterable<AgentBackendEvent>, signal: AbortSignal): Promise<void> {
@@ -174,6 +221,10 @@ export class StudioConversationHost {
 
   private async captureEvent(backend: AgentBackend, event: AgentBackendEvent, signal: AbortSignal): Promise<void> {
     const provenance = Object.freeze({ backendId: event.backendId, sessionId: event.sessionId, turnId: event.turnId });
+    if (event.kind === 'conversation-node' || event.kind === 'tool-request' || event.kind === 'question' || event.kind === 'diagnostic' || event.kind === 'completed') {
+      const progressNodeId = this.active?.initialProgressNodeId;
+      if (progressNodeId) this.finishNode(progressNodeId, 'completed');
+    }
     if (event.kind === 'conversation-node') {
       const id = this.internalNodeId('text', event.turnId);
       const previous = this.nodes.get(id);
@@ -210,20 +261,96 @@ export class StudioConversationHost {
     const toolId = stablePayloadId(event.payload.toolId, 'tool');
     const args = isRecord(event.payload.arguments) ? event.payload.arguments as JsonObject : Object.freeze({});
     const provenance = Object.freeze({ backendId: event.backendId, sessionId: event.sessionId, turnId: event.turnId, stepId: toolCallId });
-    this.project(this.nextNodeId('tool-call'), 'tool-call', 'completed', provenance, Object.freeze({ toolCallId, toolId, argumentsSummary: `Validated structured arguments (${Object.keys(args).sort().join(', ') || 'none'}).` }));
+    const toolNodeId = this.nextNodeId('tool-call');
+    let stage: 'prepare' | 'approval' | 'execute' | 'submit-result' = 'prepare';
+    this.project(toolNodeId, 'tool-call', 'pending', provenance, Object.freeze({ toolCallId, toolId, argumentsSummary: toolArgumentSummary(toolId, args) }));
     try {
+      if (toolId === PLAN_TOOL_ID) {
+        const result = await this.awaitPlan(toolCallId, event.sessionId, event.turnId, args, provenance, signal);
+        this.project(toolNodeId, 'tool-call', 'completed', provenance, Object.freeze({ toolCallId, toolId, target: 'Current project', effect: 'observe', argumentsSummary: '总体实现方案已由用户审阅。' }));
+        this.project(this.nextNodeId('tool-result'), 'tool-result', 'completed', provenance,
+          Object.freeze({ toolCallId, toolId, resultStatus: 'completed', summary: result.approvedForExecution === true ? '方案已确认，开始执行。' : '用户补充了信息，需要更新方案。' }));
+        await backend.submitToolResult(toolCallId, Object.freeze({ status: 'completed', value: result }), signal);
+        return;
+      }
+      const definition = this.options.tools.definitions().find((item) => item.id === toolId);
+      if (definition && definition.effect !== 'observe' && !this.approvedPlanTurns.has(turnKey(event.sessionId, event.turnId))) {
+        throw new PlanProtocolError('plan.approval-required', 'Submit studio.plan.propose and wait for user confirmation before mutating the project.');
+      }
       const preparation = await this.options.tools.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, toolId, toolVersion: '1.0.0', arguments: args }, signal);
+      this.project(toolNodeId, 'tool-call', 'completed', provenance, Object.freeze({
+        toolCallId, toolId, target: preparation.preview.target, effect: preparation.effect, argumentsSummary: preparation.preview.summary,
+      }));
+      stage = 'approval';
       if (preparation.approvalId) await this.awaitApproval(preparation, provenance, signal);
+      stage = 'execute';
       const result = await this.options.tools.execute(preparation.id, signal);
       this.project(this.nextNodeId('tool-result'), 'tool-result', result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed', provenance,
-        Object.freeze({ toolCallId, resultStatus: result.status, summary: boundedJson(result.value) }));
+        Object.freeze({ toolCallId, toolId, resultStatus: result.status, summary: toolResultSummary(toolId, result.value, preparation.preview.summary), details: boundedJson(result.value) }));
+      stage = 'submit-result';
       await backend.submitToolResult(toolCallId, Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision }), signal);
     } catch (cause) {
       const diagnostic = Object.freeze({ code: errorCode(cause), message: errorMessage(cause) });
+      await this.options.operationLog.append({
+        kind: 'conversation/tool-failed', severity: signal.aborted ? 'warning' : 'error', source: asStableId('studio.conversation-host'),
+        correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId },
+        payload: { toolId, stage, argumentKeys: Object.freeze(Object.keys(args).sort()), code: diagnostic.code, message: diagnostic.message },
+      }).catch(() => undefined);
       this.project(this.nextNodeId('tool-result'), 'tool-result', signal.aborted ? 'cancelled' : 'failed', provenance,
-        Object.freeze({ toolCallId, resultStatus: signal.aborted ? 'cancelled' : 'failed', summary: diagnostic.message }));
+        Object.freeze({ toolCallId, toolId, resultStatus: signal.aborted ? 'cancelled' : 'failed', summary: diagnostic.message }));
       await backend.submitToolResult(toolCallId, Object.freeze({ status: 'failed', error: diagnostic }), signal).catch(() => undefined);
     }
+  }
+
+  private awaitPlan(toolCallId: StableId, sessionId: StableId, turnId: StableId, args: JsonObject, provenance: ConversationNodeReadModel['provenance'], signal: AbortSignal): Promise<JsonObject> {
+    const proposal = validatePlanProposal(args);
+    const nodeId = this.nextNodeId('plan');
+    const items = Object.freeze(proposal.items.map((item, index) => Object.freeze({
+      id: asStableId(`plan-item:${this.nodeSequence}:${index + 1}`), label: item.label, ...(item.details ? { details: item.details } : {}),
+    })));
+    this.project(nodeId, 'plan', 'pending', provenance, Object.freeze({
+      title: proposal.title,
+      summary: proposal.summary,
+      items: Object.freeze(items.map((item) => Object.freeze({ ...item, status: 'pending' }))),
+    }));
+    return new Promise<JsonObject>((resolve, reject) => {
+      const abort = (): void => { this.plans.delete(nodeId); reject(signal.reason ?? new Error('Plan review cancelled.')); };
+      if (signal.aborted) { abort(); return; }
+      signal.addEventListener('abort', abort, { once: true });
+      this.plans.set(nodeId, Object.freeze({
+        nodeId, toolCallId, sessionId, turnId, title: proposal.title, items,
+        resolve: (result: JsonObject) => { signal.removeEventListener('abort', abort); resolve(result); },
+        reject: (cause: unknown) => { signal.removeEventListener('abort', abort); reject(cause); },
+      }));
+    });
+  }
+
+  private resolvePlan(nodeId: StableId, acceptedItemIds: readonly StableId[], note: string | undefined, mode: 'approve' | 'revise'): void {
+    const pending = this.plans.get(nodeId);
+    if (!pending) throw new Error('Plan is stale or already resolved.');
+    const accepted = new Set(acceptedItemIds);
+    if (acceptedItemIds.some((id) => !pending.items.some((item) => item.id === id))) throw new Error('Plan selection contains an unknown item.');
+    if (mode === 'approve' && accepted.size === 0) throw new Error('Approve at least one plan item or request a revision.');
+    if (mode === 'revise' && !note?.trim()) throw new Error('Add guidance before requesting a revised plan.');
+    this.plans.delete(nodeId);
+    if (mode === 'approve') this.approvedPlanTurns.add(turnKey(pending.sessionId, pending.turnId));
+    else this.approvedPlanTurns.delete(turnKey(pending.sessionId, pending.turnId));
+    const current = this.nodes.get(nodeId);
+    if (current) this.project(nodeId, 'plan', 'completed', current.provenance, Object.freeze({
+      title: pending.title,
+      items: Object.freeze(pending.items.map((item) => Object.freeze({ ...item, status: mode === 'approve' && accepted.has(item.id) ? 'accepted' : 'rejected' }))),
+      decision: mode === 'approve' ? 'approved' : 'revision-requested',
+      ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}),
+    }));
+    pending.resolve(Object.freeze({
+      approvedForExecution: mode === 'approve',
+      decision: mode === 'approve' ? 'approved' : 'revision-requested',
+      acceptedItemIds: Object.freeze([...accepted]),
+      ...(note?.trim() ? { userNote: note.trim().slice(0, 2_048) } : {}),
+      instruction: mode === 'approve'
+        ? 'Execute only the accepted plan items, incorporate the user note, and use independent tool calls without asking approval for low-risk reversible edits.'
+        : 'Revise the implementation plan from the user note and call studio.plan.propose again before any mutation.',
+    }));
   }
 
   private awaitApproval(preparation: GameToolPreparation, provenance: ConversationNodeReadModel['provenance'], signal: AbortSignal): Promise<void> {
@@ -298,7 +425,7 @@ export class StudioConversationHost {
 
   private finishNode(id: StableId, status: ConversationNodeReadModel['status']): void {
     const node = this.nodes.get(id);
-    if (node) this.project(id, node.kind, status, node.provenance, node.content);
+    if (node && node.status !== status) this.project(id, node.kind, status, node.provenance, node.content);
   }
 
   private internalNodeId(kind: string, turnId: StableId): StableId { return asStableId(`node:${kind}:${sha256(turnId).slice(7, 23)}`); }
@@ -327,6 +454,56 @@ function stablePayloadId(value: unknown, label: string): StableId { if (typeof v
 function terminalStatus(value: unknown): 'completed' | 'cancelled' | 'failed' | 'interrupted' { return value === 'completed' || value === 'cancelled' || value === 'failed' || value === 'interrupted' ? value : 'failed'; }
 function stringField(value: unknown, fallback: string): string { return typeof value === 'string' ? value.slice(0, 2_000) : fallback; }
 function boundedJson(value: JsonObject): string { const text = JSON.stringify(value); return text.length > 2_000 ? `${text.slice(0, 1_997)}...` : text; }
+function toolArgumentSummary(toolId: StableId, args: JsonObject): string {
+  const raw = args as Record<string, unknown>;
+  if (toolId === PLAN_TOOL_ID) return `准备提交“${typeof raw.title === 'string' ? raw.title : '总体实现方案'}”供用户确认。`;
+  if (toolId === 'entity.create') {
+    const kind = String(raw.kind ?? 'entity');
+    const category = ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind) ? `几何体 ${kind}` : kind.endsWith('-light') ? `光源 ${kind}` : '逻辑节点';
+    return `准备创建${category}${typeof raw.name === 'string' ? `“${raw.name}”` : ''}。`;
+  }
+  if (toolId === 'transform.set') return '准备更新物体的位置、旋转和缩放。';
+  if (toolId === 'material.set') return '准备为选中的几何体应用引擎材质。';
+  if (toolId === 'script.propose') return '准备校验一份新的控制脚本提案。';
+  if (toolId === 'script.apply') return '准备提交已经通过校验的脚本。';
+  if (toolId === 'preview.validate') return '准备校验项目运行计划。';
+  if (toolId === 'preview.start') return '准备启动隔离预览。';
+  if (toolId === 'preview.stop') return '准备停止隔离预览。';
+  return `准备调用 ${toolId}。`;
+}
+function toolResultSummary(toolId: StableId, value: JsonObject, fallback: string): string {
+  const raw = value as Record<string, unknown>;
+  const entity = isRecord(raw.entity) ? raw.entity : null;
+  const entityName = entity && typeof entity.name === 'string' ? `“${entity.name}”` : '物体';
+  const revision = typeof raw.revision === 'number' ? ` · 项目 r${raw.revision}` : '';
+  if (toolId === 'project.snapshot') return `已读取项目“${typeof raw.name === 'string' ? raw.name : '未命名'}” · r${typeof raw.revision === 'number' ? raw.revision : '?'}${raw.dirty === true ? ' · 有未保存修改' : ''}`;
+  if (toolId === 'scene.list-entities') return `已读取场景 · ${Array.isArray(raw.entities) ? raw.entities.length : 0} 个物体${raw.truncated === true ? '（结果已截断）' : ''}`;
+  if (toolId === 'entity.get') return `已读取${entityName}${revision}`;
+  if (toolId === 'entity.create') return `已创建${entityName}${revision}`;
+  if (toolId === 'entity.rename') return `已重命名为${entityName}${revision}`;
+  if (toolId === 'transform.set') return `已更新${entityName}的 Transform${revision}`;
+  if (toolId === 'material.set') return `已更新${entityName}的材质${revision}`;
+  if (toolId === 'script.get') {
+    const script = isRecord(raw.script) ? raw.script : null;
+    return `已读取脚本${script && typeof script.name === 'string' ? `“${script.name}”` : ''}${script && typeof script.textRevision === 'number' ? ` · 文本 r${script.textRevision}` : ''}`;
+  }
+  if (toolId === 'diagnostics.query') return `已读取 ${typeof raw.count === 'number' ? raw.count : 0} 条诊断记录。`;
+  if (toolId === 'script.propose') {
+    const diagnostics = Array.isArray(raw.diagnostics) ? raw.diagnostics : [];
+    const errors = diagnostics.filter((item) => isRecord(item) && item.severity === 'error').length;
+    return errors > 0 ? `脚本提案有 ${errors} 个错误，需要修改后重新校验。` : `脚本提案校验通过 · +${numberField(raw.addedLines)}/-${numberField(raw.removedLines)} 行`;
+  }
+  if (toolId === 'script.apply') return `脚本已提交${typeof raw.textRevision === 'number' ? ` · 文本 r${raw.textRevision}` : ''}${revision}`;
+  if (toolId === 'preview.validate') {
+    const diagnostics = Array.isArray(raw.diagnostics) ? raw.diagnostics : [];
+    const errors = diagnostics.filter((item) => isRecord(item) && item.severity === 'error').length;
+    return errors > 0 ? `运行计划校验失败 · ${errors} 个错误` : '运行计划校验通过。';
+  }
+  if (toolId === 'preview.start') return '隔离预览已启动。';
+  if (toolId === 'preview.stop') return '隔离预览已停止并完成资源清理。';
+  return fallback;
+}
+function numberField(value: unknown): number { return typeof value === 'number' && Number.isFinite(value) ? value : 0; }
 function agentPrompt(prompt: string, projectOpen: boolean): string {
   return [
     'Authoritative AIStudio runtime context:',
@@ -334,15 +511,62 @@ function agentPrompt(prompt: string, projectOpen: boolean): string {
     'Treat this project-open state as newer than assumptions from the user request. Call project.snapshot before deciding availability or using a base revision.',
     projectOpen
       ? 'A project is open. Do not claim that no AIStudio project is open.'
-      : 'No project is open. Ask the user to create or open one, then resend the complete request; do not tell them to reply only with "continue" because turns may be independent.',
+      : 'No project document is open. Ask the user to click New once; New creates an untitled in-memory project and does not require a folder. Do not ask the user to choose a directory before authoring.',
     'Authoring workflow invariants:',
-    '- Use entity.create for every authoring-scene object. A Cube is visible/renderable; an Empty is only a non-renderable logic or grouping node.',
-    '- For a new visual game or any request that includes Play/preview, inspect scene.list-entities and create at least one kind="cube" entity before proposing scripts or calling preview.validate. Do not rely on a script to create the initial authoring scene.',
-    '- After each mutation, use the returned afterRevision as the next baseRevision. Do not retry preview.start unchanged after a no-renderables failure; create a Cube, verify the scene, validate again, then start the new plan.',
+    '- Before every project mutation, inspect project.snapshot and scene.list-entities, then call studio.plan.propose with a detailed, user-readable plan. The plan must identify each authored entity, its responsibility and script owner, plus the rendering/data strategy for dynamic or repeated content. Do not call a mutation tool until studio.plan.propose returns approvedForExecution=true.',
+    '- Stable, independently editable scene objects should be authoring entities. Repeated or fast-changing gameplay state such as a snake body, trail, bullet pool, tile grid, foliage or particles must normally use one semantic authoring entity with controller-owned reusable/instance data. For Snake, do not create one entity per body segment: use one SnakeBody entity and vary its active instance data as length changes.',
+    '- Explicitly compare persistent entities, controller-managed state, pooling and instanced rendering in the plan. There is no arbitrary entity-count limit, but duplicated entities are not an acceptable substitute for dynamic instance data when the objects share geometry, material, lifetime and behavior. If the current runtime lacks a required instance operation, disclose that limitation in the plan instead of silently generating many entities.',
+    '- Dynamic instances are supported in trusted preview scripts with the scene capability: const body = api.scene.instances("SnakeBody", 256); body.setCount(length); body.set(index, { position: { x, y, z }, scale: { x: 1, y: 1, z: 1 } }). Create exactly one geometry entity with that name and let one controller update its instance data.',
+    '- After the plan is approved, execute the accepted low-risk reversible edits directly and efficiently. Independent operations may be issued together; dependent operations must still consume the preceding tool result. Ask again only when the scope materially expands beyond the approved plan.',
+    '- entity.create supports geometry cube, sphere, cone, cylinder, plane, torus and icosahedron; lights directional-light, point-light and ambient-light; and geometry materials basic, pbr, blinn-phong and normal. Choose primitives, materials and lighting deliberately for the visual goal. Use material.set to change an existing geometry material.',
+    '- Put project-wide gameplay in one clearly named Empty controller such as GameController or <GameName>Game. The Run command chooses controller-like nodes ahead of incidental Scene selection. Use api.read.find/api.read.findAll or world lookups to update the visible entities from that controller.',
+    '- For a new visual game or any request that includes Play/preview, create at least one geometry entity before proposing scripts or calling preview.validate. Do not rely on a script to create the initial authoring scene.',
+    '- Project scripts are onUpdate function bodies, not modules: entity, component, world, time, delta, and api are already in scope. Never emit import, export, require, module.exports, or an exported/lifecycle-function wrapper.',
+    '- After every script.propose call, inspect the diagnostics and canApply fields. If any error exists or canApply is false, do not call script.apply. Rewrite the complete script, propose again, and repeat until diagnostics contain zero errors; only then apply it.',
+    '- Studio binds the current authoritative baseRevision when it is omitted. Never guess a revision. If you explicitly provide baseRevision, use the last returned afterRevision.',
+    '- Put the initial position, rotation and scale in entity.create.transform. Do not issue transform.set for an entity being created in the same tool batch: wait for entity.create to return result.entity.id before any later edit.',
+    '- After each mutation, inspect its result before issuing a dependent mutation. Do not retry preview.start unchanged after a no-renderables failure; create an appropriate geometry primitive, verify the scene, validate again, then start the new plan.',
     'User request:',
     prompt,
   ].join('\n');
 }
+const PLAN_TOOL_ID = asStableId('studio.plan.propose');
+const PLAN_TOOL_DEFINITION = Object.freeze({
+  id: PLAN_TOOL_ID,
+  description: 'Submit the complete implementation plan for user review before any project mutation. Include authored entities, responsibilities, scripts, dynamic state ownership, and rendering strategy such as instancing or pooling. The result blocks until the user approves or requests a revision.',
+  effect: 'observe' as const,
+  risk: 'low' as const,
+  inputSchema: Object.freeze({
+    type: 'object', additionalProperties: false, required: Object.freeze(['title', 'summary', 'items']), properties: Object.freeze({
+      title: Object.freeze({ type: 'string', minLength: 1, maxLength: 160 }),
+      summary: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_200 }),
+      items: Object.freeze({ type: 'array', minItems: 1, maxItems: 20, items: Object.freeze({
+        type: 'object', additionalProperties: false, required: Object.freeze(['label', 'details']), properties: Object.freeze({
+          label: Object.freeze({ type: 'string', minLength: 1, maxLength: 240 }),
+          details: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024 }),
+        }),
+      }) }),
+    }),
+  }) as JsonObject,
+});
+
+function validatePlanProposal(value: JsonObject): Readonly<{ title: string; summary: string; items: readonly Readonly<{ label: string; details?: string }>[] }> {
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some((key) => !['title', 'summary', 'items'].includes(key)) || typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 160
+    || typeof raw.summary !== 'string' || !raw.summary.trim() || raw.summary.length > 1_200 || !Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 20) {
+    throw new PlanProtocolError('plan.payload-invalid', 'Plan requires a title, summary and 1-20 detailed items.');
+  }
+  const items = raw.items.map((value, index) => {
+    if (!isRecord(value) || Object.keys(value).some((key) => !['label', 'details'].includes(key)) || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 240
+      || typeof value.details !== 'string' || !value.details.trim() || value.details.length > 1_024) {
+      throw new PlanProtocolError('plan.payload-invalid', `Plan item ${index + 1} requires bounded label and details fields.`);
+    }
+    return Object.freeze({ label: value.label.trim(), details: value.details.trim() });
+  });
+  return Object.freeze({ title: raw.title.trim(), summary: raw.summary.trim(), items: Object.freeze(items) });
+}
+function turnKey(sessionId: StableId, turnId: StableId): string { return `${sessionId}\u0000${turnId}`; }
+class PlanProtocolError extends Error { constructor(readonly code: string, message: string) { super(message); this.name = 'PlanProtocolError'; } }
 function errorCode(value: unknown): string { return value && typeof value === 'object' && 'code' in value ? String((value as { code: unknown }).code).slice(0, 96) : 'conversation.operation-failed'; }
 function errorMessage(value: unknown): string { return (value instanceof Error ? value.message : String(value)).slice(0, 2_000); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }

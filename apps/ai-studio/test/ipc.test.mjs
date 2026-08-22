@@ -22,7 +22,7 @@ test('IPC validator is versioned, allowlisted and never accepts renderer paths',
   })), /bounded JSON/);
   assert.throws(() => validateStudioIpcRequest({ ...request('app/status'), schemaVersion: 2 }), /envelope/);
   assert.equal(validateStudioIpcRequest(request('scene/create', {
-    commandId: 'command:cube', baseRevision: 1, kind: 'cube', name: 'Player', parentId: null,
+    commandId: 'command:sphere', baseRevision: 1, kind: 'sphere', name: 'Player', parentId: null, material: 'pbr',
   })).channel, 'scene/create');
   assert.throws(() => validateStudioIpcRequest(request('scene/create', {
     commandId: 'command:cube', baseRevision: 1, kind: 'light',
@@ -30,6 +30,8 @@ test('IPC validator is versioned, allowlisted and never accepts renderer paths',
   assert.throws(() => validateStudioIpcRequest(request('scene/select', {
     entityId: 'entity:test', source: 'remote-shell',
   })), /scene\/select payload/);
+  assert.equal(validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'blinn-phong' })).channel, 'scene/material');
+  assert.throws(() => validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'shader-code' })), /scene\/material payload/);
   assert.throws(() => validateStudioIpcRequest(request('viewport/report', {
     event: 'frame', message: 'spam', sceneRevision: 1,
   })), /viewport\/report event/);
@@ -64,6 +66,7 @@ test('scene IPC exposes immutable JSON projections and routes typed intents thro
     snapshot: () => ({ schemaVersion: 1, revision: 2, documentId: 'document:test', entities: [] }),
     async createEntity(intent) { calls.push(['create', intent]); return this.snapshot(); },
     async setTransform(intent) { calls.push(['transform', intent]); return this.snapshot(); },
+    async setMaterial(intent) { calls.push(['material', intent]); return this.snapshot(); },
   };
   const selection = {
     async select(entityId, source, correlationId) { calls.push(['select', { entityId, source, correlationId }]); return { activeEntityId: entityId, entityIds: entityId ? [entityId] : [], revision: 1, source }; },
@@ -79,29 +82,34 @@ test('scene IPC exposes immutable JSON projections and routes typed intents thro
     commandId: 'command:move', baseRevision: 5, entityId: 'entity:cube',
     transform: { position: { x: 1, y: 2, z: 3 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
   }))).ok, true);
+  assert.equal((await router.handle(request('scene/material', { commandId: 'command:material', baseRevision: 6, entityId: 'entity:cube', material: 'pbr' }))).ok, true);
   assert.equal((await router.handle(request('viewport/report', { event: 'ready', message: 'gpu', sceneRevision: 2 }))).ok, true);
-  assert.deepEqual(calls.map(([kind]) => kind), ['create', 'select', 'transform']);
+  assert.deepEqual(calls.map(([kind]) => kind), ['create', 'select', 'transform', 'material']);
   assert.ok(events.some((event) => event.kind === 'viewport/ready' && event.source === 'studio.viewport.renderer'));
   router.dispose();
 });
 
-test('new-project IPC persists the initial document before reporting success', async () => {
+test('new-project IPC stays untitled until first save selects a directory', async () => {
   const calls = [];
   const workspace = {
-    snapshot: () => ({ document: null }),
     cancelAll() {},
-    async newProject(root, name) { calls.push(['new', root, name]); return { document: { revision: 1, dirty: true } }; },
-    async save() { calls.push(['save']); return { document: { revision: 1, savedRevision: 1, dirty: false } }; },
+    async newProject(root, name) { calls.push(['new', root, name]); return { projectRoot: null, document: { revision: 1, dirty: true } }; },
+    async save() { calls.push(['save']); return { projectRoot: 'D:\\fixture-project', document: { revision: 1, savedRevision: 1, dirty: false } }; },
+    async saveAs(root) { calls.push(['save-as', root]); return { projectRoot: root, document: { revision: 1, savedRevision: 1, dirty: false } }; },
+    snapshot() { return { projectRoot: null, document: { revision: 1, dirty: true } }; },
   };
   const operationLog = { async append() { return {}; } };
   const router = new StudioIpcRouter({
     workspace, operationLog, ...agentOwners,
-    selectProjectRoot: async (purpose) => purpose === 'new' ? 'D:\\fixture-project' : null,
+    selectProjectRoot: async (purpose) => purpose === 'save' ? 'D:\\fixture-project' : null,
   });
   const response = await router.handle(request('project/new', { name: 'Fixture' }));
   assert.equal(response.ok, true);
-  assert.equal(response.payload.document.dirty, false);
-  assert.deepEqual(calls, [['new', 'D:\\fixture-project', 'Fixture'], ['save']]);
+  assert.equal(response.payload.document.dirty, true);
+  assert.deepEqual(calls, [['new', null, 'Fixture']]);
+  const saved = await router.handle(request('project/save', {}));
+  assert.equal(saved.ok, true);
+  assert.deepEqual(calls, [['new', null, 'Fixture'], ['save-as', 'D:\\fixture-project']]);
   router.dispose();
 });
 

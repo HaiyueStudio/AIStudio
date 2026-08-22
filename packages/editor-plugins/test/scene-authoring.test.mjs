@@ -125,10 +125,62 @@ test('selection sources converge and stale viewport readback cannot replace newe
   assert.equal(selection.snapshot().entityIds.length, 1);
   assert.equal((await selection.pick(Promise.resolve(null))).activeEntityId, null);
 
+  await selection.whenIdle();
   const facts = await value.operationLog.query({ limit: 20 });
   assert.ok(facts.events.some((event) => event.kind === 'selection/entity-selected' && event.payload.source === 'hierarchy'));
   assert.ok(facts.events.some((event) => event.kind === 'selection/cleared' && event.payload.source === 'viewport'));
   foundationSelection.dispose();
+  await disposeFixture(value);
+});
+
+test('selection returns before structured diagnostic persistence completes', { timeout: 1_000 }, async () => {
+  const foundationSelection = new EditorSelectionService();
+  const entityId = asStableId('entity:nonblocking-selection');
+  const documentId = asStableId('document:nonblocking-selection');
+  let releaseAppend;
+  let appendStarted = false;
+  const log = {
+    append() {
+      appendStarted = true;
+      return new Promise((resolve) => { releaseAppend = resolve; });
+    },
+  };
+  const scene = { snapshot: () => ({ documentId, entities: [{ id: entityId }] }) };
+  const selection = new UnifiedSceneSelectionService(foundationSelection, scene, log);
+
+  const result = await Promise.race([
+    selection.select(entityId, 'hierarchy'),
+    new Promise((resolve) => setTimeout(() => resolve('blocked'), 50)),
+  ]);
+  assert.notEqual(result, 'blocked');
+  assert.equal(result.activeEntityId, entityId);
+  assert.equal(appendStarted, false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(appendStarted, true);
+  releaseAppend();
+  await selection.whenIdle();
+  foundationSelection.dispose();
+});
+test('scene persists Engine geometry, light and material descriptors through History', async () => {
+
+  const value = await fixture();
+  await value.workspace.newProject(value.projectRoot, 'Primitive fixture');
+  let scene = await value.scene.createEntity({ commandId: asStableId('command:create-sphere'), baseRevision: 1, kind: 'sphere', name: 'Ball', material: 'pbr' });
+  const sphere = scene.entities[0];
+  assert.equal(sphere.appearance.material, 'pbr');
+  scene = await value.scene.createEntity({ commandId: asStableId('command:create-light'), baseRevision: 2, kind: 'point-light', name: 'Key Light' });
+  assert.equal(scene.entities[1].light.range, 12);
+  scene = await value.scene.setMaterial({ commandId: asStableId('command:set-blinn'), baseRevision: 3, entityId: sphere.id, material: 'blinn-phong' });
+  assert.equal(scene.entities[0].appearance.material, 'blinn-phong');
+  await value.workspace.undo(4);
+  assert.equal(value.scene.snapshot().entities[0].appearance.material, 'pbr');
+  await value.workspace.redo(5);
+  assert.equal(value.scene.snapshot().entities[0].appearance.material, 'blinn-phong');
+  await value.workspace.save();
+  await value.workspace.closeProject();
+  await value.workspace.openProject(value.projectRoot);
+  assert.equal(value.scene.snapshot().entities[0].kind, 'sphere');
+  assert.equal(value.scene.snapshot().entities[1].kind, 'point-light');
   await disposeFixture(value);
 });
 

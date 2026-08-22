@@ -15,32 +15,37 @@ const transform = entity.getComponent('CartesianTransform3D') as unknown as { se
 transform?.setPosition(time / 1000, 0, 0);
 `;
 
-test('fixed tool catalog exposes only the 13 bounded POC capabilities', () => {
+test('fixed tool catalog exposes only the 14 bounded POC capabilities', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
     'project.snapshot', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
-    'entity.create', 'entity.rename', 'transform.set', 'script.propose', 'script.apply',
+    'entity.create', 'entity.rename', 'transform.set', 'material.set', 'script.propose', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
+  assert.deepEqual(
+    GAME_AUTHORING_TOOL_DEFINITIONS.filter((item) => item.id === 'entity.create').map((item) => ({ risk: item.risk, requiresApproval: item.requiresApproval })),
+    [{ risk: 'low', requiresApproval: false }],
+  );
   assert.doesNotMatch(JSON.stringify(GAME_AUTHORING_TOOL_DEFINITIONS), /shell|network|filesystem|delete|package|git/i);
 });
 
-test('reversible edits require exact one-shot approval and share manual History/revision', async () => {
+test('planned entity creation is low risk while later scoped edits retain one-shot approval and History', async () => {
   const value = await fixture();
   try {
     const create = await value.runtime.prepare(call('call:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Player' }));
-    assert.equal(create.status, 'approval-required');
-    await assert.rejects(value.runtime.execute(create.id), /requires approval/);
-    await value.runtime.decide(create.approvalId, 'allow-once');
-    await assert.rejects(value.runtime.decide(create.approvalId, 'allow-once'), /not pending/);
+    assert.equal(create.status, 'ready');
+    assert.equal(create.approvalId, undefined);
     const created = await value.runtime.execute(create.id);
     assert.equal(created.afterRevision, 2);
-    assert.equal(created.historyLabel, 'Create Cube/Empty');
+    assert.equal(created.historyLabel, 'Create Scene Entity');
     const entityId = created.value.entity.id;
     assert.equal(value.scene.snapshot().entities[0].name, 'Player');
 
     const rename = await value.runtime.prepare(call('call:rename', 'entity.rename', { baseRevision: 2, entityId, name: 'Hero' }));
+    assert.equal(rename.status, 'approval-required');
+    await assert.rejects(value.runtime.execute(rename.id), /requires approval/);
     await value.runtime.decide(rename.approvalId, 'allow-once');
+    await assert.rejects(value.runtime.decide(rename.approvalId, 'allow-once'), /not pending/);
     const renamed = await value.runtime.execute(rename.id);
     assert.equal(renamed.afterRevision, 3);
     assert.equal(value.scene.snapshot().entities[0].name, 'Hero');
@@ -60,18 +65,19 @@ test('reversible edits require exact one-shot approval and share manual History/
 test('allow always auto-approves only the same tool, version, target and project session scope', async () => {
   const value = await fixture();
   try {
-    const first = await value.runtime.prepare(call('call:always-first', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'First' }));
+    const created = await executeReady(value.runtime, call('call:create-always-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'First' }));
+    const first = await value.runtime.prepare(call('call:always-first', 'entity.rename', { baseRevision: 2, entityId: created.value.entity.id, name: 'First Rename' }));
     assert.equal(first.status, 'approval-required');
     assert.equal((await value.runtime.decide(first.approvalId, 'allow-always')).decision, 'allow-always');
-    const created = await value.runtime.execute(first.id);
+    await value.runtime.execute(first.id);
     assert.equal(value.runtime.snapshot().activeApprovalGrants, 1);
 
-    const second = await value.runtime.prepare(call('call:always-second', 'entity.create', { baseRevision: 2, kind: 'empty', name: 'Second' }));
+    const second = await value.runtime.prepare(call('call:always-second', 'entity.rename', { baseRevision: 3, entityId: created.value.entity.id, name: 'Second Rename' }));
     assert.equal(second.status, 'ready');
     assert.equal(second.approvalId, undefined);
     await value.runtime.execute(second.id);
 
-    const differentTool = await value.runtime.prepare(call('call:always-rename', 'entity.rename', { baseRevision: 3, entityId: created.value.entity.id, name: 'Renamed' }));
+    const differentTool = await value.runtime.prepare(call('call:always-material', 'material.set', { baseRevision: 4, entityId: created.value.entity.id, material: 'pbr' }));
     assert.equal(differentTool.status, 'approval-required');
     const facts = await value.operationLog.query({ toolCallId: asStableId('call:always-second'), limit: 20, traverseCorrelation: false });
     assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/') || item.kind.startsWith('approval/')).map((item) => item.kind), [
@@ -108,6 +114,24 @@ test('script proposal, trusted apply and runtime start preserve separate approva
   } finally { await dispose(value); }
 });
 
+test('invalid AI-generated module scripts must be rewritten before apply can be prepared', async () => {
+  const value = await fixture();
+  try {
+    const create = await approveAndExecute(value.runtime, call('call:create-invalid-script-entity', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Invalid Script' }));
+    const proposed = await executeReady(value.runtime, call('call:propose-invalid-module', 'script.propose', {
+      baseRevision: 2, entityId: create.value.entity.id, text: 'export function start(): void {}', capabilities: ['read', 'debug'],
+    }));
+    assert.equal(proposed.value.canApply, false);
+    assert.match(proposed.value.requiredAction, /Rewrite the complete script/);
+    assert.ok(proposed.value.diagnostics.some((item) => item.code === 'script.capability.module-forbidden' && item.severity === 'error'));
+    await assert.rejects(
+      value.runtime.prepare(call('call:apply-invalid-module', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId })),
+      /script\.capability\.module-forbidden[\s\S]*Rewrite and propose again/,
+    );
+    assert.equal(value.workspace.snapshot().document.revision, 2);
+  } finally { await dispose(value); }
+});
+
 test('preview validation rejects scenes that contain only logic entities', async () => {
   const value = await fixture();
   try {
@@ -115,32 +139,75 @@ test('preview validation rejects scenes that contain only logic entities', async
     const proposed = await executeReady(value.runtime, call('call:propose-empty-scene', 'script.propose', { baseRevision: 2, entityId: create.value.entity.id, text: movementScript, capabilities: ['read', 'debug'] }));
     const applied = await approveAndExecute(value.runtime, call('call:apply-empty-scene', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId }));
     const prepared = await value.runtime.prepare(call('call:validate-empty-scene', 'preview.validate', { scriptId: applied.value.scriptId, capabilities: ['read', 'debug'] }));
-    await assert.rejects(value.runtime.execute(prepared.id), /no renderable entities/);
+    await assert.rejects(value.runtime.execute(prepared.id), /no renderable geometry/);
     assert.equal(value.preview.starts, 0);
+  } finally { await dispose(value); }
+});
+
+test('Agent tools create Engine primitives and lights and can change built-in materials', async () => {
+  const value = await fixture();
+  try {
+    const sphere = await approveAndExecute(value.runtime, call('call:create-sphere', 'entity.create', { baseRevision: 1, kind: 'sphere', name: 'Player Ball', material: 'pbr' }));
+    assert.equal(sphere.value.entity.kind, 'sphere');
+    assert.equal(sphere.value.entity.appearance.material, 'pbr');
+    const light = await approveAndExecute(value.runtime, call('call:create-light', 'entity.create', { baseRevision: 2, kind: 'directional-light', name: 'Sun' }));
+    assert.equal(light.value.entity.kind, 'directional-light');
+    assert.equal(light.value.entity.light.intensity, 1);
+    const material = await approveAndExecute(value.runtime, call('call:set-material', 'material.set', { baseRevision: 3, entityId: sphere.value.entity.id, material: 'blinn-phong' }));
+    assert.equal(material.value.entity.appearance.material, 'blinn-phong');
+    assert.equal(material.historyLabel, 'Set Material');
+    await assert.rejects(value.runtime.prepare(call('call:light-material', 'material.set', { baseRevision: 4, entityId: light.value.entity.id, material: 'basic' })), /Only geometry entities/);
+    await assert.rejects(value.runtime.prepare(call('call:empty-pbr', 'entity.create', { baseRevision: 4, kind: 'empty', material: 'pbr' })), /Only geometry entities/);
+  } finally { await dispose(value); }
+});
+
+test('model-facing mutations bind the current revision and create with an initial Transform', async () => {
+  const value = await fixture();
+  try {
+    const initialTransform = (position) => ({ position, rotationDegrees: { x: 0, y: 45, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
+    const definition = GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'entity.create');
+    assert.deepEqual(definition.inputSchema.required, ['kind']);
+    assert.ok(definition.inputSchema.properties.transform);
+
+    const create = await value.runtime.prepare(call('call:create-positioned', 'entity.create', {
+      kind: 'sphere', name: 'Positioned Ball', material: 'pbr', transform: initialTransform({ x: 3, y: 2, z: 1 }),
+    }));
+    assert.equal(create.baseRevision, 1);
+    assert.equal(create.status, 'ready');
+    const created = await value.runtime.execute(create.id);
+    assert.equal(created.afterRevision, 2);
+    assert.deepEqual(created.value.entity.transform.position, { x: 3, y: 2, z: 1 });
+
+    await assert.rejects(
+      value.runtime.prepare(call('call:transform-without-target', 'transform.set', { transform: initialTransform({ x: 4, y: 0, z: 0 }) })),
+      /transform\.set arguments invalid; missing required fields: entityId; unknown fields: none/,
+    );
   } finally { await dispose(value); }
 });
 
 test('schema spoof, rejection, expiry and revision drift fail closed without mutation', async () => {
   const value = await fixture();
   try {
-    await assert.rejects(value.runtime.prepare(call('call:bad', 'entity.create', { baseRevision: 1, kind: 'cube', shell: 'whoami' })), /unknown fields/);
+    await assert.rejects(value.runtime.prepare(call('call:bad', 'entity.create', { baseRevision: 1, kind: 'cube', shell: 'whoami' })), /unknown fields: shell/);
     await assert.rejects(value.runtime.prepare({ ...call('call:version', 'entity.create', { baseRevision: 1, kind: 'cube' }), toolVersion: '2.0.0' }), /not registered/);
-    const rejected = await value.runtime.prepare(call('call:reject', 'entity.create', { baseRevision: 1, kind: 'empty' }));
+    const created = await executeReady(value.runtime, call('call:policy-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Policy Target' }));
+    const entityId = created.value.entity.id;
+    const rejected = await value.runtime.prepare(call('call:reject', 'entity.rename', { baseRevision: 2, entityId, name: 'Rejected' }));
     await value.runtime.decide(rejected.approvalId, 'reject');
     assert.equal((await value.runtime.execute(rejected.id)).status, 'rejected');
-    assert.equal(value.workspace.snapshot().document.revision, 1);
+    assert.equal(value.workspace.snapshot().document.revision, 2);
 
-    const expired = await value.runtime.prepare(call('call:expire', 'entity.create', { baseRevision: 1, kind: 'cube' }));
+    const expired = await value.runtime.prepare(call('call:expire', 'entity.rename', { baseRevision: 2, entityId, name: 'Expired' }));
     value.time.value += 61_000;
     assert.equal((await value.runtime.decide(expired.approvalId, 'allow-once')).decision, 'expired');
     assert.equal((await value.runtime.execute(expired.id)).status, 'rejected');
 
     value.time.value = 1_000;
-    const stale = await value.runtime.prepare(call('call:stale', 'entity.create', { baseRevision: 1, kind: 'cube' }));
+    const stale = await value.runtime.prepare(call('call:stale', 'entity.rename', { baseRevision: 2, entityId, name: 'Stale' }));
     await value.runtime.decide(stale.approvalId, 'allow-once');
-    await value.workspace.execute({ id: asStableId('command:drift'), label: 'Drift', baseRevision: 1, key: 'fixture.drift', value: true });
+    await value.workspace.execute({ id: asStableId('command:drift'), label: 'Drift', baseRevision: 2, key: 'fixture.drift', value: true });
     await assert.rejects(value.runtime.execute(stale.id), /Document changed/);
-    assert.equal(value.scene.snapshot().entities.length, 0);
+    assert.equal(value.scene.snapshot().entities[0].name, 'Policy Target');
 
     const cancelled = await value.runtime.prepare(call('call:cancel-ready', 'project.snapshot', {}));
     await value.runtime.cancel(asStableId('call:cancel-ready'));
@@ -157,7 +224,7 @@ test('fake backend deterministic E2E creates, transforms, scripts and starts pre
     const summary = await coordinator.run(backend, { prompt: 'Create a moving cube and preview it.' });
     assert.equal(summary.terminal, 'completed');
     assert.deepEqual(summary.results.map((item) => item.toolId), ['entity.create', 'transform.set', 'script.propose', 'script.apply', 'preview.validate', 'preview.start', 'preview.stop']);
-    assert.deepEqual(approvals.map((item) => item.toolId), ['entity.create', 'transform.set', 'script.apply', 'preview.start']);
+    assert.deepEqual(approvals.map((item) => item.toolId), ['transform.set', 'script.apply', 'preview.start']);
     assert.equal(value.scene.snapshot().entities[0].transform.position.x, 2);
     assert.equal(value.scripts.snapshot().resources.length, 1);
     assert.equal(value.preview.starts, 1);
@@ -194,7 +261,7 @@ async function fixture() {
 }
 
 function call(id, toolId, args) { return { schemaVersion: 1, id, sessionId: 'session:fixture', turnId: 'turn:fixture', toolId, toolVersion: '1.0.0', arguments: args }; }
-async function approveAndExecute(runtime, value) { const prepared = await runtime.prepare(value); await runtime.decide(prepared.approvalId, 'allow-once'); return runtime.execute(prepared.id); }
+async function approveAndExecute(runtime, value) { const prepared = await runtime.prepare(value); if (prepared.approvalId) await runtime.decide(prepared.approvalId, 'allow-once'); return runtime.execute(prepared.id); }
 async function executeReady(runtime, value) { const prepared = await runtime.prepare(value); assert.equal(prepared.status, 'ready'); return runtime.execute(prepared.id); }
 async function dispose(value) { value.runtime.dispose(); value.scene.dispose(); value.projectScripts.dispose(); await value.validator.dispose(); await value.workspace.dispose(); value.resources.tasks.dispose(); await value.resources.documents.dispose(); value.resources.history.dispose(); value.resources.projectSession.dispose(); await value.operationLog.close(); }
 
@@ -204,7 +271,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 13);
+      assert.equal(input.tools.length, 14);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;

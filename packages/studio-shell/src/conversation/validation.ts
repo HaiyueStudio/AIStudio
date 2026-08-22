@@ -124,10 +124,11 @@ export function validateConversationIntent(value: unknown): ConversationIntent {
       if (!isRecord(value.answer) || !isJsonValue(value.answer)) throw new ConversationReadModelError('conversation.intent-invalid', 'Question answer is invalid.');
       return Object.freeze({ type, nodeId: stable(value.nodeId, 'node id'), answer: Object.freeze(value.answer) as JsonObject });
     case 'conversation/accept-plan': {
-      exactKeys(value, ['type', 'nodeId', 'acceptedItemIds', 'note'], ['note']);
+      exactKeys(value, ['type', 'nodeId', 'acceptedItemIds', 'mode', 'note'], ['mode', 'note']);
       if (!Array.isArray(value.acceptedItemIds) || value.acceptedItemIds.length > 50) throw new ConversationReadModelError('conversation.intent-invalid', 'Accepted plan items are invalid.');
+      if (value.mode !== undefined && value.mode !== 'approve' && value.mode !== 'revise') throw new ConversationReadModelError('conversation.intent-invalid', 'Plan decision is invalid.');
       const acceptedItemIds = Object.freeze(value.acceptedItemIds.map((item) => stable(item, 'plan item id')));
-      return Object.freeze({ type, nodeId: stable(value.nodeId, 'node id'), acceptedItemIds, ...(typeof value.note === 'string' && value.note.trim() ? { note: safeText(value.note.trim(), 2_048) } : {}) });
+      return Object.freeze({ type, nodeId: stable(value.nodeId, 'node id'), acceptedItemIds, ...(value.mode ? { mode: value.mode } : {}), ...(typeof value.note === 'string' && value.note.trim() ? { note: safeText(value.note.trim(), 2_048) } : {}) });
     }
     case 'conversation/resolve-approval':
       exactKeys(value, ['type', 'approvalId', 'decision']);
@@ -165,7 +166,7 @@ function normalizeContent(kind: ConversationNodeKind, value: Record<string, unkn
     case 'question': return normalizeQuestion(value);
     case 'plan': return normalizePlan(value);
     case 'tool-call': return compact({ toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), target: text(value.target, 256), effect: enumValue(value.effect, ['observe', 'reversible-edit', 'trusted-code', 'runtime-start']), argumentsSummary: text(value.argumentsSummary, 2_048) });
-    case 'tool-result': return compact({ toolCallId: stableOptional(value.toolCallId), summary: text(value.summary, 2_048), resultStatus: enumValue(value.resultStatus ?? value.status, ['completed', 'failed', 'cancelled']) });
+    case 'tool-result': return compact({ toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), summary: text(value.summary, 2_048), details: text(value.details, 4_096), resultStatus: enumValue(value.resultStatus ?? value.status, ['completed', 'failed', 'cancelled']) });
     case 'approval': return normalizeApproval(value);
     case 'diagnostic': return compact({ code: text(value.code, 96), message: text(value.message, 2_048), severity: enumValue(value.severity, ['info', 'warning', 'error']), retryable: typeof value.retryable === 'boolean' ? value.retryable : undefined });
     case 'completion': return compact({ summary: text(value.summary, 2_048), terminalStatus: enumValue(value.terminalStatus ?? value.status, ['completed', 'failed', 'cancelled', 'interrupted']) });
@@ -187,7 +188,13 @@ function normalizePlan(value: Record<string, unknown>): JsonObject {
     try { return [Object.freeze({ id: stable(item.id, 'plan item id'), label: text(item.label, 240) ?? 'Plan item', ...(typeof item.details === 'string' ? { details: safeText(item.details, 1_024) } : {}), status: enumValue(item.status, ['pending', 'accepted', 'rejected', 'completed']) ?? 'pending' })]; }
     catch { return []; }
   }) : [];
-  return Object.freeze({ title: text(value.title, 240) ?? 'Proposed plan', items: Object.freeze(items) });
+  return compact({
+    title: text(value.title, 240) ?? 'Proposed plan',
+    summary: text(value.summary, 2_048),
+    decision: enumValue(value.decision, ['approved', 'revision-requested']),
+    note: text(value.note, 2_048),
+    items: Object.freeze(items) as unknown as JsonValue,
+  });
 }
 
 function normalizeApproval(value: Record<string, unknown>): JsonObject {

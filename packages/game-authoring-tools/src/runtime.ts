@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import type { ProjectWorkspace, SceneAuthoringService, TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
+import { isSceneGeometryKind, isSceneMaterialKind, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
@@ -62,8 +62,8 @@ export class GameAuthoringToolRuntime {
     const call = validateToolCall(value);
     const definition = GAME_AUTHORING_TOOL_BY_ID.get(call.toolId);
     if (!definition || call.toolVersion !== definition.version) throw new GameToolProtocolError('tool.not-found', `Tool ${call.toolId}@${call.toolVersion} is not registered.`);
-    const args = normalizeArguments(definition.id, call.arguments);
     const document = requireDocument(this.options.workspace);
+    const args = normalizeArguments(definition.id, call.arguments, document.revision);
     enforceLogHealth(definition.id, definition.effect, this.options.operationLog.status());
     const requestedRevision = readBaseRevision(args);
     if (requestedRevision !== undefined && requestedRevision !== document.revision) throw new GameToolProtocolError('tool.stale-revision', `Tool expected document revision ${requestedRevision}; current revision is ${document.revision}.`, true);
@@ -231,7 +231,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'entity.create': {
       const beforeIds = new Set(scene.entities.map((item) => item.id));
-      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as 'empty' | 'cube', ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}) }, signal);
+      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as SceneEntityKind, ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}), ...(args.material ? { material: args.material as never } : {}), ...(args.transform ? { transform: args.transform as unknown as TransformSnapshot } : {}) }, signal);
       const created = next.entities.find((item) => !beforeIds.has(item.id)); if (!created) throw new GameToolProtocolError('tool.result-invalid', 'Created entity was not projected.'); return Object.freeze({ entity: entitySummary(created), revision: next.revision });
     }
     case 'entity.rename': {
@@ -242,10 +242,16 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const next = await options.scene.setTransform({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, transform: args.transform as unknown as TransformSnapshot }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
+    case 'material.set': {
+      const next = await options.scene.setMaterial({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, material: args.material as never }, signal);
+      return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
+    }
     case 'script.propose': {
       const proposal = await options.scripts.proposeEdit({ entityId: args.entityId as StableId, text: args.text as string, baseRevision: args.baseRevision as number, ...(args.capabilities ? { capabilities: args.capabilities as ScriptCapabilityName[] } : {}) });
       proposals.set(proposal.id, proposal);
-      return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, diagnostics: proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })) });
+      const diagnostics = proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message }));
+      const canApply = !proposal.diagnostics.some((item) => item.severity === 'error');
+      return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Rewrite the complete script to resolve every error diagnostic, then call script.propose again. Do not call script.apply for this proposal.' });
     }
     case 'script.apply': {
       const proposalId = args.proposalId as StableId; if (!proposals.has(proposalId)) throw new GameToolProtocolError('tool.proposal-missing', 'Script proposal is unavailable or already consumed.');
@@ -253,7 +259,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return Object.freeze({ scriptId: resource.id, entityId: resource.entityId, textRevision: resource.textRevision, revision: options.scripts.snapshot().documentRevision });
     }
     case 'preview.validate': {
-      if (!scene.entities.some((item) => item.kind === 'cube')) throw new GameToolProtocolError('tool.preview-no-renderables', 'Preview scene has no renderable entities. Create at least one Cube before Play.');
+      if (!scene.entities.some((item) => isSceneGeometryKind(item.kind))) throw new GameToolProtocolError('tool.preview-no-renderables', 'Preview scene has no renderable geometry. Create at least one primitive before Play.');
       const plan = await options.scripts.prepare(args.scriptId as StableId, args.capabilities as ScriptCapabilityName[] | undefined); plans.set(plan.id, plan);
       return Object.freeze({ planId: plan.id, scriptId: plan.scriptId, entityId: plan.entityId, documentRevision: plan.documentRevision, textRevision: plan.textRevision, digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk, diagnostics: plan.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })) });
     }
@@ -275,20 +281,27 @@ function validateToolCall(value: unknown): GameToolCall {
   return Object.freeze({ schemaVersion: 1, id: stable(value.id, 'tool call id'), sessionId: stable(value.sessionId, 'session id'), turnId: stable(value.turnId, 'turn id'), toolId: stable(value.toolId, 'tool id'), toolVersion: string(value.toolVersion, 'tool version', 32), arguments: value.arguments as JsonObject });
 }
 
-function normalizeArguments(toolId: StableId, value: JsonObject): JsonObject {
+function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision: number): JsonObject {
   const raw = value as Record<string, unknown>;
   switch (toolId) {
-    case 'project.snapshot': case 'scene.list-entities': case 'preview.stop': exact(raw, []); return Object.freeze({});
-    case 'entity.get': exact(raw, ['entityId']); return Object.freeze({ entityId: stable(raw.entityId, 'entity id') });
-    case 'script.get': { exact(raw, [], ['entityId', 'scriptId']); if (!raw.entityId && !raw.scriptId) throw invalid('script.get requires entityId or scriptId.'); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
+    case 'project.snapshot': case 'scene.list-entities': case 'preview.stop': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'entity.get': exact(raw, ['entityId'], [], toolId); return Object.freeze({ entityId: stable(raw.entityId, 'entity id') });
+    case 'script.get': { exact(raw, [], ['entityId', 'scriptId'], toolId); if (!raw.entityId && !raw.scriptId) throw invalid('script.get requires entityId or scriptId.'); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
     case 'diagnostics.query': return normalizeLogQuery(raw);
-    case 'entity.create': exact(raw, ['baseRevision', 'kind'], ['name', 'parentId']); if (raw.kind !== 'empty' && raw.kind !== 'cube') throw invalid('Entity kind is invalid.'); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), kind: raw.kind, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }) });
-    case 'entity.rename': exact(raw, ['baseRevision', 'entityId', 'name']); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
-    case 'transform.set': exact(raw, ['baseRevision', 'entityId', 'transform']); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
-    case 'script.propose': exact(raw, ['baseRevision', 'entityId', 'text'], ['capabilities']); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
-    case 'script.apply': exact(raw, ['baseRevision', 'proposalId']); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), proposalId: stable(raw.proposalId, 'proposal id') });
-    case 'preview.validate': exact(raw, ['scriptId'], ['capabilities']); return Object.freeze({ scriptId: stable(raw.scriptId, 'script id'), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
-    case 'preview.start': exact(raw, ['baseRevision', 'planId']); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), planId: stable(raw.planId, 'plan id') });
+    case 'entity.create': {
+      exact(raw, ['kind'], ['baseRevision', 'name', 'parentId', 'material', 'transform'], toolId);
+      if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
+      if (raw.material !== undefined && !isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.');
+      if (raw.material !== undefined && !isSceneGeometryKind(raw.kind)) throw invalid('Only geometry entities can select a material.');
+      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
+    }
+    case 'entity.rename': exact(raw, ['entityId', 'name'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
+    case 'transform.set': exact(raw, ['entityId', 'transform'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
+    case 'material.set': exact(raw, ['entityId', 'material'], ['baseRevision'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), material: raw.material });
+    case 'script.propose': exact(raw, ['entityId', 'text'], ['baseRevision', 'capabilities'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+    case 'script.apply': exact(raw, ['proposalId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), proposalId: stable(raw.proposalId, 'proposal id') });
+    case 'preview.validate': exact(raw, ['scriptId'], ['capabilities'], toolId); return Object.freeze({ scriptId: stable(raw.scriptId, 'script id'), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+    case 'preview.start': exact(raw, ['planId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), planId: stable(raw.planId, 'plan id') });
     default: throw new GameToolProtocolError('tool.not-found', `Unknown tool ${toolId}.`);
   }
 }
@@ -306,7 +319,19 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
     case 'entity.create': return preview('Create entity', snapshot.documentId, `Create ${raw.kind}${raw.name ? ` named ${raw.name}` : ''}.`, `+ ${raw.kind} ${raw.name ?? ''}`.trim());
     case 'entity.rename': { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Rename entity', entity.id, `Rename ${entity.name} to ${raw.name}.`, `- ${entity.name}\n+ ${raw.name}`); }
     case 'transform.set': { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Set Transform', entity.id, `Replace Transform for ${entity.name}.`, `${canonicalStringify(entity.transform as unknown as JsonObject)}\n→ ${canonicalStringify(raw.transform as JsonObject)}`); }
-    case 'script.apply': { const proposal = proposals.get(raw.proposalId as StableId); if (!proposal) throw new GameToolProtocolError('tool.proposal-missing', 'Script proposal is unavailable.'); if (proposal.baseRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Script proposal base revision differs.'); return preview('Apply script proposal', proposal.scriptId, `Commit validated proposal with +${proposal.addedLines}/-${proposal.removedLines} lines.`, `digest ${proposal.digest}`); }
+    case 'material.set': {
+      const entity = requireEntity(snapshot, raw.entityId as StableId);
+      if (!isSceneGeometryKind(entity.kind)) throw invalid('Only geometry entities can use materials.');
+      return preview('Set material', entity.id, `Apply ${raw.material} material to ${entity.name}.`, `${entity.appearance?.material ?? 'none'} → ${raw.material}`);
+    }
+    case 'script.apply': {
+      const proposal = proposals.get(raw.proposalId as StableId);
+      if (!proposal) throw new GameToolProtocolError('tool.proposal-missing', 'Script proposal is unavailable.');
+      if (proposal.baseRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Script proposal base revision differs.');
+      const errors = proposal.diagnostics.filter((item) => item.severity === 'error');
+      if (errors.length) throw new GameToolProtocolError('tool.script-validation-failed', `Script proposal has ${errors.length} validation error(s): ${errors.slice(0, 4).map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join(' | ')} Rewrite and propose again before apply.`);
+      return preview('Apply script proposal', proposal.scriptId, `Commit validated proposal with +${proposal.addedLines}/-${proposal.removedLines} lines.`, `digest ${proposal.digest}`);
+    }
     case 'preview.start': { const plan = plans.get(raw.planId as StableId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Preview plan is unavailable.'); if (plan.documentRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Preview plan base revision differs.'); return preview('Start trusted preview', plan.scriptId, `Start trusted-project preview with ${plan.capabilities.join(', ')}.`, `script digest ${plan.digest}`); }
     default: return preview(GAME_AUTHORING_TOOL_BY_ID.get(toolId)?.title ?? toolId, snapshot.documentId, `Execute ${toolId}.`, 'No Document mutation in this step.');
   }
@@ -321,17 +346,22 @@ function isAllowDecision(decision: GameToolApproval['decision']): boolean { retu
 function preview(title: string, target: string, summary: string, diff: string): GameToolPreview { return Object.freeze({ title, target, summary, diff }); }
 function requireDocument(workspace: ProjectWorkspace): NonNullable<ReturnType<ProjectWorkspace['snapshot']>['document']> { const document = workspace.snapshot().document; if (!document) throw new GameToolProtocolError('tool.project-missing', 'No project is open.'); return document; }
 function requireEntity(scene: ReturnType<SceneAuthoringService['snapshot']>, id: StableId) { const entity = scene.entities.find((item) => item.id === id); if (!entity) throw new GameToolProtocolError('tool.entity-missing', `Entity ${id} does not exist.`); return entity; }
-function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue }); }
+function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
-function historyLabel(toolId: StableId): string | undefined { return ({ 'entity.create': 'Create Cube/Empty', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 function correlation(call: GameToolCall, approvalId?: StableId) { return Object.freeze({ sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id, ...(approvalId ? { approvalId } : {}) }); }
 function readBaseRevision(args: JsonObject): number | undefined { return typeof args.baseRevision === 'number' ? args.baseRevision : undefined; }
 function assertResultBudget(value: JsonObject, maximum: number): void { if (new TextEncoder().encode(canonicalStringify(value)).byteLength > maximum) throw new GameToolProtocolError('tool.result-too-large', `Tool result exceeds ${maximum} bytes.`); }
 function enforceLogHealth(toolId: StableId, effect: GameToolDefinition['effect'], status: ReturnType<OperationLog['status']>): void { if (toolId === 'preview.stop' || effect === 'observe') return; const allowed = effect === 'reversible-edit' ? status.allowsMutation : effect === 'trusted-code' ? status.allowsTrustedCode : status.allowsRuntimeStart; if (!allowed) throw new GameToolProtocolError('tool.log-unavailable', `Operation Log health ${status.health} blocks ${effect}.`); }
 function normalizeTransform(value: unknown): TransformSnapshot { if (!isRecord(value)) throw invalid('Transform must be an object.'); exact(value, ['position', 'rotationDegrees', 'scale']); const result = Object.freeze({ position: vec(value.position, 'position'), rotationDegrees: vec(value.rotationDegrees, 'rotationDegrees'), scale: vec(value.scale, 'scale') }); if (result.scale.x <= 0 || result.scale.y <= 0 || result.scale.z <= 0) throw invalid('Transform scale must be positive.'); return result; }
 function vec(value: unknown, label: string) { if (!isRecord(value)) throw invalid(`${label} must be an object.`); exact(value, ['x', 'y', 'z']); const result = { x: number(value.x, `${label}.x`), y: number(value.y, `${label}.y`), z: number(value.z, `${label}.z`) }; return Object.freeze(result); }
-function normalizeCapabilities(value: unknown): readonly ScriptCapabilityName[] { return enumArray(value, ['read', 'input', 'debug', 'scene-mutation'], 4) as readonly ScriptCapabilityName[]; }
-function exact(value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []): void { const allowed = new Set([...required, ...optional]); if (Object.keys(value).some((key) => !allowed.has(key)) || required.some((key) => !(key in value))) throw invalid('Tool arguments contain missing or unknown fields.'); }
+function normalizeCapabilities(value: unknown): readonly ScriptCapabilityName[] { return enumArray(value, ['read', 'input', 'debug', 'scene'], 4) as readonly ScriptCapabilityName[]; }
+function exact(value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = [], label = 'Tool'): void {
+  const allowed = new Set([...required, ...optional]);
+  const missing = required.filter((key) => !(key in value));
+  const unknown = Object.keys(value).filter((key) => !allowed.has(key));
+  if (missing.length || unknown.length) throw invalid(`${label} arguments invalid; missing required fields: ${missing.join(', ') || 'none'}; unknown fields: ${unknown.join(', ') || 'none'}; allowed fields: ${[...allowed].join(', ') || 'none'}.`);
+}
 function optionalIdFields(value: Record<string, unknown>, keys: readonly string[]): JsonObject { return Object.freeze(Object.fromEntries(keys.flatMap((key) => value[key] === undefined ? [] : [[key, stable(value[key], key)]]))); }
 function optionalIntegers(value: Record<string, unknown>, keys: readonly string[]): JsonObject { return Object.freeze(Object.fromEntries(keys.flatMap((key) => value[key] === undefined ? [] : [[key, integer(value[key], key)]]))); }
 function enumArray(value: unknown, allowed: readonly string[], maximum: number): readonly string[] { if (!Array.isArray(value) || value.length > maximum || value.some((item) => typeof item !== 'string' || !allowed.includes(item))) throw invalid('Enum array is invalid.'); return Object.freeze([...new Set(value)]); }
@@ -340,6 +370,7 @@ function stable(value: unknown, label: string): StableId { if (typeof value !== 
 function string(value: unknown, label: string, maximum: number): string { if (typeof value !== 'string' || !value || value.length > maximum) throw invalid(`${label} is invalid.`); return value; }
 function boundedString(value: unknown, label: string, maximum: number, nonEmpty = false): string { if (typeof value !== 'string' || value.length > maximum || (nonEmpty && !value.trim())) throw invalid(`${label} is invalid.`); return value; }
 function integer(value: unknown, label: string): number { if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalid(`${label} is invalid.`); return value as number; }
+function revisionOrCurrent(value: unknown, currentRevision: number): number { return value === undefined ? currentRevision : integer(value, 'baseRevision'); }
 function number(value: unknown, label: string): number { if (typeof value !== 'number' || !Number.isFinite(value)) throw invalid(`${label} is invalid.`); return value; }
 function invalid(message: string): GameToolProtocolError { return new GameToolProtocolError('tool.arguments-invalid', message); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }

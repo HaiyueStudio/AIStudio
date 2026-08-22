@@ -18,6 +18,7 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(main, /HAIYUE_OPEN_DEVTOOLS/);
   assert.match(main, /setWindowOpenHandler/);
   assert.match(main, /will-navigate/);
+  assert.match(main, /did-start-navigation[\s\S]*isMainFrame[\s\S]*if \(isMainFrame\)\s*activeRouter\?\.cancelPending\(\)/);
   assert.match(main, /persist:haiyue-ai-studio/);
   assert.match(main, /setPath\('userData',[\s\S]*descriptor\.productName/);
   assert.match(preload, /studio:request/);

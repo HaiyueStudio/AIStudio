@@ -123,7 +123,7 @@ export class ScriptValidationWorker {
         id: requestId,
         sourcePath: input.sourcePath,
         text: input.text,
-        declarations: generateScriptRuntimeDeclarations(capabilities),
+        declarations: studioScriptRuntimeDeclarations(capabilities),
       });
     });
     return Object.freeze({
@@ -148,6 +148,26 @@ export class ScriptValidationWorker {
     await this.worker.terminate();
   }
   private assertActive(): void { if (this.disposed) throw new Error('Script validation worker is disposed.'); }
+}
+
+export function studioScriptRuntimeDeclarations(capabilities: readonly ScriptCapabilityName[]): string {
+  return `${generateScriptRuntimeDeclarations(capabilities)}
+interface HaiyueStudioInstanceVector { readonly x: number; readonly y: number; readonly z: number; }
+interface HaiyueStudioInstanceTransform {
+  readonly position: HaiyueStudioInstanceVector;
+  readonly rotationDegrees?: HaiyueStudioInstanceVector;
+  readonly scale?: HaiyueStudioInstanceVector;
+  readonly color?: readonly [number, number, number, number?];
+}
+interface HaiyueStudioInstanceSet {
+  readonly capacity: number;
+  setCount(count: number): void;
+  set(index: number, transform: HaiyueStudioInstanceTransform): void;
+}
+interface HaiyueScriptSceneApi {
+  instances(entity: Entity | number | string, capacity: number): HaiyueStudioInstanceSet;
+}
+`;
 }
 
 const SCRIPT_SETTING_KEY = 'script.resources';

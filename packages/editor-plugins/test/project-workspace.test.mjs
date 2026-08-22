@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -73,6 +73,24 @@ test('new, command, stale rejection, undo/redo, save and reopen share one revisi
   assert.ok(chain.events.some((item) => item.kind === 'project/created'));
   assert.ok(chain.events.some((item) => item.kind === 'history/undo-committed'));
   assert.ok(chain.events.some((item) => item.kind === 'project/opened'));
+  await disposeFixture(value);
+});
+
+test('untitled projects edit in memory and bind a directory on first save', async () => {
+  const value = await fixture();
+  let snapshot = await value.workspace.newProject(null, 'Untitled game');
+  assert.equal(snapshot.projectRoot, null);
+  assert.equal(snapshot.document.dirty, true);
+  snapshot = await value.workspace.execute({
+    id: asStableId('command:untitled-grid'), label: 'Set grid', baseRevision: 1, key: 'grid.size', value: 12,
+  });
+  assert.equal(snapshot.projectRoot, null);
+  await assert.rejects(value.workspace.save(), /repository/i);
+  snapshot = await value.workspace.saveAs(value.projectRoot);
+  assert.equal(snapshot.projectRoot, await realpath(value.projectRoot));
+  assert.equal(snapshot.document.dirty, false);
+  const saved = JSON.parse(await readFile(path.join(value.projectRoot, '.haiyue-project.json'), 'utf8'));
+  assert.equal(saved.document.settings['grid.size'], 12);
   await disposeFixture(value);
 });
 

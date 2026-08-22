@@ -104,6 +104,24 @@ test('chat feed follows new content only while the reader is near the latest mes
   assert.equal(chatFeedIsNearLatest({ scrollTop: 500, clientHeight: 300, scrollHeight: 1_000 }), false);
 });
 
+test('user messages are projected as conversation input rather than assistant output', () => {
+  const model = presentChatPanel(new ConversationProjector().reset(snapshot([
+    projection(1, node('node:user', 'text', 'completed', { text: '创建一个小游戏', role: 'user' }), 'replay'),
+    projection(2, node('node:progress', 'progress', 'pending', { label: '正在分析需求', message: 'Agent 正在读取项目上下文并规划下一步。' }), 'replay'),
+  ])));
+  assert.equal(model.cards[0].title, '你');
+  assert.equal(model.cards[0].body, '创建一个小游戏');
+  assert.equal(model.cards[1].status, 'pending');
+});
+test('tool results show a readable step and keep raw structured output collapsed', () => {
+  const model = presentChatPanel(new ConversationProjector().reset(snapshot([
+    projection(1, node('node:tool', 'tool-result', 'completed', { toolCallId: 'toolcall:fixture', toolId: 'entity.create', summary: '已创建“Player”', details: '{"entity":{"name":"Player"}}', resultStatus: 'completed' }), 'replay'),
+  ])));
+  assert.equal(model.cards[0].title, '完成 · 创建物体');
+  assert.equal(model.cards[0].body, '已创建“Player”');
+  assert.deepEqual(model.cards[0].details, { summary: '查看工具返回数据', body: '{"entity":{"name":"Player"}}' });
+});
+
 test('approval cards expose a validated project-session Allow always action', () => {
   const model = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending'), 'replay')])), Date.parse('2026-08-19T00:00:00.000Z'));
   const card = model.cards[0];

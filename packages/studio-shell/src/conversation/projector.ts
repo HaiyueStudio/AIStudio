@@ -65,7 +65,8 @@ export class ConversationProjector {
     const nodes = Object.freeze([...this.nodes.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)));
     const pendingInteraction = findPendingInteraction(nodes, now);
     const composerBlockedReason = pendingInteraction
-      ? pendingInteraction.kind === 'approval' ? 'Resolve the pending approval before sending another message.' : 'Answer the pending question before sending another message.'
+      ? pendingInteraction.kind === 'approval' ? 'Resolve the pending approval before sending another message.'
+        : pendingInteraction.kind === 'plan' ? 'Review the implementation plan before continuing.' : 'Answer the pending question before sending another message.'
       : this.connection !== 'connected' ? 'Reconnect before sending a message.'
         : this.busy ? 'Wait for the active turn or cancel it.' : null;
     return Object.freeze({
@@ -138,10 +139,10 @@ export class ConversationController implements StudioDisposable {
     await this.dispatchOnce(nodeId, Object.freeze({ type: 'conversation/answer-question', nodeId, answer }));
   }
 
-  async acceptPlan(nodeId: StableId, acceptedItemIds: readonly StableId[], note?: string): Promise<void> {
+  async acceptPlan(nodeId: StableId, acceptedItemIds: readonly StableId[], note?: string, mode: 'approve' | 'revise' = 'approve'): Promise<void> {
     const node = this.snapshot().nodes.find((item) => item.id === nodeId && item.knownKind === 'plan');
     if (!node || node.status !== 'pending') throw new Error('Plan is no longer pending.');
-    await this.dispatchOnce(nodeId, Object.freeze({ type: 'conversation/accept-plan', nodeId, acceptedItemIds: Object.freeze([...acceptedItemIds]), ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) }));
+    await this.dispatchOnce(nodeId, Object.freeze({ type: 'conversation/accept-plan', nodeId, acceptedItemIds: Object.freeze([...acceptedItemIds]), mode, ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) }));
   }
 
   async resolveApproval(nodeId: StableId, decision: 'allow-once' | 'allow-always' | 'reject'): Promise<void> {
@@ -213,6 +214,7 @@ function findPendingInteraction(nodes: readonly ConversationNodeReadModel[], now
   for (const node of [...nodes].reverse()) {
     if (node.status !== 'pending') continue;
     if (node.knownKind === 'question') return Object.freeze({ nodeId: node.id, kind: 'question' });
+    if (node.knownKind === 'plan') return Object.freeze({ nodeId: node.id, kind: 'plan' });
     if (node.knownKind === 'approval') {
       const approval = approvalFromNode(node);
       if (approval?.decision === 'pending' && Date.parse(approval.expiresAt) > now) return Object.freeze({ nodeId: node.id, kind: 'approval', expiresAt: approval.expiresAt });

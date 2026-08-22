@@ -1,12 +1,12 @@
 import {
-  BasicMaterial,
   CartesianTransform3D,
-  createBox3D,
   Entity,
   HaiyueEngine,
-  Mesh3D,
+  OrbitControl,
+  SphericalTransform3D,
   type Scene,
 } from '@haiyue/engine';
+import { MeshHelper } from '@haiyue/engine/experimental';
 import { createInteractionRaycastResult, InteractionSystem } from '@haiyue/engine/systems';
 import type { ScriptCapabilityName } from '@haiyue/engine/components';
 import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
@@ -21,17 +21,14 @@ import {
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
-import {
-  defineDialogComponents,
-  defineSelectComponents,
-  defineSplitComponents,
-  defineTabsComponents,
-  type GEDialog,
-  type GESelect,
-  type GESplit,
-  type GESplitRatioChangeDetail,
-  type GETabs,
-} from '@haiyue/ui';
+import { selectProjectRunScript } from './run-script-selection.js';
+import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isLightSceneKind, isRenderableSceneKind } from './scene-entity-rendering.js';
+import type { SceneEntityKind, SceneMaterialKind, SelectionIntentSource } from '@haiyue/ai-studio-editor-plugins';
+import { defineBorderBeamComponents } from '@haiyue/ui/border-beam';
+import { defineDialogComponents, type HYDialog } from '@haiyue/ui/dialog';
+import { defineSelectComponents, type HYSelect } from '@haiyue/ui/select';
+import { defineSplitComponents, type HYSplit, type HYSplitRatioChangeDetail } from '@haiyue/ui/split';
+import { defineTabsComponents, type HYTabs } from '@haiyue/ui/tabs';
 
 declare global {
   interface Window {
@@ -46,18 +43,20 @@ declare global {
 interface Vec3Snapshot { readonly x: number; readonly y: number; readonly z: number; }
 interface TransformSnapshot { readonly position: Vec3Snapshot; readonly rotationDegrees: Vec3Snapshot; readonly scale: Vec3Snapshot; }
 interface SceneEntitySnapshot {
-  readonly id: StableId; readonly name: string; readonly kind: 'empty' | 'cube';
+  readonly id: StableId; readonly name: string; readonly kind: SceneEntityKind;
   readonly parentId: StableId | null; readonly order: number; readonly transform: TransformSnapshot;
+  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
+  readonly light?: Readonly<{ color: readonly [number, number, number]; intensity: number; range?: number; direction?: readonly [number, number, number]; castShadow?: boolean }>;
 }
 interface SceneSnapshot { readonly revision: number; readonly documentId: StableId; readonly entities: readonly SceneEntitySnapshot[]; }
 interface ProjectSnapshot {
   readonly smoke?: boolean;
-  readonly document: Readonly<{ revision: number; name: string }> | null;
+  readonly document: Readonly<{ revision: number; savedRevision: number; dirty: boolean; name: string }> | null;
   readonly history: Readonly<{ canUndo: boolean; canRedo: boolean }>;
   readonly logging: Readonly<{ health: string; canPersist: boolean; nextSequence: number; eventCount: number }>;
 }
 interface SelectionSnapshot { readonly activeEntityId: StableId | null; readonly source: string; }
-interface ScriptResourceSnapshot { readonly id: StableId; readonly entityId: StableId; readonly text: string; readonly textRevision: number; readonly dirty: boolean; }
+interface ScriptResourceSnapshot { readonly id: StableId; readonly entityId: StableId; readonly name?: string; readonly text: string; readonly textRevision: number; readonly dirty: boolean; }
 interface ScriptCatalogSnapshot { readonly documentRevision: number; readonly resources: readonly ScriptResourceSnapshot[]; }
 interface ScriptProposal { readonly id: StableId; readonly diagnostics: readonly ScriptDiagnostic[]; readonly addedLines: number; readonly removedLines: number; }
 interface ScriptDiagnostic { readonly code: string; readonly severity: 'error' | 'warning'; readonly line: number; readonly column: number; readonly message: string; }
@@ -71,6 +70,7 @@ let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
 let scene: SceneSnapshot | null = null;
 let selection: SelectionSnapshot = { activeEntityId: null, source: 'system' };
+let selectionIntentGeneration = 0;
 let viewport: WebGpuViewportRuntime | null = null;
 let previewFrame: SandboxedPreviewFrame | null = null;
 let scripts: ScriptCatalogSnapshot = { documentRevision: 0, resources: [] };
@@ -84,6 +84,10 @@ const observedAgentToolResults = new Set<StableId>();
 let agentPoll: AgentPollScheduler | null = null;
 let disposeConversationChanged: (() => void) | null = null;
 let handledPreviewCommand: StableId | null = null;
+let conversationBackendId: StableId | null = null;
+let conversationCanSend = false;
+let runScriptContext: Readonly<{ scriptId: StableId; entityId: StableId; entityName: string; diagnostics: readonly ScriptDiagnostic[] }> | null = null;
+const scriptDiagnosticsById = new Map<StableId, Readonly<{ textRevision: number; diagnostics: readonly ScriptDiagnostic[] }>>();
 const DEMO_SCRIPT = document.body.dataset.shell === 'web'
   ? `const transform = entity.getComponent('CartesianTransform3D');\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`
   : `const transform = entity.getComponent('CartesianTransform3D') as unknown as { setPosition(x: number, y: number, z: number): unknown } | null;\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`;
@@ -91,41 +95,41 @@ const SPLIT_LAYOUT_STORAGE_PREFIX = 'haiyue.ai-studio.split.v2.';
 const LANGUAGE_STORAGE_KEY = 'haiyue.ai-studio.language.v1';
 const THEME_STORAGE_KEY = 'haiyue.ai-studio.theme.v1';
 type StudioLanguage = 'zh-CN' | 'en';
-type StudioTheme = 'ocean' | 'violet' | 'emerald' | 'amber';
+type StudioTheme = 'light' | 'dark';
 let language: StudioLanguage = 'zh-CN';
-let theme: StudioTheme = 'ocean';
+let theme: StudioTheme = 'dark';
 let currentStatusKey: string | null = document.body.dataset.shell === 'web' ? 'startingWeb' : 'starting';
 
 const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>> = Object.freeze({
   'zh-CN': Object.freeze({
-    newProject: '新建', openProject: '打开', saveProject: '保存', undo: '撤销', redo: '重做', settings: '设置',
+    newProject: '新建', openProject: '打开', saveProject: '保存', run: '▶ 运行', stop: '■ 停止', runTitle: '运行项目', stopTitle: '停止运行', undo: '撤销', redo: '重做', settings: '设置',
     scene: '场景', createEmpty: '+ 空物体', createCube: '+ 立方体', inspector: '检查器', noSelection: '未选择物体',
     transformHistory: 'Transform 修改会通过历史记录提交。', position: '位置', rotation: '旋转', scale: '缩放', applyTransform: '应用 Transform',
-    noRenderables: '没有可渲染物体', noRenderablesHint: '空物体仅用于逻辑。创建一个立方体即可显示几何体。', authoring: '编辑', assets: '资源库',
-    cube: '立方体', builtinGeometry: '内置几何体', defaultMaterial: '默认材质', builtinMaterial: '内置材质', noTextures: '项目中暂无纹理', noModels: '项目中暂无模型',
-    geometry: '几何体', materials: '材质', textures: '纹理', models: '模型', agent: 'AI 助手', logs: '日志', agentConversation: 'AI 助手对话',
+    noRenderables: '没有可渲染物体', noRenderablesHint: '创建一个基础几何体即可显示。', authoring: '编辑', assets: '资源库',
+    cube: '立方体', sphere: '球体', cone: '锥体', cylinder: '圆柱体', plane: '平面', torus: '圆环', icosahedron: '二十面体', lights: '光源', directionalLight: '方向光', pointLight: '点光源', ambientLight: '环境光', builtinGeometry: '点击创建', defaultMaterial: '默认材质', builtinMaterial: '应用到选中几何体', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: '项目中暂无纹理', noModels: '项目中暂无模型', noScripts: '项目中暂无脚本',
+    geometry: '几何体', materials: '材质', textures: '纹理', models: '模型', scripts: '脚本', scriptRevision: '脚本 r{revision}', scriptUnvalidated: '尚未验证', scriptValid: '验证通过', scriptErrors: '{count} 个错误', agent: 'AI 助手', logs: '日志', agentConversation: 'AI 助手对话',
     refresh: '刷新', exportLogs: '导出安全问题包', downloadLogs: '下载安全日志包', loading: '加载中…', starting: '正在启动 AIStudio…', startingWeb: '正在启动 AIStudio Web…',
-    language: '语言', themeColor: '主题色', settingsSaved: '偏好会保存在当前设备中。', done: '完成', browserLocal: '浏览器本地',
+    language: '语言', themeColor: '主题色', settingsSaved: '偏好会保存在当前设备中。', done: '完成', browserLocal: '浏览器本地', cancel: '取消', approveRun: '批准并运行', fixWithAgent: '让 AI 自动修复', runApprovalHeading: '运行项目', runApprovalIntro: '项目脚本将在隔离预览环境中运行。请确认本次能力授权。', runValidationFailed: '脚本验证失败，暂时无法运行。', runValidationHint: '请让 AI 修复这些脚本错误，然后重新点击运行。', agentFixUnavailable: 'AI 助手当前不可发送消息，请先连接后端或等待当前任务完成。', fixRequestSent: '已向 AI 助手发送脚本修复任务',
     webCapability: 'Web 模式将项目和结构化日志保存在当前浏览器中。本地 Codex、API Key、任意目录和原生问题包需要 Electron 应用。',
-    chinese: '简体中文', english: 'English', ocean: '海洋蓝', violet: '星云紫', emerald: '翡翠绿', amber: '琥珀橙',
-    revision: '文档 r{document} · 场景 r{scene}', ready: '就绪', working: '处理中…', agentPending: '正在提交 AI 请求…', agentAccepted: 'AI 请求已接受', editorReady: 'AIStudio 场景编辑器已就绪',
+    chinese: '简体中文', english: 'English', lightTheme: '海月月光', darkTheme: '海月夜幕',
+    revision: '文档 r{document} · 场景 r{scene}', ready: '就绪', working: '处理中…', saving: '正在保存项目…', projectSaved: '项目已保存', unsavedChanges: '有未保存的更改', allChangesSaved: '所有更改均已保存', preparingRun: '正在准备隔离预览…', previewRunning: '项目正在运行', previewStopped: '项目已停止', scriptValidationFailed: '脚本验证失败', noProjectRun: '请先新建或打开项目。', noRenderableRun: '场景中没有可渲染物体，请先创建一个立方体。', noScriptRun: '没有可运行的脚本，请先让 AI 或脚本工具为实体创建并提交脚本。', runDisclosure: '{entity} · 风险：{risk} · 能力：{capabilities}', agentPending: '正在提交 AI 请求…', agentAccepted: 'AI 请求已接受', editorReady: 'AIStudio 场景编辑器已就绪',
     newestLogs: '{health} · 显示最新 {visible} / {total} 条安全摘要', logCount: '{health} · {visible} 条安全摘要', bugExported: '问题包已导出 · {digest}',
     connection: '连接', connected: '已连接', reconnecting: '正在重连', disconnected: '已断开', latest: '↓ 最新', send: '发送', cancelTurn: '取消本轮', reconnect: '重新连接', signOut: '退出登录',
     configureKey: '安全配置 API Key', signIn: '使用 ChatGPT 登录', messageAgent: '向游戏创作 AI 助手发送消息', readyToSend: '可以发送。', waitTurn: '请等待当前任务完成或取消任务。',
     allowOnce: '仅允许一次', allowAlways: '始终允许', reject: '拒绝', agentBackend: 'AI 后端', jumpLatest: '跳到最新 AI 消息', noProject: '未打开项目',
   }),
   en: Object.freeze({
-    newProject: 'New', openProject: 'Open', saveProject: 'Save', undo: 'Undo', redo: 'Redo', settings: 'Settings',
+    newProject: 'New', openProject: 'Open', saveProject: 'Save', run: '▶ Run', stop: '■ Stop', runTitle: 'Run project', stopTitle: 'Stop project', undo: 'Undo', redo: 'Redo', settings: 'Settings',
     scene: 'Scene', createEmpty: '+ Empty', createCube: '+ Cube', inspector: 'Inspector', noSelection: 'No entity selected',
     transformHistory: 'Transform values are committed through History.', position: 'Position', rotation: 'Rotation', scale: 'Scale', applyTransform: 'Apply Transform',
-    noRenderables: 'No renderable entities', noRenderablesHint: 'Empty entities are logic nodes. Create a Cube to render geometry.', authoring: 'Authoring', assets: 'Assets',
-    cube: 'Cube', builtinGeometry: 'Built-in geometry', defaultMaterial: 'Default Material', builtinMaterial: 'Built-in material', noTextures: 'No textures in this project', noModels: 'No models in this project',
-    geometry: 'Geometry', materials: 'Materials', textures: 'Textures', models: 'Models', agent: 'AI Agent', logs: 'Logs', agentConversation: 'Agent conversation',
+    noRenderables: 'No renderable entities', noRenderablesHint: 'Create a primitive geometry to render the scene.', authoring: 'Authoring', assets: 'Assets',
+    cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', lights: 'Lights', directionalLight: 'Directional Light', pointLight: 'Point Light', ambientLight: 'Ambient Light', builtinGeometry: 'Click to create', defaultMaterial: 'Default Material', builtinMaterial: 'Apply to selected geometry', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: 'No textures in this project', noModels: 'No models in this project', noScripts: 'No scripts in this project',
+    geometry: 'Geometry', materials: 'Materials', textures: 'Textures', models: 'Models', scripts: 'Scripts', scriptRevision: 'Script r{revision}', scriptUnvalidated: 'Not validated', scriptValid: 'Valid', scriptErrors: '{count} error(s)', agent: 'AI Agent', logs: 'Logs', agentConversation: 'Agent conversation',
     refresh: 'Refresh', exportLogs: 'Export safe bug bundle', downloadLogs: 'Download safe log bundle', loading: 'Loading…', starting: 'Starting AIStudio…', startingWeb: 'Starting AIStudio Web…',
-    language: 'Language', themeColor: 'Theme color', settingsSaved: 'Preferences are stored on this device.', done: 'Done', browserLocal: 'Browser-local',
+    language: 'Language', themeColor: 'Theme color', settingsSaved: 'Preferences are stored on this device.', done: 'Done', browserLocal: 'Browser-local', cancel: 'Cancel', approveRun: 'Approve and run', fixWithAgent: 'Ask Agent to fix', runApprovalHeading: 'Run project', runApprovalIntro: 'Project scripts run in an isolated preview environment. Confirm this capability grant.', runValidationFailed: 'Script validation failed; the project cannot run yet.', runValidationHint: 'Ask the Agent to fix these script errors, then run again.', agentFixUnavailable: 'The Agent cannot send right now. Connect a backend or wait for the active turn to finish.', fixRequestSent: 'Script repair task sent to the Agent',
     webCapability: 'Web mode stores projects and structured logs in this browser. Local Codex, API keys, arbitrary folders, and native bug bundles require the Electron app.',
-    chinese: '简体中文', english: 'English', ocean: 'Ocean Blue', violet: 'Nebula Violet', emerald: 'Emerald', amber: 'Amber',
-    revision: 'Document r{document} · Scene r{scene}', ready: 'Ready', working: 'Working…', agentPending: 'Agent intent pending…', agentAccepted: 'Agent intent accepted', editorReady: 'AIStudio scene authoring ready',
+    chinese: '简体中文', english: 'English', lightTheme: 'Haiyue Moonlight', darkTheme: 'Haiyue Nightfall',
+    revision: 'Document r{document} · Scene r{scene}', ready: 'Ready', working: 'Working…', saving: 'Saving project…', projectSaved: 'Project saved', unsavedChanges: 'Unsaved changes', allChangesSaved: 'All changes saved', preparingRun: 'Preparing isolated preview…', previewRunning: 'Project is running', previewStopped: 'Project stopped', scriptValidationFailed: 'Script validation failed', noProjectRun: 'Create or open a project first.', noRenderableRun: 'The scene has no renderable entities. Create a Cube first.', noScriptRun: 'No runnable script is available. Ask the Agent or script tools to create and commit one for an entity.', runDisclosure: '{entity} · Risk: {risk} · Capabilities: {capabilities}', agentPending: 'Agent intent pending…', agentAccepted: 'Agent intent accepted', editorReady: 'AIStudio scene authoring ready',
     newestLogs: '{health} · newest {visible} of {total} safe summaries', logCount: '{health} · {visible} safe summaries', bugExported: 'Bug bundle exported · {digest}',
     connection: 'Connection', connected: 'connected', reconnecting: 'reconnecting', disconnected: 'disconnected', latest: '↓ Latest', send: 'Send', cancelTurn: 'Cancel turn', reconnect: 'Reconnect', signOut: 'Sign out',
     configureKey: 'Configure API key securely', signIn: 'Sign in with ChatGPT', messageAgent: 'Message the game authoring Agent', readyToSend: 'Ready to send.', waitTurn: 'Wait for the active turn or cancel it.',
@@ -153,9 +157,11 @@ class WebGpuViewportRuntime {
   private engine: HaiyueEngine | null = null;
   private engineScene: Scene | null = null;
   private interaction: InteractionSystem | null = null;
+  private orbitControl: OrbitControl | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private readonly stableByEngineId = new Map<number, StableId>();
   private readonly entitiesByStableId = new Map<StableId, Entity>();
+  private selectedEntityId: StableId | null = null;
   private disposed = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
@@ -175,9 +181,15 @@ class WebGpuViewportRuntime {
     if (this.disposed) { engine.destroy(); return; }
     const engineScene = engine.createScene({ name: 'AIStudio Authoring View', render3D: true });
     this.engineScene = engineScene;
+    installSceneEntityMaterialRenderers(engine, engineScene);
+    const cameraTransform = engineScene.cameraEntity.getComponent(SphericalTransform3D);
+    if (!cameraTransform) throw new Error('Authoring camera is missing SphericalTransform3D.');
+    this.orbitControl = new OrbitControl(this.canvas, cameraTransform, {
+      rotateSpeed: 0.9, zoomSpeed: 0.9, panSpeed: 0.8, minRadius: 0.5, maxRadius: 200,
+    });
     this.interaction = new InteractionSystem(engine, engineScene.cameraEntity, { continuousHover: false });
     engine.switchScene(engineScene);
-    this.resizeObserver = new ResizeObserver(() => engine.resizeToDisplaySize(true));
+    this.resizeObserver = new ResizeObserver(() => engine.resizeToDisplaySize());
     this.resizeObserver.observe(this.canvas);
     engine.resizeToDisplaySize(true);
     engine.run();
@@ -190,6 +202,7 @@ class WebGpuViewportRuntime {
     this.stableByEngineId.clear();
     this.entitiesByStableId.clear();
     const entities = new Map<StableId, Entity>();
+    this.selectedEntityId = selectedEntityId;
     for (const item of snapshot.entities) {
       const entity = new Entity(item.name);
       entity.addComponent(new CartesianTransform3D({
@@ -197,12 +210,8 @@ class WebGpuViewportRuntime {
         rotation: tupleRadians(item.transform.rotationDegrees),
         scale: tuple(item.transform.scale),
       }));
-      if (item.kind === 'cube') {
-        const selected = item.id === selectedEntityId;
-        entity.addComponent(new Mesh3D(createBox3D(), new BasicMaterial({
-          color: selected ? [1, 0.66, 0.16, 1] : [0.16, 0.58, 1, 1],
-        })));
-      }
+      attachSceneEntityVisuals(entity, item);
+      if (item.id === selectedEntityId && isRenderableSceneKind(item.kind)) entity.addComponent(new MeshHelper({ mode: 'aabb', color: [1, 0.66, 0.16, 1], lineWidth: 2 }));
       entities.set(item.id, entity);
       this.entitiesByStableId.set(item.id, entity);
       this.stableByEngineId.set(entity.id, item.id);
@@ -214,6 +223,22 @@ class WebGpuViewportRuntime {
     }
     engineScene.update(performance.now(), 0);
     void reportViewport('rendered', selectedEntityId ?? 'Scene rendered.', snapshot.revision, selectedEntityId);
+  }
+
+  select(selectedEntityId: StableId | null): void {
+    if (selectedEntityId === this.selectedEntityId) return;
+    this.setSelectionHelper(this.selectedEntityId, false);
+    this.setSelectionHelper(selectedEntityId, true);
+    this.selectedEntityId = selectedEntityId;
+
+  }
+  updateTransform(entityId: StableId, transform: TransformSnapshot): void {
+    const component = this.entitiesByStableId.get(entityId)?.getComponent(CartesianTransform3D);
+    if (!component) return;
+    component.setPosition(transform.position.x, transform.position.y, transform.position.z);
+    const rotation = tupleRadians(transform.rotationDegrees);
+    component.setRotation(rotation[0], rotation[1], rotation[2]);
+    component.setScale(transform.scale.x, transform.scale.y, transform.scale.z);
   }
 
   pick(clientX: number, clientY: number): StableId | null {
@@ -253,6 +278,8 @@ class WebGpuViewportRuntime {
     this.disposed = true;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.orbitControl?.dispose();
+    this.orbitControl = null;
     this.interaction?.destroy();
     this.interaction = null;
     this.stableByEngineId.clear();
@@ -260,11 +287,21 @@ class WebGpuViewportRuntime {
     this.engine?.destroy();
     this.engine = null;
     this.engineScene = null;
+    this.selectedEntityId = null;
   }
 
   private requireScene(): Scene {
     if (this.disposed || !this.engineScene) throw new Error('WebGPU viewport is not ready.');
     return this.engineScene;
+  }
+
+  private setSelectionHelper(entityId: StableId | null, selected: boolean): void {
+    if (entityId === null) return;
+    const entity = this.entitiesByStableId.get(entityId);
+    if (!entity) return;
+    const helper = entity.getComponent(MeshHelper);
+    if (selected && !helper) entity.addComponent(new MeshHelper({ mode: 'aabb', color: [1, 0.66, 0.16, 1], lineWidth: 2 }));
+    else if (!selected && helper) entity.removeComponent(helper);
   }
 }
 
@@ -357,12 +394,12 @@ async function boot(): Promise<void> {
   setStatus('Starting typed editor services…');
   const status = await invoke<ProjectSnapshot & JsonObject>('app/status');
   project = status;
-  if (!project.document && status.smoke) project = await invoke<ProjectSnapshot & JsonObject>('project/new', { name: 'G05 WebGPU smoke' });
+  if (!project.document) project = await invoke<ProjectSnapshot & JsonObject>('project/new', { name: status.smoke ? 'G05 WebGPU smoke' : '未命名游戏' });
   bindUi();
   await refreshConversation(true);
   await refreshLogs();
   agentPoll = new AgentPollScheduler({
-    intervalMs: 2_000,
+    intervalMs: 30_000,
     poll: pollAgent,
     onError: (cause) => setStatus(errorMessage(cause)),
     schedule: (task, delayMs) => window.setTimeout(task, delayMs),
@@ -388,6 +425,7 @@ async function boot(): Promise<void> {
 }
 
 function setupUiPreferences(): void {
+  defineBorderBeamComponents();
   defineTabsComponents();
   defineDialogComponents();
   defineSelectComponents();
@@ -395,8 +433,8 @@ function setupUiPreferences(): void {
   theme = readStoredTheme();
   applyTheme(theme);
 
-  const languageSelect = element<GESelect>('language-select');
-  const themeSelect = element<GESelect>('theme-select');
+  const languageSelect = element<HYSelect>('language-select');
+  const themeSelect = element<HYSelect>('theme-select');
   languageSelect.addEventListener('value-change', (event) => {
     const next = (event as CustomEvent<{ value: string }>).detail.value;
     if (next !== 'zh-CN' && next !== 'en') return;
@@ -413,7 +451,11 @@ function setupUiPreferences(): void {
     writePreference(THEME_STORAGE_KEY, theme);
     applyTheme(theme);
   });
-  element<GEDialog>('settings-dialog').addEventListener('dialog-close', () => element<HTMLButtonElement>('settings-button').focus());
+  element<HYDialog>('settings-dialog').addEventListener('dialog-close', () => element<HTMLButtonElement>('settings-button').focus());
+  element<HYDialog>('run-dialog').addEventListener('dialog-close', () => {
+    if (!playing) previewDisclosure = null;
+    element<HTMLButtonElement>('run-project').focus();
+  });
   applyLocale();
 }
 
@@ -424,31 +466,33 @@ function applyLocale(): void {
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-aria]')) node.setAttribute('aria-label', t(node.dataset.i18nAria ?? ''));
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) node.title = t(node.dataset.i18nTitle ?? '');
 
-  const rightTabs = element<GETabs>('right-tabs');
+  const rightTabs = element<HYTabs>('right-tabs');
   rightTabs.options = [{ label: t('agent'), value: 'agent' }, { label: t('logs'), value: 'logs' }];
-  const resourceTabs = element<GETabs>('resource-tabs');
+  const resourceTabs = element<HYTabs>('resource-tabs');
   resourceTabs.options = [
     { label: t('geometry'), value: 'geometry' }, { label: t('materials'), value: 'materials' },
-    { label: t('textures'), value: 'textures' }, { label: t('models'), value: 'models' },
+    { label: t('textures'), value: 'textures' }, { label: t('models'), value: 'models' }, { label: t('scripts'), value: 'scripts' },
   ];
-  const languageSelect = element<GESelect>('language-select');
+  const languageSelect = element<HYSelect>('language-select');
   languageSelect.options = [{ label: t('chinese'), value: 'zh-CN' }, { label: t('english'), value: 'en' }];
   languageSelect.value = language;
   languageSelect.setAttribute('aria-label', t('language'));
-  const themeSelect = element<GESelect>('theme-select');
+  const themeSelect = element<HYSelect>('theme-select');
   themeSelect.options = [
-    { label: t('ocean'), value: 'ocean' }, { label: t('violet'), value: 'violet' },
-    { label: t('emerald'), value: 'emerald' }, { label: t('amber'), value: 'amber' },
+    { label: t('darkTheme'), value: 'dark' },
+    { label: t('lightTheme'), value: 'light' },
   ];
   themeSelect.value = theme;
   themeSelect.setAttribute('aria-label', t('themeColor'));
-  element<GEDialog>('settings-dialog').heading = t('settings');
+  element<HYDialog>('settings-dialog').heading = t('settings');
+  element<HYDialog>('run-dialog').heading = t('runApprovalHeading');
   if (currentStatusKey) element('status').textContent = t(currentStatusKey);
 }
 
 function applyTheme(value: StudioTheme): void {
+  document.documentElement.dataset.hyTheme = value;
   document.body.dataset.theme = value;
-  document.documentElement.style.accentColor = 'var(--studio-accent)';
+  document.documentElement.style.accentColor = 'var(--hy-accent-color)';
 }
 
 function t(key: string, values: Readonly<Record<string, string | number>> = {}): string {
@@ -461,14 +505,14 @@ function readStoredLanguage(): StudioLanguage {
   const value = readPreference(LANGUAGE_STORAGE_KEY);
   return value === 'en' ? 'en' : 'zh-CN';
 }
-function readStoredTheme(): StudioTheme { const value = readPreference(THEME_STORAGE_KEY); return isStudioTheme(value) ? value : 'ocean'; }
-function isStudioTheme(value: string | null): value is StudioTheme { return value === 'ocean' || value === 'violet' || value === 'emerald' || value === 'amber'; }
+function readStoredTheme(): StudioTheme { const value = readPreference(THEME_STORAGE_KEY); return isStudioTheme(value) ? value : 'dark'; }
+function isStudioTheme(value: string | null): value is StudioTheme { return value === 'light' || value === 'dark'; }
 function readPreference(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
 function writePreference(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { /* Preferences are optional in restricted storage contexts. */ } }
 
 function setupSplitLayout(): void {
   defineSplitComponents();
-  const splits = [...document.querySelectorAll<GESplit>('ge-split[data-layout-key]')];
+  const splits = [...document.querySelectorAll<HYSplit>('hy-split[data-layout-key]')];
   if (splits.length !== 4) throw new Error(`Expected 4 editor split regions, found ${splits.length}.`);
   for (const split of splits) {
     const key = split.dataset.layoutKey;
@@ -476,7 +520,7 @@ function setupSplitLayout(): void {
     const savedRatio = readStoredSplitRatio(key);
     if (savedRatio !== null) split.ratio = savedRatio;
     split.addEventListener('ratio-change', (event) => {
-      const detail = (event as CustomEvent<GESplitRatioChangeDetail>).detail;
+      const detail = (event as CustomEvent<HYSplitRatioChangeDetail>).detail;
       if (Number.isFinite(detail.ratio)) writeStoredSplitRatio(key, detail.ratio);
     });
   }
@@ -504,7 +548,8 @@ function bindUi(): void {
     await refresh();
   }));
   element('open-project').addEventListener('click', () => void action(async () => { await invoke('project/open'); await refresh(); }));
-  element('save-project').addEventListener('click', () => void action(async () => { await invoke('project/save'); await refresh(); }));
+  element('save-project').addEventListener('click', () => void saveProject());
+  element('run-project').addEventListener('click', () => void toggleProjectRun());
   element('undo').addEventListener('click', () => void action(async () => { await invoke('history/undo', { baseRevision: documentRevision() }); await refresh(); }));
   element('redo').addEventListener('click', () => void action(async () => { await invoke('history/redo', { baseRevision: documentRevision() }); await refresh(); }));
   element('create-empty').addEventListener('click', () => void createEntity('empty'));
@@ -515,18 +560,33 @@ function bindUi(): void {
   element('prepare-preview').addEventListener('click', () => void action(preparePreview));
   element('approve-preview').addEventListener('click', () => void action(approveAndStartPreview));
   element('stop-preview').addEventListener('click', () => void action(stopPreview));
-  element('viewport').addEventListener('click', (event) => void action(async () => {
-    const pointer = event as MouseEvent;
-    let entityId: StableId | null = null;
-    try { entityId = viewport?.pick(pointer.clientX, pointer.clientY) ?? null; }
-    catch (cause) { await reportViewport('picking-failed', errorMessage(cause), scene?.revision ?? 0); throw cause; }
-    selection = await invoke<SelectionSnapshot & JsonObject>('scene/select', { entityId, source: 'viewport' });
-    render();
-  }));
+  const viewportCanvas = element<HTMLCanvasElement>('viewport');
+  let viewportPointerOrigin: Readonly<{ x: number; y: number }> | null = null;
+  let viewportDragged = false;
+  viewportCanvas.addEventListener('pointerdown', (event) => { viewportPointerOrigin = { x: event.clientX, y: event.clientY }; viewportDragged = false; });
+  viewportCanvas.addEventListener('pointermove', (event) => {
+    if (viewportPointerOrigin && Math.hypot(event.clientX - viewportPointerOrigin.x, event.clientY - viewportPointerOrigin.y) > 4) viewportDragged = true;
+  });
+  const clearViewportPointer = () => { viewportPointerOrigin = null; };
+  viewportCanvas.addEventListener('pointerup', clearViewportPointer);
+  viewportCanvas.addEventListener('pointercancel', clearViewportPointer);
+  viewportCanvas.addEventListener('click', (event) => {
+    if (viewportDragged) { viewportDragged = false; return; }
+    void action(async () => {
+      const pointer = event as MouseEvent;
+      let entityId: StableId | null = null;
+      try { entityId = viewport?.pick(pointer.clientX, pointer.clientY) ?? null; }
+      catch (cause) { await reportViewport('picking-failed', errorMessage(cause), scene?.revision ?? 0); throw cause; }
+      await selectEntity(entityId, 'viewport');
+    });
+  });
   element('refresh-logs').addEventListener('click', () => void action(refreshLogs));
   element('export-logs').addEventListener('click', () => void action(exportBugBundle));
-  element('settings-button').addEventListener('click', () => element<GEDialog>('settings-dialog').showModal());
-  element('settings-done').addEventListener('click', () => element<GEDialog>('settings-dialog').close('action'));
+  element('settings-button').addEventListener('click', () => element<HYDialog>('settings-dialog').showModal());
+  element('settings-done').addEventListener('click', () => element<HYDialog>('settings-dialog').close('action'));
+  element('run-cancel').addEventListener('click', () => element<HYDialog>('run-dialog').close('cancel'));
+  element('run-approve').addEventListener('click', () => void approveProjectRun());
+  element('run-fix-agent').addEventListener('click', () => void requestAgentScriptFix());
   window.addEventListener('beforeunload', () => {
     agentPoll?.stop(); agentPoll = null;
     disposeConversationChanged?.(); disposeConversationChanged = null;
@@ -545,6 +605,8 @@ async function refreshConversation(force: boolean): Promise<boolean> {
   if (!force && replay.revision === conversationRevision) return false;
   conversationRevision = replay.revision;
   const snapshot = conversationProjector.reset(replay);
+  conversationBackendId = snapshot.backendId;
+  conversationCanSend = snapshot.connection === 'connected' && !snapshot.busy && snapshot.backendId !== null;
   let editorChanged = false;
   for (const node of snapshot.nodes) {
     if (node.kind !== 'tool-result' || node.status !== 'completed') continue;
@@ -553,18 +615,20 @@ async function refreshConversation(force: boolean): Promise<boolean> {
   }
   renderChatPanel(element('chat-content'), presentChatPanel(snapshot), (intent) => void dispatchConversation(intent));
   localizeChatUi(element('chat-content'));
+  updateFixAgentButton();
   document.body.dataset.agentUi = 'ready';
   document.body.dataset.agentBackend = snapshot.backendId ?? 'none';
   document.body.dataset.agentBackendState = snapshot.backends.find((item) => item.id === snapshot.backendId)?.state ?? 'unavailable';
   return editorChanged;
 }
 
-async function dispatchConversation(intent: ConversationIntent): Promise<void> {
+async function dispatchConversation(intent: ConversationIntent): Promise<boolean> {
   try {
     setStatus('Agent intent pending…');
     await invoke('conversation/intent', { intent: intent as unknown as JsonObject });
     setStatus('Agent intent accepted');
-  } catch (cause) { setStatus(errorMessage(cause)); }
+    return true;
+  } catch (cause) { setStatus(errorMessage(cause)); return false; }
   finally { agentPoll?.trigger(); }
 }
 
@@ -636,12 +700,13 @@ function previewSnapshot(): JsonObject {
   });
 }
 
-async function createEntity(kind: 'empty' | 'cube'): Promise<void> {
+async function createEntity(kind: SceneEntityKind, material?: SceneMaterialKind): Promise<void> {
   await action(async () => {
     scene = await invoke<SceneSnapshot & JsonObject>('scene/create', {
       commandId: `command:create-${kind}:${requestSequence + 1}`,
       baseRevision: documentRevision(),
       kind,
+      ...(material ? { material } : {}),
     });
     await refresh();
   });
@@ -650,18 +715,40 @@ async function createEntity(kind: 'empty' | 'cube'): Promise<void> {
 async function applyTransform(): Promise<void> {
   const entityId = selection.activeEntityId;
   if (!entityId) throw new Error('Select an entity before editing Transform.');
+  if (!scene) throw new Error('Open a project before editing Transform.');
   const value = (axis: string): number => Number(element<HTMLInputElement>(axis).value);
-  scene = await invoke<SceneSnapshot & JsonObject>('scene/transform', {
-    commandId: `command:transform:${requestSequence + 1}`,
-    baseRevision: documentRevision(),
-    entityId,
-    transform: {
-      position: { x: value('position-x'), y: value('position-y'), z: value('position-z') },
-      rotationDegrees: { x: value('rotation-x'), y: value('rotation-y'), z: value('rotation-z') },
-      scale: { x: value('scale-x'), y: value('scale-y'), z: value('scale-z') },
-    },
+  const transform = Object.freeze({
+    position: Object.freeze({ x: value('position-x'), y: value('position-y'), z: value('position-z') }),
+    rotationDegrees: Object.freeze({ x: value('rotation-x'), y: value('rotation-y'), z: value('rotation-z') }),
+    scale: Object.freeze({ x: value('scale-x'), y: value('scale-y'), z: value('scale-z') }),
   });
-  await refresh();
+  const previousScene = scene;
+  const previousEntity = previousScene.entities.find((entity) => entity.id === entityId);
+  scene = Object.freeze({
+    ...previousScene,
+    entities: Object.freeze(previousScene.entities.map((entity) => entity.id === entityId ? Object.freeze({ ...entity, transform }) : entity)),
+  });
+  viewport?.updateTransform(entityId, transform);
+  renderSelection();
+  try {
+    const authoritative = await invoke<SceneSnapshot & JsonObject>('scene/transform', {
+      commandId: `command:transform:${requestSequence + 1}`,
+      baseRevision: documentRevision(),
+      entityId,
+      transform,
+    });
+    scene = authoritative;
+    const authoritativeEntity = authoritative.entities.find((entity) => entity.id === entityId);
+    if (authoritativeEntity) viewport?.updateTransform(entityId, authoritativeEntity.transform);
+    project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
+    renderProjectChrome();
+    renderSelection();
+  } catch (cause) {
+    scene = previousScene;
+    if (previousEntity) viewport?.updateTransform(entityId, previousEntity.transform);
+    renderSelection();
+    throw cause;
+  }
 }
 
 async function refresh(): Promise<void> {
@@ -674,6 +761,214 @@ async function refresh(): Promise<void> {
   render();
 }
 
+async function saveProject(): Promise<void> {
+  const button = element<HTMLButtonElement>('save-project');
+  if (!project?.document || button.disabled) return;
+  button.disabled = true;
+  try {
+    setStatus('Saving project…');
+    await invoke('project/save');
+    await refresh();
+    setStatus('Project saved');
+  } catch (cause) { setStatus(errorMessage(cause)); }
+  finally { button.disabled = !project?.document; }
+}
+
+async function toggleProjectRun(): Promise<void> {
+  const button = element<HTMLButtonElement>('run-project');
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    if (playing) {
+      setStatus('Working…');
+      await stopPreview();
+      setStatus('Project stopped');
+      return;
+    }
+    setStatus('Preparing isolated preview…');
+    const valid = await prepareProjectRun();
+    element<HYDialog>('run-dialog').showModal();
+    setStatus(valid ? 'Ready' : 'Script validation failed');
+  } catch (cause) { setStatus(errorMessage(cause)); }
+  finally { updateRunButton(); }
+}
+
+async function prepareProjectRun(): Promise<boolean> {
+  if (!project?.document || !scene) throw new Error(t('noProjectRun'));
+  const sourceScene = scene;
+  if (!sourceScene.entities.some((entity) => isRenderableSceneKind(entity.kind))) throw new Error(t('noRenderableRun'));
+  const script = selectProjectRunScript(sourceScene.entities, scripts.resources, selection.activeEntityId);
+  if (!script) throw new Error(t('noScriptRun'));
+  if (selection.activeEntityId !== script.entityId) {
+    await selectEntity(script.entityId, 'system');
+  }
+  previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: script.id, capabilities: ['read', 'input', 'debug'] });
+  const entity = sourceScene.entities.find((candidate) => candidate.id === script.entityId);
+  scriptDiagnosticsById.set(script.id, Object.freeze({ textRevision: script.textRevision, diagnostics: previewDisclosure.diagnostics }));
+  runScriptContext = Object.freeze({ scriptId: script.id, entityId: script.entityId, entityName: entity?.name ?? script.entityId, diagnostics: previewDisclosure.diagnostics });
+  element('run-disclosure-text').textContent = t('runDisclosure', {
+    entity: entity?.name ?? script.entityId,
+    risk: previewDisclosure.risk,
+    capabilities: previewDisclosure.capabilities.join(', '),
+  });
+  element('preview-disclosure').textContent = element('run-disclosure-text').textContent;
+  renderScriptPanel(entity ?? null);
+  const errors = previewDisclosure.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
+  const validation = element('run-validation');
+  validation.hidden = errors.length === 0;
+  element('run-diagnostics').textContent = errors.map((diagnostic) => `${diagnostic.code} ${diagnostic.line}:${diagnostic.column} ${diagnostic.message}`).join('\n');
+  element<HTMLButtonElement>('run-approve').disabled = errors.length > 0;
+  updateFixAgentButton();
+  renderScriptResources();
+  return errors.length === 0;
+}
+
+async function approveProjectRun(): Promise<void> {
+  const button = element<HTMLButtonElement>('run-approve');
+  if (!previewDisclosure || button.disabled) return;
+  button.disabled = true;
+  let authorizationFailed = false;
+  try {
+    setStatus('Working…');
+    await approveAndStartPreview();
+    element<HYDialog>('run-dialog').close('action');
+    setStatus('Project is running');
+  } catch (cause) {
+    authorizationFailed = true;
+    const message = errorMessage(cause);
+    previewDisclosure = null;
+    element('run-validation').hidden = false;
+    element('run-diagnostics').textContent = message;
+    button.disabled = true;
+    setStatus(message);
+  }
+  finally { button.disabled = authorizationFailed; updateRunButton(); }
+}
+
+function updateRunButton(): void {
+  const button = element<HTMLButtonElement>('run-project');
+  button.disabled = !project?.document;
+  button.textContent = t(playing ? 'stop' : 'run');
+  button.title = t(playing ? 'stopTitle' : 'runTitle');
+  button.setAttribute('aria-label', button.title);
+  button.classList.toggle('is-playing', playing);
+}
+
+const BUILTIN_GEOMETRIES: readonly Readonly<{ kind: SceneEntityKind; label: string; icon: string }>[] = Object.freeze([
+  { kind: 'cube', label: 'cube', icon: '◇' }, { kind: 'sphere', label: 'sphere', icon: '●' }, { kind: 'cone', label: 'cone', icon: '▲' },
+  { kind: 'cylinder', label: 'cylinder', icon: '▣' }, { kind: 'plane', label: 'plane', icon: '▱' }, { kind: 'torus', label: 'torus', icon: '◎' },
+  { kind: 'icosahedron', label: 'icosahedron', icon: '⬡' },
+]);
+const BUILTIN_LIGHTS: readonly Readonly<{ kind: SceneEntityKind; label: string; icon: string }>[] = Object.freeze([
+  { kind: 'directional-light', label: 'directionalLight', icon: '☀' }, { kind: 'point-light', label: 'pointLight', icon: '✦' }, { kind: 'ambient-light', label: 'ambientLight', icon: '◉' },
+]);
+const BUILTIN_MATERIALS: readonly Readonly<{ kind: SceneMaterialKind; label: string }>[] = Object.freeze([
+  { kind: 'basic', label: 'basicMaterial' }, { kind: 'pbr', label: 'pbrMaterial' }, { kind: 'blinn-phong', label: 'blinnPhongMaterial' },
+  { kind: 'normal', label: 'normalMaterial' },
+]);
+
+function renderBuiltinResources(selected: SceneEntitySnapshot | null): void {
+  const geometryRoot = element('geometry-resources');
+  geometryRoot.replaceChildren();
+  for (const resource of BUILTIN_GEOMETRIES) geometryRoot.append(resourceButton(resource.icon, t(resource.label), t('builtinGeometry'), () => void createEntity(resource.kind)));
+  const lightLabel = document.createElement('strong'); lightLabel.className = 'resource-group-label'; lightLabel.textContent = t('lights'); geometryRoot.append(lightLabel);
+  for (const resource of BUILTIN_LIGHTS) geometryRoot.append(resourceButton(resource.icon, t(resource.label), t('builtinGeometry'), () => void createEntity(resource.kind)));
+
+  const materialRoot = element('material-resources');
+  materialRoot.replaceChildren();
+  const canApply = Boolean(selected && isRenderableSceneKind(selected.kind));
+  for (const resource of BUILTIN_MATERIALS) {
+    const button = resourceButton('◩', t(resource.label), t('builtinMaterial'), () => void applyMaterial(resource.kind));
+    button.dataset.materialKind = resource.kind;
+    button.disabled = !canApply;
+    button.classList.toggle('is-active', selected?.appearance?.material === resource.kind);
+    materialRoot.append(button);
+  }
+}
+
+function updateMaterialResources(selected: SceneEntitySnapshot | null): void {
+  const canApply = Boolean(selected && isRenderableSceneKind(selected.kind));
+  for (const button of element('material-resources').querySelectorAll<HTMLButtonElement>('button[data-material-kind]')) {
+    const material = button.dataset.materialKind as SceneMaterialKind | undefined;
+    button.disabled = canApply === false;
+    button.classList.toggle('is-active', Boolean(material && selected?.appearance?.material === material));
+  }
+}
+
+function resourceButton(iconText: string, labelText: string, detailText: string, activate: () => void): HTMLButtonElement {
+  const button = document.createElement('button'); button.type = 'button'; button.className = 'resource-card';
+  const icon = document.createElement('span'); icon.className = 'resource-icon'; icon.textContent = iconText;
+  const label = document.createElement('strong'); label.textContent = labelText;
+  const detail = document.createElement('small'); detail.textContent = detailText;
+  button.append(icon, label, detail); button.addEventListener('click', activate); return button;
+}
+
+async function applyMaterial(material: SceneMaterialKind): Promise<void> {
+  const entityId = selection.activeEntityId;
+  if (!entityId) throw new Error('Select a geometry entity before applying a material.');
+  await action(async () => {
+    scene = await invoke<SceneSnapshot & JsonObject>('scene/material', { commandId: `command:material:${requestSequence + 1}`, baseRevision: documentRevision(), entityId, material });
+    await refresh();
+  });
+}
+
+function renderScriptResources(): void {
+  const root = element('script-resources');
+  root.replaceChildren();
+  if (scripts.resources.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'resource-empty-label';
+    empty.textContent = t('noScripts');
+    root.append(empty);
+    return;
+  }
+  for (const script of scripts.resources) {
+    const entity = scene?.entities.find((candidate) => candidate.id === script.entityId);
+    const cached = scriptDiagnosticsById.get(script.id);
+    const diagnostics = cached?.textRevision === script.textRevision ? cached.diagnostics : null;
+    const errors = diagnostics?.filter((item) => item.severity === 'error') ?? [];
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = `resource-card script-resource${errors.length ? ' has-errors' : diagnostics ? ' is-valid' : ''}`;
+    const icon = document.createElement('span'); icon.className = 'resource-icon'; icon.textContent = '{}';
+    const meta = document.createElement('span'); meta.className = 'resource-meta';
+    const name = document.createElement('strong'); name.textContent = entity?.name ?? script.name ?? script.id;
+    const revision = document.createElement('small'); revision.textContent = t('scriptRevision', { revision: script.textRevision });
+    const validation = document.createElement('small'); validation.textContent = errors.length ? t('scriptErrors', { count: errors.length }) : diagnostics ? t('scriptValid') : t('scriptUnvalidated');
+    meta.append(name, revision, validation); card.append(icon, meta);
+    card.addEventListener('click', () => void action(async () => {
+      await selectEntity(script.entityId, 'system');
+    }));
+    root.append(card);
+  }
+}
+
+function updateFixAgentButton(): void {
+  const button = element<HTMLButtonElement>('run-fix-agent');
+  const hasErrors = runScriptContext?.diagnostics.some((item) => item.severity === 'error') === true;
+  button.disabled = !hasErrors || !conversationCanSend || !conversationBackendId;
+  button.title = button.disabled && hasErrors ? t('agentFixUnavailable') : t('fixWithAgent');
+}
+
+async function requestAgentScriptFix(): Promise<void> {
+  const context = runScriptContext;
+  const backendId = conversationBackendId;
+  if (!context || !backendId || !conversationCanSend) { setStatus(t('agentFixUnavailable')); return; }
+  const diagnostics = context.diagnostics.filter((item) => item.severity === 'error').map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join('\n');
+  const prompt = [
+    'Fix the committed AIStudio project script identified below. Perform the edits with tools; do not only explain the fix.',
+    `Entity: ${context.entityName} (${context.entityId})`,
+    `Script: ${context.scriptId}`,
+    'Current validation errors:', diagnostics,
+    'Required workflow: call project.snapshot and script.get; rewrite the script as an onUpdate function body with entity, component, world, time, delta, and api already in scope; never use import, export, CommonJS, or lifecycle-function wrappers; call script.propose; inspect every diagnostic and keep rewriting until there are no errors; only then call script.apply. Do not start preview until the committed script validates without errors.',
+  ].join('\n');
+  conversationCanSend = false;
+  updateFixAgentButton();
+  element<HYDialog>('run-dialog').close('action');
+  element<HYTabs>('right-tabs').value = 'agent';
+  if (await dispatchConversation(Object.freeze({ type: 'conversation/send', backendId, prompt }))) setStatus('Script repair task sent to the Agent');
+}
+
 function render(): void {
   const hierarchy = element('hierarchy-items');
   hierarchy.replaceChildren();
@@ -682,11 +977,10 @@ function render(): void {
     button.type = 'button';
     const depth = Math.min(6, hierarchyDepth(entity, scene!));
     button.className = `entity depth-${depth}${entity.id === selection.activeEntityId ? ' active' : ''}`;
-    button.textContent = `${entity.kind === 'cube' ? '◇' : '○'} ${entity.name}`;
+    button.textContent = `${isRenderableSceneKind(entity.kind) ? '◇' : isLightSceneKind(entity.kind) ? '☀' : '○'} ${entity.name}`;
     button.dataset.entityId = entity.id;
     button.addEventListener('click', () => void action(async () => {
-      selection = await invoke<SelectionSnapshot & JsonObject>('scene/select', { entityId: entity.id, source: 'hierarchy' });
-      render();
+      await selectEntity(entity.id, 'hierarchy');
     }));
     hierarchy.append(button);
   }
@@ -694,13 +988,58 @@ function render(): void {
   element('selection-label').textContent = selected ? selected.name : t('noSelection');
   setTransformInputs(selected?.transform ?? null);
   element<HTMLButtonElement>('apply-transform').disabled = !selected;
-  element<HTMLButtonElement>('undo').disabled = !project?.history.canUndo;
-  element<HTMLButtonElement>('redo').disabled = !project?.history.canRedo;
-  element('project-name').textContent = project?.document?.name ?? t('noProject');
-  element('revision').textContent = t('revision', { document: project?.document?.revision ?? 0, scene: scene?.revision ?? 0 });
-  element('viewport-empty-state').hidden = (scene?.entities.some((entity) => entity.kind === 'cube') ?? false) || playing;
+  renderProjectChrome();
+  renderScriptResources();
+  renderBuiltinResources(selected);
+  element('viewport-empty-state').hidden = (scene?.entities.some((entity) => isRenderableSceneKind(entity.kind)) ?? false) || playing;
   renderScriptPanel(selected);
   if (scene && viewport && !playing) viewport.apply(scene, selection.activeEntityId);
+}
+
+function renderProjectChrome(): void {
+  element<HTMLButtonElement>('undo').disabled = !project?.history.canUndo;
+  element<HTMLButtonElement>('redo').disabled = !project?.history.canRedo;
+  const saveButton = element<HTMLButtonElement>('save-project');
+  saveButton.disabled = !project?.document;
+  saveButton.textContent = `${t('saveProject')}${project?.document?.dirty ? ' •' : ''}`;
+  saveButton.title = t(project?.document?.dirty ? 'unsavedChanges' : 'allChangesSaved');
+  saveButton.setAttribute('aria-label', saveButton.title);
+  updateRunButton();
+  element('project-name').textContent = project?.document?.name ?? t('noProject');
+  element('revision').textContent = t('revision', { document: project?.document?.revision ?? 0, scene: scene?.revision ?? 0 });
+}
+
+async function selectEntity(entityId: StableId | null, source: SelectionIntentSource): Promise<void> {
+  const generation = ++selectionIntentGeneration;
+  const previous = selection;
+  selection = Object.freeze({ activeEntityId: entityId, source });
+  renderSelection();
+  try {
+    const authoritative = await invoke<SelectionSnapshot & JsonObject>('scene/select', { entityId, source });
+    if (generation !== selectionIntentGeneration) return;
+    selection = authoritative;
+    renderSelection();
+  } catch (cause) {
+    if (generation === selectionIntentGeneration) {
+      selection = previous;
+      renderSelection();
+    }
+    throw cause;
+  }
+}
+
+function renderSelection(): void {
+  const selected = scene?.entities.find((entity) => entity.id === selection.activeEntityId) ?? null;
+  const hierarchy = element('hierarchy-items');
+  for (const button of hierarchy.querySelectorAll<HTMLButtonElement>('button.entity')) {
+    button.classList.toggle('active', button.dataset.entityId === selection.activeEntityId);
+  }
+  element('selection-label').textContent = selected ? selected.name : t('noSelection');
+  setTransformInputs(selected?.transform ?? null);
+  element<HTMLButtonElement>('apply-transform').disabled = selected === null;
+  updateMaterialResources(selected);
+  renderScriptPanel(selected);
+  if (viewport && !playing) viewport.select(selection.activeEntityId);
 }
 
 function renderScriptPanel(selected: SceneEntitySnapshot | null): void {
@@ -746,8 +1085,8 @@ async function preparePreview(): Promise<void> {
   const entityId = selection.activeEntityId;
   const script = scripts.resources.find((resource) => resource.entityId === entityId);
   if (!script) throw new Error('Commit a valid script before Play.');
-  if (!scene?.entities.some((entity) => entity.kind === 'cube')) {
-    throw new Error('Preview scene has no renderable entities. Create at least one Cube before Play.');
+  if (!scene?.entities.some((entity) => isRenderableSceneKind(entity.kind))) {
+    throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
   }
   previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: script.id, capabilities: ['read', 'input', 'debug'] });
   element('preview-disclosure').textContent = `Risk: ${previewDisclosure.risk}. Capabilities: ${previewDisclosure.capabilities.join(', ')}. Script r${script.textRevision}.`;
@@ -764,8 +1103,8 @@ async function approveAndStartPreview(): Promise<void> {
 
 async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapshot | null = scene): Promise<void> {
   if (!sourceScene) throw new Error('No scene is available for preview.');
-  if (!sourceScene.entities.some((entity) => entity.kind === 'cube')) {
-    throw new Error('Preview scene has no renderable entities. Create at least one Cube before Play.');
+  if (!sourceScene.entities.some((entity) => isRenderableSceneKind(entity.kind))) {
+    throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
   }
   viewport?.dispose();
   viewport = null;
@@ -785,6 +1124,7 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   document.body.dataset.preview = 'playing';
   element('preview-disclosure').textContent = `Playing isolated trusted-project preview with ${plan.capabilities.join(', ')}.`;
   renderScriptPanel(sourceScene.entities.find((entity) => entity.id === plan.entityId) ?? null);
+  updateRunButton();
 }
 
 async function stopPreview(): Promise<void> {
@@ -802,9 +1142,10 @@ async function stopPreview(): Promise<void> {
   await viewport.initialize();
   document.body.dataset.smokeStage = 'authoring-viewport-restored';
   if (scene) viewport.apply(scene, selection.activeEntityId);
-  element('viewport-empty-state').hidden = scene?.entities.some((entity) => entity.kind === 'cube') ?? false;
+  element('viewport-empty-state').hidden = scene?.entities.some((entity) => isRenderableSceneKind(entity.kind)) ?? false;
   element('preview-disclosure').textContent = 'Preview stopped; authoring Scene restored.';
   renderScriptPanel(scene?.entities.find((entity) => entity.id === selection.activeEntityId) ?? null);
+  updateRunButton();
 }
 
 async function runSmokeWorkflow(): Promise<void> {
@@ -822,8 +1163,7 @@ async function runSmokeWorkflow(): Promise<void> {
   const picked = viewport!.pick(center.x, center.y);
   if (!picked) throw new Error('Real viewport picking did not hit the visible Cube.');
   document.body.dataset.smokeStage = 'cube-picked';
-  selection = await invoke<SelectionSnapshot & JsonObject>('scene/select', { entityId: picked, source: 'viewport' });
-  render();
+  await selectEntity(picked, 'viewport');
   await refresh();
   scene = await invoke<SceneSnapshot & JsonObject>('scene/transform', {
     commandId: 'command:smoke-transform-cube', baseRevision: documentRevision(), entityId: picked,
@@ -833,10 +1173,15 @@ async function runSmokeWorkflow(): Promise<void> {
   await invoke('history/undo', { baseRevision: documentRevision() });
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
   await invoke('history/redo', { baseRevision: documentRevision() });
+  project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
+  scene = await invoke<SceneSnapshot & JsonObject>('scene/material', {
+    commandId: 'command:smoke-material-blinn-phong', baseRevision: documentRevision(), entityId: picked, material: 'blinn-phong',
+  });
   await invoke('project/save');
   await invoke('project/reopen');
   await refresh();
   if (!scene.entities.some((entity) => entity.id === picked && entity.transform.position.x === 0.4)) throw new Error('Saved scene did not survive reopen.');
+  if (!scene.entities.some((entity) => entity.id === picked && entity.appearance?.material === 'blinn-phong')) throw new Error('Blinn-Phong material did not survive reopen.');
   await viewport!.exerciseDeviceLoss();
   document.body.dataset.smokeStage = 'device-recovered';
   render();
@@ -933,6 +1278,13 @@ const STATUS_MESSAGE_KEYS: Readonly<Record<string, string>> = Object.freeze({
   'AIStudio scene authoring ready': 'editorReady',
   'Agent intent pending…': 'agentPending',
   'Agent intent accepted': 'agentAccepted',
+  'Saving project…': 'saving',
+  'Project saved': 'projectSaved',
+  'Preparing isolated preview…': 'preparingRun',
+  'Project is running': 'previewRunning',
+  'Project stopped': 'previewStopped',
+  'Script validation failed': 'scriptValidationFailed',
+  'Script repair task sent to the Agent': 'fixRequestSent',
   'Working…': 'working',
   Ready: 'ready',
 });

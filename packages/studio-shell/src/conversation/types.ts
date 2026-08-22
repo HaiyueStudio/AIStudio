@@ -35,7 +35,7 @@ export interface ConversationProjectionEvent {
 
 export interface PendingConversationInteraction {
   readonly nodeId: StableId;
-  readonly kind: 'question' | 'approval';
+  readonly kind: 'question' | 'plan' | 'approval';
   readonly expiresAt?: string;
 }
 
@@ -77,7 +77,7 @@ export type ConversationIntent =
   | Readonly<{ type: 'conversation/retry'; backendId: StableId; sessionId: StableId; turnId: StableId }>
   | Readonly<{ type: 'conversation/reconnect' }>
   | Readonly<{ type: 'conversation/answer-question'; nodeId: StableId; answer: JsonObject }>
-  | Readonly<{ type: 'conversation/accept-plan'; nodeId: StableId; acceptedItemIds: readonly StableId[]; note?: string }>
+  | Readonly<{ type: 'conversation/accept-plan'; nodeId: StableId; acceptedItemIds: readonly StableId[]; mode?: 'approve' | 'revise'; note?: string }>
   | Readonly<{ type: 'conversation/resolve-approval'; approvalId: StableId; decision: 'allow-once' | 'allow-always' | 'reject' }>
   | Readonly<{ type: 'backend/select'; backendId: StableId }>
   | Readonly<{ type: 'backend/authenticate'; backendId: StableId }>
@@ -177,6 +177,7 @@ export interface ChatCardReadModel {
   readonly status: ConversationNodeStatus;
   readonly title: string;
   readonly body: string;
+  readonly details?: Readonly<{ summary: string; body: string }>;
   readonly tone: 'neutral' | 'progress' | 'success' | 'warning' | 'danger';
   readonly provenance: ConversationProvenance;
   readonly metadata: readonly Readonly<{ label: string; value: string }>[];

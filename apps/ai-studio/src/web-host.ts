@@ -8,7 +8,13 @@ const MAX_LOG_EVENTS = 500;
 
 interface Vec3 { x: number; y: number; z: number; }
 interface Transform { position: Vec3; rotationDegrees: Vec3; scale: Vec3; }
-interface WebEntity { id: StableId; name: string; kind: 'empty' | 'cube'; parentId: StableId | null; order: number; transform: Transform; }
+type WebEntityKind = 'empty' | 'cube' | 'sphere' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'icosahedron' | 'directional-light' | 'point-light' | 'ambient-light';
+type WebMaterialKind = 'basic' | 'pbr' | 'blinn-phong' | 'normal';
+interface WebEntity {
+  id: StableId; name: string; kind: WebEntityKind; parentId: StableId | null; order: number; transform: Transform;
+  appearance?: { material: WebMaterialKind; color: [number, number, number, number] };
+  light?: { color: [number, number, number]; intensity: number; range?: number; direction?: [number, number, number]; castShadow?: boolean };
+}
 interface WebScript { id: StableId; entityId: StableId; text: string; textRevision: number; }
 interface WebProject {
   schemaVersion: 1;
@@ -102,11 +108,13 @@ class WebStudioHost {
       case 'scene/snapshot': return this.sceneSnapshot();
       case 'scene/create': {
         const project = this.requireRevision(number(payload.baseRevision));
-        const kind = payload.kind as 'empty' | 'cube';
+        const kind = payload.kind as WebEntityKind;
         this.commitMutation(project, true, () => project.entities.push({
-          id: id('entity'), name: typeof payload.name === 'string' ? payload.name : kind === 'cube' ? 'Cube' : 'Empty', kind,
+          id: id('entity'), name: typeof payload.name === 'string' ? payload.name : entityKindLabel(kind), kind,
           parentId: typeof payload.parentId === 'string' ? payload.parentId as StableId : null, order: project.entities.length,
           transform: identityTransform(),
+          ...(isGeometryKind(kind) ? { appearance: { material: (payload.material as WebMaterialKind | undefined) ?? 'basic', color: [0.16, 0.58, 1, 1] as [number, number, number, number] } } : {}),
+          ...(isLightKind(kind) ? { light: defaultWebLight(kind) } : {}),
         }));
         await this.appendLog('scene/entity-created', 'info', 'studio.web-host', kind);
         return this.sceneSnapshot();
@@ -119,6 +127,15 @@ class WebStudioHost {
         const transform = validateTransform(payload.transform);
         this.commitMutation(project, true, () => { entity.transform = transform; });
         await this.appendLog('scene/transform-committed', 'info', 'studio.web-host', entity.id);
+        return this.sceneSnapshot();
+      }
+      case 'scene/material': {
+        const project = this.requireRevision(number(payload.baseRevision));
+        const entity = project.entities.find((item) => item.id === payload.entityId);
+        if (!entity) throw new WebHostError('web-entity-missing', 'Selected entity no longer exists.');
+        if (!isGeometryKind(entity.kind)) throw new WebHostError('web-material-target-invalid', 'Only geometry entities can use materials.');
+        this.commitMutation(project, true, () => { entity.appearance = { material: payload.material as WebMaterialKind, color: entity.appearance?.color ?? [0.16, 0.58, 1, 1] }; });
+        await this.appendLog('scene/material-edited', 'info', 'studio.web-host', entity.id);
         return this.sceneSnapshot();
       }
       case 'viewport/report': await this.appendLog(`viewport/${String(payload.event)}`, payload.event === 'ready' || payload.event === 'rendered' ? 'info' : 'error', 'studio.viewport.web', String(payload.message)); return json({ recorded: true });
@@ -299,6 +316,14 @@ function lineDiff(before: string, after: string): Readonly<{ addedLines: number;
 async function digest(value: string): Promise<string> { const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return [...new Uint8Array(bytes)].map((item) => item.toString(16).padStart(2, '0')).join(''); }
 
 function readProject(key: string): WebProject | null { const value = readStorage(key); if (!value || typeof value !== 'object' || Array.isArray(value)) return null; const project = value as Partial<WebProject>; return project.schemaVersion === 1 && typeof project.projectId === 'string' && typeof project.documentId === 'string' && typeof project.name === 'string' && Number.isSafeInteger(project.revision) && Number.isSafeInteger(project.savedRevision) && Number.isSafeInteger(project.sceneRevision) && Array.isArray(project.entities) && Array.isArray(project.scripts) ? clone(project as WebProject) : null; }
+function isGeometryKind(kind: WebEntityKind): boolean { return ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind); }
+function isLightKind(kind: WebEntityKind): boolean { return kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light'; }
+function entityKindLabel(kind: WebEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<WebEntityKind, string>)[kind]; }
+function defaultWebLight(kind: WebEntityKind): NonNullable<WebEntity['light']> {
+  if (kind === 'directional-light') return { color: [1, 1, 1], intensity: 1, direction: [-0.5, -1, -0.35], castShadow: true };
+  if (kind === 'point-light') return { color: [1, 0.9, 0.75], intensity: 2, range: 12 };
+  return { color: [0.7, 0.8, 1], intensity: 0.25 };
+}
 function readLogs(): WebLogEvent[] { const value = readStorage(LOG_KEY); return Array.isArray(value) ? value.slice(-MAX_LOG_EVENTS) as WebLogEvent[] : []; }
 function readStorage(key: string): unknown { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : null; } catch { return null; } }
 function writeStorage(key: string, value: unknown): void { try { localStorage.setItem(key, JSON.stringify(value)); } catch (cause) { throw new WebHostError('web-storage-unavailable', `Browser storage is unavailable: ${errorMessage(cause)}`); } }

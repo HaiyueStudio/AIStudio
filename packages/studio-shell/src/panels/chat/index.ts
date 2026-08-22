@@ -37,10 +37,13 @@ export function presentConversationNode(node: ConversationNodeReadModel, now = D
   const base = { id: node.id, kind: node.kind, status: node.status, provenance: node.provenance, metadata } as const;
   if (!node.knownKind) return Object.freeze({ ...base, title: `Unsupported item · ${node.kind}`, body: stringValue(node.content.summary, 'Payload hidden for safety.'), tone: 'warning', actions: Object.freeze([]) });
   switch (node.knownKind) {
-    case 'text': return card(base, 'Agent message', stringValue(node.content.text, ''), node.status === 'streaming' ? 'progress' : 'neutral');
+    case 'text': {
+      const user = node.content.role === 'user';
+      return card(base, user ? '你' : 'AI 说明', stringValue(node.content.text, ''), user ? 'neutral' : node.status === 'streaming' ? 'progress' : 'neutral');
+    }
     case 'progress': return card(base, stringValue(node.content.label, 'Progress'), progressBody(node.content), 'progress');
-    case 'tool-call': return card(base, `Tool · ${stringValue(node.content.toolId, 'unknown')}`, stringValue(node.content.argumentsSummary, 'Structured arguments are available to the host only.'), 'warning');
-    case 'tool-result': return card(base, 'Tool result', stringValue(node.content.summary, 'Tool completed without a presentation summary.'), node.status === 'failed' ? 'danger' : 'success');
+    case 'tool-call': return card(base, `调用工具 · ${toolLabel(stringValue(node.content.toolId, 'unknown'))}`, stringValue(node.content.argumentsSummary, '正在准备结构化参数。'), 'warning');
+    case 'tool-result': return toolResultCard(base, node);
     case 'diagnostic': return diagnosticCard(base, node);
     case 'completion': return completionCard(base, node);
     case 'question': return questionCard(base, node);
@@ -140,6 +143,11 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const sendIntent = (): void => {
     const prompt = input.value.trim();
     if (!model.backendId || !model.composer.canSend || !prompt || new TextEncoder().encode(prompt).byteLength > 16 * 1024) return;
+    appendOptimisticTurn(document, feed, prompt);
+    input.value = '';
+    input.disabled = true;
+    send.disabled = true;
+    feed.scrollTop = feed.scrollHeight;
     dispatch(Object.freeze({ type: 'conversation/send', backendId: model.backendId, prompt }));
   };
   const keyboard = new ChatComposerKeyboardController();
@@ -173,19 +181,54 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
   item.className = `chat-card tone-${card.tone}`;
   item.dataset.kind = card.kind;
   item.dataset.status = card.status;
-  const title = document.createElement('h3'); title.textContent = card.title; item.append(title);
-  const body = document.createElement('p'); body.textContent = card.body; item.append(body);
+  const content = createChatCardSurface(document, item, card.status === 'pending' || card.status === 'streaming');
+  const title = document.createElement('h3'); title.textContent = card.title; content.append(title);
+  const body = document.createElement('p'); body.textContent = card.body; content.append(body);
+  if (card.details) {
+    const details = document.createElement('details'); details.className = 'chat-tool-details';
+    const summary = document.createElement('summary'); summary.textContent = card.details.summary;
+    const detailBody = document.createElement('pre'); detailBody.textContent = card.details.body;
+    details.append(summary, detailBody); content.append(details);
+  }
   if (card.approval) {
     const disclosure = document.createElement('dl');
     for (const [label, value] of [['Tool', `${card.approval.toolId}@${card.approval.toolVersion}`], ['Target', card.approval.target], ['Effect', card.approval.effect], ['Risk', card.approval.risk], ['Base revision', String(card.approval.baseRevision)], ['Expires', card.approval.expiresAt], ['Arguments', card.approval.argumentsSummary], ['Preview', card.approval.previewDiff]]) {
       const term = document.createElement('dt'); term.textContent = label; const detail = document.createElement('dd'); detail.textContent = value; disclosure.append(term, detail);
     }
-    item.append(disclosure);
+    content.append(disclosure);
   }
   if (card.planItems) {
-    const list = document.createElement('ul');
-    for (const plan of card.planItems) { const row = document.createElement('li'); row.textContent = `${plan.label} · ${plan.status}${plan.details ? ` · ${plan.details}` : ''}`; list.append(row); }
-    item.append(list);
+    const list = document.createElement('ul'); list.className = 'chat-plan-items';
+    const selections: HTMLInputElement[] = [];
+    for (const plan of card.planItems) {
+      const row = document.createElement('li');
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = plan.id;
+      checkbox.checked = plan.status !== 'rejected'; checkbox.disabled = card.status !== 'pending'; selections.push(checkbox);
+      const title = document.createElement('strong'); title.textContent = plan.label;
+      label.append(checkbox, title); row.append(label);
+      if (plan.details) { const details = document.createElement('p'); details.textContent = plan.details; row.append(details); }
+      list.append(row);
+    }
+    content.append(list);
+    if (card.status === 'pending') {
+      const review = document.createElement('div'); review.className = 'chat-plan-review';
+      const note = document.createElement('textarea'); note.placeholder = '可选：补充约束、修改意见或实现偏好'; note.setAttribute('aria-label', 'Plan feedback');
+      const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = '同意所选方案并执行';
+      approve.addEventListener('click', () => {
+        const acceptedItemIds = selections.filter((item) => item.checked).map((item) => item.value as StableId);
+        if (!acceptedItemIds.length) return;
+        approve.disabled = true; revise.disabled = true;
+        dispatch(Object.freeze({ type: 'conversation/accept-plan', nodeId: card.id, acceptedItemIds: Object.freeze(acceptedItemIds), mode: 'approve', ...(note.value.trim() ? { note: note.value.trim() } : {}) }));
+      });
+      const revise = document.createElement('button'); revise.type = 'button'; revise.textContent = '补充后重新规划';
+      revise.addEventListener('click', () => {
+        const feedback = note.value.trim(); if (!feedback) { note.focus(); return; }
+        approve.disabled = true; revise.disabled = true;
+        dispatch(Object.freeze({ type: 'conversation/accept-plan', nodeId: card.id, acceptedItemIds: Object.freeze([]), mode: 'revise', note: feedback }));
+      });
+      review.append(note, approve, revise); content.append(review);
+    }
   }
   const actions = document.createElement('div'); actions.className = 'chat-card-actions';
   for (const action of card.actions) {
@@ -193,8 +236,38 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
     button.addEventListener('click', () => { if (action.enabled && action.intent && !button.disabled) { button.disabled = true; dispatch(action.intent); } });
     actions.append(button);
   }
-  if (card.actions.length) item.append(actions);
+  if (card.actions.length) content.append(actions);
   return item;
+}
+
+function createChatCardSurface(document: Document, item: HTMLElement, waiting: boolean): HTMLElement {
+  const content = document.createElement('div');
+  content.className = 'chat-card-content';
+  if (!waiting) { item.append(content); return content; }
+  const beam = document.createElement('hy-border-beam');
+  beam.className = 'chat-wait-beam';
+  beam.setAttribute('thickness', '1.5');
+  beam.setAttribute('speed', '1.35');
+  beam.setAttribute('count', '2');
+  beam.append(content);
+  item.append(beam);
+  return content;
+}
+
+function appendOptimisticTurn(document: Document, feed: HTMLElement, prompt: string): void {
+  const append = (kind: 'user' | 'progress', title: string, body: string, waiting: boolean): void => {
+    const item = document.createElement('li');
+    item.className = `chat-card tone-${waiting ? 'progress' : 'neutral'} optimistic-card`;
+    item.dataset.kind = kind === 'user' ? 'text' : 'progress';
+    item.dataset.status = waiting ? 'pending' : 'completed';
+    const content = createChatCardSurface(document, item, waiting);
+    const heading = document.createElement('h3'); heading.textContent = title;
+    const message = document.createElement('p'); message.textContent = body;
+    content.append(heading, message);
+    feed.append(item);
+  };
+  append('user', '你', prompt, false);
+  append('progress', '正在分析需求', 'Agent 正在读取项目上下文并规划下一步。', true);
 }
 
 function questionCard(base: CardBase, node: ConversationNodeReadModel): ChatCardReadModel {
@@ -209,9 +282,8 @@ function questionCard(base: CardBase, node: ConversationNodeReadModel): ChatCard
 
 function planCard(base: CardBase, node: ConversationNodeReadModel): ChatCardReadModel {
   const items = planFromNode(node);
-  const accepted = items.filter((item) => item.status !== 'rejected').map((item) => item.id);
-  const actions = node.status === 'pending' ? [Object.freeze({ id: 'accept-plan', label: 'Accept selected plan items', enabled: true, intent: Object.freeze({ type: 'conversation/accept-plan', nodeId: node.id, acceptedItemIds: Object.freeze(accepted) }) })] : [];
-  return Object.freeze({ ...base, title: stringValue(node.content.title, 'Proposed plan'), body: `${items.length} structured item${items.length === 1 ? '' : 's'}. Plan acceptance does not authorize tools.`, tone: 'neutral', actions: Object.freeze(actions), planItems: items });
+  const fallback = `${items.length} 个实施步骤。确认后将自动执行低风险编辑；危险能力仍会单独请求授权。`;
+  return Object.freeze({ ...base, title: stringValue(node.content.title, '总体实现方案'), body: stringValue(node.content.summary, fallback), tone: 'neutral', actions: Object.freeze([]), planItems: items });
 }
 
 function approvalCard(base: CardBase, node: ConversationNodeReadModel, now: number): ChatCardReadModel {
@@ -239,6 +311,22 @@ function completionCard(base: CardBase, node: ConversationNodeReadModel): ChatCa
   const retry = terminal === 'failed' || terminal === 'cancelled' || terminal === 'interrupted';
   const actions: ChatCardAction[] = retry ? [Object.freeze({ id: 'retry', label: 'Retry turn', enabled: true, intent: Object.freeze({ type: 'conversation/retry', backendId: node.provenance.backendId, sessionId: node.provenance.sessionId, turnId: node.provenance.turnId }) })] : [];
   return Object.freeze({ ...base, title: `Turn ${terminal}`, body: stringValue(node.content.summary, 'Turn finished.'), tone: terminal === 'completed' ? 'success' : 'danger', actions: Object.freeze(actions) });
+}
+
+function toolResultCard(base: CardBase, node: ConversationNodeReadModel): ChatCardReadModel {
+  const toolId = stringValue(node.content.toolId, 'unknown');
+  const status = node.status === 'failed' ? '失败' : node.status === 'cancelled' ? '已取消' : '完成';
+  const result = card(base, `${status} · ${toolLabel(toolId)}`, stringValue(node.content.summary, '工具调用已完成。'), node.status === 'failed' ? 'danger' : 'success');
+  const details = stringValue(node.content.details, '');
+  return details ? Object.freeze({ ...result, details: Object.freeze({ summary: '查看工具返回数据', body: details }) }) : result;
+}
+
+function toolLabel(toolId: string): string {
+  return ({
+    'project.snapshot': '读取项目', 'scene.list-entities': '读取场景', 'entity.get': '读取物体', 'script.get': '读取脚本',
+    'diagnostics.query': '读取诊断', 'entity.create': '创建物体', 'entity.rename': '重命名物体', 'transform.set': '编辑 Transform', 'material.set': '设置材质',
+    'script.propose': '校验脚本提案', 'script.apply': '提交脚本', 'preview.validate': '校验运行计划', 'preview.start': '启动预览', 'preview.stop': '停止预览',
+  } as Record<string, string>)[toolId] ?? toolId;
 }
 
 type CardBase = Readonly<Pick<ChatCardReadModel, 'id' | 'kind' | 'status' | 'provenance' | 'metadata'>>;

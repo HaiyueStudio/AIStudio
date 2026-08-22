@@ -72,11 +72,11 @@ export class ProjectWorkspace {
     return Object.freeze({ dispose: () => { if (active) { active = false; this.listeners.delete(listener); } } });
   }
 
-  async newProject(selectedRoot: string, name: string): Promise<ProjectWorkspaceSnapshot> {
+  async newProject(selectedRoot: string | null, name: string): Promise<ProjectWorkspaceSnapshot> {
     return this.serialize(async () => {
       this.assertActive();
       if (!name.trim() || name.length > 80) throw new TypeError('Project name must contain 1-80 characters.');
-      const repository = await ProjectRepository.open(selectedRoot);
+      const repository = selectedRoot ? await ProjectRepository.open(selectedRoot) : null;
       const projectId = asStableId(`project:${randomUUID()}`);
       const documentId = asStableId(`document:${randomUUID()}`);
       await this.resources.operationLog.append({
@@ -85,7 +85,7 @@ export class ProjectWorkspace {
       });
       const document = new ProjectDocument(projectId, name.trim(), documentId, {}, 1, 0);
       await this.replaceDocument(repository, document);
-      await this.remember(repository.root);
+      if (repository) await this.remember(repository.root);
       await this.resources.operationLog.append({
         kind: 'project/created', severity: 'info', source: asStableId('studio.project'),
         correlation: { projectId, documentId }, payload: { revision: 1 },
@@ -211,20 +211,35 @@ export class ProjectWorkspace {
       this.assertActive();
       const document = this.requireDocument();
       const repository = this.requireRepository();
-      await this.resources.operationLog.append({
-        kind: 'project/save-requested', severity: 'info', source: asStableId('studio.project'),
-        correlation: { projectId: document.projectId, documentId: document.documentId }, payload: { revision: document.revision },
-      });
-      await repository.save(document.serializeForSave());
-      document.markSaved();
-      this.resources.projectSession.markSaved(document.revision);
-      await this.resources.operationLog.append({
-        kind: 'project/saved', severity: 'info', source: asStableId('studio.project'),
-        correlation: { projectId: document.projectId, documentId: document.documentId }, payload: { revision: document.revision },
-      });
-      this.emit();
-      return this.snapshot();
+      return this.persist(repository, document);
     });
+  }
+
+  async saveAs(selectedRoot: string): Promise<ProjectWorkspaceSnapshot> {
+    return this.serialize(async () => {
+      this.assertActive();
+      const document = this.requireDocument();
+      const repository = await ProjectRepository.open(selectedRoot);
+      this.repository = repository;
+      await this.remember(repository.root);
+      return this.persist(repository, document);
+    });
+  }
+
+  private async persist(repository: ProjectRepository, document: ProjectDocument): Promise<ProjectWorkspaceSnapshot> {
+    await this.resources.operationLog.append({
+      kind: 'project/save-requested', severity: 'info', source: asStableId('studio.project'),
+      correlation: { projectId: document.projectId, documentId: document.documentId }, payload: { revision: document.revision },
+    });
+    await repository.save(document.serializeForSave());
+    document.markSaved();
+    this.resources.projectSession.markSaved(document.revision);
+    await this.resources.operationLog.append({
+      kind: 'project/saved', severity: 'info', source: asStableId('studio.project'),
+      correlation: { projectId: document.projectId, documentId: document.documentId }, payload: { revision: document.revision },
+    });
+    this.emit();
+    return this.snapshot();
   }
 
   cancelAll(): void {
@@ -274,7 +289,7 @@ export class ProjectWorkspace {
     });
   }
 
-  private async replaceDocument(repository: ProjectRepository, document: ProjectDocument): Promise<void> {
+  private async replaceDocument(repository: ProjectRepository | null, document: ProjectDocument): Promise<void> {
     this.resources.tasks.cancelAll();
     await this.detachDocument();
     this.resources.history.clear();
