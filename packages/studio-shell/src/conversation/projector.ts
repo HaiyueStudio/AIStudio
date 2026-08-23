@@ -217,7 +217,7 @@ function findPendingInteraction(nodes: readonly ConversationNodeReadModel[]): Pe
     if (node.knownKind === 'plan') return Object.freeze({ nodeId: node.id, kind: 'plan' });
     if (node.knownKind === 'approval') {
       const approval = approvalFromNode(node);
-      if (approval?.decision === 'pending') return Object.freeze({ nodeId: node.id, kind: 'approval', expiresAt: approval.expiresAt });
+      if (approval?.decision === 'pending') return Object.freeze({ nodeId: node.id, kind: 'approval' });
     }
   }
   return null;

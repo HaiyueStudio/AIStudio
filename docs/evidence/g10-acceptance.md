@@ -37,15 +37,15 @@ crash 或 dispose 会取消 turn、approval 与 preview command，晚到结果�
 ## Failure, approval and lifecycle matrix
 
 - Script exception：真实 isolated runtime 捕获 source/line/column、释放热重载 disposable，编辑文档不被 runtime mutation 回写。
-- Stale revision/schema/approval race：spoof、reject、cancel、expire、revision drift 全部 fail closed，mutation count 为 0。
+- Stale revision/schema/approval race：spoof、reject、cancel、revision drift 全部 fail closed，mutation count 为 0；待审批项没有时间超时。
 - Plugin activation：required/optional/config/late async failure 原子回滚；100 次 profile replace 无 owned resource。
 - Backend disconnect/crash：malformed frame、process exit、turn crash 产生 terminal diagnostic；fresh pinned backend 可 restart。
 - Log restart/fault：live/replay 等价；partial tail quarantine/recovery、checksum isolation、rotation/quota、legacy migration、disk-full
   structured failure、correlation cursor 均通过。
 - App restart/reload：project save/reopen、renderer reload、preview realm teardown 与新的 authoring WebGPU owner 通过；Codex child、Worker、
   file handle、timer/listener/GPU owner 均走幂等 dispose。性能 fixture 最终 `retainedFileHandles:0`。
-- Approval audit：reversible mutation、trusted script apply、runtime start 都绑定 exact args/preview digest、document/base revision、expiry 与
-  one-shot decision；plan accept 不等价于 tool approval。
+- Approval audit：reversible mutation、trusted script apply、runtime start 都绑定 exact args/preview digest、document/base revision 与
+  one-shot decision；待审批项没有时间限制，只会因用户决定、项目状态变旧或生命周期取消而失效；plan accept 不等价于 tool approval。
 - Diagnostics：`diagnostics.query` 是 13-tool allowlist 中唯一日志入口，只返回 bounded safe summaries；Agent 无路径、SQL 或 raw journal。
 
 ## Log and bug bundle

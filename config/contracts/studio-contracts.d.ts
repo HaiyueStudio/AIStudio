@@ -139,8 +139,7 @@ export interface ApprovalRecord {
   readonly previewDigest: string;
   readonly documentId: StableId;
   readonly baseRevision: number;
-  readonly expiresAt: string;
-  readonly decision: 'pending' | 'allow-once' | 'allow-always' | 'reject' | 'cancel' | 'expired' | 'stale' | 'unavailable';
+  readonly decision: 'pending' | 'allow-once' | 'allow-always' | 'reject' | 'cancel' | 'stale' | 'unavailable';
 }
 
 export interface ProjectCommand {

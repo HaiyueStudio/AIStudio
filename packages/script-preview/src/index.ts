@@ -113,7 +113,7 @@ export class ScriptValidationWorker {
     scriptId: StableId; textRevision: number; sourcePath: string; text: string; capabilities?: readonly ScriptCapabilityName[];
   }>): Promise<ScriptValidationResult> {
     this.assertActive();
-    const capabilities = normalizeCapabilities(input.capabilities);
+    const capabilities = normalizeCapabilities(input.capabilities, input.text);
     const generation = (this.generations.get(input.scriptId) ?? 0) + 1;
     this.generations.set(input.scriptId, generation);
     const requestId = asStableId(`script-validation:${randomUUID()}`);
@@ -514,11 +514,16 @@ function parseStoredScripts(value: JsonValue, dirty: boolean): ScriptResourceSna
 
 function freezeCatalog(value: ScriptCatalogSnapshot): ScriptCatalogSnapshot { return Object.freeze({ ...value, resources: Object.freeze(value.resources.map((item) => Object.freeze(item))) }); }
 function stripDirty(value: ScriptResourceSnapshot): Omit<ScriptResourceSnapshot, 'dirty'> { const { dirty: _dirty, ...stored } = value; return Object.freeze(stored); }
-function normalizeCapabilities(value: readonly ScriptCapabilityName[] | undefined): readonly ScriptCapabilityName[] {
+function normalizeCapabilities(value: readonly ScriptCapabilityName[] | undefined, text = ''): readonly ScriptCapabilityName[] {
   const requested = value ?? DEFAULT_SCRIPT_CAPABILITIES;
-  const unique = [...new Set(requested)];
+  const inferred = usesSceneApi(text) ? ['scene' as const] : [];
+  const unique = [...new Set([...requested, ...inferred])];
   for (const capability of unique) if (!SCRIPT_CAPABILITIES.includes(capability)) throw new TypeError(`Unknown script capability ${capability}.`);
   return Object.freeze(unique);
+}
+function usesSceneApi(text: string): boolean {
+  return /\bapi\s*(?:\.|\?\.)\s*scene\b/u.test(text)
+    || /\bapi\s*(?:\?\.)?\[\s*(['"])scene\1\s*\]/u.test(text);
 }
 function assertScriptText(text: unknown): asserts text is string { if (typeof text !== 'string' || text.length > 100_000 || text.includes('\0')) throw new TypeError('Script text must be a bounded string without NUL bytes.'); }
 function digestScript(text: string, capabilities: readonly ScriptCapabilityName[]): string { return createHash('sha256').update(text).update('\0').update(capabilities.join(',')).digest('hex'); }

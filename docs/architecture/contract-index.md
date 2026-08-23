@@ -15,6 +15,7 @@ validates every persistence, backend and IPC boundary from `unknown`.
 | IPC message | versioned renderer-main allowlisted `studio:*` envelope |
 
 Rules not expressible in JSON Schema remain runtime invariants: project revision equals embedded scene revision; `dirty` reflects
-`revision !== savedRevision`; entity and script ids are unique; parent references are acyclic; scale is finite/non-zero; approval expiry
-uses monotonic guards; prepared command and approval digest are recomputed immediately before commit. G02-G09 must add conformance tests
+`revision !== savedRevision`; entity and script ids are unique; parent references are acyclic; scale is finite/non-zero; pending approvals
+have no wall-clock timeout and remain bound to their exact operation; prepared command and approval digests plus the document/base revision are
+recomputed immediately before commit. G02-G09 must add conformance tests
 for these semantic rules without changing v1 wire shapes unilaterally.

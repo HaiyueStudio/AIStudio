@@ -145,13 +145,13 @@ test('approval cards expose a validated project-session Allow always action', ()
   assert.deepEqual(validateConversationIntent(always.intent), always.intent);
 });
 
-test('elapsed approval cards offer exact-operation revalidation while IPC-spoofed intents fail closed', () => {
+test('approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed', () => {
   const projector = new ConversationProjector();
   projector.reset(snapshot([projection(1, approvalNode('pending'), 'replay')]));
   const card = presentChatPanel(projector.snapshot(), Date.parse('2026-08-19T00:10:00.000Z')).cards[0];
   assert.equal(card.actions.find((action) => action.id === 'approval-allow').enabled, true);
-  assert.match(card.actions.find((action) => action.id === 'approval-allow').label, /Revalidate/);
-  assert.match(card.body, /revalidate the exact document revision, arguments and preview/);
+  assert.match(card.actions.find((action) => action.id === 'approval-allow').label, /Allow once/);
+  assert.match(card.body, /no time limit/i);
   assert.throws(() => validateConversationIntent({ type: 'conversation/resolve-approval', approvalId: 'approval:fixture', decision: 'allow', apiKey: 'CANARY' }), /unknown fields|invalid/i);
   assert.throws(() => validateConversationIntent({ type: 'logs/export-bug-bundle', query: { limit: 201, traverseCorrelation: true } }), /budget/i);
   assert.throws(() => validateConversationIntent({ type: 'backend/authenticate', backendId, token: 'CANARY' }), /unknown fields/i);
@@ -163,7 +163,7 @@ function snapshot(events) {
 function projection(sequence, value, source) { return { schemaVersion: 1, sequence, source, node: value }; }
 function node(id, kind, status, content) { return { schemaVersion: 1, id, kind, status, createdAt: `2026-08-19T00:00:${String(Number(id.length % 50)).padStart(2, '0')}.000Z`, provenance: { backendId, sessionId, turnId }, content }; }
 function approvalNode(decision) {
-  return node('node:approval', 'approval', 'pending', { approvalId: 'approval:fixture', toolCallId: 'toolcall:fixture', toolId: 'script.apply', toolVersion: '1.0.0', target: 'script:player', effect: 'trusted-code', risk: 'high', argumentsSummary: 'Write player controller', previewDiff: '+ move cube', baseRevision: 4, argsDigest: digestA, previewDigest: digestB, expiresAt: '2026-08-19T00:05:00.000Z', decision });
+  return node('node:approval', 'approval', 'pending', { approvalId: 'approval:fixture', toolCallId: 'toolcall:fixture', toolId: 'script.apply', toolVersion: '1.0.0', target: 'script:player', effect: 'trusted-code', risk: 'high', argumentsSummary: 'Write player controller', previewDiff: '+ move cube', baseRevision: 4, argsDigest: digestA, previewDigest: digestB, decision });
 }
 function fakeConversationPort() {
   let listener;

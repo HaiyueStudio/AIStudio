@@ -36,7 +36,6 @@ export interface ConversationProjectionEvent {
 export interface PendingConversationInteraction {
   readonly nodeId: StableId;
   readonly kind: 'question' | 'plan' | 'approval';
-  readonly expiresAt?: string;
 }
 
 export interface ConversationBackendReadModel {
@@ -153,7 +152,6 @@ export interface ApprovalCardReadModel {
   readonly baseRevision: number;
   readonly argsDigest: string;
   readonly previewDigest: string;
-  readonly expiresAt: string;
   readonly decision: 'pending' | 'allow-once' | 'allow-always' | 'reject' | 'cancel' | 'expired' | 'stale' | 'unavailable';
 }
 

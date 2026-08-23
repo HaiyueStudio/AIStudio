@@ -511,7 +511,7 @@ function approvalContent(preparation: GameToolPreparation, approval: GameToolApp
     approvalId: approval.approvalId, toolCallId: approval.toolCallId, toolId: approval.toolId, toolVersion: approval.toolVersion,
     target: approval.target, effect: approval.effect, risk: approval.risk, argumentsSummary: preparation.preview.summary,
     previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: presentationDigest(approval.argumentsDigest),
-    previewDigest: presentationDigest(approval.previewDigest), expiresAt: approval.expiresAt, decision: approval.decision,
+    previewDigest: presentationDigest(approval.previewDigest), decision: approval.decision,
   });
 }
 function presentationDigest(value: string): string { return value.startsWith('sha256:') ? value : `sha256:${value}`; }
@@ -601,6 +601,7 @@ function agentPrompt(prompt: string, projectOpen: boolean): string {
     '- Put project-wide gameplay in one clearly named Empty controller such as GameController or <GameName>Game. The Run command chooses controller-like nodes ahead of incidental Scene selection. Use api.read.find/api.read.findAll or world lookups to update the visible entities from that controller.',
     '- For a new visual game or any request that includes Play/preview, create at least one geometry entity before proposing scripts or calling preview.validate. Do not rely on a script to create the initial authoring scene.',
     '- Project scripts are onUpdate function bodies, not modules: entity, component, world, time, delta, and api are already in scope. Never emit import, export, require, module.exports, or an exported/lifecycle-function wrapper.',
+    '- If script source uses api.scene (including api.scene.instances), include scene in script.propose capabilities and reuse the capabilities returned by script.propose for preview.validate. A script.ts.2339 saying scene is missing is a capability mismatch: add scene to the tool capabilities instead of repeatedly rewriting the same source.',
     '- After every script.propose call, inspect the diagnostics and canApply fields. If any error exists or canApply is false, do not call script.apply. Rewrite the complete script, propose again, and repeat until diagnostics contain zero errors; only then apply it.',
     '- Studio binds the current authoritative baseRevision when it is omitted. Never guess a revision. If you explicitly provide baseRevision, use the last returned afterRevision.',
     '- Put the initial position, rotation and scale in entity.create.transform. Do not issue transform.set for an entity being created in the same tool batch: wait for entity.create to return result.entity.id before any later edit.',
@@ -627,6 +628,7 @@ function approvedPlanPrompt(plan: ApprovedPlanExecution, projectOpen: boolean): 
     '- Low-risk reversible edits covered by the approved plan do not need another plan confirmation. Dangerous capabilities may still require their scoped approval card.',
     '- Use one semantic authoring entity plus controller-owned instance data for repeated dynamic content; never create one persistent entity per snake body segment.',
     '- Project scripts are onUpdate function bodies. Never emit import, export, require, module.exports, or a lifecycle wrapper.',
+    '- If source uses api.scene, include scene in script.propose capabilities and reuse the returned capabilities for preview.validate. Treat script.ts.2339 for api.scene as a missing capability, not as source that should be retried unchanged.',
     '- Do not finish with a statement that you are waiting for approval: approval has already been granted. Finish only after executing tools or reporting a concrete tool limitation.',
   ].join('\n');
 }

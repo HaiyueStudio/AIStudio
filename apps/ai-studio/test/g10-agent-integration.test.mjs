@@ -48,8 +48,8 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   let decision;
   const tools = {
     definitions: () => [{ id: 'entity.create', description: 'Create entity', effect: 'reversible-edit', risk: 'medium', inputSchema: {} }],
-    async prepare() { return { id: 'preparation:test-agent', callId: toolCallId, sessionId, turnId, toolId: 'entity.create', toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', documentId: 'document:test', baseRevision: 1, argumentsDigest: digest('a'), previewDigest: digest('b'), preview: { title: 'Create', target: 'Scene', summary: 'Create Player cube', diff: '+ Player' }, status: 'approval-required', approvalId, expiresAt: new Date(Date.now() + 60_000).toISOString() }; },
-    approval() { return { schemaVersion: 1, approvalId, preparationId: 'preparation:test-agent', toolCallId, toolId: 'entity.create', toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', argumentsDigest: digest('a'), previewDigest: digest('b'), documentId: 'document:test', baseRevision: 1, target: 'Scene', expiresAt: new Date(Date.now() + 60_000).toISOString(), decision: 'pending' }; },
+    async prepare() { return { id: 'preparation:test-agent', callId: toolCallId, sessionId, turnId, toolId: 'entity.create', toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', documentId: 'document:test', baseRevision: 1, argumentsDigest: digest('a'), previewDigest: digest('b'), preview: { title: 'Create', target: 'Scene', summary: 'Create Player cube', diff: '+ Player' }, status: 'approval-required', approvalId }; },
+    approval() { return { schemaVersion: 1, approvalId, preparationId: 'preparation:test-agent', toolCallId, toolId: 'entity.create', toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', argumentsDigest: digest('a'), previewDigest: digest('b'), documentId: 'document:test', baseRevision: 1, target: 'Scene', decision: 'pending' }; },
     async decide(_id, value) { decision = value; return { ...this.approval(), decision: value }; },
     async execute() { return { schemaVersion: 1, callId: toolCallId, toolId: 'entity.create', status: 'completed', value: { entityId: 'entity:player' }, documentId: 'document:test', beforeRevision: 1, afterRevision: 2, historyLabel: 'Create Cube/Empty' }; },
   };
@@ -83,6 +83,8 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   assert.match(startedInput.prompt, /geometry cube, sphere, cone, cylinder, plane, torus and icosahedron/);
   assert.match(startedInput.prompt, /create at least one geometry entity before proposing scripts/);
   assert.match(startedInput.prompt, /Never emit import, export, require, module\.exports/);
+  assert.match(startedInput.prompt, /script\.ts\.2339 saying scene is missing is a capability mismatch/);
+  assert.match(startedInput.prompt, /reuse the capabilities returned by script\.propose for preview\.validate/);
   assert.match(startedInput.prompt, /If any error exists or canApply is false, do not call script\.apply/);
   assert.match(startedInput.prompt, /Do not retry preview\.start unchanged/);
   assert.match(startedInput.prompt, /User request:\nCreate a Player cube$/);
@@ -166,6 +168,7 @@ test('an approved plan that ends without edits continues once and executes witho
   assert.equal(executeCount, 1);
   assert.match(continuationInput.prompt, /already approved/);
   assert.match(continuationInput.prompt, /Do not call studio\.plan\.propose again/);
+  assert.match(continuationInput.prompt, /Treat script\.ts\.2339 for api\.scene as a missing capability/);
   assert.ok(nodes(host).some((node) => node.kind === 'progress' && node.content.phase === 'approved-plan-execution'));
   assert.equal(nodes(host).filter((node) => node.kind === 'completion').length, 1);
   assert.ok(!nodes(host).some((node) => node.kind === 'diagnostic' && node.content.code === 'plan.execution-not-started'));

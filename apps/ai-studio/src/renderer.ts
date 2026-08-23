@@ -960,7 +960,7 @@ async function requestAgentScriptFix(): Promise<void> {
     `Entity: ${context.entityName} (${context.entityId})`,
     `Script: ${context.scriptId}`,
     'Current validation errors:', diagnostics,
-    'Required workflow: call project.snapshot and script.get; rewrite the script as an onUpdate function body with entity, component, world, time, delta, and api already in scope; never use import, export, CommonJS, or lifecycle-function wrappers; call script.propose; inspect every diagnostic and keep rewriting until there are no errors; only then call script.apply. Do not start preview until the committed script validates without errors.',
+    'Required workflow: call project.snapshot and script.get; rewrite the script as an onUpdate function body with entity, component, world, time, delta, and api already in scope; never use import, export, CommonJS, or lifecycle-function wrappers. If the source uses api.scene, include scene in script.propose capabilities and reuse the returned capabilities for preview.validate; script.ts.2339 for api.scene means the scene capability is missing. Call script.propose, inspect every diagnostic and keep correcting source or capabilities until there are no errors; only then call script.apply. Do not start preview until the committed script validates without errors.',
   ].join('\n');
   conversationCanSend = false;
   updateFixAgentButton();

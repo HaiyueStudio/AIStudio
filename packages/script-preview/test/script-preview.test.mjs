@@ -52,6 +52,12 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
       text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
     });
     assert.deepEqual(instanced.diagnostics, []);
+    const inferredScene = await worker.validate({
+      scriptId, textRevision: 5, sourcePath: 'scripts/test.ts', capabilities: ['read', 'input', 'debug'],
+      text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
+    });
+    assert.deepEqual(inferredScene.capabilities, ['read', 'input', 'debug', 'scene']);
+    assert.deepEqual(inferredScene.diagnostics, []);
     const first = worker.validate({ scriptId, textRevision: 3, sourcePath: 'scripts/test.ts', text: movementScript });
     const second = worker.validate({ scriptId, textRevision: 4, sourcePath: 'scripts/test.ts', text: movementScript });
     assert.equal((await first).stale, true);

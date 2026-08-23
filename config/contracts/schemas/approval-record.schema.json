@@ -3,7 +3,7 @@
   "$id": "haiyue://contracts/approval-record/v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "approvalId", "toolCallId", "toolId", "toolVersion", "effect", "argsDigest", "previewDigest", "documentId", "baseRevision", "expiresAt", "decision"],
+  "required": ["schemaVersion", "approvalId", "toolCallId", "toolId", "toolVersion", "effect", "argsDigest", "previewDigest", "documentId", "baseRevision", "decision"],
   "properties": {
     "schemaVersion": { "const": 1 },
     "approvalId": { "$ref": "#/definitions/id" }, "toolCallId": { "$ref": "#/definitions/id" },
@@ -12,8 +12,7 @@
     "effect": { "enum": ["reversible-edit", "trusted-code", "runtime-start"] },
     "argsDigest": { "$ref": "#/definitions/digest" }, "previewDigest": { "$ref": "#/definitions/digest" },
     "documentId": { "$ref": "#/definitions/id" }, "baseRevision": { "type": "integer", "minimum": 0 },
-    "expiresAt": { "type": "string", "minLength": 20 },
-    "decision": { "enum": ["pending", "allow-once", "allow-always", "reject", "cancel", "expired", "stale", "unavailable"] }
+    "decision": { "enum": ["pending", "allow-once", "allow-always", "reject", "cancel", "stale", "unavailable"] }
   },
   "definitions": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },

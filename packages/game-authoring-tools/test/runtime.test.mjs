@@ -132,6 +132,29 @@ test('invalid AI-generated module scripts must be rewritten before apply can be 
   } finally { await dispose(value); }
 });
 
+test('scene capability is inferred from api.scene source and survives proposal and preview validation', async () => {
+  const value = await fixture();
+  try {
+    const created = await executeReady(value.runtime, call('call:create-instance-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'SnakeBody' }));
+    const source = `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(1);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`;
+    const proposed = await executeReady(value.runtime, call('call:propose-inferred-scene', 'script.propose', {
+      baseRevision: created.afterRevision, entityId: created.value.entity.id, text: source, capabilities: ['read', 'input', 'debug'],
+    }));
+    assert.equal(proposed.value.canApply, true);
+    assert.deepEqual(proposed.value.capabilities, ['read', 'input', 'debug', 'scene']);
+    assert.deepEqual(proposed.value.diagnostics, []);
+
+    const applied = await approveAndExecute(value.runtime, call('call:apply-inferred-scene', 'script.apply', {
+      baseRevision: created.afterRevision, proposalId: proposed.value.proposalId,
+    }));
+    const validated = await executeReady(value.runtime, call('call:validate-inferred-scene', 'preview.validate', {
+      scriptId: applied.value.scriptId, capabilities: ['read', 'input', 'debug'],
+    }));
+    assert.deepEqual(validated.value.capabilities, ['read', 'input', 'debug', 'scene']);
+    assert.deepEqual(validated.value.diagnostics, []);
+  } finally { await dispose(value); }
+});
+
 test('preview validation rejects scenes that contain only logic entities', async () => {
   const value = await fixture();
   try {
@@ -185,8 +208,8 @@ test('model-facing mutations bind the current revision and create with an initia
   } finally { await dispose(value); }
 });
 
-test('schema spoof, rejection, expiry and revision drift fail closed without mutation', async () => {
-  const value = await fixture({ approvalTtlMs: 60_000 });
+test('schema spoof, rejection and revision drift fail closed without mutation', async () => {
+  const value = await fixture();
   try {
     await assert.rejects(value.runtime.prepare(call('call:bad', 'entity.create', { baseRevision: 1, kind: 'cube', shell: 'whoami' })), /unknown fields: shell/);
     await assert.rejects(value.runtime.prepare({ ...call('call:version', 'entity.create', { baseRevision: 1, kind: 'cube' }), toolVersion: '2.0.0' }), /not registered/);
@@ -197,16 +220,9 @@ test('schema spoof, rejection, expiry and revision drift fail closed without mut
     assert.equal((await value.runtime.execute(rejected.id)).status, 'rejected');
     assert.equal(value.workspace.snapshot().document.revision, 2);
 
-    const expired = await value.runtime.prepare(call('call:expire', 'entity.rename', { baseRevision: 2, entityId, name: 'Expired' }));
-    value.time.value += 61_000;
-    await value.workspace.execute({ id: asStableId('command:expiry-drift'), label: 'Expiry drift', baseRevision: 2, key: 'fixture.expiry-drift', value: true });
-    assert.equal((await value.runtime.decide(expired.approvalId, 'allow-once')).decision, 'expired');
-    assert.equal((await value.runtime.execute(expired.id)).status, 'rejected');
-
-    value.time.value = 1_000;
-    const stale = await value.runtime.prepare(call('call:stale', 'entity.rename', { baseRevision: 3, entityId, name: 'Stale' }));
+    const stale = await value.runtime.prepare(call('call:stale', 'entity.rename', { baseRevision: 2, entityId, name: 'Stale' }));
     await value.runtime.decide(stale.approvalId, 'allow-once');
-    await value.workspace.execute({ id: asStableId('command:drift'), label: 'Drift', baseRevision: 3, key: 'fixture.drift', value: true });
+    await value.workspace.execute({ id: asStableId('command:drift'), label: 'Drift', baseRevision: 2, key: 'fixture.drift', value: true });
     await assert.rejects(value.runtime.execute(stale.id), /Document changed/);
     assert.equal(value.scene.snapshot().entities[0].name, 'Policy Target');
 
@@ -216,24 +232,26 @@ test('schema spoof, rejection, expiry and revision drift fail closed without mut
   } finally { await dispose(value); }
 });
 
-test('an expired approval click is accepted only after exact revalidation and an accepted decision survives the old deadline', async () => {
-  const value = await fixture({ approvalTtlMs: 60_000 });
+test('pending approvals have no wall-clock timeout and still require an exact revision at execution', async () => {
+  const value = await fixture();
   try {
-    const created = await executeReady(value.runtime, call('call:create-refresh-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before' }));
+    const created = await executeReady(value.runtime, call('call:create-no-timeout-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before' }));
     const entityId = created.value.entity.id;
-    const refreshed = await value.runtime.prepare(call('call:refresh-expired', 'entity.rename', { baseRevision: 2, entityId, name: 'After refresh' }));
-    value.time.value += 61_000;
-    const refreshedDecision = await value.runtime.decide(refreshed.approvalId, 'allow-once');
-    assert.equal(refreshedDecision.decision, 'allow-once');
-    assert.ok(Date.parse(refreshedDecision.expiresAt) > value.time.value);
-    assert.equal((await value.runtime.execute(refreshed.id)).status, 'completed');
+    const pending = await value.runtime.prepare(call('call:no-timeout', 'entity.rename', { baseRevision: 2, entityId, name: 'After a year' }));
+    assert.equal('expiresAt' in pending, false);
+    assert.equal('expiresAt' in value.runtime.approval(pending.approvalId), false);
 
-    const nearDeadline = await value.runtime.prepare(call('call:near-deadline', 'entity.rename', { baseRevision: 3, entityId, name: 'After deadline' }));
-    value.time.value += 59_000;
-    assert.equal((await value.runtime.decide(nearDeadline.approvalId, 'allow-once')).decision, 'allow-once');
-    value.time.value += 2_000;
-    assert.equal((await value.runtime.execute(nearDeadline.id)).status, 'completed');
-    assert.equal(value.scene.snapshot().entities[0].name, 'After deadline');
+    value.time.value += 365 * 24 * 60 * 60 * 1_000;
+    assert.equal((await value.runtime.decide(pending.approvalId, 'allow-once')).decision, 'allow-once');
+    assert.equal((await value.runtime.execute(pending.id)).status, 'completed');
+    assert.equal(value.scene.snapshot().entities[0].name, 'After a year');
+
+    const stale = await value.runtime.prepare(call('call:no-timeout-stale', 'entity.rename', { baseRevision: 3, entityId, name: 'Must not apply' }));
+    value.time.value += 365 * 24 * 60 * 60 * 1_000;
+    await value.workspace.execute({ id: asStableId('command:long-wait-drift'), label: 'Long wait drift', baseRevision: 3, key: 'fixture.long-wait-drift', value: true });
+    assert.equal((await value.runtime.decide(stale.approvalId, 'allow-once')).decision, 'allow-once');
+    await assert.rejects(value.runtime.execute(stale.id), /Document changed/);
+    assert.equal(value.scene.snapshot().entities[0].name, 'After a year');
   } finally { await dispose(value); }
 });
 
@@ -255,7 +273,7 @@ test('fake backend deterministic E2E creates, transforms, scripts and starts pre
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
-async function fixture(options = {}) {
+async function fixture() {
   const projectRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-project-'));
   const userDataRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-userdata-'));
   const time = { value: 1_000 };
@@ -278,7 +296,7 @@ async function fixture(options = {}) {
     async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', entityId: plan.entityId }; return this.state; },
     async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; }, snapshot() { return this.state; },
   };
-  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, clock: () => time.value, ...(options.approvalTtlMs ? { approvalTtlMs: options.approvalTtlMs } : {}) });
+  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview });
   return { projectRoot, userDataRoot, time, operationLog, resources, workspace, scene, validator, projectScripts, scripts, preview, runtime };
 }
 
