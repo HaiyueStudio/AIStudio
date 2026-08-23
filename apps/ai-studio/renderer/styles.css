@@ -151,7 +151,7 @@ header { background: var(--studio-surface-elevated); border-color: var(--studio-
 .chat-plan-items li { padding: 7px; border: 1px solid var(--studio-border); border-radius: 6px; background: var(--studio-input); }
 .chat-plan-items label { display: flex; gap: 7px; align-items: center; cursor: pointer; }
 .chat-plan-items p { margin: 5px 0 0 24px; color: var(--studio-text-secondary); }
-.chat-plan-review { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: end; }
+.chat-plan-review { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: end; margin: 7px 0; padding: 7px; border: 1px solid var(--studio-border-strong); border-radius: 6px; background: var(--studio-surface); box-shadow: 0 4px 12px color-mix(in srgb, #000 24%, transparent); }
 .chat-plan-review textarea { grid-column: 1 / -1; min-height: 54px; resize: vertical; border: 1px solid var(--studio-border-strong); border-radius: 5px; background: var(--studio-input); color: var(--studio-text); padding: 7px; }
 .chat-jump-latest { color: var(--studio-accent); }
 #logs-panel { margin: 0; border: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); color: var(--studio-text-secondary); }

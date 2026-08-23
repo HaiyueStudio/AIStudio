@@ -113,6 +113,20 @@ test('user messages are projected as conversation input rather than assistant ou
   assert.equal(model.cards[0].body, '创建一个小游戏');
   assert.equal(model.cards[1].status, 'pending');
 });
+
+test('pending implementation plans put an explicit approval action before the detailed item list', () => {
+  const model = presentChatPanel(new ConversationProjector().reset(snapshot([
+    projection(1, node('node:plan-visible', 'plan', 'pending', {
+      title: 'Snake plan', summary: 'Use one controller and instanced body rendering.',
+      items: [{ id: 'plan:controller', label: 'Create controller', details: 'Own movement and instance data.', status: 'pending' }],
+    }), 'replay'),
+  ])));
+  assert.equal(model.cards[0].title, '待批准 · Snake plan');
+  const fake = fakeDom();
+  renderChatPanel(fake.root, model, () => {});
+  const text = fake.text();
+  assert.ok(text.indexOf('批准并执行') < text.indexOf('Create controller'));
+});
 test('tool results show a readable step and keep raw structured output collapsed', () => {
   const model = presentChatPanel(new ConversationProjector().reset(snapshot([
     projection(1, node('node:tool', 'tool-result', 'completed', { toolCallId: 'toolcall:fixture', toolId: 'entity.create', summary: '已创建“Player”', details: '{"entity":{"name":"Player"}}', resultStatus: 'completed' }), 'replay'),
@@ -131,11 +145,13 @@ test('approval cards expose a validated project-session Allow always action', ()
   assert.deepEqual(validateConversationIntent(always.intent), always.intent);
 });
 
-test('expired approvals are inert and IPC-spoofed intents fail closed', () => {
+test('elapsed approval cards offer exact-operation revalidation while IPC-spoofed intents fail closed', () => {
   const projector = new ConversationProjector();
   projector.reset(snapshot([projection(1, approvalNode('pending'), 'replay')]));
   const card = presentChatPanel(projector.snapshot(), Date.parse('2026-08-19T00:10:00.000Z')).cards[0];
-  assert.ok(card.actions.every((action) => !action.enabled));
+  assert.equal(card.actions.find((action) => action.id === 'approval-allow').enabled, true);
+  assert.match(card.actions.find((action) => action.id === 'approval-allow').label, /Revalidate/);
+  assert.match(card.body, /revalidate the exact document revision, arguments and preview/);
   assert.throws(() => validateConversationIntent({ type: 'conversation/resolve-approval', approvalId: 'approval:fixture', decision: 'allow', apiKey: 'CANARY' }), /unknown fields|invalid/i);
   assert.throws(() => validateConversationIntent({ type: 'logs/export-bug-bundle', query: { limit: 201, traverseCorrelation: true } }), /budget/i);
   assert.throws(() => validateConversationIntent({ type: 'backend/authenticate', backendId, token: 'CANARY' }), /unknown fields/i);

@@ -186,7 +186,7 @@ test('model-facing mutations bind the current revision and create with an initia
 });
 
 test('schema spoof, rejection, expiry and revision drift fail closed without mutation', async () => {
-  const value = await fixture();
+  const value = await fixture({ approvalTtlMs: 60_000 });
   try {
     await assert.rejects(value.runtime.prepare(call('call:bad', 'entity.create', { baseRevision: 1, kind: 'cube', shell: 'whoami' })), /unknown fields: shell/);
     await assert.rejects(value.runtime.prepare({ ...call('call:version', 'entity.create', { baseRevision: 1, kind: 'cube' }), toolVersion: '2.0.0' }), /not registered/);
@@ -199,19 +199,41 @@ test('schema spoof, rejection, expiry and revision drift fail closed without mut
 
     const expired = await value.runtime.prepare(call('call:expire', 'entity.rename', { baseRevision: 2, entityId, name: 'Expired' }));
     value.time.value += 61_000;
+    await value.workspace.execute({ id: asStableId('command:expiry-drift'), label: 'Expiry drift', baseRevision: 2, key: 'fixture.expiry-drift', value: true });
     assert.equal((await value.runtime.decide(expired.approvalId, 'allow-once')).decision, 'expired');
     assert.equal((await value.runtime.execute(expired.id)).status, 'rejected');
 
     value.time.value = 1_000;
-    const stale = await value.runtime.prepare(call('call:stale', 'entity.rename', { baseRevision: 2, entityId, name: 'Stale' }));
+    const stale = await value.runtime.prepare(call('call:stale', 'entity.rename', { baseRevision: 3, entityId, name: 'Stale' }));
     await value.runtime.decide(stale.approvalId, 'allow-once');
-    await value.workspace.execute({ id: asStableId('command:drift'), label: 'Drift', baseRevision: 2, key: 'fixture.drift', value: true });
+    await value.workspace.execute({ id: asStableId('command:drift'), label: 'Drift', baseRevision: 3, key: 'fixture.drift', value: true });
     await assert.rejects(value.runtime.execute(stale.id), /Document changed/);
     assert.equal(value.scene.snapshot().entities[0].name, 'Policy Target');
 
     const cancelled = await value.runtime.prepare(call('call:cancel-ready', 'project.snapshot', {}));
     await value.runtime.cancel(asStableId('call:cancel-ready'));
     assert.equal((await value.runtime.execute(cancelled.id)).status, 'cancelled');
+  } finally { await dispose(value); }
+});
+
+test('an expired approval click is accepted only after exact revalidation and an accepted decision survives the old deadline', async () => {
+  const value = await fixture({ approvalTtlMs: 60_000 });
+  try {
+    const created = await executeReady(value.runtime, call('call:create-refresh-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before' }));
+    const entityId = created.value.entity.id;
+    const refreshed = await value.runtime.prepare(call('call:refresh-expired', 'entity.rename', { baseRevision: 2, entityId, name: 'After refresh' }));
+    value.time.value += 61_000;
+    const refreshedDecision = await value.runtime.decide(refreshed.approvalId, 'allow-once');
+    assert.equal(refreshedDecision.decision, 'allow-once');
+    assert.ok(Date.parse(refreshedDecision.expiresAt) > value.time.value);
+    assert.equal((await value.runtime.execute(refreshed.id)).status, 'completed');
+
+    const nearDeadline = await value.runtime.prepare(call('call:near-deadline', 'entity.rename', { baseRevision: 3, entityId, name: 'After deadline' }));
+    value.time.value += 59_000;
+    assert.equal((await value.runtime.decide(nearDeadline.approvalId, 'allow-once')).decision, 'allow-once');
+    value.time.value += 2_000;
+    assert.equal((await value.runtime.execute(nearDeadline.id)).status, 'completed');
+    assert.equal(value.scene.snapshot().entities[0].name, 'After deadline');
   } finally { await dispose(value); }
 });
 
@@ -233,7 +255,7 @@ test('fake backend deterministic E2E creates, transforms, scripts and starts pre
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
-async function fixture() {
+async function fixture(options = {}) {
   const projectRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-project-'));
   const userDataRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-userdata-'));
   const time = { value: 1_000 };
@@ -256,7 +278,7 @@ async function fixture() {
     async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', entityId: plan.entityId }; return this.state; },
     async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; }, snapshot() { return this.state; },
   };
-  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, clock: () => time.value });
+  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, clock: () => time.value, ...(options.approvalTtlMs ? { approvalTtlMs: options.approvalTtlMs } : {}) });
   return { projectRoot, userDataRoot, time, operationLog, resources, workspace, scene, validator, projectScripts, scripts, preview, runtime };
 }
 

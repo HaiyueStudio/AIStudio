@@ -210,11 +210,10 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
       if (plan.details) { const details = document.createElement('p'); details.textContent = plan.details; row.append(details); }
       list.append(row);
     }
-    content.append(list);
     if (card.status === 'pending') {
       const review = document.createElement('div'); review.className = 'chat-plan-review';
       const note = document.createElement('textarea'); note.placeholder = '可选：补充约束、修改意见或实现偏好'; note.setAttribute('aria-label', 'Plan feedback');
-      const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = '同意所选方案并执行';
+      const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = '批准并执行';
       approve.addEventListener('click', () => {
         const acceptedItemIds = selections.filter((item) => item.checked).map((item) => item.value as StableId);
         if (!acceptedItemIds.length) return;
@@ -229,6 +228,7 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
       });
       review.append(note, approve, revise); content.append(review);
     }
+    content.append(list);
   }
   const actions = document.createElement('div'); actions.className = 'chat-card-actions';
   for (const action of card.actions) {
@@ -283,19 +283,21 @@ function questionCard(base: CardBase, node: ConversationNodeReadModel): ChatCard
 function planCard(base: CardBase, node: ConversationNodeReadModel): ChatCardReadModel {
   const items = planFromNode(node);
   const fallback = `${items.length} 个实施步骤。确认后将自动执行低风险编辑；危险能力仍会单独请求授权。`;
-  return Object.freeze({ ...base, title: stringValue(node.content.title, '总体实现方案'), body: stringValue(node.content.summary, fallback), tone: 'neutral', actions: Object.freeze([]), planItems: items });
+  const title = stringValue(node.content.title, '总体实现方案');
+  return Object.freeze({ ...base, title: node.status === 'pending' ? `待批准 · ${title}` : title, body: stringValue(node.content.summary, fallback), tone: node.status === 'pending' ? 'warning' : 'neutral', actions: Object.freeze([]), planItems: items });
 }
 
 function approvalCard(base: CardBase, node: ConversationNodeReadModel, now: number): ChatCardReadModel {
   const approval = approvalFromNode(node);
-  const enabled = Boolean(approval && node.status === 'pending' && approval.decision === 'pending' && Date.parse(approval.expiresAt) > now);
+  const expired = Boolean(approval && Date.parse(approval.expiresAt) <= now);
+  const enabled = Boolean(approval && node.status === 'pending' && approval.decision === 'pending');
   const actions: ChatCardAction[] = approval ? [
-    Object.freeze({ id: 'approval-allow', label: 'Allow once', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-once' }) }),
-    Object.freeze({ id: 'approval-allow-always', label: 'Allow always', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-always' }) }),
+    Object.freeze({ id: 'approval-allow', label: expired ? 'Revalidate & allow once' : 'Allow once', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-once' }) }),
+    Object.freeze({ id: 'approval-allow-always', label: expired ? 'Revalidate & always allow' : 'Allow always', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-always' }) }),
     Object.freeze({ id: 'approval-reject', label: 'Reject', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'reject' }) }),
   ] : [];
   const body = approval
-    ? `${approval.effect} on ${approval.target}; decision: ${approval.decision}. Allow always is limited to this tool/version and target for the current project session.`
+    ? `${approval.effect} on ${approval.target}; decision: ${approval.decision}.${expired ? ' The original review window elapsed; Allow will first revalidate the exact document revision, arguments and preview.' : ''} Allow always is limited to this tool/version and target for the current project session.`
     : 'Invalid approval payload; actions are disabled.';
   return Object.freeze({ ...base, title: 'Approval required', body, tone: 'danger', actions: Object.freeze(actions), ...(approval ? { approval } : {}) });
 }
@@ -325,7 +327,7 @@ function toolLabel(toolId: string): string {
   return ({
     'project.snapshot': '读取项目', 'scene.list-entities': '读取场景', 'entity.get': '读取物体', 'script.get': '读取脚本',
     'diagnostics.query': '读取诊断', 'entity.create': '创建物体', 'entity.rename': '重命名物体', 'transform.set': '编辑 Transform', 'material.set': '设置材质',
-    'script.propose': '校验脚本提案', 'script.apply': '提交脚本', 'preview.validate': '校验运行计划', 'preview.start': '启动预览', 'preview.stop': '停止预览',
+    'studio.plan.propose': '提交实现方案', 'script.propose': '校验脚本提案', 'script.apply': '提交脚本', 'preview.validate': '校验运行计划', 'preview.start': '启动预览', 'preview.stop': '停止预览',
   } as Record<string, string>)[toolId] ?? toolId;
 }
 

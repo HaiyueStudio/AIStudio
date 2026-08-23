@@ -19,6 +19,8 @@ interface ActiveTurn {
   readonly initialProgressNodeId: StableId;
   readonly localSessionId: StableId;
   readonly localTurnId: StableId;
+  approvedPlan: ApprovedPlanExecution | null;
+  continuationRequested: boolean;
 }
 interface PendingApproval { readonly preparation: GameToolPreparation; readonly approval: GameToolApproval; readonly nodeId: StableId; readonly resolve: () => void; readonly reject: (cause: unknown) => void; }
 interface PendingQuestion { readonly backend: AgentBackend; readonly nodeId: StableId; readonly backendNodeId: StableId; }
@@ -28,9 +30,18 @@ interface PendingPlan {
   readonly sessionId: StableId;
   readonly turnId: StableId;
   readonly title: string;
+  readonly summary: string;
   readonly items: readonly Readonly<{ id: StableId; label: string; details?: string }>[];
   readonly resolve: (result: JsonObject) => void;
   readonly reject: (cause: unknown) => void;
+}
+interface ApprovedPlanExecution {
+  readonly title: string;
+  readonly summary: string;
+  readonly items: readonly Readonly<{ id: StableId; label: string; details?: string }>[];
+  readonly note?: string;
+  attempts: number;
+  mutationCount: number;
 }
 
 export interface ConversationHostOptions {
@@ -172,7 +183,7 @@ export class StudioConversationHost {
     const userNodeId = this.nextNodeId('00-user');
     const initialProgressNodeId = this.nextNodeId('01-progress');
     const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
-    this.active = { backendId, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId };
+    this.active = { backendId, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false };
     this.project(userNodeId, 'text', 'completed', provenance, Object.freeze({ text: prompt, role: 'user' }));
     this.project(initialProgressNodeId, 'progress', 'pending', provenance, Object.freeze({
       label: '正在分析需求', message: 'Agent 正在读取项目上下文并规划下一步。', phase: 'awaiting-first-step',
@@ -189,15 +200,50 @@ export class StudioConversationHost {
     finally {
       const progress = this.nodes.get(initialProgressNodeId);
       if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
-      if (this.active?.sessionId && this.active.turnId) this.approvedPlanTurns.delete(turnKey(this.active.sessionId, this.active.turnId));
-      if (this.active?.controller === controller) { this.active = null; this.changed(); }
+      const owned = this.active?.controller === controller ? this.active : null;
+      if (owned?.sessionId && owned.turnId) this.approvedPlanTurns.delete(turnKey(owned.sessionId, owned.turnId));
+      const continuation = owned?.continuationRequested ? owned.approvedPlan : null;
+      if (owned && continuation) await this.continueApprovedPlan(backendId, continuation);
+      else if (owned) { this.active = null; this.changed(); }
+    }
+  }
+
+  private async continueApprovedPlan(backendId: StableId, plan: ApprovedPlanExecution): Promise<void> {
+    const controller = new AbortController();
+    const localSessionId = asStableId(`session:approved-plan:${this.nodeSequence + 1}`);
+    const localTurnId = asStableId(`turn:approved-plan:${this.nodeSequence + 1}`);
+    const initialProgressNodeId = this.nextNodeId('approved-plan-progress');
+    this.active = { backendId, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false };
+    this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId }), Object.freeze({
+      label: '正在执行已批准方案', message: '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。', phase: 'approved-plan-execution',
+    }));
+    const tools = [PLAN_TOOL_DEFINITION, ...this.options.tools.definitions()].map((definition) => Object.freeze({
+      id: definition.id,
+      description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Call this before using a base revision.' : ''}`,
+      inputSchema: definition.inputSchema,
+    }));
+    await this.options.operationLog.append({
+      kind: 'conversation/approved-plan-continuing', severity: 'info', source: asStableId('studio.conversation-host'), correlation: {},
+      payload: { titleDigest: sha256(plan.title), itemCount: plan.items.length, attempt: plan.attempts },
+    }).catch(() => undefined);
+    try {
+      await this.consume(backendId, this.options.runtime.turns.start(backendId, {
+        prompt: approvedPlanPrompt(plan, this.options.isProjectOpen?.() === true), contextArtifactIds: Object.freeze([]), tools,
+      }, controller.signal), controller.signal);
+    } catch (cause) { await this.captureFailure(backendId, cause); }
+    finally {
+      const progress = this.nodes.get(initialProgressNodeId);
+      if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
+      const owned = this.active?.controller === controller ? this.active : null;
+      if (owned?.sessionId && owned.turnId) this.approvedPlanTurns.delete(turnKey(owned.sessionId, owned.turnId));
+      if (owned) { this.active = null; this.changed(); }
     }
   }
 
   private async resume(backendId: StableId, sessionId: StableId, turnId: StableId): Promise<void> {
     const controller = new AbortController();
     const initialProgressNodeId = this.nextNodeId('progress');
-    this.active = { backendId, sessionId, turnId, controller, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId };
+    this.active = { backendId, sessionId, turnId, controller, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: null, continuationRequested: false };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId, turnId }), Object.freeze({
       label: '正在恢复任务', message: 'Agent 正在恢复上次任务的上下文。', phase: 'awaiting-first-step',
     }));
@@ -214,7 +260,10 @@ export class StudioConversationHost {
     const backend = this.options.runtime.registry.get(backendId);
     for await (const event of stream) {
       if (signal.aborted) throw signal.reason;
-      if (this.active) { this.active.sessionId = event.sessionId; this.active.turnId = event.turnId; }
+      if (this.active) {
+        this.active.sessionId = event.sessionId; this.active.turnId = event.turnId;
+        if (this.active.approvedPlan) this.approvedPlanTurns.add(turnKey(event.sessionId, event.turnId));
+      }
       await this.captureEvent(backend, event, signal);
     }
   }
@@ -249,6 +298,17 @@ export class StudioConversationHost {
     }
     if (event.kind === 'completed') {
       const status = terminalStatus(event.payload.status);
+      const approvedPlan = this.active?.sessionId === event.sessionId && this.active.turnId === event.turnId ? this.active.approvedPlan : null;
+      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && approvedPlan.attempts < 1) {
+        approvedPlan.attempts += 1;
+        if (this.active) this.active.continuationRequested = true;
+        return;
+      }
+      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0) {
+        this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'failed', provenance, Object.freeze({
+          code: 'plan.execution-not-started', message: 'Agent 在已批准方案下仍未执行任何编辑操作。请重新发送需求；Studio 不会把该方案误报为已执行。', severity: 'error', retryable: false,
+        }));
+      }
       const textId = this.internalNodeId('text', event.turnId);
       if (this.nodes.has(textId)) this.finishNode(textId, status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed');
       this.project(this.nextNodeId('completion'), 'completion', status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed', provenance,
@@ -285,8 +345,11 @@ export class StudioConversationHost {
       if (preparation.approvalId) await this.awaitApproval(preparation, provenance, signal);
       stage = 'execute';
       const result = await this.options.tools.execute(preparation.id, signal);
+      if (definition && definition.effect !== 'observe' && this.active?.sessionId === event.sessionId && this.active.turnId === event.turnId && this.active.approvedPlan) {
+        this.active.approvedPlan.mutationCount += 1;
+      }
       this.project(this.nextNodeId('tool-result'), 'tool-result', result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed', provenance,
-        Object.freeze({ toolCallId, toolId, resultStatus: result.status, summary: toolResultSummary(toolId, result.value, preparation.preview.summary), details: boundedJson(result.value) }));
+        Object.freeze({ toolCallId, toolId, resultStatus: result.status, summary: toolResultSummary(toolId, result.status, result.value, preparation.preview.summary), details: boundedJson(result.value) }));
       stage = 'submit-result';
       await backend.submitToolResult(toolCallId, Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision }), signal);
     } catch (cause) {
@@ -318,7 +381,7 @@ export class StudioConversationHost {
       if (signal.aborted) { abort(); return; }
       signal.addEventListener('abort', abort, { once: true });
       this.plans.set(nodeId, Object.freeze({
-        nodeId, toolCallId, sessionId, turnId, title: proposal.title, items,
+        nodeId, toolCallId, sessionId, turnId, title: proposal.title, summary: proposal.summary, items,
         resolve: (result: JsonObject) => { signal.removeEventListener('abort', abort); resolve(result); },
         reject: (cause: unknown) => { signal.removeEventListener('abort', abort); reject(cause); },
       }));
@@ -335,6 +398,16 @@ export class StudioConversationHost {
     this.plans.delete(nodeId);
     if (mode === 'approve') this.approvedPlanTurns.add(turnKey(pending.sessionId, pending.turnId));
     else this.approvedPlanTurns.delete(turnKey(pending.sessionId, pending.turnId));
+    if (mode === 'approve' && this.active?.sessionId === pending.sessionId && this.active.turnId === pending.turnId) {
+      this.active.approvedPlan = {
+        title: pending.title,
+        summary: pending.summary,
+        items: Object.freeze(pending.items.filter((item) => accepted.has(item.id))),
+        ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}),
+        attempts: 0,
+        mutationCount: 0,
+      };
+    }
     const current = this.nodes.get(nodeId);
     if (current) this.project(nodeId, 'plan', 'completed', current.provenance, Object.freeze({
       title: pending.title,
@@ -471,8 +544,14 @@ function toolArgumentSummary(toolId: StableId, args: JsonObject): string {
   if (toolId === 'preview.stop') return '准备停止隔离预览。';
   return `准备调用 ${toolId}。`;
 }
-function toolResultSummary(toolId: StableId, value: JsonObject, fallback: string): string {
+function toolResultSummary(toolId: StableId, status: 'completed' | 'rejected' | 'cancelled' | 'failed', value: JsonObject, fallback: string): string {
   const raw = value as Record<string, unknown>;
+  if (status !== 'completed') {
+    if (raw.decision === 'expired') return '授权已过期，操作未执行。请重新批准重新校验后的操作。';
+    if (status === 'cancelled' || raw.decision === 'cancel') return '操作已取消，没有修改项目。';
+    if (raw.decision === 'reject') return '操作已被拒绝，没有修改项目。';
+    return `操作未执行：${fallback}`;
+  }
   const entity = isRecord(raw.entity) ? raw.entity : null;
   const entityName = entity && typeof entity.name === 'string' ? `“${entity.name}”` : '物体';
   const revision = typeof raw.revision === 'number' ? ` · 项目 r${raw.revision}` : '';
@@ -528,6 +607,27 @@ function agentPrompt(prompt: string, projectOpen: boolean): string {
     '- After each mutation, inspect its result before issuing a dependent mutation. Do not retry preview.start unchanged after a no-renderables failure; create an appropriate geometry primitive, verify the scene, validate again, then start the new plan.',
     'User request:',
     prompt,
+  ].join('\n');
+}
+function approvedPlanPrompt(plan: ApprovedPlanExecution, projectOpen: boolean): string {
+  return [
+    'Authoritative AIStudio runtime context:',
+    JSON.stringify({ schemaVersion: 1, project: { open: projectOpen }, approvedPlan: {
+      title: plan.title,
+      summary: plan.summary,
+      items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })),
+      ...(plan.note ? { userNote: plan.note } : {}),
+    } }),
+    projectOpen
+      ? 'A project is open. The user already approved the plan above in AIStudio.'
+      : 'The project was closed after approval. Explain that execution cannot continue; do not claim the plan was executed.',
+    'Execution continuation invariants:',
+    '- Do not call studio.plan.propose again. This continuation exists because the previous planning turn ended without performing any approved edit.',
+    '- Immediately inspect project.snapshot and scene.list-entities, then execute the approved items with the supplied Studio mutation tools.',
+    '- Low-risk reversible edits covered by the approved plan do not need another plan confirmation. Dangerous capabilities may still require their scoped approval card.',
+    '- Use one semantic authoring entity plus controller-owned instance data for repeated dynamic content; never create one persistent entity per snake body segment.',
+    '- Project scripts are onUpdate function bodies. Never emit import, export, require, module.exports, or a lifecycle wrapper.',
+    '- Do not finish with a statement that you are waiting for approval: approval has already been granted. Finish only after executing tools or reporting a concrete tool limitation.',
   ].join('\n');
 }
 const PLAN_TOOL_ID = asStableId('studio.plan.propose');

@@ -110,6 +110,68 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   await host.dispose();
 });
 
+test('an approved plan that ends without edits continues once and executes without asking for the same plan again', async () => {
+  let starts = 0;
+  let planReleased;
+  let editReleased;
+  let executeCount = 0;
+  let continuationInput;
+  const waitForPlanResult = new Promise((resolve) => { planReleased = resolve; });
+  const waitForEditResult = new Promise((resolve) => { editReleased = resolve; });
+  const secondSessionId = 'session:approved-continuation';
+  const secondTurnId = 'turn:approved-continuation';
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
+    async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
+    async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {},
+    async submitToolResult(id) { if (id === planToolCallId) planReleased(); else editReleased(); },
+    async answerQuestion() {}, async resolveBackendApproval() {},
+  };
+  const runtime = {
+    registry: { descriptors: () => [backend.descriptor], get: () => backend },
+    turns: {
+      async *start(_backendId, input) {
+        starts += 1;
+        if (starts === 1) {
+          yield event('tool-request', { toolCallId: planToolCallId, toolId: 'studio.plan.propose', arguments: {
+            title: 'Approved cube plan', summary: 'Create one visible cube.',
+            items: [{ label: 'Create Player', details: 'One Cube entity owns the visible player.' }],
+          } });
+          await waitForPlanResult;
+          yield event('conversation-node', { nodeKind: 'text', status: 'streaming', delta: 'Waiting for approval.' });
+          yield event('completed', { status: 'completed' });
+          return;
+        }
+        continuationInput = input;
+        yield eventAt(secondSessionId, secondTurnId, 'tool-request', { toolCallId, toolId: 'entity.create', arguments: { kind: 'cube', name: 'Player' } });
+        await waitForEditResult;
+        yield eventAt(secondSessionId, secondTurnId, 'completed', { status: 'completed' });
+      },
+      async *resume() {}, async cancel() {},
+    },
+  };
+  const tools = {
+    definitions: () => [{ id: 'entity.create', description: 'Create entity', effect: 'reversible-edit', risk: 'medium', inputSchema: {} }],
+    async prepare(call) { return { id: 'preparation:continuation', callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', documentId: 'document:test', baseRevision: 1, argumentsDigest: digest('a'), previewDigest: digest('b'), preview: { title: 'Create', target: 'Scene', summary: 'Create Player cube', diff: '+ Player' }, status: 'ready' }; },
+    async execute() { executeCount += 1; return { schemaVersion: 1, callId: toolCallId, toolId: 'entity.create', status: 'completed', value: { entity: { id: 'entity:player', name: 'Player' } }, documentId: 'document:test', beforeRevision: 1, afterRevision: 2, historyLabel: 'Create Player' }; },
+  };
+  const host = new StudioConversationHost({ runtime, tools, operationLog: { async append() {} }, isProjectOpen: () => true });
+  await host.initialize();
+  await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create a Player cube' });
+  await waitFor(() => nodes(host).some((node) => node.kind === 'plan' && node.status === 'pending'));
+  const pendingPlan = nodes(host).find((node) => node.kind === 'plan' && node.status === 'pending');
+  await host.dispatch({ type: 'conversation/accept-plan', nodeId: pendingPlan.id, acceptedItemIds: pendingPlan.content.items.map((item) => item.id), mode: 'approve' });
+  await waitFor(() => host.replay().busy === false);
+  assert.equal(starts, 2);
+  assert.equal(executeCount, 1);
+  assert.match(continuationInput.prompt, /already approved/);
+  assert.match(continuationInput.prompt, /Do not call studio\.plan\.propose again/);
+  assert.ok(nodes(host).some((node) => node.kind === 'progress' && node.content.phase === 'approved-plan-execution'));
+  assert.equal(nodes(host).filter((node) => node.kind === 'completion').length, 1);
+  assert.ok(!nodes(host).some((node) => node.kind === 'diagnostic' && node.content.code === 'plan.execution-not-started'));
+  await host.dispose();
+});
+
 test('project Run prefers a current controller script over an incidentally selected board script', () => {
   const entities = [
     { id: 'entity:game', name: 'SnakeGame', kind: 'empty' },
@@ -169,6 +231,7 @@ test('G10 renderer preview broker uses one pending command and rejects stale ack
 });
 
 function event(kind, payload) { return { schemaVersion: 1, backendId, sessionId, turnId, kind, payload }; }
+function eventAt(nextSessionId, nextTurnId, kind, payload) { return { schemaVersion: 1, backendId, sessionId: nextSessionId, turnId: nextTurnId, kind, payload }; }
 function digest(character) { return character.repeat(64); }
 function nodes(host) { return host.replay().events.map((entry) => entry.node); }
 async function waitFor(predicate) { for (let index = 0; index < 100; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for fixture state.'); }
