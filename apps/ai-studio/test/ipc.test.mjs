@@ -22,16 +22,20 @@ test('IPC validator is versioned, allowlisted and never accepts renderer paths',
   })), /bounded JSON/);
   assert.throws(() => validateStudioIpcRequest({ ...request('app/status'), schemaVersion: 2 }), /envelope/);
   assert.equal(validateStudioIpcRequest(request('scene/create', {
-    commandId: 'command:sphere', baseRevision: 1, kind: 'sphere', name: 'Player', parentId: null, material: 'pbr',
+    commandId: 'command:sphere', baseRevision: 1, kind: 'sphere', name: 'Player', parentId: null, material: 'pbr', color: [0.15, 0.8, 0.25, 1],
   })).channel, 'scene/create');
   assert.throws(() => validateStudioIpcRequest(request('scene/create', {
     commandId: 'command:cube', baseRevision: 1, kind: 'light',
   })), /scene\/create payload/);
+  assert.throws(() => validateStudioIpcRequest(request('scene/create', {
+    commandId: 'command:light-color', baseRevision: 1, kind: 'point-light', color: [1, 0, 0, 1],
+  })), /scene\/create payload/);
   assert.throws(() => validateStudioIpcRequest(request('scene/select', {
     entityId: 'entity:test', source: 'remote-shell',
   })), /scene\/select payload/);
-  assert.equal(validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'blinn-phong' })).channel, 'scene/material');
+  assert.equal(validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'blinn-phong', color: [1, 0.2, 0.1, 1] })).channel, 'scene/material');
   assert.throws(() => validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'shader-code' })), /scene\/material payload/);
+  assert.throws(() => validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'pbr', color: [255, 0, 0, 1] })), /scene\/material payload/);
   assert.throws(() => validateStudioIpcRequest(request('viewport/report', {
     event: 'frame', message: 'spam', sceneRevision: 1,
   })), /viewport\/report event/);
@@ -76,15 +80,17 @@ test('scene IPC exposes immutable JSON projections and routes typed intents thro
 
   assert.equal((await router.handle(request('app/status'))).payload.smoke, true);
   assert.equal((await router.handle(request('scene/snapshot'))).payload.revision, 2);
-  assert.equal((await router.handle(request('scene/create', { commandId: 'command:cube', baseRevision: 4, kind: 'cube' }))).ok, true);
+  assert.equal((await router.handle(request('scene/create', { commandId: 'command:cube', baseRevision: 4, kind: 'cube', material: 'pbr', color: [0.15, 0.8, 0.25, 1] }))).ok, true);
   assert.equal((await router.handle(request('scene/select', { entityId: 'entity:cube', source: 'hierarchy' }))).payload.activeEntityId, 'entity:cube');
   assert.equal((await router.handle(request('scene/transform', {
     commandId: 'command:move', baseRevision: 5, entityId: 'entity:cube',
     transform: { position: { x: 1, y: 2, z: 3 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
   }))).ok, true);
-  assert.equal((await router.handle(request('scene/material', { commandId: 'command:material', baseRevision: 6, entityId: 'entity:cube', material: 'pbr' }))).ok, true);
+  assert.equal((await router.handle(request('scene/material', { commandId: 'command:material', baseRevision: 6, entityId: 'entity:cube', material: 'pbr', color: [1, 0.2, 0.1, 1] }))).ok, true);
   assert.equal((await router.handle(request('viewport/report', { event: 'ready', message: 'gpu', sceneRevision: 2 }))).ok, true);
   assert.deepEqual(calls.map(([kind]) => kind), ['create', 'select', 'transform', 'material']);
+  assert.deepEqual(calls[0][1].color, [0.15, 0.8, 0.25, 1]);
+  assert.deepEqual(calls[3][1].color, [1, 0.2, 0.1, 1]);
   assert.ok(events.some((event) => event.kind === 'viewport/ready' && event.source === 'studio.viewport.renderer'));
   router.dispose();
 });

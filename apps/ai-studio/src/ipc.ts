@@ -7,6 +7,7 @@ import type {
   SceneAuthoringService,
   SceneSelectionService,
   SceneEntityKind,
+  SceneMaterialColor,
   SelectionIntentSource,
   TransformSnapshot,
 } from '@haiyue/ai-studio-editor-plugins';
@@ -177,6 +178,8 @@ export class StudioIpcRouter {
         kind: request.payload.kind as SceneEntityKind,
         name: request.payload.name as string | undefined,
         parentId: request.payload.parentId as StableId | null | undefined,
+        material: request.payload.material as never,
+        color: request.payload.color as SceneMaterialColor | undefined,
       }, signal));
       case 'scene/select': return toJson(await this.options.selection.select(
         request.payload.entityId as StableId | null,
@@ -194,6 +197,7 @@ export class StudioIpcRouter {
         baseRevision: request.payload.baseRevision as number,
         entityId: request.payload.entityId as StableId,
         material: request.payload.material as never,
+        color: request.payload.color as SceneMaterialColor | undefined,
       }, signal));
       case 'viewport/report': {
         const event = request.payload.event as ViewportReportEvent;
@@ -272,10 +276,12 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
   });
   else if (channel === 'history/undo' || channel === 'history/redo') requireShape(payload, keys, ['baseRevision'], { baseRevision: 'number' });
   else if (channel === 'scene/create') {
-    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId', 'material']);
+    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId', 'material', 'color']);
     if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || !sceneEntityKinds.has(String(payload.kind))
       || (payload.name !== undefined && typeof payload.name !== 'string')
       || (payload.material !== undefined && !sceneMaterialKinds.has(String(payload.material)))
+      || !validMaterialColor(payload.color)
+      || ((payload.material !== undefined || payload.color !== undefined) && !sceneGeometryKinds.has(String(payload.kind)))
       || (payload.parentId !== undefined && payload.parentId !== null && typeof payload.parentId !== 'string')) {
       throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/create payload is invalid.');
     }
@@ -292,8 +298,9 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     });
   }
   else if (channel === 'scene/material') {
-    requireShape(payload, keys, ['commandId', 'baseRevision', 'entityId', 'material'], { commandId: 'string', baseRevision: 'number', entityId: 'string', material: 'string' });
-    if (!sceneMaterialKinds.has(String(payload.material))) throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/material payload is invalid.');
+    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'entityId', 'material'], ['color']);
+    if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || typeof payload.entityId !== 'string'
+      || !sceneMaterialKinds.has(String(payload.material)) || !validMaterialColor(payload.color)) throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/material payload is invalid.');
   }
   else if (channel === 'viewport/report') {
     requireAllowedShape(payload, keys, ['event', 'message', 'sceneRevision'], ['entityId']);
@@ -370,6 +377,7 @@ type ViewportReportEvent = 'ready' | 'rendered' | 'device-lost' | 'failed' | 'pi
 const viewportReportEvents = new Set<ViewportReportEvent>(['ready', 'rendered', 'device-lost', 'failed', 'picking-failed']);
 const selectionSources = new Set<SelectionIntentSource>(['hierarchy', 'viewport', 'inspector', 'system']);
 const sceneEntityKinds = new Set(['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light']);
+const sceneGeometryKinds = new Set(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron']);
 const sceneMaterialKinds = new Set(['basic', 'pbr', 'blinn-phong', 'normal']);
 const previewReportEvents = new Set(['started', 'stopped', 'hot-reloaded', 'runtime-error', 'cleanup-complete']);
 const scriptCapabilities = new Set(['read', 'scene', 'asset', 'input', 'physics', 'debug']);
@@ -390,6 +398,11 @@ function requireAllowedShape(payload: Record<string, unknown>, keys: readonly st
 
 function validCapabilities(value: unknown): boolean {
   return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === 'string' && scriptCapabilities.has(item)));
+}
+
+function validMaterialColor(value: unknown): value is SceneMaterialColor | undefined {
+  return value === undefined || (Array.isArray(value) && value.length === 4
+    && value.every((item) => typeof item === 'number' && Number.isFinite(item) && item >= 0 && item <= 1));
 }
 
 function assertJson(value: unknown): asserts value is JsonValue {

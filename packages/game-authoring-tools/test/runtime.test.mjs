@@ -170,17 +170,30 @@ test('preview validation rejects scenes that contain only logic entities', async
 test('Agent tools create Engine primitives and lights and can change built-in materials', async () => {
   const value = await fixture();
   try {
-    const sphere = await approveAndExecute(value.runtime, call('call:create-sphere', 'entity.create', { baseRevision: 1, kind: 'sphere', name: 'Player Ball', material: 'pbr' }));
+    const sphere = await approveAndExecute(value.runtime, call('call:create-sphere', 'entity.create', { baseRevision: 1, kind: 'sphere', name: 'Player Ball', material: 'pbr', color: [0.15, 0.8, 0.25, 1] }));
     assert.equal(sphere.value.entity.kind, 'sphere');
     assert.equal(sphere.value.entity.appearance.material, 'pbr');
+    assert.deepEqual(sphere.value.entity.appearance.color, [0.15, 0.8, 0.25, 1]);
     const light = await approveAndExecute(value.runtime, call('call:create-light', 'entity.create', { baseRevision: 2, kind: 'directional-light', name: 'Sun' }));
     assert.equal(light.value.entity.kind, 'directional-light');
     assert.equal(light.value.entity.light.intensity, 1);
-    const material = await approveAndExecute(value.runtime, call('call:set-material', 'material.set', { baseRevision: 3, entityId: sphere.value.entity.id, material: 'blinn-phong' }));
+    const material = await approveAndExecute(value.runtime, call('call:set-material', 'material.set', { baseRevision: 3, entityId: sphere.value.entity.id, material: 'blinn-phong', color: [1, 0.2, 0.1, 1] }));
     assert.equal(material.value.entity.appearance.material, 'blinn-phong');
+    assert.deepEqual(material.value.entity.appearance.color, [1, 0.2, 0.1, 1]);
     assert.equal(material.historyLabel, 'Set Material');
     await assert.rejects(value.runtime.prepare(call('call:light-material', 'material.set', { baseRevision: 4, entityId: light.value.entity.id, material: 'basic' })), /Only geometry entities/);
     await assert.rejects(value.runtime.prepare(call('call:empty-pbr', 'entity.create', { baseRevision: 4, kind: 'empty', material: 'pbr' })), /Only geometry entities/);
+    await assert.rejects(value.runtime.prepare(call('call:bad-color', 'material.set', { baseRevision: 4, entityId: sphere.value.entity.id, material: 'pbr', color: [2, 0, 0, 1] })), /RGBA array/);
+  } finally { await dispose(value); }
+});
+
+test('Agent can author distinct material colors for snake, food and board entities', async () => {
+  const value = await fixture();
+  try {
+    const snake = await executeReady(value.runtime, call('call:create-snake-material', 'entity.create', { kind: 'cube', name: 'SnakeBody', material: 'pbr', color: [0.12, 0.82, 0.28, 1] }));
+    const food = await executeReady(value.runtime, call('call:create-food-material', 'entity.create', { kind: 'sphere', name: 'Food', material: 'pbr', color: [1, 0.18, 0.12, 1] }));
+    const board = await executeReady(value.runtime, call('call:create-board-material', 'entity.create', { kind: 'plane', name: 'Board', material: 'basic', color: [0.06, 0.09, 0.14, 1] }));
+    assert.equal(new Set([snake.value.entity.appearance.color.join(','), food.value.entity.appearance.color.join(','), board.value.entity.appearance.color.join(',')]).size, 3);
   } finally { await dispose(value); }
 });
 

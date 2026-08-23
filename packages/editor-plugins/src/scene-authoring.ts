@@ -33,6 +33,7 @@ export const SCENE_MATERIAL_KINDS = Object.freeze(['basic', 'pbr', 'blinn-phong'
 export type SceneGeometryKind = typeof SCENE_GEOMETRY_KINDS[number];
 export type SceneLightKind = typeof SCENE_LIGHT_KINDS[number];
 export type SceneMaterialKind = typeof SCENE_MATERIAL_KINDS[number];
+export type SceneMaterialColor = readonly [number, number, number, number];
 export type SceneEntityKind = 'empty' | SceneGeometryKind | SceneLightKind;
 export type SelectionIntentSource = 'hierarchy' | 'viewport' | 'inspector' | 'system';
 
@@ -49,7 +50,7 @@ export interface SceneEntitySnapshot {
   readonly parentId: StableId | null;
   readonly order: number;
   readonly transform: TransformSnapshot;
-  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
+  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: SceneMaterialColor }>;
   readonly light?: Readonly<{
     color: readonly [number, number, number]; intensity: number; range?: number;
     direction?: readonly [number, number, number]; castShadow?: boolean;
@@ -68,6 +69,7 @@ export interface CreateSceneEntityIntent {
   readonly name?: string;
   readonly parentId?: StableId | null;
   readonly material?: SceneMaterialKind;
+  readonly color?: SceneMaterialColor;
   readonly transform?: TransformSnapshot;
 }
 export interface SetEntityTransformIntent {
@@ -87,6 +89,7 @@ export interface SetEntityMaterialIntent {
   readonly baseRevision: number;
   readonly entityId: StableId;
   readonly material: SceneMaterialKind;
+  readonly color?: SceneMaterialColor;
 }
 
 export interface SceneAuthoringService {
@@ -219,6 +222,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     try {
       if (!isSceneEntityKind(intent.kind)) throw new TypeError(`Unsupported entity kind ${intent.kind}.`);
       if (intent.material !== undefined && !isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
+      if ((intent.material !== undefined || intent.color !== undefined) && !isSceneGeometryKind(intent.kind)) throw new TypeError('Only geometry entities can use materials.');
       const before = this.current;
       if (intent.parentId && !before.entities.some((item) => item.id === intent.parentId)) throw new Error(`Parent ${intent.parentId} does not exist.`);
       const siblings = before.entities.filter((item) => item.parentId === (intent.parentId ?? null));
@@ -229,7 +233,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
         parentId: intent.parentId ?? null,
         order: siblings.length,
         transform: intent.transform ? freezeTransform(intent.transform) : defaultTransform(),
-        ...(isSceneGeometryKind(intent.kind) ? { appearance: defaultAppearance(intent.material) } : {}),
+        ...(isSceneGeometryKind(intent.kind) ? { appearance: defaultAppearance(intent.material, intent.color) } : {}),
         ...(isSceneLightKind(intent.kind) ? { light: defaultLight(intent.kind) } : {}),
       });
       const next = freezeScene({ ...before, revision: before.revision + 1, entities: [...before.entities, entity] });
@@ -288,12 +292,12 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
         if (entity.id !== intent.entityId) return entity;
         if (!isSceneGeometryKind(entity.kind) || !entity.appearance) throw new TypeError('Only geometry entities can use materials.');
         found = true;
-        return freezeEntity({ ...entity, appearance: { ...entity.appearance, material: intent.material } });
+        return freezeEntity({ ...entity, appearance: { ...entity.appearance, material: intent.material, color: intent.color ?? entity.appearance.color } });
       });
       if (!found) throw new Error(`Entity ${intent.entityId} does not exist.`);
       const next = freezeScene({ ...this.current, revision: this.current.revision + 1, entities });
       await this.workspace.execute({ id: intent.commandId, label: 'Set Material', baseRevision: intent.baseRevision, key: SCENE_SETTING_KEY, value: next as unknown as JsonValue }, signal);
-      await this.appendCommandFact('scene/material-edited', intent.commandId, { entityId: intent.entityId, material: intent.material, sceneRevision: this.current.revision });
+      await this.appendCommandFact('scene/material-edited', intent.commandId, { entityId: intent.entityId, material: intent.material, color: intent.color ?? null, sceneRevision: this.current.revision });
       return this.current;
     } catch (cause) {
       await this.appendRejectedFact(intent.commandId, cause);
@@ -625,7 +629,7 @@ export function isSceneGeometryKind(value: unknown): value is SceneGeometryKind 
 export function isSceneLightKind(value: unknown): value is SceneLightKind { return SCENE_LIGHT_KINDS.includes(value as SceneLightKind); }
 export function isSceneMaterialKind(value: unknown): value is SceneMaterialKind { return SCENE_MATERIAL_KINDS.includes(value as SceneMaterialKind); }
 export function isSceneEntityKind(value: unknown): value is SceneEntityKind { return value === 'empty' || isSceneGeometryKind(value) || isSceneLightKind(value); }
-function defaultAppearance(material: SceneMaterialKind = 'basic'): NonNullable<SceneEntitySnapshot['appearance']> { return Object.freeze({ material, color: Object.freeze([0.16, 0.58, 1, 1] as const) }); }
+function defaultAppearance(material: SceneMaterialKind = 'basic', color: SceneMaterialColor = [0.16, 0.58, 1, 1]): NonNullable<SceneEntitySnapshot['appearance']> { return freezeAppearance({ material, color }); }
 function freezeAppearance(value: NonNullable<SceneEntitySnapshot['appearance']>): NonNullable<SceneEntitySnapshot['appearance']> {
   if (!isSceneMaterialKind(value.material) || !Array.isArray(value.color) || value.color.length !== 4 || !value.color.every((item) => Number.isFinite(item) && item >= 0 && item <= 1)) throw new TypeError('Scene material appearance is invalid.');
   return Object.freeze({ material: value.material, color: Object.freeze([...value.color] as [number, number, number, number]) });

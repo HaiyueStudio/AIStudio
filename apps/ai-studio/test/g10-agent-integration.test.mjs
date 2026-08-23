@@ -81,6 +81,8 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   assert.match(startedInput.prompt, /one SnakeBody entity/);
   assert.match(startedInput.prompt, /studio\.plan\.propose/);
   assert.match(startedInput.prompt, /geometry cube, sphere, cone, cylinder, plane, torus and icosahedron/);
+  assert.match(startedInput.prompt, /snake, food and board must not all keep the default color/);
+  assert.match(startedInput.prompt, /pass color in every api\.scene\.instances/);
   assert.match(startedInput.prompt, /create at least one geometry entity before proposing scripts/);
   assert.match(startedInput.prompt, /Never emit import, export, require, module\.exports/);
   assert.match(startedInput.prompt, /script\.ts\.2339 saying scene is missing is a capability mismatch/);
@@ -169,6 +171,7 @@ test('an approved plan that ends without edits continues once and executes witho
   assert.match(continuationInput.prompt, /already approved/);
   assert.match(continuationInput.prompt, /Do not call studio\.plan\.propose again/);
   assert.match(continuationInput.prompt, /Treat script\.ts\.2339 for api\.scene as a missing capability/);
+  assert.match(continuationInput.prompt, /Use visibly different colors for distinct gameplay roles/);
   assert.ok(nodes(host).some((node) => node.kind === 'progress' && node.content.phase === 'approved-plan-execution'));
   assert.equal(nodes(host).filter((node) => node.kind === 'completion').length, 1);
   assert.ok(!nodes(host).some((node) => node.kind === 'diagnostic' && node.content.code === 'plan.execution-not-started'));

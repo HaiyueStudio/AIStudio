@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import { isSceneGeometryKind, isSceneMaterialKind, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
+import { isSceneGeometryKind, isSceneMaterialKind, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type SceneMaterialColor, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
@@ -216,7 +216,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'entity.create': {
       const beforeIds = new Set(scene.entities.map((item) => item.id));
-      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as SceneEntityKind, ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}), ...(args.material ? { material: args.material as never } : {}), ...(args.transform ? { transform: args.transform as unknown as TransformSnapshot } : {}) }, signal);
+      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as SceneEntityKind, ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}), ...(args.material ? { material: args.material as never } : {}), ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}), ...(args.transform ? { transform: args.transform as unknown as TransformSnapshot } : {}) }, signal);
       const created = next.entities.find((item) => !beforeIds.has(item.id)); if (!created) throw new GameToolProtocolError('tool.result-invalid', 'Created entity was not projected.'); return Object.freeze({ entity: entitySummary(created), revision: next.revision });
     }
     case 'entity.rename': {
@@ -228,7 +228,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
     case 'material.set': {
-      const next = await options.scene.setMaterial({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, material: args.material as never }, signal);
+      const next = await options.scene.setMaterial({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, material: args.material as never, ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}) }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
     case 'script.propose': {
@@ -274,15 +274,15 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'script.get': { exact(raw, [], ['entityId', 'scriptId'], toolId); if (!raw.entityId && !raw.scriptId) throw invalid('script.get requires entityId or scriptId.'); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
     case 'diagnostics.query': return normalizeLogQuery(raw);
     case 'entity.create': {
-      exact(raw, ['kind'], ['baseRevision', 'name', 'parentId', 'material', 'transform'], toolId);
+      exact(raw, ['kind'], ['baseRevision', 'name', 'parentId', 'material', 'color', 'transform'], toolId);
       if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
       if (raw.material !== undefined && !isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.');
-      if (raw.material !== undefined && !isSceneGeometryKind(raw.kind)) throw invalid('Only geometry entities can select a material.');
-      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
+      if ((raw.material !== undefined || raw.color !== undefined) && !isSceneGeometryKind(raw.kind)) throw invalid('Only geometry entities can select a material appearance.');
+      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
     }
     case 'entity.rename': exact(raw, ['entityId', 'name'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
     case 'transform.set': exact(raw, ['entityId', 'transform'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
-    case 'material.set': exact(raw, ['entityId', 'material'], ['baseRevision'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), material: raw.material });
+    case 'material.set': exact(raw, ['entityId', 'material'], ['baseRevision', 'color'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), material: raw.material, ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }) });
     case 'script.propose': exact(raw, ['entityId', 'text'], ['baseRevision', 'capabilities'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
     case 'script.apply': exact(raw, ['proposalId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), proposalId: stable(raw.proposalId, 'proposal id') });
     case 'preview.validate': exact(raw, ['scriptId'], ['capabilities'], toolId); return Object.freeze({ scriptId: stable(raw.scriptId, 'script id'), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
@@ -307,7 +307,8 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
     case 'material.set': {
       const entity = requireEntity(snapshot, raw.entityId as StableId);
       if (!isSceneGeometryKind(entity.kind)) throw invalid('Only geometry entities can use materials.');
-      return preview('Set material', entity.id, `Apply ${raw.material} material to ${entity.name}.`, `${entity.appearance?.material ?? 'none'} → ${raw.material}`);
+      const color = raw.color as readonly number[] | undefined;
+      return preview('Set material appearance', entity.id, `Apply ${raw.material}${color ? ` rgba(${color.join(', ')})` : ''} to ${entity.name}.`, `${entity.appearance?.material ?? 'none'} ${entity.appearance?.color?.join(',') ?? ''} → ${raw.material}${color ? ` ${color.join(',')}` : ''}`);
     }
     case 'script.apply': {
       const proposal = proposals.get(raw.proposalId as StableId);
@@ -339,6 +340,7 @@ function readBaseRevision(args: JsonObject): number | undefined { return typeof 
 function assertResultBudget(value: JsonObject, maximum: number): void { if (new TextEncoder().encode(canonicalStringify(value)).byteLength > maximum) throw new GameToolProtocolError('tool.result-too-large', `Tool result exceeds ${maximum} bytes.`); }
 function enforceLogHealth(toolId: StableId, effect: GameToolDefinition['effect'], status: ReturnType<OperationLog['status']>): void { if (toolId === 'preview.stop' || effect === 'observe') return; const allowed = effect === 'reversible-edit' ? status.allowsMutation : effect === 'trusted-code' ? status.allowsTrustedCode : status.allowsRuntimeStart; if (!allowed) throw new GameToolProtocolError('tool.log-unavailable', `Operation Log health ${status.health} blocks ${effect}.`); }
 function normalizeTransform(value: unknown): TransformSnapshot { if (!isRecord(value)) throw invalid('Transform must be an object.'); exact(value, ['position', 'rotationDegrees', 'scale']); const result = Object.freeze({ position: vec(value.position, 'position'), rotationDegrees: vec(value.rotationDegrees, 'rotationDegrees'), scale: vec(value.scale, 'scale') }); if (result.scale.x <= 0 || result.scale.y <= 0 || result.scale.z <= 0) throw invalid('Transform scale must be positive.'); return result; }
+function normalizeMaterialColor(value: unknown): SceneMaterialColor { if (!Array.isArray(value) || value.length !== 4 || !value.every((item) => typeof item === 'number' && Number.isFinite(item) && item >= 0 && item <= 1)) throw invalid('Material color must be an RGBA array with four finite channels from 0 to 1.'); return Object.freeze([...value] as [number, number, number, number]); }
 function vec(value: unknown, label: string) { if (!isRecord(value)) throw invalid(`${label} must be an object.`); exact(value, ['x', 'y', 'z']); const result = { x: number(value.x, `${label}.x`), y: number(value.y, `${label}.y`), z: number(value.z, `${label}.z`) }; return Object.freeze(result); }
 function normalizeCapabilities(value: unknown): readonly ScriptCapabilityName[] { return enumArray(value, ['read', 'input', 'debug', 'scene'], 4) as readonly ScriptCapabilityName[]; }
 function exact(value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = [], label = 'Tool'): void {

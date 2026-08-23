@@ -165,21 +165,26 @@ test('scene persists Engine geometry, light and material descriptors through His
 
   const value = await fixture();
   await value.workspace.newProject(value.projectRoot, 'Primitive fixture');
-  let scene = await value.scene.createEntity({ commandId: asStableId('command:create-sphere'), baseRevision: 1, kind: 'sphere', name: 'Ball', material: 'pbr' });
+  let scene = await value.scene.createEntity({ commandId: asStableId('command:create-sphere'), baseRevision: 1, kind: 'sphere', name: 'Ball', material: 'pbr', color: [0.15, 0.8, 0.25, 1] });
   const sphere = scene.entities[0];
   assert.equal(sphere.appearance.material, 'pbr');
+  assert.deepEqual(sphere.appearance.color, [0.15, 0.8, 0.25, 1]);
   scene = await value.scene.createEntity({ commandId: asStableId('command:create-light'), baseRevision: 2, kind: 'point-light', name: 'Key Light' });
   assert.equal(scene.entities[1].light.range, 12);
-  scene = await value.scene.setMaterial({ commandId: asStableId('command:set-blinn'), baseRevision: 3, entityId: sphere.id, material: 'blinn-phong' });
+  scene = await value.scene.setMaterial({ commandId: asStableId('command:set-blinn'), baseRevision: 3, entityId: sphere.id, material: 'blinn-phong', color: [1, 0.2, 0.1, 1] });
   assert.equal(scene.entities[0].appearance.material, 'blinn-phong');
+  assert.deepEqual(scene.entities[0].appearance.color, [1, 0.2, 0.1, 1]);
   await value.workspace.undo(4);
   assert.equal(value.scene.snapshot().entities[0].appearance.material, 'pbr');
+  assert.deepEqual(value.scene.snapshot().entities[0].appearance.color, [0.15, 0.8, 0.25, 1]);
   await value.workspace.redo(5);
   assert.equal(value.scene.snapshot().entities[0].appearance.material, 'blinn-phong');
+  assert.deepEqual(value.scene.snapshot().entities[0].appearance.color, [1, 0.2, 0.1, 1]);
   await value.workspace.save();
   await value.workspace.closeProject();
   await value.workspace.openProject(value.projectRoot);
   assert.equal(value.scene.snapshot().entities[0].kind, 'sphere');
+  assert.deepEqual(value.scene.snapshot().entities[0].appearance.color, [1, 0.2, 0.1, 1]);
   assert.equal(value.scene.snapshot().entities[1].kind, 'point-light');
   await disposeFixture(value);
 });

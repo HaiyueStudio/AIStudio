@@ -109,11 +109,12 @@ class WebStudioHost {
       case 'scene/create': {
         const project = this.requireRevision(number(payload.baseRevision));
         const kind = payload.kind as WebEntityKind;
+        if (!isGeometryKind(kind) && (payload.material !== undefined || payload.color !== undefined)) throw new WebHostError('web-material-target-invalid', 'Only geometry entities can use materials.');
         this.commitMutation(project, true, () => project.entities.push({
           id: id('entity'), name: typeof payload.name === 'string' ? payload.name : entityKindLabel(kind), kind,
           parentId: typeof payload.parentId === 'string' ? payload.parentId as StableId : null, order: project.entities.length,
           transform: identityTransform(),
-          ...(isGeometryKind(kind) ? { appearance: { material: (payload.material as WebMaterialKind | undefined) ?? 'basic', color: [0.16, 0.58, 1, 1] as [number, number, number, number] } } : {}),
+          ...(isGeometryKind(kind) ? { appearance: { material: (payload.material as WebMaterialKind | undefined) ?? 'basic', color: webMaterialColor(payload.color) } } : {}),
           ...(isLightKind(kind) ? { light: defaultWebLight(kind) } : {}),
         }));
         await this.appendLog('scene/entity-created', 'info', 'studio.web-host', kind);
@@ -134,7 +135,7 @@ class WebStudioHost {
         const entity = project.entities.find((item) => item.id === payload.entityId);
         if (!entity) throw new WebHostError('web-entity-missing', 'Selected entity no longer exists.');
         if (!isGeometryKind(entity.kind)) throw new WebHostError('web-material-target-invalid', 'Only geometry entities can use materials.');
-        this.commitMutation(project, true, () => { entity.appearance = { material: payload.material as WebMaterialKind, color: entity.appearance?.color ?? [0.16, 0.58, 1, 1] }; });
+        this.commitMutation(project, true, () => { entity.appearance = { material: payload.material as WebMaterialKind, color: payload.color === undefined ? entity.appearance?.color ?? [0.16, 0.58, 1, 1] : webMaterialColor(payload.color) }; });
         await this.appendLog('scene/material-edited', 'info', 'studio.web-host', entity.id);
         return this.sceneSnapshot();
       }
@@ -299,6 +300,11 @@ function validateTransform(value: unknown): Transform {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new WebHostError('web-transform-invalid', 'Transform must be an object.');
   const source = value as Record<string, unknown>;
   return { position: vector(source.position, 'position'), rotationDegrees: vector(source.rotationDegrees, 'rotation'), scale: vector(source.scale, 'scale') };
+}
+function webMaterialColor(value: unknown): [number, number, number, number] {
+  if (value === undefined) return [0.16, 0.58, 1, 1];
+  if (!Array.isArray(value) || value.length !== 4 || !value.every((item) => typeof item === 'number' && Number.isFinite(item) && item >= 0 && item <= 1)) throw new WebHostError('web-material-color-invalid', 'Material color must contain four normalized RGBA channels.');
+  return [...value] as [number, number, number, number];
 }
 function vector(value: unknown, label: string): Vec3 { if (!value || typeof value !== 'object' || Array.isArray(value)) throw new WebHostError('web-transform-invalid', `${label} must be a vector.`); const item = value as Record<string, unknown>; if (![item.x, item.y, item.z].every((entry) => typeof entry === 'number' && Number.isFinite(entry))) throw new WebHostError('web-transform-invalid', `${label} contains a non-finite value.`); return { x: item.x as number, y: item.y as number, z: item.z as number }; }
 
