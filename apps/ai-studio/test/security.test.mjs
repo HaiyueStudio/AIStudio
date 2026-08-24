@@ -9,6 +9,7 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
   const previewHtml = await readFile(new URL('../dist/preview.html', import.meta.url), 'utf8');
   const previewRuntime = await readFile(new URL('../dist/preview-runtime.js', import.meta.url), 'utf8');
+  const startupGuard = await readFile(new URL('../dist/startup-guard.js', import.meta.url), 'utf8');
   assert.match(main, /contextIsolation:\s*true/);
   assert.match(main, /nodeIntegration:\s*false/);
   assert.match(main, /sandbox:\s*true/);
@@ -31,6 +32,7 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.doesNotMatch(previewRuntime, /node:fs|child_process|ipcRenderer|require\(/);
   assert.match(html, /Content-Security-Policy/);
   assert.match(html, /href="\.\/styles\.css"/);
+  assert.match(html, /src="\.\/startup-guard\.js"/);
   assert.doesNotMatch(html, /<style[\s>]/);
   assert.match(html, /script-src 'self'; style-src 'self' 'unsafe-inline'/);
   assert.doesNotMatch(html, /script-src[^;]*unsafe-inline/);
@@ -46,4 +48,6 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(main, /preview-runtime\.js/);
   assert.match(main, /access-control-allow-origin/);
   assert.doesNotMatch(html, /https?:\/\//);
+  assert.match(startupGuard, /unhandledrejection/);
+  assert.match(startupGuard, /haiyue-startup-failed/);
 });

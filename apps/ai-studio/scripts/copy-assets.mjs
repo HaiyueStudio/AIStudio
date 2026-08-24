@@ -10,4 +10,5 @@ await Promise.all([
   copyFile(path.join(root, 'renderer', 'preview.html'), path.join(root, 'dist', 'preview.html')),
   copyFile(path.join(root, 'renderer', 'preview.css'), path.join(root, 'dist', 'preview.css')),
   copyFile(path.join(root, 'renderer', 'preload.cjs'), path.join(root, 'dist', 'preload.cjs')),
+  copyFile(path.join(root, 'renderer', 'startup-guard.js'), path.join(root, 'dist', 'startup-guard.js')),
 ]);

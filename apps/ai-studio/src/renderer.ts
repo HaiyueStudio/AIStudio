@@ -389,15 +389,15 @@ class SandboxedPreviewFrame {
 }
 
 async function boot(): Promise<void> {
+  document.body.dataset.startupStage = 'ui';
+  setStatus('Starting typed editor services…');
   setupUiPreferences();
   setupSplitLayout();
-  setStatus('Starting typed editor services…');
+  document.body.dataset.startupStage = 'services';
   const status = await invoke<ProjectSnapshot & JsonObject>('app/status');
   project = status;
   if (!project.document) project = await invoke<ProjectSnapshot & JsonObject>('project/new', { name: status.smoke ? 'G05 WebGPU smoke' : '未命名游戏' });
   bindUi();
-  await refreshConversation(true);
-  await refreshLogs();
   agentPoll = new AgentPollScheduler({
     intervalMs: 30_000,
     poll: pollAgent,
@@ -408,6 +408,10 @@ async function boot(): Promise<void> {
   disposeConversationChanged = window.haiyueStudio.onConversationChanged(() => agentPoll?.trigger());
   agentPoll.start();
   document.body.dataset.agentSync = 'push-single-flight';
+  void refreshLogs().catch((cause) => {
+    element('log-health').textContent = errorMessage(cause);
+  });
+  document.body.dataset.startupStage = 'viewport';
   viewport = new WebGpuViewportRuntime(element<HTMLCanvasElement>('viewport'));
   try {
     await viewport.initialize();
@@ -415,6 +419,7 @@ async function boot(): Promise<void> {
     await refresh();
     if (status.smoke) await runSmokeWorkflow();
     document.body.dataset.status = 'ready';
+    document.body.dataset.startupStage = 'ready';
     setStatus('AIStudio scene authoring ready');
   } catch (cause) {
     document.body.dataset.status = 'error';
@@ -1367,4 +1372,10 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: stri
   });
 }
 
-void boot();
+void boot().catch((cause) => {
+  document.body.dataset.status = 'error';
+  document.body.dataset.startupStage = 'failed';
+  const message = errorMessage(cause);
+  try { setStatus(message); } catch { /* The external startup guard owns the minimal fallback UI. */ }
+  window.dispatchEvent(new CustomEvent('haiyue-startup-failed', { detail: message }));
+});

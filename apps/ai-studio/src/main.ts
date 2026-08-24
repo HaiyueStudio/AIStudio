@@ -280,7 +280,7 @@ function createWindow(): void {
     if (isMainFrame) activeRouter?.cancelPending();
   });
   window.webContents.on('render-process-gone', () => activeRouter?.cancelPending());
-  if (smoke) window.webContents.on('console-message', (details) => console.log(`[ai-studio-renderer:${details.level}] ${details.message}`));
+  window.webContents.on('console-message', (details) => console.log(`[ai-studio-renderer:${details.level}] ${details.message}`));
   window.once('closed', () => { activeRouter?.cancelPending(); if (mainWindow === window) mainWindow = null; });
   if (openDevTools && !smoke) window.webContents.once('did-finish-load', () => window.webContents.openDevTools({ mode: 'detach' }));
   if (smoke) {
