@@ -1,4 +1,4 @@
-import { asStableId, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
+import { asStableId, type AgentTurnConfigV2, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
 import type { AgentBackend, AgentBackendEvent } from '@haiyue/ai-studio-agent-runtime';
 import type { GameAuthoringToolRuntime } from './runtime.js';
 import type { GameToolApproval, GameToolApprovalResolution, GameToolPreparation, GameToolResult } from './types.js';
@@ -8,6 +8,8 @@ export interface GameToolApprovalPort {
 }
 
 export interface AgentGameTurnInput {
+  readonly taskId: StableId;
+  readonly config: AgentTurnConfigV2;
   readonly prompt: string;
   readonly sessionId?: StableId;
   readonly contextArtifactIds?: readonly StableId[];
@@ -34,7 +36,7 @@ export class AgentGameAuthoringCoordinator {
     let turnId: StableId | null = null;
     let terminal: AgentGameTurnSummary['terminal'] | null = null;
     const tools = this.runtime.definitions().map((definition) => Object.freeze({ id: definition.id, description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`, inputSchema: definition.inputSchema }));
-    for await (const event of backend.startTurn({ sessionId: input.sessionId, prompt: input.prompt, contextArtifactIds: input.contextArtifactIds ?? [], tools }, signal)) {
+    for await (const event of backend.startTurn({ taskId: input.taskId, config: input.config, sessionId: input.sessionId, prompt: input.prompt, contextArtifactIds: input.contextArtifactIds ?? [], tools }, signal)) {
       if (signal?.aborted) throw signal.reason;
       sessionId = event.sessionId; turnId = event.turnId; onEvent?.(event);
       if (event.kind === 'tool-request') {

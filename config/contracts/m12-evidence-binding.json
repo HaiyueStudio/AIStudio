@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "bindingId": "m12-g01-2026-08-24",
+  "reviewDate": "2026-08-24",
+  "baseRevisions": {
+    "aiStudio": "a8703519789d66b9f3c378502f0bcf44c642c74b",
+    "m06Implementation": "e4625bb62cfc973c60957997429876a0b455166a",
+    "engineObservation": "07524b6f2ce6cbb13511c7c410585aa05cb8720c",
+    "editorObservation": "abbcac987cbb6d40437f637736204dafe2ec55f4"
+  },
+  "immutableInputs": [
+    { "path": "config/upstream/editor-candidates.json", "kind": "editor-candidate-manifest" },
+    { "path": "config/upstream/pins.json", "kind": "agent-upstream-pins" },
+    { "path": "docs/evidence/g10-expected-manifest.json", "kind": "m06-reviewed-evidence" }
+  ],
+  "g01Artifacts": [
+    "config/contracts/m12-contract-index.json",
+    "config/contracts/m12-capability-census.json",
+    "config/contracts/fixtures/m12-contract-cases.json",
+    "docs/adr/0002-m12-v2-contract-ownership.md",
+    "docs/architecture/m12-contract-index.md",
+    "docs/architecture/m12-capability-census.md",
+    "docs/security/m12-threat-model-increment.md",
+    "docs/evidence/m12-g01-baseline.json",
+    "docs/evidence/m12-g01-baseline.md",
+    "docs/evidence/m12-g01-verification.md"
+  ]
+}

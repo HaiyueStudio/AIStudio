@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/game-document/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "revision", "savedRevision", "scenes", "entities", "components", "scripts", "assets", "settings", "migration"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "savedRevision": { "type": "integer", "minimum": 0 },
+    "scenes": {
+      "type": "array", "maxItems": 1024,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "rootEntityIds"],
+        "properties": {
+          "id": { "$ref": "#/definitions/stableId" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "rootEntityIds": { "type": "array", "maxItems": 100000, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } }
+        }
+      }
+    },
+    "entities": {
+      "type": "array", "maxItems": 100000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "sceneId", "name", "parentId", "componentIds"],
+        "properties": {
+          "id": { "$ref": "#/definitions/stableId" },
+          "sceneId": { "$ref": "#/definitions/stableId" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "parentId": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/stableId" }] },
+          "componentIds": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } }
+        }
+      }
+    },
+    "components": {
+      "type": "array", "maxItems": 1000000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "type", "version", "enabled", "value"],
+        "properties": {
+          "id": { "$ref": "#/definitions/stableId" },
+          "type": { "$ref": "#/definitions/stableId" },
+          "version": { "$ref": "#/definitions/semver" },
+          "enabled": { "type": "boolean" },
+          "value": { "type": "object", "maxProperties": 256 }
+        }
+      }
+    },
+    "scripts": {
+      "type": "array", "maxItems": 10000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "enabled", "order", "digest"],
+        "properties": {
+          "id": { "$ref": "#/definitions/stableId" }, "enabled": { "type": "boolean" },
+          "order": { "type": "integer", "minimum": 0 }, "digest": { "$ref": "#/definitions/digest" }
+        }
+      }
+    },
+    "assets": {
+      "type": "array", "maxItems": 100000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "kind", "digest", "source"],
+        "properties": {
+          "id": { "$ref": "#/definitions/stableId" }, "kind": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "digest": { "$ref": "#/definitions/digest" }, "source": { "enum": ["builtin", "project", "imported"] }
+        }
+      }
+    },
+    "settings": { "type": "object", "maxProperties": 1024 },
+    "migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["fromVersion", "migratedAt", "sourceDigest"],
+      "properties": {
+        "fromVersion": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 1 }] },
+        "migratedAt": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/timestamp" }] },
+        "sourceDigest": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/digest" }] }
+      }
+    }
+  },
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$" }
+  }
+}

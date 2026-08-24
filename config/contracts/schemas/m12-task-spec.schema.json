@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/task-spec/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "request", "visibleConstraints", "budgetId", "requiredCapabilities", "acceptance"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "request": { "type": "string", "minLength": 1, "maxLength": 32768 },
+    "visibleConstraints": { "type": "array", "maxItems": 128, "items": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+    "budgetId": { "$ref": "#/definitions/stableId" },
+    "requiredCapabilities": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m12-capability-id/v2" } },
+    "acceptance": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "required", "visibility", "category", "assertion"],
+        "properties": {
+          "id": { "$ref": "#/definitions/stableId" }, "required": { "type": "boolean" },
+          "visibility": { "enum": ["agent", "runner-only"] },
+          "category": { "enum": ["functional", "visual", "performance", "lifecycle", "budget", "security"] },
+          "assertion": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" }
+  }
+}

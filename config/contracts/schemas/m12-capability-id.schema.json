@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/m12-capability-id/v2",
+  "title": "M12 capability id",
+  "type": "string",
+  "enum": [
+    "agent.model-config", "agent.usage", "agent.cache", "agent.context",
+    "task.evaluate", "document.v2", "component.registry", "scene.transaction",
+    "camera.2d", "camera.3d", "camera.follow",
+    "input.keyboard", "input.pointer", "input.inject",
+    "simulation.fixed-step", "simulation.replay", "interaction.pointer",
+    "physics.2d", "physics.3d", "physics.raycast",
+    "lighting", "shadow.directional", "material.pbr", "postprocess",
+    "particles.2d", "particles.3d", "animation.2d", "animation.3d",
+    "audio.playback", "asset.import", "prefab",
+    "play.multi-script", "play.capture", "play.inspect", "diagnostics.query"
+  ]
+}

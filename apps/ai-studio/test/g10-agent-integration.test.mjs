@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { AgentPreviewBroker } from '../dist/agent-preview-broker.js';
 import { StudioConversationHost } from '../dist/conversation-host.js';
 import { selectProjectRunScript } from '../dist/run-script-selection.js';
+import { TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
 
 const backendId = 'backend:test-agent';
 const sessionId = 'session:test-agent';
@@ -21,12 +22,14 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   const planReleased = new Promise((resolve) => { releasePlan = resolve; });
   const backend = {
     descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
+    async modelCatalog() { return modelCatalog(); },
     async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
     async authenticate() { return { id: 'login:test-agent', kind: 'browser', url: 'https://example.invalid/login' }; }, async logout() {}, async cancelTurn() {}, async dispose() {},
     async submitToolResult(id, result) { if (id === planToolCallId) releasePlan(); else { submitted = result; releaseTool(); } },
     async answerQuestion() {}, async resolveBackendApproval() {},
   };
   const runtime = {
+    accounting: accountingFixture(),
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     turns: {
       async *start(_backendId, input) {
@@ -42,7 +45,7 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
         yield event('conversation-node', { nodeKind: 'text', status: 'streaming', delta: 'Created the Player cube.' });
         yield event('completed', { status: 'completed' });
       },
-      async *resume() {}, async cancel() {},
+      async *resume() {}, async cancel() {}, async recordToolResult() {},
     },
   };
   let decision;
@@ -126,12 +129,14 @@ test('an approved plan that ends without edits continues once and executes witho
   const secondTurnId = 'turn:approved-continuation';
   const backend = {
     descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
+    async modelCatalog() { return modelCatalog(); },
     async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
     async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {},
     async submitToolResult(id) { if (id === planToolCallId) planReleased(); else editReleased(); },
     async answerQuestion() {}, async resolveBackendApproval() {},
   };
   const runtime = {
+    accounting: accountingFixture(),
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     turns: {
       async *start(_backendId, input) {
@@ -151,7 +156,7 @@ test('an approved plan that ends without edits continues once and executes witho
         await waitForEditResult;
         yield eventAt(secondSessionId, secondTurnId, 'completed', { status: 'completed' });
       },
-      async *resume() {}, async cancel() {},
+      async *resume() {}, async cancel() {}, async recordToolResult() {},
     },
   };
   const tools = {
@@ -195,15 +200,17 @@ test('G10 conversation host gives project-missing turns recovery instructions th
   let startedInput;
   const backend = {
     descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
+    async modelCatalog() { return modelCatalog(); },
     async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
     async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {},
     async submitToolResult() {}, async answerQuestion() {}, async resolveBackendApproval() {},
   };
   const runtime = {
+    accounting: accountingFixture(),
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     turns: {
       async *start(_backendId, input) { startedInput = input; yield event('completed', { status: 'completed' }); },
-      async *resume() {}, async cancel() {},
+      async *resume() {}, async cancel() {}, async recordToolResult() {},
     },
   };
   const tools = { definitions: () => [{ id: 'project.snapshot', description: 'Read project', effect: 'observe', risk: 'low', inputSchema: {} }] };
@@ -216,6 +223,30 @@ test('G10 conversation host gives project-missing turns recovery instructions th
   assert.match(startedInput.prompt, /does not require a folder/);
   assert.match(startedInput.tools.find((tool) => tool.id === 'project.snapshot').description, /before deciding whether a Studio project is open/);
   await host.dispose();
+});
+
+test('hard task budget blocks the next tool before prepare or mutation', async () => {
+  const releases = []; const submitted = []; let prepareCount = 0; let executeCount = 0;
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} }, async modelCatalog() { return modelCatalog(); }, async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
+    async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {}, async answerQuestion() {}, async resolveBackendApproval() {},
+    async submitToolResult(id, result) { submitted.push({ id, result }); releases.shift()?.(); },
+  };
+  const runtime = { registry: { descriptors: () => [backend.descriptor], get: () => backend }, accounting: new TaskAccountingRegistry(new UsageLedgerStore()), turns: {
+    async *start() {
+      const first = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-one', toolId: 'project.snapshot', arguments: {} }); await first;
+      const second = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-two', toolId: 'diagnostics.query', arguments: {} }); await second;
+      yield event('completed', { status: 'completed' });
+    }, async *resume() {}, async cancel() {}, async recordToolResult() {},
+  } };
+  const tools = { definitions: () => ['project.snapshot', 'diagnostics.query'].map((id) => ({ id, description: id, effect: 'observe', risk: 'low', inputSchema: {} })),
+    async prepare(call) { prepareCount += 1; return { id: `preparation:${prepareCount}`, callId: call.id, sessionId, turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'observe', risk: 'low', documentId: 'document:test', baseRevision: 1, argumentsDigest: digest('a'), previewDigest: digest('b'), preview: { title: 'Read', target: 'Project', summary: 'Read only', diff: '' }, status: 'ready' }; },
+    async execute() { executeCount += 1; return { schemaVersion: 1, callId: 'tool-call:budget-one', toolId: 'project.snapshot', status: 'completed', value: {}, documentId: 'document:test', beforeRevision: 1, afterRevision: 1 }; } };
+  const host = new StudioConversationHost({ runtime, tools, operationLog: { async append() {} }, isProjectOpen: () => true }); await host.initialize();
+  await host.dispatch({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: { schemaVersion: 2, id: 'budget:hard-integration', enforcement: 'hard', limits: { inputTokens: 100_000, outputTokens: 10_000, estimatedCostMicros: 1_000_000, wallTimeMs: 60_000, turns: 2, toolCalls: 1, repairIterations: 1, observationBytes: 100_000 } } });
+  await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Inspect twice' }); await waitFor(() => host.replay().busy === false);
+  assert.equal(prepareCount, 1); assert.equal(executeCount, 1); assert.equal(submitted.length, 2); assert.equal(submitted[1].result.error.code, 'budget.hard-stop');
+  assert.equal(host.replay().taskAccounting.budgetStatus, 'hard-exceeded'); await host.dispose();
 });
 
 test('G10 renderer preview broker uses one pending command and rejects stale acknowledgements', async () => {
@@ -239,5 +270,10 @@ test('G10 renderer preview broker uses one pending command and rejects stale ack
 function event(kind, payload) { return { schemaVersion: 1, backendId, sessionId, turnId, kind, payload }; }
 function eventAt(nextSessionId, nextTurnId, kind, payload) { return { schemaVersion: 1, backendId, sessionId: nextSessionId, turnId: nextTurnId, kind, payload }; }
 function digest(character) { return character.repeat(64); }
+function modelCatalog() { return { schemaVersion: 1, backendId, protocolVersion: 'fixture', source: 'fixture', models: [{ id: 'fixture-model', label: 'Fixture model', description: 'fixture', reasoningEfforts: ['off', 'low', 'high'], defaultReasoningEffort: 'high', maxOutputTokens: 8192, isDefault: true }] }; }
+function accountingFixture() {
+  const accounts = new Map();
+  return { open({ taskId, budget }) { const snapshot = () => ({ taskId, budget, budgetDecision: { allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }, consumption: { inputTokens: 0, outputTokens: 0, estimatedCostMicros: 0, wallTimeMs: 0, turns: 1, toolCalls: 0, repairIterations: 0, observationBytes: 0 }, usage: { inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, reasoningTokens: null, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 0 }, cost: { status: 'unknown', amountMicros: null, currency: null, cacheSavingMicros: null, explanation: 'fixture', final: false }, turnIds: [] }); const account = { options: { taskId, budget }, beginTurn: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), bindTurn() {}, preflightTool: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), commitTool: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), expireWallTime: () => ({ allowed: false, status: 'hard-exceeded', violations: [], warning: 'expired', hardStopLatched: true }), reconcile: snapshot, snapshot }; accounts.set(taskId, account); return account; }, get(id) { return accounts.get(id); } };
+}
 function nodes(host) { return host.replay().events.map((entry) => entry.node); }
 async function waitFor(predicate) { for (let index = 0; index < 100; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for fixture state.'); }

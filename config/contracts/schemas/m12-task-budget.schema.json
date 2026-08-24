@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/task-budget/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "limits", "enforcement"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputTokens", "outputTokens", "estimatedCostMicros", "wallTimeMs", "turns", "toolCalls", "repairIterations", "observationBytes"],
+      "properties": {
+        "inputTokens": { "$ref": "#/definitions/nullablePositive" },
+        "outputTokens": { "$ref": "#/definitions/nullablePositive" },
+        "estimatedCostMicros": { "$ref": "#/definitions/nullablePositive" },
+        "wallTimeMs": { "type": "integer", "minimum": 1000, "maximum": 86400000 },
+        "turns": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "toolCalls": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "repairIterations": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "observationBytes": { "type": "integer", "minimum": 1024, "maximum": 1073741824 }
+      }
+    },
+    "enforcement": { "enum": ["observe", "soft", "hard"] }
+  },
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "nullablePositive": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }] }
+  }
+}

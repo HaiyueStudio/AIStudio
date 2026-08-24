@@ -1,0 +1,229 @@
+{
+  "valid": [
+    {
+      "schemaId": "haiyue://contracts/m12-capability-id/v2",
+      "value": "play.capture"
+    },
+    {
+      "schemaId": "haiyue://contracts/agent-turn-config/v2",
+      "value": {
+        "schemaVersion": 2,
+        "backendId": "backend:harness",
+        "model": "deepseek-chat",
+        "reasoningEffort": "medium",
+        "outputTokenLimit": 8192,
+        "taskBudgetId": "budget:fixture",
+        "promptProfile": { "id": "prompt:general-authoring", "version": "2.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        "requestedCapabilities": ["document.v2", "scene.transaction", "play.capture"]
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/backend-capability-negotiation/v2",
+      "value": {
+        "schemaVersion": 2,
+        "backendId": "backend:harness",
+        "protocolVersion": "0.1.0-rc.7",
+        "requested": {
+          "schemaVersion": 2,
+          "backendId": "backend:harness",
+          "model": "deepseek-chat",
+          "reasoningEffort": "medium",
+          "outputTokenLimit": 8192,
+          "taskBudgetId": "budget:fixture",
+          "promptProfile": { "id": "prompt:general-authoring", "version": "2.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+          "requestedCapabilities": ["document.v2", "play.capture"]
+        },
+        "status": "degraded",
+        "effective": { "model": "deepseek-chat", "reasoningEffort": "off", "outputTokenLimit": 8192, "capabilities": ["document.v2"] },
+        "diagnostics": [{ "code": "backend.capability-unavailable", "message": "Screenshot observation is not available.", "capability": "play.capture" }]
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/usage-record/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "usage:fixture",
+        "taskId": "task:fixture",
+        "sessionId": "session:fixture",
+        "turnId": "turn:fixture",
+        "stepId": "step:fixture",
+        "inputTokens": 100,
+        "cachedInputTokens": 40,
+        "cacheWriteTokens": null,
+        "outputTokens": 20,
+        "reasoningTokens": null,
+        "toolInputBytes": 512,
+        "toolOutputBytes": 1024,
+        "wallTimeMs": 1500,
+        "providerRequestDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "final": true
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/cost-record/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "cost:fixture",
+        "usageRecordId": "usage:fixture",
+        "pricingCatalogId": null,
+        "pricingCatalogVersion": null,
+        "effectiveAt": null,
+        "currency": null,
+        "amountMicros": null,
+        "status": "unknown",
+        "formula": null
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/task-budget/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "budget:fixture",
+        "limits": { "inputTokens": 200000, "outputTokens": 32000, "estimatedCostMicros": null, "wallTimeMs": 900000, "turns": 8, "toolCalls": 120, "repairIterations": 3, "observationBytes": 16777216 },
+        "enforcement": "hard"
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/context-artifact/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "artifact:project-manifest",
+        "kind": "project-manifest",
+        "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "source": "studio.context",
+        "documentRevision": 4,
+        "mediaType": "application/json",
+        "byteLength": 4096,
+        "redacted": true,
+        "createdAt": "2026-08-24T00:00:00.000Z"
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/component-definition/v2",
+      "value": {
+        "schemaVersion": 2,
+        "type": "haiyue.camera.follow",
+        "version": "1.0.0",
+        "owner": "studio.component-registry",
+        "capability": "camera.follow",
+        "effect": "runtime-owner",
+        "risk": "medium",
+        "valueSchema": { "type": "object", "additionalProperties": false, "properties": { "targetId": { "type": "string" } } },
+        "serializable": true,
+        "runtimeAdapter": "adapter.camera-follow",
+        "testOwner": "test.camera-follow"
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/game-document/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "document:fixture",
+        "revision": 1,
+        "savedRevision": 0,
+        "scenes": [{ "id": "scene:main", "name": "Main", "rootEntityIds": ["entity:player"] }],
+        "entities": [{ "id": "entity:player", "sceneId": "scene:main", "name": "Player", "parentId": null, "componentIds": ["component:transform"] }],
+        "components": [{ "id": "component:transform", "type": "haiyue.transform.3d", "version": "1.0.0", "enabled": true, "value": { "position": [0, 0, 0] } }],
+        "scripts": [{ "id": "script:player", "enabled": true, "order": 0, "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }],
+        "assets": [],
+        "settings": { "simulationHz": 60 },
+        "migration": { "fromVersion": 1, "migratedAt": "2026-08-24T00:00:00.000Z", "sourceDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/observation-artifact/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "observation:screenshot:fixture",
+        "type": "screenshot",
+        "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "taskId": "task:fixture",
+        "turnId": "turn:fixture",
+        "playId": "play:fixture",
+        "documentRevision": 1,
+        "scriptDigests": ["sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+        "tick": 120,
+        "frame": 120,
+        "viewport": { "width": 1280, "height": 720 },
+        "device": "fixture-webgpu",
+        "capturedAt": "2026-08-24T00:00:02.000Z",
+        "byteLength": 65536,
+        "redacted": false,
+        "producerVersion": "1.0.0"
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/task-spec/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "task:fixture",
+        "request": "Create a playable game and verify its required behavior.",
+        "visibleConstraints": ["Use built-in assets."],
+        "budgetId": "budget:fixture",
+        "requiredCapabilities": ["document.v2", "play.capture", "task.evaluate"],
+        "acceptance": [{ "id": "acceptance:playable", "required": true, "visibility": "runner-only", "category": "functional", "assertion": "The replay reaches a valid playable state." }]
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/evaluation-result/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "evaluation:fixture",
+        "taskId": "task:fixture",
+        "evaluatorVersion": "1.0.0",
+        "status": "pass",
+        "acceptanceResults": [{ "acceptanceId": "acceptance:playable", "status": "pass", "evidenceIds": ["observation:screenshot:fixture"], "diagnostic": null }],
+        "budgetStatus": "within",
+        "usageRecordIds": ["usage:fixture", "usage:tool:fixture"],
+        "costRecordIds": ["cost:fixture", "cost:tool:fixture"],
+        "turns": [{ "turnId": "turn:fixture", "usageRecordIds": ["usage:fixture"], "finishReason": "stop" }],
+        "tools": [{ "toolCallId": "tool-call:fixture", "turnId": "turn:fixture", "usageRecordIds": ["usage:tool:fixture"] }],
+        "completedAt": "2026-08-24T00:00:03.000Z"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "m12 unknown schema version",
+      "schemaId": "haiyue://contracts/agent-turn-config/v2",
+      "value": { "schemaVersion": 3, "backendId": "backend:harness", "model": "deepseek-chat", "reasoningEffort": "off", "outputTokenLimit": 8192, "taskBudgetId": "budget:fixture", "promptProfile": { "id": "prompt:fixture", "version": "2.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "requestedCapabilities": [] }
+    },
+    {
+      "name": "m12 unknown capability",
+      "schemaId": "haiyue://contracts/agent-turn-config/v2",
+      "value": { "schemaVersion": 2, "backendId": "backend:harness", "model": "deepseek-chat", "reasoningEffort": "off", "outputTokenLimit": 8192, "taskBudgetId": "budget:fixture", "promptProfile": { "id": "prompt:fixture", "version": "2.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "requestedCapabilities": ["shell.arbitrary"] }
+    },
+    {
+      "name": "m12 secret-bearing artifact",
+      "invalidReason": "forbidden-secret-key",
+      "schemaId": "haiyue://contracts/context-artifact/v2",
+      "value": { "schemaVersion": 2, "id": "artifact:secret", "kind": "task-summary", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "source": "studio.context", "documentRevision": null, "mediaType": "application/json", "byteLength": 32, "redacted": false, "createdAt": "2026-08-24T00:00:00.000Z", "authorization": "Bearer SECRET_CANARY" }
+    },
+    {
+      "name": "m12 oversized task request",
+      "fixtureFactory": "oversized-task-request",
+      "schemaId": "haiyue://contracts/task-spec/v2",
+      "value": { "schemaVersion": 2, "id": "task:oversized", "request": "generated", "visibleConstraints": [], "budgetId": "budget:fixture", "requiredCapabilities": [], "acceptance": [{ "id": "acceptance:fixture", "required": true, "visibility": "runner-only", "category": "functional", "assertion": "Must be rejected before model visibility." }] }
+    },
+    {
+      "name": "m12 unknown cost cannot contain amount",
+      "schemaId": "haiyue://contracts/cost-record/v2",
+      "value": { "schemaVersion": 2, "id": "cost:bad", "usageRecordId": "usage:fixture", "pricingCatalogId": null, "pricingCatalogVersion": null, "effectiveAt": null, "currency": "USD", "amountMicros": 999, "status": "unknown", "formula": null }
+    },
+    {
+      "name": "m12 runtime component without adapter",
+      "schemaId": "haiyue://contracts/component-definition/v2",
+      "value": { "schemaVersion": 2, "type": "haiyue.physics.body", "version": "1.0.0", "owner": "studio.registry", "capability": "physics.3d", "effect": "runtime-owner", "risk": "high", "valueSchema": {}, "serializable": true, "runtimeAdapter": null, "testOwner": "test.physics" }
+    },
+    {
+      "name": "m12 screenshot without viewport",
+      "schemaId": "haiyue://contracts/observation-artifact/v2",
+      "value": { "schemaVersion": 2, "id": "observation:bad", "type": "screenshot", "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "taskId": "task:fixture", "turnId": "turn:fixture", "playId": "play:fixture", "documentRevision": 1, "scriptDigests": [], "tick": 0, "frame": 0, "viewport": null, "device": null, "capturedAt": "2026-08-24T00:00:00.000Z", "byteLength": 0, "redacted": false, "producerVersion": "1.0.0" }
+    },
+    {
+      "name": "m12 rejected negotiation with effective config",
+      "schemaId": "haiyue://contracts/backend-capability-negotiation/v2",
+      "value": { "schemaVersion": 2, "backendId": "backend:harness", "protocolVersion": "0.1.0", "requested": { "schemaVersion": 2, "backendId": "backend:harness", "model": "deepseek-chat", "reasoningEffort": "xhigh", "outputTokenLimit": 8192, "taskBudgetId": "budget:fixture", "promptProfile": { "id": "prompt:fixture", "version": "2.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "requestedCapabilities": [] }, "status": "rejected", "effective": { "model": "deepseek-chat", "reasoningEffort": "off", "outputTokenLimit": 8192, "capabilities": [] }, "diagnostics": [{ "code": "backend.reasoning-unsupported", "message": "Requested effort is unsupported." }] }
+    }
+  ]
+}

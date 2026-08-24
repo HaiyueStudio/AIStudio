@@ -1,4 +1,4 @@
-import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
+import { asStableId, type JsonObject, type JsonValue, type M12ReasoningEffort, type StableId, type TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 import {
   CONVERSATION_NODE_KINDS,
   type ApprovalCardReadModel,
@@ -56,12 +56,29 @@ export function normalizeBackend(value: unknown): ConversationBackendReadModel {
   const rateLimits = Array.isArray(value.rateLimits) ? value.rateLimits.slice(0, 8).map(normalizeRateLimit) : [];
   const diagnostic = isRecord(value.diagnostic) && typeof value.diagnostic.code === 'string' && typeof value.diagnostic.message === 'string'
     ? Object.freeze({ code: safeText(value.diagnostic.code, 96), message: safeText(value.diagnostic.message, 512) }) : undefined;
+  const models = Array.isArray(value.models) ? value.models.slice(0, 64).flatMap((item) => normalizeModel(item)) : [];
+  const selectedModel = typeof value.selectedModel === 'string' && models.some((item) => item.id === value.selectedModel) ? safeText(value.selectedModel, 128) : null;
+  const selectedReasoningEffort = reasoningEffort(value.selectedReasoningEffort);
+  const outputTokenLimit = safeInteger(value.outputTokenLimit, 1, 1_000_000);
   return Object.freeze({
     id: stable(value.id, 'backend id'), label: safeText(typeof value.label === 'string' ? value.label : String(kind), 80), kind,
     state: state as ConversationBackendReadModel['state'], authMode: authMode as ConversationBackendReadModel['authMode'],
     ...(typeof value.accountPlan === 'string' ? { accountPlan: safeText(value.accountPlan, 80) } : {}),
-    rateLimits: Object.freeze(rateLimits), ...(diagnostic ? { diagnostic } : {}),
+    rateLimits: Object.freeze(rateLimits), ...(diagnostic ? { diagnostic } : {}), models: Object.freeze(models), selectedModel, selectedReasoningEffort, outputTokenLimit,
   });
+}
+
+export function normalizeTaskAccounting(value: unknown): import('./types.js').ConversationTaskAccountingReadModel | null {
+  if (!isRecord(value) || !isRecord(value.budget) || !isRecord(value.usage) || !isRecord(value.cost)) return null;
+  try {
+    const budget = normalizeBudget(value.budget);
+    const status = ['within', 'soft-exceeded', 'hard-exceeded'].includes(String(value.budgetStatus)) ? value.budgetStatus as 'within' | 'soft-exceeded' | 'hard-exceeded' : 'within';
+    const countOrNull = (item: unknown): number | null => item === null ? null : safeInteger(item, 0, 1_000_000_000);
+    return Object.freeze({ taskId: stable(value.taskId, 'task id'), budget, budgetStatus: status,
+      usage: Object.freeze({ inputTokens: countOrNull(value.usage.inputTokens), cachedInputTokens: countOrNull(value.usage.cachedInputTokens), outputTokens: countOrNull(value.usage.outputTokens), reasoningTokens: countOrNull(value.usage.reasoningTokens), toolInputBytes: safeInteger(value.usage.toolInputBytes, 0, 1_000_000_000) ?? 0, toolOutputBytes: safeInteger(value.usage.toolOutputBytes, 0, 1_000_000_000) ?? 0, wallTimeMs: safeInteger(value.usage.wallTimeMs, 0, 86_400_000) ?? 0 }),
+      cost: Object.freeze({ status: ['actual', 'estimated', 'unknown'].includes(String(value.cost.status)) ? value.cost.status as 'actual' | 'estimated' | 'unknown' : 'unknown', amountMicros: countOrNull(value.cost.amountMicros), currency: typeof value.cost.currency === 'string' ? safeText(value.cost.currency, 3) : null, cacheSavingMicros: countOrNull(value.cost.cacheSavingMicros), explanation: safeText(typeof value.cost.explanation === 'string' ? value.cost.explanation : 'Cost is unknown.', 512), final: value.cost.final === true }),
+    });
+  } catch { return null; }
 }
 
 export function approvalFromNode(node: ConversationNodeReadModel): ApprovalCardReadModel | null {
@@ -136,6 +153,12 @@ export function validateConversationIntent(value: unknown): ConversationIntent {
       return Object.freeze({ type, approvalId: stable(value.approvalId, 'approval id'), decision: value.decision });
     case 'backend/select': case 'backend/authenticate': case 'backend/logout':
       exactKeys(value, ['type', 'backendId']); return Object.freeze({ type, backendId: stable(value.backendId, 'backend id') });
+    case 'agent/configure': {
+      exactKeys(value, ['type', 'backendId', 'model', 'reasoningEffort', 'outputTokenLimit', 'budget']);
+      const effort = reasoningEffort(value.reasoningEffort); if (!effort) throw new ConversationReadModelError('conversation.intent-invalid', 'Reasoning effort is invalid.');
+      const outputTokenLimit = safeInteger(value.outputTokenLimit, 1, 1_000_000); if (outputTokenLimit === null) throw new ConversationReadModelError('conversation.intent-invalid', 'Output token limit is invalid.');
+      return Object.freeze({ type, backendId: stable(value.backendId, 'backend id'), model: boundedString(value.model, 'model', 128), reasoningEffort: effort, outputTokenLimit, budget: normalizeBudget(value.budget) });
+    }
     case 'logs/export-bug-bundle':
       exactKeys(value, ['type', 'query']);
       return Object.freeze({ type, query: validateLogQuery(value.query) });
@@ -226,6 +249,28 @@ function normalizeRateLimit(value: unknown): Readonly<{ name: string; usedPercen
   const usedPercent = typeof value.usedPercent === 'number' && Number.isFinite(value.usedPercent) ? Math.max(0, Math.min(100, value.usedPercent)) : undefined;
   return Object.freeze({ name: safeText(typeof value.name === 'string' ? value.name : 'unknown', 80), ...(usedPercent === undefined ? {} : { usedPercent }), ...(typeof value.resetsAt === 'string' ? { resetsAt: safeText(value.resetsAt, 80) } : {}) });
 }
+
+function normalizeModel(value: unknown): readonly ConversationBackendReadModel['models'][number][] {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.label !== 'string' || !Array.isArray(value.reasoningEfforts)) return [];
+  const efforts = Object.freeze(value.reasoningEfforts.flatMap((item) => { const effort = reasoningEffort(item); return effort ? [effort] : []; }).slice(0, 8));
+  const defaultEffort = reasoningEffort(value.defaultReasoningEffort);
+  const maximum = safeInteger(value.maxOutputTokens, 1, 1_000_000);
+  if (!efforts.length || !defaultEffort || !efforts.includes(defaultEffort) || maximum === null) return [];
+  return [Object.freeze({ id: safeText(value.id, 128), label: safeText(value.label, 128), reasoningEfforts: efforts, defaultReasoningEffort: defaultEffort, maxOutputTokens: maximum, isDefault: value.isDefault === true })];
+}
+
+function normalizeBudget(value: unknown): TaskBudgetV2 {
+  if (!isRecord(value) || value.schemaVersion !== 2 || !isRecord(value.limits) || !['observe', 'soft', 'hard'].includes(String(value.enforcement))) throw new ConversationReadModelError('conversation.budget-invalid', 'Task budget is invalid.');
+  const limits = value.limits;
+  const nullable = (key: string): number | null => { const item = limits[key]; if (item === null) return null; const result = safeInteger(item, key === 'repairIterations' ? 0 : 1, 1_000_000_000); if (result === null) throw new ConversationReadModelError('conversation.budget-invalid', `Budget ${key} is invalid.`); return result; };
+  const required = (key: string): number => { const result = nullable(key); if (result === null) throw new ConversationReadModelError('conversation.budget-invalid', `Budget ${key} cannot be null.`); return result; };
+  return Object.freeze({ schemaVersion: 2, id: stable(value.id, 'budget id'), enforcement: value.enforcement as TaskBudgetV2['enforcement'], limits: Object.freeze({
+    inputTokens: nullable('inputTokens'), outputTokens: nullable('outputTokens'), estimatedCostMicros: nullable('estimatedCostMicros'), wallTimeMs: required('wallTimeMs'), turns: required('turns'), toolCalls: required('toolCalls'), repairIterations: required('repairIterations'), observationBytes: required('observationBytes'),
+  }) });
+}
+
+function reasoningEffort(value: unknown): M12ReasoningEffort | null { return ['backend-default', 'off', 'low', 'medium', 'high', 'xhigh'].includes(String(value)) ? value as M12ReasoningEffort : null; }
+function safeInteger(value: unknown, minimum: number, maximum: number): number | null { return Number.isSafeInteger(value) && (value as number) >= minimum && (value as number) <= maximum ? value as number : null; }
 
 function isApprovalContent(value: Record<string, unknown>): boolean {
   return typeof value.approvalId === 'string' && typeof value.toolCallId === 'string' && typeof value.toolId === 'string'

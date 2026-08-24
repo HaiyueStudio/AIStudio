@@ -4,8 +4,8 @@ import { createInterface } from 'node:readline';
 import { mkdtemp, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import { AgentBackendProtocolError, normalizeBackendFailure, type AgentBackend, type AgentBackendDescriptor, type AgentBackendEvent, type AgentBackendStatus, type AgentLoginHandoff, type AgentRateLimitSnapshot, type AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
+import { asStableId, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type StableId } from '@haiyue/ai-studio-contracts';
+import { AgentBackendProtocolError, negotiateAgentTurnConfig, normalizeBackendFailure, type AgentBackend, type AgentBackendDescriptor, type AgentBackendEvent, type AgentBackendStatus, type AgentLoginHandoff, type AgentModelCatalog, type AgentRateLimitSnapshot, type AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
 import { backendEvent, deferred, isRecord, TurnChannel, type Deferred } from './shared.js';
 
 type RpcId = number | string;
@@ -50,6 +50,9 @@ export class CodexAppServerBackend implements AgentBackend {
   private readonly ownedCwds = new Map<StableId, string>();
   private readonly cleanupTasks = new Set<Promise<void>>();
   private readonly lastRateLimits = new Map<string, AgentRateLimitSnapshot>();
+  private modelCatalogPromise?: Promise<AgentModelCatalog>;
+  private readonly wireEfforts = new Map<string, ReadonlyMap<M12ReasoningEffort, string>>();
+  private readonly usageSequences = new Map<StableId, number>();
 
   constructor(private readonly options: CodexAppServerBackendOptions = {}) {}
 
@@ -89,6 +92,22 @@ export class CodexAppServerBackend implements AgentBackend {
   }
 
   async logout(signal?: AbortSignal): Promise<void> { await this.ensureInitialized(signal); await this.request('account/logout', {}, signal); }
+
+  async modelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog> {
+    this.assertActive(); await this.ensureInitialized(signal);
+    this.modelCatalogPromise ??= this.loadModelCatalog(signal).catch((cause) => { this.modelCatalogPromise = undefined; throw cause; });
+    return this.modelCatalogPromise;
+  }
+
+  async negotiate(config: AgentTurnConfigV2, signal?: AbortSignal): Promise<BackendCapabilityNegotiationV2> {
+    const result = negotiateAgentTurnConfig(config, {
+      backendId: this.descriptor.id, protocolVersion: this.descriptor.protocolVersion, catalog: await this.modelCatalog(signal),
+      supportedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'],
+    });
+    if (!result.effective) return result;
+    const diagnostic = Object.freeze({ code: 'codex.output-limit-local', message: 'Codex App Server has no per-turn output-token field; Studio can stop later effects only after normalized usage is observed, and late usage remains accounting-only.' });
+    return Object.freeze({ ...result, status: 'degraded', diagnostics: Object.freeze([...result.diagnostics, diagnostic]) });
+  }
 
   startTurn(input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     this.assertActive();
@@ -146,10 +165,13 @@ export class CodexAppServerBackend implements AgentBackend {
     let turnId: StableId | undefined; let unownedTempCwd: string | undefined;
     try {
       await this.ensureInitialized(signal);
+      const negotiation = await this.negotiate(input.config, signal); if (!negotiation.effective) throw this.protocol('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' '));
+      const effective = negotiation.effective; const wireEffort = this.wireEfforts.get(effective.model)?.get(effective.reasoningEffort);
+      if (!wireEffort) throw this.protocol('codex.reasoning-map-missing', `No Codex wire effort maps to ${effective.reasoningEffort}.`);
       const cwd = this.options.isolatedCwd ?? await mkdtemp(join(tmpdir(), 'haiyue-codex-')); if (!this.options.isolatedCwd) unownedTempCwd = cwd;
       const dynamicTools = input.tools.map((tool, index) => ({ type: 'function', name: codexToolName(tool.id, index), description: `${tool.description}\nStudio tool id: ${tool.id}`, inputSchema: tool.inputSchema }));
       const threadResponse = await this.request('thread/start', {
-        cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', sandbox: 'read-only', ephemeral: true, environments: [], selectedCapabilityRoots: [],
+        cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', sandbox: 'read-only', ephemeral: true, environments: [], selectedCapabilityRoots: [], model: effective.model, allowProviderModelFallback: false,
         config: { web_search: 'disabled', mcp_servers: {} },
         baseInstructions: 'You are the AIStudio game-authoring agent. You may act only through the dynamic Studio tools supplied in this thread.',
         developerInstructions: 'Never invoke shell, command execution, file mutation, patching, direct filesystem access, network access, MCP, apps, or web search. Use only the supplied dynamic Studio tools. If no suitable Studio tool exists, explain the limitation.',
@@ -157,19 +179,45 @@ export class CodexAppServerBackend implements AgentBackend {
       }, signal);
       const thread = isRecord(threadResponse) && isRecord(threadResponse.thread) ? threadResponse.thread : undefined;
       if (!thread || typeof thread.id !== 'string') throw this.protocol('codex.thread-malformed', 'Codex returned a malformed thread identity.');
-      const response = await this.request('turn/start', { threadId: thread.id, input: [{ type: 'text', text: input.prompt, text_elements: [] }], environments: [], cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user' }, signal);
+      const response = await this.request('turn/start', { threadId: thread.id, input: [{ type: 'text', text: input.prompt, text_elements: [] }], environments: [], cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', model: effective.model, effort: wireEffort }, signal);
       const turn = isRecord(response) && isRecord(response.turn) ? response.turn : undefined;
       if (!turn || typeof turn.id !== 'string') throw this.protocol('codex.turn-malformed', 'Codex returned a malformed turn identity.');
       const threadId = thread.id; turnId = asStableId(turn.id); this.turns.set(turnId, channel); this.threadTurns.set(threadId, turnId);
       this.threadToolNames.set(threadId, new Map(dynamicTools.map((tool, index) => [tool.name, input.tools[index]!.id])));
       if (unownedTempCwd) { this.ownedCwds.set(turnId, unownedTempCwd); unownedTempCwd = undefined; }
-      channel.emit(backendEvent(this.descriptor.id, threadId, turn.id, 'status', { status: 'running' }));
+      channel.emit(backendEvent(this.descriptor.id, threadId, turn.id, 'status', { status: 'running', model: effective.model, reasoningEffort: effective.reasoningEffort, outputTokenLimit: effective.outputTokenLimit }));
       if (signal) {
         const abort = (): void => { void this.cancelTurn(asStableId(threadId), turnId!).catch(() => {}); };
         if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
         this.turnAbortCleanups.set(turnId, () => signal.removeEventListener('abort', abort));
       }
     } catch (cause) { if (unownedTempCwd) await rmdir(unownedTempCwd).catch(() => {}); channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(cause)); }
+  }
+
+  private async loadModelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog> {
+    const response = await this.request('model/list', { limit: 100, includeHidden: false }, signal);
+    if (!isRecord(response) || !Array.isArray(response.data)) throw this.protocol('codex.model-catalog-malformed', 'Codex model/list response is malformed.');
+    const models = [];
+    for (const value of response.data) {
+      if (!isRecord(value) || typeof value.model !== 'string' || typeof value.displayName !== 'string' || !Array.isArray(value.supportedReasoningEfforts) || typeof value.defaultReasoningEffort !== 'string') {
+        throw this.protocol('codex.model-catalog-schema-drift', 'Codex model catalog no longer matches the pinned schema fixture.');
+      }
+      const effortMap = new Map<M12ReasoningEffort, string>();
+      for (const raw of value.supportedReasoningEfforts) {
+        if (!isRecord(raw) || typeof raw.reasoningEffort !== 'string') throw this.protocol('codex.model-catalog-schema-drift', 'Codex reasoning effort option is malformed.');
+        const normalized = normalizeCodexEffort(raw.reasoningEffort); if (normalized && !effortMap.has(normalized)) effortMap.set(normalized, raw.reasoningEffort);
+      }
+      const defaultEffort = normalizeCodexEffort(value.defaultReasoningEffort);
+      if (!defaultEffort || !effortMap.has(defaultEffort) || effortMap.size === 0) throw this.protocol('codex.model-catalog-schema-drift', `Codex model ${value.model} has no supported M12 reasoning effort mapping.`);
+      this.wireEfforts.set(value.model, effortMap);
+      models.push(Object.freeze({
+        id: value.model, label: value.displayName, description: typeof value.description === 'string' ? value.description : value.displayName,
+        reasoningEfforts: Object.freeze([...effortMap.keys()]), defaultReasoningEffort: defaultEffort, maxOutputTokens: 1_000_000,
+        isDefault: value.isDefault === true,
+      }));
+    }
+    if (!models.length) throw this.protocol('codex.model-catalog-empty', 'Codex advertised no selectable models.');
+    return Object.freeze({ schemaVersion: 1, backendId: this.descriptor.id, protocolVersion: this.descriptor.protocolVersion, source: 'provider', models: Object.freeze(models) });
   }
 
   private async ensureInitialized(signal?: AbortSignal): Promise<void> {
@@ -270,14 +318,16 @@ export class CodexAppServerBackend implements AgentBackend {
     } else if (method === 'thread/tokenUsage/updated' && isRecord(params.tokenUsage)) {
       const total = isRecord(params.tokenUsage.total) ? params.tokenUsage.total : {};
       const last = isRecord(params.tokenUsage.last) ? params.tokenUsage.last : {};
-      channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', normalizedTokenUsage(last, total, params.tokenUsage.modelContextWindow)));
+      const sequence = (this.usageSequences.get(turnId) ?? 0) + 1; this.usageSequences.set(turnId, sequence);
+      channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', normalizedTokenUsage(turnId, sequence, last, total, params.tokenUsage.modelContextWindow)));
     } else if (method === 'error') {
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'diagnostic', { code: 'codex.server-error', message: diagnosticMessage(params), retryable: false }));
     } else if (method === 'turn/completed') {
       const turn = isRecord(params.turn) ? params.turn : undefined; const status = mapTurnStatus(turn?.status);
       if (status === 'failed' && isRecord(turn?.error)) channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'diagnostic', classifyTurnError(turn.error)));
-      channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'completed', { status }));
+      channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'completed', { status, finishReason: codexFinishReason(status) }));
       this.turnAbortCleanups.get(turnId)?.(); this.turnAbortCleanups.delete(turnId);
+      this.usageSequences.delete(turnId);
       this.scheduleCwdCleanup(turnId);
     }
   }
@@ -346,6 +396,14 @@ function denialResponse(method: string): JsonObject {
   return { decision: 'decline' };
 }
 function mapTurnStatus(value: unknown): 'completed' | 'cancelled' | 'failed' | 'interrupted' { return value === 'completed' ? 'completed' : value === 'interrupted' ? 'cancelled' : value === 'failed' ? 'failed' : 'interrupted'; }
+function codexFinishReason(status: 'completed' | 'cancelled' | 'failed' | 'interrupted'): 'stop' | 'cancelled' | 'error' | 'unknown' { return status === 'completed' ? 'stop' : status === 'cancelled' ? 'cancelled' : status === 'failed' ? 'error' : 'unknown'; }
+function normalizeCodexEffort(value: string): M12ReasoningEffort | null {
+  const normalized = value.toLowerCase();
+  if (normalized === 'none' || normalized === 'minimal' || normalized === 'off') return 'off';
+  if (normalized === 'low' || normalized === 'medium' || normalized === 'high') return normalized;
+  if (normalized === 'xhigh' || normalized === 'max' || normalized === 'ultra') return 'xhigh';
+  return null;
+}
 function diagnosticMessage(value: RpcObject): string { if (typeof value.message === 'string') return value.message; if (isRecord(value.error) && typeof value.error.message === 'string') return value.error.message; return 'Codex App Server reported an error.'; }
 function classifyTurnError(value: RpcObject): JsonObject {
   const info = value.codexErrorInfo; const text = typeof info === 'string' ? info : isRecord(info) ? Object.keys(info)[0] : undefined;
@@ -355,10 +413,10 @@ function classifyTurnError(value: RpcObject): JsonObject {
 function toJsonObject(value: JsonValue): JsonObject { return isRecord(value) ? jsonObject(value) : { value }; }
 function jsonObject(value: RpcObject): JsonObject { return JSON.parse(JSON.stringify(value)) as JsonObject; }
 function jsonArray(value: unknown[]): JsonValue[] { return JSON.parse(JSON.stringify(value)) as JsonValue[]; }
-function normalizedTokenUsage(last: RpcObject, total: RpcObject, contextWindow: unknown): JsonObject {
-  const result: Record<string, JsonValue> = {};
-  copyNumber(last, 'inputTokens', result, 'inputTokens'); copyNumber(last, 'outputTokens', result, 'outputTokens'); copyNumber(last, 'cachedInputTokens', result, 'cacheReadTokens'); copyNumber(last, 'reasoningOutputTokens', result, 'reasoningTokens');
-  copyNumber(total, 'inputTokens', result, 'totalInputTokens'); copyNumber(total, 'outputTokens', result, 'totalOutputTokens'); if (typeof contextWindow === 'number') result.modelContextWindow = contextWindow;
+function normalizedTokenUsage(turnId: StableId, sequence: number, last: RpcObject, total: RpcObject, contextWindow: unknown): JsonObject {
+  const result: Record<string, JsonValue> = { eventId: `${turnId}:usage:${sequence}`, sequence, mode: 'cumulative' };
+  copyNumber(total, 'inputTokens', result, 'inputTokens'); copyNumber(total, 'outputTokens', result, 'outputTokens'); copyNumber(total, 'cachedInputTokens', result, 'cachedInputTokens'); copyNumber(total, 'cacheWriteInputTokens', result, 'cacheWriteTokens'); copyNumber(total, 'reasoningOutputTokens', result, 'reasoningTokens');
+  copyNumber(last, 'inputTokens', result, 'lastInputTokens'); copyNumber(last, 'outputTokens', result, 'lastOutputTokens'); if (typeof contextWindow === 'number') result.modelContextWindow = contextWindow;
   return Object.freeze(result);
 }
 function copyNumber(source: RpcObject, sourceKey: string, target: Record<string, JsonValue>, targetKey: string): void { const value = source[sourceKey]; if (typeof value === 'number') target[targetKey] = value; }

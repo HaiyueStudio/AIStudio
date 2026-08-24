@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/agent-turn-config/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "backendId", "model", "reasoningEffort", "outputTokenLimit", "taskBudgetId", "promptProfile", "requestedCapabilities"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "backendId": { "$ref": "#/definitions/stableId" },
+    "model": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "reasoningEffort": { "enum": ["backend-default", "off", "low", "medium", "high", "xhigh"] },
+    "outputTokenLimit": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+    "taskBudgetId": { "$ref": "#/definitions/stableId" },
+    "promptProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": { "$ref": "#/definitions/stableId" },
+        "version": { "$ref": "#/definitions/semver" },
+        "digest": { "$ref": "#/definitions/digest" }
+      }
+    },
+    "requestedCapabilities": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "$ref": "haiyue://contracts/m12-capability-id/v2" }
+    }
+  },
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/usage-record/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "taskId", "sessionId", "turnId", "inputTokens", "cachedInputTokens", "cacheWriteTokens", "outputTokens", "reasoningTokens", "toolInputBytes", "toolOutputBytes", "wallTimeMs", "providerRequestDigest", "final"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "taskId": { "$ref": "#/definitions/stableId" },
+    "sessionId": { "$ref": "#/definitions/stableId" },
+    "turnId": { "$ref": "#/definitions/stableId" },
+    "stepId": { "$ref": "#/definitions/stableId" },
+    "toolCallId": { "$ref": "#/definitions/stableId" },
+    "inputTokens": { "$ref": "#/definitions/nullableCount" },
+    "cachedInputTokens": { "$ref": "#/definitions/nullableCount" },
+    "cacheWriteTokens": { "$ref": "#/definitions/nullableCount" },
+    "outputTokens": { "$ref": "#/definitions/nullableCount" },
+    "reasoningTokens": { "$ref": "#/definitions/nullableCount" },
+    "toolInputBytes": { "type": "integer", "minimum": 0, "maximum": 1073741824 },
+    "toolOutputBytes": { "type": "integer", "minimum": 0, "maximum": 1073741824 },
+    "wallTimeMs": { "type": "integer", "minimum": 0, "maximum": 86400000 },
+    "providerRequestDigest": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/digest" }] },
+    "final": { "type": "boolean" }
+  },
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "nullableCount": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0, "maximum": 1000000000 }] }
+  }
+}

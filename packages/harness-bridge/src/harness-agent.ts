@@ -1,25 +1,30 @@
 import { randomUUID } from 'node:crypto';
 import { Context } from '@deepseek-ai/cordis';
-import AgentRegistry, { type Agent, type AgentHandle } from '@deepseek-ai/dsh-agent';
+import AgentRegistry, { installModelSelection, type Agent, type AgentHandle, type ModelSelectionRef } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id';
-import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm';
+import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { DeepSeekAdapter, resolveAdapterOptions } from '@deepseek-ai/dsh-llm-deepseek';
 import SessionStore, { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session';
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import ToolRuntime, { type ToolDefinition } from '@deepseek-ai/dsh-tools';
 
 export interface HarnessBridgeTool { readonly id: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>; }
-export interface HarnessBridgeTurnInput { readonly sessionId?: string; readonly prompt: string; readonly tools: readonly HarnessBridgeTool[]; }
+export type HarnessReasoningEffort = 'off' | 'low' | 'high' | 'max';
+export interface HarnessBridgeTurnInput {
+  readonly sessionId?: string; readonly prompt: string; readonly tools: readonly HarnessBridgeTool[];
+  readonly model: string; readonly reasoningEffort: HarnessReasoningEffort; readonly maxTokens: number;
+}
 export type HarnessBridgeEvent =
   | Readonly<{ type: 'turn-start'; sessionId: string; turnId: string }>
   | Readonly<{ type: 'text-delta'; sessionId: string; turnId: string; text: string }>
   | Readonly<{ type: 'tool-request'; sessionId: string; turnId: string; toolCallId: string; toolId: string; arguments: Readonly<Record<string, unknown>> }>
-  | Readonly<{ type: 'usage'; sessionId: string; turnId: string; inputTokens: number; outputTokens: number; cacheReadTokens?: number; reasoningTokens?: number }>
-  | Readonly<{ type: 'turn-end'; sessionId: string; turnId: string; status: 'completed' | 'cancelled' | 'failed' | 'interrupted'; diagnostic?: Readonly<{ code: string; message: string }> }>;
+  | Readonly<{ type: 'usage'; sessionId: string; turnId: string; inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number }>
+  | Readonly<{ type: 'turn-end'; sessionId: string; turnId: string; status: 'completed' | 'cancelled' | 'failed' | 'interrupted'; finishReason: 'stop' | 'length' | 'cancelled' | 'error' | 'unknown'; diagnostic?: Readonly<{ code: string; message: string }> }>;
 
 export interface HarnessAgentTransport {
   readonly upstream: Readonly<{ tag: 'dsh-v0.1.0-rc.7'; commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' }>;
+  modelCatalog(): readonly Readonly<{ id: string; name: string; description: string; maxTokens: number }>[];
   configured(): Promise<boolean>;
   start(input: HarnessBridgeTurnInput, signal?: AbortSignal): AsyncIterable<HarnessBridgeEvent>;
   submitToolResult(toolCallId: string, result: Readonly<Record<string, unknown>>, signal?: AbortSignal): Promise<void>;
@@ -40,9 +45,10 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
   ];
   for (const fiber of fibers) await fiber;
   await context.plugin(ToolRuntime, { mode: 'native', maxParallelSubCalls: 1 });
+  const selectedModel = options.model ?? 'deepseek-v4-flash';
   const resolved = resolveAdapterOptions({
-    apiKeyEnv: 'HAIYUE_STUDIO_DEEPSEEK_SECRET', baseURL: options.baseURL, thinking: 'disabled', reasoningEffort: 'off',
-    maxTokens: 8_192, models: [{ id: options.model ?? 'deepseek-chat', contextWindow: 128_000, maxTokens: 8_192 }],
+    apiKeyEnv: 'HAIYUE_STUDIO_DEEPSEEK_SECRET', baseURL: options.baseURL, thinking: 'enabled', reasoningEffort: 'high',
+    maxTokens: 384_000,
   });
   const adapter = new DeepSeekAdapter({
     options: () => resolved,
@@ -56,17 +62,21 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
   });
   context.llm.registerAdapter(['deepseek-official'], adapter);
   await context.plugin(AgentLoop, { maxParallelToolCalls: 1, agents: [] });
-  return new PinnedHarnessTransport(context, options.model ?? 'deepseek-chat', options.resolveApiKey);
+  return new PinnedHarnessTransport(context, selectedModel, resolved.models, options.resolveApiKey);
 }
 
 class PinnedHarnessTransport implements HarnessAgentTransport {
   readonly upstream = Object.freeze({ tag: 'dsh-v0.1.0-rc.7' as const, commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' as const });
   private readonly handles = new Map<string, AgentHandle>();
+  private readonly selections = new Map<string, ModelSelectionRef>();
   private readonly streams = new Map<string, AsyncEventQueue<HarnessBridgeEvent>>();
   private readonly results = new Map<string, Deferred<Readonly<Record<string, unknown>>>>();
   private disposed = false;
-  constructor(private readonly context: Context, private readonly model: string, private readonly resolveApiKey: () => Promise<string | null>) {
+  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number }>[], private readonly resolveApiKey: () => Promise<string | null>) {
     context.on('session/event', (session, event) => this.onSessionEvent(String(session.id), event));
+  }
+  modelCatalog(): readonly Readonly<{ id: string; name: string; description: string; maxTokens: number }>[] {
+    return Object.freeze(this.models.map((entry) => Object.freeze({ id: entry.id, name: entry.name ?? entry.id, description: entry.description ?? entry.name ?? entry.id, maxTokens: entry.maxTokens ?? 384_000 })));
   }
   async configured(): Promise<boolean> { return Boolean(await this.resolveApiKey()); }
   async *start(input: HarnessBridgeTurnInput, signal?: AbortSignal): AsyncIterable<HarnessBridgeEvent> {
@@ -75,15 +85,20 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     const sessionId = input.sessionId ?? `harness-session-${randomUUID()}`;
     let handle = this.handles.get(sessionId);
     if (!handle) {
+      const selection: ModelSelectionRef = { current: { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) }, assembled: undefined };
       handle = await this.context.agents.create({
-        sessionId: SessionId(sessionId), agentOptions: { provider: 'deepseek-official', model: this.model, maxTokens: 8_192 }, signal,
+        sessionId: SessionId(sessionId), agentOptions: { provider: 'deepseek-official', model: input.model, maxTokens: input.maxTokens }, signal,
         setup: (agentContext) => {
+          installModelSelection(agentContext, selection);
           input.tools.forEach((tool, index) => agentContext.tools.register(this.toolDefinition(tool, index)));
         },
       });
       this.handles.set(sessionId, handle);
+      this.selections.set(sessionId, selection);
     }
     if (this.streams.has(sessionId)) throw new Error(`Harness session ${sessionId} already has an active turn.`);
+    const selection = this.selections.get(sessionId); if (selection) selection.current = { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) };
+    handle.agent.options.maxTokens = input.maxTokens;
     const queue = new AsyncEventQueue<HarnessBridgeEvent>(); this.streams.set(sessionId, queue);
     const abort = (): void => handle!.agent.cancel({ kind: 'user' });
     if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
@@ -95,7 +110,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     if (signal?.aborted) throw signal.reason; const pending = this.results.get(toolCallId); if (!pending) throw new Error(`Harness tool call ${toolCallId} is not pending.`); this.results.delete(toolCallId); pending.resolve(Object.freeze({ ...result }));
   }
   async cancel(sessionId: string): Promise<void> { this.handles.get(sessionId)?.agent.cancel({ kind: 'user' }); }
-  async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.')); this.results.clear(); this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.'))); this.streams.clear(); await this.context.fiber.dispose(); this.handles.clear(); }
+  async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.')); this.results.clear(); this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.'))); this.streams.clear(); await this.context.fiber.dispose(); this.handles.clear(); this.selections.clear(); }
   private toolDefinition(tool: HarnessBridgeTool, index: number): ToolDefinition {
     return {
       name: harnessToolName(tool.id, index), description: `${tool.description}\nStudio tool id: ${tool.id}`, parameters: tool.inputSchema as Record<string, unknown>,
@@ -117,7 +132,8 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     else if (event.type === 'turn/end') {
       const reason = event.data.reason; const status = reason.kind === 'completed' || reason.kind === 'max-tokens' ? 'completed' : reason.kind === 'aborted' ? 'cancelled' : reason.kind === 'interrupted' ? 'interrupted' : 'failed';
       const diagnostic = reason.kind === 'error' ? Object.freeze({ code: reason.error.code, message: reason.error.message }) : undefined;
-      queue.push(Object.freeze({ type: 'turn-end', sessionId, turnId: turnId(sessionId, event.data.turn), status, ...(diagnostic ? { diagnostic } : {}) })); queue.close();
+      const finishReason = reason.kind === 'completed' ? 'stop' : reason.kind === 'max-tokens' ? 'length' : reason.kind === 'aborted' ? 'cancelled' : reason.kind === 'error' ? 'error' : 'unknown';
+      queue.push(Object.freeze({ type: 'turn-end', sessionId, turnId: turnId(sessionId, event.data.turn), status, finishReason, ...(diagnostic ? { diagnostic } : {}) })); queue.close();
     }
   }
   private assertActive(): void { if (this.disposed) throw new Error('Harness transport is disposed.'); }

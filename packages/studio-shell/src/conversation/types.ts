@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, StableId, StudioDisposable } from '@haiyue/ai-studio-contracts';
+import type { JsonObject, JsonValue, M12ReasoningEffort, StableId, StudioDisposable, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 
 export const CONVERSATION_NODE_KINDS = Object.freeze([
   'text', 'progress', 'question', 'plan', 'tool-call', 'tool-result', 'approval', 'diagnostic', 'completion',
@@ -47,6 +47,18 @@ export interface ConversationBackendReadModel {
   readonly accountPlan?: string;
   readonly rateLimits: readonly Readonly<{ name: string; usedPercent?: number; resetsAt?: string }>[];
   readonly diagnostic?: Readonly<{ code: string; message: string }>;
+  readonly models: readonly Readonly<{ id: string; label: string; reasoningEfforts: readonly M12ReasoningEffort[]; defaultReasoningEffort: M12ReasoningEffort; maxOutputTokens: number; isDefault: boolean }>[];
+  readonly selectedModel: string | null;
+  readonly selectedReasoningEffort: M12ReasoningEffort | null;
+  readonly outputTokenLimit: number | null;
+}
+
+export interface ConversationTaskAccountingReadModel {
+  readonly taskId: StableId;
+  readonly budget: TaskBudgetV2;
+  readonly budgetStatus: 'within' | 'soft-exceeded' | 'hard-exceeded';
+  readonly usage: Readonly<{ inputTokens: number | null; cachedInputTokens: number | null; outputTokens: number | null; reasoningTokens: number | null; toolInputBytes: number; toolOutputBytes: number; wallTimeMs: number }>;
+  readonly cost: Readonly<{ status: 'actual' | 'estimated' | 'unknown'; amountMicros: number | null; currency: string | null; cacheSavingMicros: number | null; explanation: string; final: boolean }>;
 }
 
 export interface ConversationReadModel {
@@ -56,6 +68,7 @@ export interface ConversationReadModel {
   readonly busy: boolean;
   readonly backendId: StableId | null;
   readonly backends: readonly ConversationBackendReadModel[];
+  readonly taskAccounting: ConversationTaskAccountingReadModel | null;
   readonly nodes: readonly ConversationNodeReadModel[];
   readonly pendingInteraction: PendingConversationInteraction | null;
   readonly composerBlockedReason: string | null;
@@ -67,6 +80,7 @@ export interface ConversationReplaySnapshot {
   readonly busy: boolean;
   readonly backendId: StableId | null;
   readonly backends: readonly unknown[];
+  readonly taskAccounting?: unknown;
   readonly events: readonly ConversationProjectionEvent[];
 }
 
@@ -81,6 +95,7 @@ export type ConversationIntent =
   | Readonly<{ type: 'backend/select'; backendId: StableId }>
   | Readonly<{ type: 'backend/authenticate'; backendId: StableId }>
   | Readonly<{ type: 'backend/logout'; backendId: StableId }>
+  | Readonly<{ type: 'agent/configure'; backendId: StableId; model: string; reasoningEffort: M12ReasoningEffort; outputTokenLimit: number; budget: TaskBudgetV2 }>
   | Readonly<{ type: 'logs/export-bug-bundle'; query: LogQueryIntent }>;
 
 export interface ConversationUiPort {
@@ -91,7 +106,7 @@ export interface ConversationUiPort {
 
 export type ConversationUiEvent =
   | Readonly<{ type: 'conversation/event'; event: ConversationProjectionEvent }>
-  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[] }>;
+  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; taskAccounting?: unknown }>;
 
 export interface LogQueryIntent {
   readonly severity?: readonly ('debug' | 'info' | 'warning' | 'error')[];

@@ -6,7 +6,7 @@ import Ajv from 'ajv';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const schemaDir = path.join(root, 'config', 'contracts', 'schemas');
-const casesPath = path.join(root, 'config', 'contracts', 'fixtures', 'contract-cases.json');
+const fixtureDir = path.join(root, 'config', 'contracts', 'fixtures');
 const ajv = new Ajv({ allErrors: true, strict: true });
 
 for (const name of (await readdir(schemaDir)).filter((entry) => entry.endsWith('.schema.json')).sort()) {
@@ -31,24 +31,38 @@ function findForbiddenSecretKey(value, currentPath = '$') {
   return null;
 }
 
-const cases = JSON.parse(await readFile(casesPath, 'utf8'));
-for (const fixture of cases.valid) {
-  const validate = ajv.getSchema(fixture.schemaId);
-  assert.ok(validate, `missing schema ${fixture.schemaId}`);
-  assert.equal(validate(fixture.value), true, `${fixture.schemaId}: ${ajv.errorsText(validate.errors)}`);
-  assert.equal(findForbiddenSecretKey(fixture.value), null, `${fixture.schemaId} contains a forbidden secret key`);
-  assert.deepEqual(JSON.parse(JSON.stringify(fixture.value)), fixture.value, `${fixture.schemaId} does not round-trip`);
+const fixtureFiles = (await readdir(fixtureDir)).filter((entry) => entry.endsWith('contract-cases.json')).sort();
+const caseSets = await Promise.all(fixtureFiles.map(async (name) => JSON.parse(await readFile(path.join(fixtureDir, name), 'utf8'))));
+const validFixtures = caseSets.flatMap((cases) => cases.valid ?? []);
+const invalidFixtures = caseSets.flatMap((cases) => cases.invalid ?? []);
+
+function materializeFixture(fixture) {
+  if (fixture.fixtureFactory === undefined) return fixture.value;
+  if (fixture.fixtureFactory === 'oversized-task-request') {
+    return { ...fixture.value, request: 'x'.repeat(32_769) };
+  }
+  throw new Error(`unknown fixture factory ${fixture.fixtureFactory}`);
 }
 
-for (const fixture of cases.invalid) {
+for (const fixture of validFixtures) {
   const validate = ajv.getSchema(fixture.schemaId);
   assert.ok(validate, `missing schema ${fixture.schemaId}`);
-  const schemaValid = validate(fixture.value);
+  const value = materializeFixture(fixture);
+  assert.equal(validate(value), true, `${fixture.schemaId}: ${ajv.errorsText(validate.errors)}`);
+  assert.equal(findForbiddenSecretKey(value), null, `${fixture.schemaId} contains a forbidden secret key`);
+  assert.deepEqual(JSON.parse(JSON.stringify(value)), value, `${fixture.schemaId} does not round-trip`);
+}
+
+for (const fixture of invalidFixtures) {
+  const validate = ajv.getSchema(fixture.schemaId);
+  assert.ok(validate, `missing schema ${fixture.schemaId}`);
+  const value = materializeFixture(fixture);
+  const schemaValid = validate(value);
   if (fixture.invalidReason === 'forbidden-secret-key') {
-    assert.ok(findForbiddenSecretKey(fixture.value), `${fixture.name} did not expose a forbidden key`);
+    assert.ok(findForbiddenSecretKey(value), `${fixture.name} did not expose a forbidden key`);
   } else {
     assert.equal(schemaValid, false, `${fixture.name} unexpectedly passed schema validation`);
   }
 }
 
-console.log(`[contracts] schemas=${ajv.schemas ? Object.keys(ajv.schemas).length : 'loaded'} valid=${cases.valid.length} invalid=${cases.invalid.length}`);
+console.log(`[contracts] schemas=${ajv.schemas ? Object.keys(ajv.schemas).length : 'loaded'} fixtureFiles=${fixtureFiles.length} valid=${validFixtures.length} invalid=${invalidFixtures.length}`);

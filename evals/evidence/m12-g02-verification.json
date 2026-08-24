@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g02-cross-genre-evaluation-suite",
+  "suiteId": "m12.game-agent-evaluation",
+  "suiteVersion": "1.0.0",
+  "caseCount": 7,
+  "genres": ["snake", "match-3", "falling-blocks", "jigsaw", "platformer", "racing", "shooter"],
+  "requestVariantsPerCase": 2,
+  "acceptanceCount": 35,
+  "seededDefectCount": 14,
+  "enumeratedTaskCount": 56,
+  "referenceFixture": { "passed": 7, "failed": 0 },
+  "blankFixture": { "passed": 0, "failed": 7 },
+  "seededDefectsMatchedExpectedAcceptanceIds": 14,
+  "deterministicReportDigest": "sha256:e5663c1bad15de69a72079a664a5e3ded1be3433fa2084a769722aafbfe731d0",
+  "providerOutputsIncluded": false,
+  "checks": [
+    "npm run m12:g02:check",
+    "npm run check",
+    "node milestones/milestones/m12-ai-native-game-studio-general-authoring/testsets/verify-game-agent-evaluation-v1.mjs"
+  ]
+}

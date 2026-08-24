@@ -1,5 +1,7 @@
 # M06 capability ownership matrix
 
+M12 对 Engine/Editor 与 AIStudio 接入状态的逐项 census 位于 [`m12-capability-census.md`](./m12-capability-census.md)，机器真值为 [`config/contracts/m12-capability-census.json`](../../config/contracts/m12-capability-census.json)。本页的 M06 capability 只描述 POC 插件激活面。
+
 | Capability | Owner plugin/package | Consumers | Durable facts | Fail-closed condition |
 | --- | --- | --- | --- | --- |
 | root lifecycle/effects | `harness-bridge` | all plugins | activate/rollback/disable/dispose | owner relation unknown |

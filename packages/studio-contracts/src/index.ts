@@ -1,6 +1,29 @@
 export type JsonPrimitive = null | boolean | number | string;
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 export type JsonObject = Readonly<Record<string, JsonValue>>;
+
+export type {
+  AgentTurnConfigV2,
+  BackendCapabilityNegotiationV2,
+  ComponentDefinitionV2,
+  ContextArtifactV2,
+  CostRecordV2,
+  EvaluationResultV2,
+  GameComponentInstanceV2,
+  GameDocumentV2,
+  M12CapabilityId,
+  M12Digest,
+  M12JsonValue,
+  M12ReasoningEffort,
+  M12SchemaVersion,
+  M12StableId,
+  ObservationArtifactV2,
+  PricingCatalogV1,
+  PricingEntryV1,
+  TaskBudgetV2,
+  TaskSpecV2,
+  UsageRecordV2,
+} from './m12.js';
 export type StableId = string & { readonly __stableId: unique symbol };
 
 export const STUDIO_PLUGIN_API_VERSION = '1.0' as const;

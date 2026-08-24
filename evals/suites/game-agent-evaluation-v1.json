@@ -1,0 +1,420 @@
+{
+  "$schema": "./game-agent-evaluation-v1.schema.json",
+  "schemaVersion": 1,
+  "suiteId": "m12.game-agent-evaluation",
+  "version": "1.0.0",
+  "title": "AI-native game authoring cross-genre evaluation",
+  "oracleVisibility": "runner-only",
+  "sharedEnvironment": {
+    "projectTemplate": "blank-game-document-v2",
+    "viewport": { "width": 1280, "height": 720 },
+    "simulationHz": 60,
+    "seed": 20260824,
+    "assetPolicy": "builtin-or-procedural-only",
+    "modes": ["cold-create", "warm-repair", "seeded-defect"]
+  },
+  "sharedBudgets": {
+    "maxAgentTurns": 8,
+    "maxToolCalls": 120,
+    "maxRepairIterations": 3,
+    "maxWallTimeMs": 900000,
+    "maxObservationBytes": 16777216,
+    "costPolicy": "record-only"
+  },
+  "cases": [
+    {
+      "id": "game-eval:snake:v1",
+      "genre": "snake",
+      "title": "可重玩的贪吃蛇",
+      "request": "制作一个完整可玩的贪吃蛇游戏。玩家用方向键控制移动，吃到食物后身体增长并得分，撞到边界或自己时结束，并能一键重新开始。",
+      "requestVariants": [
+        {
+          "id": "concise",
+          "request": "做一款节奏明快的贪吃蛇：方向键移动、吃食物变长、显示分数、碰撞失败，并提供清晰的重新开始入口。"
+        },
+        {
+          "id": "experience-first",
+          "request": "我想要一个开箱即玩的贪吃蛇小游戏，画面上要容易区分蛇头、身体与食物，操作后立刻有反馈，失败后无需刷新页面即可再来一局。"
+        }
+      ],
+      "agentVisibleConstraints": [
+        "从空白项目开始，不使用外部下载素材。",
+        "游戏必须在编辑器 Play 模式内完成全部交互和重新开始。",
+        "键盘输入、得分和游戏状态需要可被编辑器观察。"
+      ],
+      "requiredCapabilities": [
+        "input.keyboard",
+        "simulation.fixed-step",
+        "simulation.replay",
+        "play.inspect",
+        "play.capture"
+      ],
+      "inputReplay": {
+        "driver": "fixed",
+        "steps": [
+          { "id": "start", "at": "play-ready", "action": "press", "control": "ArrowRight", "durationTicks": 1 },
+          { "id": "turn-down", "at": "tick:90", "action": "press", "control": "ArrowDown", "durationTicks": 1 },
+          { "id": "turn-left", "at": "tick:150", "action": "press", "control": "ArrowLeft", "durationTicks": 1 },
+          { "id": "restart", "at": "after:game-over", "action": "press", "control": "KeyR", "durationTicks": 1 }
+        ]
+      },
+      "acceptance": {
+        "functional": [
+          { "id": "snake.direction-and-step", "assertion": "方向输入会改变蛇的移动方向，且不会允许立即反向穿过自身。", "evidence": ["state", "input-replay"] },
+          { "id": "snake.food-growth-score", "assertion": "蛇吃到食物后长度和分数同步增加，并在可玩区域生成下一份食物。", "evidence": ["state", "event-trace"] },
+          { "id": "snake.collision-restart", "assertion": "边界或自身碰撞进入失败状态，重新开始会恢复初始长度、分数和运动。", "evidence": ["state", "lifecycle", "input-replay"] }
+        ],
+        "visual": [
+          { "id": "snake.roles-legible", "assertion": "蛇头、蛇身、食物、边界、分数和失败状态在截图中清晰可辨且不重叠遮挡。", "evidence": ["screenshot", "state"] }
+        ],
+        "robustness": [
+          { "id": "snake.long-run-stable", "assertion": "连续运行五分钟或多次重新开始后没有未处理异常、重复监听器或明显速度漂移。", "evidence": ["performance", "lifecycle", "log"] }
+        ]
+      },
+      "failureSeeds": [
+        { "id": "snake-no-self-collision", "description": "关闭蛇身自碰撞检测，验证行为 oracle 能发现核心规则缺失。", "expectedFailedAcceptanceIds": ["snake.collision-restart"] },
+        { "id": "snake-hidden-score", "description": "把分数文字移出 viewport，验证截图与状态证据能够共同定位问题。", "expectedFailedAcceptanceIds": ["snake.roles-legible"] }
+      ]
+    },
+    {
+      "id": "game-eval:match-3:v1",
+      "genre": "match-3",
+      "title": "带连锁结算的消消乐",
+      "request": "制作一个可玩的消消乐关卡。玩家交换相邻方块，三个及以上同类连线后消除，方块下落并补充，连续消除会累计分数；无效交换应恢复，并可重新开始。",
+      "requestVariants": [
+        {
+          "id": "goal-oriented",
+          "request": "做一个有明确分数目标的消消乐小游戏：点击或拖动交换相邻元素，匹配后消除和补位，达到目标显示胜利，步数用尽显示失败。"
+        },
+        {
+          "id": "feedback-oriented",
+          "request": "创建一关手感清楚的三消游戏，合法交换要有消除、下落和连锁反馈，非法交换要弹回；玩家随时看得到步数、分数和结算状态。"
+        }
+      ],
+      "agentVisibleConstraints": [
+        "棋盘必须由固定 seed 生成，初始局面不能自动存在三连。",
+        "鼠标或触摸式指针交互必须在 Play 模式中可复现。",
+        "不使用外部下载素材，使用内置图形或程序化视觉。"
+      ],
+      "requiredCapabilities": [
+        "input.pointer",
+        "input.inject",
+        "interaction.pointer",
+        "simulation.fixed-step",
+        "simulation.replay",
+        "play.inspect",
+        "play.capture"
+      ],
+      "inputReplay": {
+        "driver": "fixed",
+        "steps": [
+          { "id": "invalid-swap", "at": "play-ready", "action": "scripted-swap", "parameters": { "kind": "non-matching-adjacent" } },
+          { "id": "valid-swap", "at": "after:invalid-swap-settled", "action": "scripted-swap", "parameters": { "kind": "creates-match", "minimumRun": 3 } },
+          { "id": "repeat-valid", "at": "after:board-settled", "action": "scripted-repeat-valid-swaps", "parameters": { "count": 5 } },
+          { "id": "restart", "at": "after:terminal-state", "action": "press", "control": "KeyR", "durationTicks": 1 }
+        ]
+      },
+      "acceptance": {
+        "functional": [
+          { "id": "match3.invalid-swap-restores", "assertion": "没有形成匹配的相邻交换会回到原位，且不消耗错误的分数或破坏棋盘。", "evidence": ["state", "input-replay", "event-trace"] },
+          { "id": "match3.clear-drop-refill", "assertion": "三连及以上会被识别和清除，上方元素按重力下落，空位被补齐且最终棋盘稳定。", "evidence": ["state", "event-trace"] },
+          { "id": "match3.score-terminal-restart", "assertion": "消除与连锁正确计分，目标或步数触发结算，重新开始恢复完整初始状态。", "evidence": ["state", "lifecycle"] }
+        ],
+        "visual": [
+          { "id": "match3.board-feedback-legible", "assertion": "棋盘格、不同元素、选中态、交换/消除反馈、步数、分数和结算层均清晰可辨。", "evidence": ["screenshot", "state"] }
+        ],
+        "robustness": [
+          { "id": "match3.settle-no-deadlock", "assertion": "多次连锁与快速输入后棋盘仍会进入稳定可操作状态，不残留锁定或悬空元素。", "evidence": ["state", "performance", "log"] }
+        ]
+      },
+      "failureSeeds": [
+        { "id": "match3-skip-refill", "description": "消除后不补充空位，验证棋盘完整性和稳定状态断言。", "expectedFailedAcceptanceIds": ["match3.clear-drop-refill"] },
+        { "id": "match3-input-lock", "description": "在首次消除后保留输入锁，验证连续可玩性检测。", "expectedFailedAcceptanceIds": ["match3.settle-no-deadlock"] }
+      ]
+    },
+    {
+      "id": "game-eval:falling-blocks:v1",
+      "genre": "falling-blocks",
+      "title": "俄罗斯方块式落块游戏",
+      "request": "制作一个俄罗斯方块式落块游戏。方块持续下落，玩家可左右移动、旋转、软降和硬降；完整横行会消除并得分，速度随进度提升，堆叠到顶部时结束并可重开。",
+      "requestVariants": [
+        {
+          "id": "classic",
+          "request": "做一款经典落块消行游戏，包含下一块预览、分数与等级，支持键盘移动旋转和快速落下，失败后能立即重新开始。"
+        },
+        {
+          "id": "systems-first",
+          "request": "创建一个完整的下落方块玩法：七种基本形状按确定性序列出现，碰撞后锁定，满行清除，等级越高下落越快，并正确处理顶部失败。"
+        }
+      ],
+      "agentVisibleConstraints": [
+        "方块序列使用固定 seed，保证 Play replay 可重复。",
+        "输入至少覆盖左右移动、旋转、软降、硬降和重新开始。",
+        "游戏逻辑使用固定 simulation tick，不依赖墙钟计时。"
+      ],
+      "requiredCapabilities": [
+        "input.keyboard",
+        "simulation.fixed-step",
+        "simulation.replay",
+        "play.inspect",
+        "play.capture"
+      ],
+      "inputReplay": {
+        "driver": "fixed",
+        "steps": [
+          { "id": "move-rotate", "at": "play-ready", "action": "sequence", "parameters": { "controls": ["ArrowLeft", "ArrowLeft", "ArrowUp"] } },
+          { "id": "hard-drop", "at": "tick:30", "action": "press", "control": "Space", "durationTicks": 1 },
+          { "id": "build-line", "at": "after:piece-locked", "action": "scripted-place-pieces", "parameters": { "goal": "clear-at-least-one-line" } },
+          { "id": "restart", "at": "after:game-over", "action": "press", "control": "KeyR", "durationTicks": 1 }
+        ]
+      },
+      "acceptance": {
+        "functional": [
+          { "id": "blocks.transform-collision", "assertion": "移动和旋转遵守棋盘边界与已锁定方块碰撞，不产生越界或重叠占格。", "evidence": ["state", "input-replay"] },
+          { "id": "blocks.lock-clear-score", "assertion": "落块接触后锁定，完整横行同时清除，棋盘压缩且分数按清除行数增加。", "evidence": ["state", "event-trace"] },
+          { "id": "blocks.progression-gameover", "assertion": "进度会提升等级和下落速度，顶部堆满后停止生成并进入可重新开始的失败状态。", "evidence": ["state", "lifecycle"] }
+        ],
+        "visual": [
+          { "id": "blocks.playfield-readable", "assertion": "活动方块、锁定方块、棋盘边界、下一块、分数、等级和失败状态在截图中清楚且布局稳定。", "evidence": ["screenshot", "state"] }
+        ],
+        "robustness": [
+          { "id": "blocks.rapid-input-stable", "assertion": "快速交替旋转、移动与硬降不会复制方块、穿透棋盘或产生未处理异常。", "evidence": ["state", "performance", "log"] }
+        ]
+      },
+      "failureSeeds": [
+        { "id": "blocks-no-wall-kick-boundary", "description": "允许旋转后的方块越过棋盘边界，验证占格和碰撞断言。", "expectedFailedAcceptanceIds": ["blocks.transform-collision"] },
+        { "id": "blocks-line-not-compressed", "description": "清行后不下移上方方块，验证行清理后的棋盘状态。", "expectedFailedAcceptanceIds": ["blocks.lock-clear-score"] }
+      ]
+    },
+    {
+      "id": "game-eval:jigsaw:v1",
+      "genre": "jigsaw",
+      "title": "拖拽吸附拼图",
+      "request": "制作一个十二块的拼图游戏。拼图片散布在桌面上，玩家拖动到正确位置附近时自动吸附，错误位置不会锁定；完成后显示用时和成功反馈，并可打乱后重玩。",
+      "requestVariants": [
+        {
+          "id": "casual",
+          "request": "做一个轻量拼图小游戏，所有拼图片一开始都能看到，拖到目标附近会自然吸附，拼完有庆祝效果，也可以随时重新洗牌。"
+        },
+        {
+          "id": "interaction-first",
+          "request": "创建一个 3×4 拼图：支持鼠标拖拽、置顶当前拼图片、错误释放后保留可继续操作的位置，正确放置后锁定，全部完成后给出结果。"
+        }
+      ],
+      "agentVisibleConstraints": [
+        "使用内置或程序化图案，不下载外部图片。",
+        "打乱过程使用固定 seed，并保证所有拼图片仍在 viewport 内。",
+        "拖拽、释放、吸附和重新洗牌均须在 Play 模式完成。"
+      ],
+      "requiredCapabilities": [
+        "input.pointer",
+        "input.inject",
+        "interaction.pointer",
+        "simulation.replay",
+        "play.inspect",
+        "play.capture"
+      ],
+      "inputReplay": {
+        "driver": "fixed",
+        "steps": [
+          { "id": "wrong-drop", "at": "play-ready", "action": "scripted-drag-piece", "parameters": { "destination": "wrong-slot", "release": true } },
+          { "id": "near-correct", "at": "after:wrong-drop", "action": "scripted-drag-piece", "parameters": { "destination": "near-correct-slot", "release": true } },
+          { "id": "complete", "at": "after:first-piece-locked", "action": "scripted-complete-jigsaw", "parameters": { "order": "deterministic" } },
+          { "id": "reshuffle", "at": "after:complete", "action": "press", "control": "KeyR", "durationTicks": 1 }
+        ]
+      },
+      "acceptance": {
+        "functional": [
+          { "id": "jigsaw.drag-layer-release", "assertion": "拖拽中的拼图片跟随指针并显示在其他拼图片上方，释放后状态和位置一致。", "evidence": ["state", "input-replay", "screenshot"] },
+          { "id": "jigsaw.snap-only-correct", "assertion": "只有正确拼图片在目标阈值内才吸附并锁定，错误拼图片或错误目标不会误锁。", "evidence": ["state", "event-trace"] },
+          { "id": "jigsaw.complete-reshuffle", "assertion": "十二块全部正确放置后显示完成与用时，重新洗牌恢复十二块可拖动状态。", "evidence": ["state", "lifecycle"] }
+        ],
+        "visual": [
+          { "id": "jigsaw.pieces-and-target-legible", "assertion": "拼图片边界、图案连续性、目标区域、锁定反馈和完成层清晰可辨，所有可操作块均在画面内。", "evidence": ["screenshot", "state"] }
+        ],
+        "robustness": [
+          { "id": "jigsaw.pointer-cancel-safe", "assertion": "拖拽过程中指针取消或移出 viewport 不会丢失拼图片、永久置顶或锁死后续输入。", "evidence": ["state", "input-replay", "log"] }
+        ]
+      },
+      "failureSeeds": [
+        { "id": "jigsaw-snap-any-piece", "description": "任意拼图片靠近任意空槽都可锁定，验证正确映射约束。", "expectedFailedAcceptanceIds": ["jigsaw.snap-only-correct"] },
+        { "id": "jigsaw-piece-offscreen", "description": "把一块拼图片的初始位置移出 viewport，验证可完成性与视觉边界。", "expectedFailedAcceptanceIds": ["jigsaw.pieces-and-target-legible"] }
+      ]
+    },
+    {
+      "id": "game-eval:platformer:v1",
+      "genre": "platformer",
+      "title": "横版平台跳跃短关卡",
+      "request": "制作一个横版平台跳跃短关卡。玩家可左右移动和跳跃，相机跟随前进；途中收集金币、躲避危险并跨越平台，到达终点胜利，掉落或受伤后从检查点恢复。",
+      "requestVariants": [
+        {
+          "id": "level-first",
+          "request": "设计一关两分钟内可通关的平台跳跃游戏，包含不同高度的平台、金币、尖刺、一个检查点和终点，角色移动与跳跃手感稳定。"
+        },
+        {
+          "id": "camera-first",
+          "request": "做一个从左向右推进的 2D 平台游戏，镜头平滑跟随但不抖动，玩家能跑跳、收集物品、受伤重生，抵达出口后显示统计并可重玩。"
+        }
+      ],
+      "agentVisibleConstraints": [
+        "关卡从左向右可完成，固定输入 replay 能抵达至少一个金币、危险物和检查点。",
+        "使用固定时间步物理，角色不能穿透静态平台。",
+        "相机、角色状态、检查点和收集进度需要可观察。"
+      ],
+      "requiredCapabilities": [
+        "input.keyboard",
+        "input.inject",
+        "simulation.fixed-step",
+        "simulation.replay",
+        "physics.2d",
+        "camera.follow",
+        "play.inspect",
+        "play.capture"
+      ],
+      "inputReplay": {
+        "driver": "fixed",
+        "steps": [
+          { "id": "run", "at": "play-ready", "action": "hold", "control": "ArrowRight", "durationTicks": 180 },
+          { "id": "jump", "at": "tick:170", "action": "press", "control": "Space", "durationTicks": 8 },
+          { "id": "hit-hazard", "at": "tick:300", "action": "scripted-steer", "parameters": { "goal": "touch-hazard-once" } },
+          { "id": "finish", "at": "after:respawn", "action": "scripted-complete-level", "parameters": { "collectAtLeast": 1 } }
+        ]
+      },
+      "acceptance": {
+        "functional": [
+          { "id": "platformer.motion-collision", "assertion": "角色左右移动、起跳、下落和落地符合固定步物理，不能穿过或悬停于平台。", "evidence": ["state", "input-replay", "event-trace"] },
+          { "id": "platformer.collect-hazard-checkpoint", "assertion": "金币只计数一次，危险会触发受伤或死亡，随后从最近已激活检查点恢复。", "evidence": ["state", "event-trace", "lifecycle"] },
+          { "id": "platformer.finish-restart", "assertion": "抵达终点进入胜利状态并显示统计，重新开始会恢复关卡、角色和收集物。", "evidence": ["state", "lifecycle"] }
+        ],
+        "visual": [
+          { "id": "platformer.camera-composition", "assertion": "相机平滑跟随且受关卡边界约束，角色、前方落点、危险、金币和终点在关键截图中可读。", "evidence": ["screenshot", "event-trace"] }
+        ],
+        "robustness": [
+          { "id": "platformer.respawn-stable", "assertion": "连续五次掉落或受伤重生后没有重复角色、重复计分、相机瞬移到场景外或运行时异常。", "evidence": ["state", "performance", "log"] }
+        ]
+      },
+      "failureSeeds": [
+        { "id": "platformer-camera-unbounded", "description": "移除相机边界约束，验证画面构图和关卡边缘行为。", "expectedFailedAcceptanceIds": ["platformer.camera-composition"] },
+        { "id": "platformer-respawn-origin", "description": "死亡后总是回到起点而忽略已激活检查点，验证恢复规则。", "expectedFailedAcceptanceIds": ["platformer.collect-hazard-checkpoint"] }
+      ]
+    },
+    {
+      "id": "game-eval:racing:v1",
+      "genre": "racing",
+      "title": "第三人称短赛道竞速",
+      "request": "制作一个第三人称短赛道竞速游戏。玩家可加速、刹车和转向，相机平滑跟随车辆；按顺序通过检查点完成一圈，显示速度和用时，碰撞有反馈，冲线后可重新比赛。",
+      "requestVariants": [
+        {
+          "id": "time-trial",
+          "request": "创建一个单人计时赛：一辆车、一条闭环短赛道、顺序检查点和终点计时，方向键驾驶，越出赛道会减速，完成后展示成绩。"
+        },
+        {
+          "id": "feel-first",
+          "request": "做一款容易上手的短程赛车，车辆要有加速、转向、制动和碰撞反馈，追尾镜头稳定看清前路，漏过检查点不能直接算完赛。"
+        }
+      ],
+      "agentVisibleConstraints": [
+        "赛道、车辆和环境使用内置几何或程序化素材。",
+        "赛道是一圈可完成的闭环，检查点顺序和车辆进度可观察。",
+        "车辆模拟与计时使用固定 simulation tick，可由输入 replay 驾驶。"
+      ],
+      "requiredCapabilities": [
+        "input.keyboard",
+        "input.inject",
+        "simulation.fixed-step",
+        "simulation.replay",
+        "physics.3d",
+        "camera.follow",
+        "postprocess",
+        "play.inspect",
+        "play.capture"
+      ],
+      "inputReplay": {
+        "driver": "fixed",
+        "steps": [
+          { "id": "launch", "at": "play-ready", "action": "hold", "control": "ArrowUp", "durationTicks": 180 },
+          { "id": "steer", "at": "tick:180", "action": "scripted-follow-centerline", "parameters": { "durationTicks": 300 } },
+          { "id": "collision", "at": "tick:480", "action": "scripted-steer", "parameters": { "goal": "touch-barrier-once" } },
+          { "id": "lap", "at": "after:collision-recovered", "action": "scripted-complete-lap", "parameters": { "respectCheckpointOrder": true } }
+        ]
+      },
+      "acceptance": {
+        "functional": [
+          { "id": "racing.vehicle-controls", "assertion": "加速、刹车和转向会连续改变车辆速度与朝向，松开输入后状态保持物理一致。", "evidence": ["state", "input-replay", "event-trace"] },
+          { "id": "racing.checkpoint-order-lap", "assertion": "只有按顺序通过全部检查点再越过终点才完成一圈，抄近路或漏点不计成绩。", "evidence": ["state", "event-trace"] },
+          { "id": "racing.collision-finish-restart", "assertion": "碰撞产生减速或视觉反馈且不穿透边界，完赛停止计时并允许完整重新开始。", "evidence": ["state", "lifecycle", "screenshot"] }
+        ],
+        "visual": [
+          { "id": "racing.camera-road-legibility", "assertion": "跟随相机平滑且不穿模，车辆、前方道路、边界、检查点、速度和用时在驾驶截图中清晰可见。", "evidence": ["screenshot", "event-trace"] }
+        ],
+        "robustness": [
+          { "id": "racing.offtrack-recovery", "assertion": "车辆偏离赛道、低速碰撞或翻转后能够继续或重置，不进入无限加速、NaN 或不可控状态。", "evidence": ["state", "performance", "log"] }
+        ]
+      },
+      "failureSeeds": [
+        { "id": "racing-ignore-checkpoint-order", "description": "允许直接穿过终点完成比赛，验证检查点顺序 oracle。", "expectedFailedAcceptanceIds": ["racing.checkpoint-order-lap"] },
+        { "id": "racing-camera-parent-jitter", "description": "让相机直接继承车辆全部瞬时旋转，验证跟随稳定性与道路可读性。", "expectedFailedAcceptanceIds": ["racing.camera-road-legibility"] }
+      ]
+    },
+    {
+      "id": "game-eval:shooter:v1",
+      "genre": "shooter",
+      "title": "俯视角生存射击",
+      "request": "制作一个俯视角生存射击游戏。玩家移动、瞄准并射击接近的敌人，命中造成伤害和反馈；坚持一段时间或击败目标数量获胜，生命耗尽失败，并能重新开始。",
+      "requestVariants": [
+        {
+          "id": "arena",
+          "request": "做一个小型竞技场射击关卡：WASD 移动、鼠标瞄准点击射击，敌人会追踪玩家，画面显示生命、弹药或射击节奏、击败数和结算。"
+        },
+        {
+          "id": "combat-feedback",
+          "request": "创建一款短局俯视射击游戏，敌我双方有明确命中、受伤和死亡反馈，子弹不能穿过场景障碍，玩家获胜或失败后可以立即再玩。"
+        }
+      ],
+      "agentVisibleConstraints": [
+        "竞技场、角色、敌人、投射物和效果使用内置几何或程序化素材。",
+        "敌人生成与行为使用固定 seed，输入 replay 可重复获得同类战斗结果。",
+        "战斗状态、命中事件、生命和击败数需要可观察。"
+      ],
+      "requiredCapabilities": [
+        "input.keyboard",
+        "input.pointer",
+        "input.inject",
+        "simulation.fixed-step",
+        "simulation.replay",
+        "physics.raycast",
+        "particles.2d",
+        "camera.follow",
+        "play.inspect",
+        "play.capture"
+      ],
+      "inputReplay": {
+        "driver": "fixed",
+        "steps": [
+          { "id": "move", "at": "play-ready", "action": "hold", "control": "KeyD", "durationTicks": 90 },
+          { "id": "aim-fire", "at": "tick:30", "action": "scripted-aim-and-fire", "parameters": { "target": "nearest-visible-enemy", "shots": 8 } },
+          { "id": "test-cover", "at": "after:first-kill", "action": "scripted-fire-at-covered-enemy", "parameters": { "shots": 3 } },
+          { "id": "finish", "at": "after:cover-test", "action": "scripted-resolve-combat", "parameters": { "goal": "reach-terminal-state" } },
+          { "id": "restart", "at": "after:terminal-state", "action": "press", "control": "KeyR", "durationTicks": 1 }
+        ]
+      },
+      "acceptance": {
+        "functional": [
+          { "id": "shooter.move-aim-fire", "assertion": "玩家可独立移动和瞄准，射击方向与准星一致，并受明确射速或弹药规则约束。", "evidence": ["state", "input-replay", "event-trace"] },
+          { "id": "shooter.hit-damage-cover", "assertion": "有效命中扣除正确生命并可击败敌人，场景障碍阻挡子弹或射线且不会重复结算一次命中。", "evidence": ["state", "event-trace"] },
+          { "id": "shooter.terminal-restart", "assertion": "击败目标或存活达标进入胜利，玩家生命耗尽进入失败，两种状态都能重新开始且清空旧投射物。", "evidence": ["state", "lifecycle"] }
+        ],
+        "visual": [
+          { "id": "shooter.combat-legibility", "assertion": "玩家、敌人、瞄准方向、投射物、障碍、命中效果、生命和击败数在战斗截图中清楚可分。", "evidence": ["screenshot", "event-trace"] }
+        ],
+        "robustness": [
+          { "id": "shooter.combat-load-stable", "assertion": "高频射击和多敌人同时存在时帧推进稳定，终止或重开后不残留投射物、敌人监听器或未处理异常。", "evidence": ["performance", "lifecycle", "log"] }
+        ]
+      },
+      "failureSeeds": [
+        { "id": "shooter-ignore-cover", "description": "让射击穿过障碍继续伤害敌人，验证遮挡和命中规则。", "expectedFailedAcceptanceIds": ["shooter.hit-damage-cover"] },
+        { "id": "shooter-leak-projectiles", "description": "重新开始时保留上一局投射物与更新监听器，验证生命周期清理。", "expectedFailedAcceptanceIds": ["shooter.terminal-restart", "shooter.combat-load-stable"] }
+      ]
+    }
+  ]
+}

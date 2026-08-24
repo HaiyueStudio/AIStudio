@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "m12.game-agent-evaluation",
+  "suiteVersion": "1.0.0",
+  "fixtureLicense": "CC0-1.0",
+  "assetPolicy": "procedural-metadata-only",
+  "description": "Synthetic behavior-level evidence for runner/oracle conformance. It contains no provider output, generated game code, image bytes, or implementation-specific entity names.",
+  "cases": [
+    {
+      "caseId": "game-eval:snake:v1",
+      "observations": [
+        { "type": "state", "tick": 600, "signals": { "movement.directionChanged": true, "movement.immediateReverseBlocked": true, "snake.lengthDelta": 1, "score.delta": 1, "terminal.collisionGameOver": true, "hud.scorePresent": true } },
+        { "type": "event-trace", "tick": 600, "signals": { "food.respawned": true } },
+        { "type": "input-replay", "tick": 600, "signals": { "replay.deterministic": true, "restart.inputAccepted": true } },
+        { "type": "screenshot", "tick": 600, "signals": { "visual.rolesDistinct": true, "visual.hudReadable": true }, "media": { "mediaType": "image/png", "digest": "sha256:1000000000000000000000000000000000000000000000000000000000000001", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "performance", "tick": 18000, "signals": { "simulation.speedDriftRatio": 0.001 } },
+        { "type": "lifecycle", "tick": 18000, "signals": { "restart.initialStateRestored": true, "residue.count": 0 } },
+        { "type": "log", "tick": 18000, "signals": { "runtime.unhandledErrors": 0 } }
+      ],
+      "failureSeeds": [
+        { "id": "snake-no-self-collision", "overrides": [{ "evidenceType": "state", "signal": "terminal.collisionGameOver", "value": false }] },
+        { "id": "snake-hidden-score", "overrides": [{ "evidenceType": "screenshot", "signal": "visual.hudReadable", "value": false }] }
+      ]
+    },
+    {
+      "caseId": "game-eval:match-3:v1",
+      "observations": [
+        { "type": "state", "tick": 900, "signals": { "swap.invalidRestored": true, "board.emptyCells": 0, "score.delta": 12, "terminal.reached": true, "hud.scoreAndMovesPresent": true, "board.interactableAfterSettling": true } },
+        { "type": "event-trace", "tick": 900, "signals": { "swap.invalidScoreDelta": 0, "match.clearedCount": 6, "board.gravityAndRefillCompleted": true } },
+        { "type": "input-replay", "tick": 900, "signals": { "swap.invalidAttempted": true } },
+        { "type": "screenshot", "tick": 900, "signals": { "visual.boardRolesDistinct": true, "visual.hudReadable": true }, "media": { "mediaType": "image/png", "digest": "sha256:2000000000000000000000000000000000000000000000000000000000000002", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "performance", "tick": 900, "signals": { "board.maxSettleTicks": 120 } },
+        { "type": "lifecycle", "tick": 900, "signals": { "restart.initialStateRestored": true } },
+        { "type": "log", "tick": 900, "signals": { "runtime.unhandledErrors": 0 } }
+      ],
+      "failureSeeds": [
+        { "id": "match3-skip-refill", "overrides": [{ "evidenceType": "state", "signal": "board.emptyCells", "value": 4 }, { "evidenceType": "event-trace", "signal": "board.gravityAndRefillCompleted", "value": false }] },
+        { "id": "match3-input-lock", "overrides": [{ "evidenceType": "state", "signal": "board.interactableAfterSettling", "value": false }] }
+      ]
+    },
+    {
+      "caseId": "game-eval:falling-blocks:v1",
+      "observations": [
+        { "type": "state", "tick": 1200, "signals": { "piece.transformsWithinBoard": true, "board.overlapCellCount": 0, "board.compactedAfterClear": true, "progression.speedIncreased": true, "terminal.topOutGameOver": true, "hud.scoreLevelPreviewPresent": true, "board.duplicateActivePieces": 0 } },
+        { "type": "event-trace", "tick": 1200, "signals": { "piece.lockedCount": 12, "line.clearedCount": 1 } },
+        { "type": "input-replay", "tick": 1200, "signals": { "controls.moveRotateObserved": true } },
+        { "type": "screenshot", "tick": 1200, "signals": { "visual.activeAndLockedDistinct": true, "visual.hudAndPreviewReadable": true }, "media": { "mediaType": "image/png", "digest": "sha256:3000000000000000000000000000000000000000000000000000000000000003", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "performance", "tick": 1200, "signals": { "simulation.finite": true } },
+        { "type": "lifecycle", "tick": 1200, "signals": { "restart.initialStateRestored": true } },
+        { "type": "log", "tick": 1200, "signals": { "runtime.unhandledErrors": 0 } }
+      ],
+      "failureSeeds": [
+        { "id": "blocks-no-wall-kick-boundary", "overrides": [{ "evidenceType": "state", "signal": "piece.transformsWithinBoard", "value": false }] },
+        { "id": "blocks-line-not-compressed", "overrides": [{ "evidenceType": "state", "signal": "board.compactedAfterClear", "value": false }] }
+      ]
+    },
+    {
+      "caseId": "game-eval:jigsaw:v1",
+      "observations": [
+        { "type": "state", "tick": 900, "signals": { "drag.followsPointer": true, "drag.activePieceOnTop": true, "snap.correctLockedCount": 12, "snap.wrongLockedCount": 0, "puzzle.lockedCount": 12, "terminal.completed": true, "puzzle.visiblePieceCount": 12, "drag.cancelRecovered": true } },
+        { "type": "event-trace", "tick": 900, "signals": { "snap.correctMappingOnly": true } },
+        { "type": "input-replay", "tick": 900, "signals": { "drag.releaseObserved": true, "drag.cancelInjected": true } },
+        { "type": "screenshot", "tick": 900, "signals": { "visual.pieceBoundariesReadable": true, "visual.allPiecesInViewport": true }, "media": { "mediaType": "image/png", "digest": "sha256:4000000000000000000000000000000000000000000000000000000000000004", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "performance", "tick": 900, "signals": { "simulation.finite": true } },
+        { "type": "lifecycle", "tick": 900, "signals": { "reshuffle.draggableCount": 12 } },
+        { "type": "log", "tick": 900, "signals": { "runtime.unhandledErrors": 0 } }
+      ],
+      "failureSeeds": [
+        { "id": "jigsaw-snap-any-piece", "overrides": [{ "evidenceType": "state", "signal": "snap.wrongLockedCount", "value": 1 }, { "evidenceType": "event-trace", "signal": "snap.correctMappingOnly", "value": false }] },
+        { "id": "jigsaw-piece-offscreen", "overrides": [{ "evidenceType": "screenshot", "signal": "visual.allPiecesInViewport", "value": false }] }
+      ]
+    },
+    {
+      "caseId": "game-eval:platformer:v1",
+      "observations": [
+        { "type": "state", "tick": 1200, "signals": { "player.jumpAndLandObserved": true, "physics.platformPenetrations": 0, "collectible.duplicateCredits": 0, "terminal.victoryReached": true, "respawn.duplicatePlayers": 0 } },
+        { "type": "event-trace", "tick": 1200, "signals": { "hazard.contactObserved": true, "camera.maxJitterPixels": 1 } },
+        { "type": "input-replay", "tick": 1200, "signals": { "controls.runJumpObserved": true } },
+        { "type": "screenshot", "tick": 1200, "signals": { "visual.playerAndForwardPathVisible": true, "visual.cameraWithinLevelBounds": true }, "media": { "mediaType": "image/png", "digest": "sha256:5000000000000000000000000000000000000000000000000000000000000005", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "performance", "tick": 1200, "signals": { "simulation.finite": true } },
+        { "type": "lifecycle", "tick": 1200, "signals": { "respawn.usedActivatedCheckpoint": true, "restart.initialStateRestored": true } },
+        { "type": "log", "tick": 1200, "signals": { "runtime.unhandledErrors": 0 } }
+      ],
+      "failureSeeds": [
+        { "id": "platformer-camera-unbounded", "overrides": [{ "evidenceType": "screenshot", "signal": "visual.cameraWithinLevelBounds", "value": false }, { "evidenceType": "event-trace", "signal": "camera.maxJitterPixels", "value": 20 }] },
+        { "id": "platformer-respawn-origin", "overrides": [{ "evidenceType": "lifecycle", "signal": "respawn.usedActivatedCheckpoint", "value": false }] }
+      ]
+    },
+    {
+      "caseId": "game-eval:racing:v1",
+      "observations": [
+        { "type": "state", "tick": 1800, "signals": { "vehicle.accelerationObserved": true, "vehicle.brakingObserved": true, "lap.completed": true, "collision.boundaryPenetrations": 0, "vehicle.recoveredFromOfftrack": true } },
+        { "type": "event-trace", "tick": 1800, "signals": { "checkpoint.orderValid": true, "camera.maxJitterPixels": 2 } },
+        { "type": "input-replay", "tick": 1800, "signals": { "controls.steeringObserved": true } },
+        { "type": "screenshot", "tick": 1800, "signals": { "visual.collisionFeedbackVisible": true, "visual.vehicleAndRoadVisible": true, "visual.hudReadable": true }, "media": { "mediaType": "image/png", "digest": "sha256:6000000000000000000000000000000000000000000000000000000000000006", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "performance", "tick": 1800, "signals": { "simulation.finite": true } },
+        { "type": "lifecycle", "tick": 1800, "signals": { "restart.initialStateRestored": true } },
+        { "type": "log", "tick": 1800, "signals": { "runtime.unhandledErrors": 0 } }
+      ],
+      "failureSeeds": [
+        { "id": "racing-ignore-checkpoint-order", "overrides": [{ "evidenceType": "event-trace", "signal": "checkpoint.orderValid", "value": false }] },
+        { "id": "racing-camera-parent-jitter", "overrides": [{ "evidenceType": "event-trace", "signal": "camera.maxJitterPixels", "value": 24 }] }
+      ]
+    },
+    {
+      "caseId": "game-eval:shooter:v1",
+      "observations": [
+        { "type": "state", "tick": 1200, "signals": { "player.movementObserved": true, "aim.maxAngularErrorDegrees": 1, "combat.validHitDamageObserved": true, "terminal.reached": true } },
+        { "type": "event-trace", "tick": 1200, "signals": { "cover.blockedShots": 3, "combat.duplicateHitSettlements": 0, "combat.hitFeedbackObserved": true } },
+        { "type": "input-replay", "tick": 1200, "signals": { "fire.inputObserved": true } },
+        { "type": "screenshot", "tick": 1200, "signals": { "visual.combatRolesDistinct": true, "visual.hudReadable": true }, "media": { "mediaType": "image/png", "digest": "sha256:7000000000000000000000000000000000000000000000000000000000000007", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "performance", "tick": 1200, "signals": { "simulation.finite": true } },
+        { "type": "lifecycle", "tick": 1200, "signals": { "restart.staleProjectileCount": 0, "residue.count": 0 } },
+        { "type": "log", "tick": 1200, "signals": { "runtime.unhandledErrors": 0 } }
+      ],
+      "failureSeeds": [
+        { "id": "shooter-ignore-cover", "overrides": [{ "evidenceType": "event-trace", "signal": "cover.blockedShots", "value": 0 }] },
+        { "id": "shooter-leak-projectiles", "overrides": [{ "evidenceType": "lifecycle", "signal": "restart.staleProjectileCount", "value": 3 }, { "evidenceType": "lifecycle", "signal": "residue.count", "value": 2 }] }
+      ]
+    }
+  ]
+}

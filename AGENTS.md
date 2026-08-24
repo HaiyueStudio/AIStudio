@@ -14,4 +14,5 @@
 - Long-lived listeners, timers, workers, child processes, files, scenes, and GPU resources belong to a lifecycle scope;
   abort/dispose is idempotent and late results cannot write after teardown.
 - Before changing a package, read its nested `AGENTS.md`, M06 `contracts.md`, `integration.md`, and the active Goal.
+- M12 shared envelopes and capability ids are owned only by `packages/studio-contracts/src/m12.ts` plus `config/contracts/m12-contract-index.json`; consumers must not define parallel task, usage, cost, component, observation, or evaluation shapes.
 - Run focused checks first, then `npm run check`. Do not advance milestone status without all Goal verification.

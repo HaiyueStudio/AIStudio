@@ -104,6 +104,17 @@ test('chat feed follows new content only while the reader is near the latest mes
   assert.equal(chatFeedIsNearLatest({ scrollTop: 500, clientHeight: 300, scrollHeight: 1_000 }), false);
 });
 
+test('model controls and task cost card expose effective settings, cache savings and unknown explanations safely', () => {
+  const value = snapshot([]);
+  value.backends = [{ ...value.backends[0], state: 'ready', models: [{ id: 'fixture-model', label: 'Fixture model', reasoningEfforts: ['low', 'high'], defaultReasoningEffort: 'high', maxOutputTokens: 8192, isDefault: true }], selectedModel: 'fixture-model', selectedReasoningEffort: 'high', outputTokenLimit: 4096 }];
+  value.taskAccounting = { taskId: 'task:fixture', budgetStatus: 'within', budget: { schemaVersion: 2, id: 'budget:fixture', enforcement: 'hard', limits: { inputTokens: 1000, outputTokens: 100, estimatedCostMicros: 10000, wallTimeMs: 60000, turns: 3, toolCalls: 10, repairIterations: 2, observationBytes: 10000 } }, usage: { inputTokens: 100, cachedInputTokens: 40, outputTokens: 20, reasoningTokens: 5, toolInputBytes: 10, toolOutputBytes: 20, wallTimeMs: 1000 }, cost: { status: 'estimated', amountMicros: 42, currency: 'USD', cacheSavingMicros: 7, explanation: 'catalog', final: false } };
+  const model = presentChatPanel(new ConversationProjector().reset(value)); const fake = fakeDom(); renderChatPanel(fake.root, model, () => {});
+  assert.match(fake.text(), /Model, reasoning and task budget/); assert.match(fake.text(), /Task cost · current estimate/); assert.match(fake.text(), /cache saved/);
+  const unknown = new ConversationProjector().reset({ ...value, taskAccounting: { ...value.taskAccounting, cost: { status: 'unknown', amountMicros: null, currency: null, cacheSavingMicros: null, explanation: 'Subscription limits are not API billing amounts.', final: true } } });
+  assert.match(presentChatPanel(unknown).taskAccounting.cost.explanation, /Subscription limits/);
+  assert.throws(() => validateConversationIntent({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: value.taskAccounting.budget, apiKey: 'CANARY' }), /unknown fields/i);
+});
+
 test('user messages are projected as conversation input rather than assistant output', () => {
   const model = presentChatPanel(new ConversationProjector().reset(snapshot([
     projection(1, node('node:user', 'text', 'completed', { text: '创建一个小游戏', role: 'user' }), 'replay'),

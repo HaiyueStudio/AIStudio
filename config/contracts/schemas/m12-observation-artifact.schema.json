@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/observation-artifact/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "type", "digest", "taskId", "turnId", "playId", "documentRevision", "scriptDigests", "tick", "frame", "viewport", "device", "capturedAt", "byteLength", "redacted", "producerVersion"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "type": { "enum": ["state", "event-trace", "runtime-errors", "performance", "screenshot", "visual-analysis", "lifecycle"] },
+    "digest": { "$ref": "#/definitions/digest" },
+    "taskId": { "$ref": "#/definitions/stableId" },
+    "turnId": { "$ref": "#/definitions/stableId" },
+    "playId": { "$ref": "#/definitions/stableId" },
+    "documentRevision": { "type": "integer", "minimum": 0 },
+    "scriptDigests": { "type": "array", "maxItems": 10000, "uniqueItems": true, "items": { "$ref": "#/definitions/digest" } },
+    "tick": { "type": "integer", "minimum": 0 },
+    "frame": { "type": "integer", "minimum": 0 },
+    "viewport": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["width", "height"],
+          "properties": { "width": { "type": "integer", "minimum": 1, "maximum": 16384 }, "height": { "type": "integer", "minimum": 1, "maximum": 16384 } }
+        }
+      ]
+    },
+    "device": { "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "maxLength": 256 }] },
+    "capturedAt": { "$ref": "#/definitions/timestamp" },
+    "byteLength": { "type": "integer", "minimum": 0, "maximum": 16777216 },
+    "redacted": { "type": "boolean" },
+    "producerVersion": { "$ref": "#/definitions/semver" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "enum": ["screenshot", "visual-analysis"] } } },
+      "then": { "properties": { "viewport": { "type": "object" }, "device": { "type": "string" } } }
+    }
+  ],
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$" }
+  }
+}

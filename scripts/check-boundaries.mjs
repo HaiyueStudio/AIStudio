@@ -7,6 +7,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ignored = new Set(['.git', 'node_modules', 'dist', 'coverage']);
 const sourceExtensions = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.json']);
 const violations = [];
+const m12ContractIndex = JSON.parse(await readFile(path.join(root, 'config', 'contracts', 'm12-contract-index.json'), 'utf8'));
+const m12ContractNames = m12ContractIndex.contracts.map((contract) => contract.name);
 
 async function walk(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -29,6 +31,11 @@ async function inspect(file) {
     if (!relative.startsWith('packages/agent-backends/') && !relative.startsWith('scripts/')) violations.push(`${relative}: Codex import ${match[1]} outside agent-backends`);
   }
   if (/file:\.\.|(?:\.\.\/)+(?:Editor|Engine|UI)(?:\/|['"])/i.test(text)) violations.push(`${relative}: forbidden cross-repository path dependency`);
+  if (/\.(?:ts|tsx)$/.test(relative) && !relative.startsWith('packages/studio-contracts/')) {
+    for (const name of m12ContractNames) {
+      if (new RegExp(`^\\s*(?:export\\s+)?(?:declare\\s+)?(?:interface|type)\\s+${name}\\b`, 'm').test(text)) violations.push(`${relative}: M12 shared contract ${name} must be owned by studio-contracts`);
+    }
+  }
   if (path.basename(file) === 'package.json') {
     const pkg = JSON.parse(text);
     if (relative.startsWith('packages/') || relative.startsWith('apps/')) assert.equal(pkg.private, true, `${relative} must remain private`);
@@ -44,4 +51,4 @@ async function inspect(file) {
 
 await walk(root);
 assert.deepEqual(violations, [], violations.join('\n'));
-console.log('[boundaries] single Harness bridge, Codex adapter, private workspace, and cross-repository rules passed');
+console.log('[boundaries] single Harness bridge, Codex adapter, M12 contract ownership, private workspace, and cross-repository rules passed');

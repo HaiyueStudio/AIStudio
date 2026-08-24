@@ -1,5 +1,7 @@
 # G01 contract index
 
+M12 v2 的唯一共享契约索引位于 [`m12-contract-index.md`](./m12-contract-index.md)，机器真值为 [`config/contracts/m12-contract-index.json`](../../config/contracts/m12-contract-index.json)。v1 M06 契约继续作为迁移输入，不得由后续 Goal 原地改写。
+
 Authoritative machine-readable contracts live in `config/contracts`; TypeScript declarations are a consumer aid, while JSON Schema
 validates every persistence, backend and IPC boundary from `unknown`.
 

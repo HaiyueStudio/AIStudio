@@ -171,6 +171,13 @@ test('fixed Cordis compatibility and lazy closure remain explicit', async () => 
 
 test('pinned Harness agent composition fails closed without a credential and disposes idempotently', async () => {
   const transport = await createPinnedHarnessAgentTransport({ resolveApiKey: async () => null });
+  assert.deepEqual(
+    transport.modelCatalog().map(({ id, maxTokens }) => ({ id, maxTokens })),
+    [
+      { id: 'deepseek-v4-flash', maxTokens: 384_000 },
+      { id: 'deepseek-v4-pro', maxTokens: 384_000 },
+    ],
+  );
   assert.equal(await transport.configured(), false);
   const events = [];
   for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [] })) events.push(event);

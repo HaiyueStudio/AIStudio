@@ -48,6 +48,16 @@ pre { margin: 0; color: #87d6a6; white-space: pre-wrap; font-size: 11px; max-hei
 .chat-content { padding: 7px; }
 .chat-backend-controls { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 .chat-backend-controls select, .chat-composer textarea { min-width: 0; border: 1px solid #34475d; background: #0b121b; border-radius: 4px; padding: 5px; }
+.chat-agent-settings { flex: 1 1 100%; border: 1px solid #2a3b4e; border-radius: 6px; padding: 6px; }
+.chat-agent-settings summary { cursor: pointer; color: #b9c9d9; }
+.chat-agent-settings[open] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.chat-agent-settings[open] summary { grid-column: 1 / -1; }
+.chat-agent-settings label { display: grid; gap: 3px; color: #8fa2b7; font-size: 10px; }
+.chat-agent-settings input, .chat-agent-settings select { width: 100%; box-sizing: border-box; }
+.chat-task-cost { border: 1px solid #34475d; border-radius: 6px; padding: 8px; background: #0d1621; }
+.chat-task-cost p { margin: 4px 0 0; color: #9fb1c4; font-size: 11px; overflow-wrap: anywhere; }
+.chat-task-cost-soft-exceeded { border-color: #a87824; }
+.chat-task-cost-hard-exceeded { border-color: #b94b56; }
 .chat-connection, #chat-composer-status { color: #8fa2b7; font-size: 11px; }
 .chat-feed { list-style: none; margin: 6px 0; padding: 0; max-height: 190px; overflow: auto; }
 .chat-jump-latest { display: block; margin: -2px 0 5px auto; padding: 3px 8px; border-radius: 999px; color: #9dcbf5; font-size: 10px; }

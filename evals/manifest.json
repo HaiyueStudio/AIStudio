@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "m12.game-agent-evaluation",
+  "suiteVersion": "1.0.0",
+  "runnerEntry": "evals/src/index.mjs",
+  "artifacts": [
+    {
+      "role": "suite",
+      "path": "evals/suites/game-agent-evaluation-v1.json",
+      "digest": "sha256:fbd5b42c50c48df9a13c9dfe2f935aeaa9cc37e827db49c2071bb26e19bae2f9"
+    },
+    {
+      "role": "suite-schema",
+      "path": "evals/suites/game-agent-evaluation-v1.schema.json",
+      "digest": "sha256:2907f2c4a183a91e82bf48a1a4900e3e3ed58f929c7e191e3b0962647087ff9c"
+    },
+    {
+      "role": "hidden-oracle",
+      "path": "evals/suites/game-agent-evaluation-v1.oracle.json",
+      "digest": "sha256:92e379354faf2fad69ab7eaa5a00d4d7e230d5def00510f835bd2be76b2d2881"
+    },
+    {
+      "role": "reference-evidence",
+      "path": "evals/fixtures/reference-evidence-v1.json",
+      "digest": "sha256:d0155303726ca52c633bdff40473bc7d3b345de0691f0032daafcc81591b9eaf"
+    },
+    {
+      "role": "report-schema",
+      "path": "evals/schemas/evaluation-report-v1.schema.json",
+      "digest": "sha256:08f4fe50d6f225d2fe81d44128d4e0cf48bc4b0c3802f0736619050b4608e571"
+    }
+  ]
+}

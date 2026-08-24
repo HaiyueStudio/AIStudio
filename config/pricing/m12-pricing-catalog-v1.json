@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "pricing:haiyue-m12-usd",
+  "version": "1.0.0",
+  "effectiveAt": "2026-08-24T00:00:00.000Z",
+  "currency": "USD",
+  "sources": [
+    {
+      "provider": "deepseek",
+      "url": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "retrievedAt": "2026-08-24T00:00:00.000Z"
+    },
+    {
+      "provider": "openai",
+      "url": "https://platform.openai.com/pricing",
+      "retrievedAt": "2026-08-24T00:00:00.000Z"
+    }
+  ],
+  "entries": [
+    { "provider": "deepseek", "model": "deepseek-v4-flash", "inputMicrosPerMillion": 140000, "cachedInputMicrosPerMillion": 2800, "cacheWriteMicrosPerMillion": 140000, "outputMicrosPerMillion": 280000, "reasoningBilling": "included-in-output" },
+    { "provider": "deepseek", "model": "deepseek-v4-pro", "inputMicrosPerMillion": 435000, "cachedInputMicrosPerMillion": 3625, "cacheWriteMicrosPerMillion": 435000, "outputMicrosPerMillion": 870000, "reasoningBilling": "included-in-output" },
+    { "provider": "openai", "model": "gpt-5.6-sol", "inputMicrosPerMillion": 2500000, "cachedInputMicrosPerMillion": 250000, "cacheWriteMicrosPerMillion": 3125000, "outputMicrosPerMillion": 15000000, "reasoningBilling": "included-in-output" },
+    { "provider": "openai", "model": "gpt-5.6-terra", "inputMicrosPerMillion": 1250000, "cachedInputMicrosPerMillion": 125000, "cacheWriteMicrosPerMillion": 1562500, "outputMicrosPerMillion": 7500000, "reasoningBilling": "included-in-output" },
+    { "provider": "openai", "model": "gpt-5.6-luna", "inputMicrosPerMillion": 500000, "cachedInputMicrosPerMillion": 50000, "cacheWriteMicrosPerMillion": 625000, "outputMicrosPerMillion": 3000000, "reasoningBilling": "included-in-output" },
+    { "provider": "openai", "model": "gpt-5.5", "inputMicrosPerMillion": 2500000, "cachedInputMicrosPerMillion": 250000, "cacheWriteMicrosPerMillion": null, "outputMicrosPerMillion": 15000000, "reasoningBilling": "included-in-output" },
+    { "provider": "openai", "model": "gpt-5.4", "inputMicrosPerMillion": 1250000, "cachedInputMicrosPerMillion": 130000, "cacheWriteMicrosPerMillion": null, "outputMicrosPerMillion": 7500000, "reasoningBilling": "included-in-output" },
+    { "provider": "openai", "model": "gpt-5.3-codex", "inputMicrosPerMillion": 1750000, "cachedInputMicrosPerMillion": 175000, "cacheWriteMicrosPerMillion": null, "outputMicrosPerMillion": 14000000, "reasoningBilling": "included-in-output" }
+  ]
+}

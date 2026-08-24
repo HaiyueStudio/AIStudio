@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/context-artifact/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "kind", "digest", "source", "documentRevision", "mediaType", "byteLength", "redacted", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "kind": { "enum": ["policy", "capability-manifest", "project-manifest", "document-delta", "task-summary", "playbook"] },
+    "digest": { "$ref": "#/definitions/digest" },
+    "source": { "$ref": "#/definitions/stableId" },
+    "documentRevision": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }] },
+    "mediaType": { "type": "string", "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$", "maxLength": 128 },
+    "byteLength": { "type": "integer", "minimum": 0, "maximum": 16777216 },
+    "redacted": { "type": "boolean" },
+    "createdAt": { "$ref": "#/definitions/timestamp" }
+  },
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$" }
+  }
+}

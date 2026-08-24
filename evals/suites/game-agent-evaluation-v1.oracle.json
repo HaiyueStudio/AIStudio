@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "m12.game-agent-evaluation",
+  "suiteVersion": "1.0.0",
+  "visibility": "runner-only",
+  "cases": [
+    {
+      "caseId": "game-eval:snake:v1",
+      "rules": [
+        { "acceptanceId": "snake.direction-and-step", "conditions": [
+          { "evidenceType": "state", "signal": "movement.directionChanged", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "movement.immediateReverseBlocked", "operator": "equals", "expected": true },
+          { "evidenceType": "input-replay", "signal": "replay.deterministic", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "snake.food-growth-score", "conditions": [
+          { "evidenceType": "state", "signal": "snake.lengthDelta", "operator": "gte", "expected": 1 },
+          { "evidenceType": "state", "signal": "score.delta", "operator": "gte", "expected": 1 },
+          { "evidenceType": "event-trace", "signal": "food.respawned", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "snake.collision-restart", "conditions": [
+          { "evidenceType": "state", "signal": "terminal.collisionGameOver", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "restart.initialStateRestored", "operator": "equals", "expected": true },
+          { "evidenceType": "input-replay", "signal": "restart.inputAccepted", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "snake.roles-legible", "conditions": [
+          { "evidenceType": "screenshot", "signal": "visual.rolesDistinct", "operator": "equals", "expected": true },
+          { "evidenceType": "screenshot", "signal": "visual.hudReadable", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "hud.scorePresent", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "snake.long-run-stable", "conditions": [
+          { "evidenceType": "performance", "signal": "simulation.speedDriftRatio", "operator": "lte", "expected": 0.01 },
+          { "evidenceType": "lifecycle", "signal": "residue.count", "operator": "equals", "expected": 0 },
+          { "evidenceType": "log", "signal": "runtime.unhandledErrors", "operator": "equals", "expected": 0 }
+        ] }
+      ]
+    },
+    {
+      "caseId": "game-eval:match-3:v1",
+      "rules": [
+        { "acceptanceId": "match3.invalid-swap-restores", "conditions": [
+          { "evidenceType": "state", "signal": "swap.invalidRestored", "operator": "equals", "expected": true },
+          { "evidenceType": "input-replay", "signal": "swap.invalidAttempted", "operator": "equals", "expected": true },
+          { "evidenceType": "event-trace", "signal": "swap.invalidScoreDelta", "operator": "equals", "expected": 0 }
+        ] },
+        { "acceptanceId": "match3.clear-drop-refill", "conditions": [
+          { "evidenceType": "state", "signal": "board.emptyCells", "operator": "equals", "expected": 0 },
+          { "evidenceType": "event-trace", "signal": "match.clearedCount", "operator": "gte", "expected": 3 },
+          { "evidenceType": "event-trace", "signal": "board.gravityAndRefillCompleted", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "match3.score-terminal-restart", "conditions": [
+          { "evidenceType": "state", "signal": "score.delta", "operator": "gte", "expected": 3 },
+          { "evidenceType": "state", "signal": "terminal.reached", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "restart.initialStateRestored", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "match3.board-feedback-legible", "conditions": [
+          { "evidenceType": "screenshot", "signal": "visual.boardRolesDistinct", "operator": "equals", "expected": true },
+          { "evidenceType": "screenshot", "signal": "visual.hudReadable", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "hud.scoreAndMovesPresent", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "match3.settle-no-deadlock", "conditions": [
+          { "evidenceType": "state", "signal": "board.interactableAfterSettling", "operator": "equals", "expected": true },
+          { "evidenceType": "performance", "signal": "board.maxSettleTicks", "operator": "lte", "expected": 300 },
+          { "evidenceType": "log", "signal": "runtime.unhandledErrors", "operator": "equals", "expected": 0 }
+        ] }
+      ]
+    },
+    {
+      "caseId": "game-eval:falling-blocks:v1",
+      "rules": [
+        { "acceptanceId": "blocks.transform-collision", "conditions": [
+          { "evidenceType": "state", "signal": "piece.transformsWithinBoard", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "board.overlapCellCount", "operator": "equals", "expected": 0 },
+          { "evidenceType": "input-replay", "signal": "controls.moveRotateObserved", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "blocks.lock-clear-score", "conditions": [
+          { "evidenceType": "event-trace", "signal": "piece.lockedCount", "operator": "gte", "expected": 1 },
+          { "evidenceType": "event-trace", "signal": "line.clearedCount", "operator": "gte", "expected": 1 },
+          { "evidenceType": "state", "signal": "board.compactedAfterClear", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "blocks.progression-gameover", "conditions": [
+          { "evidenceType": "state", "signal": "progression.speedIncreased", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "terminal.topOutGameOver", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "restart.initialStateRestored", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "blocks.playfield-readable", "conditions": [
+          { "evidenceType": "screenshot", "signal": "visual.activeAndLockedDistinct", "operator": "equals", "expected": true },
+          { "evidenceType": "screenshot", "signal": "visual.hudAndPreviewReadable", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "hud.scoreLevelPreviewPresent", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "blocks.rapid-input-stable", "conditions": [
+          { "evidenceType": "state", "signal": "board.duplicateActivePieces", "operator": "equals", "expected": 0 },
+          { "evidenceType": "performance", "signal": "simulation.finite", "operator": "equals", "expected": true },
+          { "evidenceType": "log", "signal": "runtime.unhandledErrors", "operator": "equals", "expected": 0 }
+        ] }
+      ]
+    },
+    {
+      "caseId": "game-eval:jigsaw:v1",
+      "rules": [
+        { "acceptanceId": "jigsaw.drag-layer-release", "conditions": [
+          { "evidenceType": "state", "signal": "drag.followsPointer", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "drag.activePieceOnTop", "operator": "equals", "expected": true },
+          { "evidenceType": "input-replay", "signal": "drag.releaseObserved", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "jigsaw.snap-only-correct", "conditions": [
+          { "evidenceType": "state", "signal": "snap.correctLockedCount", "operator": "gte", "expected": 1 },
+          { "evidenceType": "state", "signal": "snap.wrongLockedCount", "operator": "equals", "expected": 0 },
+          { "evidenceType": "event-trace", "signal": "snap.correctMappingOnly", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "jigsaw.complete-reshuffle", "conditions": [
+          { "evidenceType": "state", "signal": "puzzle.lockedCount", "operator": "equals", "expected": 12 },
+          { "evidenceType": "state", "signal": "terminal.completed", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "reshuffle.draggableCount", "operator": "equals", "expected": 12 }
+        ] },
+        { "acceptanceId": "jigsaw.pieces-and-target-legible", "conditions": [
+          { "evidenceType": "screenshot", "signal": "visual.pieceBoundariesReadable", "operator": "equals", "expected": true },
+          { "evidenceType": "screenshot", "signal": "visual.allPiecesInViewport", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "puzzle.visiblePieceCount", "operator": "equals", "expected": 12 }
+        ] },
+        { "acceptanceId": "jigsaw.pointer-cancel-safe", "conditions": [
+          { "evidenceType": "state", "signal": "drag.cancelRecovered", "operator": "equals", "expected": true },
+          { "evidenceType": "input-replay", "signal": "drag.cancelInjected", "operator": "equals", "expected": true },
+          { "evidenceType": "log", "signal": "runtime.unhandledErrors", "operator": "equals", "expected": 0 }
+        ] }
+      ]
+    },
+    {
+      "caseId": "game-eval:platformer:v1",
+      "rules": [
+        { "acceptanceId": "platformer.motion-collision", "conditions": [
+          { "evidenceType": "state", "signal": "player.jumpAndLandObserved", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "physics.platformPenetrations", "operator": "equals", "expected": 0 },
+          { "evidenceType": "input-replay", "signal": "controls.runJumpObserved", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "platformer.collect-hazard-checkpoint", "conditions": [
+          { "evidenceType": "state", "signal": "collectible.duplicateCredits", "operator": "equals", "expected": 0 },
+          { "evidenceType": "event-trace", "signal": "hazard.contactObserved", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "respawn.usedActivatedCheckpoint", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "platformer.finish-restart", "conditions": [
+          { "evidenceType": "state", "signal": "terminal.victoryReached", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "restart.initialStateRestored", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "platformer.camera-composition", "conditions": [
+          { "evidenceType": "screenshot", "signal": "visual.playerAndForwardPathVisible", "operator": "equals", "expected": true },
+          { "evidenceType": "event-trace", "signal": "camera.maxJitterPixels", "operator": "lte", "expected": 2 },
+          { "evidenceType": "screenshot", "signal": "visual.cameraWithinLevelBounds", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "platformer.respawn-stable", "conditions": [
+          { "evidenceType": "state", "signal": "respawn.duplicatePlayers", "operator": "equals", "expected": 0 },
+          { "evidenceType": "performance", "signal": "simulation.finite", "operator": "equals", "expected": true },
+          { "evidenceType": "log", "signal": "runtime.unhandledErrors", "operator": "equals", "expected": 0 }
+        ] }
+      ]
+    },
+    {
+      "caseId": "game-eval:racing:v1",
+      "rules": [
+        { "acceptanceId": "racing.vehicle-controls", "conditions": [
+          { "evidenceType": "state", "signal": "vehicle.accelerationObserved", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "vehicle.brakingObserved", "operator": "equals", "expected": true },
+          { "evidenceType": "input-replay", "signal": "controls.steeringObserved", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "racing.checkpoint-order-lap", "conditions": [
+          { "evidenceType": "state", "signal": "lap.completed", "operator": "equals", "expected": true },
+          { "evidenceType": "event-trace", "signal": "checkpoint.orderValid", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "racing.collision-finish-restart", "conditions": [
+          { "evidenceType": "state", "signal": "collision.boundaryPenetrations", "operator": "equals", "expected": 0 },
+          { "evidenceType": "lifecycle", "signal": "restart.initialStateRestored", "operator": "equals", "expected": true },
+          { "evidenceType": "screenshot", "signal": "visual.collisionFeedbackVisible", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "racing.camera-road-legibility", "conditions": [
+          { "evidenceType": "screenshot", "signal": "visual.vehicleAndRoadVisible", "operator": "equals", "expected": true },
+          { "evidenceType": "event-trace", "signal": "camera.maxJitterPixels", "operator": "lte", "expected": 3 },
+          { "evidenceType": "screenshot", "signal": "visual.hudReadable", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "racing.offtrack-recovery", "conditions": [
+          { "evidenceType": "state", "signal": "vehicle.recoveredFromOfftrack", "operator": "equals", "expected": true },
+          { "evidenceType": "performance", "signal": "simulation.finite", "operator": "equals", "expected": true },
+          { "evidenceType": "log", "signal": "runtime.unhandledErrors", "operator": "equals", "expected": 0 }
+        ] }
+      ]
+    },
+    {
+      "caseId": "game-eval:shooter:v1",
+      "rules": [
+        { "acceptanceId": "shooter.move-aim-fire", "conditions": [
+          { "evidenceType": "state", "signal": "player.movementObserved", "operator": "equals", "expected": true },
+          { "evidenceType": "state", "signal": "aim.maxAngularErrorDegrees", "operator": "lte", "expected": 2 },
+          { "evidenceType": "input-replay", "signal": "fire.inputObserved", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "shooter.hit-damage-cover", "conditions": [
+          { "evidenceType": "state", "signal": "combat.validHitDamageObserved", "operator": "equals", "expected": true },
+          { "evidenceType": "event-trace", "signal": "cover.blockedShots", "operator": "gte", "expected": 1 },
+          { "evidenceType": "event-trace", "signal": "combat.duplicateHitSettlements", "operator": "equals", "expected": 0 }
+        ] },
+        { "acceptanceId": "shooter.terminal-restart", "conditions": [
+          { "evidenceType": "state", "signal": "terminal.reached", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "restart.staleProjectileCount", "operator": "equals", "expected": 0 }
+        ] },
+        { "acceptanceId": "shooter.combat-legibility", "conditions": [
+          { "evidenceType": "screenshot", "signal": "visual.combatRolesDistinct", "operator": "equals", "expected": true },
+          { "evidenceType": "event-trace", "signal": "combat.hitFeedbackObserved", "operator": "equals", "expected": true },
+          { "evidenceType": "screenshot", "signal": "visual.hudReadable", "operator": "equals", "expected": true }
+        ] },
+        { "acceptanceId": "shooter.combat-load-stable", "conditions": [
+          { "evidenceType": "performance", "signal": "simulation.finite", "operator": "equals", "expected": true },
+          { "evidenceType": "lifecycle", "signal": "residue.count", "operator": "equals", "expected": 0 },
+          { "evidenceType": "log", "signal": "runtime.unhandledErrors", "operator": "equals", "expected": 0 }
+        ] }
+      ]
+    }
+  ]
+}

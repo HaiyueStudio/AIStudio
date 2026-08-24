@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/evaluation-result/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "taskId", "evaluatorVersion", "status", "acceptanceResults", "budgetStatus", "usageRecordIds", "costRecordIds", "turns", "tools", "completedAt"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "taskId": { "$ref": "#/definitions/stableId" },
+    "evaluatorVersion": { "$ref": "#/definitions/semver" },
+    "status": { "enum": ["pass", "fail", "blocked"] },
+    "acceptanceResults": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["acceptanceId", "status", "evidenceIds", "diagnostic"],
+        "properties": {
+          "acceptanceId": { "$ref": "#/definitions/stableId" },
+          "status": { "enum": ["pass", "fail", "blocked"] },
+          "evidenceIds": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } },
+          "diagnostic": { "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "maxLength": 4096 }] }
+        }
+      }
+    },
+    "budgetStatus": { "enum": ["within", "soft-exceeded", "hard-exceeded"] },
+    "usageRecordIds": { "type": "array", "maxItems": 1024, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } },
+    "costRecordIds": { "type": "array", "maxItems": 1024, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } },
+    "turns": { "type": "array", "maxItems": 256, "items": { "$ref": "#/definitions/turnAccounting" } },
+    "tools": { "type": "array", "maxItems": 1024, "items": { "$ref": "#/definitions/toolAccounting" } },
+    "completedAt": { "$ref": "#/definitions/timestamp" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "pass" } } },
+      "then": { "properties": { "budgetStatus": { "enum": ["within", "soft-exceeded"] } } }
+    }
+  ],
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$" },
+    "turnAccounting": { "type": "object", "additionalProperties": false, "required": ["turnId", "usageRecordIds", "finishReason"], "properties": { "turnId": { "$ref": "#/definitions/stableId" }, "usageRecordIds": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } }, "finishReason": { "enum": ["stop", "length", "tool-calls", "cancelled", "content-filter", "error", "unknown"] } } },
+    "toolAccounting": { "type": "object", "additionalProperties": false, "required": ["toolCallId", "turnId", "usageRecordIds"], "properties": { "toolCallId": { "$ref": "#/definitions/stableId" }, "turnId": { "$ref": "#/definitions/stableId" }, "usageRecordIds": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } } } }
+  }
+}

@@ -1,4 +1,4 @@
-import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
+import type { JsonObject, StableId, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 import { approvalFromNode, planFromNode, questionFromNode, safeText } from '../../conversation/validation.js';
 import type {
   ChatCardAction,
@@ -15,15 +15,18 @@ export interface ChatPanelReadModel {
   readonly cards: readonly ChatCardReadModel[];
   readonly composer: Readonly<{ busy: boolean; blockedReason: string | null; canSend: boolean; canCancel: boolean }>;
   readonly connection: ConversationReadModel['connection'];
+  readonly taskAccounting: ConversationReadModel['taskAccounting'];
   readonly ariaLive: string;
 }
 
 export function presentChatPanel(snapshot: ConversationReadModel, now = Date.now()): ChatPanelReadModel {
   const cards = Object.freeze(snapshot.nodes.map((node) => presentConversationNode(node, now)));
+  const selected = snapshot.backends.find((backend) => backend.id === snapshot.backendId);
+  const backendReady = selected?.state === 'ready' && selected.selectedModel !== null && selected.selectedReasoningEffort !== null && selected.outputTokenLimit !== null;
   return Object.freeze({
     backendId: snapshot.backendId, backends: snapshot.backends, cards,
-    composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason, canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null, canCancel: snapshot.busy }),
-    connection: snapshot.connection,
+    composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : 'Authenticate and select a supported Agent model before sending.'), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
+    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting,
     ariaLive: cards.at(-1)?.body ?? (snapshot.connection === 'connected' ? 'Agent conversation ready.' : 'Agent conversation disconnected.'),
   });
 }
@@ -111,7 +114,33 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     limits.textContent = selectedBackend.rateLimits.map((item) => `${item.name}${item.usedPercent === undefined ? '' : ` ${item.usedPercent}%`}${item.resetsAt ? ` resets ${item.resetsAt}` : ''}`).join(' · ');
     backendControls.append(limits);
   }
+  if (selectedBackend?.models.length && selectedBackend.selectedModel && selectedBackend.selectedReasoningEffort && selectedBackend.outputTokenLimit) {
+    const selectedModelInfo = selectedBackend.models.find((item) => item.id === selectedBackend.selectedModel)!;
+    const settings = document.createElement('details'); settings.className = 'chat-agent-settings';
+    const summary = document.createElement('summary'); summary.textContent = 'Model, reasoning and task budget'; settings.append(summary);
+    const modelSelect = document.createElement('select'); modelSelect.setAttribute('aria-label', 'Agent model');
+    for (const item of selectedBackend.models) { const option = document.createElement('option'); option.value = item.id; option.selected = item.id === selectedModelInfo.id; option.textContent = item.label; modelSelect.append(option); }
+    const effortSelect = document.createElement('select'); effortSelect.setAttribute('aria-label', 'Reasoning effort');
+    for (const effort of selectedModelInfo.reasoningEfforts) { const option = document.createElement('option'); option.value = effort; option.selected = effort === selectedBackend.selectedReasoningEffort; option.textContent = effort; effortSelect.append(option); }
+    const outputLimit = numericInput(document, 'Output token limit', selectedBackend.outputTokenLimit, 1, selectedModelInfo.maxOutputTokens);
+    const budget = modelBudget(model.taskAccounting?.budget);
+    const enforcement = document.createElement('select'); enforcement.setAttribute('aria-label', 'Budget enforcement');
+    for (const value of ['observe', 'soft', 'hard'] as const) { const option = document.createElement('option'); option.value = value; option.selected = value === budget.enforcement; option.textContent = value; enforcement.append(option); }
+    const budgetInputs = Object.fromEntries(Object.entries(budget.limits).map(([key, value]) => [key, numericInput(document, budgetLabel(key), value ?? 0, key === 'repairIterations' ? 0 : 1, 1_000_000_000)])) as Record<keyof typeof budget.limits, HTMLInputElement>;
+    const apply = (): void => {
+      const selectedModel = selectedBackend.models.find((item) => item.id === modelSelect.value); if (!selectedModel) return;
+      if (!selectedModel.reasoningEfforts.includes(effortSelect.value as typeof selectedModel.reasoningEfforts[number])) { effortSelect.value = selectedModel.defaultReasoningEffort; }
+      const limits = Object.freeze(Object.fromEntries(Object.entries(budgetInputs).map(([key, input]) => [key, Math.max(Number(input.min), Math.floor(Number(input.value)))])) as unknown as typeof budget.limits);
+      dispatch(Object.freeze({ type: 'agent/configure', backendId: selectedBackend.id, model: selectedModel.id, reasoningEffort: effortSelect.value as typeof selectedModel.reasoningEfforts[number], outputTokenLimit: Math.min(selectedModel.maxOutputTokens, Math.max(1, Math.floor(Number(outputLimit.value)))), budget: Object.freeze({ schemaVersion: 2, id: budget.id, enforcement: enforcement.value as typeof budget.enforcement, limits }) }));
+    };
+    modelSelect.addEventListener('change', () => { const next = selectedBackend.models.find((item) => item.id === modelSelect.value); if (next) { effortSelect.replaceChildren(...next.reasoningEfforts.map((effort) => { const option = document.createElement('option'); option.value = effort; option.textContent = effort; option.selected = effort === next.defaultReasoningEffort; return option; })); outputLimit.max = String(next.maxOutputTokens); outputLimit.value = String(Math.min(Number(outputLimit.value), next.maxOutputTokens)); } apply(); });
+    for (const input of [effortSelect, outputLimit, enforcement, ...Object.values(budgetInputs)]) input.addEventListener('change', apply);
+    settings.append(labelled(document, 'Model', modelSelect), labelled(document, 'Reasoning', effortSelect), labelled(document, 'Max output', outputLimit), labelled(document, 'Enforcement', enforcement));
+    for (const [key, input] of Object.entries(budgetInputs)) settings.append(labelled(document, budgetLabel(key), input));
+    backendControls.append(settings);
+  }
   fragment.append(backendControls);
+  if (model.taskAccounting) fragment.append(renderTaskCostCard(document, model.taskAccounting));
   const status = document.createElement('p');
   status.className = 'chat-connection';
   status.textContent = `Connection: ${model.connection}`;
@@ -174,6 +203,21 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   feed.addEventListener('scroll', syncLatestButton, { passive: true });
   jumpLatest.addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; syncLatestButton(); });
   syncLatestButton();
+}
+
+function numericInput(document: Document, ariaLabel: string, value: number, minimum: number, maximum: number): HTMLInputElement { const input = document.createElement('input'); input.type = 'number'; input.setAttribute('aria-label', ariaLabel); input.min = String(minimum); input.max = String(maximum); input.step = '1'; input.value = String(value); return input; }
+function labelled(document: Document, text: string, control: HTMLElement): HTMLElement { const label = document.createElement('label'); const span = document.createElement('span'); span.textContent = text; label.append(span, control); return label; }
+function budgetLabel(key: string): string { return ({ inputTokens: 'Input tokens', outputTokens: 'Output tokens', estimatedCostMicros: 'Cost limit (µ currency)', wallTimeMs: 'Wall time (ms)', turns: 'Turns', toolCalls: 'Tool calls', repairIterations: 'Repair loops', observationBytes: 'Observation bytes' } as Record<string, string>)[key] ?? key; }
+function modelBudget(value: TaskBudgetV2 | undefined): TaskBudgetV2 {
+  return value ?? Object.freeze({ schemaVersion: 2 as const, id: 'budget:conversation-default', enforcement: 'hard' as const, limits: Object.freeze({ inputTokens: 200_000, outputTokens: 50_000, estimatedCostMicros: 2_000_000, wallTimeMs: 600_000, turns: 12, toolCalls: 100, repairIterations: 5, observationBytes: 5_000_000 }) });
+}
+function renderTaskCostCard(document: Document, value: NonNullable<ConversationReadModel['taskAccounting']>): HTMLElement {
+  const card = document.createElement('section'); card.className = `chat-task-cost chat-task-cost-${value.budgetStatus}`; card.setAttribute('aria-label', 'Task usage and cost');
+  const title = document.createElement('strong'); title.textContent = value.cost.final ? 'Task cost · final' : 'Task cost · current estimate';
+  const cost = document.createElement('p'); cost.textContent = value.cost.amountMicros === null || !value.cost.currency ? `Cost unknown — ${value.cost.explanation}` : `${value.cost.status}: ${(value.cost.amountMicros / 1_000_000).toFixed(6)} ${value.cost.currency}`;
+  const usage = document.createElement('p'); usage.textContent = `Input ${value.usage.inputTokens ?? 'unknown'} · cached ${value.usage.cachedInputTokens ?? 'unknown'} · output ${value.usage.outputTokens ?? 'unknown'} · reasoning ${value.usage.reasoningTokens ?? 'unknown'} · tools ${value.usage.toolInputBytes + value.usage.toolOutputBytes} B`;
+  const budget = document.createElement('p'); budget.textContent = `Budget: ${value.budgetStatus} (${value.budget.enforcement})${value.cost.cacheSavingMicros === null ? '' : ` · cache saved ≈ ${(value.cost.cacheSavingMicros / 1_000_000).toFixed(6)} ${value.cost.currency}`}`;
+  card.append(title, cost, usage, budget); return card;
 }
 
 function renderCard(document: Document, card: ChatCardReadModel, dispatch: (intent: ConversationIntent) => void): HTMLElement {

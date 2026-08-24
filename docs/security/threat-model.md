@@ -1,5 +1,7 @@
 # M06 POC threat model
 
+M12 新增自动输入、视觉 artifact、物理 adapter、成本/cache 与 repair loop 威胁，见 [`m12-threat-model-increment.md`](./m12-threat-model-increment.md)。M06 控制仍是下限。
+
 范围：Windows/Electron 本地 AIStudio、项目目录、插件 root、两种 Agent backend、Codex child process、日志与 bug bundle。
 信任边界：renderer ↔ preload/main IPC、main ↔ project filesystem、main ↔ secret store、backend adapter ↔ provider/Codex stdio、
 Studio tool policy ↔ Document mutation、project script ↔ preview runtime。项目内容、模型输出、上游事件和日志文本均视为不可信。

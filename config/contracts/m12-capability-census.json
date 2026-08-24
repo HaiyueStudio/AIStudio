@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 1,
+  "bindingId": "m12-g01-2026-08-24",
+  "generatedAt": "2026-08-24",
+  "sources": {
+    "aiStudioBaseCommit": "a8703519789d66b9f3c378502f0bcf44c642c74b",
+    "m06ReviewedCommit": "e4625bb62cfc973c60957997429876a0b455166a",
+    "engineInstalled": {
+      "package": "@haiyue/engine",
+      "version": "0.1.0",
+      "integrity": "sha512-g7B7UOKL7tL/NQuXeFIXqXP3FO5r4Q9EuUNrXZw6evwKhJ04V+W7jARqKH6KyQzyE1Jn3nXjRwByfdiW11zdcw=="
+    },
+    "engineRepositoryObservationCommit": "07524b6f2ce6cbb13511c7c410585aa05cb8720c",
+    "editorCandidatesManifest": "config/upstream/editor-candidates.json"
+  },
+  "classifications": ["available-internal", "available-public", "available-experimental", "missing-seam", "not-supported"],
+  "capabilities": [
+    {
+      "id": "agent.model-config", "domain": "agent", "owner": "g03-model-controls-usage-cost-budgets",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "turn", "teardown": "turn completion or cancellation" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "none; Harness hard-codes thinking=disabled/reasoningEffort=off", "m12Owner": "g03-model-controls-usage-cost-budgets" },
+      "testOwner": "g03-model-controls-usage-cost-budgets", "evidence": ["packages/harness-bridge/src/harness-agent.ts"]
+    },
+    {
+      "id": "agent.usage", "domain": "agent", "owner": "g03-model-controls-usage-cost-budgets",
+      "classification": "available-internal", "integrationState": "m06-partial", "publicPath": "@haiyue/ai-studio-agent-runtime", "publicSymbols": ["AgentUsage"], "version": "0.0.0",
+      "lifecycle": { "ownership": "turn", "teardown": "final usage event" },
+      "serialization": { "status": "partial", "path": "AgentBackendEvent usage payload" },
+      "toolExposure": { "m06": "token subset only; no ledger or cost", "m12Owner": "g03-model-controls-usage-cost-budgets" },
+      "testOwner": "g03-model-controls-usage-cost-budgets", "evidence": ["packages/agent-runtime/src/index.ts", "packages/harness-bridge/src/harness-agent.ts"]
+    },
+    {
+      "id": "agent.cache", "domain": "agent", "owner": "g04-prompt-context-cache-memory",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "session", "teardown": "retention policy" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "cache-read tokens may appear but no provenance or policy", "m12Owner": "g04-prompt-context-cache-memory" },
+      "testOwner": "g04-prompt-context-cache-memory", "evidence": ["packages/agent-runtime/src/index.ts"]
+    },
+    {
+      "id": "agent.context", "domain": "agent", "owner": "g04-prompt-context-cache-memory",
+      "classification": "available-internal", "integrationState": "m06-partial", "publicPath": "@haiyue/ai-studio-agent-runtime", "publicSymbols": ["AgentTurnInput"], "version": "0.0.0",
+      "lifecycle": { "ownership": "session", "teardown": "artifact retention policy" },
+      "serialization": { "status": "partial", "path": "contextArtifactIds only" },
+      "toolExposure": { "m06": "ids default to an empty array; no artifact owner", "m12Owner": "g04-prompt-context-cache-memory" },
+      "testOwner": "g04-prompt-context-cache-memory", "evidence": ["packages/game-authoring-tools/src/coordinator.ts"]
+    },
+    {
+      "id": "task.evaluate", "domain": "task", "owner": "g10-observation-playtest-repair-loop",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "task", "teardown": "terminal evaluation" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "model terminal is not bound to acceptance evidence", "m12Owner": "g10-observation-playtest-repair-loop" },
+      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/coordinator.ts"]
+    },
+    {
+      "id": "document.v2", "domain": "authoring", "owner": "g05-game-document-v2-component-registry",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "project", "teardown": "project close" },
+      "serialization": { "status": "not-supported", "path": "M06 ProjectDocument v1 only" },
+      "toolExposure": { "m06": "primitive SceneSnapshot", "m12Owner": "g05-game-document-v2-component-registry" },
+      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["packages/editor-plugins/src/project/document.ts", "packages/editor-plugins/src/scene-authoring.ts"]
+    },
+    {
+      "id": "component.registry", "domain": "authoring", "owner": "g05-game-document-v2-component-registry",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/serialization", "publicSymbols": ["ComponentSerializationRegistry", "coreComponentSerializationRegistry"], "version": "0.1.0",
+      "lifecycle": { "ownership": "project runtime", "teardown": "runtime owner disposal" },
+      "serialization": { "status": "supported", "path": "@haiyue/engine/serialization" },
+      "toolExposure": { "m06": "none", "m12Owner": "g05-game-document-v2-component-registry" },
+      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["@haiyue/engine/serialization#ComponentSerializationRegistry"]
+    },
+    {
+      "id": "scene.transaction", "domain": "authoring", "owner": "g05-game-document-v2-component-registry",
+      "classification": "available-internal", "integrationState": "m06-partial", "publicPath": "@haiyue/editor-platform", "publicSymbols": ["EditorHistoryService"], "version": "0.1.0",
+      "lifecycle": { "ownership": "document history", "teardown": "document detach" },
+      "serialization": { "status": "partial", "path": "single ProjectCommand and History entry" },
+      "toolExposure": { "m06": "single command only; no atomic multi-command batch", "m12Owner": "g05-game-document-v2-component-registry" },
+      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["packages/editor-plugins/src/history/workspace.ts"]
+    },
+    {
+      "id": "camera.2d", "domain": "camera", "owner": "g06-camera-input-interaction-replay",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/components", "publicSymbols": ["Camera2D"], "version": "0.1.0",
+      "lifecycle": { "ownership": "scene entity", "teardown": "scene disposal" },
+      "serialization": { "status": "supported", "path": "@haiyue/engine/serialization" },
+      "toolExposure": { "m06": "none", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["@haiyue/engine/components#Camera2D"]
+    },
+    {
+      "id": "camera.3d", "domain": "camera", "owner": "g06-camera-input-interaction-replay",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/components", "publicSymbols": ["Camera3D"], "version": "0.1.0",
+      "lifecycle": { "ownership": "scene entity", "teardown": "scene disposal" },
+      "serialization": { "status": "supported", "path": "@haiyue/engine/serialization" },
+      "toolExposure": { "m06": "fixed preview camera only; no authoring component", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["@haiyue/engine/components#Camera3D"]
+    },
+    {
+      "id": "camera.follow", "domain": "camera", "owner": "g06-camera-input-interaction-replay",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": "@haiyue/engine/controls", "publicSymbols": ["OrbitControl", "FirstPersonControls"], "version": "0.1.0",
+      "lifecycle": { "ownership": "control owner", "teardown": "explicit dispose required" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "no generic serializable follow/bounds component", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["@haiyue/engine/controls#OrbitControl", "@haiyue/engine/controls#FirstPersonControls"]
+    },
+    {
+      "id": "input.keyboard", "domain": "input", "owner": "g06-camera-input-interaction-replay",
+      "classification": "available-public", "integrationState": "m06-partial", "publicPath": "@haiyue/engine/input", "publicSymbols": ["InputMap"], "version": "0.1.0",
+      "lifecycle": { "ownership": "runtime input owner", "teardown": "listener disposal" },
+      "serialization": { "status": "partial", "path": "InputActionBindings" },
+      "toolExposure": { "m06": "project script capability only", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["@haiyue/engine/input#InputMap"]
+    },
+    {
+      "id": "input.pointer", "domain": "input", "owner": "g06-camera-input-interaction-replay",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/systems", "publicSymbols": ["InteractionSystem"], "version": "0.1.0",
+      "lifecycle": { "ownership": "runtime system", "teardown": "system disposal and listener removal" },
+      "serialization": { "status": "not-applicable", "path": null },
+      "toolExposure": { "m06": "viewport picking only; no gameplay pointer component", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["@haiyue/engine/systems#InteractionSystem"]
+    },
+    {
+      "id": "input.inject", "domain": "input", "owner": "g06-camera-input-interaction-replay",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "play instance", "teardown": "replay completion or stop" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "none", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["packages/game-authoring-tools/src/definitions.ts"]
+    },
+    {
+      "id": "simulation.fixed-step", "domain": "simulation", "owner": "g06-camera-input-interaction-replay",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "play instance", "teardown": "play stop" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "RAF-driven preview", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["packages/script-preview/src/index.ts"]
+    },
+    {
+      "id": "simulation.replay", "domain": "simulation", "owner": "g06-camera-input-interaction-replay",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "task playtest", "teardown": "playtest completion" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "none", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["packages/game-authoring-tools/src/definitions.ts"]
+    },
+    {
+      "id": "interaction.pointer", "domain": "interaction", "owner": "g06-camera-input-interaction-replay",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/systems", "publicSymbols": ["InteractionSystem", "createInteractionRaycastResult"], "version": "0.1.0",
+      "lifecycle": { "ownership": "runtime system", "teardown": "system disposal" },
+      "serialization": { "status": "partial", "path": "Interactive component through Engine component serialization" },
+      "toolExposure": { "m06": "editor viewport picking only", "m12Owner": "g06-camera-input-interaction-replay" },
+      "testOwner": "g06-camera-input-interaction-replay", "evidence": ["@haiyue/engine/systems#InteractionSystem"]
+    },
+    {
+      "id": "physics.2d", "domain": "physics", "owner": "g07-physics-gameplay-components",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/physics", "publicSymbols": ["Physics2DBody", "Physics2DJoint", "Physics2DSystem"], "version": "0.1.0",
+      "lifecycle": { "ownership": "world physics system", "teardown": "system and backend disposal" },
+      "serialization": { "status": "supported", "path": "@haiyue/engine/serialization" },
+      "toolExposure": { "m06": "none", "m12Owner": "g07-physics-gameplay-components" },
+      "testOwner": "g07-physics-gameplay-components", "evidence": ["@haiyue/engine/physics#Physics2DSystem"]
+    },
+    {
+      "id": "physics.3d", "domain": "physics", "owner": "g07-physics-gameplay-components",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/physics", "publicSymbols": ["Physics3DBody", "Physics3DJoint", "Physics3DSystem"], "version": "0.1.0",
+      "lifecycle": { "ownership": "world physics system", "teardown": "system and Rapier backend disposal" },
+      "serialization": { "status": "supported", "path": "@haiyue/engine/serialization" },
+      "toolExposure": { "m06": "none", "m12Owner": "g07-physics-gameplay-components" },
+      "testOwner": "g07-physics-gameplay-components", "evidence": ["@haiyue/engine/physics#Physics3DSystem"]
+    },
+    {
+      "id": "physics.raycast", "domain": "physics", "owner": "g07-physics-gameplay-components",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/physics", "publicSymbols": ["Physics3DSystem"], "version": "0.1.0",
+      "lifecycle": { "ownership": "physics system query", "teardown": "result is immutable; system owns backend" },
+      "serialization": { "status": "not-applicable", "path": null },
+      "toolExposure": { "m06": "none", "m12Owner": "g07-physics-gameplay-components" },
+      "testOwner": "g07-physics-gameplay-components", "evidence": ["@haiyue/engine/physics#Physics3DSystem.raycast"]
+    },
+    {
+      "id": "lighting", "domain": "render", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "m06-partial", "publicPath": "@haiyue/engine/lighting", "publicSymbols": ["AmbientLight", "DirectionalLight", "PointLight", "EnvironmentLight"], "version": "0.1.0",
+      "lifecycle": { "ownership": "scene entity", "teardown": "scene disposal" },
+      "serialization": { "status": "supported", "path": "@haiyue/engine/serialization" },
+      "toolExposure": { "m06": "entity.create supports ambient/directional/point only", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/lighting"]
+    },
+    {
+      "id": "shadow.directional", "domain": "render", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/lighting", "publicSymbols": ["DirectionalLight"], "version": "0.1.0",
+      "lifecycle": { "ownership": "renderer and light", "teardown": "renderer GPU owner disposal" },
+      "serialization": { "status": "supported", "path": "DirectionalLight shadow settings" },
+      "toolExposure": { "m06": "defaults only; no shadow settings", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/lighting#DirectionalLight"]
+    },
+    {
+      "id": "material.pbr", "domain": "render", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "m06-partial", "publicPath": "@haiyue/engine/material", "publicSymbols": ["PbrMaterial", "MaterialRendererRegistry"], "version": "0.1.0",
+      "lifecycle": { "ownership": "scene or asset owner", "teardown": "material/GPU owner disposal" },
+      "serialization": { "status": "partial", "path": "mesh/material descriptor and asset references" },
+      "toolExposure": { "m06": "material.set exposes kind and RGBA only", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/material#PbrMaterial"]
+    },
+    {
+      "id": "postprocess", "domain": "render", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/postprocess", "publicSymbols": ["PostProcessRenderer", "PostProcessRenderFeature", "FxaaPass", "TaaPass", "MotionBlurPass"], "version": "0.1.0",
+      "lifecycle": { "ownership": "renderer GPU owner", "teardown": "pass and renderer disposal" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "none", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/postprocess"]
+    },
+    {
+      "id": "particles.2d", "domain": "effects", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/components", "publicSymbols": ["ParticleEmitter2D"], "version": "0.1.0",
+      "lifecycle": { "ownership": "scene component and systems", "teardown": "scene/system disposal" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "none", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/components#ParticleEmitter2D", "@haiyue/engine/systems#Particle2DSystem"]
+    },
+    {
+      "id": "particles.3d", "domain": "effects", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/components", "publicSymbols": ["ParticleEmitter3D"], "version": "0.1.0",
+      "lifecycle": { "ownership": "scene component and systems", "teardown": "scene/system disposal" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "none", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/components#ParticleEmitter3D", "@haiyue/engine/systems#Particle3DSystem"]
+    },
+    {
+      "id": "animation.2d", "domain": "animation", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/extensions/animation", "publicSymbols": ["Animation2DComponent", "createAnimationAssetLoader"], "version": "0.1.0",
+      "lifecycle": { "ownership": "extension runtime", "teardown": "animation component/runtime disposal" },
+      "serialization": { "status": "supported", "path": "@haiyue/animation-spec resources" },
+      "toolExposure": { "m06": "package not consumed", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["Engine@07524b6:extensions/package.json#./animation"]
+    },
+    {
+      "id": "animation.3d", "domain": "animation", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/extensions/animation3d", "publicSymbols": ["Animation3DMixer", "HyaAnimation3DRuntime"], "version": "0.1.0",
+      "lifecycle": { "ownership": "extension runtime", "teardown": "animation component/runtime disposal" },
+      "serialization": { "status": "partial", "path": "extension animation assets" },
+      "toolExposure": { "m06": "package not consumed", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["Engine@07524b6:extensions/package.json#./animation3d"]
+    },
+    {
+      "id": "audio.playback", "domain": "audio", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/components", "publicSymbols": ["MusicPlayerComponent"], "version": "0.1.0",
+      "lifecycle": { "ownership": "audio component", "teardown": "AudioContext/source disposal" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "none; arbitrary URL fetch must not be exposed", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/components#MusicPlayerComponent"]
+    },
+    {
+      "id": "asset.import", "domain": "assets", "owner": "g08-render-assets-effects-adapters",
+      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/assets", "publicSymbols": ["AssetManager", "AssetOwnerScope", "AssetJob"], "version": "0.1.0",
+      "lifecycle": { "ownership": "asset owner scope", "teardown": "scope abort/dispose" },
+      "serialization": { "status": "partial", "path": "asset ids/digests require product registry" },
+      "toolExposure": { "m06": "none", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/assets#AssetManager"]
+    },
+    {
+      "id": "prefab", "domain": "assets", "owner": "g08-render-assets-effects-adapters",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "asset and scene owner", "teardown": "spawned entity/asset disposal" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "script runtime mentions spawnPrefab but no authoring asset contract", "m12Owner": "g08-render-assets-effects-adapters" },
+      "testOwner": "g08-render-assets-effects-adapters", "evidence": ["@haiyue/engine/components#SCRIPT_RUNTIME_CONTRACT"]
+    },
+    {
+      "id": "play.multi-script", "domain": "runtime", "owner": "g09-multi-script-play-runtime",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "play instance", "teardown": "all script scopes disposed in reverse order" },
+      "serialization": { "status": "not-supported", "path": "M06 preview plan carries one script id" },
+      "toolExposure": { "m06": "preview.validate requires one scriptId", "m12Owner": "g09-multi-script-play-runtime" },
+      "testOwner": "g09-multi-script-play-runtime", "evidence": ["packages/game-authoring-tools/src/definitions.ts", "packages/script-preview/src/index.ts"]
+    },
+    {
+      "id": "play.capture", "domain": "observation", "owner": "g10-observation-playtest-repair-loop",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "observation artifact owner", "teardown": "retention/quota policy" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "no Agent screenshot tool; G10 only checked PNG signature/minimum size manually", "m12Owner": "g10-observation-playtest-repair-loop" },
+      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["docs/evidence/g10-acceptance.md", "packages/game-authoring-tools/src/definitions.ts"]
+    },
+    {
+      "id": "play.inspect", "domain": "observation", "owner": "g10-observation-playtest-repair-loop",
+      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "lifecycle": { "ownership": "play instance", "teardown": "bounded snapshot release" },
+      "serialization": { "status": "not-supported", "path": null },
+      "toolExposure": { "m06": "preview.start returns only state/instance/entity/disposable count", "m12Owner": "g10-observation-playtest-repair-loop" },
+      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/runtime.ts"]
+    },
+    {
+      "id": "diagnostics.query", "domain": "diagnostics", "owner": "g10-observation-playtest-repair-loop",
+      "classification": "available-internal", "integrationState": "m06-integrated", "publicPath": "@haiyue/ai-studio-operation-log", "publicSymbols": ["OperationLog"], "version": "0.0.0",
+      "lifecycle": { "ownership": "operation log owner", "teardown": "flush and close" },
+      "serialization": { "status": "supported", "path": "bounded redacted summaries" },
+      "toolExposure": { "m06": "diagnostics.query", "m12Owner": "g10-observation-playtest-repair-loop" },
+      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/definitions.ts", "packages/operation-log/src/operation-log.ts"]
+    }
+  ]
+}

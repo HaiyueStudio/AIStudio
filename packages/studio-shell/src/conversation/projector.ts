@@ -1,5 +1,5 @@
 import type { JsonObject, StableId, StudioDisposable } from '@haiyue/ai-studio-contracts';
-import { normalizeBackend, normalizeConversationNode, approvalFromNode, validateConversationIntent } from './validation.js';
+import { normalizeBackend, normalizeConversationNode, normalizeTaskAccounting, approvalFromNode, validateConversationIntent } from './validation.js';
 import type {
   ConversationBackendReadModel,
   ConversationIntent,
@@ -23,6 +23,7 @@ export class ConversationProjector {
   private busy = false;
   private backendId: StableId | null = null;
   private backends: readonly ConversationBackendReadModel[] = Object.freeze([]);
+  private taskAccounting: ConversationReadModel['taskAccounting'] = null;
 
   reset(snapshot: ConversationReplaySnapshot): ConversationReadModel {
     this.nodes.clear();
@@ -33,6 +34,7 @@ export class ConversationProjector {
     this.busy = snapshot.busy;
     this.backendId = snapshot.backendId;
     this.backends = normalizeBackends(snapshot.backends);
+    this.taskAccounting = normalizeTaskAccounting(snapshot.taskAccounting);
     for (const event of [...snapshot.events].sort((left, right) => left.sequence - right.sequence)) this.apply(event);
     return this.snapshot();
   }
@@ -58,6 +60,7 @@ export class ConversationProjector {
     this.busy = value.busy;
     this.backendId = value.backendId;
     this.backends = normalizeBackends(value.backends);
+    this.taskAccounting = normalizeTaskAccounting(value.taskAccounting);
     return this.snapshot();
   }
 
@@ -72,7 +75,7 @@ export class ConversationProjector {
         : this.busy ? 'Wait for the active turn or cancel it.' : null;
     return Object.freeze({
       revision: this.revision, lastSequence: this.lastSequence, connection: this.connection, busy: this.busy,
-      backendId: this.backendId, backends: this.backends, nodes, pendingInteraction, composerBlockedReason,
+      backendId: this.backendId, backends: this.backends, taskAccounting: this.taskAccounting, nodes, pendingInteraction, composerBlockedReason,
     });
   }
 }

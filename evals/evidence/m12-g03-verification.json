@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g03-model-controls-usage-cost-budgets",
+  "pricingCatalog": { "id": "pricing:haiyue-m12-usd", "version": "1.0.0", "currency": "USD", "modelCount": 8 },
+  "backends": ["harness-api-key", "codex-app-server"],
+  "isolatedBackendSmoke": { "providerRequestIssued": false, "effectiveConfigVerified": true, "finishReasonVerified": true, "normalizedUsageVerified": true },
+  "usageCases": ["delta", "cumulative", "duplicate", "out-of-order", "final", "late-terminal", "cancel-drain", "tool-payload-bytes"],
+  "costCases": ["cached-input", "cache-write", "integer-rounding", "actual", "estimated", "unknown-model", "subscription-not-api-cost"],
+  "budgetCases": ["observe", "soft-warning", "hard-stop-before-prepare", "hard-wall-time-expiry", "late-usage-does-not-unlatch"],
+  "crossGenreReports": 7,
+  "crossGenreAccountingLinks": { "task": true, "budget": true, "turn": true, "tool": true, "usage": true, "cost": true },
+  "checks": ["npm run m12:g03:check", "npm run check"]
+}

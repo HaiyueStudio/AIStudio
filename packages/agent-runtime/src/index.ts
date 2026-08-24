@@ -1,5 +1,21 @@
-import { asStableId, createStudioServiceToken, defineStudioPlugin, type JsonObject, type JsonValue, type StableId, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
+import { asStableId, createStudioServiceToken, defineStudioPlugin, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12Digest, type StableId, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, operationLogServiceToken, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
+import type { AgentModelCatalog } from './model-controls.js';
+import { validateAgentTurnConfig } from './model-controls.js';
+import { UsageLedgerStore, type NormalizedFinishReason, type UsageLedger } from './usage-ledger.js';
+
+export { BudgetError, TaskBudgetController, validateTaskBudget } from './budget.js';
+export type { BudgetConsumption, BudgetDecision, BudgetMetric } from './budget.js';
+export { TaskAccount, TaskAccountingError, TaskAccountingRegistry } from './accounting.js';
+export type { TaskAccountingOptions, TaskAccountingSnapshot, TaskCostSummary } from './accounting.js';
+export { AgentModelControlError, negotiateAgentTurnConfig, validateAgentTurnConfig } from './model-controls.js';
+export type { AgentModelCatalog, AgentModelDescriptor, BackendNegotiationPolicy } from './model-controls.js';
+export { PricingEngine, PricingError, validatePricingCatalog } from './pricing.js';
+export type { CostEstimate } from './pricing.js';
+export { M12_DEFAULT_PRICING_CATALOG } from './default-pricing.js';
+export type { PricingCatalogV1, PricingEntryV1 } from '@haiyue/ai-studio-contracts';
+export { UsageLedger, UsageLedgerError, UsageLedgerStore } from './usage-ledger.js';
+export type { NormalizedFinishReason, UsageLedgerSnapshot, UsageUpdate } from './usage-ledger.js';
 
 export type AgentBackendKind = 'harness-api-key' | 'codex-app-server';
 export type AgentBackendEventKind = 'status' | 'conversation-node' | 'tool-request' | 'question' | 'approval' | 'usage' | 'completed' | 'diagnostic';
@@ -21,6 +37,7 @@ export interface AgentBackendStatus {
 }
 export interface AgentLoginHandoff { readonly id: StableId; readonly kind: 'browser' | 'device-code'; readonly url?: string; readonly userCode?: string; }
 export interface AgentTurnInput {
+  readonly taskId: StableId; readonly config: AgentTurnConfigV2;
   readonly sessionId?: StableId; readonly prompt: string; readonly contextArtifactIds: readonly StableId[];
   readonly tools: readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[];
 }
@@ -31,6 +48,8 @@ export interface AgentBackendEvent {
 export interface AgentBackend {
   readonly descriptor: AgentBackendDescriptor;
   readonly upstream?: Readonly<Record<string, string>>;
+  modelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog>;
+  negotiate(config: AgentTurnConfigV2, signal?: AbortSignal): Promise<BackendCapabilityNegotiationV2>;
   authenticate(signal?: AbortSignal): Promise<AgentLoginHandoff | null>;
   status(signal?: AbortSignal): Promise<AgentBackendStatus>;
   logout(signal?: AbortSignal): Promise<void>;
@@ -70,10 +89,17 @@ export class AgentBackendRegistry {
 export class AgentTurnRuntime {
   private readonly active = new Map<StableId, AbortController>();
   private disposed = false;
+  readonly usage = new UsageLedgerStore();
   constructor(private readonly registry: AgentBackendRegistry, private readonly log: OperationLog) {}
   async *start(backendId: StableId, input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     this.assertActive(); validateTurnInput(input);
     const backend = this.registry.get(backendId);
+    const negotiation = await backend.negotiate(input.config, signal);
+    await this.log.append({ kind: 'agent/config-negotiated', severity: negotiation.status === 'rejected' ? 'error' : negotiation.status === 'degraded' ? 'warning' : 'info', source: asStableId('studio.agent-runtime'), payload: {
+      backendId, taskId: input.taskId, requestedModel: input.config.model, requestedReasoningEffort: input.config.reasoningEffort, requestedOutputTokenLimit: input.config.outputTokenLimit,
+      status: negotiation.status, effective: negotiation.effective, diagnostics: negotiation.diagnostics.map((entry) => ({ code: entry.code, ...(entry.capability ? { capability: entry.capability } : {}) })),
+    }, provenance: { backendId, upstream: backend.upstream ?? { protocolVersion: backend.descriptor.protocolVersion } } }, { signal });
+    if (negotiation.status === 'rejected' || !negotiation.effective) throw new AgentBackendProtocolError('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' ') || 'Agent turn configuration was rejected.');
     yield* this.consume(backend, backend.startTurn(input, signal), input, signal);
   }
   async *resume(backendId: StableId, sessionId: StableId, turnId: StableId, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
@@ -84,36 +110,58 @@ export class AgentTurnRuntime {
     this.active.get(turnId)?.abort(new Error('Studio turn cancelled.'));
     await this.registry.get(backendId).cancelTurn(sessionId, turnId);
   }
+  async recordToolResult(turnId: StableId, toolCallId: StableId, result: JsonObject, observedAtMs = Date.now()): Promise<void> {
+    const ledger = this.usage.get(turnId); if (!ledger) return;
+    const snapshot = ledger.reconcile({ eventId: `${turnId}:tool-output:${toolCallId}`, sequence: 1_500_000_000 + ledger.snapshot().acceptedEvents, mode: 'delta', toolCallId, toolOutputBytes: Buffer.byteLength(canonicalStringify(result)), observedAtMs });
+    await this.appendUsageRecord(snapshot.record);
+  }
   async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; for (const controller of this.active.values()) controller.abort(new Error('Agent runtime disposed.')); this.active.clear(); await this.registry.dispose(); }
   private async *consume(backend: AgentBackend, events: AsyncIterable<AgentBackendEvent>, input?: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     const controller = new AbortController(); const unlink = fuseAbort(signal, controller);
     let terminal = false; let coordinates: Readonly<{ sessionId: StableId; turnId: StableId }> | null = null;
+    let ledger: UsageLedger | undefined; const startedAtMs = Date.now();
     try {
       if (input) await this.log.append({ kind: 'agent/context-prepared', severity: 'info', source: asStableId('studio.agent-runtime'), payload: {
-        backendId: backend.descriptor.id, promptDigest: sha256(input.prompt), promptBytes: Buffer.byteLength(input.prompt), contextArtifactIds: input.contextArtifactIds, toolIds: input.tools.map((tool) => tool.id),
+        backendId: backend.descriptor.id, taskId: input.taskId, promptDigest: sha256(input.prompt), promptBytes: Buffer.byteLength(input.prompt), contextArtifactIds: input.contextArtifactIds, toolIds: input.tools.map((tool) => tool.id),
+        configDigest: sha256(canonicalStringify(input.config as unknown as JsonObject)),
       }, provenance: { backendId: backend.descriptor.id, upstream: backend.upstream ?? { protocolVersion: backend.descriptor.protocolVersion } } }, { signal: controller.signal });
       for await (const raw of events) {
-        if (controller.signal.aborted) throw controller.signal.reason;
         const event = validateAgentBackendEvent(raw, backend.descriptor.id);
+        if (controller.signal.aborted && event.kind !== 'usage' && event.kind !== 'completed') continue;
         coordinates ??= Object.freeze({ sessionId: event.sessionId, turnId: event.turnId });
+        if (!ledger && input) ledger = this.usage.get(event.turnId) ?? this.usage.open({ taskId: input.taskId, sessionId: event.sessionId, turnId: event.turnId, providerRequestDigest: sha256(input.prompt) as M12Digest, startedAtMs });
+        ledger ??= this.usage.get(event.turnId);
         if (event.sessionId !== coordinates.sessionId || event.turnId !== coordinates.turnId) throw new AgentBackendProtocolError('agent.coordinate-drift', 'Backend changed session/turn identity within one stream.');
-        if (terminal) throw new AgentBackendProtocolError('agent.event-after-terminal', 'Backend emitted an event after terminal completion.');
+        if (terminal && event.kind !== 'usage') throw new AgentBackendProtocolError('agent.event-after-terminal', 'Backend emitted a non-usage event after terminal completion.');
+        if (event.kind === 'tool-request' && ledger) {
+          const callId = isStableId(event.payload.toolCallId) ? event.payload.toolCallId : asStableId(`tool-call:unknown:${ledger.snapshot().acceptedEvents}`);
+          ledger.reconcile({ eventId: `${event.turnId}:tool-input:${callId}`, sequence: 1_000_000_000 + ledger.snapshot().acceptedEvents, mode: 'delta', toolCallId: callId, toolInputBytes: Buffer.byteLength(canonicalStringify(event.payload.arguments ?? null)), observedAtMs: Date.now() });
+        }
+        if (event.kind === 'usage' && ledger) reconcileUsageEvent(ledger, event);
         if (event.kind === 'completed') terminal = true;
+        if (event.kind === 'completed' && ledger) ledger.markTerminal(normalizeFinishReason(event.payload.finishReason, event.payload.status), Date.now());
         this.active.set(event.turnId, controller);
         await this.log.append({ kind: `agent/${event.kind}`, severity: event.kind === 'diagnostic' ? 'error' : 'info', source: asStableId('studio.agent-runtime'),
           correlation: eventCorrelation(event),
           payload: eventLogPayload(event),
           provenance: { backendId: backend.descriptor.id, upstream: backend.upstream ?? { protocolVersion: backend.descriptor.protocolVersion } },
-        }, { signal: controller.signal });
+        }, { signal: controller.signal.aborted ? undefined : controller.signal });
+        if (ledger && (event.kind === 'tool-request' || event.kind === 'usage' || event.kind === 'completed')) await this.appendUsageRecord(ledger.snapshot().record, controller.signal.aborted ? undefined : controller.signal);
         yield event;
       }
       if (!terminal) throw new AgentBackendProtocolError('agent.stream-without-terminal', 'Backend stream closed without a terminal event.');
     } finally { if (coordinates) this.active.delete(coordinates.turnId); unlink(); }
   }
+  private async appendUsageRecord(record: import('@haiyue/ai-studio-contracts').UsageRecordV2, signal?: AbortSignal): Promise<void> {
+    await this.log.append({ kind: 'agent/usage-recorded', severity: 'info', source: asStableId('studio.agent-runtime'), correlation: { sessionId: record.sessionId as StableId, turnId: record.turnId as StableId, ...(record.toolCallId ? { toolCallId: record.toolCallId as StableId } : {}) }, payload: {
+      usageRecordId: record.id, taskId: record.taskId, inputTokens: record.inputTokens, cachedInputTokens: record.cachedInputTokens, cacheWriteTokens: record.cacheWriteTokens, outputTokens: record.outputTokens, reasoningTokens: record.reasoningTokens,
+      toolInputBytes: record.toolInputBytes, toolOutputBytes: record.toolOutputBytes, wallTimeMs: record.wallTimeMs, final: record.final,
+    } }, { signal });
+  }
   private assertActive(): void { if (this.disposed) throw new AgentBackendProtocolError('agent.runtime-disposed', 'Agent turn runtime is disposed.'); }
 }
 
-export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; }
+export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; readonly usage: UsageLedgerStore; readonly accounting: import('./accounting.js').TaskAccountingRegistry; }
 export const agentRuntimeServiceToken = createStudioServiceToken<AgentRuntimeService>('studio.agent-runtime');
 export const agentBackendRegistryToken = createStudioServiceToken<AgentBackendRegistry>('studio.agent-backend-registry');
 
@@ -133,7 +181,8 @@ export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): St
         for (const backend of await options.createBackends()) registry.register(backend);
         context.owner.assertActive();
       } catch (cause) { await registry.dispose(); throw cause; }
-      const turns = new AgentTurnRuntime(registry, log); const service = Object.freeze({ registry, turns });
+      const turns = new AgentTurnRuntime(registry, log); const { TaskAccountingRegistry } = await import('./accounting.js');
+      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage) });
       context.services.provide(agentBackendRegistryToken, registry); context.services.provide(agentRuntimeServiceToken, service);
       context.effects.own('agent-runtime.dispose', () => turns.dispose());
     },
@@ -163,7 +212,8 @@ export function normalizeBackendFailure(cause: unknown): Readonly<{ code: string
 }
 
 function validateTurnInput(input: AgentTurnInput): void {
-  if (typeof input.prompt !== 'string' || input.prompt.length === 0 || input.prompt.length > 200_000 || !Array.isArray(input.tools) || !Array.isArray(input.contextArtifactIds)
+  validateAgentTurnConfig(input.config);
+  if (!isStableId(input.taskId) || typeof input.prompt !== 'string' || input.prompt.length === 0 || input.prompt.length > 200_000 || !Array.isArray(input.tools) || !Array.isArray(input.contextArtifactIds)
     || input.contextArtifactIds.some((id) => !isStableId(id)) || input.tools.some((tool) => !isStableId(tool?.id) || typeof tool.description !== 'string' || !isJsonObject(tool.inputSchema))) throw new AgentBackendProtocolError('agent.turn-input-invalid', 'Agent turn input is invalid.');
 }
 function fuseAbort(parent: AbortSignal | undefined, controller: AbortController): () => void { if (!parent) return () => {}; const abort = (): void => controller.abort(parent.reason); if (parent.aborted) abort(); else parent.addEventListener('abort', abort, { once: true }); return () => parent.removeEventListener('abort', abort); }
@@ -177,6 +227,23 @@ const eventKinds = new Set(['status', 'conversation-node', 'tool-request', 'ques
 const terminalStatuses = new Set<string>(['completed', 'cancelled', 'failed', 'interrupted']);
 const descriptorKeys = new Set(['schemaVersion', 'id', 'kind', 'protocolVersion', 'capabilities']);
 const capabilityKeys = new Set(['resume', 'questions', 'structuredTools', 'backendApprovals', 'usage', 'rateLimits']);
+
+function reconcileUsageEvent(ledger: UsageLedger, event: AgentBackendEvent): void {
+  const payload = event.payload;
+  const hasAccounting = ['inputTokens', 'cachedInputTokens', 'cacheWriteTokens', 'outputTokens', 'reasoningTokens', 'toolInputBytes', 'toolOutputBytes'].some((key) => typeof payload[key] === 'number' || payload[key] === null);
+  if (!hasAccounting) return;
+  const fallbackSequence = ledger.snapshot().acceptedEvents + 1;
+  const eventId = typeof payload.eventId === 'string' && payload.eventId.length > 0 ? payload.eventId : `${event.turnId}:usage:${fallbackSequence}`;
+  const sequence = Number.isSafeInteger(payload.sequence) && (payload.sequence as number) >= 0 ? payload.sequence as number : fallbackSequence;
+  const mode = payload.mode === 'cumulative' ? 'cumulative' : 'delta';
+  const update: Record<string, unknown> = { eventId, sequence, mode, observedAtMs: Date.now(), ...(payload.final === true ? { final: true } : {}) };
+  for (const key of ['inputTokens', 'cachedInputTokens', 'cacheWriteTokens', 'outputTokens', 'reasoningTokens', 'toolInputBytes', 'toolOutputBytes']) if (typeof payload[key] === 'number' || payload[key] === null) update[key] = payload[key];
+  ledger.reconcile(update as unknown as Parameters<UsageLedger['reconcile']>[0]);
+}
+function normalizeFinishReason(value: unknown, status: unknown): NormalizedFinishReason {
+  if (value === 'stop' || value === 'length' || value === 'tool-calls' || value === 'cancelled' || value === 'content-filter' || value === 'error' || value === 'unknown') return value;
+  return status === 'cancelled' ? 'cancelled' : status === 'failed' ? 'error' : 'unknown';
+}
 
 function eventCorrelation(event: AgentBackendEvent): Readonly<{ sessionId: StableId; turnId: StableId; toolCallId?: StableId; approvalId?: StableId }> {
   const toolCallId = isStableId(event.payload.toolCallId) ? event.payload.toolCallId : undefined;

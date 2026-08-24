@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/cost-record/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "usageRecordId", "pricingCatalogId", "pricingCatalogVersion", "effectiveAt", "currency", "amountMicros", "status", "formula"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/definitions/stableId" },
+    "usageRecordId": { "$ref": "#/definitions/stableId" },
+    "pricingCatalogId": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/stableId" }] },
+    "pricingCatalogVersion": { "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "maxLength": 64 }] },
+    "effectiveAt": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/timestamp" }] },
+    "currency": { "anyOf": [{ "type": "null" }, { "type": "string", "pattern": "^[A-Z]{3}$" }] },
+    "amountMicros": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }] },
+    "status": { "enum": ["actual", "estimated", "unknown"] },
+    "formula": { "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "maxLength": 2048 }] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "unknown" } } },
+      "then": {
+        "properties": {
+          "pricingCatalogId": { "type": "null" }, "pricingCatalogVersion": { "type": "null" },
+          "effectiveAt": { "type": "null" }, "currency": { "type": "null" },
+          "amountMicros": { "type": "null" }, "formula": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["actual", "estimated"] } } },
+      "then": {
+        "properties": {
+          "pricingCatalogId": { "type": "string" }, "pricingCatalogVersion": { "type": "string" },
+          "effectiveAt": { "type": "string" }, "currency": { "type": "string" },
+          "amountMicros": { "type": "integer" }, "formula": { "type": "string" }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$" }
+  }
+}
