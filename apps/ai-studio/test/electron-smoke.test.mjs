@@ -18,6 +18,7 @@ test('real Electron loads a sandboxed renderer through the typed preload and clo
     HAIYUE_ELECTRON_PIXEL_CANDIDATE: pixelCandidate,
   });
   assert.equal(result.code, 0, result.output);
+  assert.doesNotMatch(result.output, /Failed to resolve module specifier|contains an unbundled browser import/u);
   assert.match(result.output, /\[ai-studio-smoke\] renderer-ready webgpu-script-agent-ui agent-sync-push-single-flight resizable-split-layout structured-logs pixel-candidate reload-safe secure-preload-only/);
   const png = await readFile(pixelCandidate);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);

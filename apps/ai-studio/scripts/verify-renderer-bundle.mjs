@@ -1,16 +1,24 @@
-import { access, readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const entryPoints = ['renderer.js', 'web.js', 'preview-runtime.js'];
-const importPattern = /\b(?:from\s*|import\s*)["']([^"']+)["']/gu;
+const entryPoints = ['renderer.js', 'web.js', 'preview-runtime.js']
+  .map((entry) => path.join(root, 'dist', entry));
 
-for (const entry of entryPoints) {
-  const entryPath = path.join(root, 'dist', entry);
-  const source = await readFile(entryPath, 'utf8');
-  for (const match of source.matchAll(importPattern)) {
-    const specifier = match[1];
-    if (!specifier.startsWith('.')) throw new Error(`${entry} contains an unbundled browser import: ${specifier}`);
-    await access(path.resolve(path.dirname(entryPath), specifier));
-  }
-}
+await build({
+  entryPoints,
+  outdir: path.join(root, 'dist', '.verify'),
+  bundle: true,
+  write: false,
+  platform: 'browser',
+  format: 'esm',
+  logLevel: 'silent',
+  plugins: [{
+    name: 'reject-bare-browser-imports',
+    setup(context) {
+      context.onResolve({ filter: /^[^./]/ }, (args) => args.kind === 'entry-point' ? undefined : ({
+        errors: [{ text: `${path.basename(args.importer)} contains an unbundled browser import: ${args.path}` }],
+      }));
+    },
+  }],
+});
