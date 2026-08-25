@@ -19,13 +19,15 @@ import {
   defineStudioPlugin,
   type JsonObject,
   type JsonValue,
+  type GameComponentInstanceV2,
+  type GameDocumentOperationV2,
   type StableId,
   type StudioPluginDefinition,
 } from '@haiyue/ai-studio-contracts';
 import { editorFoundationTokens } from '@haiyue/ai-studio-kernel';
 import { operationLogServiceToken, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import { projectWorkspaceServiceToken } from './project/index.js';
-import type { ProjectWorkspace, ProjectWorkspaceSnapshot } from './history/index.js';
+import type { ProjectDocumentMutation, ProjectWorkspace } from './history/index.js';
 
 export const SCENE_GEOMETRY_KINDS = Object.freeze(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] as const);
 export const SCENE_LIGHT_KINDS = Object.freeze(['directional-light', 'point-light', 'ambient-light'] as const);
@@ -147,7 +149,6 @@ export const sceneSelectionToken = createStudioServiceToken<SceneSelectionServic
 export const transformServiceToken = createStudioServiceToken<Pick<SceneAuthoringService, 'snapshot' | 'setTransform'>>('studio.transform');
 export const viewportServiceToken = createStudioServiceToken<ViewportService>('studio.viewport');
 
-const SCENE_SETTING_KEY = 'scene.snapshot';
 const ENTITY_SELECTION_KIND = 'scene-entity';
 
 class EngineSceneProjection {
@@ -192,6 +193,35 @@ class EngineSceneProjection {
     previous.destroy();
   }
 
+  apply(before: SceneEntitySnapshot | null, after: SceneEntitySnapshot | null): void {
+    this.assertActive();
+    if (!after && before) { const entity = this.entities.get(before.id); if (entity) { entity.destroy(); this.entities.delete(before.id); this.generation += 1; } return; }
+    if (!after) return;
+    if (!before) {
+      const entity = engineEntity(after); this.entities.set(after.id, entity);
+      if (after.parentId) { const parent = this.entities.get(after.parentId); if (!parent) throw new Error(`Scene parent ${after.parentId} is missing.`); parent.addChild(entity); }
+      else this.worldValue.addEntity(entity);
+      this.generation += 1; return;
+    }
+    const entity = this.entities.get(after.id); if (!entity) throw new Error(`Projected entity ${after.id} is missing.`);
+    entity.name = after.name;
+    const transform = entity.getComponent(CartesianTransform3D); if (!transform) throw new Error(`Projected transform ${after.id} is missing.`);
+    transform.setPosition(...tuple(after.transform.position)).setRotation(...tupleDegreesToRadians(after.transform.rotationDegrees)).setScale(...tuple(after.transform.scale));
+    if (before.parentId !== after.parentId) {
+      if (after.parentId) { const parent = this.entities.get(after.parentId); if (!parent) throw new Error(`Scene parent ${after.parentId} is missing.`); parent.addChild(entity); }
+      else if (entity.parent) { entity.parent.removeChild(entity); this.worldValue.addEntity(entity); }
+    }
+    if (isSceneGeometryKind(after.kind)) {
+      entity.removeComponent(DirectionalLight); entity.removeComponent(PointLight); entity.removeComponent(AmbientLight);
+      entity.addComponent(new Mesh3D(createGeometry(after.kind), createMaterial(after.appearance!)));
+    } else if (isSceneLightKind(after.kind)) {
+      entity.removeComponent(Mesh3D); entity.removeComponent(DirectionalLight); entity.removeComponent(PointLight); entity.removeComponent(AmbientLight); entity.addComponent(createLight(after.kind, after.light!));
+    } else {
+      entity.removeComponent(Mesh3D); entity.removeComponent(DirectionalLight); entity.removeComponent(PointLight); entity.removeComponent(AmbientLight);
+    }
+    this.generation += 1;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -206,12 +236,14 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
   private readonly listeners = new Set<(snapshot: SceneSnapshot) => void>();
   private readonly workspaceSubscription: Readonly<{ dispose(): void }>;
   private current: SceneSnapshot;
+  private readonly sceneEntities = new Map<StableId, SceneEntitySnapshot>();
   private disposed = false;
 
   constructor(private readonly workspace: ProjectWorkspace, private readonly log: OperationLog) {
-    this.current = sceneFromWorkspace(workspace.snapshot());
+    this.current = sceneFromWorkspace(workspace);
+    for (const entity of this.current.entities) this.sceneEntities.set(entity.id, entity);
     this.projection.rebuild(this.current);
-    this.workspaceSubscription = workspace.subscribe((snapshot) => this.sync(snapshot));
+    this.workspaceSubscription = workspace.subscribeDocumentMutations((mutation) => this.sync(mutation));
   }
 
   snapshot(): SceneSnapshot { this.assertActive(); return this.current; }
@@ -236,14 +268,21 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
         ...(isSceneGeometryKind(intent.kind) ? { appearance: defaultAppearance(intent.material, intent.color) } : {}),
         ...(isSceneLightKind(intent.kind) ? { light: defaultLight(intent.kind) } : {}),
       });
-      const next = freezeScene({ ...before, revision: before.revision + 1, entities: [...before.entities, entity] });
-      await this.workspace.execute({
-        id: intent.commandId,
-        label: `Create ${entityKindLabel(intent.kind)}`,
-        baseRevision: intent.baseRevision,
-        key: SCENE_SETTING_KEY,
-        value: next as unknown as JsonValue,
-      }, signal);
+      const sceneId = this.workspace.primarySceneId();
+      const transformId = asStableId(`component:transform:${randomUUID()}`);
+      const operations: GameDocumentOperationV2[] = [
+        { op: 'entity.add', entity: { id: entity.id, sceneId, name: entity.name, parentId: entity.parentId, order: entity.order, componentIds: [] } },
+        { op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: transformId, type: asStableId('haiyue.transform.3d'), version: '1.0.0', value: entity.transform as unknown as JsonObject }) },
+      ];
+      if (isSceneGeometryKind(entity.kind)) {
+        const geometryId = asStableId(`component:geometry:${randomUUID()}`); const materialId = asStableId(`component:material:${randomUUID()}`);
+        operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: geometryId, type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind: entity.kind } }) });
+        operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: materialId, type: asStableId('haiyue.render.material'), version: '1.0.0', value: entity.appearance as unknown as JsonObject }) });
+      } else if (isSceneLightKind(entity.kind)) {
+        const lightId = asStableId(`component:light:${randomUUID()}`);
+        operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: lightId, type: asStableId(componentLightType(entity.kind)), version: '1.0.0', value: entity.light as unknown as JsonObject }) });
+      }
+      await this.workspace.executeBatch({ id: intent.commandId, label: `Create ${entityKindLabel(intent.kind)}`, baseRevision: intent.baseRevision, operations }, signal);
       await this.appendCommandFact('scene/entity-created', intent.commandId, {
         entityId: entity.id, kind: entity.kind, sceneRevision: this.current.revision,
       });
@@ -258,21 +297,9 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     this.assertActive();
     try {
       const transform = freezeTransform(intent.transform);
-      let found = false;
-      const entities = this.current.entities.map((entity) => {
-        if (entity.id !== intent.entityId) return entity;
-        found = true;
-        return freezeEntity({ ...entity, transform });
-      });
-      if (!found) throw new Error(`Entity ${intent.entityId} does not exist.`);
-      const next = freezeScene({ ...this.current, revision: this.current.revision + 1, entities });
-      await this.workspace.execute({
-        id: intent.commandId,
-        label: 'Edit Transform',
-        baseRevision: intent.baseRevision,
-        key: SCENE_SETTING_KEY,
-        value: next as unknown as JsonValue,
-      }, signal);
+      if (!this.sceneEntities.has(intent.entityId)) throw new Error(`Entity ${intent.entityId} does not exist.`);
+      const component = this.entityComponent(intent.entityId, 'haiyue.transform.3d');
+      await this.workspace.executeBatch({ id: intent.commandId, label: 'Edit Transform', baseRevision: intent.baseRevision, operations: [{ op: 'component.replace', component: { ...component, value: transform as unknown as JsonObject } }] }, signal);
       await this.appendCommandFact('scene/transform-edited', intent.commandId, {
         entityId: intent.entityId, sceneRevision: this.current.revision,
       });
@@ -287,16 +314,9 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     this.assertActive();
     try {
       if (!isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
-      let found = false;
-      const entities = this.current.entities.map((entity) => {
-        if (entity.id !== intent.entityId) return entity;
-        if (!isSceneGeometryKind(entity.kind) || !entity.appearance) throw new TypeError('Only geometry entities can use materials.');
-        found = true;
-        return freezeEntity({ ...entity, appearance: { ...entity.appearance, material: intent.material, color: intent.color ?? entity.appearance.color } });
-      });
-      if (!found) throw new Error(`Entity ${intent.entityId} does not exist.`);
-      const next = freezeScene({ ...this.current, revision: this.current.revision + 1, entities });
-      await this.workspace.execute({ id: intent.commandId, label: 'Set Material', baseRevision: intent.baseRevision, key: SCENE_SETTING_KEY, value: next as unknown as JsonValue }, signal);
+      const target = this.sceneEntities.get(intent.entityId); if (!target) throw new Error(`Entity ${intent.entityId} does not exist.`); if (!isSceneGeometryKind(target.kind) || !target.appearance) throw new TypeError('Only geometry entities can use materials.');
+      const component = this.entityComponent(intent.entityId, 'haiyue.render.material'); const appearance = freezeAppearance({ ...target.appearance, material: intent.material, color: intent.color ?? target.appearance.color });
+      await this.workspace.executeBatch({ id: intent.commandId, label: 'Set Material', baseRevision: intent.baseRevision, operations: [{ op: 'component.replace', component: { ...component, value: appearance as unknown as JsonObject } }] }, signal);
       await this.appendCommandFact('scene/material-edited', intent.commandId, { entityId: intent.entityId, material: intent.material, color: intent.color ?? null, sceneRevision: this.current.revision });
       return this.current;
     } catch (cause) {
@@ -309,21 +329,8 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     this.assertActive();
     try {
       const name = normalizeRequiredEntityName(intent.name);
-      let found = false;
-      const entities = this.current.entities.map((entity) => {
-        if (entity.id !== intent.entityId) return entity;
-        found = true;
-        return freezeEntity({ ...entity, name });
-      });
-      if (!found) throw new Error(`Entity ${intent.entityId} does not exist.`);
-      const next = freezeScene({ ...this.current, revision: this.current.revision + 1, entities });
-      await this.workspace.execute({
-        id: intent.commandId,
-        label: 'Rename Entity',
-        baseRevision: intent.baseRevision,
-        key: SCENE_SETTING_KEY,
-        value: next as unknown as JsonValue,
-      }, signal);
+      if (!this.sceneEntities.has(intent.entityId)) throw new Error(`Entity ${intent.entityId} does not exist.`);
+      await this.workspace.executeBatch({ id: intent.commandId, label: 'Rename Entity', baseRevision: intent.baseRevision, operations: [{ op: 'entity.update', entityId: intent.entityId, patch: { name } }] }, signal);
       await this.appendCommandFact('scene/entity-renamed', intent.commandId, { entityId: intent.entityId, name, sceneRevision: this.current.revision });
       return this.current;
     } catch (cause) {
@@ -348,13 +355,24 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     this.projection.dispose();
   }
 
-  private sync(workspace: ProjectWorkspaceSnapshot): void {
+  private sync(mutation: ProjectDocumentMutation): void {
     if (this.disposed) return;
-    const next = sceneFromWorkspace(workspace);
-    if (JSON.stringify(next) === JSON.stringify(this.current)) return;
-    this.projection.rebuild(next);
-    this.current = next;
-    for (const listener of [...this.listeners]) listener(next);
+    if (mutation.kind === 'replace') {
+      const next = sceneFromWorkspace(this.workspace); this.sceneEntities.clear(); for (const entity of next.entities) this.sceneEntities.set(entity.id, entity);
+      this.projection.rebuild(next); this.current = next; for (const listener of [...this.listeners]) listener(next); return;
+    }
+    const affected = affectedEntityIds(mutation.delta, this.workspace);
+    if (affected.size === 0) return;
+    for (const entityId of affected) {
+      const before = this.sceneEntities.get(entityId) ?? null; const after = sceneEntityFromWorkspace(this.workspace, entityId);
+      this.projection.apply(before, after); if (after) this.sceneEntities.set(entityId, after); else this.sceneEntities.delete(entityId);
+    }
+    this.current = freezeScene({ schemaVersion: 1, revision: mutation.delta.afterRevision, documentId: mutation.delta.documentId as StableId, entities: sortSceneEntities([...this.sceneEntities.values()]) });
+    for (const listener of [...this.listeners]) listener(this.current);
+  }
+  private entityComponent(entityId: StableId, type: string): GameComponentInstanceV2 {
+    const result = this.workspace.queryGameDocument({ entityId, limit: 1 }); const component = result.components.find((value) => value.type === type);
+    if (!component) throw new Error(`Entity ${entityId} does not contain ${type}.`); return component;
   }
   private async appendCommandFact(kind: string, commandId: StableId, payload: JsonObject): Promise<void> {
     const document = this.workspace.snapshot().document;
@@ -576,12 +594,33 @@ export function normalizePickPoint(input: ViewportPickInput): ViewportPickPoint 
   });
 }
 
-function sceneFromWorkspace(workspace: ProjectWorkspaceSnapshot): SceneSnapshot {
-  const document = workspace.document;
+function sceneFromWorkspace(workspace: ProjectWorkspace): SceneSnapshot {
+  const document = workspace.snapshot().document;
   if (!document) return freezeScene({ schemaVersion: 1, revision: 0, documentId: asStableId('document:none'), entities: [] });
-  const raw = document.settings[SCENE_SETTING_KEY];
-  return raw === undefined ? freezeScene({ schemaVersion: 1, revision: 0, documentId: document.documentId, entities: [] }) : parseSceneSnapshot(raw, document.documentId);
+  const entities: SceneEntitySnapshot[] = []; let cursor: string | undefined;
+  do { const result = workspace.queryGameDocument({ limit: 1_000, ...(cursor ? { cursor } : {}) }); for (const entity of result.entities) entities.push(sceneEntity(entity, result.components)); cursor = result.nextCursor ?? undefined; } while (cursor);
+  return freezeScene({ schemaVersion: 1, revision: document.revision, documentId: document.documentId, entities: sortSceneEntities(entities) });
 }
+
+function sceneEntityFromWorkspace(workspace: ProjectWorkspace, entityId: StableId): SceneEntitySnapshot | null { const result = workspace.queryGameDocument({ entityId, limit: 1 }); const entity = result.entities[0]; return entity ? sceneEntity(entity, result.components) : null; }
+function sceneEntity(entity: ReturnType<ProjectWorkspace['queryGameDocument']>['entities'][number], components: readonly GameComponentInstanceV2[]): SceneEntitySnapshot {
+  const componentIds = new Set(entity.componentIds); const byType = new Map(components.filter((component) => componentIds.has(component.id)).map((component) => [component.type, component])); const transform = byType.get('haiyue.transform.3d'); if (!transform) throw new Error(`Entity ${entity.id} has no Transform component.`);
+  const geometry = byType.get('haiyue.render.geometry'); const material = byType.get('haiyue.render.material'); const directional = byType.get('haiyue.light.directional'); const point = byType.get('haiyue.light.point'); const ambient = byType.get('haiyue.light.ambient');
+  const kind = geometry ? String(geometry.value.kind) : directional ? 'directional-light' : point ? 'point-light' : ambient ? 'ambient-light' : 'empty';
+  return freezeEntity({ id: asStableId(entity.id, 'entity id'), name: entity.name, kind: kind as SceneEntityKind, parentId: entity.parentId ? asStableId(entity.parentId, 'parent id') : null, order: entity.order, transform: transform.value as unknown as TransformSnapshot, ...(geometry && material ? { appearance: material.value as unknown as NonNullable<SceneEntitySnapshot['appearance']> } : {}), ...((directional ?? point ?? ambient) ? { light: (directional ?? point ?? ambient)!.value as unknown as NonNullable<SceneEntitySnapshot['light']> } : {}) });
+}
+
+function affectedEntityIds(delta: { readonly operations: readonly GameDocumentOperationV2[] }, workspace: ProjectWorkspace): Set<StableId> {
+  const result = new Set<StableId>();
+  for (const operation of delta.operations) {
+    if (operation.op === 'entity.add') result.add(asStableId(operation.entity.id, 'entity id'));
+    else if (operation.op === 'entity.update' || operation.op === 'entity.remove') result.add(asStableId(operation.entityId, 'entity id'));
+    else if (operation.op === 'component.add' || operation.op === 'component.remove') result.add(asStableId(operation.entityId, 'entity id'));
+    else if (operation.op === 'component.patch' || operation.op === 'component.unset' || operation.op === 'component.replace') { const id = operation.op === 'component.replace' ? operation.component.id : operation.componentId; const owner = workspace.componentOwner(asStableId(id, 'component id')); if (owner) result.add(owner); }
+  }
+  return result;
+}
+function sortSceneEntities(values: readonly SceneEntitySnapshot[]): SceneEntitySnapshot[] { const children = new Map<string, SceneEntitySnapshot[]>(); for (const value of values) { const key = value.parentId ?? ''; const list = children.get(key) ?? []; list.push(value); children.set(key, list); } for (const list of children.values()) list.sort((left, right) => left.order - right.order || left.id.localeCompare(right.id)); const output: SceneEntitySnapshot[] = []; const visit = (parentId: string): void => { for (const child of children.get(parentId) ?? []) { output.push(child); visit(child.id); } }; visit(''); return output; }
 
 export function parseSceneSnapshot(value: JsonValue, documentId: StableId): SceneSnapshot {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Scene snapshot must be an object.');
@@ -625,6 +664,7 @@ function normalizeEntityName(value: string | undefined, kind: SceneEntityKind): 
 function normalizeRequiredEntityName(value: string): string { const name = value.trim(); if (!name || name.length > 80) throw new TypeError('Entity name must contain 1-80 characters.'); return name; }
 function tuple(value: Vec3Snapshot): [number, number, number] { return [value.x, value.y, value.z]; }
 function tupleDegreesToRadians(value: Vec3Snapshot): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }
+function engineEntity(item: SceneEntitySnapshot): Entity { const entity = new Entity(item.name); entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: tupleDegreesToRadians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) })); if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind), createMaterial(item.appearance!))); else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!)); return entity; }
 export function isSceneGeometryKind(value: unknown): value is SceneGeometryKind { return SCENE_GEOMETRY_KINDS.includes(value as SceneGeometryKind); }
 export function isSceneLightKind(value: unknown): value is SceneLightKind { return SCENE_LIGHT_KINDS.includes(value as SceneLightKind); }
 export function isSceneMaterialKind(value: unknown): value is SceneMaterialKind { return SCENE_MATERIAL_KINDS.includes(value as SceneMaterialKind); }
@@ -672,5 +712,6 @@ function createLight(kind: SceneLightKind, light: NonNullable<SceneEntitySnapsho
   if (kind === 'point-light') return new PointLight({ color: light.color, intensity: light.intensity, range: light.range });
   return new AmbientLight({ color: light.color, intensity: light.intensity });
 }
+function componentLightType(kind: SceneLightKind): string { return kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient'; }
 function entityKindLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }

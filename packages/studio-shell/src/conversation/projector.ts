@@ -65,9 +65,8 @@ export class ConversationProjector {
   }
 
   snapshot(now = Date.now()): ConversationReadModel {
-    void now;
     const nodes = Object.freeze([...this.nodes.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)));
-    const pendingInteraction = findPendingInteraction(nodes);
+    const pendingInteraction = findPendingInteraction(nodes, now);
     const composerBlockedReason = pendingInteraction
       ? pendingInteraction.kind === 'approval' ? 'Resolve the pending approval before sending another message.'
         : pendingInteraction.kind === 'plan' ? 'Review the implementation plan before continuing.' : 'Answer the pending question before sending another message.'
@@ -153,7 +152,7 @@ export class ConversationController implements StudioDisposable {
     const node = this.snapshot().nodes.find((item) => item.id === nodeId);
     if (!node) throw new Error('Approval is unavailable.');
     const approval = approvalFromNode(node);
-    if (!approval || approval.decision !== 'pending' || node.status !== 'pending') throw new Error('Approval is no longer pending.');
+    if (!approval || approval.decision !== 'pending' || node.status !== 'pending' || (approval.expiresAt !== undefined && Date.parse(approval.expiresAt) <= this.clock())) throw new Error('Approval is no longer pending.');
     await this.dispatchOnce(nodeId, Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision }));
   }
 
@@ -213,14 +212,14 @@ function normalizeBackends(values: readonly unknown[]): readonly ConversationBac
   return Object.freeze(result.sort((left, right) => left.label.localeCompare(right.label)));
 }
 
-function findPendingInteraction(nodes: readonly ConversationNodeReadModel[]): PendingConversationInteraction | null {
+function findPendingInteraction(nodes: readonly ConversationNodeReadModel[], now: number): PendingConversationInteraction | null {
   for (const node of [...nodes].reverse()) {
     if (node.status !== 'pending') continue;
     if (node.knownKind === 'question') return Object.freeze({ nodeId: node.id, kind: 'question' });
     if (node.knownKind === 'plan') return Object.freeze({ nodeId: node.id, kind: 'plan' });
     if (node.knownKind === 'approval') {
       const approval = approvalFromNode(node);
-      if (approval?.decision === 'pending') return Object.freeze({ nodeId: node.id, kind: 'approval' });
+      if (approval?.decision === 'pending' && (approval.expiresAt === undefined || Date.parse(approval.expiresAt) > now)) return Object.freeze({ nodeId: node.id, kind: 'approval' });
     }
   }
   return null;

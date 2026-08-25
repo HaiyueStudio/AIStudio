@@ -36,7 +36,17 @@ interface WebPreviewPlan {
   id: StableId; scriptId: StableId; entityId: StableId; documentRevision: number; textRevision: number; digest: string;
   capabilities: string[]; risk: 'trusted-project'; diagnostics: ScriptDiagnostic[]; emittedText: string;
 }
-interface WebLogEvent { sequence: number; eventId: StableId; timestamp: string; kind: string; severity: 'info' | 'warning' | 'error'; source: string; payloadDigest: string; }
+interface WebLogEvent {
+  sequence: number;
+  eventId: StableId;
+  timestamp: string;
+  kind: string;
+  severity: 'info' | 'warning' | 'error';
+  source: StableId;
+  correlation: Readonly<Record<string, StableId>>;
+  payloadDigest: string;
+  redactedFieldCount: number;
+}
 
 export function installWebStudioHost(): void {
   if (window.haiyueStudio) return;
@@ -156,7 +166,25 @@ class WebStudioHost {
       case 'conversation/intent': throw new WebHostError('web-agent-unavailable', 'AI Agent backends require the Electron desktop app.');
       case 'logs/query': {
         const query = payload.query as Record<string, unknown>; const limit = Math.min(200, Math.max(1, Number(query.limit) || 80));
-        return json({ events: this.logs.slice(-limit), status: { health: 'healthy', canPersist: true } });
+        const cursorSequence = typeof query.cursor === 'string' && /^web:\d+$/u.test(query.cursor) ? Number(query.cursor.slice(4)) : undefined;
+        const severities = Array.isArray(query.severity) ? new Set(query.severity.map(String)) : null;
+        const kinds = Array.isArray(query.kinds) ? new Set(query.kinds.map(String)) : null;
+        const correlationIds = ['sessionId', 'turnId', 'toolCallId', 'entityId', 'pluginId']
+          .flatMap((key) => typeof query[key] === 'string' ? [String(query[key])] : []);
+        const matching = this.logs.filter((event) => {
+          if (cursorSequence !== undefined && event.sequence >= cursorSequence) return false;
+          if (severities && !severities.has(event.severity)) return false;
+          if (kinds && !kinds.has(event.kind)) return false;
+          if (correlationIds.length && !correlationIds.every((idValue) => Object.values(event.correlation).includes(idValue as StableId))) return false;
+          return true;
+        });
+        const start = Math.max(0, matching.length - limit);
+        const events = matching.slice(start);
+        return json({
+          events,
+          ...(start > 0 && events[0] ? { nextCursor: `web:${events[0].sequence}` } : {}),
+          status: { health: 'healthy', canPersist: true, diagnostics: [] },
+        });
       }
       case 'logs/export': return this.exportLogs();
     }
@@ -271,7 +299,20 @@ class WebStudioHost {
 
   private async appendLog(kind: string, severity: WebLogEvent['severity'], source: string, summary: string): Promise<void> {
     const sequence = (this.logs.at(-1)?.sequence ?? 0) + 1;
-    this.logs.push({ sequence, eventId: id('event'), timestamp: new Date().toISOString(), kind, severity, source, payloadDigest: await digest(summary.slice(0, 2_000)) });
+    const project = this.project;
+    this.logs.push({
+      sequence,
+      eventId: id('event'),
+      timestamp: new Date().toISOString(),
+      kind,
+      severity,
+      source: source as StableId,
+      correlation: Object.freeze({
+        ...(project ? { projectId: project.projectId, documentId: project.documentId } : {}),
+      }),
+      payloadDigest: `sha256:${await digest(summary.slice(0, 2_000))}`,
+      redactedFieldCount: 0,
+    });
     if (this.logs.length > MAX_LOG_EVENTS) this.logs.splice(0, this.logs.length - MAX_LOG_EVENTS);
     writeStorage(LOG_KEY, this.logs);
   }
@@ -330,6 +371,25 @@ function defaultWebLight(kind: WebEntityKind): NonNullable<WebEntity['light']> {
   if (kind === 'point-light') return { color: [1, 0.9, 0.75], intensity: 2, range: 12 };
   return { color: [0.7, 0.8, 1], intensity: 0.25 };
 }
-function readLogs(): WebLogEvent[] { const value = readStorage(LOG_KEY); return Array.isArray(value) ? value.slice(-MAX_LOG_EVENTS) as WebLogEvent[] : []; }
+function readLogs(): WebLogEvent[] {
+  const value = readStorage(LOG_KEY);
+  if (!Array.isArray(value)) return [];
+  return value.slice(-MAX_LOG_EVENTS).flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const event = item as Partial<WebLogEvent>;
+    if (!Number.isSafeInteger(event.sequence) || typeof event.eventId !== 'string' || typeof event.timestamp !== 'string'
+      || typeof event.kind !== 'string' || !['info', 'warning', 'error'].includes(String(event.severity))
+      || typeof event.source !== 'string' || typeof event.payloadDigest !== 'string') return [];
+    const payloadDigest = event.payloadDigest.startsWith('sha256:') ? event.payloadDigest : `sha256:${event.payloadDigest}`;
+    if (!/^sha256:[a-f0-9]{64}$/u.test(payloadDigest)) return [];
+    const correlation = event.correlation && typeof event.correlation === 'object' && !Array.isArray(event.correlation)
+      ? event.correlation : Object.freeze({});
+    return [{
+      sequence: event.sequence!, eventId: event.eventId as StableId, timestamp: event.timestamp, kind: event.kind,
+      severity: event.severity as WebLogEvent['severity'], source: event.source as StableId,
+      correlation, payloadDigest, redactedFieldCount: Number.isSafeInteger(event.redactedFieldCount) ? event.redactedFieldCount! : 0,
+    }];
+  });
+}
 function readStorage(key: string): unknown { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : null; } catch { return null; } }
 function writeStorage(key: string, value: unknown): void { try { localStorage.setItem(key, JSON.stringify(value)); } catch (cause) { throw new WebHostError('web-storage-unavailable', `Browser storage is unavailable: ${errorMessage(cause)}`); } }

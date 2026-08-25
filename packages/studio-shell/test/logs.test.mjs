@@ -6,13 +6,14 @@ const digest = `sha256:${'c'.repeat(64)}`;
 
 test('log filters are bounded, pages dedupe, and copied summaries exclude raw payloads', async () => {
   const port = fakeLogPort([
-    page([summary(1), { ...summary(2), payload: { secret: 'CANARY' } }], 'cursor:next'),
+    page([{ ...summary(1), payloadDigest: 'c'.repeat(64) }, { ...summary(2), payload: { secret: 'CANARY' } }], 'cursor:next'),
     page([summary(2), summary(3)]),
   ]);
   const viewer = new LogViewerController(port);
   await viewer.setFilters({ severity: ['error', 'error'], kinds: ['agent/turn', '<invalid>'], sessionId: 'session:fixture', traverseCorrelation: true, pageSize: 999 });
   assert.deepEqual(port.queries[0], { severity: ['error'], kinds: ['agent/turn'], sessionId: 'session:fixture', limit: 200, traverseCorrelation: true });
   assert.deepEqual(viewer.snapshot().events.map((item) => item.sequence), [1, 2]);
+  assert.equal(viewer.snapshot().events[0].payloadDigest, digest);
   await viewer.loadMore();
   assert.deepEqual(viewer.snapshot().events.map((item) => item.sequence), [1, 2, 3]);
   viewer.toggleCorrelation('event:2');

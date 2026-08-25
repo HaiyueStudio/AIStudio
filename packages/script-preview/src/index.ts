@@ -15,7 +15,6 @@ import {
   createStudioServiceToken,
   defineStudioPlugin,
   type JsonObject,
-  type JsonValue,
   type StableId,
   type StudioPluginDefinition,
 } from '@haiyue/ai-studio-contracts';
@@ -47,6 +46,10 @@ export interface ScriptResourceSnapshot {
   readonly sourcePath: string;
   readonly text: string;
   readonly textRevision: number;
+  readonly enabled: boolean;
+  readonly order: number;
+  readonly capabilities: readonly ScriptCapabilityName[];
+  readonly digest: `sha256:${string}`;
   readonly dirty: boolean;
 }
 
@@ -89,23 +92,46 @@ interface WorkerResult {
   readonly emittedText: string;
 }
 
+function isWorkerResult(value: unknown): value is WorkerResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return typeof result.id === 'string'
+    && typeof result.emittedText === 'string'
+    && Array.isArray(result.diagnostics)
+    && result.diagnostics.every((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      const diagnostic = item as Record<string, unknown>;
+      return typeof diagnostic.code === 'string'
+        && (diagnostic.severity === 'error' || diagnostic.severity === 'warning')
+        && typeof diagnostic.path === 'string'
+        && Number.isSafeInteger(diagnostic.line) && Number(diagnostic.line) >= 1
+        && Number.isSafeInteger(diagnostic.column) && Number(diagnostic.column) >= 1
+        && typeof diagnostic.message === 'string';
+    });
+}
+
 export class ScriptValidationWorker {
   private readonly worker: Worker;
   private readonly pending = new Map<string, Readonly<{ resolve(value: WorkerResult): void; reject(cause: unknown): void }>>();
   private readonly generations = new Map<string, number>();
+  private failure: Error | null = null;
   private disposed = false;
 
   constructor() {
     this.worker = new Worker(new URL('./validation-worker.js', import.meta.url));
-    this.worker.on('message', (message: WorkerResult) => {
+    this.worker.on('message', (message: unknown) => {
+      if (!isWorkerResult(message)) {
+        this.fail(new Error('Script validation worker returned an invalid result.'));
+        return;
+      }
       const pending = this.pending.get(message.id);
       if (!pending) return;
       this.pending.delete(message.id);
       pending.resolve(message);
     });
-    this.worker.on('error', (cause) => {
-      for (const pending of this.pending.values()) pending.reject(cause);
-      this.pending.clear();
+    this.worker.on('error', (cause) => this.fail(cause));
+    this.worker.on('exit', (code) => {
+      if (!this.disposed) this.fail(new Error(`Script validation worker exited unexpectedly with code ${code}.`));
     });
   }
 
@@ -119,12 +145,17 @@ export class ScriptValidationWorker {
     const requestId = asStableId(`script-validation:${randomUUID()}`);
     const result = await new Promise<WorkerResult>((resolve, reject) => {
       this.pending.set(requestId, Object.freeze({ resolve, reject }));
-      this.worker.postMessage({
-        id: requestId,
-        sourcePath: input.sourcePath,
-        text: input.text,
-        declarations: studioScriptRuntimeDeclarations(capabilities),
-      });
+      try {
+        this.worker.postMessage({
+          id: requestId,
+          sourcePath: input.sourcePath,
+          text: input.text,
+          declarations: studioScriptRuntimeDeclarations(capabilities),
+        });
+      } catch (cause) {
+        this.pending.delete(requestId);
+        reject(cause);
+      }
     });
     return Object.freeze({
       requestId,
@@ -147,7 +178,16 @@ export class ScriptValidationWorker {
     this.generations.clear();
     await this.worker.terminate();
   }
-  private assertActive(): void { if (this.disposed) throw new Error('Script validation worker is disposed.'); }
+  private fail(cause: unknown): void {
+    const failure = cause instanceof Error ? cause : new Error(String(cause));
+    this.failure ??= failure;
+    for (const pending of this.pending.values()) pending.reject(this.failure);
+    this.pending.clear();
+  }
+  private assertActive(): void {
+    if (this.disposed) throw new Error('Script validation worker is disposed.');
+    if (this.failure) throw this.failure;
+  }
 }
 
 export function studioScriptRuntimeDeclarations(capabilities: readonly ScriptCapabilityName[]): string {
@@ -170,8 +210,6 @@ interface HaiyueScriptSceneApi {
 `;
 }
 
-const SCRIPT_SETTING_KEY = 'script.resources';
-
 export class ProjectScriptService {
   private readonly listeners = new Set<(snapshot: ScriptCatalogSnapshot) => void>();
   private readonly proposals = new Map<StableId, ScriptEditProposal>();
@@ -180,7 +218,7 @@ export class ProjectScriptService {
   private disposed = false;
 
   constructor(private readonly workspace: ProjectWorkspace, private readonly validator: ScriptValidationWorker, private readonly log: OperationLog) {
-    this.current = scriptsFromWorkspace(workspace.snapshot());
+    this.current = scriptsFromWorkspace(workspace, workspace.snapshot());
     this.subscription = workspace.subscribe((snapshot) => this.sync(snapshot));
   }
 
@@ -197,11 +235,12 @@ export class ProjectScriptService {
     this.assertActive();
     assertScriptText(input.text);
     if (input.baseRevision !== this.current.documentRevision) throw new ProjectRevisionError(this.current.documentRevision, input.baseRevision);
+    if (this.workspace.queryGameDocument({ entityId: input.entityId, limit: 1 }).entities.length !== 1) throw new Error(`Script entity ${input.entityId} does not exist.`);
     const previous = this.current.resources.find((resource) => resource.entityId === input.entityId);
     const scriptId = previous?.id ?? asStableId(`script:${randomUUID()}`);
     const sourcePath = previous?.sourcePath ?? `scripts/${scriptId.slice('script:'.length)}.ts`;
     const nextTextRevision = (previous?.textRevision ?? 0) + 1;
-    const validation = await this.validator.validate({ scriptId, textRevision: nextTextRevision, sourcePath, text: input.text, capabilities: input.capabilities });
+    const validation = await this.validator.validate({ scriptId, textRevision: nextTextRevision, sourcePath, text: input.text, capabilities: input.capabilities ?? previous?.capabilities });
     if (validation.stale) throw new Error('Script validation result is stale.');
     const id = asStableId(`script-proposal:${randomUUID()}`);
     const diff = lineDiff(previous?.text ?? '', input.text);
@@ -211,12 +250,12 @@ export class ProjectScriptService {
       digest: digestScript(input.text, validation.capabilities), addedLines: diff.addedLines, removedLines: diff.removedLines,
       capabilities: validation.capabilities, diagnostics: validation.diagnostics, emittedText: validation.emittedText,
     });
-    this.proposals.set(id, proposal);
     await this.log.append({
       kind: 'script/proposal-ready', severity: hasErrors(proposal.diagnostics) ? 'warning' : 'info', source: asStableId('studio.script'),
       correlation: { documentId: this.current.documentId, entityId: input.entityId, scriptId, revisionId: asStableId(`script-revision:${nextTextRevision}`) },
       payload: { proposalId: id, digest: proposal.digest, addedLines: diff.addedLines, removedLines: diff.removedLines, capabilities: proposal.capabilities, diagnosticCount: proposal.diagnostics.length },
     });
+    this.proposals.set(id, proposal);
     return proposal;
   }
 
@@ -225,13 +264,16 @@ export class ProjectScriptService {
     const proposal = this.proposals.get(proposalId);
     if (!proposal) throw new Error(`Script proposal ${proposalId} is missing or already consumed.`);
     if (hasErrors(proposal.diagnostics)) throw new Error('Script proposal has validation errors.');
-    const resources = this.current.resources.filter((resource) => resource.entityId !== proposal.entityId).map(stripDirty);
-    resources.push(Object.freeze({
-      id: proposal.scriptId, entityId: proposal.entityId, name: 'Entity Script', sourcePath: `scripts/${proposal.scriptId.slice('script:'.length)}.ts`,
-      text: proposal.text, textRevision: proposal.nextTextRevision,
-    }));
-    const stored = Object.freeze({ schemaVersion: 1, resources: Object.freeze(resources) });
-    await this.workspace.execute({ id: commandId, label: 'Edit Entity Script', baseRevision: proposal.baseRevision, key: SCRIPT_SETTING_KEY, value: stored as unknown as JsonValue }, signal);
+    const previous = this.current.resources.find((resource) => resource.id === proposal.scriptId);
+    await this.workspace.executeBatch({
+      id: commandId, label: 'Edit Entity Script', baseRevision: proposal.baseRevision,
+      operations: [{ op: 'script.upsert', script: {
+        id: proposal.scriptId, entityId: proposal.entityId, name: previous?.name ?? 'Entity Script',
+        sourcePath: previous?.sourcePath ?? `scripts/${proposal.scriptId.slice('script:'.length)}.ts`, source: proposal.text,
+        textRevision: proposal.nextTextRevision, enabled: previous?.enabled ?? true, order: previous?.order ?? this.current.resources.length,
+        capabilities: proposal.capabilities, digest: sourceDigest(proposal.text),
+      } }],
+    }, signal);
     this.proposals.delete(proposalId);
     const committed = this.current.resources.find((resource) => resource.id === proposal.scriptId);
     if (!committed) throw new Error('Committed script did not project back into the document.');
@@ -250,7 +292,7 @@ export class ProjectScriptService {
   }
   private sync(workspace: ProjectWorkspaceSnapshot): void {
     if (this.disposed) return;
-    const next = scriptsFromWorkspace(workspace);
+    const next = scriptsFromWorkspace(this.workspace, workspace);
     if (JSON.stringify(next) === JSON.stringify(this.current)) return;
     for (const resource of this.current.resources) {
       const updated = next.resources.find((candidate) => candidate.id === resource.id);
@@ -342,7 +384,7 @@ export class PreviewAuthorizationService {
     const catalog = this.scripts.snapshot();
     const script = catalog.resources.find((resource) => resource.id === scriptId);
     if (!script) throw new Error(`Script ${scriptId} does not exist.`);
-    const validation = await this.validator.validate({ scriptId, textRevision: script.textRevision, sourcePath: script.sourcePath, text: script.text, capabilities });
+    const validation = await this.validator.validate({ scriptId, textRevision: script.textRevision, sourcePath: script.sourcePath, text: script.text, capabilities: capabilities ?? script.capabilities });
     if (validation.stale) throw new Error('Preview validation result is stale.');
     const plan: PreviewPlan = Object.freeze({
       id: asStableId(`preview-plan:${randomUUID()}`), scriptId, entityId: script.entityId,
@@ -350,12 +392,12 @@ export class PreviewAuthorizationService {
       digest: digestScript(script.text, validation.capabilities), capabilities: validation.capabilities,
       risk: 'trusted-project', diagnostics: validation.diagnostics, emittedText: validation.emittedText,
     });
-    this.plans.set(plan.id, plan);
     await this.log.append({
       kind: 'preview/approval-ready', severity: hasErrors(plan.diagnostics) ? 'warning' : 'info', source: asStableId('studio.preview'),
       correlation: { documentId: catalog.documentId, entityId: plan.entityId, scriptId, revisionId: asStableId(`script-revision:${plan.textRevision}`) },
       payload: { planId: plan.id, digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk, diagnosticCount: plan.diagnostics.length },
     });
+    this.plans.set(plan.id, plan);
     return plan;
   }
 
@@ -368,9 +410,10 @@ export class PreviewAuthorizationService {
       return null;
     }
     if (hasErrors(plan.diagnostics)) throw new Error('A preview with validation errors cannot be authorized.');
+    if (!Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 300_000) throw new RangeError('Preview grant TTL must be an integer from 1 to 300000 milliseconds.');
     const grant: PreviewGrant = Object.freeze({ id: asStableId(`preview-grant:${randomUUID()}`), planId, expiresAt: this.clock() + ttlMs });
-    this.grants.set(grant.id, Object.freeze({ grant, plan }));
     await this.log.append({ kind: 'preview/authorized', severity: 'info', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId }, payload: { planId, grantId: grant.id, digest: plan.digest, expiresAt: grant.expiresAt } });
+    this.grants.set(grant.id, Object.freeze({ grant, plan }));
     return grant;
   }
 
@@ -404,37 +447,50 @@ export class IsolatedTrustedPreviewRuntime {
   private entityId: StableId | null = null;
   private instanceId: StableId | null = null;
   private errors: PreviewRuntimeSnapshot['errors'] = Object.freeze([]);
+  private lifecycleTail: Promise<void> = Promise.resolve();
 
   constructor(private readonly log: OperationLog) {}
 
   async start(scene: SceneSnapshot, plan: PreviewPlan): Promise<PreviewRuntimeSnapshot> {
-    await this.stop('restart');
+    return this.enqueueLifecycle(() => this.startNow(scene, plan));
+  }
+
+  private async startNow(scene: SceneSnapshot, plan: PreviewPlan): Promise<PreviewRuntimeSnapshot> {
+    await this.stopNow('restart');
     const world = new World('AIStudio Isolated Preview');
-    const entities = new Map<StableId, Entity>();
-    for (const item of scene.entities) {
-      const entity = new Entity(item.name);
-      entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: tupleRadians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) }));
-      entities.set(item.id, entity);
+    try {
+      const entities = new Map<StableId, Entity>();
+      for (const item of scene.entities) {
+        const entity = new Entity(item.name);
+        entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: tupleRadians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) }));
+        entities.set(item.id, entity);
+      }
+      for (const item of scene.entities) {
+        const entity = entities.get(item.id)!;
+        if (item.parentId) entities.get(item.parentId)?.addChild(entity); else world.addEntity(entity);
+      }
+      const entity = entities.get(plan.entityId);
+      if (!entity) throw new Error(`Preview entity ${plan.entityId} does not exist.`);
+      const resource = new ScriptResource({ name: plan.scriptId, sourcePath: `scripts/${plan.scriptId}.ts`, scripts: { onUpdate: plan.emittedText } });
+      const component = new ScriptComponent({}, resource);
+      entity.addComponent(component);
+      this.errors = Object.freeze([]);
+      ScriptComponent.enableTrustedProject({
+        capabilities: plan.capabilities,
+        errorPolicy: 'disable-script',
+        onError: (event) => this.captureError(event),
+      });
+      this.world = world; this.resource = resource; this.component = component; this.entity = entity; this.entityId = plan.entityId;
+      this.instanceId = asStableId(`preview-instance:${randomUUID()}`);
+      await this.log.append({ kind: 'preview/started', severity: 'info', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId, previewId: this.instanceId }, payload: { digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk } });
+      return this.snapshot();
+    } catch (cause) {
+      world.destroy();
+      ScriptComponent.resetExecutionOptions();
+      this.world = null; this.resource = null; this.component = null; this.entity = null; this.entityId = null; this.instanceId = null;
+      await this.log.append({ kind: 'preview/start-failed', severity: 'error', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId }, payload: { message: cause instanceof Error ? cause.message : String(cause) } }).catch(() => {});
+      throw cause;
     }
-    for (const item of scene.entities) {
-      const entity = entities.get(item.id)!;
-      if (item.parentId) entities.get(item.parentId)?.addChild(entity); else world.addEntity(entity);
-    }
-    const entity = entities.get(plan.entityId);
-    if (!entity) { world.destroy(); throw new Error(`Preview entity ${plan.entityId} does not exist.`); }
-    const resource = new ScriptResource({ name: plan.scriptId, sourcePath: `scripts/${plan.scriptId}.ts`, scripts: { onUpdate: plan.emittedText } });
-    const component = new ScriptComponent({}, resource);
-    entity.addComponent(component);
-    this.errors = Object.freeze([]);
-    ScriptComponent.enableTrustedProject({
-      capabilities: plan.capabilities,
-      errorPolicy: 'disable-script',
-      onError: (event) => this.captureError(event),
-    });
-    this.world = world; this.resource = resource; this.component = component; this.entity = entity; this.entityId = plan.entityId;
-    this.instanceId = asStableId(`preview-instance:${randomUUID()}`);
-    await this.log.append({ kind: 'preview/started', severity: 'info', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId, previewId: this.instanceId }, payload: { digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk } });
-    return this.snapshot();
   }
 
   tick(time: number, delta: number): PreviewRuntimeSnapshot {
@@ -463,6 +519,10 @@ export class IsolatedTrustedPreviewRuntime {
   }
 
   async stop(reason = 'user'): Promise<PreviewRuntimeSnapshot> {
+    return this.enqueueLifecycle(() => this.stopNow(reason));
+  }
+
+  private async stopNow(reason: string): Promise<PreviewRuntimeSnapshot> {
     if (!this.world) return this.snapshot();
     const instanceId = this.instanceId;
     const disposableCount = this.component?.disposableCount ?? 0;
@@ -471,6 +531,15 @@ export class IsolatedTrustedPreviewRuntime {
     this.world = null; this.resource = null; this.component = null; this.entity = null; this.entityId = null; this.instanceId = null;
     await this.log.append({ kind: 'preview/stopped', severity: 'info', source: asStableId('studio.preview'), correlation: { previewId: instanceId ?? undefined }, payload: { reason, disposedSideEffects: disposableCount } });
     return this.snapshot();
+  }
+
+  private async enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.lifecycleTail;
+    let release!: () => void;
+    this.lifecycleTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try { return await operation(); }
+    finally { release(); }
   }
 
   private captureError(event: ScriptRuntimeErrorEvent): void {
@@ -486,34 +555,19 @@ export class IsolatedTrustedPreviewRuntime {
   }
 }
 
-function scriptsFromWorkspace(workspace: ProjectWorkspaceSnapshot): ScriptCatalogSnapshot {
+function scriptsFromWorkspace(owner: ProjectWorkspace, workspace: ProjectWorkspaceSnapshot): ScriptCatalogSnapshot {
   const document = workspace.document;
   if (!document) return freezeCatalog({ schemaVersion: 1, documentId: asStableId('document:none'), documentRevision: 0, resources: [] });
-  const raw = document.settings[SCRIPT_SETTING_KEY];
-  const resources = raw === undefined ? [] : parseStoredScripts(raw, document.dirty);
+  const resources = owner.scriptsSnapshot().map((script) => Object.freeze({
+    id: asStableId(script.id, 'script id'), entityId: asStableId(script.entityId, 'script entity id'), name: script.name,
+    sourcePath: script.sourcePath, text: script.source, textRevision: script.textRevision, enabled: script.enabled, order: script.order,
+    capabilities: Object.freeze(normalizeStoredCapabilities(script.capabilities)), digest: script.digest, dirty: document.dirty,
+  }));
   return freezeCatalog({ schemaVersion: 1, documentId: document.documentId, documentRevision: document.revision, resources });
 }
 
-function parseStoredScripts(value: JsonValue, dirty: boolean): ScriptResourceSnapshot[] {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Script catalog must be an object.');
-  const raw = value as Record<string, JsonValue>;
-  if (raw.schemaVersion !== 1 || !Array.isArray(raw.resources)) throw new TypeError('Script catalog envelope is invalid.');
-  const ids = new Set<string>(); const entities = new Set<string>();
-  return raw.resources.map((item, index) => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new TypeError(`Script resource ${index} is invalid.`);
-    const source = item as Record<string, JsonValue>;
-    if (typeof source.id !== 'string' || typeof source.entityId !== 'string') throw new TypeError(`Script resource ${index} identity is invalid.`);
-    const id = asStableId(source.id, 'script id'); const entityId = asStableId(source.entityId, 'script entity id');
-    if (ids.has(id) || entities.has(entityId) || typeof source.name !== 'string' || typeof source.sourcePath !== 'string'
-      || typeof source.text !== 'string' || !Number.isSafeInteger(source.textRevision) || (source.textRevision as number) < 1) throw new TypeError(`Script resource ${index} metadata is invalid.`);
-    const name = source.name as string; const sourcePath = source.sourcePath as string; const text = source.text as string;
-    ids.add(id); entities.add(entityId); assertScriptText(text);
-    return Object.freeze({ id, entityId, name, sourcePath, text, textRevision: source.textRevision as number, dirty });
-  });
-}
-
 function freezeCatalog(value: ScriptCatalogSnapshot): ScriptCatalogSnapshot { return Object.freeze({ ...value, resources: Object.freeze(value.resources.map((item) => Object.freeze(item))) }); }
-function stripDirty(value: ScriptResourceSnapshot): Omit<ScriptResourceSnapshot, 'dirty'> { const { dirty: _dirty, ...stored } = value; return Object.freeze(stored); }
+function normalizeStoredCapabilities(value: readonly string[]): ScriptCapabilityName[] { const output: ScriptCapabilityName[] = []; for (const item of value) { if (!SCRIPT_CAPABILITIES.includes(item as ScriptCapabilityName)) throw new TypeError(`Unknown stored script capability ${item}.`); output.push(item as ScriptCapabilityName); } return output; }
 function normalizeCapabilities(value: readonly ScriptCapabilityName[] | undefined, text = ''): readonly ScriptCapabilityName[] {
   const requested = value ?? DEFAULT_SCRIPT_CAPABILITIES;
   const inferred = usesSceneApi(text) ? ['scene' as const] : [];
@@ -527,6 +581,7 @@ function usesSceneApi(text: string): boolean {
 }
 function assertScriptText(text: unknown): asserts text is string { if (typeof text !== 'string' || text.length > 100_000 || text.includes('\0')) throw new TypeError('Script text must be a bounded string without NUL bytes.'); }
 function digestScript(text: string, capabilities: readonly ScriptCapabilityName[]): string { return createHash('sha256').update(text).update('\0').update(capabilities.join(',')).digest('hex'); }
+function sourceDigest(text: string): `sha256:${string}` { return `sha256:${createHash('sha256').update(text).digest('hex')}`; }
 function lineDiff(before: string, after: string): Readonly<{ addedLines: number; removedLines: number }> {
   const left = before ? before.split(/\r?\n/u) : []; const right = after ? after.split(/\r?\n/u) : [];
   let shared = 0; const remaining = new Map<string, number>();

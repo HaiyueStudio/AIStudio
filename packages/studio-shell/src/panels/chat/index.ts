@@ -238,7 +238,7 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
   }
   if (card.approval) {
     const disclosure = document.createElement('dl');
-    for (const [label, value] of [['Tool', `${card.approval.toolId}@${card.approval.toolVersion}`], ['Target', card.approval.target], ['Effect', card.approval.effect], ['Risk', card.approval.risk], ['Base revision', String(card.approval.baseRevision)], ['Approval lifetime', 'No timeout; invalidated only when resolved or stale'], ['Arguments', card.approval.argumentsSummary], ['Preview', card.approval.previewDiff]]) {
+    for (const [label, value] of [['Tool', `${card.approval.toolId}@${card.approval.toolVersion}`], ['Target', card.approval.target], ['Effect', card.approval.effect], ['Risk', card.approval.risk], ['Base revision', String(card.approval.baseRevision)], ['Scope', card.approval.scope], ['Expiry', card.approval.expiresAt ?? 'No wall-clock expiry; exact revision and digests still apply'], ['Arguments', card.approval.argumentsSummary], ['Preview', card.approval.previewDiff]]) {
       const term = document.createElement('dt'); term.textContent = label; const detail = document.createElement('dd'); detail.textContent = value; disclosure.append(term, detail);
     }
     content.append(disclosure);
@@ -334,16 +334,16 @@ function planCard(base: CardBase, node: ConversationNodeReadModel): ChatCardRead
 }
 
 function approvalCard(base: CardBase, node: ConversationNodeReadModel, now: number): ChatCardReadModel {
-  void now;
   const approval = approvalFromNode(node);
-  const enabled = Boolean(approval && node.status === 'pending' && approval.decision === 'pending');
+  const expired = Boolean(approval?.expiresAt && Date.parse(approval.expiresAt) <= now);
+  const enabled = Boolean(approval && node.status === 'pending' && approval.decision === 'pending' && !expired);
   const actions: ChatCardAction[] = approval ? [
     Object.freeze({ id: 'approval-allow', label: 'Allow once', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-once' }) }),
-    Object.freeze({ id: 'approval-allow-always', label: 'Allow always', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-always' }) }),
+    ...(approval.effect === 'reversible-edit' ? [Object.freeze({ id: 'approval-allow-always', label: 'Allow always', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-always' as const }) })] : []),
     Object.freeze({ id: 'approval-reject', label: 'Reject', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'reject' }) }),
   ] : [];
   const body = approval
-    ? `${approval.effect} on ${approval.target}; decision: ${approval.decision}. This approval has no time limit; execution still requires the exact document revision, arguments and preview. Allow always is limited to this tool/version and target for the current project session.`
+    ? `${approval.effect} on ${approval.target}; decision: ${expired && approval.decision === 'pending' ? 'expired' : approval.decision}. ${approval.expiresAt ? `Expires at ${approval.expiresAt}.` : 'No wall-clock expiry; exact revision, arguments and preview still invalidate it.'} Scope: ${approval.scope}.${approval.effect === 'reversible-edit' ? ' Allow always is limited to this tool/version and target for the current project session.' : ' Trusted code and runtime start require exact one-shot approval.'}`
     : 'Invalid approval payload; actions are disabled.';
   return Object.freeze({ ...base, title: 'Approval required', body, tone: 'danger', actions: Object.freeze(actions), ...(approval ? { approval } : {}) });
 }

@@ -11,13 +11,15 @@ import {
   type AgentModelCatalog,
   type AgentTurnInput,
 } from '@haiyue/ai-studio-agent-runtime';
-import { backendEvent, TurnChannel } from './shared.js';
+import { backendEvent, toolSetSignature, TurnChannel } from './shared.js';
 
 export interface HarnessApiKeyBackendOptions { readonly transport: HarnessAgentTransport; readonly clearApiKey: () => Promise<void>; }
 export class HarnessApiKeyBackend implements AgentBackend {
   readonly upstream = Object.freeze({ tag: 'dsh-v0.1.0-rc.7', commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' });
   readonly descriptor: AgentBackendDescriptor = Object.freeze({ schemaVersion: 1, id: asStableId('backend:harness-api-key'), kind: 'harness-api-key', protocolVersion: 'dsh-v0.1.0-rc.7', capabilities: Object.freeze({ resume: true, questions: false, structuredTools: true, backendApprovals: false, usage: true, rateLimits: false }) });
-  private readonly turns = new Map<StableId, TurnChannel>(); private disposed = false;
+  private readonly turns = new Map<StableId, TurnChannel>();
+  private readonly sessionToolSignatures = new Map<StableId, string>();
+  private disposed = false;
   constructor(private readonly options: HarnessApiKeyBackendOptions) {}
   async authenticate(): Promise<null> { this.assertActive(); return null; }
   async status(): Promise<AgentBackendStatus> { this.assertActive(); return Object.freeze({ state: await this.options.transport.configured() ? 'ready' : 'auth-required', authMode: 'api-key', rateLimits: Object.freeze([]) }); }
@@ -39,13 +41,23 @@ export class HarnessApiKeyBackend implements AgentBackend {
   startTurn(input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> { this.assertActive(); const channel = new TurnChannel(); void this.run(input, channel, signal); return channel.stream(); }
   resumeTurn(_sessionId: StableId, turnId: StableId): AsyncIterable<AgentBackendEvent> { this.assertActive(); const channel = this.turns.get(turnId); if (!channel) throw new AgentBackendProtocolError('agent.resume-missing', `Harness turn ${turnId} is unavailable.`); return channel.stream(); }
   async submitToolResult(toolCallId: StableId, result: JsonObject, signal?: AbortSignal): Promise<void> { this.assertActive(); await this.options.transport.submitToolResult(toolCallId, result, signal); }
-  async answerQuestion(): Promise<void> { throw new AgentBackendProtocolError('agent.question-unavailable', 'Harness question response is not pending.'); }
-  async resolveBackendApproval(): Promise<void> { throw new AgentBackendProtocolError('agent.approval-unavailable', 'Harness backend approval is not pending.'); }
+  async answerQuestion(): Promise<void> { this.assertActive(); throw new AgentBackendProtocolError('agent.question-unavailable', 'Harness question response is not pending.'); }
+  async resolveBackendApproval(): Promise<void> { this.assertActive(); throw new AgentBackendProtocolError('agent.approval-unavailable', 'Harness backend approval is not pending.'); }
   async cancelTurn(sessionId: StableId): Promise<void> { this.assertActive(); await this.options.transport.cancel(sessionId); }
-  async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; await this.options.transport.dispose(); for (const turn of this.turns.values()) turn.terminalFailure(this.descriptor.id, { code: 'agent.backend-disposed', message: 'Harness backend disposed.', retryable: false }, 'interrupted'); this.turns.clear(); }
+  async dispose(): Promise<void> {
+    if (this.disposed) return; this.disposed = true;
+    let failure: unknown;
+    try { await this.options.transport.dispose(); } catch (cause) { failure = cause; }
+    finally { for (const turn of this.turns.values()) turn.terminalFailure(this.descriptor.id, { code: 'agent.backend-disposed', message: 'Harness backend disposed.', retryable: false }, 'interrupted'); this.turns.clear(); this.sessionToolSignatures.clear(); }
+    if (failure) throw failure;
+  }
   private async run(input: AgentTurnInput, channel: TurnChannel, signal?: AbortSignal): Promise<void> {
     let terminal = false; let usageSequence = 0;
     try {
+      const tools = toolSetSignature(input.tools);
+      if (input.sessionId && this.sessionToolSignatures.has(input.sessionId) && this.sessionToolSignatures.get(input.sessionId) !== tools) {
+        throw new AgentBackendProtocolError('harness.session-toolset-drift', `Harness session ${input.sessionId} cannot be reused with a different Studio tool allowlist.`);
+      }
       const negotiation = await this.negotiate(input.config); if (!negotiation.effective) throw new AgentBackendProtocolError('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' '));
       const effective = negotiation.effective;
       for await (const raw of this.options.transport.start({
@@ -53,6 +65,7 @@ export class HarnessApiKeyBackend implements AgentBackend {
         reasoningEffort: harnessEffort(effective.reasoningEffort), maxTokens: effective.outputTokenLimit,
       }, signal)) {
         const value = normalizeHarnessEvent(this.descriptor.id, raw, raw.type === 'usage' ? ++usageSequence : usageSequence, effective);
+        if (raw.type === 'turn-start') this.sessionToolSignatures.set(value.sessionId, tools);
         if (!this.turns.has(value.turnId)) this.turns.set(value.turnId, channel); channel.emit(value); terminal ||= value.kind === 'completed';
       }
       if (!terminal) channel.terminalFailure(this.descriptor.id, { code: 'agent.stream-without-terminal', message: 'Harness stream closed without a terminal event.', retryable: true }, 'interrupted');

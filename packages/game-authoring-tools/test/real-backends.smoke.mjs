@@ -26,17 +26,35 @@ try {
     const value = await fixture();
     const backend = await createBackend();
     const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error(`G09 ${backend.descriptor.kind} smoke exceeded five minutes.`)), 5 * 60_000);
     try {
-      const summary = await coordinator.run(backend, {
-        prompt: 'Use Studio tools to create exactly one cube named Agent Smoke Cube at document baseRevision 1. Then use transform.set with the returned entity id and returned afterRevision to set position {x:1,y:2,z:3}, rotationDegrees {x:0,y:15,z:0}, scale {x:1,y:1,z:1}. Do not call script or preview tools. After both tools complete, reply exactly G09_AGENT_TOOLS_OK.',
+      const status = await backend.status();
+      assert.equal(status.state, 'ready', JSON.stringify(status.diagnostic));
+      const catalog = await backend.modelCatalog();
+      const model = catalog.models.find((item) => item.isDefault) ?? catalog.models[0];
+      assert.ok(model, `${backend.descriptor.kind} returned no model catalog entry.`);
+      const reasoningEffort = model.reasoningEfforts.includes('low') ? 'low' : model.defaultReasoningEffort;
+      const config = Object.freeze({
+        schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort,
+        outputTokenLimit: Math.min(8_192, model.maxOutputTokens), taskBudgetId: asStableId(`budget:g09-${backend.descriptor.kind}`),
+        promptProfile: Object.freeze({ id: asStableId('prompt:g09-real-tools'), version: '2.0.0', digest: `sha256:${'9'.repeat(64)}` }),
+        requestedCapabilities: Object.freeze(['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context']),
       });
+      const summary = await coordinator.run(backend, {
+        taskId: asStableId(`task:g09-${backend.descriptor.kind}`), config,
+        prompt: 'Use Studio tools to create exactly one cube named Agent Smoke Cube at document baseRevision 1. Then use transform.set with the returned entity id and returned afterRevision to set position {x:1,y:2,z:3}, rotationDegrees {x:0,y:15,z:0}, scale {x:1,y:1,z:1}. Do not call script or preview tools. After both tools complete, reply exactly G09_AGENT_TOOLS_OK.',
+      }, undefined, controller.signal);
       const scene = value.scene.snapshot();
       if (summary.terminal !== 'completed') throw new Error(JSON.stringify({ backend: backend.descriptor.kind, terminal: summary.terminal, tools: summary.results.map((item) => item.toolId), diagnostics: summary.diagnostics.map((item) => ({ code: item.code, message: item.message.slice(0, 300) })) }));
-      assert.deepEqual(summary.results.filter((item) => item.status === 'completed').map((item) => item.toolId), ['entity.create', 'transform.set']);
+      const effects = new Map(value.runtime.definitions().map((item) => [item.id, item.effect]));
+      const mutations = summary.results.filter((item) => item.status === 'completed' && effects.get(item.toolId) !== 'observe').map((item) => item.toolId);
+      assert.deepEqual(mutations, ['entity.create', 'transform.set']);
+      assert.ok(summary.results.every((item) => item.status === 'completed'));
       assert.equal(scene.entities.length, 1);
       assert.deepEqual(scene.entities[0].transform.position, { x: 1, y: 2, z: 3 });
-      summaries.push({ backend: backend.descriptor.kind, terminal: summary.terminal, tools: summary.results.map((item) => item.toolId), revision: value.workspace.snapshot().document.revision, credentialPersisted: false });
-    } finally { coordinator.dispose(); await backend.dispose(); await dispose(value); }
+      summaries.push({ backend: backend.descriptor.kind, model: model.id, reasoningEffort, terminal: summary.terminal, tools: summary.results.map((item) => item.toolId), revision: value.workspace.snapshot().document.revision, credentialPersisted: false });
+    } finally { clearTimeout(timer); coordinator.dispose(); await backend.dispose(); await dispose(value); }
   }
   console.log(JSON.stringify(summaries));
 } finally {

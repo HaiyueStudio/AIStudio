@@ -8,7 +8,7 @@
 export type M12SchemaVersion = 2;
 export type M12StableId = string;
 export type M12Digest = `sha256:${string}`;
-export type M12JsonValue = null | boolean | number | string | M12JsonValue[] | { readonly [key: string]: M12JsonValue };
+export type M12JsonValue = null | boolean | number | string | readonly M12JsonValue[] | { readonly [key: string]: M12JsonValue };
 
 export type M12CapabilityId =
   | 'agent.model-config' | 'agent.usage' | 'agent.cache' | 'agent.context'
@@ -149,8 +149,23 @@ export interface ComponentDefinitionV2 {
   readonly effect: 'data' | 'runtime-owner' | 'gpu-owner' | 'audio-owner';
   readonly risk: 'low' | 'medium' | 'high';
   readonly valueSchema: Readonly<Record<string, M12JsonValue>>;
+  readonly defaults: Readonly<Record<string, M12JsonValue>>;
+  readonly validation: Readonly<{
+    mode: 'json-schema';
+    unknownProperties: 'reject';
+    maxSerializedBytes: number;
+  }>;
+  readonly editor: Readonly<{
+    label: string;
+    category: string;
+    inspector: M12StableId | null;
+  }>;
   readonly serializable: boolean;
   readonly runtimeAdapter: M12StableId | null;
+  readonly serialization: Readonly<{
+    format: 'json';
+    persistDisabled: boolean;
+  }>;
   readonly testOwner: M12StableId;
 }
 
@@ -173,13 +188,81 @@ export interface GameDocumentV2 {
     sceneId: M12StableId;
     name: string;
     parentId: M12StableId | null;
+    order: number;
     componentIds: readonly M12StableId[];
   }>[];
   readonly components: readonly GameComponentInstanceV2[];
-  readonly scripts: readonly Readonly<{ id: M12StableId; enabled: boolean; order: number; digest: M12Digest }>[];
+  readonly scripts: readonly Readonly<{
+    id: M12StableId;
+    entityId: M12StableId;
+    name: string;
+    sourcePath: string;
+    source: string;
+    textRevision: number;
+    enabled: boolean;
+    order: number;
+    capabilities: readonly string[];
+    digest: M12Digest;
+  }>[];
   readonly assets: readonly Readonly<{ id: M12StableId; kind: string; digest: M12Digest; source: 'builtin' | 'project' | 'imported' }>[];
   readonly settings: Readonly<Record<string, M12JsonValue>>;
   readonly migration: Readonly<{ fromVersion: number | null; migratedAt: string | null; sourceDigest: M12Digest | null }>;
+}
+
+export type GameDocumentOperationV2 =
+  | Readonly<{ op: 'scene.add'; scene: GameDocumentV2['scenes'][number] }>
+  | Readonly<{ op: 'scene.remove'; sceneId: M12StableId }>
+  | Readonly<{ op: 'entity.add'; entity: GameDocumentV2['entities'][number] }>
+  | Readonly<{ op: 'entity.update'; entityId: M12StableId; patch: Readonly<{ name?: string; parentId?: M12StableId | null; order?: number }> }>
+  | Readonly<{ op: 'entity.remove'; entityId: M12StableId }>
+  | Readonly<{ op: 'component.add'; entityId: M12StableId; component: GameComponentInstanceV2 }>
+  | Readonly<{ op: 'component.patch'; componentId: M12StableId; path: readonly string[]; value: M12JsonValue }>
+  | Readonly<{ op: 'component.unset'; componentId: M12StableId; path: readonly string[] }>
+  | Readonly<{ op: 'component.replace'; component: GameComponentInstanceV2 }>
+  | Readonly<{ op: 'component.remove'; entityId: M12StableId; componentId: M12StableId }>
+  | Readonly<{ op: 'script.upsert'; script: GameDocumentV2['scripts'][number] }>
+  | Readonly<{ op: 'script.remove'; scriptId: M12StableId }>
+  | Readonly<{ op: 'asset.upsert'; asset: GameDocumentV2['assets'][number] }>
+  | Readonly<{ op: 'asset.remove'; assetId: M12StableId }>
+  | Readonly<{ op: 'setting.set'; key: string; value: M12JsonValue }>
+  | Readonly<{ op: 'setting.remove'; key: string }>;
+
+export interface GameDocumentBatchV2 {
+  readonly schemaVersion: M12SchemaVersion;
+  readonly id: M12StableId;
+  readonly label: string;
+  readonly documentId: M12StableId;
+  readonly baseRevision: number;
+  readonly operations: readonly GameDocumentOperationV2[];
+}
+
+export interface GameDocumentDeltaV2 {
+  readonly schemaVersion: M12SchemaVersion;
+  readonly transactionId: M12StableId;
+  readonly documentId: M12StableId;
+  readonly beforeRevision: number;
+  readonly afterRevision: number;
+  readonly operations: readonly GameDocumentOperationV2[];
+  readonly inverse: readonly GameDocumentOperationV2[];
+  readonly metrics: Readonly<{ copiedBytes: number; historyBytes: number; projectionWork: number; durationMicros: number }>;
+}
+
+export interface GameDocumentQueryV2 {
+  readonly sceneId?: M12StableId;
+  readonly entityId?: M12StableId;
+  readonly componentType?: M12StableId;
+  readonly cursor?: string;
+  readonly limit: number;
+}
+
+export interface GameDocumentQueryResultV2 {
+  readonly schemaVersion: M12SchemaVersion;
+  readonly documentId: M12StableId;
+  readonly revision: number;
+  readonly entities: readonly GameDocumentV2['entities'][number][];
+  readonly components: readonly GameComponentInstanceV2[];
+  readonly nextCursor: string | null;
+  readonly scanned: number;
 }
 
 export interface ObservationArtifactV2 {

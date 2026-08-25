@@ -110,8 +110,12 @@
         "effect": "runtime-owner",
         "risk": "medium",
         "valueSchema": { "type": "object", "additionalProperties": false, "properties": { "targetId": { "type": "string" } } },
+        "defaults": {},
+        "validation": { "mode": "json-schema", "unknownProperties": "reject", "maxSerializedBytes": 16384 },
+        "editor": { "label": "Follow Camera", "category": "Camera", "inspector": "inspector.camera-follow" },
         "serializable": true,
         "runtimeAdapter": "adapter.camera-follow",
+        "serialization": { "format": "json", "persistDisabled": true },
         "testOwner": "test.camera-follow"
       }
     },
@@ -123,13 +127,37 @@
         "revision": 1,
         "savedRevision": 0,
         "scenes": [{ "id": "scene:main", "name": "Main", "rootEntityIds": ["entity:player"] }],
-        "entities": [{ "id": "entity:player", "sceneId": "scene:main", "name": "Player", "parentId": null, "componentIds": ["component:transform"] }],
+        "entities": [{ "id": "entity:player", "sceneId": "scene:main", "name": "Player", "parentId": null, "order": 0, "componentIds": ["component:transform"] }],
         "components": [{ "id": "component:transform", "type": "haiyue.transform.3d", "version": "1.0.0", "enabled": true, "value": { "position": [0, 0, 0] } }],
-        "scripts": [{ "id": "script:player", "enabled": true, "order": 0, "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }],
+        "scripts": [{ "id": "script:player", "entityId": "entity:player", "name": "Player Script", "sourcePath": "scripts/player.ts", "source": "", "textRevision": 1, "enabled": true, "order": 0, "capabilities": ["read", "input"], "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }],
         "assets": [],
         "settings": { "simulationHz": 60 },
         "migration": { "fromVersion": 1, "migratedAt": "2026-08-24T00:00:00.000Z", "sourceDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
       }
+    },
+    {
+      "schemaId": "haiyue://contracts/game-component-instance/v2",
+      "value": { "id": "component:fixture", "type": "haiyue.transform.3d", "version": "1.0.0", "enabled": true, "value": { "position": { "x": 0, "y": 0, "z": 0 } } }
+    },
+    {
+      "schemaId": "haiyue://contracts/game-document-operation/v2",
+      "value": { "op": "component.patch", "componentId": "component:fixture", "path": ["position", "x"], "value": 4 }
+    },
+    {
+      "schemaId": "haiyue://contracts/game-document-batch/v2",
+      "value": { "schemaVersion": 2, "id": "command:fixture", "label": "Move entity", "documentId": "document:fixture", "baseRevision": 1, "operations": [{ "op": "component.patch", "componentId": "component:fixture", "path": ["position", "x"], "value": 4 }] }
+    },
+    {
+      "schemaId": "haiyue://contracts/game-document-delta/v2",
+      "value": { "schemaVersion": 2, "transactionId": "transaction:fixture", "documentId": "document:fixture", "beforeRevision": 1, "afterRevision": 2, "operations": [{ "op": "setting.set", "key": "simulation.hz", "value": 60 }], "inverse": [{ "op": "setting.remove", "key": "simulation.hz" }], "metrics": { "copiedBytes": 64, "historyBytes": 128, "projectionWork": 1, "durationMicros": 20 } }
+    },
+    {
+      "schemaId": "haiyue://contracts/game-document-query/v2",
+      "value": { "sceneId": "scene:main", "componentType": "haiyue.transform.3d", "limit": 100 }
+    },
+    {
+      "schemaId": "haiyue://contracts/game-document-query-result/v2",
+      "value": { "schemaVersion": 2, "documentId": "document:fixture", "revision": 2, "entities": [], "components": [], "nextCursor": null, "scanned": 0 }
     },
     {
       "schemaId": "haiyue://contracts/observation-artifact/v2",
@@ -214,7 +242,33 @@
     {
       "name": "m12 runtime component without adapter",
       "schemaId": "haiyue://contracts/component-definition/v2",
-      "value": { "schemaVersion": 2, "type": "haiyue.physics.body", "version": "1.0.0", "owner": "studio.registry", "capability": "physics.3d", "effect": "runtime-owner", "risk": "high", "valueSchema": {}, "serializable": true, "runtimeAdapter": null, "testOwner": "test.physics" }
+      "value": { "schemaVersion": 2, "type": "haiyue.physics.body", "version": "1.0.0", "owner": "studio.registry", "capability": "physics.3d", "effect": "runtime-owner", "risk": "high", "valueSchema": {}, "defaults": {}, "validation": { "mode": "json-schema", "unknownProperties": "reject", "maxSerializedBytes": 16384 }, "editor": { "label": "Body", "category": "Physics", "inspector": null }, "serializable": true, "runtimeAdapter": null, "serialization": { "format": "json", "persistDisabled": true }, "testOwner": "test.physics" }
+    },
+    {
+      "name": "m12 unknown component definition version",
+      "schemaId": "haiyue://contracts/component-definition/v2",
+      "value": { "schemaVersion": 3, "type": "haiyue.transform.3d", "version": "1.0.0", "owner": "studio.registry", "capability": "document.v2", "effect": "data", "risk": "low", "valueSchema": {}, "defaults": {}, "validation": { "mode": "json-schema", "unknownProperties": "reject", "maxSerializedBytes": 16384 }, "editor": { "label": "Transform", "category": "Layout", "inspector": null }, "serializable": true, "runtimeAdapter": null, "serialization": { "format": "json", "persistDisabled": true }, "testOwner": "test.transform" }
+    },
+    {
+      "name": "m12 secret-bearing component definition",
+      "invalidReason": "forbidden-secret-key",
+      "schemaId": "haiyue://contracts/component-definition/v2",
+      "value": { "schemaVersion": 2, "type": "haiyue.script.binding", "version": "1.0.0", "owner": "studio.registry", "capability": "play.multi-script", "effect": "runtime-owner", "risk": "high", "valueSchema": {}, "defaults": { "apiKey": "SECRET_CANARY" }, "validation": { "mode": "json-schema", "unknownProperties": "reject", "maxSerializedBytes": 16384 }, "editor": { "label": "Script", "category": "Gameplay", "inspector": null }, "serializable": true, "runtimeAdapter": "adapter.script", "serialization": { "format": "json", "persistDisabled": true }, "testOwner": "test.script" }
+    },
+    {
+      "name": "m12 empty document batch",
+      "schemaId": "haiyue://contracts/game-document-batch/v2",
+      "value": { "schemaVersion": 2, "id": "command:empty", "label": "Empty", "documentId": "document:fixture", "baseRevision": 1, "operations": [] }
+    },
+    {
+      "name": "m12 unknown document operation",
+      "schemaId": "haiyue://contracts/game-document-operation/v2",
+      "value": { "op": "engine.mutable-object", "entityId": "entity:fixture" }
+    },
+    {
+      "name": "m12 unbounded document query",
+      "schemaId": "haiyue://contracts/game-document-query/v2",
+      "value": { "limit": 1001 }
     },
     {
       "name": "m12 screenshot without viewport",

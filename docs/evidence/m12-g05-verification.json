@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g05-game-document-v2-component-registry",
+  "contracts": [
+    "ComponentDefinitionV2",
+    "GameComponentInstanceV2",
+    "GameDocumentV2",
+    "GameDocumentOperationV2",
+    "GameDocumentBatchV2",
+    "GameDocumentDeltaV2",
+    "GameDocumentQueryV2",
+    "GameDocumentQueryResultV2"
+  ],
+  "capabilities": [
+    { "id": "document.v2", "integrationState": "m12-integrated" },
+    { "id": "component.registry", "integrationState": "m12-integrated" },
+    { "id": "scene.transaction", "integrationState": "m12-integrated" }
+  ],
+  "registry": {
+    "schemaVersion": 2,
+    "definitionCount": 7,
+    "digest": "sha256:9954f2e65699fb0f8b34407465015dcedb0dcba352d5ecb5f154ab40f92b1afb",
+    "manifestDigestEqual": true,
+    "components": [
+      { "type": "haiyue.light.ambient", "version": "1.0.0", "effect": "gpu-owner", "runtimeAdapter": "adapter.light.ambient" },
+      { "type": "haiyue.light.directional", "version": "1.0.0", "effect": "gpu-owner", "runtimeAdapter": "adapter.light.directional" },
+      { "type": "haiyue.light.point", "version": "1.0.0", "effect": "gpu-owner", "runtimeAdapter": "adapter.light.point" },
+      { "type": "haiyue.render.geometry", "version": "1.0.0", "effect": "gpu-owner", "runtimeAdapter": "adapter.render.geometry" },
+      { "type": "haiyue.render.material", "version": "1.0.0", "effect": "gpu-owner", "runtimeAdapter": "adapter.render.material" },
+      { "type": "haiyue.script.binding", "version": "1.0.0", "effect": "runtime-owner", "runtimeAdapter": "adapter.script.binding" },
+      { "type": "haiyue.transform.3d", "version": "1.0.0", "effect": "data", "runtimeAdapter": null }
+    ]
+  },
+  "behavior": {
+    "gates": ["unknown component", "parent integrity", "dependency rejection", "batch rollback", "Undo/Redo", "byte-stable", "rollback-restorable", "queries remain bounded"],
+    "immutableSnapshots": true,
+    "unknownVersionsFailClosed": true,
+    "atomicBatchAndHistory": true,
+    "boundedQueryScan": 10000
+  },
+  "migration": {
+    "fromVersion": 1,
+    "toVersion": 2,
+    "backup": ".haiyue-project.v1.backup.json",
+    "report": ".haiyue-migration-v1-to-v2.json",
+    "byteStableReopen": true,
+    "rollback": true,
+    "injectedSaveFailurePreservesSource": true
+  },
+  "projection": {
+    "mutationPath": "delta",
+    "fullRebuildAllowedFor": ["document-replace", "migration"],
+    "fullDocumentExportInSceneAuthoring": false
+  },
+  "performance": [
+    { "entityCount": 1000, "copiedBytes": 102, "historyBytes": 205, "projectionWork": 1, "latencyBudgetMs": 50, "latencyWithinBudget": true, "sparseQueryScannedMax": 1000 },
+    { "entityCount": 10000, "copiedBytes": 102, "historyBytes": 206, "projectionWork": 1, "latencyBudgetMs": 50, "latencyWithinBudget": true, "sparseQueryScannedMax": 1000 }
+  ],
+  "extensibility": {
+    "service": "studio.component-registry@2.0.0",
+    "pluginRegistrationBeforeFreeze": true,
+    "coreSchemaChangeRequiredForNewDescriptor": false
+  }
+}

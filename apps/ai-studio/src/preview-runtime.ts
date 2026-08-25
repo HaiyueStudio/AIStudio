@@ -23,29 +23,37 @@ let target: Entity | null = null;
 let resizeObserver: ResizeObserver | null = null;
 const instanceSets = new Map<number, StudioInstanceSet>();
 let disposed = false;
+let lifecycleGeneration = 0;
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
   if (event.source !== parent || !isRecord(event.data) || event.data.protocol !== 'haiyue-preview/1') return;
   if (event.data.type === 'start') {
     const request = parseStartRequest(event.data);
     if (!request) { fail(new Error('Preview start request failed schema validation.')); return; }
-    void start(request.scene, request.plan).catch(fail);
+    const generation = ++lifecycleGeneration;
+    void start(request.scene, request.plan, generation).catch((cause) => {
+      if (generation !== lifecycleGeneration) return;
+      stop('start-failed'); fail(cause);
+    });
   } else if (event.data.type === 'hot-reload' && exactKeys(event.data, ['protocol', 'type', 'emittedText'])
     && typeof event.data.emittedText === 'string' && event.data.emittedText.length <= 250_000) {
-    resource?.setScript('onUpdate', event.data.emittedText);
-    send('hot-reloaded', { disposableCount: component?.disposableCount ?? 0 });
+    try {
+      if (!resource) throw new Error('Preview is not playing.');
+      resource.setScript('onUpdate', event.data.emittedText);
+      send('hot-reloaded', { disposableCount: component?.disposableCount ?? 0 });
+    } catch (cause) { stop('hot-reload-failed'); fail(cause); }
   } else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
 });
 
-async function start(snapshot: SceneSnapshot, plan: PreviewPlan): Promise<void> {
-  if (engine) stop('restart');
+async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: number): Promise<void> {
+  if (engine) stop('restart', false);
   if (!snapshot.entities.some((item) => isRenderableSceneKind(item.kind))) throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
   const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas');
   if (!canvas) throw new Error('Preview canvas is missing.');
   const ownedEngine = new HaiyueEngine({ canvas, renderProfile: 'batched', clearColor: { r: 0.03, g: 0.03, b: 0.03, a: 1 }, recoverDeviceLost: true });
   engine = ownedEngine;
   await ownedEngine.init();
-  if (disposed) { ownedEngine.destroy(); return; }
+  if (disposed || generation !== lifecycleGeneration || engine !== ownedEngine) { ownedEngine.destroy(); return; }
   const ownedScene = ownedEngine.createScene({ name: 'Trusted Project Preview', render3D: true });
   scene = ownedScene;
   installSceneEntityMaterialRenderers(ownedEngine, ownedScene);
@@ -84,7 +92,8 @@ function runtimeError(event: ScriptRuntimeErrorEvent): void {
   send('runtime-error', { code: event.error.code, message: event.error.message, line: event.sourceLocation.line, column: event.sourceLocation.column, disposableCount: component?.disposableCount ?? 0 });
 }
 
-function stop(reason: string): void {
+function stop(reason: string, invalidatePendingStart = true): void {
+  if (invalidatePendingStart) lifecycleGeneration += 1;
   const disposableCount = component?.disposableCount ?? 0;
   resizeObserver?.disconnect(); resizeObserver = null;
   engine?.destroy();

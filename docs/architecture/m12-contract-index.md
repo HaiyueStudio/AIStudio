@@ -10,7 +10,9 @@ Binding：`m12-g01-2026-08-24`
 | `AgentTurnConfigV2`, `BackendCapabilityNegotiationV2` | G03 | G04, G11, G12 |
 | `UsageRecordV2`, `CostRecordV2`, `TaskBudgetV2` | G03 | G10–G12 |
 | `ContextArtifactV2` | G04 | G10 |
-| `ComponentDefinitionV2`, `GameDocumentV2` | G05 | G06–G10 |
+| `ComponentDefinitionV2`, `GameComponentInstanceV2`, `GameDocumentV2` | G05 | G06–G10 |
+| `GameDocumentOperationV2`, `GameDocumentBatchV2`, `GameDocumentDeltaV2` | G05 | G06–G11 |
+| `GameDocumentQueryV2`, `GameDocumentQueryResultV2` | G05 | G10–G11 |
 | `ObservationArtifactV2`, `TaskSpecV2`, `EvaluationResultV2` | G10 | G02, G11, G12 |
 
 ## Version policy

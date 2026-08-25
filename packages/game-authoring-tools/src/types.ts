@@ -5,7 +5,7 @@ import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-scri
 export type GameToolEffect = 'observe' | 'reversible-edit' | 'trusted-code' | 'runtime-start';
 export type GameToolRisk = 'low' | 'medium' | 'high';
 export type GameToolApprovalResolution = 'allow-once' | 'allow-always' | 'reject' | 'cancel';
-export type GameToolApprovalDecision = 'pending' | GameToolApprovalResolution | 'stale' | 'unavailable';
+export type GameToolApprovalDecision = 'pending' | GameToolApprovalResolution | 'expired' | 'stale' | 'unavailable';
 
 export interface GameToolDefinition {
   readonly schemaVersion: 1;
@@ -61,12 +61,15 @@ export interface GameToolPreparation {
   readonly preview: GameToolPreview;
   readonly status: GameToolPreparationStatus;
   readonly approvalId?: StableId;
+  readonly expiresAt?: string;
 }
 
 export interface GameToolApproval {
   readonly schemaVersion: 1;
   readonly approvalId: StableId;
   readonly preparationId: StableId;
+  readonly sessionId: StableId;
+  readonly turnId: StableId;
   readonly toolCallId: StableId;
   readonly toolId: StableId;
   readonly toolVersion: '1.0.0';
@@ -77,6 +80,7 @@ export interface GameToolApproval {
   readonly documentId: StableId;
   readonly baseRevision: number;
   readonly target: string;
+  readonly expiresAt: string;
   readonly decision: GameToolApprovalDecision;
 }
 

@@ -33,7 +33,8 @@ async function inspect(file) {
   if (/file:\.\.|(?:\.\.\/)+(?:Editor|Engine|UI)(?:\/|['"])/i.test(text)) violations.push(`${relative}: forbidden cross-repository path dependency`);
   if (/\.(?:ts|tsx)$/.test(relative) && !relative.startsWith('packages/studio-contracts/')) {
     for (const name of m12ContractNames) {
-      if (new RegExp(`^\\s*(?:export\\s+)?(?:declare\\s+)?(?:interface|type)\\s+${name}\\b`, 'm').test(text)) violations.push(`${relative}: M12 shared contract ${name} must be owned by studio-contracts`);
+      const declaration = new RegExp(`^\\s*(?:export\\s+)?(?:declare\\s+)?(?:interface\\s+${name}\\b(?:\\s+extends\\s+[^\\{]+)?\\s*\\{|type\\s+${name}\\b(?:<[^>]+>)?\\s*=)`, 'm');
+      if (declaration.test(text)) violations.push(`${relative}: M12 shared contract ${name} must be owned by studio-contracts`);
     }
   }
   if (path.basename(file) === 'package.json') {

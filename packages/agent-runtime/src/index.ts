@@ -218,7 +218,7 @@ export function validateAgentBackendEvent(value: unknown, backendId?: StableId):
 }
 export function normalizeBackendFailure(cause: unknown): Readonly<{ code: string; message: string; retryable: boolean }> {
   const record = isRecord(cause) ? cause : undefined; const status = typeof record?.status === 'number' ? record.status : undefined;
-  if (cause instanceof AgentBackendProtocolError && status !== 401 && status !== 429) return Object.freeze({ code: cause.code, message: cause.message, retryable: false });
+  if (cause instanceof AgentBackendProtocolError && status !== 401 && status !== 429) return Object.freeze({ code: cause.code, message: cause.message, retryable: status !== undefined && status >= 500 });
   const code = status === 401 ? 'agent.auth-required' : status === 429 ? 'agent.rate-limited' : 'agent.backend-failed';
   return Object.freeze({ code, message: cause instanceof Error ? cause.message : String(cause), retryable: status === 429 || (status !== undefined && status >= 500) });
 }

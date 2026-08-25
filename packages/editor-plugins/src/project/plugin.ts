@@ -10,6 +10,7 @@ import { editorFoundationTokens } from '@haiyue/ai-studio-kernel';
 import { operationLogServiceToken } from '@haiyue/ai-studio-operation-log';
 import { RecentProjectStore } from './repository.js';
 import { ProjectWorkspace } from '../history/workspace.js';
+import { componentRegistryServiceToken } from '../components/registry.js';
 
 export const projectWorkspaceServiceToken = createStudioServiceToken<ProjectWorkspace>('studio.project-workspace');
 
@@ -30,7 +31,10 @@ export function createProjectWorkspacePlugin(): StudioPluginDefinition<ProjectPl
         { id: asStableId('studio.operation-log'), version: '1.0.0' },
       ],
       optional: [],
-      provides: [{ id: asStableId('studio.project-workspace'), version: '1.0.0' }],
+      provides: [
+        { id: asStableId('studio.project-workspace'), version: '1.0.0' },
+        { id: asStableId('studio.component-registry'), version: '2.0.0' },
+      ],
       contributions: [],
       activationPolicy: 'required',
     },
@@ -52,6 +56,7 @@ export function createProjectWorkspacePlugin(): StudioPluginDefinition<ProjectPl
       });
       context.effects.own('project-workspace.dispose', () => workspace.dispose());
       context.services.provide(projectWorkspaceServiceToken, workspace);
+      context.services.provide(componentRegistryServiceToken, workspace.componentRegistry);
     },
   });
 }

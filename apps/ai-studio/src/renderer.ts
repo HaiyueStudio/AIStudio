@@ -12,12 +12,15 @@ import type { ScriptCapabilityName } from '@haiyue/engine/components';
 import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
 import {
   ConversationProjector,
+  LogViewerController,
   presentChatPanel,
   renderChatPanel,
+  renderLogViewer,
   type ConversationIntent,
   type ConversationReplaySnapshot,
   type LogQueryIntent,
-  type SafeLogSummary,
+  type LogViewerReadModel,
+  type SafeLogPage,
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
@@ -64,8 +67,6 @@ interface PreviewDisclosure { readonly id: StableId; readonly scriptId: StableId
 interface PreviewGrant { readonly id: StableId; }
 interface ConsumedPreviewPlan extends PreviewDisclosure { readonly emittedText: string; }
 interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan }> }
-interface LogViewerResult { readonly events: readonly SafeLogSummary[]; readonly nextCursor?: string; readonly status: Readonly<{ health: string; canPersist: boolean; eventCount?: number }> }
-
 let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
 let scene: SceneSnapshot | null = null;
@@ -83,6 +84,8 @@ let conversationRevision = -1;
 const observedAgentToolResults = new Set<StableId>();
 let agentPoll: AgentPollScheduler | null = null;
 let disposeConversationChanged: (() => void) | null = null;
+let logViewer: LogViewerController | null = null;
+let logViewerSubscription: Readonly<{ dispose(): void }> | null = null;
 let handledPreviewCommand: StableId | null = null;
 let conversationBackendId: StableId | null = null;
 let conversationCanSend = false;
@@ -137,20 +140,28 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
   }),
 });
 
-async function invoke<T extends JsonObject>(channel: StudioIpcMethod, payload: JsonObject = {}): Promise<T> {
+async function invoke<T extends JsonObject>(channel: StudioIpcMethod, payload: JsonObject = {}, signal?: AbortSignal): Promise<T> {
+  if (signal?.aborted) throw signal.reason;
   const sequence = ++requestSequence;
-  const response = await window.haiyueStudio.invoke({
+  const requestId = `request:renderer:${sequence}` as StableId;
+  const cancel = (): void => window.haiyueStudio.cancel(requestId);
+  signal?.addEventListener('abort', cancel, { once: true });
+  try {
+    const response = await window.haiyueStudio.invoke({
     schemaVersion: 1,
-    id: `request:renderer:${sequence}` as StableId,
+    id: requestId,
     correlationId: `correlation:renderer:${sequence}` as StableId,
     channel,
     payload,
-  });
-  if (!response.ok) {
-    const diagnostic = response.payload.diagnostic as Readonly<{ message?: string; code?: string }> | undefined;
-    throw new Error(diagnostic?.message ?? diagnostic?.code ?? `${channel} failed.`);
+    });
+    if (!response.ok) {
+      const diagnostic = response.payload.diagnostic as Readonly<{ message?: string; code?: string }> | undefined;
+      throw new Error(diagnostic?.message ?? diagnostic?.code ?? `${channel} failed.`);
+    }
+    return response.payload as T;
+  } finally {
+    signal?.removeEventListener('abort', cancel);
   }
-  return response.payload as T;
 }
 
 class WebGpuViewportRuntime {
@@ -398,6 +409,7 @@ async function boot(): Promise<void> {
   project = status;
   if (!project.document) project = await invoke<ProjectSnapshot & JsonObject>('project/new', { name: status.smoke ? 'G05 WebGPU smoke' : '未命名游戏' });
   bindUi();
+  setupLogViewer();
   agentPoll = new AgentPollScheduler({
     intervalMs: 30_000,
     poll: pollAgent,
@@ -408,9 +420,7 @@ async function boot(): Promise<void> {
   disposeConversationChanged = window.haiyueStudio.onConversationChanged(() => agentPoll?.trigger());
   agentPoll.start();
   document.body.dataset.agentSync = 'push-single-flight';
-  void refreshLogs().catch((cause) => {
-    element('log-health').textContent = errorMessage(cause);
-  });
+  void logViewer?.refresh().catch((cause) => setStatus(errorMessage(cause)));
   document.body.dataset.startupStage = 'viewport';
   viewport = new WebGpuViewportRuntime(element<HTMLCanvasElement>('viewport'));
   try {
@@ -585,8 +595,6 @@ function bindUi(): void {
       await selectEntity(entityId, 'viewport');
     });
   });
-  element('refresh-logs').addEventListener('click', () => void action(refreshLogs));
-  element('export-logs').addEventListener('click', () => void action(exportBugBundle));
   element('settings-button').addEventListener('click', () => element<HYDialog>('settings-dialog').showModal());
   element('settings-done').addEventListener('click', () => element<HYDialog>('settings-dialog').close('action'));
   element('run-cancel').addEventListener('click', () => element<HYDialog>('run-dialog').close('cancel'));
@@ -595,6 +603,8 @@ function bindUi(): void {
   window.addEventListener('beforeunload', () => {
     agentPoll?.stop(); agentPoll = null;
     disposeConversationChanged?.(); disposeConversationChanged = null;
+    logViewerSubscription?.dispose(); logViewerSubscription = null;
+    logViewer?.dispose(); logViewer = null;
     viewport?.dispose(); void previewFrame?.dispose();
   }, { once: true });
 }
@@ -637,42 +647,35 @@ async function dispatchConversation(intent: ConversationIntent): Promise<boolean
   finally { agentPoll?.trigger(); }
 }
 
-const LOG_VIEW_LIMIT = 80;
-
-function defaultLogQuery(nextSequence: number): LogQueryIntent {
-  const afterSequence = nextSequence > LOG_VIEW_LIMIT ? nextSequence - LOG_VIEW_LIMIT - 1 : undefined;
-  return Object.freeze({
-    limit: LOG_VIEW_LIMIT,
-    traverseCorrelation: false,
-    ...(afterSequence === undefined ? {} : { afterSequence }),
+function setupLogViewer(): void {
+  const viewer = new LogViewerController({
+    async query(query, signal) {
+      return await invoke<SafeLogPage & JsonObject>('logs/query', { query: query as unknown as JsonObject }, signal);
+    },
+    async copyText(text, signal) {
+      if (signal.aborted) throw signal.reason;
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+      await navigator.clipboard.writeText(text);
+      if (signal.aborted) throw signal.reason;
+    },
+    async dispatch(intent, signal) {
+      const result = await invoke<JsonObject>('logs/export', { query: intent.query as unknown as JsonObject }, signal);
+      setStatus(t('bugExported', { digest: String(result.contentDigest ?? '') }));
+    },
   });
+  logViewer = viewer;
+  logViewerSubscription = viewer.subscribe((model) => renderProductLogViewer(model, viewer));
 }
 
-async function currentLogQuery(): Promise<LogQueryIntent> {
-  const snapshot = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
-  return defaultLogQuery(snapshot.logging.nextSequence);
-}
-
-async function refreshLogs(): Promise<void> {
-  const result = await invoke<LogViewerResult & JsonObject>('logs/query', { query: await currentLogQuery() as unknown as JsonObject });
-  const list = element('log-items');
-  list.replaceChildren();
-  for (const event of result.events) {
-    const row = document.createElement('li');
-    row.className = `log-row severity-${event.severity}`;
-    row.textContent = `#${event.sequence} ${event.severity} ${event.kind} · ${event.source}`;
-    row.title = `${event.timestamp} · ${event.payloadDigest}`;
-    list.append(row);
-  }
-  const retained = result.status.eventCount;
-  element('log-health').textContent = retained !== undefined && retained > result.events.length
-    ? t('newestLogs', { health: result.status.health, visible: result.events.length, total: retained })
-    : t('logCount', { health: result.status.health, visible: result.events.length });
-}
-
-async function exportBugBundle(): Promise<void> {
-  const result = await invoke<JsonObject>('logs/export', { query: await currentLogQuery() as unknown as JsonObject });
-  element('log-health').textContent = t('bugExported', { digest: String(result.contentDigest ?? '') });
+function renderProductLogViewer(model: LogViewerReadModel, viewer: LogViewerController): void {
+  const safely = (operation: () => Promise<void>): void => { void operation().catch((cause) => setStatus(errorMessage(cause))); };
+  renderLogViewer(element('log-viewer'), model, {
+    setFilters: (filters) => safely(() => viewer.setFilters(filters)),
+    loadMore: () => safely(() => viewer.loadMore()),
+    toggleCorrelation: (eventId) => { try { viewer.toggleCorrelation(eventId); } catch (cause) { setStatus(errorMessage(cause)); } },
+    copySafeSummary: (eventId) => safely(() => viewer.copySafeSummary(eventId)),
+    exportBugBundle: () => safely(() => viewer.exportBugBundle()),
+  });
 }
 
 async function processAgentPreviewCommand(): Promise<void> {

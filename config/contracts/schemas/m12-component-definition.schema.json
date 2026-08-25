@@ -3,7 +3,7 @@
   "$id": "haiyue://contracts/component-definition/v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "type", "version", "owner", "capability", "effect", "risk", "valueSchema", "serializable", "runtimeAdapter", "testOwner"],
+  "required": ["schemaVersion", "type", "version", "owner", "capability", "effect", "risk", "valueSchema", "defaults", "validation", "editor", "serializable", "runtimeAdapter", "serialization", "testOwner"],
   "properties": {
     "schemaVersion": { "const": 2 },
     "type": { "$ref": "#/definitions/stableId" },
@@ -13,8 +13,32 @@
     "effect": { "enum": ["data", "runtime-owner", "gpu-owner", "audio-owner"] },
     "risk": { "enum": ["low", "medium", "high"] },
     "valueSchema": { "type": "object", "maxProperties": 128 },
+    "defaults": { "type": "object", "maxProperties": 128 },
+    "validation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "unknownProperties", "maxSerializedBytes"],
+      "properties": {
+        "mode": { "const": "json-schema" },
+        "unknownProperties": { "const": "reject" },
+        "maxSerializedBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+      }
+    },
+    "editor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "category", "inspector"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "inspector": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/stableId" }] }
+      }
+    },
     "serializable": { "type": "boolean" },
     "runtimeAdapter": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/stableId" }] },
+    "serialization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "persistDisabled"],
+      "properties": { "format": { "const": "json" }, "persistDisabled": { "type": "boolean" } }
+    },
     "testOwner": { "$ref": "#/definitions/stableId" }
   },
   "allOf": [

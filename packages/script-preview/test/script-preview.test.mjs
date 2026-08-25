@@ -31,6 +31,11 @@ async function fixture() {
   const validator = new ScriptValidationWorker();
   const scripts = new ProjectScriptService(workspace, validator, operationLog);
   await workspace.newProject(projectRoot, 'Script fixture');
+  const entityId = asStableId('entity:cube');
+  await workspace.executeBatch({ id: asStableId('command:create-script-entity'), label: 'Create script entity', baseRevision: 1, operations: [
+    { op: 'entity.add', entity: { id: entityId, sceneId: workspace.primarySceneId(), name: 'Cube', parentId: null, order: 0, componentIds: [] } },
+    { op: 'component.add', entityId, component: workspace.componentRegistry.create({ id: asStableId('component:script-transform'), type: asStableId('haiyue.transform.3d'), version: '1.0.0' }) },
+  ] });
   return { projectRoot, userDataRoot, operationLog, resources, workspace, validator, scripts };
 }
 
@@ -47,13 +52,21 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
     const exported = await worker.validate({ scriptId, textRevision: 3, sourcePath: 'scripts/test.ts', text: 'export function start(): void {}' });
     assert.ok(exported.diagnostics.some((item) => item.code === 'script.capability.module-forbidden' && item.line === 1), JSON.stringify(exported.diagnostics));
     assert.match(exported.emittedText, /exports/);
+    const forbidden = await worker.validate({
+      scriptId, textRevision: 4, sourcePath: 'scripts/forbidden.ts',
+      text: `navigator.sendBeacon('/collect');\ndocument.body.textContent = 'x';\nprocess.exit(1);\nsetTimeout(() => {}, 1);\nnew Worker('worker.js');\nlocalStorage.clear();\nshowOpenFilePicker();\nimport('./other.js');`,
+    });
+    for (const line of [1, 2, 3, 4, 5, 6, 7]) {
+      assert.ok(forbidden.diagnostics.some((item) => item.code === 'script.capability.global-forbidden' && item.line === line), JSON.stringify(forbidden.diagnostics));
+    }
+    assert.ok(forbidden.diagnostics.some((item) => item.code === 'script.capability.module-forbidden' && item.line === 8), JSON.stringify(forbidden.diagnostics));
     const instanced = await worker.validate({
-      scriptId, textRevision: 4, sourcePath: 'scripts/test.ts', capabilities: ['read', 'scene'],
+      scriptId, textRevision: 5, sourcePath: 'scripts/test.ts', capabilities: ['read', 'scene'],
       text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
     });
     assert.deepEqual(instanced.diagnostics, []);
     const inferredScene = await worker.validate({
-      scriptId, textRevision: 5, sourcePath: 'scripts/test.ts', capabilities: ['read', 'input', 'debug'],
+      scriptId, textRevision: 6, sourcePath: 'scripts/test.ts', capabilities: ['read', 'input', 'debug'],
       text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
     });
     assert.deepEqual(inferredScene.capabilities, ['read', 'input', 'debug', 'scene']);
@@ -62,35 +75,46 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
     const second = worker.validate({ scriptId, textRevision: 4, sourcePath: 'scripts/test.ts', text: movementScript });
     assert.equal((await first).stale, true);
     assert.equal((await second).stale, false);
-  } finally { await worker.dispose(); }
+  } finally {
+    await worker.dispose();
+    await assert.rejects(worker.validate({ scriptId: asStableId('script:disposed'), textRevision: 1, sourcePath: 'scripts/disposed.ts', text: '' }), /disposed/);
+  }
 });
 
 test('script proposal commits through History and survives undo, redo, save and reopen', async () => {
   const value = await fixture();
+  try {
   const entityId = asStableId('entity:cube');
-  const proposal = await value.scripts.proposeEdit({ entityId, text: movementScript, baseRevision: 1 });
+  await assert.rejects(value.scripts.proposeEdit({ entityId: asStableId('entity:missing'), text: movementScript, baseRevision: 2 }), /does not exist/);
+  const invalid = await value.scripts.proposeEdit({ entityId, text: `const value: number = 'invalid';`, baseRevision: 2 });
+  assert.ok(invalid.diagnostics.some((item) => item.code === 'script.ts.2322'));
+  await assert.rejects(value.scripts.commitProposal(invalid.id, asStableId('command:invalid-script')), /validation errors/);
+  const proposal = await value.scripts.proposeEdit({ entityId, text: movementScript, baseRevision: 2, capabilities: ['read', 'debug'] });
   assert.equal(proposal.diagnostics.length, 0);
   assert.equal(proposal.addedLines > 0, true);
   const committed = await value.scripts.commitProposal(proposal.id, asStableId('command:script-edit'));
   assert.equal(committed.textRevision, 1);
-  assert.equal(value.workspace.snapshot().document.revision, 2);
-  await value.workspace.undo(2);
+  assert.equal(committed.capabilities.includes('debug'), true);
+  assert.equal(value.workspace.snapshot().document.revision, 3);
+  await value.workspace.undo(3);
   assert.equal(value.scripts.snapshot().resources.length, 0);
-  await value.workspace.redo(3);
+  await value.workspace.redo(4);
   assert.equal(value.scripts.snapshot().resources[0].text, movementScript);
   await value.workspace.save();
   await value.workspace.reopen();
   assert.equal(value.scripts.snapshot().resources[0].dirty, false);
-  await dispose(value);
+  assert.deepEqual(value.scripts.snapshot().resources[0].capabilities, ['read', 'debug']);
+  } finally { await dispose(value); }
 });
 
 test('authorization is explicit, one-shot and stale-safe; runtime is isolated and cleans hot-reload disposers', async () => {
   const value = await fixture();
   try {
   const entityId = asStableId('entity:cube');
-  const proposal = await value.scripts.proposeEdit({ entityId, text: movementScript, baseRevision: 1 });
+  const proposal = await value.scripts.proposeEdit({ entityId, text: movementScript, baseRevision: 2 });
   const script = await value.scripts.commitProposal(proposal.id, asStableId('command:script-runtime'));
-  const authorization = new PreviewAuthorizationService(value.scripts, value.validator, value.operationLog, () => 1_000);
+  const clock = { value: 1_000 };
+  const authorization = new PreviewAuthorizationService(value.scripts, value.validator, value.operationLog, () => clock.value);
   const plan = await authorization.prepare(script.id);
   assert.equal(plan.risk, 'trusted-project');
   const grant = await authorization.decide(plan.id, true);
@@ -109,9 +133,10 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   assert.equal(runtime.tick(500, 16).position.x, 0.5);
   runtime.hotReload(`if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   assert.equal(runtime.tick(600, 16).disposableCount, 1);
-  const restarted = await runtime.start(scene, consumed);
-  assert.equal(restarted.state, 'playing');
-  assert.equal(restarted.disposableCount, 0);
+  const [rapidRestartA, rapidRestartB] = await Promise.all([runtime.start(scene, consumed), runtime.start(scene, consumed)]);
+  assert.equal(rapidRestartA.state, 'playing');
+  assert.equal(rapidRestartB.state, 'playing');
+  assert.equal(runtime.snapshot().disposableCount, 0);
   assert.ok(Math.abs(runtime.tick(650, 16).position.x - 0.65) < 0.000_001);
   runtime.hotReload(`if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   assert.equal(runtime.tick(675, 16).disposableCount, 1);
@@ -123,12 +148,50 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   assert.equal(stopped.state, 'stopped');
   assert.equal(stopped.disposableCount, 0);
   assert.deepEqual(value.scripts.snapshot().resources[0].text, movementScript);
+
+  const invalidTtlPlan = await authorization.prepare(script.id);
+  await assert.rejects(authorization.decide(invalidTtlPlan.id, true, 0), /TTL/);
+  const expiredPlan = await authorization.prepare(script.id);
+  const expiredGrant = await authorization.decide(expiredPlan.id, true, 10);
+  clock.value = 1_011;
+  assert.throws(() => authorization.consume(expiredGrant.id), /expired/);
+  clock.value = 2_000;
+  const stalePlan = await authorization.prepare(script.id);
+  const staleGrant = await authorization.decide(stalePlan.id, true, 10_000);
+  await value.workspace.execute({ id: asStableId('command:stale-preview'), label: 'Advance document revision', baseRevision: 3, key: 'fixture.stale', value: true });
+  assert.throws(() => authorization.consume(staleGrant.id), /stale/);
+
+  const facts = await value.operationLog.query({ limit: 200, traverseCorrelation: false });
+  const kinds = new Set(facts.events.map((event) => event.kind));
+  for (const kind of ['script/proposal-ready', 'script/edit-committed', 'preview/approval-ready', 'preview/authorized', 'preview/started', 'preview/runtime-error', 'preview/stopped']) {
+    assert.equal(kinds.has(kind), true, `missing operation log event ${kind}`);
+  }
+  assert.equal(JSON.stringify(facts.events).includes(movementScript), false, 'operation log must not retain script source');
   await value.workspace.closeProject();
   assert.equal(value.scripts.snapshot().resources.length, 0);
   const replacementRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-script-replacement-'));
   await value.workspace.newProject(replacementRoot, 'Replacement document');
   assert.equal(value.scripts.snapshot().resources.length, 0);
   } finally { await dispose(value); }
+});
+
+test('preview start fails closed and releases the isolated world when durable logging fails', async () => {
+  const runtime = new IsolatedTrustedPreviewRuntime({ append: async () => { throw new Error('log unavailable'); } });
+  const entityId = asStableId('entity:log-failure');
+  const scene = {
+    schemaVersion: 1, revision: 1, documentId: asStableId('document:log-failure'),
+    entities: [{ id: entityId, name: 'Cube', kind: 'cube', parentId: null, order: 0, transform: {
+      position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 },
+    } }],
+  };
+  const plan = {
+    id: asStableId('preview-plan:log-failure'), scriptId: asStableId('script:log-failure'), entityId,
+    documentRevision: 1, textRevision: 1, digest: 'digest', capabilities: ['read'], risk: 'trusted-project', diagnostics: [], emittedText: '',
+  };
+  await assert.rejects(runtime.start(scene, plan), /log unavailable/);
+  assert.deepEqual(runtime.snapshot(), {
+    instanceId: null, state: 'stopped', entityId: null, position: null, disposableCount: 0, errors: [],
+  });
 });
 
 async function dispose(value) {

@@ -104,7 +104,8 @@ export function planFromNode(node: ConversationNodeReadModel): readonly PlanItem
 export function normalizeSafeLogSummary(value: unknown): SafeLogSummary {
   if (!isRecord(value) || !Number.isInteger(value.sequence) || (value.sequence as number) < 0) throw new ConversationReadModelError('logs.summary-invalid', 'Log summary sequence is invalid.');
   if (!['debug', 'info', 'warning', 'error'].includes(String(value.severity))) throw new ConversationReadModelError('logs.summary-invalid', 'Log summary severity is invalid.');
-  if (!digestPattern.test(String(value.payloadDigest))) throw new ConversationReadModelError('logs.summary-invalid', 'Log summary digest is invalid.');
+  const payloadDigest = /^[a-f0-9]{64}$/u.test(String(value.payloadDigest)) ? `sha256:${String(value.payloadDigest)}` : String(value.payloadDigest);
+  if (!digestPattern.test(payloadDigest)) throw new ConversationReadModelError('logs.summary-invalid', 'Log summary digest is invalid.');
   const correlation: Record<string, StableId> = {};
   if (isRecord(value.correlation)) for (const [key, item] of Object.entries(value.correlation)) {
     if (secretKey.test(key)) continue;
@@ -113,7 +114,7 @@ export function normalizeSafeLogSummary(value: unknown): SafeLogSummary {
   return Object.freeze({
     sequence: value.sequence as number, eventId: stable(value.eventId, 'event id'), timestamp: timestamp(value.timestamp, 'timestamp'),
     kind: safeText(String(value.kind), 96), severity: value.severity as SafeLogSummary['severity'], source: stable(value.source, 'source'),
-    correlation: Object.freeze(correlation), payloadDigest: String(value.payloadDigest),
+    correlation: Object.freeze(correlation), payloadDigest,
     redactedFieldCount: Number.isInteger(value.redactedFieldCount) && (value.redactedFieldCount as number) >= 0 ? value.redactedFieldCount as number : 0,
   });
 }
@@ -234,7 +235,8 @@ function normalizeApproval(value: Record<string, unknown>): JsonObject {
       target: text(value.target, 256) ?? 'Unknown target', effect, risk,
       argumentsSummary: text(value.argumentsSummary, 2_048) ?? 'No argument summary provided.', previewDiff: text(value.previewDiff, 4_096) ?? 'No preview diff provided.',
       baseRevision: Number.isInteger(value.baseRevision) && (value.baseRevision as number) >= 0 ? value.baseRevision as number : 0,
-      argsDigest, previewDigest, decision,
+      argsDigest, previewDigest, ...(value.expiresAt === undefined ? {} : { expiresAt: timestamp(value.expiresAt, 'approval expiry') }),
+      scope: enumValue(value.scope, ['operation', 'project-session']) ?? 'operation', decision,
     });
   } catch { return Object.freeze({ summary: 'Invalid approval payload; actions are disabled.', decision: 'unavailable' }); }
 }
@@ -274,7 +276,7 @@ function safeInteger(value: unknown, minimum: number, maximum: number): number |
 
 function isApprovalContent(value: Record<string, unknown>): boolean {
   return typeof value.approvalId === 'string' && typeof value.toolCallId === 'string' && typeof value.toolId === 'string'
-    && value.decision !== 'unavailable' && typeof value.argsDigest === 'string';
+    && value.decision !== 'unavailable' && typeof value.argsDigest === 'string' && (value.scope === 'operation' || value.scope === 'project-session');
 }
 
 function stable(value: unknown, label: string): StableId {

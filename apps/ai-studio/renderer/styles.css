@@ -173,6 +173,13 @@ header { background: var(--studio-surface-elevated); border-color: var(--studio-
 #logs-panel .panel-tools button { flex: none; font-size: 11px; padding: 5px 7px; }
 .log-items { min-height: 0; max-height: none; overflow: auto; margin: 0; padding: 7px 8px 12px 28px; }
 .log-row { color: var(--studio-text-secondary); }
+#log-viewer { height: 100%; min-height: 0; overflow: auto; padding: 8px; color: var(--studio-text-secondary); font-size: 11px; }
+.log-viewer-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; position: sticky; top: 0; z-index: 1; padding-bottom: 8px; background: var(--studio-surface); }
+.log-viewer-filters input, .log-viewer-filters select { min-width: 0; width: 100%; }
+.log-viewer-filters button { min-height: 28px; }
+#log-viewer table { width: 100%; border-collapse: collapse; font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+#log-viewer th, #log-viewer td { padding: 5px; border-bottom: 1px solid var(--studio-border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+#log-viewer button { margin: 2px; }
 footer { background: var(--studio-accent-strong); color: var(--studio-accent-text); }
 
 #script-panel[hidden] { display: none !important; }

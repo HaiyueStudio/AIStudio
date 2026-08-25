@@ -56,9 +56,25 @@ test('planned entity creation is low risk while later scoped edits retain one-sh
 
     const facts = await value.operationLog.query({ toolCallId: asStableId('call:rename'), limit: 50, traverseCorrelation: false });
     assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/') || item.kind.startsWith('approval/')).map((item) => item.kind), [
-      'tool/call-prepared', 'approval/requested', 'approval/allow-once', 'tool/execution-started', 'tool/execution-completed',
+      'tool/call-received', 'tool/pre-policy-passed', 'tool/preview-prepared', 'approval/requested', 'approval/allow-once', 'tool/execution-started', 'tool/execution-completed',
     ]);
     assert.doesNotMatch(JSON.stringify(facts.events), /"name":"Hero"/);
+  } finally { await dispose(value); }
+});
+
+test('diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload', async () => {
+  const value = await fixture();
+  try {
+    await executeReady(value.runtime, call('call:diagnostic-source-1', 'project.snapshot', {}));
+    await executeReady(value.runtime, call('call:diagnostic-source-2', 'scene.list-entities', {}));
+    const first = await executeReady(value.runtime, call('call:diagnostics-page-1', 'diagnostics.query', { limit: 2, traverseCorrelation: false }));
+    assert.equal(first.value.count, 2);
+    assert.equal(typeof first.value.nextCursor, 'string');
+    assert.doesNotMatch(JSON.stringify(first.value.events), /"payload"|projectRoot|authorization/i);
+    assert.ok(first.value.events.every((item) => /^sha256:[a-f0-9]{64}$/.test(item.payloadDigest)));
+    const second = await executeReady(value.runtime, call('call:diagnostics-page-2', 'diagnostics.query', { limit: 2, traverseCorrelation: false, cursor: first.value.nextCursor }));
+    assert.equal(second.value.count, 2);
+    assert.notDeepEqual(second.value.events.map((item) => item.eventId), first.value.events.map((item) => item.eventId));
   } finally { await dispose(value); }
 });
 
@@ -79,9 +95,11 @@ test('allow always auto-approves only the same tool, version, target and project
 
     const differentTool = await value.runtime.prepare(call('call:always-material', 'material.set', { baseRevision: 4, entityId: created.value.entity.id, material: 'pbr' }));
     assert.equal(differentTool.status, 'approval-required');
+    const differentSession = await value.runtime.prepare({ ...call('call:always-other-session', 'entity.rename', { baseRevision: 4, entityId: created.value.entity.id, name: 'Other Session' }), sessionId: 'session:other' });
+    assert.equal(differentSession.status, 'approval-required');
     const facts = await value.operationLog.query({ toolCallId: asStableId('call:always-second'), limit: 20, traverseCorrelation: false });
     assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/') || item.kind.startsWith('approval/')).map((item) => item.kind), [
-      'tool/call-prepared', 'approval/auto-allowed', 'tool/execution-started', 'tool/execution-completed',
+      'tool/call-received', 'tool/pre-policy-passed', 'tool/preview-prepared', 'approval/auto-allowed', 'tool/execution-started', 'tool/execution-completed',
     ]);
   } finally { await dispose(value); }
 });
@@ -97,6 +115,7 @@ test('script proposal, trusted apply and runtime start preserve separate approva
 
     const apply = await value.runtime.prepare(call('call:apply', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId }));
     assert.equal(apply.effect, 'trusted-code');
+    await assert.rejects(value.runtime.decide(apply.approvalId, 'allow-always'), /one-shot approval/);
     await value.runtime.decide(apply.approvalId, 'allow-once');
     const applied = await value.runtime.execute(apply.id);
     assert.equal(applied.afterRevision, 3);
@@ -104,6 +123,7 @@ test('script proposal, trusted apply and runtime start preserve separate approva
     const validated = await executeReady(value.runtime, call('call:validate', 'preview.validate', { scriptId: applied.value.scriptId, capabilities: ['read', 'debug'] }));
     const start = await value.runtime.prepare(call('call:start', 'preview.start', { baseRevision: 3, planId: validated.value.planId }));
     assert.notEqual(start.approvalId, apply.approvalId);
+    await assert.rejects(value.runtime.decide(start.approvalId, 'allow-always'), /one-shot approval/);
     await value.runtime.decide(start.approvalId, 'allow-once');
     const started = await value.runtime.execute(start.id);
     assert.equal(started.value.state, 'playing');
@@ -221,6 +241,27 @@ test('model-facing mutations bind the current revision and create with an initia
   } finally { await dispose(value); }
 });
 
+test('manual UI service and Agent tool serialize the same entity, revision and undoable History state', async () => {
+  const agent = await fixture(); const manual = await fixture();
+  const input = {
+    baseRevision: 1, kind: 'sphere', name: 'Equivalent Ball', material: 'pbr', color: [0.2, 0.7, 1, 1],
+    transform: { position: { x: 3, y: 2, z: 1 }, rotationDegrees: { x: 0, y: 45, z: 0 }, scale: { x: 1.5, y: 1.5, z: 1.5 } },
+  };
+  try {
+    const agentResult = await executeReady(agent.runtime, call('call:equivalent-agent', 'entity.create', input));
+    const manualScene = await manual.scene.createEntity({ commandId: asStableId('command:equivalent-manual'), ...input });
+    const comparable = (entity) => ({ name: entity.name, kind: entity.kind, order: entity.order, transform: entity.transform, appearance: entity.appearance, light: entity.light });
+    assert.deepEqual(comparable(agent.scene.snapshot().entities[0]), comparable(manualScene.entities[0]));
+    assert.equal(agentResult.historyLabel, 'Create Scene Entity');
+    assert.equal(agent.workspace.snapshot().document.revision, manual.workspace.snapshot().document.revision);
+    assert.equal(agent.resources.history.canUndo, true);
+    assert.equal(manual.resources.history.canUndo, true);
+    await agent.workspace.undo(2); await manual.workspace.undo(2);
+    assert.equal(agent.scene.snapshot().entities.length, 0);
+    assert.equal(manual.scene.snapshot().entities.length, 0);
+  } finally { await dispose(agent); await dispose(manual); }
+});
+
 test('schema spoof, rejection and revision drift fail closed without mutation', async () => {
   const value = await fixture();
   try {
@@ -245,26 +286,140 @@ test('schema spoof, rejection and revision drift fail closed without mutation', 
   } finally { await dispose(value); }
 });
 
-test('pending approvals have no wall-clock timeout and still require an exact revision at execution', async () => {
+test('schema fuzz rejects duplicate, nested unknown, non-finite and malformed structured fields before mutation', async () => {
   const value = await fixture();
   try {
-    const created = await executeReady(value.runtime, call('call:create-no-timeout-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before' }));
+    const transform = { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+    const cases = [
+      call('call:fuzz-nested', 'entity.create', { kind: 'cube', transform: { ...transform, position: { ...transform.position, w: 1 } } }),
+      call('call:fuzz-infinite', 'entity.create', { kind: 'cube', transform: { ...transform, position: { x: Number.POSITIVE_INFINITY, y: 0, z: 0 } } }),
+      call('call:fuzz-capability-duplicate', 'script.propose', { entityId: 'entity:fixture', text: 'return;', capabilities: ['read', 'read'] }),
+      call('call:fuzz-kind-format', 'diagnostics.query', { limit: 10, traverseCorrelation: false, kinds: ['INVALID KIND'] }),
+      { ...call('call:fuzz-envelope', 'project.snapshot', {}), effect: 'trusted-code' },
+    ];
+    for (const candidate of cases) await assert.rejects(value.runtime.prepare(candidate), /invalid|unknown fields|non-finite/i);
+    assert.equal(value.workspace.snapshot().document.revision, 1);
+    const facts = await value.operationLog.query({ toolCallId: asStableId('call:fuzz-kind-format'), limit: 20, traverseCorrelation: false });
+    assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/')).map((item) => item.kind), ['tool/call-received', 'tool/preparation-failed']);
+  } finally { await dispose(value); }
+});
+
+test('same-document mutations serialize and a queued stale preparation never enters the editor service', async () => {
+  const value = await fixture();
+  try {
+    const created = await executeReady(value.runtime, call('call:create-serialized', 'entity.create', { kind: 'cube', name: 'Before' }));
     const entityId = created.value.entity.id;
-    const pending = await value.runtime.prepare(call('call:no-timeout', 'entity.rename', { baseRevision: 2, entityId, name: 'After a year' }));
-    assert.equal('expiresAt' in pending, false);
-    assert.equal('expiresAt' in value.runtime.approval(pending.approvalId), false);
+    const first = await value.runtime.prepare(call('call:serialize-first', 'entity.rename', { baseRevision: 2, entityId, name: 'First' }));
+    const second = await value.runtime.prepare(call('call:serialize-second', 'entity.rename', { baseRevision: 2, entityId, name: 'Second' }));
+    await value.runtime.decide(first.approvalId, 'allow-once');
+    await value.runtime.decide(second.approvalId, 'allow-once');
+    const originalRename = value.scene.renameEntity.bind(value.scene);
+    const entered = deferred(); const release = deferred(); let active = 0; let maximum = 0; let calls = 0;
+    value.scene.renameEntity = async (...args) => { calls += 1; active += 1; maximum = Math.max(maximum, active); entered.resolve(); await release.promise; try { return await originalRename(...args); } finally { active -= 1; } };
+    const firstExecution = value.runtime.execute(first.id);
+    await entered.promise;
+    const secondExecution = value.runtime.execute(second.id);
+    release.resolve();
+    assert.equal((await firstExecution).status, 'completed');
+    await assert.rejects(secondExecution, /Document changed/);
+    assert.equal(maximum, 1);
+    assert.equal(calls, 1);
+    assert.equal(value.scene.snapshot().entities[0].name, 'First');
+  } finally { await dispose(value); }
+});
 
-    value.time.value += 365 * 24 * 60 * 60 * 1_000;
-    assert.equal((await value.runtime.decide(pending.approvalId, 'allow-once')).decision, 'allow-once');
-    assert.equal((await value.runtime.execute(pending.id)).status, 'completed');
-    assert.equal(value.scene.snapshot().entities[0].name, 'After a year');
+test('tool, approval, Document and History correlation remains traversable after the journal restarts', async () => {
+  const value = await fixture(); let disposed = false; let reopened;
+  try {
+    const created = await executeReady(value.runtime, call('call:restart-create', 'entity.create', { kind: 'cube', name: 'Before Restart' }));
+    const rename = await value.runtime.prepare(call('call:restart-rename', 'entity.rename', { baseRevision: 2, entityId: created.value.entity.id, name: 'After Restart' }));
+    await value.runtime.decide(rename.approvalId, 'allow-once');
+    await value.runtime.execute(rename.id);
+    await dispose(value); disposed = true;
 
-    const stale = await value.runtime.prepare(call('call:no-timeout-stale', 'entity.rename', { baseRevision: 3, entityId, name: 'Must not apply' }));
-    value.time.value += 365 * 24 * 60 * 60 * 1_000;
-    await value.workspace.execute({ id: asStableId('command:long-wait-drift'), label: 'Long wait drift', baseRevision: 3, key: 'fixture.long-wait-drift', value: true });
-    assert.equal((await value.runtime.decide(stale.approvalId, 'allow-once')).decision, 'allow-once');
-    await assert.rejects(value.runtime.execute(stale.id), /Document changed/);
-    assert.equal(value.scene.snapshot().entities[0].name, 'After a year');
+    reopened = await OperationLog.open({ rootDirectory: path.join(value.userDataRoot, 'log'), appVersion: 'test-reopen' });
+    const page = await reopened.query({ toolCallId: asStableId('call:restart-rename'), limit: 200, traverseCorrelation: true });
+    const kinds = page.events.map((item) => item.kind);
+    assert.ok(kinds.includes('approval/allow-once'));
+    assert.ok(kinds.includes('tool/execution-completed'));
+    assert.ok(kinds.includes('document/command-requested'));
+    assert.ok(kinds.includes('document/command-committed'));
+    assert.ok(page.events.some((item) => item.kind === 'document/command-committed' && item.correlation.commandId));
+  } finally {
+    if (reopened) await reopened.close();
+    if (!disposed) await dispose(value);
+  }
+});
+
+test('cancelled calls reject a late result even when the injected runtime ignores AbortSignal', async () => {
+  const value = await fixture();
+  try {
+    const entered = deferred(); const release = deferred();
+    value.preview.stop = async () => { entered.resolve(); return await release.promise; };
+    const prepared = await value.runtime.prepare(call('call:late-preview-stop', 'preview.stop', {}));
+    const execution = value.runtime.execute(prepared.id);
+    await entered.promise;
+    await value.runtime.cancel(asStableId('call:late-preview-stop'));
+    release.resolve({ instanceId: null, state: 'stopped', entityId: null, position: null, disposableCount: 0, errors: [] });
+    await assert.rejects(execution, /cancelled/);
+    const facts = await value.operationLog.query({ toolCallId: asStableId('call:late-preview-stop'), limit: 30, traverseCorrelation: false });
+    assert.equal(facts.events.some((item) => item.kind === 'tool/execution-completed'), false);
+    assert.ok(facts.events.some((item) => item.kind === 'tool/execution-failed'));
+  } finally { await dispose(value); }
+});
+
+test('tool timeout aborts execution, emits a terminal failure and cannot produce a late completion', async () => {
+  const value = await fixture({ timeoutCeilingMs: 25 });
+  try {
+    value.preview.stop = async (signal) => await new Promise((resolve, reject) => {
+      const abort = () => reject(signal.reason);
+      if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
+    });
+    const prepared = await value.runtime.prepare(call('call:timeout-preview-stop', 'preview.stop', {}));
+    await assert.rejects(value.runtime.execute(prepared.id), (cause) => cause.code === 'tool.timeout');
+    const facts = await value.operationLog.query({ toolCallId: asStableId('call:timeout-preview-stop'), limit: 30, traverseCorrelation: false });
+    assert.equal(facts.events.some((item) => item.kind === 'tool/execution-completed'), false);
+    assert.ok(facts.events.some((item) => item.kind === 'tool/execution-failed'));
+  } finally { await dispose(value); }
+});
+
+test('observe tools degrade when journal append fails while every mutation remains fail closed', async () => {
+  const value = await fixture();
+  const append = value.operationLog.append.bind(value.operationLog);
+  try {
+    value.operationLog.append = async () => { throw new Error('fixture journal unavailable'); };
+    const observed = await value.runtime.prepare(call('call:degraded-observe', 'project.snapshot', {}));
+    const result = await value.runtime.execute(observed.id);
+    assert.equal(result.status, 'completed');
+    assert.equal(result.afterRevision, 1);
+    await assert.rejects(value.runtime.prepare(call('call:degraded-mutation', 'entity.create', { kind: 'cube' })), /Operation Log rejected/);
+    assert.equal(value.workspace.snapshot().document.revision, 1);
+  } finally { value.operationLog.append = append; await dispose(value); }
+});
+
+test('pending approvals expire and revision drift invalidates them before a decision can be accepted', async () => {
+  const value = await fixture();
+  try {
+    const created = await executeReady(value.runtime, call('call:create-expiry-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before' }));
+    const entityId = created.value.entity.id;
+    const pending = await value.runtime.prepare(call('call:expires', 'entity.rename', { baseRevision: 2, entityId, name: 'Expired' }));
+    assert.equal(pending.expiresAt, new Date(value.time.value + 5 * 60_000).toISOString());
+    assert.equal(value.runtime.approval(pending.approvalId).expiresAt, pending.expiresAt);
+    value.time.value += 5 * 60_000;
+    await assert.rejects(value.runtime.decide(pending.approvalId, 'allow-once'), /is expired/);
+    assert.equal(value.runtime.approval(pending.approvalId).decision, 'expired');
+    assert.equal((await value.runtime.execute(pending.id)).status, 'rejected');
+    assert.equal(value.scene.snapshot().entities[0].name, 'Before');
+
+    const stale = await value.runtime.prepare(call('call:approval-stale', 'entity.rename', { baseRevision: 2, entityId, name: 'Must not apply' }));
+    await value.workspace.execute({ id: asStableId('command:approval-drift'), label: 'Approval drift', baseRevision: 2, key: 'fixture.approval-drift', value: true });
+    await assert.rejects(value.runtime.decide(stale.approvalId, 'allow-once'), /is stale/);
+    assert.equal(value.runtime.approval(stale.approvalId).decision, 'stale');
+    assert.equal((await value.runtime.execute(stale.id)).status, 'rejected');
+    assert.equal(value.scene.snapshot().entities[0].name, 'Before');
+
+    const facts = await value.operationLog.query({ toolCallId: asStableId('call:expires'), limit: 30, traverseCorrelation: false });
+    assert.ok(facts.events.some((item) => item.kind === 'approval/expired'));
   } finally { await dispose(value); }
 });
 
@@ -286,7 +441,42 @@ test('fake backend deterministic E2E creates, transforms, scripts and starts pre
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
-async function fixture() {
+test('coordinator rejects malformed provider arguments instead of coercing them to an empty observe call', async () => {
+  const value = await fixture(); let submitted;
+  const backend = minimalBackend(async function* () {
+    yield event('tool-request', { toolCallId: 'toolcall:malformed', toolId: 'project.snapshot', arguments: [] });
+    yield event('completed', { status: 'completed' });
+  }, async (_id, result) => { submitted = result; });
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } });
+  try {
+    const summary = await coordinator.run(backend, { prompt: 'Malformed fixture.' });
+    assert.equal(summary.terminal, 'completed');
+    assert.equal(summary.results.length, 0);
+    assert.equal(summary.diagnostics[0].code, 'tool.arguments-invalid');
+    assert.equal(submitted.status, 'failed');
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
+test('disposing the coordinator aborts an active backend turn and is idempotent', async () => {
+  const value = await fixture(); const entered = deferred();
+  const backend = minimalBackend(async function* (_input, signal) {
+    entered.resolve();
+    await new Promise((resolve, reject) => {
+      const abort = () => reject(signal.reason);
+      if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
+    });
+    yield event('completed', { status: 'completed' });
+  });
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } });
+  try {
+    const running = coordinator.run(backend, { prompt: 'Wait for disposal.' });
+    await entered.promise;
+    coordinator.dispose(); coordinator.dispose();
+    await assert.rejects(running, /disposed/);
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
+async function fixture(runtimeOptions = {}) {
   const projectRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-project-'));
   const userDataRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-userdata-'));
   const time = { value: 1_000 };
@@ -309,7 +499,7 @@ async function fixture() {
     async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', entityId: plan.entityId }; return this.state; },
     async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; }, snapshot() { return this.state; },
   };
-  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview });
+  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, clock: () => new Date(time.value), ...runtimeOptions });
   return { projectRoot, userDataRoot, time, operationLog, resources, workspace, scene, validator, projectScripts, scripts, preview, runtime };
 }
 
@@ -343,4 +533,13 @@ function scriptedBackend(script) {
   function event(kind, payload) { return { schemaVersion: 1, backendId, sessionId, turnId, kind, payload }; }
   async function* request(id, toolId, args) { const result = deferred(); pending = { id, resolve: result.resolve }; yield event('tool-request', { toolCallId: id, toolId, arguments: args }); return await result.promise; }
 }
+function minimalBackend(startTurn, submitToolResult = async () => {}) {
+  return {
+    descriptor: { schemaVersion: 1, id: 'backend:minimal-tools', kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
+    startTurn, submitToolResult,
+    async authenticate() { return null; }, async status() { return { state: 'ready', authMode: 'none', rateLimits: [] }; }, async logout() {},
+    resumeTurn() { throw new Error('unused'); }, async answerQuestion() {}, async resolveBackendApproval() {}, async cancelTurn() {}, async dispose() {},
+  };
+}
+function event(kind, payload) { return { schemaVersion: 1, backendId: 'backend:minimal-tools', sessionId: 'session:minimal-tools', turnId: 'turn:minimal-tools', kind, payload }; }
 function deferred() { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; }

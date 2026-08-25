@@ -10,7 +10,7 @@
     "revision": { "type": "integer", "minimum": 0 },
     "savedRevision": { "type": "integer", "minimum": 0 },
     "scenes": {
-      "type": "array", "maxItems": 1024,
+      "type": "array", "minItems": 1, "maxItems": 1024,
       "items": {
         "type": "object", "additionalProperties": false,
         "required": ["id", "name", "rootEntityIds"],
@@ -25,12 +25,13 @@
       "type": "array", "maxItems": 100000,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "sceneId", "name", "parentId", "componentIds"],
+        "required": ["id", "sceneId", "name", "parentId", "order", "componentIds"],
         "properties": {
           "id": { "$ref": "#/definitions/stableId" },
           "sceneId": { "$ref": "#/definitions/stableId" },
           "name": { "type": "string", "minLength": 1, "maxLength": 128 },
           "parentId": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/stableId" }] },
+          "order": { "type": "integer", "minimum": 0 },
           "componentIds": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/definitions/stableId" } }
         }
       }
@@ -53,10 +54,18 @@
       "type": "array", "maxItems": 10000,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "enabled", "order", "digest"],
+        "required": ["id", "entityId", "name", "sourcePath", "source", "textRevision", "enabled", "order", "capabilities", "digest"],
         "properties": {
-          "id": { "$ref": "#/definitions/stableId" }, "enabled": { "type": "boolean" },
-          "order": { "type": "integer", "minimum": 0 }, "digest": { "$ref": "#/definitions/digest" }
+          "id": { "$ref": "#/definitions/stableId" },
+          "entityId": { "$ref": "#/definitions/stableId" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "sourcePath": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "source": { "type": "string", "maxLength": 65536 },
+          "textRevision": { "type": "integer", "minimum": 0 },
+          "enabled": { "type": "boolean" },
+          "order": { "type": "integer", "minimum": 0 },
+          "capabilities": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 64 } },
+          "digest": { "$ref": "#/definitions/digest" }
         }
       }
     },

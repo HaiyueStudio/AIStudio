@@ -148,12 +148,21 @@ test('tool results show a readable step and keep raw structured output collapsed
 });
 
 test('approval cards expose a validated project-session Allow always action', () => {
-  const model = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending'), 'replay')])), Date.parse('2026-08-19T00:00:00.000Z'));
+  const model = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending', { toolId: 'entity.rename', target: 'entity:player', effect: 'reversible-edit', risk: 'medium' }), 'replay')])), Date.parse('2026-08-19T00:00:00.000Z'));
   const card = model.cards[0];
   const always = card.actions.find((action) => action.id === 'approval-allow-always');
   assert.deepEqual(always.intent, { type: 'conversation/resolve-approval', approvalId: 'approval:fixture', decision: 'allow-always' });
   assert.match(card.body, /current project session/);
   assert.deepEqual(validateConversationIntent(always.intent), always.intent);
+});
+
+test('trusted-code and runtime-start approvals expose one-shot decisions only', () => {
+  for (const effect of ['trusted-code', 'runtime-start']) {
+    const card = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending', { effect }), 'replay')]))).cards[0];
+    assert.equal(card.actions.some((action) => action.id === 'approval-allow-always'), false);
+    assert.ok(card.actions.some((action) => action.id === 'approval-allow'));
+    assert.match(card.body, /exact one-shot approval/i);
+  }
 });
 
 test('approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed', () => {
@@ -162,10 +171,26 @@ test('approval cards remain actionable regardless of elapsed wall-clock time whi
   const card = presentChatPanel(projector.snapshot(), Date.parse('2026-08-19T00:10:00.000Z')).cards[0];
   assert.equal(card.actions.find((action) => action.id === 'approval-allow').enabled, true);
   assert.match(card.actions.find((action) => action.id === 'approval-allow').label, /Allow once/);
-  assert.match(card.body, /no time limit/i);
+  assert.match(card.body, /no wall-clock expiry/i);
   assert.throws(() => validateConversationIntent({ type: 'conversation/resolve-approval', approvalId: 'approval:fixture', decision: 'allow', apiKey: 'CANARY' }), /unknown fields|invalid/i);
   assert.throws(() => validateConversationIntent({ type: 'logs/export-bug-bundle', query: { limit: 201, traverseCorrelation: true } }), /budget/i);
   assert.throws(() => validateConversationIntent({ type: 'backend/authenticate', backendId, token: 'CANARY' }), /unknown fields/i);
+});
+
+test('expired approval read models are visible but cannot block the composer or dispatch another decision', async () => {
+  const expiresAt = '2026-08-19T00:01:00.000Z';
+  const projector = new ConversationProjector();
+  projector.reset(snapshot([projection(1, approvalNode('pending', { expiresAt, scope: 'operation' }), 'replay')]));
+  const now = Date.parse('2026-08-19T00:02:00.000Z');
+  const snapshotAtExpiry = projector.snapshot(now);
+  assert.equal(snapshotAtExpiry.pendingInteraction, null);
+  const card = presentChatPanel(snapshotAtExpiry, now).cards[0];
+  assert.ok(card.actions.every((action) => action.enabled === false));
+  assert.match(card.body, /decision: expired/i);
+  const port = fakeConversationPort(); const controller = new ConversationController(port, () => now); await controller.mount();
+  port.emit({ type: 'conversation/event', event: projection(1, approvalNode('pending', { expiresAt, scope: 'operation' }), 'live') });
+  await assert.rejects(controller.resolveApproval('node:approval', 'allow-once'), /no longer pending/);
+  controller.dispose();
 });
 
 function snapshot(events) {
@@ -173,8 +198,8 @@ function snapshot(events) {
 }
 function projection(sequence, value, source) { return { schemaVersion: 1, sequence, source, node: value }; }
 function node(id, kind, status, content) { return { schemaVersion: 1, id, kind, status, createdAt: `2026-08-19T00:00:${String(Number(id.length % 50)).padStart(2, '0')}.000Z`, provenance: { backendId, sessionId, turnId }, content }; }
-function approvalNode(decision) {
-  return node('node:approval', 'approval', 'pending', { approvalId: 'approval:fixture', toolCallId: 'toolcall:fixture', toolId: 'script.apply', toolVersion: '1.0.0', target: 'script:player', effect: 'trusted-code', risk: 'high', argumentsSummary: 'Write player controller', previewDiff: '+ move cube', baseRevision: 4, argsDigest: digestA, previewDigest: digestB, decision });
+function approvalNode(decision, extra = {}) {
+  return node('node:approval', 'approval', 'pending', { approvalId: 'approval:fixture', toolCallId: 'toolcall:fixture', toolId: 'script.apply', toolVersion: '1.0.0', target: 'script:player', effect: 'trusted-code', risk: 'high', argumentsSummary: 'Write player controller', previewDiff: '+ move cube', baseRevision: 4, argsDigest: digestA, previewDigest: digestB, scope: 'operation', decision, ...extra });
 }
 function fakeConversationPort() {
   let listener;

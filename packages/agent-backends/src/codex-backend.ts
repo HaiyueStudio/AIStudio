@@ -1,15 +1,16 @@
 import { createRequire } from 'node:module';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtemp, rmdir } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import { asStableId, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type StableId } from '@haiyue/ai-studio-contracts';
 import { AgentBackendProtocolError, negotiateAgentTurnConfig, normalizeBackendFailure, type AgentBackend, type AgentBackendDescriptor, type AgentBackendEvent, type AgentBackendStatus, type AgentLoginHandoff, type AgentModelCatalog, type AgentRateLimitSnapshot, type AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
-import { backendEvent, deferred, isRecord, TurnChannel, type Deferred } from './shared.js';
+import { backendEvent, deferred, isRecord, toolSetSignature, TurnChannel, type Deferred } from './shared.js';
 
 type RpcId = number | string;
 type RpcObject = Record<string, unknown>;
+interface PendingServerRequest { readonly rpcId: RpcId; readonly turnId: StableId; }
 
 export interface CodexLineTransport {
   readonly lines: AsyncIterable<string>;
@@ -23,6 +24,7 @@ export interface CodexAppServerBackendOptions {
   readonly createTransport?: () => Promise<CodexLineTransport>;
   readonly loginMode?: 'browser' | 'device-code';
   readonly isolatedCwd?: string;
+  readonly requestTimeoutMs?: number;
 }
 
 export class CodexAppServerBackend implements AgentBackend {
@@ -44,8 +46,9 @@ export class CodexAppServerBackend implements AgentBackend {
   private readonly turns = new Map<StableId, TurnChannel>();
   private readonly threadTurns = new Map<string, StableId>();
   private readonly threadToolNames = new Map<string, ReadonlyMap<string, StableId>>();
-  private readonly pendingTools = new Map<StableId, RpcId>();
-  private readonly pendingQuestions = new Map<StableId, RpcId>();
+  private readonly threadToolSignatures = new Map<string, string>();
+  private readonly pendingTools = new Map<StableId, PendingServerRequest>();
+  private readonly pendingQuestions = new Map<StableId, PendingServerRequest>();
   private readonly turnAbortCleanups = new Map<StableId, () => void>();
   private readonly ownedCwds = new Map<string, string>();
   private readonly cleanupTasks = new Set<Promise<void>>();
@@ -54,7 +57,11 @@ export class CodexAppServerBackend implements AgentBackend {
   private readonly wireEfforts = new Map<string, ReadonlyMap<M12ReasoningEffort, string>>();
   private readonly usageSequences = new Map<StableId, number>();
 
-  constructor(private readonly options: CodexAppServerBackendOptions = {}) {}
+  constructor(private readonly options: CodexAppServerBackendOptions = {}) {
+    if (options.requestTimeoutMs !== undefined && (!Number.isSafeInteger(options.requestTimeoutMs) || options.requestTimeoutMs < 10 || options.requestTimeoutMs > 120_000)) {
+      throw new AgentBackendProtocolError('codex.request-timeout-invalid', 'Codex requestTimeoutMs must be an integer from 10 to 120000.');
+    }
+  }
 
   async authenticate(signal?: AbortSignal): Promise<AgentLoginHandoff | null> {
     await this.ensureInitialized(signal);
@@ -75,7 +82,7 @@ export class CodexAppServerBackend implements AgentBackend {
       let rateLimits: readonly AgentRateLimitSnapshot[] = Object.freeze([]);
       if (account.account) {
         const rates = await this.request('account/rateLimits/read', {}, signal);
-        rateLimits = this.captureRateLimits(rates);
+        rateLimits = this.captureRateLimits(rates, true);
       }
       const accountValue = isRecord(account.account) ? account.account : undefined;
       return Object.freeze({
@@ -125,20 +132,24 @@ export class CodexAppServerBackend implements AgentBackend {
 
   async submitToolResult(toolCallId: StableId, result: JsonObject, signal?: AbortSignal): Promise<void> {
     this.assertActive(); if (signal?.aborted) throw signal.reason;
-    const rpcId = this.pendingTools.get(toolCallId);
-    if (rpcId === undefined) throw new AgentBackendProtocolError('agent.tool-result-unavailable', `Codex tool call ${toolCallId} is not pending.`);
+    const pending = this.pendingTools.get(toolCallId);
+    if (!pending) throw new AgentBackendProtocolError('agent.tool-result-unavailable', `Codex tool call ${toolCallId} is not pending.`);
     this.pendingTools.delete(toolCallId);
-    await this.respond(rpcId, { contentItems: [{ type: 'inputText', text: JSON.stringify(result) }], success: true });
+    try { await this.respond(pending.rpcId, { contentItems: [{ type: 'inputText', text: JSON.stringify(result) }], success: true }); }
+    catch (cause) { this.failAll(cause); throw cause; }
   }
 
   async answerQuestion(nodeId: StableId, answer: JsonObject, signal?: AbortSignal): Promise<void> {
     this.assertActive(); if (signal?.aborted) throw signal.reason;
-    const rpcId = this.pendingQuestions.get(nodeId);
-    if (rpcId === undefined) throw new AgentBackendProtocolError('agent.question-unavailable', `Codex question ${nodeId} is not pending.`);
-    this.pendingQuestions.delete(nodeId); await this.respond(rpcId, { answers: answer });
+    const pending = this.pendingQuestions.get(nodeId);
+    if (!pending) throw new AgentBackendProtocolError('agent.question-unavailable', `Codex question ${nodeId} is not pending.`);
+    this.pendingQuestions.delete(nodeId);
+    try { await this.respond(pending.rpcId, { answers: answer }); }
+    catch (cause) { this.failAll(cause); throw cause; }
   }
 
   async resolveBackendApproval(id: StableId, decision: 'allow' | 'reject', signal?: AbortSignal): Promise<void> {
+    this.assertActive();
     if (signal?.aborted) throw signal.reason;
     if (decision === 'allow') throw new AgentBackendProtocolError('codex.builtin-effect-denied', 'Codex built-in effects cannot be authorized by Studio.');
     throw new AgentBackendProtocolError('agent.approval-unavailable', `Codex approval ${id} was already denied at the protocol boundary.`);
@@ -156,9 +167,15 @@ export class CodexAppServerBackend implements AgentBackend {
     for (const channel of this.turns.values()) channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(error), 'interrupted');
     this.pendingTools.clear(); this.pendingQuestions.clear();
     for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear();
-    this.threadToolNames.clear();
-    for (const threadId of this.ownedCwds.keys()) this.scheduleCwdCleanup(threadId); await Promise.allSettled([...this.cleanupTasks]);
-    await this.transport?.dispose(); await this.pump?.catch(() => {});
+    this.threadToolNames.clear(); this.threadToolSignatures.clear();
+    const failures: unknown[] = []; let transportClosed = true;
+    try { await this.transport?.dispose(); }
+    catch (cause) { transportClosed = false; failures.push(cause); }
+    if (transportClosed) await this.pump?.catch(() => {}); else void this.pump?.catch(() => {});
+    for (const threadId of this.ownedCwds.keys()) this.scheduleCwdCleanup(threadId);
+    const cleanup = await Promise.allSettled([...this.cleanupTasks]);
+    failures.push(...cleanup.filter((item): item is PromiseRejectedResult => item.status === 'rejected').map((item) => item.reason));
+    if (failures.length) throw new AggregateError(failures, 'Codex backend disposal failed.');
   }
 
   private async beginTurn(input: AgentTurnInput, channel: TurnChannel, signal?: AbortSignal): Promise<void> {
@@ -168,6 +185,10 @@ export class CodexAppServerBackend implements AgentBackend {
       const negotiation = await this.negotiate(input.config, signal); if (!negotiation.effective) throw this.protocol('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' '));
       const effective = negotiation.effective; const wireEffort = this.wireEfforts.get(effective.model)?.get(effective.reasoningEffort);
       if (!wireEffort) throw this.protocol('codex.reasoning-map-missing', `No Codex wire effort maps to ${effective.reasoningEffort}.`);
+      const tools = toolSetSignature(input.tools);
+      if (input.sessionId && this.threadToolNames.has(input.sessionId) && this.threadToolSignatures.get(input.sessionId) !== tools) {
+        throw this.protocol('codex.thread-toolset-drift', `Codex thread ${input.sessionId} cannot be reused with a different Studio tool allowlist.`);
+      }
       const reusableThreadId = input.sessionId && this.threadToolNames.has(input.sessionId) ? input.sessionId : null;
       const cwd = reusableThreadId ? this.ownedCwds.get(reusableThreadId) ?? this.options.isolatedCwd : this.options.isolatedCwd ?? await mkdtemp(join(tmpdir(), 'haiyue-codex-'));
       if (!cwd) throw this.protocol('codex.thread-cwd-missing', 'A reusable Codex thread lost its isolated working directory.');
@@ -186,6 +207,7 @@ export class CodexAppServerBackend implements AgentBackend {
         if (!thread || typeof thread.id !== 'string') throw this.protocol('codex.thread-malformed', 'Codex returned a malformed thread identity.');
         threadId = asStableId(thread.id);
         this.threadToolNames.set(threadId, new Map(dynamicTools.map((tool, index) => [tool.name, input.tools[index]!.id])));
+        this.threadToolSignatures.set(threadId, tools);
       }
       const response = await this.request('turn/start', { threadId, input: [{ type: 'text', text: input.prompt, text_elements: [] }], environments: [], cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', model: effective.model, effort: wireEffort }, signal);
       const turn = isRecord(response) && isRecord(response.turn) ? response.turn : undefined;
@@ -198,7 +220,7 @@ export class CodexAppServerBackend implements AgentBackend {
         if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
         this.turnAbortCleanups.set(turnId, () => signal.removeEventListener('abort', abort));
       }
-    } catch (cause) { if (unownedTempCwd) await rmdir(unownedTempCwd).catch(() => {}); channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(cause)); }
+    } catch (cause) { if (unownedTempCwd) await removeOwnedTemporaryCwd(unownedTempCwd).catch(() => {}); channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(cause)); }
   }
 
   private async loadModelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog> {
@@ -245,9 +267,13 @@ export class CodexAppServerBackend implements AgentBackend {
     if (signal?.aborted) throw signal.reason;
     const id = this.nextId++; const pending = deferred<unknown>(); this.pending.set(id, pending);
     const abort = (): void => { if (this.pending.delete(id)) pending.reject(signal?.reason); };
+    const timeout = setTimeout(() => {
+      if (this.pending.delete(id)) pending.reject(Object.assign(this.protocol('codex.request-timeout', `Codex App Server did not answer ${method} within the request deadline.`), { status: 504 }));
+    }, this.options.requestTimeoutMs ?? 30_000);
+    timeout.unref?.();
     signal?.addEventListener('abort', abort, { once: true });
     try { await this.transport.write(JSON.stringify({ id, method, params })); return await pending.promise; }
-    finally { signal?.removeEventListener('abort', abort); this.pending.delete(id); }
+    finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); this.pending.delete(id); }
   }
 
   private async notify(method: string, params: JsonObject): Promise<void> { if (!this.transport) throw this.protocol('codex.transport-unavailable', 'Codex transport is unavailable.'); await this.transport.write(JSON.stringify({ method, params })); }
@@ -258,11 +284,12 @@ export class CodexAppServerBackend implements AgentBackend {
     try {
       for await (const line of transport.lines) {
         let value: unknown;
+        if (Buffer.byteLength(line) > MAX_CODEX_FRAME_BYTES) throw this.protocol('codex.frame-too-large', 'Codex App Server emitted a frame larger than the protocol budget.');
         try { value = JSON.parse(line); } catch { throw this.protocol('codex.malformed-json', 'Codex App Server emitted malformed JSON.'); }
         if (!isRecord(value) || ('jsonrpc' in value && value.jsonrpc !== '2.0')) throw this.protocol('codex.malformed-frame', 'Codex App Server emitted a malformed JSON-RPC frame.');
         if ('id' in value && !('method' in value)) this.onResponse(value);
         else if (typeof value.method === 'string' && 'id' in value) await this.onServerRequest(value);
-        else if (typeof value.method === 'string') this.onNotification(value.method, isRecord(value.params) ? value.params : {});
+        else if (typeof value.method === 'string') await this.onNotification(value.method, isRecord(value.params) ? value.params : {});
         else throw this.protocol('codex.malformed-frame', 'Codex App Server emitted an unclassified JSON-RPC frame.');
       }
       const exit = await transport.exited;
@@ -274,7 +301,7 @@ export class CodexAppServerBackend implements AgentBackend {
     const id = value.id;
     if (typeof id !== 'number' && typeof id !== 'string') throw this.protocol('codex.response-malformed', 'Codex response id is invalid.');
     const pending = this.pending.get(id); if (!pending) return;
-    if (isRecord(value.error)) { const status = typeof value.error.code === 'number' && (value.error.code === 401 || value.error.code === 429) ? value.error.code : undefined; pending.reject(Object.assign(new AgentBackendProtocolError('codex.rpc-error', typeof value.error.message === 'string' ? value.error.message : 'Codex request failed.'), status ? { status } : {})); }
+    if (isRecord(value.error)) { const status = typeof value.error.code === 'number' && Number.isInteger(value.error.code) && value.error.code >= 400 && value.error.code <= 599 ? value.error.code : undefined; pending.reject(Object.assign(new AgentBackendProtocolError('codex.rpc-error', typeof value.error.message === 'string' ? value.error.message : 'Codex request failed.'), status ? { status } : {})); }
     else if ('result' in value) pending.resolve(value.result);
     else pending.reject(this.protocol('codex.response-malformed', 'Codex response has neither result nor error.'));
   }
@@ -288,12 +315,26 @@ export class CodexAppServerBackend implements AgentBackend {
       if (!channel || !turnId || !threadId || typeof params.callId !== 'string' || typeof params.tool !== 'string' || !isJsonValue(params.arguments)) { await this.reject(id, -32602, 'Malformed dynamic tool call.'); return; }
       const studioToolId = this.threadToolNames.get(threadId)?.get(params.tool);
       if (!studioToolId) { await this.reject(id, -32601, 'Dynamic tool is not in the Studio allowlist.'); channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'diagnostic', { code: 'codex.tool-not-allowed', message: 'Codex requested an unregistered dynamic tool.', retryable: false })); return; }
-      const toolCallId = asStableId(params.callId); this.pendingTools.set(toolCallId, id);
+      const toolCallId = asStableId(params.callId);
+      if (this.pendingTools.has(toolCallId)) {
+        await this.reject(id, -32600, 'Duplicate dynamic tool call id.');
+        await this.rejectPendingForTurn(turnId, 'Codex reused a pending tool call id.');
+        channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(this.protocol('codex.tool-call-duplicate', `Codex reused pending tool call id ${toolCallId}.`)));
+        return;
+      }
+      this.pendingTools.set(toolCallId, Object.freeze({ rpcId: id, turnId }));
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'tool-request', { toolCallId, toolId: studioToolId, arguments: toJsonObject(params.arguments) })); return;
     }
     if (value.method === 'item/tool/requestUserInput') {
       if (!channel || !turnId || !threadId || typeof params.itemId !== 'string' || !Array.isArray(params.questions)) { await this.reject(id, -32602, 'Malformed user-input request.'); return; }
-      const nodeId = asStableId(params.itemId); this.pendingQuestions.set(nodeId, id);
+      const nodeId = asStableId(params.itemId);
+      if (this.pendingQuestions.has(nodeId)) {
+        await this.reject(id, -32600, 'Duplicate user-input item id.');
+        await this.rejectPendingForTurn(turnId, 'Codex reused a pending question id.');
+        channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(this.protocol('codex.question-duplicate', `Codex reused pending question id ${nodeId}.`)));
+        return;
+      }
+      this.pendingQuestions.set(nodeId, Object.freeze({ rpcId: id, turnId }));
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'question', { nodeId, questions: jsonArray(params.questions), isBlocking: params.isBlocking === true })); return;
     }
     if (deniedServerMethods.has(value.method)) {
@@ -313,8 +354,8 @@ export class CodexAppServerBackend implements AgentBackend {
     await this.reject(id, -32601, `Unsupported Codex server request: ${value.method}`);
   }
 
-  private onNotification(method: string, params: RpcObject): void {
-    if (method === 'account/rateLimits/updated') { this.captureRateLimits({ rateLimits: params.rateLimits }); for (const [turnId, channel] of this.turns) { const threadId = [...this.threadTurns].find(([, candidate]) => candidate === turnId)?.[0]; if (threadId) channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', { rateLimits: [...this.lastRateLimits.values()] as unknown as JsonValue })); } return; }
+  private async onNotification(method: string, params: RpcObject): Promise<void> {
+    if (method === 'account/rateLimits/updated') { this.captureRateLimits({ rateLimits: params.rateLimits }, true); for (const [turnId, channel] of this.turns) { const threadId = [...this.threadTurns].find(([, candidate]) => candidate === turnId)?.[0]; if (threadId) channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', { rateLimits: [...this.lastRateLimits.values()] as unknown as JsonValue })); } return; }
     const turnIdValue = typeof params.turnId === 'string' ? params.turnId : isRecord(params.turn) && typeof params.turn.id === 'string' ? params.turn.id : undefined;
     const threadId = typeof params.threadId === 'string' ? params.threadId : undefined;
     if (!turnIdValue || !threadId) return;
@@ -322,7 +363,12 @@ export class CodexAppServerBackend implements AgentBackend {
     if (method === 'item/agentMessage/delta') {
       if (typeof params.delta !== 'string') { channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(this.protocol('codex.delta-malformed', 'Codex text delta is malformed.'))); return; }
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'conversation-node', { nodeKind: 'text', status: 'streaming', delta: params.delta, ...(typeof params.itemId === 'string' ? { nodeId: params.itemId } : {}) }));
-    } else if (method === 'thread/tokenUsage/updated' && isRecord(params.tokenUsage)) {
+    } else if (method === 'thread/tokenUsage/updated') {
+      if (!isRecord(params.tokenUsage)) {
+        channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(this.protocol('codex.usage-malformed', 'Codex token usage notification is malformed.')));
+        await this.rejectPendingForTurn(turnId, 'Codex emitted malformed usage.');
+        return;
+      }
       const total = isRecord(params.tokenUsage.total) ? params.tokenUsage.total : {};
       const last = isRecord(params.tokenUsage.last) ? params.tokenUsage.last : {};
       const sequence = (this.usageSequences.get(turnId) ?? 0) + 1; this.usageSequences.set(turnId, sequence);
@@ -330,8 +376,15 @@ export class CodexAppServerBackend implements AgentBackend {
     } else if (method === 'error') {
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'diagnostic', { code: 'codex.server-error', message: diagnosticMessage(params), retryable: false }));
     } else if (method === 'turn/completed') {
-      const turn = isRecord(params.turn) ? params.turn : undefined; const status = mapTurnStatus(turn?.status);
+      const turn = isRecord(params.turn) ? params.turn : undefined;
+      if (!turn || (turn.status !== 'completed' && turn.status !== 'interrupted' && turn.status !== 'failed')) {
+        channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(this.protocol('codex.turn-completed-malformed', 'Codex turn/completed notification has no valid terminal status.')));
+        await this.rejectPendingForTurn(turnId, 'Codex emitted a malformed terminal event.');
+        return;
+      }
+      const status = mapTurnStatus(turn.status);
       if (status === 'failed' && isRecord(turn?.error)) channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'diagnostic', classifyTurnError(turn.error)));
+      await this.rejectPendingForTurn(turnId, `Codex turn ended with status ${turn.status}.`);
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'completed', { status, finishReason: codexFinishReason(status) }));
       this.turnAbortCleanups.get(turnId)?.(); this.turnAbortCleanups.delete(turnId);
       this.usageSequences.delete(turnId);
@@ -339,13 +392,23 @@ export class CodexAppServerBackend implements AgentBackend {
     }
   }
 
-  private captureRateLimits(value: unknown): readonly AgentRateLimitSnapshot[] {
-    if (!isRecord(value)) return Object.freeze([...this.lastRateLimits.values()]);
-    const buckets = isRecord(value.rateLimitsByLimitId) ? value.rateLimitsByLimitId : isRecord(value.rateLimits) ? { default: value.rateLimits } : {};
+  private captureRateLimits(value: unknown, strict = false): readonly AgentRateLimitSnapshot[] {
+    if (!isRecord(value)) {
+      if (strict) throw this.protocol('codex.rate-limits-malformed', 'Codex returned malformed rate-limit metadata.');
+      return Object.freeze([...this.lastRateLimits.values()]);
+    }
+    if (value.rateLimitsByLimitId !== undefined && value.rateLimitsByLimitId !== null && !isRecord(value.rateLimitsByLimitId)) throw this.protocol('codex.rate-limits-malformed', 'Codex rate-limit buckets are malformed.');
+    if (!isRecord(value.rateLimits)) {
+      if (strict) throw this.protocol('codex.rate-limits-malformed', 'Codex primary rate-limit bucket is malformed.');
+      return Object.freeze([...this.lastRateLimits.values()]);
+    }
+    const buckets = { default: value.rateLimits, ...(isRecord(value.rateLimitsByLimitId) ? value.rateLimitsByLimitId : {}) };
     for (const [fallbackName, raw] of Object.entries(buckets)) {
-      if (!isRecord(raw)) continue; const window = isRecord(raw.primary) ? raw.primary : undefined;
-      const name = typeof raw.limitName === 'string' ? raw.limitName : typeof raw.limitId === 'string' ? raw.limitId : fallbackName;
-      const snapshot = Object.freeze({ name, ...(typeof window?.usedPercent === 'number' ? { usedPercent: window.usedPercent } : {}), ...(typeof window?.resetsAt === 'number' ? { resetsAt: new Date(window.resetsAt * 1000).toISOString() } : {}) });
+      if (!isRecord(raw) || (raw.primary !== null && !isRecord(raw.primary))) throw this.protocol('codex.rate-limits-malformed', `Codex rate-limit bucket ${fallbackName} is malformed.`);
+      const window = isRecord(raw.primary) ? raw.primary : undefined;
+      if (window && (!Number.isFinite(window.usedPercent) || (window.resetsAt !== null && window.resetsAt !== undefined && (!Number.isSafeInteger(window.resetsAt) || Number(window.resetsAt) < 0)))) throw this.protocol('codex.rate-limits-malformed', `Codex rate-limit window ${fallbackName} is malformed.`);
+      const name = typeof raw.limitName === 'string' && raw.limitName.length > 0 && raw.limitName.length <= 128 ? raw.limitName : typeof raw.limitId === 'string' && raw.limitId.length > 0 && raw.limitId.length <= 128 ? raw.limitId : fallbackName;
+      const snapshot = Object.freeze({ name, ...(window ? { usedPercent: Number(window.usedPercent) } : {}), ...(typeof window?.resetsAt === 'number' ? { resetsAt: new Date(window.resetsAt * 1000).toISOString() } : {}) });
       this.lastRateLimits.set(name, snapshot);
     }
     return Object.freeze([...this.lastRateLimits.values()].sort((a, b) => a.name.localeCompare(b.name)));
@@ -356,7 +419,17 @@ export class CodexAppServerBackend implements AgentBackend {
     for (const channel of this.turns.values()) channel.terminalFailure(this.descriptor.id, failure, 'interrupted');
     this.pendingTools.clear(); this.pendingQuestions.clear(); for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear(); for (const threadId of this.ownedCwds.keys()) this.scheduleCwdCleanup(threadId); void this.transport?.dispose();
   }
-  private scheduleCwdCleanup(threadId: string): void { const cwd = this.ownedCwds.get(threadId); if (!cwd) return; this.ownedCwds.delete(threadId); const task = rmdir(cwd).catch(() => {}).finally(() => this.cleanupTasks.delete(task)); this.cleanupTasks.add(task); }
+  private async rejectPendingForTurn(turnId: StableId, message: string): Promise<void> {
+    const requests: RpcId[] = [];
+    for (const [id, pending] of this.pendingTools) if (pending.turnId === turnId) { this.pendingTools.delete(id); requests.push(pending.rpcId); }
+    for (const [id, pending] of this.pendingQuestions) if (pending.turnId === turnId) { this.pendingQuestions.delete(id); requests.push(pending.rpcId); }
+    for (const rpcId of requests) await this.reject(rpcId, -32800, message);
+  }
+  private scheduleCwdCleanup(threadId: string): void {
+    const cwd = this.ownedCwds.get(threadId); if (!cwd) return; this.ownedCwds.delete(threadId);
+    const task = removeOwnedTemporaryCwd(cwd).finally(() => this.cleanupTasks.delete(task));
+    void task.catch(() => {}); this.cleanupTasks.add(task);
+  }
   private protocol(code: string, message: string): AgentBackendProtocolError { return new AgentBackendProtocolError(code, message); }
   private assertActive(): void { if (this.disposed) throw this.protocol('agent.backend-disposed', 'Codex backend is disposed.'); }
 }
@@ -394,6 +467,16 @@ class ChildProcessLineTransport implements CodexLineTransport {
 export function sanitizedCodexEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const allow = new Set(['SystemRoot', 'WINDIR', 'PATH', 'Path', 'PATHEXT', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'TEMP', 'TMP', 'CODEX_HOME']);
   return Object.fromEntries(Object.entries(source).filter(([key, value]) => allow.has(key) && value !== undefined));
+}
+
+async function removeOwnedTemporaryCwd(cwd: string): Promise<void> {
+  const temporaryRoot = resolve(tmpdir());
+  const candidate = resolve(cwd);
+  const normalize = process.platform === 'win32' ? (value: string): string => value.toLowerCase() : (value: string): string => value;
+  if (!normalize(candidate).startsWith(normalize(`${temporaryRoot}${sep}`)) || !basename(candidate).startsWith('haiyue-codex-')) {
+    throw new AgentBackendProtocolError('codex.cwd-cleanup-refused', `Refusing to remove an unowned Codex working directory: ${candidate}`);
+  }
+  await rm(candidate, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
 }
 
 function denialResponse(method: string): JsonObject {
@@ -438,3 +521,4 @@ export const CODEX_DISABLED_FEATURES = Object.freeze([
   'unified_exec', 'view_image', 'workspace_dependencies',
 ]);
 export const CODEX_ENABLED_FEATURES = Object.freeze(['default_mode_request_user_input']);
+const MAX_CODEX_FRAME_BYTES = 2 * 1024 * 1024;

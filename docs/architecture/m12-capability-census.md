@@ -21,6 +21,10 @@ Engine `@haiyue/engine@0.1.0` 已公开 Camera2D/3D、InputMap、InteractionSyst
 
 Editor `0.1.0` candidate 已提供 DocumentHost、HistoryService、SelectionService、TaskCoordinator 和 lifecycle/plugin contract。G05 应复用这些 owner，而不是再造 History 或 task scheduler；其缺口是 GameDocument v2 component transaction，而非基础 Editor host。
 
+## G05 integration update
+
+G05 已将 `document.v2`、`component.registry`、`scene.transaction` 更新为 `m12-integrated`：产品层现在提供可迁移的 GameDocument v2、激活期可扩展且运行期冻结的 Component Registry，以及与 Editor History 共用的一次一 revision 原子 batch/delta/inverse 路径。G06–G08 可依赖 `studio.component-registry@2.0.0` 注册新 descriptor，而不改核心文档联合类型。机器证据见 [`m12-g05-verification.json`](../evidence/m12-g05-verification.json)。
+
 ## Critical integration order
 
 1. G05 先建立 Component Registry 与 v2 transaction/migration。

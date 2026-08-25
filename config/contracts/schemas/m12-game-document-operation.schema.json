@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/game-document-operation/v2",
+  "oneOf": [
+    { "$ref": "#/definitions/sceneAdd" }, { "$ref": "#/definitions/sceneRemove" },
+    { "$ref": "#/definitions/entityAdd" }, { "$ref": "#/definitions/entityUpdate" }, { "$ref": "#/definitions/entityRemove" },
+    { "$ref": "#/definitions/componentAdd" }, { "$ref": "#/definitions/componentPatch" }, { "$ref": "#/definitions/componentUnset" }, { "$ref": "#/definitions/componentReplace" }, { "$ref": "#/definitions/componentRemove" },
+    { "$ref": "#/definitions/scriptUpsert" }, { "$ref": "#/definitions/scriptRemove" },
+    { "$ref": "#/definitions/assetUpsert" }, { "$ref": "#/definitions/assetRemove" },
+    { "$ref": "#/definitions/settingSet" }, { "$ref": "#/definitions/settingRemove" }
+  ],
+  "definitions": {
+    "sceneAdd": { "type": "object", "additionalProperties": false, "required": ["op", "scene"], "properties": { "op": { "const": "scene.add" }, "scene": { "$ref": "haiyue://contracts/game-document/v2#/properties/scenes/items" } } },
+    "sceneRemove": { "type": "object", "additionalProperties": false, "required": ["op", "sceneId"], "properties": { "op": { "const": "scene.remove" }, "sceneId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" } } },
+    "entityAdd": { "type": "object", "additionalProperties": false, "required": ["op", "entity"], "properties": { "op": { "const": "entity.add" }, "entity": { "$ref": "haiyue://contracts/game-document/v2#/properties/entities/items" } } },
+    "entityUpdate": { "type": "object", "additionalProperties": false, "required": ["op", "entityId", "patch"], "properties": { "op": { "const": "entity.update" }, "entityId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" }, "patch": { "type": "object", "additionalProperties": false, "minProperties": 1, "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 128 }, "parentId": { "anyOf": [{ "type": "null" }, { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" }] }, "order": { "type": "integer", "minimum": 0 } } } } },
+    "entityRemove": { "type": "object", "additionalProperties": false, "required": ["op", "entityId"], "properties": { "op": { "const": "entity.remove" }, "entityId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" } } },
+    "componentAdd": { "type": "object", "additionalProperties": false, "required": ["op", "entityId", "component"], "properties": { "op": { "const": "component.add" }, "entityId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" }, "component": { "$ref": "haiyue://contracts/game-component-instance/v2" } } },
+    "componentPatch": { "type": "object", "additionalProperties": false, "required": ["op", "componentId", "path", "value"], "properties": { "op": { "const": "component.patch" }, "componentId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" }, "path": { "$ref": "#/definitions/path" }, "value": {} } },
+    "componentUnset": { "type": "object", "additionalProperties": false, "required": ["op", "componentId", "path"], "properties": { "op": { "const": "component.unset" }, "componentId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" }, "path": { "$ref": "#/definitions/path" } } },
+    "componentReplace": { "type": "object", "additionalProperties": false, "required": ["op", "component"], "properties": { "op": { "const": "component.replace" }, "component": { "$ref": "haiyue://contracts/game-component-instance/v2" } } },
+    "componentRemove": { "type": "object", "additionalProperties": false, "required": ["op", "entityId", "componentId"], "properties": { "op": { "const": "component.remove" }, "entityId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" }, "componentId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" } } },
+    "scriptUpsert": { "type": "object", "additionalProperties": false, "required": ["op", "script"], "properties": { "op": { "const": "script.upsert" }, "script": { "$ref": "haiyue://contracts/game-document/v2#/properties/scripts/items" } } },
+    "scriptRemove": { "type": "object", "additionalProperties": false, "required": ["op", "scriptId"], "properties": { "op": { "const": "script.remove" }, "scriptId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" } } },
+    "assetUpsert": { "type": "object", "additionalProperties": false, "required": ["op", "asset"], "properties": { "op": { "const": "asset.upsert" }, "asset": { "$ref": "haiyue://contracts/game-document/v2#/properties/assets/items" } } },
+    "assetRemove": { "type": "object", "additionalProperties": false, "required": ["op", "assetId"], "properties": { "op": { "const": "asset.remove" }, "assetId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" } } },
+    "settingSet": { "type": "object", "additionalProperties": false, "required": ["op", "key", "value"], "properties": { "op": { "const": "setting.set" }, "key": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{1,63}$" }, "value": {} } },
+    "settingRemove": { "type": "object", "additionalProperties": false, "required": ["op", "key"], "properties": { "op": { "const": "setting.remove" }, "key": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{1,63}$" } } },
+    "path": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$" } }
+  }
+}

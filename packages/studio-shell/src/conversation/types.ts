@@ -167,6 +167,8 @@ export interface ApprovalCardReadModel {
   readonly baseRevision: number;
   readonly argsDigest: string;
   readonly previewDigest: string;
+  readonly expiresAt?: string;
+  readonly scope: 'operation' | 'project-session';
   readonly decision: 'pending' | 'allow-once' | 'allow-always' | 'reject' | 'cancel' | 'expired' | 'stale' | 'unavailable';
 }
 

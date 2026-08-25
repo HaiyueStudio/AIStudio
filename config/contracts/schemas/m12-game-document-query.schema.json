@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/game-document-query/v2",
+  "type": "object", "additionalProperties": false, "required": ["limit"],
+  "properties": {
+    "sceneId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" },
+    "entityId": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" },
+    "componentType": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" },
+    "cursor": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 1000 }
+  }
+}

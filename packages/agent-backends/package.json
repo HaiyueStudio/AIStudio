@@ -13,7 +13,8 @@
     "prebuild": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-harness-bridge",
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test test/*.test.mjs",
-    "smoke:deepseek": "npm run build && node test/deepseek-real.smoke.mjs"
+    "smoke:deepseek": "npm run build && node test/deepseek-real.smoke.mjs",
+    "smoke:codex": "npm run build && node test/codex-real.smoke.mjs"
   },
   "dependencies": {
     "@haiyue/ai-studio-agent-runtime": "0.0.0",

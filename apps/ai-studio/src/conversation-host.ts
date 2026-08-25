@@ -3,6 +3,7 @@ import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent,
 import type { GameAuthoringToolService, GameToolApproval, GameToolPreparation } from '@haiyue/ai-studio-game-authoring-tools';
 import { sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import {
+  normalizeConversationNode,
   validateConversationIntent,
   type ConversationBackendReadModel,
   type ConversationIntent,
@@ -83,10 +84,12 @@ export class StudioConversationHost {
   private disposed = false;
   private latestTaskId: StableId | null = null;
   private budgetTemplate: TaskBudgetV2 = DEFAULT_TASK_BUDGET;
+  private projectionWriteTail: Promise<void> = Promise.resolve();
+  private projectionPersistenceFailure: unknown = null;
 
   constructor(private readonly options: ConversationHostOptions) {}
 
-  async initialize(): Promise<void> { await this.refreshBackends(); }
+  async initialize(): Promise<void> { await this.restoreProjection(); await this.refreshBackends(); }
 
   subscribe(listener: () => void): Readonly<{ dispose(): void }> {
     this.assertActive();
@@ -183,6 +186,8 @@ export class StudioConversationHost {
     this.approvedPlanTurns.clear();
     this.listeners.clear();
     this.disposed = true;
+    await this.projectionWriteTail;
+    if (this.projectionPersistenceFailure) throw new AggregateError([this.projectionPersistenceFailure], 'Conversation projection persistence failed.');
   }
 
   cancelPending(reason = 'Renderer owner changed.'): void {
@@ -198,6 +203,11 @@ export class StudioConversationHost {
     for (const pending of this.plans.values()) pending.reject(new Error(reason));
     this.plans.clear();
     this.approvedPlanTurns.clear();
+    for (const node of [...this.nodes.values()]) {
+      if (node.status !== 'pending' && node.status !== 'streaming') continue;
+      const content = node.kind === 'approval' ? Object.freeze({ ...node.content, decision: 'stale' }) : node.content;
+      this.project(node.id, node.kind, 'cancelled', node.provenance, content);
+    }
     this.changed();
   }
 
@@ -363,7 +373,7 @@ export class StudioConversationHost {
       const textId = this.internalNodeId('text', event.turnId);
       if (this.nodes.has(textId)) this.finishNode(textId, status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed');
       this.project(this.nextNodeId('completion'), 'completion', status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed', provenance,
-        Object.freeze({ terminalStatus: status, summary: `Agent turn ${status}.` }));
+        Object.freeze({ terminalStatus: status, summary: completionSummary(status, this.active?.toolFacts ?? [], this.active?.blockers ?? []) }));
     }
   }
 
@@ -408,7 +418,7 @@ export class StudioConversationHost {
         this.active.approvedPlan.mutationCount += 1;
       }
       const resultSummary = toolResultSummary(toolId, result.status, result.value, preparation.preview.summary);
-      if (this.active) this.active.toolFacts.push(`${toolId}: ${resultSummary}`);
+      if (this.active) this.active.toolFacts.push(`${toolId}: ${resultSummary} [${result.status}; r${result.beforeRevision}→r${result.afterRevision}${result.historyLabel ? `; History: ${result.historyLabel}` : ''}]`);
       this.project(this.nextNodeId('tool-result'), 'tool-result', result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed', provenance,
         Object.freeze({ toolCallId, toolId, resultStatus: result.status, summary: resultSummary, details: boundedJson(result.value) }));
       stage = 'submit-result';
@@ -499,13 +509,31 @@ export class StudioConversationHost {
     const nodeId = this.nextNodeId('approval');
     this.project(nodeId, 'approval', 'pending', provenance, approvalContent(preparation, approval));
     return new Promise<void>((resolve, reject) => {
-      const abort = (): void => { this.approvals.delete(approval.approvalId); reject(signal.reason ?? new Error('Approval cancelled.')); };
+      let settled = false;
+      const expiry = Date.parse(approval.expiresAt);
+      const expiresIn = Number.isFinite(expiry) ? Math.max(0, expiry - Date.now()) : 5 * 60_000;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true; this.approvals.delete(approval.approvalId); signal.removeEventListener('abort', abort);
+        void this.options.tools.decide(approval.approvalId, 'cancel').catch(() => undefined).finally(() => {
+          const latest = this.options.tools.approval(approval.approvalId) ?? Object.freeze({ ...approval, decision: 'expired' as const });
+          const current = this.nodes.get(nodeId);
+          if (current) this.project(nodeId, 'approval', 'cancelled', current.provenance, approvalContent(preparation, latest));
+          reject(new Error('Approval expired before a decision was made.'));
+        });
+      }, expiresIn);
+      const abort = (): void => {
+        if (settled) return;
+        settled = true; clearTimeout(timer); this.approvals.delete(approval.approvalId);
+        void this.options.tools.decide(approval.approvalId, 'cancel').catch(() => undefined);
+        reject(signal.reason ?? new Error('Approval cancelled.'));
+      };
       if (signal.aborted) { abort(); return; }
       signal.addEventListener('abort', abort, { once: true });
       this.approvals.set(approval.approvalId, Object.freeze({
         preparation, approval, nodeId,
-        resolve: () => { signal.removeEventListener('abort', abort); resolve(); },
-        reject: (cause: unknown) => { signal.removeEventListener('abort', abort); reject(cause); },
+        resolve: () => { if (settled) return; settled = true; clearTimeout(timer); signal.removeEventListener('abort', abort); resolve(); },
+        reject: (cause: unknown) => { if (settled) return; settled = true; clearTimeout(timer); signal.removeEventListener('abort', abort); reject(cause); },
       }));
     });
   }
@@ -513,11 +541,18 @@ export class StudioConversationHost {
   private async resolveApproval(approvalId: StableId, decision: 'allow-once' | 'allow-always' | 'reject'): Promise<void> {
     const pending = this.approvals.get(approvalId);
     if (!pending) throw new Error('Approval is stale or already resolved.');
-    this.approvals.delete(approvalId);
-    const resolved = await this.options.tools.decide(approvalId, decision);
-    const current = this.nodes.get(pending.nodeId)!;
-    this.project(pending.nodeId, 'approval', 'completed', current.provenance, approvalContent(pending.preparation, resolved));
-    pending.resolve();
+    try {
+      const resolved = await this.options.tools.decide(approvalId, decision);
+      const current = this.nodes.get(pending.nodeId)!;
+      this.project(pending.nodeId, 'approval', 'completed', current.provenance, approvalContent(pending.preparation, resolved));
+      pending.resolve();
+    } catch (cause) {
+      const current = this.nodes.get(pending.nodeId);
+      const resolved = this.options.tools.approval(approvalId) ?? pending.approval;
+      if (current) this.project(pending.nodeId, 'approval', resolved.decision === 'expired' || resolved.decision === 'cancel' ? 'cancelled' : 'failed', current.provenance, approvalContent(pending.preparation, resolved));
+      pending.reject(cause);
+      throw cause;
+    } finally { this.approvals.delete(approvalId); }
   }
 
   private async refreshBackends(): Promise<void> {
@@ -565,7 +600,60 @@ export class StudioConversationHost {
     this.eventSequence += 1;
     this.events.push(Object.freeze({ schemaVersion: 1, sequence: this.eventSequence, source: 'live', node }));
     if (this.events.length > 2_000) this.events.splice(0, this.events.length - 2_000);
+    this.persistProjection(node);
     this.changed();
+  }
+
+  private persistProjection(node: ConversationNodeReadModel): void {
+    if (!this.projectionPersistenceAvailable()) return;
+    const write = async (): Promise<void> => {
+      const artifact = await this.options.operationLog.putArtifact(node as unknown as JsonObject, { schemaVersion: 'conversation-node/1', backendId: node.provenance.backendId });
+      await this.options.operationLog.append({
+        kind: 'conversation/node-projected', severity: node.status === 'failed' ? 'error' : node.status === 'cancelled' ? 'warning' : 'info', source: asStableId('studio.conversation-host'),
+        correlation: {
+          sessionId: node.provenance.sessionId, turnId: node.provenance.turnId, stepId: node.provenance.stepId,
+          ...(typeof node.content.toolCallId === 'string' ? { toolCallId: asStableId(node.content.toolCallId) } : {}),
+          ...(typeof node.content.approvalId === 'string' ? { approvalId: asStableId(node.content.approvalId) } : {}),
+        },
+        payload: { nodeId: node.id, nodeKind: node.kind, nodeStatus: node.status, artifactId: artifact.id, artifactDigest: artifact.digest },
+        artifactRefs: [artifact.id],
+      });
+    };
+    this.projectionWriteTail = this.projectionWriteTail.then(write, write).catch((cause) => { this.projectionPersistenceFailure ??= cause; });
+  }
+
+  private async restoreProjection(): Promise<void> {
+    if (!this.projectionPersistenceAvailable()) return;
+    const status = this.options.operationLog.status();
+    const afterSequence = status.nextSequence > 5_000 ? status.nextSequence - 5_001 : undefined;
+    let cursor: string | undefined;
+    const restored: ConversationNodeReadModel[] = [];
+    do {
+      const page = await this.options.operationLog.query({ kinds: ['conversation/node-projected'], limit: 200, traverseCorrelation: false, ...(afterSequence === undefined ? {} : { afterSequence }), ...(cursor ? { cursor } : {}) });
+      for (const event of page.events) {
+        const artifactId = event.artifactRefs[0]; if (!artifactId) continue;
+        try { restored.push(normalizeConversationNode((await this.options.operationLog.readArtifact(artifactId)).value)); }
+        catch { /* A missing/corrupt artifact is already surfaced by Operation Log health and stays hidden from the renderer. */ }
+      }
+      cursor = page.nextCursor;
+    } while (cursor && restored.length < 2_000);
+    for (const node of restored.slice(-2_000)) {
+      this.nodes.set(node.id, node);
+      this.eventSequence += 1;
+      this.events.push(Object.freeze({ schemaVersion: 1, sequence: this.eventSequence, source: 'replay', node }));
+      const suffix = /:(\d+)$/u.exec(node.id)?.[1]; if (suffix) this.nodeSequence = Math.max(this.nodeSequence, Number(suffix));
+    }
+    for (const node of [...this.nodes.values()]) {
+      if (node.status !== 'pending' && node.status !== 'streaming') continue;
+      const content = node.kind === 'approval' ? Object.freeze({ ...node.content, decision: 'stale' }) : node.content;
+      this.project(node.id, node.kind, 'cancelled', node.provenance, content);
+    }
+    if (restored.length) this.stateRevision += 1;
+  }
+
+  private projectionPersistenceAvailable(): boolean {
+    const value = this.options.operationLog as unknown as Record<string, unknown>;
+    return typeof value.putArtifact === 'function' && typeof value.query === 'function' && typeof value.readArtifact === 'function' && typeof value.status === 'function';
   }
 
   private changed(): void {
@@ -630,7 +718,8 @@ function approvalContent(preparation: GameToolPreparation, approval: GameToolApp
     approvalId: approval.approvalId, toolCallId: approval.toolCallId, toolId: approval.toolId, toolVersion: approval.toolVersion,
     target: approval.target, effect: approval.effect, risk: approval.risk, argumentsSummary: preparation.preview.summary,
     previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: presentationDigest(approval.argumentsDigest),
-    previewDigest: presentationDigest(approval.previewDigest), decision: approval.decision,
+    previewDigest: presentationDigest(approval.previewDigest), expiresAt: approval.expiresAt,
+    scope: approval.decision === 'allow-always' ? 'project-session' : 'operation', decision: approval.decision,
   });
 }
 function presentationDigest(value: string): string { return value.startsWith('sha256:') ? value : `sha256:${value}`; }
@@ -644,6 +733,11 @@ function questionOptions(value: unknown): readonly JsonObject[] {
 }
 function stablePayloadId(value: unknown, label: string): StableId { if (typeof value !== 'string') throw new TypeError(`${label} is invalid.`); return asStableId(value, label); }
 function terminalStatus(value: unknown): 'completed' | 'cancelled' | 'failed' | 'interrupted' { return value === 'completed' || value === 'cancelled' || value === 'failed' || value === 'interrupted' ? value : 'failed'; }
+function completionSummary(status: 'completed' | 'cancelled' | 'failed' | 'interrupted', toolFacts: readonly string[], blockers: readonly string[]): string {
+  const completed = toolFacts.length ? `Completed: ${toolFacts.join(' | ')}` : 'Completed: no Studio tool changes.';
+  const incomplete = blockers.length ? ` Incomplete or blocked: ${blockers.join(' | ')}` : ' Incomplete or blocked: none.';
+  return `${status}. ${completed}${incomplete}`.slice(0, 4_096);
+}
 function stringField(value: unknown, fallback: string): string { return typeof value === 'string' ? value.slice(0, 2_000) : fallback; }
 function boundedJson(value: JsonObject): string { const text = JSON.stringify(value); return text.length > 2_000 ? `${text.slice(0, 1_997)}...` : text; }
 function toolArgumentSummary(toolId: StableId, args: JsonObject): string {

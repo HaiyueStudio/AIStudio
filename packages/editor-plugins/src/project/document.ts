@@ -1,173 +1,74 @@
 import type { EditorDisposable, EditorDocumentAdapter, EditorDocumentIdentity } from '@haiyue/editor-plugin-sdk';
-import type { JsonObject, JsonValue, StableId } from '@haiyue/ai-studio-contracts';
+import { asStableId, type GameDocumentDeltaV2, type GameDocumentOperationV2, type GameDocumentQueryResultV2, type GameDocumentQueryV2, type GameDocumentV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
+import { canonicalStringify, sha256 } from '@haiyue/ai-studio-operation-log';
+import { ComponentRegistry } from '../components/registry.js';
+import { GameDocumentStore, parseGameDocumentV2 } from './game-document.js';
 
-export interface ProjectDocumentFile {
-  readonly schemaVersion: 1;
-  readonly projectId: StableId;
-  readonly name: string;
-  readonly document: Readonly<{
-    id: StableId;
-    revision: number;
-    savedRevision: number;
-    settings: JsonObject;
-  }>;
-}
-
+export interface LegacyProjectDocumentFileV1 { readonly schemaVersion: 1; readonly projectId: StableId; readonly name: string; readonly document: Readonly<{ id: StableId; revision: number; savedRevision: number; settings: JsonObject }>; }
+export interface ProjectDocumentFile { readonly schemaVersion: 2; readonly projectId: StableId; readonly name: string; readonly document: GameDocumentV2; }
+export interface ProjectMigrationReport { readonly schemaVersion: 1; readonly id: StableId; readonly fromVersion: 1; readonly toVersion: 2; readonly sourceDigest: `sha256:${string}`; readonly resultDigest: `sha256:${string}`; readonly migratedAt: string; readonly scenes: number; readonly entities: number; readonly components: number; readonly scripts: number; readonly warnings: readonly string[]; }
 export interface ProjectDocumentReadModel {
-  readonly projectId: StableId;
-  readonly documentId: StableId;
-  readonly name: string;
-  readonly revision: number;
-  readonly savedRevision: number;
-  readonly dirty: boolean;
-  readonly settings: JsonObject;
-  readonly closed: boolean;
+  readonly projectId: StableId; readonly documentId: StableId; readonly name: string; readonly schemaVersion: 2; readonly revision: number; readonly savedRevision: number; readonly dirty: boolean; readonly settings: JsonObject;
+  readonly counts: Readonly<{ scenes: number; entities: number; components: number; scripts: number; assets: number }>;
+  readonly registryDigest: `sha256:${string}`; readonly closed: boolean;
 }
 
 export class ProjectDocument implements EditorDocumentAdapter<ProjectDocumentFile> {
   readonly identity: EditorDocumentIdentity;
-  private listeners = new Set<() => void>();
-  private settings: Record<string, JsonValue>;
-  private currentRevision: number;
-  private currentSavedRevision: number;
-  private closed = false;
-
-  constructor(
-    readonly projectId: StableId,
-    readonly name: string,
-    readonly documentId: StableId,
-    settings: JsonObject = {},
-    revision = 0,
-    savedRevision = revision,
-  ) {
-    if (!Number.isSafeInteger(revision) || revision < 0 || !Number.isSafeInteger(savedRevision) || savedRevision < 0 || savedRevision > revision) {
-      throw new TypeError('Project document revisions are invalid.');
-    }
-    this.currentRevision = revision;
-    this.currentSavedRevision = savedRevision;
-    this.settings = cloneObject(settings);
-    this.identity = Object.freeze({ id: documentId, kind: 'haiyue.scene', name });
+  private listeners = new Set<() => void>(); private closed = false; private readonly store: GameDocumentStore;
+  constructor(readonly projectId: StableId, readonly name: string, readonly documentId: StableId, settings: JsonObject = {}, revision = 0, savedRevision = revision, readonly registry = new ComponentRegistry().freeze(), gameDocument?: GameDocumentV2) {
+    if (!name.trim() || name.length > 80) throw new TypeError('Project name must contain 1-80 characters.');
+    this.store = gameDocument ? new GameDocumentStore(documentId, parseGameDocumentV2(gameDocument, registry), registry) : storeWithSettings(documentId, registry, settings, revision, savedRevision);
+    this.identity = Object.freeze({ id: documentId, kind: 'haiyue.game-document.v2', name });
   }
-
-  get revision(): number { return this.currentRevision; }
-  get savedRevision(): number { return this.currentSavedRevision; }
-
-  snapshot(): ProjectDocumentReadModel {
-    return Object.freeze({
-      projectId: this.projectId,
-      documentId: this.documentId,
-      name: this.name,
-      revision: this.currentRevision,
-      savedRevision: this.currentSavedRevision,
-      dirty: this.currentRevision !== this.currentSavedRevision,
-      settings: Object.freeze(cloneObject(this.settings)),
-      closed: this.closed,
-    });
-  }
-
-  serialize(): ProjectDocumentFile {
-    this.assertOpen();
-    return Object.freeze({
-      schemaVersion: 1,
-      projectId: this.projectId,
-      name: this.name,
-      document: Object.freeze({
-        id: this.documentId,
-        revision: this.currentRevision,
-        savedRevision: this.currentSavedRevision,
-        settings: Object.freeze(cloneObject(this.settings)),
-      }),
-    });
-  }
-
-  serializeForSave(): ProjectDocumentFile {
-    const value = this.serialize();
-    return Object.freeze({ ...value, document: Object.freeze({ ...value.document, savedRevision: value.document.revision }) });
-  }
-
-  markSaved(revision = this.currentRevision): void {
-    this.assertOpen();
-    if (!Number.isSafeInteger(revision) || revision < 0 || revision > this.currentRevision) throw new RangeError('Saved revision is invalid.');
-    this.currentSavedRevision = revision;
-    this.emit();
-  }
-
-  setSetting(key: string, value: JsonValue): Readonly<{ existed: boolean; value?: JsonValue }> {
-    this.assertOpen();
-    assertSettingKey(key);
-    const existed = Object.hasOwn(this.settings, key);
-    const previous = existed ? cloneJson(this.settings[key]!) : undefined;
-    this.settings[key] = cloneJson(value);
-    this.currentRevision += 1;
-    this.emit();
-    return Object.freeze(previous === undefined ? { existed } : { existed, value: previous });
-  }
-
-  restoreSetting(key: string, previous: Readonly<{ existed: boolean; value?: JsonValue }>): void {
-    this.assertOpen();
-    if (previous.existed) this.settings[key] = cloneJson(previous.value!);
-    else delete this.settings[key];
-    this.currentRevision += 1;
-    this.emit();
-  }
-
-  subscribe(listener: () => void): EditorDisposable {
-    this.assertOpen();
-    this.listeners.add(listener);
-    let active = true;
-    return Object.freeze({ dispose: () => { if (active) { active = false; this.listeners.delete(listener); } } });
-  }
-
-  dispose(): void {
-    if (this.closed) return;
-    this.closed = true;
-    this.listeners.clear();
-  }
-
-  private emit(): void { for (const listener of [...this.listeners]) listener(); }
-  private assertOpen(): void { if (this.closed) throw new Error('Project document is closed.'); }
+  static fromFile(value: ProjectDocumentFile, registry = new ComponentRegistry().freeze()): ProjectDocument { return new ProjectDocument(value.projectId, value.name, asStableId(value.document.id, 'document id'), {}, value.document.revision, value.document.savedRevision, registry, value.document); }
+  get revision(): number { return this.store.revision; } get savedRevision(): number { return this.store.savedRevision; }
+  snapshot(): ProjectDocumentReadModel { const registryDigest = this.registry.snapshot().digest; const settings = { ...this.store.settingsSnapshot(), 'script.resources': this.store.scriptsSnapshot().map((script) => ({ id: script.id, entityId: script.entityId, name: script.name, sourcePath: script.sourcePath, text: script.source, textRevision: script.textRevision, capabilities: [...script.capabilities] })) }; return Object.freeze({ projectId: this.projectId, documentId: this.documentId, name: this.name, schemaVersion: 2, revision: this.revision, savedRevision: this.savedRevision, dirty: this.revision !== this.savedRevision, settings: deepFreeze(settings), counts: Object.freeze({ scenes: this.store.sceneCount, entities: this.store.entityCount, components: this.store.componentCount, scripts: this.store.scriptCount, assets: this.store.assetCount }), registryDigest, closed: this.closed }); }
+  serialize(): ProjectDocumentFile { this.assertOpen(); return freezeFile({ schemaVersion: 2, projectId: this.projectId, name: this.name, document: this.store.export() }); }
+  serializeForSave(): ProjectDocumentFile { this.assertOpen(); return freezeFile({ schemaVersion: 2, projectId: this.projectId, name: this.name, document: this.store.export(this.revision) }); }
+  gameSnapshot(): GameDocumentV2 { this.assertOpen(); return this.store.export(); }
+  primarySceneId(): StableId { this.assertOpen(); return this.store.primarySceneId(); }
+  scriptsSnapshot(): GameDocumentV2['scripts'] { this.assertOpen(); return this.store.scriptsSnapshot(); }
+  query(input: GameDocumentQueryV2): GameDocumentQueryResultV2 { this.assertOpen(); return this.store.query(input); }
+  componentOwner(componentId: StableId): StableId | null { this.assertOpen(); return this.store.componentOwner(componentId); }
+  apply(transactionId: StableId, operations: readonly GameDocumentOperationV2[]): GameDocumentDeltaV2 { this.assertOpen(); const delta = this.store.apply(transactionId, operations); this.emit(); return delta; }
+  markSaved(revision = this.revision): void { this.assertOpen(); this.store.markSaved(revision); this.emit(); }
+  setSetting(key: string, value: JsonValue): Readonly<{ existed: boolean; value?: JsonValue }> { this.assertOpen(); const settings = this.store.settingsSnapshot(); const existed = Object.hasOwn(settings, key); const previous = existed ? cloneJson(settings[key]!) : undefined; this.apply(asStableId(`transaction:legacy-setting:${this.revision + 1}`), [{ op: 'setting.set', key, value }]); return Object.freeze(previous === undefined ? { existed } : { existed, value: previous }); }
+  restoreSetting(key: string, previous: Readonly<{ existed: boolean; value?: JsonValue }>): void { this.assertOpen(); this.apply(asStableId(`transaction:legacy-setting-restore:${this.revision + 1}`), [previous.existed ? { op: 'setting.set', key, value: previous.value! } : { op: 'setting.remove', key }]); }
+  subscribe(listener: () => void): EditorDisposable { this.assertOpen(); this.listeners.add(listener); let active = true; return Object.freeze({ dispose: () => { if (active) { active = false; this.listeners.delete(listener); } } }); }
+  dispose(): void { if (!this.closed) { this.closed = true; this.listeners.clear(); } }
+  private emit(): void { for (const listener of [...this.listeners]) listener(); } private assertOpen(): void { if (this.closed) throw new Error('Project document is closed.'); }
 }
 
-export function parseProjectDocumentFile(value: unknown): ProjectDocumentFile {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Project file must be an object.');
-  const root = value as Record<string, unknown>;
-  const document = root.document;
-  if (root.schemaVersion !== 1 || typeof root.projectId !== 'string' || typeof root.name !== 'string' || !document || typeof document !== 'object' || Array.isArray(document)) {
-    throw new TypeError('Project file envelope is invalid.');
+export function parseProjectDocumentSource(value: unknown): ProjectDocumentFile | LegacyProjectDocumentFileV1 { if (!isRecord(value)) throw new TypeError('Project file must be an object.'); if (value.schemaVersion === 1) return parseLegacyProjectDocumentFile(value); if (value.schemaVersion === 2) return parseProjectDocumentFile(value); throw new TypeError(`Unsupported project schema version ${String(value.schemaVersion)}.`); }
+export function parseProjectDocumentFile(value: unknown, registry = new ComponentRegistry().freeze()): ProjectDocumentFile { if (!isRecord(value) || value.schemaVersion !== 2 || typeof value.projectId !== 'string' || typeof value.name !== 'string' || !value.name.trim() || !isRecord(value.document)) throw new TypeError('Project v2 file envelope is invalid.'); const projectId = asStableId(value.projectId, 'project id'); const document = parseGameDocumentV2(value.document, registry); return freezeFile({ schemaVersion: 2, projectId, name: value.name, document }); }
+export function parseLegacyProjectDocumentFile(value: unknown): LegacyProjectDocumentFileV1 { if (!isRecord(value) || value.schemaVersion !== 1 || typeof value.projectId !== 'string' || typeof value.name !== 'string' || !isRecord(value.document)) throw new TypeError('Legacy project file envelope is invalid.'); const document = value.document; if (typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || !Number.isSafeInteger(document.savedRevision) || !isJsonObject(document.settings)) throw new TypeError('Legacy project document payload is invalid.'); return deepFreeze({ schemaVersion: 1, projectId: asStableId(value.projectId, 'project id'), name: value.name, document: { id: asStableId(document.id, 'document id'), revision: document.revision, savedRevision: document.savedRevision, settings: cloneJson(document.settings) } }) as LegacyProjectDocumentFileV1; }
+
+export function migrateProjectDocumentV1(value: LegacyProjectDocumentFileV1, migratedAt: string, registry = new ComponentRegistry().freeze()): Readonly<{ file: ProjectDocumentFile; report: ProjectMigrationReport }> {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u.test(migratedAt)) throw new TypeError('Migration timestamp is invalid.');
+  const sourceDigest = `sha256:${sha256(canonicalStringify(value as unknown as JsonValue))}` as const; const legacyScene = parseLegacyScene(value.document.settings['scene.snapshot']); const legacyScripts = parseLegacyScripts(value.document.settings['script.resources']); const sceneId = asStableId(`scene:${value.document.id.replace(/^document:/u, '').slice(0, 80) || 'main'}`);
+  const entities: GameDocumentV2['entities'][number][] = []; const components = [];
+  for (const item of legacyScene.entities) {
+    const componentIds: StableId[] = []; const transformId = derivedId('component:transform', item.id); componentIds.push(transformId); components.push(registry.create({ id: transformId, type: asStableId('haiyue.transform.3d'), version: '1.0.0', value: item.transform }));
+    if (isGeometry(item.kind)) { const geometryId = derivedId('component:geometry', item.id); const materialId = derivedId('component:material', item.id); componentIds.push(geometryId, materialId); components.push(registry.create({ id: geometryId, type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind: item.kind } })); components.push(registry.create({ id: materialId, type: asStableId('haiyue.render.material'), version: '1.0.0', value: item.appearance ?? {} })); }
+    else if (isLight(item.kind)) { const lightId = derivedId('component:light', item.id); componentIds.push(lightId); components.push(registry.create({ id: lightId, type: asStableId(lightType(item.kind)), version: '1.0.0', value: item.light ?? {} })); }
+    entities.push(Object.freeze({ id: item.id, sceneId, name: item.name, parentId: item.parentId, order: item.order, componentIds: Object.freeze(componentIds) }));
   }
-  const doc = document as Record<string, unknown>;
-  if (typeof doc.id !== 'string' || !Number.isSafeInteger(doc.revision) || !Number.isSafeInteger(doc.savedRevision) || !isJsonObject(doc.settings)) {
-    throw new TypeError('Project document payload is invalid.');
-  }
-  return Object.freeze({
-    schemaVersion: 1,
-    projectId: root.projectId as StableId,
-    name: root.name,
-    document: Object.freeze({
-      id: doc.id as StableId,
-      revision: doc.revision as number,
-      savedRevision: doc.savedRevision as number,
-      settings: Object.freeze(cloneObject(doc.settings)),
-    }),
-  });
+  const scripts = legacyScripts.map((script, order) => Object.freeze({ id: script.id, entityId: script.entityId, name: script.name, sourcePath: script.sourcePath, source: script.text, textRevision: script.textRevision, enabled: true, order, capabilities: Object.freeze(script.capabilities), digest: `sha256:${sha256(script.text)}` as const }));
+  const settings = Object.fromEntries(Object.entries(value.document.settings).filter(([key]) => key !== 'scene.snapshot' && key !== 'script.resources').map(([key, member]) => [key, cloneJson(member)]));
+  const document = deepFreeze({ schemaVersion: 2, id: value.document.id, revision: value.document.revision, savedRevision: value.document.savedRevision, scenes: [{ id: sceneId, name: 'Main', rootEntityIds: entities.filter((entity) => entity.parentId === null).sort((a, b) => a.order - b.order || a.id.localeCompare(b.id)).map((entity) => entity.id) }], entities, components, scripts, assets: [], settings, migration: { fromVersion: 1, migratedAt, sourceDigest } }) as GameDocumentV2;
+  const file = freezeFile({ schemaVersion: 2, projectId: value.projectId, name: value.name, document: parseGameDocumentV2(document, registry) }); const resultDigest = `sha256:${sha256(canonicalStringify(file as unknown as JsonValue))}` as const;
+  const report: ProjectMigrationReport = deepFreeze({ schemaVersion: 1, id: derivedId('migration', sourceDigest), fromVersion: 1, toVersion: 2, sourceDigest, resultDigest, migratedAt, scenes: 1, entities: entities.length, components: components.length, scripts: scripts.length, warnings: [] }); return Object.freeze({ file, report });
 }
 
-function assertSettingKey(key: string): void {
-  if (!/^[a-z][a-z0-9.-]{1,63}$/.test(key)) throw new TypeError(`Invalid project setting key ${key}.`);
-}
+function storeWithSettings(documentId: StableId, registry: ComponentRegistry, settings: JsonObject, revision: number, savedRevision: number): GameDocumentStore { const store = GameDocumentStore.empty(documentId, registry, revision, savedRevision); const operations = Object.entries(settings).map(([key, value]) => ({ op: 'setting.set', key, value } as const)); if (operations.length > 0) { const delta = store.apply(asStableId('transaction:initial-settings'), operations); return new GameDocumentStore(documentId, { ...store.export(savedRevision), revision: delta.beforeRevision, savedRevision }, registry); } return store; }
+function parseLegacyScene(value: JsonValue | undefined): Readonly<{ entities: readonly LegacyEntity[] }> { if (value === undefined) return Object.freeze({ entities: Object.freeze([]) }); if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.entities)) throw new TypeError('Legacy scene snapshot is invalid.'); const entities = value.entities.map((entry) => { if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.name !== 'string' || typeof entry.kind !== 'string' || (entry.parentId !== null && typeof entry.parentId !== 'string') || !Number.isSafeInteger(entry.order) || !isJsonObject(entry.transform)) throw new TypeError('Legacy scene entity is invalid.'); return deepFreeze({ id: asStableId(entry.id, 'entity id'), name: entry.name, kind: entry.kind, parentId: entry.parentId === null ? null : asStableId(entry.parentId, 'parent id'), order: entry.order, transform: cloneJson(entry.transform), ...(isJsonObject(entry.appearance) ? { appearance: cloneJson(entry.appearance) } : {}), ...(isJsonObject(entry.light) ? { light: cloneJson(entry.light) } : {}) }) as LegacyEntity; }); const ids = new Set(entities.map((item) => item.id)); for (const entity of entities) if (entity.parentId && !ids.has(entity.parentId)) throw new TypeError(`Legacy scene parent ${entity.parentId} is missing.`); return Object.freeze({ entities: Object.freeze(entities) }); }
+function parseLegacyScripts(value: JsonValue | undefined): readonly LegacyScript[] { if (value === undefined) return Object.freeze([]); if (!Array.isArray(value)) throw new TypeError('Legacy script resources are invalid.'); return Object.freeze(value.map((entry) => { if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.entityId !== 'string' || typeof entry.name !== 'string' || typeof entry.sourcePath !== 'string' || typeof entry.text !== 'string' || !Number.isSafeInteger(entry.textRevision) || !Array.isArray(entry.capabilities) || !entry.capabilities.every((item) => typeof item === 'string')) throw new TypeError('Legacy script resource is invalid.'); return deepFreeze({ id: asStableId(entry.id, 'script id'), entityId: asStableId(entry.entityId, 'script entity id'), name: entry.name, sourcePath: entry.sourcePath, text: entry.text, textRevision: entry.textRevision, capabilities: [...entry.capabilities] }) as LegacyScript; })); }
 
-function isJsonObject(value: unknown): value is JsonObject {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) return false;
-  try { cloneObject(value as JsonObject); return true; } catch { return false; }
-}
-
-function cloneObject(value: JsonObject): Record<string, JsonValue> {
-  return Object.fromEntries(Object.entries(value).map(([key, member]) => [key, cloneJson(member)]));
-}
-
-function cloneJson(value: JsonValue): JsonValue {
-  if (Array.isArray(value)) return value.map(cloneJson);
-  if (value && typeof value === 'object') return cloneObject(value as JsonObject);
-  if (typeof value === 'number' && !Number.isFinite(value)) throw new TypeError('Project data contains a non-finite number.');
-  return value;
-}
+interface LegacyEntity { readonly id: StableId; readonly name: string; readonly kind: string; readonly parentId: StableId | null; readonly order: number; readonly transform: JsonObject; readonly appearance?: JsonObject; readonly light?: JsonObject; }
+interface LegacyScript { readonly id: StableId; readonly entityId: StableId; readonly name: string; readonly sourcePath: string; readonly text: string; readonly textRevision: number; readonly capabilities: readonly string[]; }
+function isGeometry(kind: string): boolean { return ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind); } function isLight(kind: string): boolean { return ['directional-light', 'point-light', 'ambient-light'].includes(kind); } function lightType(kind: string): string { return kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient'; }
+function derivedId(prefix: string, source: string): StableId { return asStableId(`${prefix}:${sha256(source).slice(0, 24)}`); } function freezeFile(value: ProjectDocumentFile): ProjectDocumentFile { return deepFreeze(value); }
+function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype; } function isJsonObject(value: unknown): value is JsonObject { if (!isRecord(value)) return false; try { cloneJson(value); return true; } catch { return false; } }
+function cloneJson(value: unknown): JsonValue { if (Array.isArray(value)) return value.map(cloneJson); if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, member]) => [key, cloneJson(member)])); if (value === null || typeof value === 'boolean' || typeof value === 'string') return value; if (typeof value === 'number' && Number.isFinite(value)) return value; throw new TypeError('Project data contains non-JSON data.'); }
+function deepFreeze<T>(value: T): T { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child); } return value; }

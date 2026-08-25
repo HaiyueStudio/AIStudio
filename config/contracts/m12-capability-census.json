@@ -57,27 +57,27 @@
     },
     {
       "id": "document.v2", "domain": "authoring", "owner": "g05-game-document-v2-component-registry",
-      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "classification": "available-internal", "integrationState": "m12-integrated", "publicPath": "@haiyue/ai-studio-editor-plugins/project", "publicSymbols": ["GameDocumentStore", "ProjectDocument"], "version": "0.0.0",
       "lifecycle": { "ownership": "project", "teardown": "project close" },
-      "serialization": { "status": "not-supported", "path": "M06 ProjectDocument v1 only" },
-      "toolExposure": { "m06": "primitive SceneSnapshot", "m12Owner": "g05-game-document-v2-component-registry" },
-      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["packages/editor-plugins/src/project/document.ts", "packages/editor-plugins/src/scene-authoring.ts"]
+      "serialization": { "status": "supported", "path": "GameDocumentV2 plus deterministic v1 migration" },
+      "toolExposure": { "m06": "primitive SceneSnapshot", "m12Owner": "g05-game-document-v2-component-registry; bounded query and delta command path integrated" },
+      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["packages/editor-plugins/src/project/game-document.ts", "packages/editor-plugins/src/project/document.ts", "docs/evidence/m12-g05-verification.json"]
     },
     {
       "id": "component.registry", "domain": "authoring", "owner": "g05-game-document-v2-component-registry",
-      "classification": "available-public", "integrationState": "not-integrated", "publicPath": "@haiyue/engine/serialization", "publicSymbols": ["ComponentSerializationRegistry", "coreComponentSerializationRegistry"], "version": "0.1.0",
+      "classification": "available-internal", "integrationState": "m12-integrated", "publicPath": "@haiyue/ai-studio-editor-plugins/components", "publicSymbols": ["ComponentRegistry", "componentRegistryServiceToken"], "version": "0.0.0",
       "lifecycle": { "ownership": "project runtime", "teardown": "runtime owner disposal" },
-      "serialization": { "status": "supported", "path": "@haiyue/engine/serialization" },
-      "toolExposure": { "m06": "none", "m12Owner": "g05-game-document-v2-component-registry" },
-      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["@haiyue/engine/serialization#ComponentSerializationRegistry"]
+      "serialization": { "status": "supported", "path": "versioned product descriptors with JSON serialization policy" },
+      "toolExposure": { "m06": "none", "m12Owner": "g05-game-document-v2-component-registry; registry manifest integrated" },
+      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["packages/editor-plugins/src/components/registry.ts", "docs/evidence/m12-g05-verification.json"]
     },
     {
       "id": "scene.transaction", "domain": "authoring", "owner": "g05-game-document-v2-component-registry",
-      "classification": "available-internal", "integrationState": "m06-partial", "publicPath": "@haiyue/editor-platform", "publicSymbols": ["EditorHistoryService"], "version": "0.1.0",
+      "classification": "available-internal", "integrationState": "m12-integrated", "publicPath": "@haiyue/ai-studio-editor-plugins/history", "publicSymbols": ["ProjectWorkspace"], "version": "0.0.0",
       "lifecycle": { "ownership": "document history", "teardown": "document detach" },
-      "serialization": { "status": "partial", "path": "single ProjectCommand and History entry" },
-      "toolExposure": { "m06": "single command only; no atomic multi-command batch", "m12Owner": "g05-game-document-v2-component-registry" },
-      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["packages/editor-plugins/src/history/workspace.ts"]
+      "serialization": { "status": "supported", "path": "GameDocumentBatchV2, GameDocumentDeltaV2 and generated inverse" },
+      "toolExposure": { "m06": "single command only; no atomic multi-command batch", "m12Owner": "g05-game-document-v2-component-registry; UI/Agent-compatible batch path integrated" },
+      "testOwner": "g05-game-document-v2-component-registry", "evidence": ["packages/editor-plugins/src/history/workspace.ts", "packages/editor-plugins/test/g05-document-v2.test.mjs"]
     },
     {
       "id": "camera.2d", "domain": "camera", "owner": "g06-camera-input-interaction-replay",

@@ -80,7 +80,14 @@ function validate(request: ValidationRequest): Readonly<{ id: string; diagnostic
 function capabilityDiagnostics(text: string, sourcePath: string): ScriptDiagnostic[] {
   const source = ts.createSourceFile(sourcePath, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
   const diagnostics: ScriptDiagnostic[] = [];
-  const forbiddenGlobals = new Set(['document', 'window', 'globalThis', 'process', 'require', 'fetch', 'WebSocket', 'XMLHttpRequest', 'eval', 'Function']);
+  const forbiddenGlobals = new Set([
+    'document', 'window', 'globalThis', 'self', 'top', 'parent', 'frames', 'opener',
+    'navigator', 'location', 'history', 'localStorage', 'sessionStorage', 'indexedDB', 'caches', 'customElements',
+    'process', 'require', 'module', 'Buffer', '__dirname', '__filename', 'Deno', 'Bun',
+    'fetch', 'WebSocket', 'XMLHttpRequest', 'EventSource', 'Worker', 'SharedWorker', 'BroadcastChannel', 'MessageChannel', 'postMessage',
+    'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask',
+    'eval', 'Function', 'open', 'Image', 'Audio', 'showOpenFilePicker', 'showSaveFilePicker', 'showDirectoryPicker',
+  ]);
   const visit = (node: ts.Node): void => {
     let code: string | null = null;
     let message = '';

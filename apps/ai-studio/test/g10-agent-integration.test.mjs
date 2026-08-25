@@ -98,7 +98,10 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   assert.match(toolResult.content.summary, /已创建/);
   assert.match(toolResult.content.details, /entity:player/);
   assert.ok(nodes(host).some((node) => node.kind === 'text' && node.content.text.includes('Player cube')));
-  assert.ok(nodes(host).some((node) => node.kind === 'completion' && node.content.terminalStatus === 'completed'));
+  const completion = nodes(host).find((node) => node.kind === 'completion' && node.content.terminalStatus === 'completed');
+  assert.ok(completion);
+  assert.match(completion.content.summary, /Completed: entity\.create:/);
+  assert.match(completion.content.summary, /Incomplete or blocked: none/);
   assert.ok(nodes(host).some((node) => node.kind === 'text' && node.content.role === 'user' && node.content.text === 'Create a Player cube'));
   assert.ok(nodes(host).some((node) => node.kind === 'progress' && node.content.phase === 'awaiting-first-step' && node.status === 'completed'));
   assert.ok(observedBusy.includes(true));

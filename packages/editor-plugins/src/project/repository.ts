@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseProjectDocumentFile, type ProjectDocumentFile } from './document.js';
+import { migrateProjectDocumentV1, parseProjectDocumentFile, parseProjectDocumentSource, type ProjectDocumentFile, type ProjectMigrationReport } from './document.js';
+import { ComponentRegistry } from '../components/registry.js';
 
 const PROJECT_FILE = '.haiyue-project.json';
 const TEMP_PREFIX = `${PROJECT_FILE}.tmp-`;
+const V1_BACKUP_FILE = '.haiyue-project.v1.backup.json';
+const MIGRATION_REPORT_FILE = '.haiyue-migration-v1-to-v2.json';
 
 export interface ProjectRepositoryOptions {
   readonly beforeRename?: (tempFile: string, targetFile: string) => void | Promise<void>;
+  readonly clock?: () => Date;
 }
 
 export class ProjectRepository {
@@ -33,9 +37,19 @@ export class ProjectRepository {
   }
 
   async read(): Promise<ProjectDocumentFile> {
+    return (await this.readWithMigration()).file;
+  }
+
+  async readWithMigration(registry = new ComponentRegistry().freeze()): Promise<Readonly<{ file: ProjectDocumentFile; migration: ProjectMigrationReport | null }>> {
     const target = this.resolveProjectPath(PROJECT_FILE);
     await this.assertTargetSafe(target);
-    return parseProjectDocumentFile(JSON.parse(await readFile(target, 'utf8')));
+    const body = await readFile(target, 'utf8'); const source = parseProjectDocumentSource(JSON.parse(body));
+    if (source.schemaVersion === 2) return Object.freeze({ file: parseProjectDocumentFile(source, registry), migration: null });
+    const migrated = migrateProjectDocumentV1(source, (this.options.clock?.() ?? (await stat(target)).mtime).toISOString(), registry);
+    await this.writeBackup(body);
+    await this.writeAuxiliary(MIGRATION_REPORT_FILE, `${JSON.stringify(migrated.report, null, 2)}\n`);
+    await this.save(migrated.file);
+    return Object.freeze({ file: migrated.file, migration: migrated.report });
   }
 
   async save(value: ProjectDocumentFile): Promise<void> {
@@ -57,10 +71,16 @@ export class ProjectRepository {
     }
   }
 
+  async rollbackMigration(): Promise<void> {
+    const backup = this.resolveProjectPath(V1_BACKUP_FILE); await this.assertTargetSafe(backup);
+    const body = await readFile(backup, 'utf8'); parseProjectDocumentSource(JSON.parse(body));
+    await this.writeProjectBody(body);
+  }
+
   async cleanupTemps(): Promise<number> {
     let removed = 0;
     for (const name of await readdir(this.root)) {
-      if (!name.startsWith(TEMP_PREFIX)) continue;
+      if (!name.startsWith(TEMP_PREFIX) && !name.startsWith(`${MIGRATION_REPORT_FILE}.tmp-`)) continue;
       const target = this.resolveProjectPath(name);
       const info = await lstat(target);
       if (info.isSymbolicLink() || !info.isFile()) continue;
@@ -83,6 +103,27 @@ export class ProjectRepository {
       if (cause instanceof ProjectPathError) throw cause;
       if (!allowMissing || !isNotFound(cause)) throw cause;
     }
+  }
+
+  private async writeBackup(body: string): Promise<void> {
+    const target = this.resolveProjectPath(V1_BACKUP_FILE); await this.assertTargetSafe(target, true);
+    try { const handle = await open(target, 'wx'); try { await handle.writeFile(body, 'utf8'); await handle.sync(); } finally { await handle.close(); } }
+    catch (cause) { if (!isAlreadyExists(cause) || await readFile(target, 'utf8') !== body) throw new ProjectPathError('project-migration-backup-failed', 'A byte-identical v1 migration backup could not be secured.', { cause }); }
+  }
+
+  private async writeAuxiliary(relativePath: string, body: string): Promise<void> {
+    const target = this.resolveProjectPath(relativePath); await this.assertTargetSafe(target, true);
+    try { if (await readFile(target, 'utf8') === body) return; throw new ProjectPathError('project-migration-report-conflict', 'An existing migration report differs from the requested migration.'); }
+    catch (cause) { if (cause instanceof ProjectPathError) throw cause; if (!isNotFound(cause)) throw cause; }
+    const temp = this.resolveProjectPath(`${relativePath}.tmp-${randomUUID()}`); const handle = await open(temp, 'wx');
+    try { await handle.writeFile(body, 'utf8'); await handle.sync(); await handle.close(); await rename(temp, target); }
+    catch (cause) { await handle.close().catch(() => {}); await rm(temp, { force: true }).catch(() => {}); throw new ProjectPathError('project-migration-report-failed', 'Migration report persistence failed before project replacement.', { cause }); }
+  }
+
+  private async writeProjectBody(body: string): Promise<void> {
+    const target = this.resolveProjectPath(PROJECT_FILE); await this.assertTargetSafe(target); const temp = this.resolveProjectPath(`${TEMP_PREFIX}${randomUUID()}`); const handle = await open(temp, 'wx');
+    try { await handle.writeFile(body, 'utf8'); await handle.sync(); await this.options.beforeRename?.(temp, target); await handle.close(); await rename(temp, target); }
+    catch (cause) { await handle.close().catch(() => {}); await rm(temp, { force: true }).catch(() => {}); throw new ProjectPathError('project-migration-rollback-failed', 'Migration rollback failed; the backup remains available.', { cause }); }
   }
 }
 
@@ -124,3 +165,4 @@ function assertInside(root: string, target: string, allowEqual = false): void {
 function isNotFound(value: unknown): boolean {
   return value instanceof Error && 'code' in value && (value as NodeJS.ErrnoException).code === 'ENOENT';
 }
+function isAlreadyExists(value: unknown): boolean { return value instanceof Error && 'code' in value && (value as NodeJS.ErrnoException).code === 'EEXIST'; }

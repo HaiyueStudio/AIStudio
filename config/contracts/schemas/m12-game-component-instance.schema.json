@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/game-component-instance/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "version", "enabled", "value"],
+  "properties": {
+    "id": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" },
+    "type": { "$ref": "haiyue://contracts/game-document/v2#/definitions/stableId" },
+    "version": { "$ref": "haiyue://contracts/game-document/v2#/definitions/semver" },
+    "enabled": { "type": "boolean" },
+    "value": { "type": "object", "maxProperties": 256 }
+  }
+}

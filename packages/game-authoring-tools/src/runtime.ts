@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import { isSceneGeometryKind, isSceneMaterialKind, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type SceneMaterialColor, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
-import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
+import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import {
@@ -24,6 +24,9 @@ export interface GameAuthoringToolRuntimeOptions {
   readonly diagnostics: DiagnosticsQueryService;
   readonly operationLog: OperationLog;
   readonly preview: GamePreviewControl;
+  readonly clock?: () => Date;
+  readonly approvalTtlMs?: number;
+  readonly timeoutCeilingMs?: number;
 }
 
 interface StoredPreparation {
@@ -45,7 +48,11 @@ export class GameAuthoringToolRuntime {
   private mutationTail: Promise<void> = Promise.resolve();
   private disposed = false;
 
-  constructor(private readonly options: GameAuthoringToolRuntimeOptions) {}
+  constructor(private readonly options: GameAuthoringToolRuntimeOptions) {
+    const ttl = options.approvalTtlMs ?? 5 * 60_000;
+    if (!Number.isSafeInteger(ttl) || ttl < 1_000 || ttl > 60 * 60_000) throw new TypeError('Approval TTL must be between one second and one hour.');
+    if (options.timeoutCeilingMs !== undefined && (!Number.isSafeInteger(options.timeoutCeilingMs) || options.timeoutCeilingMs < 1 || options.timeoutCeilingMs > 20_000)) throw new TypeError('Tool timeout ceiling must be between one millisecond and twenty seconds.');
+  }
 
   definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
   snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: GAME_AUTHORING_TOOL_DEFINITIONS, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, activeApprovalGrants: this.approvalGrants.size, disposed: this.disposed }); }
@@ -54,47 +61,73 @@ export class GameAuthoringToolRuntime {
     this.assertActive();
     const call = validateToolCall(value);
     const definition = GAME_AUTHORING_TOOL_BY_ID.get(call.toolId);
-    if (!definition || call.toolVersion !== definition.version) throw new GameToolProtocolError('tool.not-found', `Tool ${call.toolId}@${call.toolVersion} is not registered.`);
-    const document = requireDocument(this.options.workspace);
-    const args = normalizeArguments(definition.id, call.arguments, document.revision);
-    enforceLogHealth(definition.id, definition.effect, this.options.operationLog.status());
-    const requestedRevision = readBaseRevision(args);
-    if (requestedRevision !== undefined && requestedRevision !== document.revision) throw new GameToolProtocolError('tool.stale-revision', `Tool expected document revision ${requestedRevision}; current revision is ${document.revision}.`, true);
-    const preview = buildPreview(definition.id, args, this.options.scene, this.proposals, this.previewPlans);
-    const argumentsDigest = sha256(canonicalStringify(args));
-    const previewDigest = sha256(canonicalStringify(preview as unknown as JsonObject));
-    const preparationId = asStableId(`tool-preparation:${randomUUID()}`);
-    const approvalScopeDigest = definition.requiresApproval ? approvalGrantDigest(document.documentId, definition, preview.target) : undefined;
-    const autoAllowed = approvalScopeDigest !== undefined && this.approvalGrants.has(approvalScopeDigest);
-    const approvalId = definition.requiresApproval && !autoAllowed ? asStableId(`approval:${randomUUID()}`) : undefined;
-    const status = approvalId ? 'approval-required' : 'ready';
-    const view: GameToolPreparation = Object.freeze({
-      schemaVersion: 1, id: preparationId, callId: call.id, sessionId: call.sessionId, turnId: call.turnId,
-      toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk,
-      documentId: document.documentId, baseRevision: document.revision, argumentsDigest, previewDigest, preview, status,
-      ...(approvalId ? { approvalId } : {}),
-    });
-    const stored: StoredPreparation = { call, definition, arguments: args, preview, view, ...(approvalScopeDigest ? { approvalScopeDigest } : {}) };
-    if (approvalId) stored.approval = Object.freeze({
-      schemaVersion: 1, approvalId, preparationId, toolCallId: call.id, toolId: definition.id, toolVersion: definition.version,
-      effect: definition.effect as Exclude<GameToolDefinition['effect'], 'observe'>,
-      risk: definition.risk as Exclude<GameToolDefinition['risk'], 'low'>,
-      argumentsDigest, previewDigest, documentId: document.documentId, baseRevision: document.revision, target: preview.target, decision: 'pending',
-    });
-    this.preparations.set(preparationId, stored);
-    await this.options.operationLog.append({
-      kind: 'tool/call-prepared', severity: 'info', source: asStableId('studio.game-tools'),
-      correlation: correlation(call, approvalId), payload: { toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, argumentsDigest, previewDigest, preparationId, status },
-    }, { signal });
-    if (stored.approval) await this.options.operationLog.append({
-      kind: 'approval/requested', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(call, stored.approval.approvalId),
-      payload: { preparationId, toolId: definition.id, effect: definition.effect, risk: definition.risk, target: preview.target, argumentsDigest, previewDigest, documentId: document.documentId, baseRevision: document.revision, lifetime: 'until-resolved-or-stale' },
-    }, { signal });
-    else if (autoAllowed && approvalScopeDigest) await this.options.operationLog.append({
-      kind: 'approval/auto-allowed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
-      payload: { preparationId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target: preview.target, documentId: document.documentId, scope: 'project-session', scopeDigest: approvalScopeDigest, argumentsDigest, previewDigest },
-    }, { signal });
-    return view;
+    if (!definition || call.toolVersion !== definition.version) {
+      await this.options.operationLog.append({
+        kind: 'tool/call-rejected', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(call),
+        payload: { toolId: call.toolId, toolVersion: call.toolVersion, argumentsDigest: sha256(canonicalStringify(call.arguments)), code: 'tool.not-found' },
+      }, { signal }).catch(() => undefined);
+      throw new GameToolProtocolError('tool.not-found', `Tool ${call.toolId}@${call.toolVersion} is not registered.`);
+    }
+    const receivedArgumentsDigest = sha256(canonicalStringify(call.arguments));
+    await this.appendFact(definition, {
+      kind: 'tool/call-received', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
+      payload: { toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, argumentsDigest: receivedArgumentsDigest },
+    }, signal);
+    try {
+      const document = requireDocument(this.options.workspace);
+      const args = normalizeArguments(definition.id, call.arguments, document.revision);
+      enforceLogHealth(definition.id, definition.effect, this.options.operationLog.status());
+      await this.appendFact(definition, {
+        kind: 'tool/pre-policy-passed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
+        payload: { toolId: definition.id, effect: definition.effect, documentId: document.documentId, currentRevision: document.revision },
+      }, signal);
+      const requestedRevision = readBaseRevision(args);
+      if (requestedRevision !== undefined && requestedRevision !== document.revision) throw new GameToolProtocolError('tool.stale-revision', `Tool expected document revision ${requestedRevision}; current revision is ${document.revision}.`, true);
+      const preview = buildPreview(definition.id, args, this.options.scene, this.proposals, this.previewPlans);
+      const argumentsDigest = sha256(canonicalStringify(args));
+      const previewDigest = sha256(canonicalStringify(preview as unknown as JsonObject));
+      const preparationId = asStableId(`tool-preparation:${randomUUID()}`);
+      const approvalScopeDigest = definition.requiresApproval && definition.effect === 'reversible-edit'
+        ? approvalGrantDigest(document.documentId, call.sessionId, definition, preview.target) : undefined;
+      const autoAllowed = approvalScopeDigest !== undefined && this.approvalGrants.has(approvalScopeDigest);
+      const approvalId = definition.requiresApproval && !autoAllowed ? asStableId(`approval:${randomUUID()}`) : undefined;
+      const expiresAt = approvalId ? new Date(this.now().getTime() + (this.options.approvalTtlMs ?? 5 * 60_000)).toISOString() : undefined;
+      const status = approvalId ? 'approval-required' : 'ready';
+      const view: GameToolPreparation = Object.freeze({
+        schemaVersion: 1, id: preparationId, callId: call.id, sessionId: call.sessionId, turnId: call.turnId,
+        toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk,
+        documentId: document.documentId, baseRevision: document.revision, argumentsDigest, previewDigest, preview, status,
+        ...(approvalId ? { approvalId, expiresAt } : {}),
+      });
+      const stored: StoredPreparation = { call, definition, arguments: args, preview, view, ...(approvalScopeDigest ? { approvalScopeDigest } : {}) };
+      if (approvalId && expiresAt) stored.approval = Object.freeze({
+        schemaVersion: 1, approvalId, preparationId, sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id,
+        toolId: definition.id, toolVersion: definition.version,
+        effect: definition.effect as Exclude<GameToolDefinition['effect'], 'observe'>,
+        risk: definition.risk as Exclude<GameToolDefinition['risk'], 'low'>,
+        argumentsDigest, previewDigest, documentId: document.documentId, baseRevision: document.revision, target: preview.target, expiresAt, decision: 'pending',
+      });
+      await this.appendFact(definition, {
+        kind: 'tool/preview-prepared', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call, approvalId),
+        payload: { preparationId, toolId: definition.id, argumentsDigest, previewDigest, documentId: document.documentId, baseRevision: document.revision, status },
+      }, signal);
+      if (stored.approval) await this.appendFact(definition, {
+        kind: 'approval/requested', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(call, stored.approval.approvalId),
+        payload: { preparationId, toolId: definition.id, effect: definition.effect, risk: definition.risk, target: preview.target, argumentsDigest, previewDigest, documentId: document.documentId, baseRevision: document.revision, expiresAt: stored.approval.expiresAt },
+      }, signal);
+      else if (autoAllowed && approvalScopeDigest) await this.appendFact(definition, {
+        kind: 'approval/auto-allowed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
+        payload: { preparationId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target: preview.target, documentId: document.documentId, scope: 'project-session', scopeDigest: approvalScopeDigest, argumentsDigest, previewDigest },
+      }, signal);
+      this.preparations.set(preparationId, stored);
+      return view;
+    } catch (cause) {
+      await this.options.operationLog.append({
+        kind: 'tool/preparation-failed', severity: 'error', source: asStableId('studio.game-tools'), correlation: correlation(call),
+        payload: { toolId: definition.id, toolVersion: definition.version, argumentsDigest: receivedArgumentsDigest, code: errorCode(cause), message: errorMessage(cause) },
+      }).catch(() => undefined);
+      throw cause;
+    }
   }
 
   approval(id: StableId): GameToolApproval | undefined { this.assertActive(); return [...this.preparations.values()].find((item) => item.approval?.approvalId === id)?.approval; }
@@ -103,14 +136,23 @@ export class GameAuthoringToolRuntime {
     this.assertActive();
     const stored = [...this.preparations.values()].find((item) => item.approval?.approvalId === approvalId);
     if (!stored?.approval || stored.approval.decision !== 'pending') throw new GameToolProtocolError('approval.unavailable', `Approval ${approvalId} is not pending.`);
+    const invalidation = await this.invalidatePendingApproval(stored);
+    if (invalidation) throw new GameToolProtocolError(`approval.${invalidation}`, `Approval ${approvalId} is ${invalidation}; prepare the operation again.`, invalidation === 'stale');
+    if (decision === 'allow-always' && stored.definition.effect !== 'reversible-edit') {
+      await this.options.operationLog.append({
+        kind: 'approval/decision-rejected', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, approvalId),
+        payload: { preparationId: stored.view.id, toolId: stored.definition.id, requestedDecision: decision, code: 'approval.scope-forbidden', effect: stored.definition.effect },
+      });
+      throw new GameToolProtocolError('approval.scope-forbidden', 'Allow always is available only for reversible editor operations; trusted code and runtime start require exact one-shot approval.');
+    }
     const nextDecision = decision;
+    await this.options.operationLog.append({
+      kind: `approval/${nextDecision}`, severity: isAllowDecision(nextDecision) ? 'info' : 'warning', source: asStableId('studio.game-tools'),
+      correlation: correlation(stored.call, approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, toolVersion: stored.definition.version, decision: nextDecision, scope: nextDecision === 'allow-always' ? 'project-session' : 'operation', scopeDigest: stored.approvalScopeDigest ?? null, target: stored.preview.target, documentId: stored.view.documentId, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest, expiresAt: stored.approval.expiresAt },
+    });
     if (nextDecision === 'allow-always' && stored.approvalScopeDigest) this.approvalGrants.add(stored.approvalScopeDigest);
     stored.approval = Object.freeze({ ...stored.approval, decision: nextDecision });
     stored.view = Object.freeze({ ...stored.view, status: isAllowDecision(nextDecision) ? 'ready' : 'rejected' });
-    await this.options.operationLog.append({
-      kind: `approval/${nextDecision}`, severity: isAllowDecision(nextDecision) ? 'info' : 'warning', source: asStableId('studio.game-tools'),
-      correlation: correlation(stored.call, approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, toolVersion: stored.definition.version, decision: nextDecision, scope: nextDecision === 'allow-always' ? 'project-session' : 'operation', scopeDigest: stored.approvalScopeDigest ?? null, target: stored.preview.target, documentId: stored.view.documentId, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest },
-    });
     return stored.approval;
   }
 
@@ -119,6 +161,10 @@ export class GameAuthoringToolRuntime {
     const stored = this.preparations.get(preparationId);
     if (!stored) throw new GameToolProtocolError('tool.preparation-missing', `Preparation ${preparationId} is missing or consumed.`);
     if (stored.view.status === 'rejected' && !stored.approval) return this.finishWithoutExecution(stored, 'cancelled');
+    if (stored.approval?.decision === 'pending') {
+      const invalidation = await this.invalidatePendingApproval(stored);
+      if (invalidation) return this.finishWithoutExecution(stored, 'rejected');
+    }
     if (stored.approval?.decision === 'pending') throw new GameToolProtocolError('approval.required', 'The exact tool operation still requires approval.');
     if (stored.approval && !isAllowDecision(stored.approval.decision)) return this.finishWithoutExecution(stored, stored.approval.decision === 'cancel' ? 'cancelled' : 'rejected');
     const operation = () => this.executeStored(stored, signal);
@@ -145,6 +191,7 @@ export class GameAuthoringToolRuntime {
   }
 
   private async executeStored(stored: StoredPreparation, signal?: AbortSignal): Promise<GameToolResult> {
+    enforceLogHealth(stored.definition.id, stored.definition.effect, this.options.operationLog.status());
     const document = requireDocument(this.options.workspace);
     if (document.documentId !== stored.view.documentId || document.revision !== stored.view.baseRevision) {
       stored.view = Object.freeze({ ...stored.view, status: 'stale' });
@@ -158,10 +205,12 @@ export class GameAuthoringToolRuntime {
     const controller = new AbortController();
     const unlink = fuseAbort(signal, controller);
     this.active.set(stored.call.id, controller);
-    const timer = setTimeout(() => controller.abort(new GameToolProtocolError('tool.timeout', `Tool ${stored.definition.id} exceeded ${stored.definition.timeoutMs} ms.`, true)), stored.definition.timeoutMs);
+    const timeoutMs = Math.min(stored.definition.timeoutMs, this.options.timeoutCeilingMs ?? stored.definition.timeoutMs);
+    const timer = setTimeout(() => controller.abort(new GameToolProtocolError('tool.timeout', `Tool ${stored.definition.id} exceeded ${timeoutMs} ms.`, true)), timeoutMs);
     try {
-      await this.options.operationLog.append({ kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest } }, { signal: controller.signal });
+      await this.appendFact(stored.definition, { kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest } }, controller.signal);
       const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, controller.signal);
+      if (controller.signal.aborted) throw controller.signal.reason ?? new GameToolProtocolError('tool.cancelled', 'Tool call was cancelled.');
       assertResultBudget(value, stored.definition.maxResultBytes);
       const after = requireDocument(this.options.workspace);
       const result: GameToolResult = Object.freeze({
@@ -169,10 +218,10 @@ export class GameAuthoringToolRuntime {
         documentId: after.documentId, beforeRevision: stored.view.baseRevision, afterRevision: after.revision,
         ...(historyLabel(stored.definition.id) ? { historyLabel: historyLabel(stored.definition.id) } : {}),
       });
-      await this.options.operationLog.append({ kind: 'tool/execution-completed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { toolId: stored.definition.id, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, resultDigest: sha256(canonicalStringify(value)), historyLabel: result.historyLabel ?? null } });
+      await this.appendFact(stored.definition, { kind: 'tool/execution-completed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { toolId: stored.definition.id, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, resultDigest: sha256(canonicalStringify(value)), historyLabel: result.historyLabel ?? null } });
       return result;
     } catch (cause) {
-      await this.options.operationLog.append({ kind: 'tool/execution-failed', severity: 'error', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { toolId: stored.definition.id, code: cause instanceof GameToolProtocolError ? cause.code : 'tool.execution-failed', message: errorMessage(cause) } }).catch(() => {});
+      await this.appendFact(stored.definition, { kind: 'tool/execution-failed', severity: 'error', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { toolId: stored.definition.id, code: cause instanceof GameToolProtocolError ? cause.code : 'tool.execution-failed', message: errorMessage(cause) } }).catch(() => {});
       throw cause;
     } finally {
       clearTimeout(timer); unlink(); this.active.delete(stored.call.id);
@@ -190,6 +239,38 @@ export class GameAuthoringToolRuntime {
     const result = this.mutationTail.then(operation, operation);
     this.mutationTail = result.then(() => {}, () => {});
     return result;
+  }
+  private async appendFact(definition: GameToolDefinition, event: OperationEventInput, signal?: AbortSignal): Promise<void> {
+    try { await this.options.operationLog.append(event, { signal }); }
+    catch (cause) {
+      if (signal?.aborted) throw signal.reason ?? cause;
+      if (definition.effect === 'observe') return;
+      throw new GameToolProtocolError('tool.log-unavailable', `Operation Log rejected ${definition.id}: ${errorMessage(cause)}`);
+    }
+  }
+  private async invalidatePendingApproval(stored: StoredPreparation): Promise<'expired' | 'stale' | null> {
+    const approval = stored.approval;
+    if (!approval || approval.decision !== 'pending') return null;
+    let invalidation: 'expired' | 'stale' | null = Date.parse(approval.expiresAt) <= this.now().getTime() ? 'expired' : null;
+    if (!invalidation) {
+      const document = this.options.workspace.snapshot().document;
+      if (!document || document.documentId !== approval.documentId || document.revision !== approval.baseRevision
+        || sha256(canonicalStringify(stored.arguments)) !== approval.argumentsDigest
+        || sha256(canonicalStringify(stored.preview as unknown as JsonObject)) !== approval.previewDigest) invalidation = 'stale';
+    }
+    if (!invalidation) return null;
+    stored.approval = Object.freeze({ ...approval, decision: invalidation });
+    stored.view = Object.freeze({ ...stored.view, status: invalidation === 'stale' ? 'stale' : 'rejected' });
+    await this.options.operationLog.append({
+      kind: `approval/${invalidation}`, severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, approval.approvalId),
+      payload: { preparationId: stored.view.id, toolId: stored.definition.id, toolVersion: stored.definition.version, target: stored.preview.target, documentId: stored.view.documentId, baseRevision: stored.view.baseRevision, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest, expiresAt: approval.expiresAt },
+    });
+    return invalidation;
+  }
+  private now(): Date {
+    const value = this.options.clock?.() ?? new Date();
+    if (!Number.isFinite(value.getTime())) throw new GameToolProtocolError('tool.clock-invalid', 'Approval clock returned an invalid date.');
+    return value;
   }
   private assertActive(): void { if (this.disposed) throw new GameToolProtocolError('tool.runtime-disposed', 'Game tool runtime is disposed.'); }
 }
@@ -210,9 +291,14 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return Object.freeze({ documentId: catalog.documentId, revision: catalog.documentRevision, script: Object.freeze({ id: resource.id, entityId: resource.entityId, name: resource.name, text: resource.text.slice(0, 65_536), textRevision: resource.textRevision, truncated: resource.text.length > 65_536 }) });
     }
     case 'diagnostics.query': {
-      const query = args as unknown as OperationLogQuery; const page = await options.diagnostics.safeSummaries(query);
-      const events = Object.freeze(page.map((item) => Object.freeze({ sequence: item.sequence, eventId: item.eventId, timestamp: item.timestamp, kind: item.kind, severity: item.severity, source: item.source, correlation: item.correlation as JsonObject, payloadDigest: item.payloadDigest, redactedFieldCount: item.redactedFieldCount })));
-      return Object.freeze({ events, count: events.length, range: events.length ? Object.freeze({ first: events[0]!.sequence, last: events.at(-1)!.sequence }) : null, digest: sha256(canonicalStringify(events as unknown as JsonValue)) });
+      const query = args as unknown as OperationLogQuery; const page = await options.diagnostics.query(query);
+      const events = Object.freeze(page.events.map((item) => Object.freeze({ sequence: item.sequence, eventId: item.eventId, timestamp: item.timestamp, kind: item.kind, severity: item.severity, source: item.source, correlation: item.correlation as JsonObject, payloadDigest: prefixedDigest(item.payloadDigest), redactedFieldCount: item.redactedFields.length })));
+      return Object.freeze({
+        events, count: events.length, scanned: page.scanned,
+        range: events.length ? Object.freeze({ first: events[0]!.sequence, last: events.at(-1)!.sequence }) : null,
+        digest: sha256(canonicalStringify(events as unknown as JsonValue)),
+        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      });
     }
     case 'entity.create': {
       const beforeIds = new Set(scene.entities.map((item) => item.id));
@@ -263,6 +349,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
 
 function validateToolCall(value: unknown): GameToolCall {
   if (!isRecord(value) || Object.keys(value).some((key) => !['schemaVersion', 'id', 'sessionId', 'turnId', 'toolId', 'toolVersion', 'arguments'].includes(key)) || value.schemaVersion !== 1 || !isRecord(value.arguments)) throw new GameToolProtocolError('tool.call-invalid', 'Tool call envelope is invalid.');
+  assertBoundedJsonObject(value.arguments);
   return Object.freeze({ schemaVersion: 1, id: stable(value.id, 'tool call id'), sessionId: stable(value.sessionId, 'session id'), turnId: stable(value.turnId, 'turn id'), toolId: stable(value.toolId, 'tool id'), toolVersion: string(value.toolVersion, 'tool version', 32), arguments: value.arguments as JsonObject });
 }
 
@@ -323,8 +410,8 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
   }
 }
 
-function approvalGrantDigest(documentId: StableId, definition: GameToolDefinition, target: string): string {
-  return sha256(canonicalStringify({ schemaVersion: 1, documentId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target }));
+function approvalGrantDigest(documentId: StableId, sessionId: StableId, definition: GameToolDefinition, target: string): string {
+  return sha256(canonicalStringify({ schemaVersion: 1, documentId, sessionId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target }));
 }
 
 function isAllowDecision(decision: GameToolApproval['decision']): boolean { return decision === 'allow-once' || decision === 'allow-always'; }
@@ -335,7 +422,20 @@ function requireEntity(scene: ReturnType<SceneAuthoringService['snapshot']>, id:
 function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
 function historyLabel(toolId: StableId): string | undefined { return ({ 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
-function correlation(call: GameToolCall, approvalId?: StableId) { return Object.freeze({ sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id, ...(approvalId ? { approvalId } : {}) }); }
+function correlation(call: GameToolCall, approvalId?: StableId) {
+  const args = call.arguments as Record<string, unknown>;
+  return Object.freeze({
+    sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id,
+    ...(approvalId ? { approvalId } : {}),
+    ...(historyLabel(call.toolId) ? { commandId: commandId(call.id) } : {}),
+    ...optionalCorrelationId('entityId', args.entityId),
+    ...optionalCorrelationId('scriptId', args.scriptId),
+    ...optionalCorrelationId('previewId', args.planId),
+  });
+}
+function optionalCorrelationId(key: 'entityId' | 'scriptId' | 'previewId', value: unknown): Partial<Record<typeof key, StableId>> {
+  try { return value === undefined ? {} : { [key]: stable(value, key) } as Record<typeof key, StableId>; } catch { return {}; }
+}
 function readBaseRevision(args: JsonObject): number | undefined { return typeof args.baseRevision === 'number' ? args.baseRevision : undefined; }
 function assertResultBudget(value: JsonObject, maximum: number): void { if (new TextEncoder().encode(canonicalStringify(value)).byteLength > maximum) throw new GameToolProtocolError('tool.result-too-large', `Tool result exceeds ${maximum} bytes.`); }
 function enforceLogHealth(toolId: StableId, effect: GameToolDefinition['effect'], status: ReturnType<OperationLog['status']>): void { if (toolId === 'preview.stop' || effect === 'observe') return; const allowed = effect === 'reversible-edit' ? status.allowsMutation : effect === 'trusted-code' ? status.allowsTrustedCode : status.allowsRuntimeStart; if (!allowed) throw new GameToolProtocolError('tool.log-unavailable', `Operation Log health ${status.health} blocks ${effect}.`); }
@@ -351,8 +451,14 @@ function exact(value: Record<string, unknown>, required: readonly string[], opti
 }
 function optionalIdFields(value: Record<string, unknown>, keys: readonly string[]): JsonObject { return Object.freeze(Object.fromEntries(keys.flatMap((key) => value[key] === undefined ? [] : [[key, stable(value[key], key)]]))); }
 function optionalIntegers(value: Record<string, unknown>, keys: readonly string[]): JsonObject { return Object.freeze(Object.fromEntries(keys.flatMap((key) => value[key] === undefined ? [] : [[key, integer(value[key], key)]]))); }
-function enumArray(value: unknown, allowed: readonly string[], maximum: number): readonly string[] { if (!Array.isArray(value) || value.length > maximum || value.some((item) => typeof item !== 'string' || !allowed.includes(item))) throw invalid('Enum array is invalid.'); return Object.freeze([...new Set(value)]); }
-function stringArray(value: unknown, maximum: number, maxLength: number): readonly string[] { if (!Array.isArray(value) || value.length > maximum || value.some((item) => typeof item !== 'string' || item.length > maxLength)) throw invalid('String array is invalid.'); return Object.freeze([...new Set(value)]); }
+function enumArray(value: unknown, allowed: readonly string[], maximum: number): readonly string[] {
+  if (!Array.isArray(value) || value.length > maximum || new Set(value).size !== value.length || value.some((item) => typeof item !== 'string' || !allowed.includes(item))) throw invalid('Enum array is invalid.');
+  return Object.freeze([...value]);
+}
+function stringArray(value: unknown, maximum: number, maxLength: number): readonly string[] {
+  if (!Array.isArray(value) || value.length > maximum || new Set(value).size !== value.length || value.some((item) => typeof item !== 'string' || item.length > maxLength || !/^[a-z][a-z0-9./-]{2,95}$/u.test(item))) throw invalid('String array is invalid.');
+  return Object.freeze([...value]);
+}
 function stable(value: unknown, label: string): StableId { if (typeof value !== 'string') throw invalid(`${label} is invalid.`); try { return asStableId(value, label); } catch { throw invalid(`${label} is invalid.`); } }
 function string(value: unknown, label: string, maximum: number): string { if (typeof value !== 'string' || !value || value.length > maximum) throw invalid(`${label} is invalid.`); return value; }
 function boundedString(value: unknown, label: string, maximum: number, nonEmpty = false): string { if (typeof value !== 'string' || value.length > maximum || (nonEmpty && !value.trim())) throw invalid(`${label} is invalid.`); return value; }
@@ -361,5 +467,24 @@ function revisionOrCurrent(value: unknown, currentRevision: number): number { re
 function number(value: unknown, label: string): number { if (typeof value !== 'number' || !Number.isFinite(value)) throw invalid(`${label} is invalid.`); return value; }
 function invalid(message: string): GameToolProtocolError { return new GameToolProtocolError('tool.arguments-invalid', message); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+function assertBoundedJsonObject(value: Record<string, unknown>): void {
+  const seen = new WeakSet<object>(); let nodes = 0; let stringBytes = 0;
+  const visit = (item: unknown, depth: number): void => {
+    nodes += 1;
+    if (nodes > 20_000 || depth > 32) throw invalid('Tool arguments exceed the structural budget.');
+    if (item === null || typeof item === 'boolean') return;
+    if (typeof item === 'number') { if (!Number.isFinite(item)) throw invalid('Tool arguments contain a non-finite number.'); return; }
+    if (typeof item === 'string') { stringBytes += new TextEncoder().encode(item).byteLength; if (stringBytes > 256 * 1024) throw invalid('Tool arguments exceed the text budget.'); return; }
+    if (typeof item !== 'object') throw invalid('Tool arguments must contain JSON values only.');
+    if (seen.has(item)) throw invalid('Tool arguments contain a cycle.');
+    seen.add(item);
+    if (Array.isArray(item)) { for (const child of item) visit(child, depth + 1); }
+    else for (const [key, child] of Object.entries(item)) { visit(key, depth + 1); visit(child, depth + 1); }
+    seen.delete(item);
+  };
+  visit(value, 0);
+}
 function fuseAbort(signal: AbortSignal | undefined, controller: AbortController): () => void { if (!signal) return () => {}; const abort = () => controller.abort(signal.reason); if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true }); return () => signal.removeEventListener('abort', abort); }
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }
+function errorCode(value: unknown): string { return value instanceof GameToolProtocolError ? value.code : 'tool.execution-failed'; }
+function prefixedDigest(value: string): string { return value.startsWith('sha256:') ? value : `sha256:${value}`; }

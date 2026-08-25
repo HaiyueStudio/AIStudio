@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -26,6 +26,7 @@ import {
 } from './ipc.js';
 import { AgentPreviewBroker } from './agent-preview-broker.js';
 import { StudioConversationHost } from './conversation-host.js';
+import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
 import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
 
 const descriptor = defineEditorAppDescriptor({
@@ -215,6 +216,8 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
 
 async function boot(): Promise<void> {
   const userDataRoot = app.getPath('userData');
+  const deepSeekCredentials = new DeepSeekCredentialStore(userDataRoot, safeStorage);
+  await deepSeekCredentials.importFromEnvironment(process.env);
   const plugins: StudioPluginDefinition<any>[] = [
     createEditorFoundationProviderPlugin(),
     createOperationLogPlugin(),
@@ -225,8 +228,8 @@ async function boot(): Promise<void> {
     ...createPocAgentGameAuthoringPlugins({
       backend: agentProfile.backend,
       preview: agentPreview,
-      resolveDeepSeekApiKey: async () => process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET?.trim() || process.env.DEEPSEEK_API_KEY?.trim() || null,
-      clearDeepSeekApiKey: async () => { delete process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET; delete process.env.DEEPSEEK_API_KEY; },
+      resolveDeepSeekApiKey: () => deepSeekCredentials.resolve(),
+      clearDeepSeekApiKey: () => deepSeekCredentials.clear(),
     }),
     createElectronIpcPlugin(),
   ];
