@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-25T18:30:00+08:00",
-  "implementationCommit": "aff013539c08972ce5c28e44117933c775072579",
+  "generatedAt": "2026-08-25T19:20:52+08:00",
+  "implementationCommit": "cf3018b051776d90b1241c32453d615eefa104f2",
   "profiles": {
     "poc-editor-harness": { "backend": "harness-api-key", "auth": "api-key" },
     "poc-editor-codex": { "backend": "codex-app-server", "auth": "chatgpt" }
@@ -43,7 +43,7 @@
   },
   "gates": {
     "workspaceCheck": "pass",
-    "packageTests": { "passed": 127, "failed": 0 },
+    "packageTests": { "passed": 128, "failed": 0 },
     "appFocusedTests": { "passed": 25, "failed": 0 },
     "audit": { "dependencies": 132, "totalVulnerabilities": 0 }
   },
@@ -61,8 +61,8 @@
     "status": "pass",
     "passed": 2,
     "failed": 0,
-    "desktopSmokeMs": 38044.9805,
-    "webHostSmokeMs": 3745.8532,
+    "desktopSmokeMs": 43214.5222,
+    "webHostSmokeMs": 3851.4263,
     "runnerBoundary": "authorized process outside the Codex workspace sandbox; Electron security sandboxing remained enabled",
     "electronSecurity": { "rendererSandbox": true, "gpuSandbox": true, "contextIsolation": true, "nodeIntegration": false, "realWebGpu": true },
     "diagnostic": "The earlier 0xC0000135 came from the outer Codex workspace sandbox blocking the Electron GPU child from loading DriverStore components. Both unchanged smoke tests passed outside that outer sandbox without Electron flags or software fallback."
@@ -81,7 +81,7 @@
   },
   "faultMatrix": {
     "status": "pass",
-    "covered": ["script-exception", "stale-revision", "plugin-activation-failure", "backend-crash-restart", "partial-tail", "checksum-corruption", "rotation", "disk-full", "approval-race", "backend-cancel", "tool-timeout", "late-result", "restart-replay", "profile-replacement-100", "viewport-replacement-100"]
+    "covered": ["script-exception", "agent-diagnostics-controlled-repair-after-restart", "stale-revision", "plugin-activation-failure", "backend-crash-restart", "partial-tail", "checksum-corruption", "rotation", "disk-full", "approval-race", "backend-cancel", "tool-timeout", "late-result", "restart-replay", "profile-replacement-100", "viewport-replacement-100"]
   },
   "decision": "GO",
   "blockingConditions": []
