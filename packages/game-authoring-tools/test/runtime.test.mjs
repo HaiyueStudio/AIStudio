@@ -15,6 +15,12 @@ const transform = entity.getComponent('CartesianTransform3D') as unknown as { se
 transform?.setPosition(time / 1000, 0, 0);
 `;
 
+const runtimeFailureScript = `throw new Error('fixture runtime failure');`;
+const repairedRuntimeScript = `
+const transform = entity.getComponent('CartesianTransform3D') as unknown as { setPosition(x: number, y: number, z: number): unknown } | null;
+transform?.setPosition(0, 1, 0);
+`;
+
 test('fixed tool catalog exposes only the 14 bounded POC capabilities', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
     'project.snapshot', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
@@ -441,6 +447,52 @@ test('fake backend deterministic E2E creates, transforms, scripts and starts pre
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
+test('agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam', async () => {
+  const beforeRestart = await fixture(); let beforeDisposed = false; let afterRestart; let coordinator;
+  try {
+    const created = await executeReady(beforeRestart.runtime, call('call:repair-seed-create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Broken Runner' }));
+    const entityId = created.value.entity.id;
+    const proposed = await executeReady(beforeRestart.runtime, call('call:repair-seed-propose', 'script.propose', {
+      baseRevision: created.afterRevision, entityId, text: runtimeFailureScript, capabilities: ['read', 'debug'],
+    }));
+    const applied = await approveAndExecute(beforeRestart.runtime, call('call:repair-seed-apply', 'script.apply', {
+      baseRevision: proposed.afterRevision, proposalId: proposed.value.proposalId,
+    }));
+    await beforeRestart.workspace.save();
+    await beforeRestart.operationLog.append({
+      kind: 'preview/runtime-error', severity: 'error', source: asStableId('studio.preview'),
+      correlation: { entityId, scriptId: applied.value.scriptId, previewId: asStableId('preview:repair-fixture') },
+      payload: { code: 'fixture.runtime-error', message: 'fixture runtime failure', source: runtimeFailureScript, line: 1, column: 1 },
+    });
+    const restartState = { projectRoot: beforeRestart.projectRoot, userDataRoot: beforeRestart.userDataRoot, time: beforeRestart.time };
+    await dispose(beforeRestart); beforeDisposed = true;
+
+    afterRestart = await fixture({}, restartState);
+    const approvals = [];
+    coordinator = new AgentGameAuthoringCoordinator(afterRestart.runtime, {
+      async request(preparation) { approvals.push(preparation.toolId); return 'allow-once'; },
+    });
+    const summary = await coordinator.run(repairBackend(entityId, repairedRuntimeScript), { prompt: 'Inspect the prior preview failure and repair the script.' });
+
+    assert.equal(summary.terminal, 'completed');
+    assert.deepEqual(summary.results.map((item) => item.toolId), ['diagnostics.query', 'script.propose', 'script.apply']);
+    assert.deepEqual(approvals, ['script.apply']);
+    assert.equal(summary.results[0].value.count, 1);
+    assert.equal(summary.results[0].value.events[0].kind, 'preview/runtime-error');
+    assert.equal(summary.results[0].value.events[0].correlation.entityId, entityId);
+    assert.equal(afterRestart.scripts.snapshot().resources[0].text, repairedRuntimeScript);
+    assert.equal(afterRestart.workspace.snapshot().document.revision, 4);
+
+    const repairFacts = await afterRestart.operationLog.query({ toolCallId: asStableId('toolcall:repair-apply'), limit: 100, traverseCorrelation: true });
+    assert.ok(repairFacts.events.some((item) => item.kind === 'approval/allow-once'));
+    assert.ok(repairFacts.events.some((item) => item.kind === 'document/command-committed'));
+  } finally {
+    if (coordinator) coordinator.dispose();
+    if (afterRestart) await dispose(afterRestart);
+    if (!beforeDisposed) await dispose(beforeRestart);
+  }
+});
+
 test('coordinator rejects malformed provider arguments instead of coercing them to an empty observe call', async () => {
   const value = await fixture(); let submitted;
   const backend = minimalBackend(async function* () {
@@ -476,14 +528,14 @@ test('disposing the coordinator aborts an active backend turn and is idempotent'
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
-async function fixture(runtimeOptions = {}) {
-  const projectRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-project-'));
-  const userDataRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-tools-userdata-'));
-  const time = { value: 1_000 };
+async function fixture(runtimeOptions = {}, restartState = null) {
+  const projectRoot = restartState?.projectRoot ?? await mkdtemp(path.join(tmpdir(), 'haiyue-tools-project-'));
+  const userDataRoot = restartState?.userDataRoot ?? await mkdtemp(path.join(tmpdir(), 'haiyue-tools-userdata-'));
+  const time = restartState?.time ?? { value: 1_000 };
   const operationLog = await OperationLog.open({ rootDirectory: path.join(userDataRoot, 'log'), appVersion: 'test', clock: () => new Date(time.value), eventId: (sequence) => asStableId(`event:tools:${sequence}`) });
   const resources = { documents: new EditorDocumentHost(), history: new EditorHistoryService(), tasks: new EditorTaskCoordinator(), projectSession: new EditorProjectSessionState(), operationLog, recentProjects: new RecentProjectStore(userDataRoot) };
   const workspace = new ProjectWorkspace(resources);
-  await workspace.newProject(projectRoot, 'Tool fixture');
+  if (restartState) await workspace.openProject(projectRoot); else await workspace.newProject(projectRoot, 'Tool fixture');
   const scene = new ProjectSceneAuthoringService(workspace, operationLog);
   const validator = new ScriptValidationWorker();
   const projectScripts = new ProjectScriptService(workspace, validator, operationLog);
@@ -532,6 +584,28 @@ function scriptedBackend(script) {
   };
   function event(kind, payload) { return { schemaVersion: 1, backendId, sessionId, turnId, kind, payload }; }
   async function* request(id, toolId, args) { const result = deferred(); pending = { id, resolve: result.resolve }; yield event('tool-request', { toolCallId: id, toolId, arguments: args }); return await result.promise; }
+}
+function repairBackend(entityId, repairedScript) {
+  let pending;
+  const backendId = 'backend:fake-repair'; const sessionId = 'session:fake-repair'; const turnId = 'turn:fake-repair';
+  return {
+    descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
+    async *startTurn(input) {
+      assert.equal(input.tools.length, 14);
+      let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
+      assert.equal(result.value.count, 1);
+      assert.equal(result.value.events[0].kind, 'preview/runtime-error');
+      assert.equal(result.value.events[0].correlation.entityId, entityId);
+      result = yield* request('toolcall:repair-propose', 'script.propose', { baseRevision: result.afterRevision, entityId, text: repairedScript, capabilities: ['read', 'debug'] });
+      yield* request('toolcall:repair-apply', 'script.apply', { baseRevision: result.afterRevision, proposalId: result.value.proposalId });
+      yield backendEvent('completed', { status: 'completed' });
+    },
+    async submitToolResult(id, result) { assert.equal(pending?.id, id); pending.resolve(result); pending = undefined; },
+    async authenticate() { return null; }, async status() { return { state: 'ready', authMode: 'none', rateLimits: [] }; }, async logout() {},
+    resumeTurn() { throw new Error('unused'); }, async answerQuestion() {}, async resolveBackendApproval() {}, async cancelTurn() {}, async dispose() {},
+  };
+  function backendEvent(kind, payload) { return { schemaVersion: 1, backendId, sessionId, turnId, kind, payload }; }
+  async function* request(id, toolId, args) { const result = deferred(); pending = { id, resolve: result.resolve }; yield backendEvent('tool-request', { toolCallId: id, toolId, arguments: args }); return await result.promise; }
 }
 function minimalBackend(startTurn, submitToolResult = async () => {}) {
   return {
