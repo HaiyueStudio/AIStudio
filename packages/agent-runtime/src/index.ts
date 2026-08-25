@@ -3,6 +3,7 @@ import { canonicalStringify, operationLogServiceToken, sha256, type OperationLog
 import type { AgentModelCatalog } from './model-controls.js';
 import { validateAgentTurnConfig } from './model-controls.js';
 import { UsageLedgerStore, type NormalizedFinishReason, type UsageLedger } from './usage-ledger.js';
+import { PromptContextRuntime, type ContextCacheMetrics } from './prompt-context.js';
 
 export { BudgetError, TaskBudgetController, validateTaskBudget } from './budget.js';
 export type { BudgetConsumption, BudgetDecision, BudgetMetric } from './budget.js';
@@ -16,6 +17,8 @@ export { M12_DEFAULT_PRICING_CATALOG } from './default-pricing.js';
 export type { PricingCatalogV1, PricingEntryV1 } from '@haiyue/ai-studio-contracts';
 export { UsageLedger, UsageLedgerError, UsageLedgerStore } from './usage-ledger.js';
 export type { NormalizedFinishReason, UsageLedgerSnapshot, UsageUpdate } from './usage-ledger.js';
+export { GENERAL_GAME_AUTHORING_MODULES, PromptContextError, PromptContextRuntime, PromptModuleRegistry } from './prompt-context.js';
+export type { CommitConversationInput, ContextCacheMetrics, ContextProjectSnapshot, PreparedTurnContext, PromptModuleDefinition, PromptModuleSnapshot, PromptProfileSnapshot, VisibleConversationFacts } from './prompt-context.js';
 
 export type AgentBackendKind = 'harness-api-key' | 'codex-app-server';
 export type AgentBackendEventKind = 'status' | 'conversation-node' | 'tool-request' | 'question' | 'approval' | 'usage' | 'completed' | 'diagnostic';
@@ -39,6 +42,7 @@ export interface AgentLoginHandoff { readonly id: StableId; readonly kind: 'brow
 export interface AgentTurnInput {
   readonly taskId: StableId; readonly config: AgentTurnConfigV2;
   readonly sessionId?: StableId; readonly prompt: string; readonly contextArtifactIds: readonly StableId[];
+  readonly contextCache?: ContextCacheMetrics;
   readonly tools: readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[];
 }
 export interface AgentBackendEvent {
@@ -90,17 +94,24 @@ export class AgentTurnRuntime {
   private readonly active = new Map<StableId, AbortController>();
   private disposed = false;
   readonly usage = new UsageLedgerStore();
-  constructor(private readonly registry: AgentBackendRegistry, private readonly log: OperationLog) {}
+  constructor(private readonly registry: AgentBackendRegistry, private readonly log: OperationLog, readonly context = new PromptContextRuntime(log)) {}
   async *start(backendId: StableId, input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
-    this.assertActive(); validateTurnInput(input);
+    this.assertActive();
+    let preparedInput = input;
+    if (input.contextArtifactIds.length === 0) {
+      const prepared = await this.context.prepare({ conversationKey: asStableId(`conversation:${input.taskId}`), backendId, taskId: input.taskId, request: input.prompt, tools: input.tools, project: null });
+      preparedInput = Object.freeze({ ...input, prompt: prepared.prompt, contextArtifactIds: prepared.contextArtifactIds, contextCache: prepared.cache });
+    }
+    validateTurnInput(preparedInput);
     const backend = this.registry.get(backendId);
-    const negotiation = await backend.negotiate(input.config, signal);
+    await this.context.assertReadable(preparedInput.contextArtifactIds);
+    const negotiation = await backend.negotiate(preparedInput.config, signal);
     await this.log.append({ kind: 'agent/config-negotiated', severity: negotiation.status === 'rejected' ? 'error' : negotiation.status === 'degraded' ? 'warning' : 'info', source: asStableId('studio.agent-runtime'), payload: {
-      backendId, taskId: input.taskId, requestedModel: input.config.model, requestedReasoningEffort: input.config.reasoningEffort, requestedOutputTokenLimit: input.config.outputTokenLimit,
+      backendId, taskId: preparedInput.taskId, requestedModel: preparedInput.config.model, requestedReasoningEffort: preparedInput.config.reasoningEffort, requestedOutputTokenLimit: preparedInput.config.outputTokenLimit,
       status: negotiation.status, effective: negotiation.effective, diagnostics: negotiation.diagnostics.map((entry) => ({ code: entry.code, ...(entry.capability ? { capability: entry.capability } : {}) })),
     }, provenance: { backendId, upstream: backend.upstream ?? { protocolVersion: backend.descriptor.protocolVersion } } }, { signal });
     if (negotiation.status === 'rejected' || !negotiation.effective) throw new AgentBackendProtocolError('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' ') || 'Agent turn configuration was rejected.');
-    yield* this.consume(backend, backend.startTurn(input, signal), input, signal);
+    yield* this.consume(backend, backend.startTurn(preparedInput, signal), preparedInput, signal);
   }
   async *resume(backendId: StableId, sessionId: StableId, turnId: StableId, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     this.assertActive(); const backend = this.registry.get(backendId);
@@ -129,7 +140,7 @@ export class AgentTurnRuntime {
         const event = validateAgentBackendEvent(raw, backend.descriptor.id);
         if (controller.signal.aborted && event.kind !== 'usage' && event.kind !== 'completed') continue;
         coordinates ??= Object.freeze({ sessionId: event.sessionId, turnId: event.turnId });
-        if (!ledger && input) ledger = this.usage.get(event.turnId) ?? this.usage.open({ taskId: input.taskId, sessionId: event.sessionId, turnId: event.turnId, providerRequestDigest: sha256(input.prompt) as M12Digest, startedAtMs });
+        if (!ledger && input) ledger = this.usage.get(event.turnId) ?? this.usage.open({ taskId: input.taskId, sessionId: event.sessionId, turnId: event.turnId, providerRequestDigest: sha256(input.prompt) as M12Digest, startedAtMs, ...(input.contextCache ? { contextCache: input.contextCache } : {}) });
         ledger ??= this.usage.get(event.turnId);
         if (event.sessionId !== coordinates.sessionId || event.turnId !== coordinates.turnId) throw new AgentBackendProtocolError('agent.coordinate-drift', 'Backend changed session/turn identity within one stream.');
         if (terminal && event.kind !== 'usage') throw new AgentBackendProtocolError('agent.event-after-terminal', 'Backend emitted a non-usage event after terminal completion.');
@@ -155,13 +166,13 @@ export class AgentTurnRuntime {
   private async appendUsageRecord(record: import('@haiyue/ai-studio-contracts').UsageRecordV2, signal?: AbortSignal): Promise<void> {
     await this.log.append({ kind: 'agent/usage-recorded', severity: 'info', source: asStableId('studio.agent-runtime'), correlation: { sessionId: record.sessionId as StableId, turnId: record.turnId as StableId, ...(record.toolCallId ? { toolCallId: record.toolCallId as StableId } : {}) }, payload: {
       usageRecordId: record.id, taskId: record.taskId, inputTokens: record.inputTokens, cachedInputTokens: record.cachedInputTokens, cacheWriteTokens: record.cacheWriteTokens, outputTokens: record.outputTokens, reasoningTokens: record.reasoningTokens,
-      toolInputBytes: record.toolInputBytes, toolOutputBytes: record.toolOutputBytes, wallTimeMs: record.wallTimeMs, final: record.final,
+      toolInputBytes: record.toolInputBytes, toolOutputBytes: record.toolOutputBytes, wallTimeMs: record.wallTimeMs, ...(record.contextCache ? { contextCache: record.contextCache } : {}), final: record.final,
     } }, { signal });
   }
   private assertActive(): void { if (this.disposed) throw new AgentBackendProtocolError('agent.runtime-disposed', 'Agent turn runtime is disposed.'); }
 }
 
-export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; readonly usage: UsageLedgerStore; readonly accounting: import('./accounting.js').TaskAccountingRegistry; }
+export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; readonly usage: UsageLedgerStore; readonly accounting: import('./accounting.js').TaskAccountingRegistry; readonly context: PromptContextRuntime; }
 export const agentRuntimeServiceToken = createStudioServiceToken<AgentRuntimeService>('studio.agent-runtime');
 export const agentBackendRegistryToken = createStudioServiceToken<AgentBackendRegistry>('studio.agent-backend-registry');
 
@@ -181,8 +192,9 @@ export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): St
         for (const backend of await options.createBackends()) registry.register(backend);
         context.owner.assertActive();
       } catch (cause) { await registry.dispose(); throw cause; }
-      const turns = new AgentTurnRuntime(registry, log); const { TaskAccountingRegistry } = await import('./accounting.js');
-      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage) });
+      const promptContext = new PromptContextRuntime(log); await promptContext.initialize();
+      const turns = new AgentTurnRuntime(registry, log, promptContext); const { TaskAccountingRegistry } = await import('./accounting.js');
+      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage), context: promptContext });
       context.services.provide(agentBackendRegistryToken, registry); context.services.provide(agentRuntimeServiceToken, service);
       context.effects.own('agent-runtime.dispose', () => turns.dispose());
     },

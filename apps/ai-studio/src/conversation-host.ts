@@ -1,5 +1,5 @@
-import { asStableId, type AgentTurnConfigV2, type JsonObject, type M12Digest, type M12ReasoningEffort, type StableId, type TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
-import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
+import { asStableId, type AgentTurnConfigV2, type JsonObject, type M12ReasoningEffort, type StableId, type TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
+import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type ContextProjectSnapshot, type PromptProfileSnapshot, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
 import type { GameAuthoringToolService, GameToolApproval, GameToolPreparation } from '@haiyue/ai-studio-game-authoring-tools';
 import { sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import {
@@ -24,6 +24,13 @@ interface ActiveTurn {
   readonly localTurnId: StableId;
   approvedPlan: ApprovedPlanExecution | null;
   continuationRequested: boolean;
+  readonly conversationKey: StableId;
+  readonly projectId: StableId | null;
+  readonly goal: string;
+  readonly decisions: string[];
+  readonly toolFacts: string[];
+  readonly blockers: string[];
+  contextCommitted: boolean;
 }
 interface BackendSelection { readonly model: string; readonly reasoningEffort: M12ReasoningEffort; readonly outputTokenLimit: number; }
 interface PendingApproval { readonly preparation: GameToolPreparation; readonly approval: GameToolApproval; readonly nodeId: StableId; readonly resolve: () => void; readonly reject: (cause: unknown) => void; }
@@ -53,6 +60,7 @@ export interface ConversationHostOptions {
   readonly tools: GameAuthoringToolService;
   readonly operationLog: OperationLog;
   readonly isProjectOpen?: () => boolean;
+  readonly projectContext?: () => ContextProjectSnapshot | null;
   readonly openLoginHandoff?: (backendId: StableId, handoff: AgentLoginHandoff) => Promise<void>;
 }
 
@@ -201,25 +209,23 @@ export class StudioConversationHost {
     const initialProgressNodeId = this.nextNodeId('01-progress');
     const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
     const taskId = asStableId(`task:conversation:${this.nodeSequence + 1}`);
-    const config = this.turnConfig(backendId, taskId);
+    const tools = this.modelTools();
+    const project = this.options.projectContext?.() ?? null;
+    const conversationKey = conversationKeyFor(project);
+    const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request: prompt, tools, project });
+    const config = this.turnConfig(backendId, taskId, context.promptProfile);
     const budget = Object.freeze({ ...this.budgetTemplate, id: config.taskBudgetId, limits: Object.freeze({ ...this.budgetTemplate.limits }) });
     const account = this.options.runtime.accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
     assertBudgetAllowed(account.beginTurn());
     const clearWallBudget = armWallTimeBudget(controller, account);
     this.latestTaskId = taskId;
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false };
+    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal: prompt, decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(userNodeId, 'text', 'completed', provenance, Object.freeze({ text: prompt, role: 'user' }));
     this.project(initialProgressNodeId, 'progress', 'pending', provenance, Object.freeze({
       label: '正在分析需求', message: 'Agent 正在读取项目上下文并规划下一步。', phase: 'awaiting-first-step',
     }));
-    const tools = [PLAN_TOOL_DEFINITION, ...this.options.tools.definitions()].map((definition) => Object.freeze({
-      id: definition.id,
-      description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Call this before deciding whether a Studio project is open and before planning mutations.' : ''}`,
-      inputSchema: definition.inputSchema,
-    }));
-    const contextualPrompt = agentPrompt(prompt, this.options.isProjectOpen?.() === true);
     try {
-      await this.consume(backendId, this.options.runtime.turns.start(backendId, { taskId, config, prompt: contextualPrompt, contextArtifactIds: Object.freeze([]), tools }, controller.signal), controller.signal);
+      await this.consume(backendId, this.options.runtime.turns.start(backendId, { taskId, config, ...(context.reusedSessionId ? { sessionId: context.reusedSessionId } : {}), prompt: context.prompt, contextArtifactIds: context.contextArtifactIds, contextCache: context.cache, tools }, controller.signal), controller.signal);
     } catch (cause) { await this.captureFailure(backendId, cause); }
     finally {
       clearWallBudget();
@@ -229,27 +235,26 @@ export class StudioConversationHost {
       if (owned?.sessionId && owned.turnId) this.approvedPlanTurns.delete(turnKey(owned.sessionId, owned.turnId));
       const continuation = owned?.continuationRequested ? owned.approvedPlan : null;
       if (owned && continuation) {
-        await this.continueApprovedPlan(backendId, continuation, owned.taskId, owned.config, owned.account).catch((cause) => this.captureFailure(backendId, cause));
+        await this.continueApprovedPlan(backendId, continuation, owned.taskId, owned.config, owned.account, owned.conversationKey, owned.goal).catch((cause) => this.captureFailure(backendId, cause));
         if (this.active?.controller === controller) { this.active = null; this.changed(); }
       } else if (owned) { this.active = null; this.changed(); }
     }
   }
 
-  private async continueApprovedPlan(backendId: StableId, plan: ApprovedPlanExecution, taskId: StableId, config: AgentTurnConfigV2, account: TaskAccount): Promise<void> {
+  private async continueApprovedPlan(backendId: StableId, plan: ApprovedPlanExecution, taskId: StableId, config: AgentTurnConfigV2, account: TaskAccount, conversationKey: StableId, goal: string): Promise<void> {
     const controller = new AbortController();
     const localSessionId = asStableId(`session:approved-plan:${this.nodeSequence + 1}`);
     const localTurnId = asStableId(`turn:approved-plan:${this.nodeSequence + 1}`);
     const initialProgressNodeId = this.nextNodeId('approved-plan-progress');
     assertBudgetAllowed(account.beginTurn());
     const clearWallBudget = armWallTimeBudget(controller, account);
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false };
+    const tools = this.modelTools();
+    const project = this.options.projectContext?.() ?? null;
+    const request = approvedPlanRequest(plan, project !== null);
+    const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project });
+    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal, decisions: [`Approved plan: ${plan.title}. ${plan.summary}`], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId }), Object.freeze({
       label: '正在执行已批准方案', message: '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。', phase: 'approved-plan-execution',
-    }));
-    const tools = [PLAN_TOOL_DEFINITION, ...this.options.tools.definitions()].map((definition) => Object.freeze({
-      id: definition.id,
-      description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Call this before using a base revision.' : ''}`,
-      inputSchema: definition.inputSchema,
     }));
     await this.options.operationLog.append({
       kind: 'conversation/approved-plan-continuing', severity: 'info', source: asStableId('studio.conversation-host'), correlation: {},
@@ -257,7 +262,7 @@ export class StudioConversationHost {
     }).catch(() => undefined);
     try {
       await this.consume(backendId, this.options.runtime.turns.start(backendId, {
-        taskId, config, prompt: approvedPlanPrompt(plan, this.options.isProjectOpen?.() === true), contextArtifactIds: Object.freeze([]), tools,
+        taskId, config, ...(context.reusedSessionId ? { sessionId: context.reusedSessionId } : {}), prompt: context.prompt, contextArtifactIds: context.contextArtifactIds, contextCache: context.cache, tools,
       }, controller.signal), controller.signal);
     } catch (cause) { await this.captureFailure(backendId, cause); }
     finally {
@@ -281,7 +286,8 @@ export class StudioConversationHost {
     if (!existingAccount) assertBudgetAllowed(account.beginTurn()); else assertBudgetAllowed(account.snapshot().budgetDecision);
     const clearWallBudget = armWallTimeBudget(controller, account);
     this.latestTaskId = taskId;
-    this.active = { backendId, taskId, config, account, sessionId, turnId, controller, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: null, continuationRequested: false };
+    const project = this.options.projectContext?.() ?? null;
+    this.active = { backendId, taskId, config, account, sessionId, turnId, controller, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: null, continuationRequested: false, conversationKey: conversationKeyFor(project), projectId: project?.projectId ?? null, goal: 'Retry the interrupted visible task.', decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId, turnId }), Object.freeze({
       label: '正在恢复任务', message: 'Agent 正在恢复上次任务的上下文。', phase: 'awaiting-first-step',
     }));
@@ -306,6 +312,7 @@ export class StudioConversationHost {
         if (this.active.approvedPlan) this.approvedPlanTurns.add(turnKey(event.sessionId, event.turnId));
       }
       if (!signal.aborted) await this.captureEvent(backend, event, signal);
+      else if (event.kind === 'completed') await this.commitContext(event, terminalStatus(event.payload.status));
       if ((event.kind === 'usage' || event.kind === 'completed') && this.active) { await this.recordTaskAccounting(this.active.account, event.sessionId, event.turnId); this.changed(); }
     }
   }
@@ -333,6 +340,7 @@ export class StudioConversationHost {
       return;
     }
     if (event.kind === 'diagnostic') {
+      if (this.active) this.active.blockers.push(`${stringField(event.payload.code, 'agent.diagnostic')}: ${stringField(event.payload.message, 'Agent backend reported a diagnostic.')}`);
       this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'failed', provenance, Object.freeze({
         code: stringField(event.payload.code, 'agent.diagnostic'), message: stringField(event.payload.message, 'Agent backend reported a diagnostic.'), severity: 'error', retryable: event.payload.retryable === true,
       }));
@@ -340,6 +348,7 @@ export class StudioConversationHost {
     }
     if (event.kind === 'completed') {
       const status = terminalStatus(event.payload.status);
+      await this.commitContext(event, status);
       const approvedPlan = this.active?.sessionId === event.sessionId && this.active.turnId === event.turnId ? this.active.approvedPlan : null;
       if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && approvedPlan.attempts < 1) {
         approvedPlan.attempts += 1;
@@ -398,13 +407,16 @@ export class StudioConversationHost {
       if (definition && definition.effect !== 'observe' && this.active?.sessionId === event.sessionId && this.active.turnId === event.turnId && this.active.approvedPlan) {
         this.active.approvedPlan.mutationCount += 1;
       }
+      const resultSummary = toolResultSummary(toolId, result.status, result.value, preparation.preview.summary);
+      if (this.active) this.active.toolFacts.push(`${toolId}: ${resultSummary}`);
       this.project(this.nextNodeId('tool-result'), 'tool-result', result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed', provenance,
-        Object.freeze({ toolCallId, toolId, resultStatus: result.status, summary: toolResultSummary(toolId, result.status, result.value, preparation.preview.summary), details: boundedJson(result.value) }));
+        Object.freeze({ toolCallId, toolId, resultStatus: result.status, summary: resultSummary, details: boundedJson(result.value) }));
       stage = 'submit-result';
       await backend.submitToolResult(toolCallId, Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision }), signal);
       await this.options.runtime.turns.recordToolResult(event.turnId, toolCallId, Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision })); await this.recordTaskAccounting(account, event.sessionId, event.turnId); this.changed();
     } catch (cause) {
       const diagnostic = Object.freeze({ code: errorCode(cause), message: errorMessage(cause) });
+      if (this.active) this.active.blockers.push(`${toolId}: ${diagnostic.code}`);
       await this.options.operationLog.append({
         kind: 'conversation/tool-failed', severity: signal.aborted ? 'warning' : 'error', source: asStableId('studio.conversation-host'),
         correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId },
@@ -459,6 +471,9 @@ export class StudioConversationHost {
         attempts: 0,
         mutationCount: 0,
       };
+      this.active.decisions.push(`Approved plan: ${pending.title}. ${pending.summary}`);
+    } else if (this.active?.sessionId === pending.sessionId && this.active.turnId === pending.turnId) {
+      this.active.decisions.push(`Plan revision requested: ${pending.title}.${note?.trim() ? ` User note: ${note.trim().slice(0, 512)}` : ''}`);
     }
     const current = this.nodes.get(nodeId);
     if (current) this.project(nodeId, 'plan', 'completed', current.provenance, Object.freeze({
@@ -566,10 +581,10 @@ export class StudioConversationHost {
     if (node && node.status !== status) this.project(id, node.kind, status, node.provenance, node.content);
   }
 
-  private turnConfig(backendId: StableId, taskId: StableId): AgentTurnConfigV2 {
+  private turnConfig(backendId: StableId, taskId: StableId, promptProfile: PromptProfileSnapshot = this.options.runtime.context.prompts.profile): AgentTurnConfigV2 {
     const selection = this.backendSelections.get(backendId); if (!selection) throw new Error('The selected backend has no usable model configuration.');
     return Object.freeze({ schemaVersion: 2, backendId, model: selection.model, reasoningEffort: selection.reasoningEffort, outputTokenLimit: selection.outputTokenLimit,
-      taskBudgetId: asStableId(`budget:${taskId}`), promptProfile: Object.freeze({ id: asStableId('prompt:game-authoring-general'), version: '2.0.0', digest: sha256('m12-general-game-authoring-profile-v2') as M12Digest }),
+      taskBudgetId: asStableId(`budget:${taskId}`), promptProfile: Object.freeze({ id: promptProfile.id, version: promptProfile.version, digest: promptProfile.digest }),
       requestedCapabilities: Object.freeze(['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] as const) });
   }
 
@@ -582,8 +597,27 @@ export class StudioConversationHost {
     const snapshot = account.reconcile();
     await this.options.operationLog.append({ kind: 'agent/task-accounting', severity: snapshot.budgetDecision.status === 'hard-exceeded' ? 'error' : snapshot.budgetDecision.status === 'soft-exceeded' ? 'warning' : 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId, turnId }, payload: {
       taskId: snapshot.taskId, budgetId: snapshot.budget.id, budgetStatus: snapshot.budgetDecision.status, costRecordIds: snapshot.cost.recordIds, pricingCatalogId: snapshot.cost.pricingCatalogId, pricingCatalogVersion: snapshot.cost.pricingCatalogVersion, pricingEffectiveAt: snapshot.cost.effectiveAt, costStatus: snapshot.cost.status, amountMicros: snapshot.cost.amountMicros, currency: snapshot.cost.currency, cacheSavingMicros: snapshot.cost.cacheSavingMicros, costFinal: snapshot.cost.final,
-      inputTokens: snapshot.usage.inputTokens, cachedInputTokens: snapshot.usage.cachedInputTokens, outputTokens: snapshot.usage.outputTokens, reasoningTokens: snapshot.usage.reasoningTokens, toolInputBytes: snapshot.usage.toolInputBytes, toolOutputBytes: snapshot.usage.toolOutputBytes,
+      inputTokens: snapshot.usage.inputTokens, cachedInputTokens: snapshot.usage.cachedInputTokens, outputTokens: snapshot.usage.outputTokens, reasoningTokens: snapshot.usage.reasoningTokens, toolInputBytes: snapshot.usage.toolInputBytes, toolOutputBytes: snapshot.usage.toolOutputBytes, ...(snapshot.usage.contextCache ? { contextCache: snapshot.usage.contextCache } : {}),
     } }).catch(() => undefined);
+  }
+
+  private modelTools(): readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] {
+    return Object.freeze([PLAN_TOOL_DEFINITION, ...this.options.tools.definitions()].map((definition) => Object.freeze({
+      id: definition.id,
+      description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Inspect this before planning or using a document revision.' : ''}`,
+      inputSchema: definition.inputSchema,
+    })));
+  }
+
+  private async commitContext(event: AgentBackendEvent, status: 'completed' | 'cancelled' | 'failed' | 'interrupted'): Promise<void> {
+    const active = this.active;
+    if (!active || active.contextCommitted || active.sessionId !== event.sessionId || active.turnId !== event.turnId) return;
+    active.contextCommitted = true;
+    await this.options.runtime.context.commit({
+      conversationKey: active.conversationKey, backendId: active.backendId, taskId: active.taskId, sessionId: event.sessionId, turnId: event.turnId,
+      projectId: active.projectId, goals: [active.goal], decisions: active.decisions, toolFacts: active.toolFacts,
+      blockers: status === 'completed' ? active.blockers : [...active.blockers, `Turn ended with ${status}.`],
+    });
   }
 
   private internalNodeId(kind: string, turnId: StableId): StableId { return asStableId(`node:${kind}:${sha256(turnId).slice(7, 23)}`); }
@@ -669,57 +703,17 @@ function toolResultSummary(toolId: StableId, status: 'completed' | 'rejected' | 
   return fallback;
 }
 function numberField(value: unknown): number { return typeof value === 'number' && Number.isFinite(value) ? value : 0; }
-function agentPrompt(prompt: string, projectOpen: boolean): string {
+function approvedPlanRequest(plan: ApprovedPlanExecution, projectOpen: boolean): string {
   return [
-    'Authoritative AIStudio runtime context:',
-    JSON.stringify({ schemaVersion: 1, project: { open: projectOpen } }),
-    'Treat this project-open state as newer than assumptions from the user request. Call project.snapshot before deciding availability or using a base revision.',
-    projectOpen
-      ? 'A project is open. Do not claim that no AIStudio project is open.'
-      : 'No project document is open. Ask the user to click New once; New creates an untitled in-memory project and does not require a folder. Do not ask the user to choose a directory before authoring.',
-    'Authoring workflow invariants:',
-    '- Before every project mutation, inspect project.snapshot and scene.list-entities, then call studio.plan.propose with a detailed, user-readable plan. The plan must identify each authored entity, its responsibility and script owner, plus the rendering/data strategy for dynamic or repeated content. Do not call a mutation tool until studio.plan.propose returns approvedForExecution=true.',
-    '- Stable, independently editable scene objects should be authoring entities. Repeated or fast-changing gameplay state such as a snake body, trail, bullet pool, tile grid, foliage or particles must normally use one semantic authoring entity with controller-owned reusable/instance data. For Snake, do not create one entity per body segment: use one SnakeBody entity and vary its active instance data as length changes.',
-    '- Explicitly compare persistent entities, controller-managed state, pooling and instanced rendering in the plan. There is no arbitrary entity-count limit, but duplicated entities are not an acceptable substitute for dynamic instance data when the objects share geometry, material, lifetime and behavior. If the current runtime lacks a required instance operation, disclose that limitation in the plan instead of silently generating many entities.',
-    '- Dynamic instances are supported in trusted preview scripts with the scene capability: const body = api.scene.instances("SnakeBody", 256); body.setCount(length); body.set(index, { position: { x, y, z }, scale: { x: 1, y: 1, z: 1 }, color: [0.12, 0.82, 0.28, 1] }). Create exactly one geometry entity with that name and let one controller update its instance data.',
-    '- After the plan is approved, execute the accepted low-risk reversible edits directly and efficiently. Independent operations may be issued together; dependent operations must still consume the preceding tool result. Ask again only when the scope materially expands beyond the approved plan.',
-    '- entity.create supports geometry cube, sphere, cone, cylinder, plane, torus and icosahedron; lights directional-light, point-light and ambient-light; and entity-specific material appearances using basic, pbr, blinn-phong or normal plus RGBA color channels from 0 to 1. The plan must define a deliberate visual palette, and semantically different roles such as snake, food and board must not all keep the default color. Set material and color during entity.create, or use material.set for an existing geometry.',
-    '- Instanced content controls color per instance: pass color in every api.scene.instances(...).set(index, { position, color: [r, g, b, a] }) call when the instances need a deliberate palette. The authoring entity material color does not replace per-instance colors during instanced preview rendering.',
-    '- Put project-wide gameplay in one clearly named Empty controller such as GameController or <GameName>Game. The Run command chooses controller-like nodes ahead of incidental Scene selection. Use api.read.find/api.read.findAll or world lookups to update the visible entities from that controller.',
-    '- For a new visual game or any request that includes Play/preview, create at least one geometry entity before proposing scripts or calling preview.validate. Do not rely on a script to create the initial authoring scene.',
-    '- Project scripts are onUpdate function bodies, not modules: entity, component, world, time, delta, and api are already in scope. Never emit import, export, require, module.exports, or an exported/lifecycle-function wrapper.',
-    '- If script source uses api.scene (including api.scene.instances), include scene in script.propose capabilities and reuse the capabilities returned by script.propose for preview.validate. A script.ts.2339 saying scene is missing is a capability mismatch: add scene to the tool capabilities instead of repeatedly rewriting the same source.',
-    '- After every script.propose call, inspect the diagnostics and canApply fields. If any error exists or canApply is false, do not call script.apply. Rewrite the complete script, propose again, and repeat until diagnostics contain zero errors; only then apply it.',
-    '- Studio binds the current authoritative baseRevision when it is omitted. Never guess a revision. If you explicitly provide baseRevision, use the last returned afterRevision.',
-    '- Put the initial position, rotation and scale in entity.create.transform. Do not issue transform.set for an entity being created in the same tool batch: wait for entity.create to return result.entity.id before any later edit.',
-    '- After each mutation, inspect its result before issuing a dependent mutation. Do not retry preview.start unchanged after a no-renderables failure; create an appropriate geometry primitive, verify the scene, validate again, then start the new plan.',
-    'User request:',
-    prompt,
-  ].join('\n');
+    projectOpen ? 'Execute the already approved plan against the current project.' : 'The project closed after approval; report that execution cannot continue.',
+    canonicalPlan(plan),
+    'Do not request the same plan approval again. Re-inspect the current revision, execute accepted reversible steps, and report any scoped approval or capability that still blocks execution.',
+  ].join('\n\n');
 }
-function approvedPlanPrompt(plan: ApprovedPlanExecution, projectOpen: boolean): string {
-  return [
-    'Authoritative AIStudio runtime context:',
-    JSON.stringify({ schemaVersion: 1, project: { open: projectOpen }, approvedPlan: {
-      title: plan.title,
-      summary: plan.summary,
-      items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })),
-      ...(plan.note ? { userNote: plan.note } : {}),
-    } }),
-    projectOpen
-      ? 'A project is open. The user already approved the plan above in AIStudio.'
-      : 'The project was closed after approval. Explain that execution cannot continue; do not claim the plan was executed.',
-    'Execution continuation invariants:',
-    '- Do not call studio.plan.propose again. This continuation exists because the previous planning turn ended without performing any approved edit.',
-    '- Immediately inspect project.snapshot and scene.list-entities, then execute the approved items with the supplied Studio mutation tools.',
-    '- Low-risk reversible edits covered by the approved plan do not need another plan confirmation. Dangerous capabilities may still require their scoped approval card.',
-    '- Use one semantic authoring entity plus controller-owned instance data for repeated dynamic content; never create one persistent entity per snake body segment.',
-    '- Preserve the approved visual palette: entity.create and material.set accept normalized RGBA color. Use visibly different colors for distinct gameplay roles. For api.scene.instances, set color on each instance transform rather than relying on the authoring entity default.',
-    '- Project scripts are onUpdate function bodies. Never emit import, export, require, module.exports, or a lifecycle wrapper.',
-    '- If source uses api.scene, include scene in script.propose capabilities and reuse the returned capabilities for preview.validate. Treat script.ts.2339 for api.scene as a missing capability, not as source that should be retried unchanged.',
-    '- Do not finish with a statement that you are waiting for approval: approval has already been granted. Finish only after executing tools or reporting a concrete tool limitation.',
-  ].join('\n');
+function canonicalPlan(plan: ApprovedPlanExecution): string {
+  return JSON.stringify({ title: plan.title, summary: plan.summary, items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
 }
+function conversationKeyFor(project: ContextProjectSnapshot | null): StableId { return project ? asStableId(`conversation:${project.projectId}`) : asStableId('conversation:workspace-empty'); }
 const DEFAULT_TASK_BUDGET: TaskBudgetV2 = Object.freeze({ schemaVersion: 2, id: asStableId('budget:conversation-default'), enforcement: 'hard', limits: Object.freeze({
   inputTokens: 200_000, outputTokens: 50_000, estimatedCostMicros: 2_000_000, wallTimeMs: 10 * 60_000, turns: 12, toolCalls: 100, repairIterations: 5, observationBytes: 5_000_000,
 }) });

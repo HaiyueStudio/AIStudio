@@ -80,6 +80,13 @@ test('source redaction, taint, immutable artifacts and bug bundle contain no sec
     environment: { API_KEY: 'API_KEY_CANARY-12345678' },
     marked: 'CODEX_TOKEN_CANARY-12345678',
   }, {}, { taintedFields: ['/marked'] });
+  const repeated = await log.putArtifactDetailed({
+    script: 'const visible = true;',
+    environment: { API_KEY: 'API_KEY_CANARY-12345678' },
+    marked: 'CODEX_TOKEN_CANARY-12345678',
+  }, {}, { taintedFields: ['/marked'] });
+  assert.equal(repeated.localHit, true);
+  assert.equal(repeated.reference.id, artifact.id);
   const persisted = await log.append(event(0, {
     payload: {
       apiKey: 'SECRET_CANARY-12345678',

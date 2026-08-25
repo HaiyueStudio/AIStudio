@@ -68,7 +68,7 @@ function normalizeHarnessEvent(backendId: StableId, raw: HarnessBridgeEvent, usa
   if (raw.type === 'usage') return backendEvent(backendId, raw.sessionId, raw.turnId, 'usage', {
     eventId: `${raw.turnId}:usage:${usageSequence}`, sequence: usageSequence, mode: 'delta',
     inputTokens: raw.inputTokens + (raw.cacheReadTokens ?? 0) + (raw.cacheWriteTokens ?? 0), outputTokens: raw.outputTokens,
-    cachedInputTokens: raw.cacheReadTokens ?? 0, cacheWriteTokens: raw.cacheWriteTokens ?? 0, reasoningTokens: raw.reasoningTokens ?? 0,
+    cachedInputTokens: raw.cacheReadTokens ?? null, cacheWriteTokens: raw.cacheWriteTokens ?? null, reasoningTokens: raw.reasoningTokens ?? null,
   });
   if (raw.diagnostic) return backendEvent(backendId, raw.sessionId, raw.turnId, 'diagnostic', raw.diagnostic);
   return backendEvent(backendId, raw.sessionId, raw.turnId, 'completed', { status: raw.status, finishReason: raw.finishReason });

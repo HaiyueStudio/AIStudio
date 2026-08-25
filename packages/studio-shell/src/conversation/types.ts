@@ -57,7 +57,7 @@ export interface ConversationTaskAccountingReadModel {
   readonly taskId: StableId;
   readonly budget: TaskBudgetV2;
   readonly budgetStatus: 'within' | 'soft-exceeded' | 'hard-exceeded';
-  readonly usage: Readonly<{ inputTokens: number | null; cachedInputTokens: number | null; outputTokens: number | null; reasoningTokens: number | null; toolInputBytes: number; toolOutputBytes: number; wallTimeMs: number }>;
+  readonly usage: Readonly<{ inputTokens: number | null; cachedInputTokens: number | null; outputTokens: number | null; reasoningTokens: number | null; toolInputBytes: number; toolOutputBytes: number; wallTimeMs: number; contextCache?: Readonly<{ localArtifactHits: number; localArtifactMisses: number; deltaReuseBytes: number; providerCacheEligibleBytes: number; providerReportedHitTokens: number | null }> }>;
   readonly cost: Readonly<{ status: 'actual' | 'estimated' | 'unknown'; amountMicros: number | null; currency: string | null; cacheSavingMicros: number | null; explanation: string; final: boolean }>;
 }
 

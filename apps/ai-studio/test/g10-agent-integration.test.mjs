@@ -28,7 +28,9 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
     async submitToolResult(id, result) { if (id === planToolCallId) releasePlan(); else { submitted = result; releaseTool(); } },
     async answerQuestion() {}, async resolveBackendApproval() {},
   };
+  const context = contextFixture();
   const runtime = {
+    context,
     accounting: accountingFixture(),
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     turns: {
@@ -59,7 +61,7 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   const logEvents = [];
   const host = new StudioConversationHost({
     runtime, tools, operationLog: { async append(value) { logEvents.push(value); } },
-    isProjectOpen: () => true,
+    isProjectOpen: () => true, projectContext: projectContextFixture,
     async openLoginHandoff(id, handoff) { openedHandoff = { id, handoff }; },
   });
   await host.initialize();
@@ -76,23 +78,14 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   await host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-always' });
   await waitFor(() => host.replay().busy === false);
   assert.equal(decision, 'allow-always');
-  assert.match(startedInput.prompt, /"open":true/);
-  assert.match(startedInput.prompt, /A project is open\. Do not claim that no AIStudio project is open\./);
-  assert.match(startedInput.prompt, /Stable, independently editable scene objects should be authoring entities/);
-  assert.match(startedInput.prompt, /There is no arbitrary entity-count limit/);
-  assert.match(startedInput.prompt, /Repeated or fast-changing gameplay state/);
-  assert.match(startedInput.prompt, /one SnakeBody entity/);
-  assert.match(startedInput.prompt, /studio\.plan\.propose/);
-  assert.match(startedInput.prompt, /geometry cube, sphere, cone, cylinder, plane, torus and icosahedron/);
-  assert.match(startedInput.prompt, /snake, food and board must not all keep the default color/);
-  assert.match(startedInput.prompt, /pass color in every api\.scene\.instances/);
-  assert.match(startedInput.prompt, /create at least one geometry entity before proposing scripts/);
-  assert.match(startedInput.prompt, /Never emit import, export, require, module\.exports/);
-  assert.match(startedInput.prompt, /script\.ts\.2339 saying scene is missing is a capability mismatch/);
-  assert.match(startedInput.prompt, /reuse the capabilities returned by script\.propose for preview\.validate/);
-  assert.match(startedInput.prompt, /If any error exists or canApply is false, do not call script\.apply/);
-  assert.match(startedInput.prompt, /Do not retry preview\.start unchanged/);
-  assert.match(startedInput.prompt, /User request:\nCreate a Player cube$/);
+  assert.match(startedInput.prompt, /AIStudio context envelope/);
+  assert.match(startedInput.prompt, /"projectRevision":1/);
+  assert.match(startedInput.prompt, /\[current-request-tail\]\nCreate a Player cube$/);
+  assert.ok(startedInput.contextArtifactIds.length > 0);
+  assert.equal(startedInput.contextCache.providerReportedHitTokens, null);
+  assert.doesNotMatch(startedInput.prompt, /SnakeBody|snake body segment|贪吃蛇/iu);
+  assert.equal(context.commits.length, 1);
+  assert.ok(context.commits[0].toolFacts.some((fact) => fact.includes('entity.create')));
   assert.equal(submitted.status, 'completed');
   assert.ok(startedInput.tools.some((tool) => tool.id === 'studio.plan.propose'));
   assert.ok(nodes(host).some((node) => node.kind === 'plan' && node.status === 'completed' && node.content.decision === 'approved'));
@@ -135,7 +128,9 @@ test('an approved plan that ends without edits continues once and executes witho
     async submitToolResult(id) { if (id === planToolCallId) planReleased(); else editReleased(); },
     async answerQuestion() {}, async resolveBackendApproval() {},
   };
+  const context = contextFixture();
   const runtime = {
+    context,
     accounting: accountingFixture(),
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     turns: {
@@ -164,7 +159,7 @@ test('an approved plan that ends without edits continues once and executes witho
     async prepare(call) { return { id: 'preparation:continuation', callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', documentId: 'document:test', baseRevision: 1, argumentsDigest: digest('a'), previewDigest: digest('b'), preview: { title: 'Create', target: 'Scene', summary: 'Create Player cube', diff: '+ Player' }, status: 'ready' }; },
     async execute() { executeCount += 1; return { schemaVersion: 1, callId: toolCallId, toolId: 'entity.create', status: 'completed', value: { entity: { id: 'entity:player', name: 'Player' } }, documentId: 'document:test', beforeRevision: 1, afterRevision: 2, historyLabel: 'Create Player' }; },
   };
-  const host = new StudioConversationHost({ runtime, tools, operationLog: { async append() {} }, isProjectOpen: () => true });
+  const host = new StudioConversationHost({ runtime, tools, operationLog: { async append() {} }, isProjectOpen: () => true, projectContext: projectContextFixture });
   await host.initialize();
   await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create a Player cube' });
   await waitFor(() => nodes(host).some((node) => node.kind === 'plan' && node.status === 'pending'));
@@ -173,10 +168,10 @@ test('an approved plan that ends without edits continues once and executes witho
   await waitFor(() => host.replay().busy === false);
   assert.equal(starts, 2);
   assert.equal(executeCount, 1);
-  assert.match(continuationInput.prompt, /already approved/);
-  assert.match(continuationInput.prompt, /Do not call studio\.plan\.propose again/);
-  assert.match(continuationInput.prompt, /Treat script\.ts\.2339 for api\.scene as a missing capability/);
-  assert.match(continuationInput.prompt, /Use visibly different colors for distinct gameplay roles/);
+  assert.match(continuationInput.prompt, /already approved plan/);
+  assert.match(continuationInput.prompt, /Do not request the same plan approval again/);
+  assert.equal(continuationInput.sessionId, sessionId);
+  assert.doesNotMatch(continuationInput.prompt, /SnakeBody|snake body segment/iu);
   assert.ok(nodes(host).some((node) => node.kind === 'progress' && node.content.phase === 'approved-plan-execution'));
   assert.equal(nodes(host).filter((node) => node.kind === 'completion').length, 1);
   assert.ok(!nodes(host).some((node) => node.kind === 'diagnostic' && node.content.code === 'plan.execution-not-started'));
@@ -206,6 +201,7 @@ test('G10 conversation host gives project-missing turns recovery instructions th
     async submitToolResult() {}, async answerQuestion() {}, async resolveBackendApproval() {},
   };
   const runtime = {
+    context: contextFixture(),
     accounting: accountingFixture(),
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     turns: {
@@ -218,10 +214,9 @@ test('G10 conversation host gives project-missing turns recovery instructions th
   await host.initialize();
   await host.dispatch({ type: 'conversation/send', backendId, prompt: '创建一个游戏' });
   await waitFor(() => host.replay().busy === false);
-  assert.match(startedInput.prompt, /"open":false/);
-  assert.match(startedInput.prompt, /click New once/);
-  assert.match(startedInput.prompt, /does not require a folder/);
-  assert.match(startedInput.tools.find((tool) => tool.id === 'project.snapshot').description, /before deciding whether a Studio project is open/);
+  assert.match(startedInput.prompt, /"state":"not-required"/);
+  assert.match(startedInput.prompt, /No Studio project is currently open/);
+  assert.match(startedInput.tools.find((tool) => tool.id === 'project.snapshot').description, /Inspect this before planning/);
   await host.dispose();
 });
 
@@ -232,7 +227,7 @@ test('hard task budget blocks the next tool before prepare or mutation', async (
     async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {}, async answerQuestion() {}, async resolveBackendApproval() {},
     async submitToolResult(id, result) { submitted.push({ id, result }); releases.shift()?.(); },
   };
-  const runtime = { registry: { descriptors: () => [backend.descriptor], get: () => backend }, accounting: new TaskAccountingRegistry(new UsageLedgerStore()), turns: {
+  const runtime = { context: contextFixture(), registry: { descriptors: () => [backend.descriptor], get: () => backend }, accounting: new TaskAccountingRegistry(new UsageLedgerStore()), turns: {
     async *start() {
       const first = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-one', toolId: 'project.snapshot', arguments: {} }); await first;
       const second = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-two', toolId: 'diagnostics.query', arguments: {} }); await second;
@@ -275,5 +270,11 @@ function accountingFixture() {
   const accounts = new Map();
   return { open({ taskId, budget }) { const snapshot = () => ({ taskId, budget, budgetDecision: { allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }, consumption: { inputTokens: 0, outputTokens: 0, estimatedCostMicros: 0, wallTimeMs: 0, turns: 1, toolCalls: 0, repairIterations: 0, observationBytes: 0 }, usage: { inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, reasoningTokens: null, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 0 }, cost: { status: 'unknown', amountMicros: null, currency: null, cacheSavingMicros: null, explanation: 'fixture', final: false }, turnIds: [] }); const account = { options: { taskId, budget }, beginTurn: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), bindTurn() {}, preflightTool: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), commitTool: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), expireWallTime: () => ({ allowed: false, status: 'hard-exceeded', violations: [], warning: 'expired', hardStopLatched: true }), reconcile: snapshot, snapshot }; accounts.set(taskId, account); return account; }, get(id) { return accounts.get(id); } };
 }
+function contextFixture() {
+  let liveSession = null; const commits = [];
+  const profile = { id: 'prompt:game-authoring-general', version: '3.0.0', digest: `sha256:${'c'.repeat(64)}`, modules: [] };
+  return { prompts: { profile }, commits, async prepare({ request, project }) { return { prompt: `AIStudio context envelope\n${JSON.stringify(project ? { projectRevision: project.revision } : { state: 'not-required', reason: 'No Studio project is currently open.' })}\n[current-request-tail]\n${request}`, promptDigest: `sha256:${'d'.repeat(64)}`, promptProfile: profile, contextArtifactIds: [`artifact:sha256:${'e'.repeat(64)}`], contextDigest: `sha256:${'f'.repeat(64)}`, cache: { localArtifactHits: liveSession ? 1 : 0, localArtifactMisses: liveSession ? 0 : 1, deltaReuseBytes: 0, providerCacheEligibleBytes: 128, providerReportedHitTokens: null }, reusedSessionId: liveSession }; }, async commit(value) { commits.push(value); liveSession = value.sessionId; return { id: `artifact:sha256:${'a'.repeat(64)}` }; } };
+}
+function projectContextFixture() { return { projectId: 'project:test', documentId: 'document:test', revision: 1, manifest: { schemaVersion: 1, scene: { entities: [] }, scripts: { resources: [] } } }; }
 function nodes(host) { return host.replay().events.map((entry) => entry.node); }
 async function waitFor(predicate) { for (let index = 0; index < 100; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for fixture state.'); }

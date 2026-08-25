@@ -54,6 +54,30 @@ test('both backends advertise model/reasoning capabilities and reject unsupporte
   await harness.dispose(); await codex.dispose();
 });
 
+test('Harness preserves unknown provider cache evidence and Codex reuses a live thread without another thread/start', async () => {
+  const transport = fakeHarnessTransport();
+  transport.start = async function* () {
+    yield { type: 'turn-start', sessionId: 'thread:unknown-cache', turnId: 'turn:unknown-cache' };
+    yield { type: 'usage', sessionId: 'thread:unknown-cache', turnId: 'turn:unknown-cache', inputTokens: 4, outputTokens: 1 };
+    yield { type: 'turn-end', sessionId: 'thread:unknown-cache', turnId: 'turn:unknown-cache', status: 'completed', finishReason: 'stop' };
+  };
+  const harness = new HarnessApiKeyBackend({ transport, clearApiKey: async () => {} });
+  const usage = (await collect(harness.startTurn(harnessInput))).find((event) => event.kind === 'usage').payload;
+  assert.deepEqual({ cached: usage.cachedInputTokens, written: usage.cacheWriteTokens, reasoning: usage.reasoningTokens }, { cached: null, written: null, reasoning: null });
+  await harness.dispose();
+
+  const codexTransport = new ReuseCodexTransport();
+  const codex = new CodexAppServerBackend({ transport: codexTransport, isolatedCwd: 'D:\\isolated-ai-studio' });
+  const noTools = { ...input, tools: [] };
+  const first = await collect(codex.startTurn(noTools));
+  const threadId = first[0].sessionId;
+  const second = await collect(codex.startTurn({ ...noTools, sessionId: threadId, prompt: 'Continue with the durable summary.' }));
+  assert.equal(second[0].sessionId, threadId);
+  assert.equal(codexTransport.requests.filter((frame) => frame.method === 'thread/start').length, 1);
+  assert.equal(codexTransport.requests.filter((frame) => frame.method === 'turn/start').length, 2);
+  await codex.dispose();
+});
+
 test('Codex model catalog fails closed on pinned schema drift', async () => {
   const backend = new CodexAppServerBackend({ transport: new FakeCodexTransport({ malformedCatalog: true }), isolatedCwd: 'D:\\isolated-ai-studio' });
   await assert.rejects(backend.modelCatalog(), (error) => error.code === 'codex.model-catalog-schema-drift');
@@ -121,7 +145,7 @@ test('Electron main launches the pinned Codex JS entry in Node mode without wide
 function fakeHarnessTransport() {
   return { upstream: { tag: 'dsh-v0.1.0-rc.7', commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' }, configured: async () => true,
     modelCatalog: () => [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', description: 'fixture', maxTokens: 384_000 }],
-    async *start() { yield { type: 'turn-start', sessionId: 'thread:1', turnId: 'turn:1' }; yield { type: 'text-delta', sessionId: 'thread:1', turnId: 'turn:1', text: 'done' }; yield { type: 'tool-request', sessionId: 'thread:1', turnId: 'turn:1', toolCallId: 'call:1', toolId: 'studio.entity.create', arguments: { name: 'Cube' } }; yield { type: 'usage', sessionId: 'thread:1', turnId: 'turn:1', inputTokens: 3, outputTokens: 2 }; yield { type: 'turn-end', sessionId: 'thread:1', turnId: 'turn:1', status: 'completed', finishReason: 'stop' }; },
+    async *start() { yield { type: 'turn-start', sessionId: 'thread:1', turnId: 'turn:1' }; yield { type: 'text-delta', sessionId: 'thread:1', turnId: 'turn:1', text: 'done' }; yield { type: 'tool-request', sessionId: 'thread:1', turnId: 'turn:1', toolCallId: 'call:1', toolId: 'studio.entity.create', arguments: { name: 'Cube' } }; yield { type: 'usage', sessionId: 'thread:1', turnId: 'turn:1', inputTokens: 3, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 }; yield { type: 'turn-end', sessionId: 'thread:1', turnId: 'turn:1', status: 'completed', finishReason: 'stop' }; },
     submitToolResult: async () => {}, cancel: async () => {}, dispose: async () => {}, };
 }
 
@@ -156,6 +180,20 @@ class FakeCodexTransport {
   tool() { this.queue.push(JSON.stringify({ id: 'tool:rpc', method: 'item/tool/call', params: { threadId: 'thread:1', turnId: 'turn:1', callId: 'call:1', namespace: null, tool: this.toolWireName, arguments: { name: 'Cube' } } })); this.toolResolve?.(); }
   finish() { this.notify('thread/tokenUsage/updated', { threadId: 'thread:1', turnId: 'turn:1', tokenUsage: { total: { inputTokens: 3, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 2, reasoningOutputTokens: 0, totalTokens: 5 }, last: { inputTokens: 3, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 2, reasoningOutputTokens: 0, totalTokens: 5 }, modelContextWindow: 100 } }); this.notify('turn/completed', { threadId: 'thread:1', turn: { id: 'turn:1', status: 'completed', error: null } }); }
   waitForTool() { return this.toolPromise; } waitForQuestion() { return this.questionPromise; } waitForStarted() { return this.startedPromise; }
+  async dispose() { this.queue.close(); this.resolveExit({ code: 0, signal: null }); }
+}
+class ReuseCodexTransport {
+  constructor() { this.queue = new AsyncQueue(); this.lines = this.queue; this.requests = []; this.turn = 0; this.exited = new Promise((resolve) => { this.resolveExit = resolve; }); }
+  async write(line) {
+    const frame = JSON.parse(line); if (!frame.method || !('id' in frame)) return; this.requests.push(frame);
+    if (frame.method === 'initialize') this.result(frame.id, { userAgent: 'fixture', codexHome: 'D:\\fixture', platformFamily: 'windows', platformOs: 'windows' });
+    else if (frame.method === 'account/read') this.result(frame.id, { account: { type: 'chatgpt', email: null, planType: 'plus' }, requiresOpenaiAuth: true });
+    else if (frame.method === 'account/rateLimits/read') this.result(frame.id, { rateLimits: null, rateLimitsByLimitId: null });
+    else if (frame.method === 'model/list') this.result(frame.id, { data: [{ id: 'gpt-5.6-sol', model: 'gpt-5.6-sol', displayName: 'GPT-5.6 Sol', description: 'fixture', hidden: false, isDefault: true, defaultReasoningEffort: 'high', supportedReasoningEfforts: [{ reasoningEffort: 'high', description: 'high' }] }], nextCursor: null });
+    else if (frame.method === 'thread/start') this.result(frame.id, { thread: { id: 'thread:reuse' } });
+    else if (frame.method === 'turn/start') { this.turn += 1; const turnId = `turn:reuse:${this.turn}`; this.result(frame.id, { turn: { id: turnId, status: 'inProgress' } }); setImmediate(() => this.queue.push(JSON.stringify({ method: 'turn/completed', params: { threadId: 'thread:reuse', turn: { id: turnId, status: 'completed', error: null } } }))); }
+  }
+  result(id, result) { this.queue.push(JSON.stringify({ id, result })); }
   async dispose() { this.queue.close(); this.resolveExit({ code: 0, signal: null }); }
 }
 class AsyncQueue { constructor() { this.values = []; this.waiters = []; this.done = false; } push(value) { const waiter = this.waiters.shift(); waiter ? waiter({ done: false, value }) : this.values.push(value); } close() { this.done = true; for (const waiter of this.waiters.splice(0)) waiter({ done: true }); } async *[Symbol.asyncIterator]() { while (true) { if (this.values.length) { yield this.values.shift(); continue; } if (this.done) return; const next = await new Promise((resolve) => this.waiters.push(resolve)); if (next.done) return; yield next.value; } } }

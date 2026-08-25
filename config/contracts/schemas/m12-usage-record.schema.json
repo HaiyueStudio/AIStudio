@@ -21,11 +21,24 @@
     "toolOutputBytes": { "type": "integer", "minimum": 0, "maximum": 1073741824 },
     "wallTimeMs": { "type": "integer", "minimum": 0, "maximum": 86400000 },
     "providerRequestDigest": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/digest" }] },
+    "contextCache": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localArtifactHits", "localArtifactMisses", "deltaReuseBytes", "providerCacheEligibleBytes", "providerReportedHitTokens"],
+      "properties": {
+        "localArtifactHits": { "$ref": "#/definitions/count" },
+        "localArtifactMisses": { "$ref": "#/definitions/count" },
+        "deltaReuseBytes": { "$ref": "#/definitions/count" },
+        "providerCacheEligibleBytes": { "$ref": "#/definitions/count" },
+        "providerReportedHitTokens": { "$ref": "#/definitions/nullableCount" }
+      }
+    },
     "final": { "type": "boolean" }
   },
   "definitions": {
     "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
     "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-    "nullableCount": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0, "maximum": 1000000000 }] }
+    "count": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+    "nullableCount": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/count" }] }
   }
 }

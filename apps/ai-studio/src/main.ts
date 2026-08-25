@@ -108,6 +108,20 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         tools: gameTools,
         operationLog,
         isProjectOpen: () => workspace.snapshot().document !== null,
+        projectContext: () => {
+          const project = workspace.snapshot().document;
+          if (!project) return null;
+          const sceneSnapshot = scene.snapshot();
+          const scriptSnapshot = scripts.snapshot();
+          return Object.freeze({
+            projectId: project.projectId, documentId: project.documentId, revision: project.revision,
+            manifest: Object.freeze({
+              schemaVersion: 1, project: Object.freeze({ id: project.projectId, documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.dirty, settings: project.settings }),
+              scene: Object.freeze({ schemaVersion: sceneSnapshot.schemaVersion, revision: sceneSnapshot.revision, entities: Object.freeze(sceneSnapshot.entities.slice(0, 128).map((entity) => Object.freeze({ ...entity }))), truncated: sceneSnapshot.entities.length > 128 }),
+              scripts: Object.freeze({ schemaVersion: scriptSnapshot.schemaVersion, documentRevision: scriptSnapshot.documentRevision, resources: Object.freeze(scriptSnapshot.resources.slice(0, 16).map((script) => Object.freeze({ id: script.id, entityId: script.entityId, name: script.name, textRevision: script.textRevision, dirty: script.dirty, text: script.text.slice(0, 2_048), truncated: script.text.length > 2_048 }))), truncated: scriptSnapshot.resources.length > 16 }),
+            }) as unknown as JsonObject,
+          });
+        },
         async openLoginHandoff(_backendId, handoff) {
           if (handoff.url) {
             const url = new URL(handoff.url);

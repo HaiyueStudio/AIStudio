@@ -17,6 +17,7 @@ import { assertNoHiddenReasoningKind, redactJson, redactObject } from './redacti
 import type {
   AppendOptions,
   ArtifactRecord,
+  ArtifactPutResult,
   ArtifactReference,
   BugBundleOptions,
   BugBundleResult,
@@ -176,6 +177,14 @@ export class OperationLog {
     provenance: Partial<OperationProvenance> = {},
     redaction: { readonly fields?: readonly string[]; readonly taintedFields?: readonly string[] } = {},
   ): Promise<ArtifactReference> {
+    return (await this.putArtifactDetailed(value, provenance, redaction)).reference;
+  }
+
+  async putArtifactDetailed(
+    value: JsonValue,
+    provenance: Partial<OperationProvenance> = {},
+    redaction: { readonly fields?: readonly string[]; readonly taintedFields?: readonly string[] } = {},
+  ): Promise<ArtifactPutResult> {
     this.assertWritable();
     const normalized = redactJson(value, redaction);
     const serializedValue = canonicalStringify(normalized.value);
@@ -185,6 +194,12 @@ export class OperationLog {
     }
     const digest = sha256(serializedValue);
     const id = asStableId(`artifact:sha256:${digest}`);
+    try {
+      const existing = await this.readArtifact(id);
+      return Object.freeze({ reference: artifactReference(existing), localHit: true });
+    } catch (cause) {
+      if (!(cause instanceof OperationLogError) || cause.code !== 'artifact-missing') throw cause;
+    }
     const record: ArtifactRecord = Object.freeze({
       schemaVersion: 1,
       id,
@@ -199,7 +214,7 @@ export class OperationLog {
     const body = `${canonicalStringify(record as unknown as Readonly<Record<string, unknown>>)}\n`;
     await this.faultInjector?.('before-artifact-write', Buffer.byteLength(body));
     await atomicWrite(path.join(this.artifactDirectory, `${digest}.json`), body);
-    return artifactReference(record);
+    return Object.freeze({ reference: artifactReference(record), localHit: false });
   }
 
   async readArtifact(id: StableId): Promise<ArtifactRecord> {

@@ -48,6 +48,7 @@ export class UsageLedger {
     readonly turnId: StableId;
     readonly providerRequestDigest: M12Digest | null;
     readonly startedAtMs: number;
+    readonly contextCache?: UsageRecordV2['contextCache'];
   }) {
     assertTime(identity.startedAtMs, 'start time');
   }
@@ -113,6 +114,7 @@ export class UsageLedger {
       ...counts,
       wallTimeMs: Math.max(0, Math.floor((this.terminalAtMs ?? observedAtMs) - this.identity.startedAtMs)),
       providerRequestDigest: this.identity.providerRequestDigest,
+      ...(this.identity.contextCache ? { contextCache: Object.freeze({ ...this.identity.contextCache, providerReportedHitTokens: counts.cachedInputTokens }) } : {}),
       final,
     });
   }

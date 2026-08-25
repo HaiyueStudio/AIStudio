@@ -67,6 +67,14 @@ export interface UsageRecordV2 {
   readonly toolOutputBytes: number;
   readonly wallTimeMs: number;
   readonly providerRequestDigest: M12Digest | null;
+  readonly contextCache?: Readonly<{
+    readonly localArtifactHits: number;
+    readonly localArtifactMisses: number;
+    readonly deltaReuseBytes: number;
+    readonly providerCacheEligibleBytes: number;
+    /** Null means the provider did not report cache-read evidence. */
+    readonly providerReportedHitTokens: number | null;
+  }>;
   readonly final: boolean;
 }
 

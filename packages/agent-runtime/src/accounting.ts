@@ -27,7 +27,7 @@ export interface TaskAccountingSnapshot {
   readonly budget: TaskBudgetV2;
   readonly budgetDecision: BudgetDecision;
   readonly consumption: ReturnType<TaskBudgetController['consumption']>;
-  readonly usage: Readonly<{ inputTokens: number | null; cachedInputTokens: number | null; cacheWriteTokens: number | null; outputTokens: number | null; reasoningTokens: number | null; toolInputBytes: number; toolOutputBytes: number; wallTimeMs: number }>;
+  readonly usage: Readonly<{ inputTokens: number | null; cachedInputTokens: number | null; cacheWriteTokens: number | null; outputTokens: number | null; reasoningTokens: number | null; toolInputBytes: number; toolOutputBytes: number; wallTimeMs: number; contextCache?: NonNullable<UsageRecordV2['contextCache']> }>;
   readonly cost: TaskCostSummary;
   readonly turnIds: readonly StableId[];
 }
@@ -108,6 +108,13 @@ function aggregateUsage(values: readonly UsageLedgerSnapshot[]): TaskAccountingS
     cacheWriteTokens: sumKnown(records.map((entry) => entry.cacheWriteTokens)), outputTokens: sumKnown(records.map((entry) => entry.outputTokens)), reasoningTokens: sumKnown(records.map((entry) => entry.reasoningTokens)),
     toolInputBytes: records.reduce((sum, entry) => sum + entry.toolInputBytes, 0), toolOutputBytes: records.reduce((sum, entry) => sum + entry.toolOutputBytes, 0),
     wallTimeMs: records.reduce((sum, entry) => sum + entry.wallTimeMs, 0),
+    ...(records.some((entry) => entry.contextCache) ? { contextCache: Object.freeze({
+      localArtifactHits: records.reduce((sum, entry) => sum + (entry.contextCache?.localArtifactHits ?? 0), 0),
+      localArtifactMisses: records.reduce((sum, entry) => sum + (entry.contextCache?.localArtifactMisses ?? 0), 0),
+      deltaReuseBytes: records.reduce((sum, entry) => sum + (entry.contextCache?.deltaReuseBytes ?? 0), 0),
+      providerCacheEligibleBytes: records.reduce((sum, entry) => sum + (entry.contextCache?.providerCacheEligibleBytes ?? 0), 0),
+      providerReportedHitTokens: sumKnown(records.map((entry) => entry.contextCache?.providerReportedHitTokens ?? null)),
+    }) } : {}),
   });
 }
 function aggregateCost(values: readonly CostEstimate[], final: boolean): TaskCostSummary {

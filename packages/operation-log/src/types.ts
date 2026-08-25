@@ -150,6 +150,12 @@ export interface ArtifactRecord extends ArtifactReference {
   readonly value: JsonValue;
 }
 
+export interface ArtifactPutResult {
+  readonly reference: ArtifactReference;
+  /** True only when an integrity-checked CAS object already existed before this put. */
+  readonly localHit: boolean;
+}
+
 export interface BugBundleOptions {
   readonly destinationRoot: string;
   readonly query: OperationLogQuery;

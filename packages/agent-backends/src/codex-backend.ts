@@ -47,7 +47,7 @@ export class CodexAppServerBackend implements AgentBackend {
   private readonly pendingTools = new Map<StableId, RpcId>();
   private readonly pendingQuestions = new Map<StableId, RpcId>();
   private readonly turnAbortCleanups = new Map<StableId, () => void>();
-  private readonly ownedCwds = new Map<StableId, string>();
+  private readonly ownedCwds = new Map<string, string>();
   private readonly cleanupTasks = new Set<Promise<void>>();
   private readonly lastRateLimits = new Map<string, AgentRateLimitSnapshot>();
   private modelCatalogPromise?: Promise<AgentModelCatalog>;
@@ -157,7 +157,7 @@ export class CodexAppServerBackend implements AgentBackend {
     this.pendingTools.clear(); this.pendingQuestions.clear();
     for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear();
     this.threadToolNames.clear();
-    for (const turnId of this.ownedCwds.keys()) this.scheduleCwdCleanup(turnId); await Promise.allSettled([...this.cleanupTasks]);
+    for (const threadId of this.ownedCwds.keys()) this.scheduleCwdCleanup(threadId); await Promise.allSettled([...this.cleanupTasks]);
     await this.transport?.dispose(); await this.pump?.catch(() => {});
   }
 
@@ -168,23 +168,30 @@ export class CodexAppServerBackend implements AgentBackend {
       const negotiation = await this.negotiate(input.config, signal); if (!negotiation.effective) throw this.protocol('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' '));
       const effective = negotiation.effective; const wireEffort = this.wireEfforts.get(effective.model)?.get(effective.reasoningEffort);
       if (!wireEffort) throw this.protocol('codex.reasoning-map-missing', `No Codex wire effort maps to ${effective.reasoningEffort}.`);
-      const cwd = this.options.isolatedCwd ?? await mkdtemp(join(tmpdir(), 'haiyue-codex-')); if (!this.options.isolatedCwd) unownedTempCwd = cwd;
+      const reusableThreadId = input.sessionId && this.threadToolNames.has(input.sessionId) ? input.sessionId : null;
+      const cwd = reusableThreadId ? this.ownedCwds.get(reusableThreadId) ?? this.options.isolatedCwd : this.options.isolatedCwd ?? await mkdtemp(join(tmpdir(), 'haiyue-codex-'));
+      if (!cwd) throw this.protocol('codex.thread-cwd-missing', 'A reusable Codex thread lost its isolated working directory.');
+      if (!reusableThreadId && !this.options.isolatedCwd) unownedTempCwd = cwd;
       const dynamicTools = input.tools.map((tool, index) => ({ type: 'function', name: codexToolName(tool.id, index), description: `${tool.description}\nStudio tool id: ${tool.id}`, inputSchema: tool.inputSchema }));
-      const threadResponse = await this.request('thread/start', {
-        cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', sandbox: 'read-only', ephemeral: true, environments: [], selectedCapabilityRoots: [], model: effective.model, allowProviderModelFallback: false,
-        config: { web_search: 'disabled', mcp_servers: {} },
-        baseInstructions: 'You are the AIStudio game-authoring agent. You may act only through the dynamic Studio tools supplied in this thread.',
-        developerInstructions: 'Never invoke shell, command execution, file mutation, patching, direct filesystem access, network access, MCP, apps, or web search. Use only the supplied dynamic Studio tools. If no suitable Studio tool exists, explain the limitation.',
-        dynamicTools,
-      }, signal);
-      const thread = isRecord(threadResponse) && isRecord(threadResponse.thread) ? threadResponse.thread : undefined;
-      if (!thread || typeof thread.id !== 'string') throw this.protocol('codex.thread-malformed', 'Codex returned a malformed thread identity.');
-      const response = await this.request('turn/start', { threadId: thread.id, input: [{ type: 'text', text: input.prompt, text_elements: [] }], environments: [], cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', model: effective.model, effort: wireEffort }, signal);
+      let threadId = reusableThreadId;
+      if (!threadId) {
+        const threadResponse = await this.request('thread/start', {
+          cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', sandbox: 'read-only', ephemeral: true, environments: [], selectedCapabilityRoots: [], model: effective.model, allowProviderModelFallback: false,
+          config: { web_search: 'disabled', mcp_servers: {} },
+          baseInstructions: 'You are the AIStudio game-authoring agent. Use only the supplied dynamic Studio tools and the versioned context envelope in each turn.',
+          developerInstructions: 'Never invoke shell, command execution, file mutation, patching, direct filesystem access, network access, MCP, apps, or web search. Use only the supplied dynamic Studio tools. If no suitable Studio tool exists, explain the limitation.',
+          dynamicTools,
+        }, signal);
+        const thread = isRecord(threadResponse) && isRecord(threadResponse.thread) ? threadResponse.thread : undefined;
+        if (!thread || typeof thread.id !== 'string') throw this.protocol('codex.thread-malformed', 'Codex returned a malformed thread identity.');
+        threadId = asStableId(thread.id);
+        this.threadToolNames.set(threadId, new Map(dynamicTools.map((tool, index) => [tool.name, input.tools[index]!.id])));
+      }
+      const response = await this.request('turn/start', { threadId, input: [{ type: 'text', text: input.prompt, text_elements: [] }], environments: [], cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', model: effective.model, effort: wireEffort }, signal);
       const turn = isRecord(response) && isRecord(response.turn) ? response.turn : undefined;
       if (!turn || typeof turn.id !== 'string') throw this.protocol('codex.turn-malformed', 'Codex returned a malformed turn identity.');
-      const threadId = thread.id; turnId = asStableId(turn.id); this.turns.set(turnId, channel); this.threadTurns.set(threadId, turnId);
-      this.threadToolNames.set(threadId, new Map(dynamicTools.map((tool, index) => [tool.name, input.tools[index]!.id])));
-      if (unownedTempCwd) { this.ownedCwds.set(turnId, unownedTempCwd); unownedTempCwd = undefined; }
+      turnId = asStableId(turn.id); this.turns.set(turnId, channel); this.threadTurns.set(threadId, turnId);
+      if (unownedTempCwd) { this.ownedCwds.set(threadId, unownedTempCwd); unownedTempCwd = undefined; }
       channel.emit(backendEvent(this.descriptor.id, threadId, turn.id, 'status', { status: 'running', model: effective.model, reasoningEffort: effective.reasoningEffort, outputTokenLimit: effective.outputTokenLimit }));
       if (signal) {
         const abort = (): void => { void this.cancelTurn(asStableId(threadId), turnId!).catch(() => {}); };
@@ -328,7 +335,7 @@ export class CodexAppServerBackend implements AgentBackend {
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'completed', { status, finishReason: codexFinishReason(status) }));
       this.turnAbortCleanups.get(turnId)?.(); this.turnAbortCleanups.delete(turnId);
       this.usageSequences.delete(turnId);
-      this.scheduleCwdCleanup(turnId);
+      // The isolated cwd is owned by the reusable thread and is released on backend disposal or process exit.
     }
   }
 
@@ -347,9 +354,9 @@ export class CodexAppServerBackend implements AgentBackend {
   private failAll(cause: unknown): void {
     const failure = normalizeBackendFailure(cause); for (const item of this.pending.values()) item.reject(cause); this.pending.clear();
     for (const channel of this.turns.values()) channel.terminalFailure(this.descriptor.id, failure, 'interrupted');
-    this.pendingTools.clear(); this.pendingQuestions.clear(); for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear(); for (const turnId of this.ownedCwds.keys()) this.scheduleCwdCleanup(turnId); void this.transport?.dispose();
+    this.pendingTools.clear(); this.pendingQuestions.clear(); for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear(); for (const threadId of this.ownedCwds.keys()) this.scheduleCwdCleanup(threadId); void this.transport?.dispose();
   }
-  private scheduleCwdCleanup(turnId: StableId): void { const cwd = this.ownedCwds.get(turnId); if (!cwd) return; this.ownedCwds.delete(turnId); const task = rmdir(cwd).catch(() => {}).finally(() => this.cleanupTasks.delete(task)); this.cleanupTasks.add(task); }
+  private scheduleCwdCleanup(threadId: string): void { const cwd = this.ownedCwds.get(threadId); if (!cwd) return; this.ownedCwds.delete(threadId); const task = rmdir(cwd).catch(() => {}).finally(() => this.cleanupTasks.delete(task)); this.cleanupTasks.add(task); }
   private protocol(code: string, message: string): AgentBackendProtocolError { return new AgentBackendProtocolError(code, message); }
   private assertActive(): void { if (this.disposed) throw this.protocol('agent.backend-disposed', 'Codex backend is disposed.'); }
 }

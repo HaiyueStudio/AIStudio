@@ -56,6 +56,7 @@
         "toolOutputBytes": 1024,
         "wallTimeMs": 1500,
         "providerRequestDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "contextCache": { "localArtifactHits": 2, "localArtifactMisses": 1, "deltaReuseBytes": 2048, "providerCacheEligibleBytes": 4096, "providerReportedHitTokens": 40 },
         "final": true
       }
     },

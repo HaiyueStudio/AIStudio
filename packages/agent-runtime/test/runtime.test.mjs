@@ -11,7 +11,7 @@ const backendId = asStableId('backend:fake');
 const sessionId = asStableId('session:fake');
 const turnId = asStableId('turn:fake');
 const turnConfig = Object.freeze({ schemaVersion: 2, backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4_096, taskBudgetId: asStableId('budget:fixture'), promptProfile: Object.freeze({ id: asStableId('prompt:fixture'), version: '2.0.0', digest: `sha256:${'a'.repeat(64)}` }), requestedCapabilities: Object.freeze(['agent.model-config', 'agent.usage']) });
-const turnInput = (prompt, tools = []) => ({ taskId: asStableId('task:fixture'), config: turnConfig, prompt, contextArtifactIds: [asStableId('artifact:1')], tools });
+const turnInput = (prompt, tools = []) => ({ taskId: asStableId('task:fixture'), config: turnConfig, prompt, contextArtifactIds: [], tools });
 
 function event(kind, payload) { return Object.freeze({ schemaVersion: 1, backendId, sessionId, turnId, kind, payload: Object.freeze(payload) }); }
 function fakeBackend(events) {
@@ -51,7 +51,8 @@ test('registry, normalized event stream and operation log preserve only digests 
   assert.equal(negotiationLog.payload.status, 'accepted');
   assert.equal(negotiationLog.payload.effective.model, 'fixture-model');
   const contextLog = query.events.find((item) => item.kind === 'agent/context-prepared');
-  assert.equal(contextLog.payload.promptBytes, Buffer.byteLength(canary));
+  assert.ok(contextLog.payload.promptBytes > Buffer.byteLength(canary));
+  assert.ok(contextLog.payload.contextArtifactIds.length > 0);
   const toolLog = query.events.find((item) => item.kind === 'agent/tool-request');
   assert.equal(toolLog.payload.toolId, 'studio.entity.create'); assert.equal(toolLog.correlation.toolCallId, 'tool-call:1'); assert.ok(toolLog.payload.argumentsDigest); assert.deepEqual(toolLog.payload.argumentKeys, ['secret']);
   const usageLog = query.events.find((item) => item.kind === 'agent/usage');

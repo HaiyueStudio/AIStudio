@@ -216,8 +216,10 @@ function renderTaskCostCard(document: Document, value: NonNullable<ConversationR
   const title = document.createElement('strong'); title.textContent = value.cost.final ? 'Task cost · final' : 'Task cost · current estimate';
   const cost = document.createElement('p'); cost.textContent = value.cost.amountMicros === null || !value.cost.currency ? `Cost unknown — ${value.cost.explanation}` : `${value.cost.status}: ${(value.cost.amountMicros / 1_000_000).toFixed(6)} ${value.cost.currency}`;
   const usage = document.createElement('p'); usage.textContent = `Input ${value.usage.inputTokens ?? 'unknown'} · cached ${value.usage.cachedInputTokens ?? 'unknown'} · output ${value.usage.outputTokens ?? 'unknown'} · reasoning ${value.usage.reasoningTokens ?? 'unknown'} · tools ${value.usage.toolInputBytes + value.usage.toolOutputBytes} B`;
+  const contextCache = value.usage.contextCache ? document.createElement('p') : null;
+  if (contextCache && value.usage.contextCache) contextCache.textContent = `Context cache: local ${value.usage.contextCache.localArtifactHits} hit / ${value.usage.contextCache.localArtifactMisses} miss · delta reused ${value.usage.contextCache.deltaReuseBytes} B · provider eligible ${value.usage.contextCache.providerCacheEligibleBytes} B · provider hit ${value.usage.contextCache.providerReportedHitTokens ?? 'unknown'}`;
   const budget = document.createElement('p'); budget.textContent = `Budget: ${value.budgetStatus} (${value.budget.enforcement})${value.cost.cacheSavingMicros === null ? '' : ` · cache saved ≈ ${(value.cost.cacheSavingMicros / 1_000_000).toFixed(6)} ${value.cost.currency}`}`;
-  card.append(title, cost, usage, budget); return card;
+  card.append(title, cost, usage); if (contextCache) card.append(contextCache); card.append(budget); return card;
 }
 
 function renderCard(document: Document, card: ChatCardReadModel, dispatch: (intent: ConversationIntent) => void): HTMLElement {

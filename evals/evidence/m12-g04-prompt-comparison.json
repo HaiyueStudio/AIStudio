@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g04-prompt-context-cache-memory",
+  "baseline": {
+    "reviewedCommit": "e4625bb62cfc973c60957997429876a0b455166a",
+    "architecture": "monolithic-patch-prompt",
+    "contextArtifactIds": 0,
+    "durableSummary": false,
+    "localCasMetric": false,
+    "deltaReuseMetric": false,
+    "providerHitEvidence": "unavailable",
+    "promptBytes": null,
+    "note": "The reviewed M06 baseline did not measure prompt bytes or cache; unknown values remain null."
+  },
+  "candidate": {
+    "profile": {
+      "id": "prompt:game-authoring-general",
+      "version": "3.0.0",
+      "digest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b",
+      "moduleDigests": [
+        { "id": "prompt.policy.safe-authoring", "version": "1.0.0", "layer": "policy", "digest": "sha256:a6324062c2a4944617657d8aaa226bfad9dcc0d22263f5932dee400c1fb0bb81" },
+        { "id": "prompt.tools.structured-effects", "version": "1.0.0", "layer": "tool-contract", "digest": "sha256:3b56cc2488f25e0bfa534f261ee6b0f49053357091e73986e6c2a4f624dc39c7" },
+        { "id": "prompt.workflow.general-authoring", "version": "1.0.0", "layer": "workflow", "digest": "sha256:f4c4f3db158b602524229be3ab2d15a6331b7a03f06f4ccde8638e01ead312b9" }
+      ]
+    },
+    "stablePrefixBytes": 1126,
+    "genreSpecificProductionMarkers": 0
+  },
+  "experiment": {
+    "cold": { "promptBytes": 8688, "contextDigest": "sha256:b3ad8fc29708718091194837b08bf24f2963245f714b8fd5d38e474d061cbaed", "contextArtifactCount": 6, "cache": { "localArtifactHits": 0, "localArtifactMisses": 6, "deltaReuseBytes": 0, "providerCacheEligibleBytes": 3570, "providerReportedHitTokens": null } },
+    "warm": { "promptBytes": 5694, "contextDigest": "sha256:1d91d0ae66ebe945b61032d8c2c7372ec86212f5ffbd3dfde929747ea19feed8", "contextArtifactCount": 6, "cache": { "localArtifactHits": 6, "localArtifactMisses": 0, "deltaReuseBytes": 0, "providerCacheEligibleBytes": 3570, "providerReportedHitTokens": null } },
+    "delta": { "promptBytes": 6151, "contextDigest": "sha256:af9a475f03a9e22a1fc21f5ce48cd561e63fb8d08fbccc55014d7e29ed39ae26", "contextArtifactCount": 6, "cache": { "localArtifactHits": 4, "localArtifactMisses": 2, "deltaReuseBytes": 3090, "providerCacheEligibleBytes": 3570, "providerReportedHitTokens": null } },
+    "restart": { "beforeContextDigest": "sha256:4b330a32581dc6f1262c177f12ef4de95a9edb0041f5f15d715a7eb735991a20", "afterContextDigest": "sha256:4b330a32581dc6f1262c177f12ef4de95a9edb0041f5f15d715a7eb735991a20", "equal": true, "providerSessionRestored": false }
+  },
+  "crossGenre": [
+    { "id": "game-eval:snake:v1", "requestDigest": "sha256:7481d54034c6bc163a4bee7cb5d851a423320818b12ba8fa354e097b36d39f0e", "profileDigest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b", "contextArtifactCount": 5, "requestTailPreserved": true },
+    { "id": "game-eval:match-3:v1", "requestDigest": "sha256:a8b3d2e5ed4f5bb37031d7a491da5082d4ca6fa7f7e7ed77660ceec2b4fa40d2", "profileDigest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b", "contextArtifactCount": 4, "requestTailPreserved": true },
+    { "id": "game-eval:falling-blocks:v1", "requestDigest": "sha256:1716f602ea2be690d87ee0b8061b28f616fbedb57037c25a9c825f83a61da165", "profileDigest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b", "contextArtifactCount": 5, "requestTailPreserved": true },
+    { "id": "game-eval:jigsaw:v1", "requestDigest": "sha256:cb1c431f308cf9d5c5323aa3dc3c8b7e2323b994e64582470e70da24cba8b522", "profileDigest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b", "contextArtifactCount": 5, "requestTailPreserved": true },
+    { "id": "game-eval:platformer:v1", "requestDigest": "sha256:98cba549f21f338dd9d9ef49be7d279975b073bc695690792e634405782e80ba", "profileDigest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b", "contextArtifactCount": 6, "requestTailPreserved": true },
+    { "id": "game-eval:racing:v1", "requestDigest": "sha256:c823fffb36b6c7329c2a53738b68a4b820680136d1d6c56d0cef34098ece676b", "profileDigest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b", "contextArtifactCount": 6, "requestTailPreserved": true },
+    { "id": "game-eval:shooter:v1", "requestDigest": "sha256:8988e57353ff98e9366b1c2fdee881116d99633d20712081b8530824d08718ae", "profileDigest": "sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b", "contextArtifactCount": 5, "requestTailPreserved": true }
+  ],
+  "invariants": {
+    "artifactIdsReadable": true,
+    "sameRevisionReferenceOnly": true,
+    "changedRevisionDeltaOnly": true,
+    "unknownProviderHitNotZero": true,
+    "hiddenChainOfThoughtPersisted": false,
+    "secretCanaryScan": "covered-by-agent-runtime-test"
+  }
+}
