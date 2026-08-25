@@ -2,6 +2,7 @@ import { CartesianTransform3D, Entity, HaiyueEngine, Mesh3D, type Scene } from '
 import { InstancedMesh3D, KeyboardComponent, ScriptComponent, ScriptResource, type ScriptCapabilityName, type ScriptRuntimeApi, type ScriptRuntimeContext, type ScriptRuntimeErrorEvent } from '@haiyue/engine/components';
 import { InstancedPbrMaterial } from '@haiyue/engine/material';
 import { InstancedMesh3DRenderSystem } from '@haiyue/engine/systems';
+import { applyProjectCamera, applyProjectCameraProjection, DEFAULT_PROJECT_CAMERA, normalizeProjectCamera, type ProjectCameraSnapshot } from '@haiyue/ai-studio-editor-plugins/camera-authoring';
 import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-editor-plugins';
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isRenderableSceneKind } from './scene-entity-rendering.js';
 
@@ -12,7 +13,7 @@ interface SceneEntity {
   readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
   readonly light?: Readonly<{ color: readonly [number, number, number]; intensity: number; range?: number; direction?: readonly [number, number, number]; castShadow?: boolean }>;
 }
-interface SceneSnapshot { readonly entities: readonly SceneEntity[]; }
+interface SceneSnapshot { readonly entities: readonly SceneEntity[]; readonly camera?: ProjectCameraSnapshot; }
 interface PreviewPlan { readonly entityId: string; readonly scriptId: string; readonly emittedText: string; readonly capabilities: readonly ScriptCapabilityName[]; }
 
 let engine: HaiyueEngine | null = null;
@@ -21,6 +22,7 @@ let resource: ScriptResource | null = null;
 let component: ScriptComponent | null = null;
 let target: Entity | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let activeCamera: ProjectCameraSnapshot | null = null;
 const instanceSets = new Map<number, StudioInstanceSet>();
 let disposed = false;
 let lifecycleGeneration = 0;
@@ -56,6 +58,8 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
   if (disposed || generation !== lifecycleGeneration || engine !== ownedEngine) { ownedEngine.destroy(); return; }
   const ownedScene = ownedEngine.createScene({ name: 'Trusted Project Preview', render3D: true });
   scene = ownedScene;
+  activeCamera = snapshot.camera ?? DEFAULT_PROJECT_CAMERA;
+  applyProjectCamera(ownedScene, activeCamera, canvasAspect(canvas));
   installSceneEntityMaterialRenderers(ownedEngine, ownedScene);
   ownedScene.addSystem(new InstancedMesh3DRenderSystem(ownedEngine, ownedScene.cameraEntity, { loadOp: 'load' }), false);
   const entities = new Map<string, Entity>();
@@ -75,7 +79,10 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
   ScriptComponent.setRuntimeApiFactory(studioRuntimeApi);
   ScriptComponent.enableTrustedProject({ capabilities: plan.capabilities, errorPolicy: 'disable-script', onError: runtimeError });
   ownedEngine.switchScene(ownedScene);
-  resizeObserver = new ResizeObserver(() => ownedEngine.resizeToDisplaySize());
+  resizeObserver = new ResizeObserver(() => {
+    ownedEngine.resizeToDisplaySize();
+    if (activeCamera && scene === ownedScene) applyProjectCameraProjection(ownedScene, activeCamera, canvasAspect(canvas));
+  });
   resizeObserver.observe(canvas);
   ownedEngine.resizeToDisplaySize(true);
   ownedEngine.on('after-update', () => publishState());
@@ -101,7 +108,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   instanceSets.clear();
   ScriptComponent.resetRuntimeApiFactory();
   ScriptComponent.resetExecutionOptions();
-  engine = null; scene = null; resource = null; component = null; target = null;
+  engine = null; scene = null; resource = null; component = null; target = null; activeCamera = null;
   send('cleanup-complete', { reason, disposedSideEffects: disposableCount, disposableCount: 0 });
 }
 
@@ -121,7 +128,10 @@ function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: Sc
     || typeof rawPlan.emittedText !== 'string' || rawPlan.emittedText.length > 250_000
     || !Array.isArray(rawPlan.capabilities) || !rawPlan.capabilities.every(isCapability)
     || !rawScene.entities.every(isSceneEntity)) return null;
-  return Object.freeze({ scene: rawScene as unknown as SceneSnapshot, plan: rawPlan as unknown as PreviewPlan });
+  let camera: ProjectCameraSnapshot | undefined;
+  try { camera = rawScene.camera === undefined ? undefined : normalizeProjectCamera(rawScene.camera); }
+  catch { return null; }
+  return Object.freeze({ scene: Object.freeze({ entities: rawScene.entities as SceneEntity[], ...(camera ? { camera } : {}) }), plan: rawPlan as unknown as PreviewPlan });
 }
 function isSceneEntity(value: unknown): boolean {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string'
@@ -143,6 +153,7 @@ function isAppearance(value: unknown): boolean { return isRecord(value) && ['bas
 function isLight(value: unknown): boolean { return isRecord(value) && Array.isArray(value.color) && value.color.length === 3 && value.color.every(Number.isFinite) && Number.isFinite(value.intensity); }
 function tuple(value: Vec3): [number, number, number] { return [value.x, value.y, value.z]; }
 function radians(value: Vec3): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }
+function canvasAspect(canvas: HTMLCanvasElement): number { const width = canvas.width || canvas.clientWidth; const height = canvas.height || canvas.clientHeight; return width > 0 && height > 0 ? width / height : 1; }
 
 interface InstanceTransformInput { readonly position: Vec3; readonly rotationDegrees?: Vec3; readonly scale?: Vec3; readonly color?: readonly [number, number, number, number?]; }
 interface StudioInstanceSet { readonly capacity: number; setCount(count: number): void; set(index: number, transform: InstanceTransformInput): void; }

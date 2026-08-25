@@ -10,7 +10,8 @@
     "./project": { "types": "./dist/project/index.d.ts", "import": "./dist/project/index.js" },
     "./history": { "types": "./dist/history/index.d.ts", "import": "./dist/history/index.js" },
     "./components": { "types": "./dist/components/index.d.ts", "import": "./dist/components/index.js" },
-    "./scene-authoring": { "types": "./dist/scene-authoring.d.ts", "import": "./dist/scene-authoring.js" }
+    "./scene-authoring": { "types": "./dist/scene-authoring.d.ts", "import": "./dist/scene-authoring.js" },
+    "./camera-authoring": { "types": "./dist/camera-authoring.d.ts", "import": "./dist/camera-authoring.js" }
   },
   "engines": { "node": ">=22.19.0" },
   "scripts": {

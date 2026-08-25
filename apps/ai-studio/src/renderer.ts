@@ -26,7 +26,18 @@ import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
 import { selectProjectRunScript } from './run-script-selection.js';
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isLightSceneKind, isRenderableSceneKind } from './scene-entity-rendering.js';
-import type { SceneEntityKind, SceneMaterialKind, SelectionIntentSource } from '@haiyue/ai-studio-editor-plugins';
+import {
+  applyProjectCamera,
+  applyProjectCameraProjection,
+  DEFAULT_PROJECT_CAMERA,
+  projectCameraFromSettings,
+  type ProjectCameraSnapshot,
+} from '@haiyue/ai-studio-editor-plugins/camera-authoring';
+import type {
+  SceneEntityKind,
+  SceneMaterialKind,
+  SelectionIntentSource,
+} from '@haiyue/ai-studio-editor-plugins';
 import { defineBorderBeamComponents } from '@haiyue/ui/border-beam';
 import { defineDialogComponents, type HYDialog } from '@haiyue/ui/dialog';
 import { defineSelectComponents, type HYSelect } from '@haiyue/ui/select';
@@ -51,10 +62,10 @@ interface SceneEntitySnapshot {
   readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
   readonly light?: Readonly<{ color: readonly [number, number, number]; intensity: number; range?: number; direction?: readonly [number, number, number]; castShadow?: boolean }>;
 }
-interface SceneSnapshot { readonly revision: number; readonly documentId: StableId; readonly entities: readonly SceneEntitySnapshot[]; }
+interface SceneSnapshot { readonly revision: number; readonly documentId: StableId; readonly entities: readonly SceneEntitySnapshot[]; readonly camera?: ProjectCameraSnapshot; }
 interface ProjectSnapshot {
   readonly smoke?: boolean;
-  readonly document: Readonly<{ revision: number; savedRevision: number; dirty: boolean; name: string }> | null;
+  readonly document: Readonly<{ revision: number; savedRevision: number; dirty: boolean; name: string; settings: JsonObject }> | null;
   readonly history: Readonly<{ canUndo: boolean; canRedo: boolean }>;
   readonly logging: Readonly<{ health: string; canPersist: boolean; nextSequence: number; eventCount: number }>;
 }
@@ -176,6 +187,7 @@ class WebGpuViewportRuntime {
   private readonly stableByEngineId = new Map<number, StableId>();
   private readonly entitiesByStableId = new Map<StableId, Entity>();
   private selectedEntityId: StableId | null = null;
+  private cameraSnapshot: ProjectCameraSnapshot | null = null;
   private disposed = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
@@ -203,7 +215,10 @@ class WebGpuViewportRuntime {
     });
     this.interaction = new InteractionSystem(engine, engineScene.cameraEntity, { continuousHover: false });
     engine.switchScene(engineScene);
-    this.resizeObserver = new ResizeObserver(() => engine.resizeToDisplaySize());
+    this.resizeObserver = new ResizeObserver(() => {
+      engine.resizeToDisplaySize();
+      if (this.cameraSnapshot && this.engineScene) applyProjectCameraProjection(this.engineScene, this.cameraSnapshot, this.canvasAspect());
+    });
     this.resizeObserver.observe(this.canvas);
     engine.resizeToDisplaySize(true);
     engine.run();
@@ -212,6 +227,11 @@ class WebGpuViewportRuntime {
 
   apply(snapshot: SceneSnapshot, selectedEntityId: StableId | null): void {
     const engineScene = this.requireScene();
+    const nextCamera = snapshot.camera ?? currentProjectCamera();
+    if (!this.cameraSnapshot || !sameCamera(this.cameraSnapshot, nextCamera)) {
+      this.cameraSnapshot = nextCamera;
+      applyProjectCamera(engineScene, nextCamera, this.canvasAspect());
+    }
     engineScene.clear({ keepCamera: true });
     this.stableByEngineId.clear();
     this.entitiesByStableId.clear();
@@ -307,6 +327,12 @@ class WebGpuViewportRuntime {
   private requireScene(): Scene {
     if (this.disposed || !this.engineScene) throw new Error('WebGPU viewport is not ready.');
     return this.engineScene;
+  }
+
+  private canvasAspect(): number {
+    const width = this.canvas.width || this.canvas.clientWidth;
+    const height = this.canvas.height || this.canvas.clientHeight;
+    return width > 0 && height > 0 ? width / height : 1;
   }
 
   private setSelectionHelper(entityId: StableId | null, selected: boolean): void {
@@ -825,6 +851,7 @@ async function prepareProjectRun(): Promise<boolean> {
     updateFixAgentButton();
     return false;
   }
+
   if (selection.activeEntityId !== script.entityId) {
     await selectEntity(script.entityId, 'system');
   }
@@ -1146,7 +1173,8 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   viewport = null;
   const frame = new SandboxedPreviewFrame(plan.entityId);
   previewFrame = frame;
-  try { await frame.start(sourceScene, plan); }
+  const previewScene = Object.freeze({ ...sourceScene, camera: sourceScene.camera ?? currentProjectCamera() });
+  try { await frame.start(previewScene, plan); }
   catch (cause) {
     await frame.dispose();
     if (previewFrame === frame) previewFrame = null;
@@ -1161,6 +1189,25 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   element('preview-disclosure').textContent = `Playing isolated trusted-project preview with ${plan.capabilities.join(', ')}.`;
   renderScriptPanel(sourceScene.entities.find((entity) => entity.id === plan.entityId) ?? null);
   updateRunButton();
+}
+
+function currentProjectCamera(): ProjectCameraSnapshot {
+  try { return project?.document ? projectCameraFromSettings(project.document.settings) : DEFAULT_PROJECT_CAMERA; }
+  catch { return DEFAULT_PROJECT_CAMERA; }
+}
+
+function sameCamera(left: ProjectCameraSnapshot, right: ProjectCameraSnapshot): boolean {
+  return left.projection === right.projection
+    && left.distance === right.distance
+    && left.azimuthDegrees === right.azimuthDegrees
+    && left.elevationDegrees === right.elevationDegrees
+    && left.fovDegrees === right.fovDegrees
+    && left.orthographicSize === right.orthographicSize
+    && left.near === right.near
+    && left.far === right.far
+    && left.target.x === right.target.x
+    && left.target.y === right.target.y
+    && left.target.z === right.target.z;
 }
 
 async function stopPreview(): Promise<void> {

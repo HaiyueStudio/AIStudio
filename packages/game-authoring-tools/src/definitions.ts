@@ -10,10 +10,25 @@ const materialKind = Object.freeze({ enum: ['basic', 'pbr', 'blinn-phong', 'norm
 const materialColor = Object.freeze({ type: 'array', minItems: 4, maxItems: 4, items: Object.freeze({ type: 'number', minimum: 0, maximum: 1 }) });
 const vec3 = Object.freeze({ type: 'object', additionalProperties: false, required: Object.freeze(['x', 'y', 'z']), properties: Object.freeze({ x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } }) });
 const transform = Object.freeze({ type: 'object', additionalProperties: false, required: Object.freeze(['position', 'rotationDegrees', 'scale']), properties: Object.freeze({ position: vec3, rotationDegrees: vec3, scale: vec3 }) });
+const camera = Object.freeze({
+  type: 'object', additionalProperties: false,
+  required: Object.freeze(['projection', 'target', 'distance', 'azimuthDegrees', 'elevationDegrees', 'fovDegrees', 'orthographicSize', 'near', 'far']),
+  properties: Object.freeze({
+    projection: { enum: ['perspective', 'orthographic'] }, target: vec3,
+    distance: { type: 'number', minimum: 0.5, maximum: 500 },
+    azimuthDegrees: { type: 'number', minimum: -360, maximum: 360 },
+    elevationDegrees: { type: 'number', minimum: -89.9, maximum: 90 },
+    fovDegrees: { type: 'number', minimum: 10, maximum: 120 },
+    orthographicSize: { type: 'number', minimum: 0.5, maximum: 500 },
+    near: { type: 'number', minimum: 0.01, maximum: 100 },
+    far: { type: 'number', minimum: 0.1, maximum: 10_000 },
+  }),
+});
 const resultSchema = Object.freeze({ type: 'object' }) as JsonObject;
 
 export const GAME_AUTHORING_TOOL_DEFINITIONS: readonly GameToolDefinition[] = Object.freeze([
   definition('project.snapshot', 'Project snapshot', 'Read the current project identity, revision and log health.', 'observe', 'low', empty, ['studio.project-workspace']),
+  definition('camera.get', 'Get camera', 'Read the persisted main project camera used by both the authoring viewport and isolated game preview.', 'observe', 'low', empty, ['studio.project-workspace']),
   definition('scene.list-entities', 'List entities', 'Read a bounded immutable scene entity summary.', 'observe', 'low', empty, ['studio.scene-authoring']),
   definition('entity.get', 'Get entity', 'Read one immutable entity snapshot.', 'observe', 'low', schema({ entityId }, ['entityId']), ['studio.scene-authoring']),
   definition('script.get', 'Get script', 'Read one bounded project script snapshot.', 'observe', 'low', schema({ entityId, scriptId }, [], ['entityId', 'scriptId']), ['studio.script-preview']),
@@ -23,6 +38,7 @@ export const GAME_AUTHORING_TOOL_DEFINITIONS: readonly GameToolDefinition[] = Ob
     sessionId: { type: 'string' }, turnId: { type: 'string' }, toolCallId: { type: 'string' }, entityId: { type: 'string' }, pluginId: { type: 'string' },
     afterSequence: revision, beforeSequence: revision, limit: { type: 'integer', minimum: 1, maximum: 100 }, traverseCorrelation: { type: 'boolean' }, cursor: { type: 'string', maxLength: 2048 },
   }, ['limit', 'traverseCorrelation'], ['severity', 'kinds', 'sessionId', 'turnId', 'toolCallId', 'entityId', 'pluginId', 'afterSequence', 'beforeSequence', 'cursor']), ['studio.diagnostics.query'], 8_000, 64 * 1024),
+  definition('camera.set', 'Set camera', 'Replace the persisted main project camera through Document History. Call camera.get first and submit a complete camera. elevationDegrees is the angle above the ground plane; use 90 for a straight top-down view. For board games, orthographic projection avoids perspective distortion and orthographicSize controls the visible board height.', 'reversible-edit', 'low', schema({ baseRevision: revision, camera }, ['camera'], ['baseRevision']), ['studio.project-workspace']),
   definition('entity.create', 'Create entity', 'Create one low-risk authoring-scene entity after the implementation plan is approved, including its initial Transform and entity-specific material appearance in the same operation. Use transform here instead of a dependent transform.set call for a new entity. Geometry kinds: cube, sphere, cone, cylinder, plane, torus, icosahedron. Light kinds: directional-light, point-light and ambient-light. Empty is for logic/grouping. Geometry supports Engine material types basic, pbr, blinn-phong and normal plus an RGBA color with normalized 0..1 channels. Give visually distinct gameplay roles deliberate colors.', 'reversible-edit', 'low', schema({ baseRevision: revision, kind: entityKind, name: { type: 'string', minLength: 1, maxLength: 80 }, parentId: { anyOf: [entityId, { type: 'null' }] }, material: materialKind, color: materialColor, transform }, ['kind'], ['baseRevision', 'name', 'parentId', 'material', 'color', 'transform']), ['studio.scene-authoring']),
   definition('entity.rename', 'Rename entity', 'Prepare and rename one entity through Document History.', 'reversible-edit', 'medium', schema({ baseRevision: revision, entityId, name: { type: 'string', minLength: 1, maxLength: 80 } }, ['entityId', 'name'], ['baseRevision']), ['studio.scene-authoring'], 10_000, 32 * 1024, true),
   definition('transform.set', 'Set Transform', 'Replace the Transform of an existing entity. entityId is mandatory; when an entity was just created, wait for entity.create to return result.entity.id before calling this tool.', 'reversible-edit', 'medium', schema({ baseRevision: revision, entityId, transform }, ['entityId', 'transform'], ['baseRevision']), ['studio.scene-authoring'], 10_000, 32 * 1024, true),

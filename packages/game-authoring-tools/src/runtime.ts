@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import { isSceneGeometryKind, isSceneMaterialKind, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type SceneMaterialColor, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
+import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, projectCameraFromSettings, PROJECT_CAMERA_SETTING_KEY, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type SceneMaterialColor, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
@@ -269,7 +269,11 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
   switch (stored.definition.id) {
     case 'project.snapshot': {
       const workspace = options.workspace.snapshot(); const document = requireDocument(options.workspace);
-      return Object.freeze({ projectId: document.projectId, documentId: document.documentId, name: document.name, revision: document.revision, savedRevision: document.savedRevision, dirty: document.dirty, sceneRevision: scene.revision, logHealth: workspace.logging.health });
+      return Object.freeze({ projectId: document.projectId, documentId: document.documentId, name: document.name, revision: document.revision, savedRevision: document.savedRevision, dirty: document.dirty, sceneRevision: scene.revision, camera: projectCameraFromSettings(document.settings) as unknown as JsonValue, logHealth: workspace.logging.health });
+    }
+    case 'camera.get': {
+      const document = requireDocument(options.workspace);
+      return Object.freeze({ documentId: document.documentId, revision: document.revision, camera: projectCameraFromSettings(document.settings) as unknown as JsonValue });
     }
     case 'scene.list-entities': return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entities: Object.freeze(scene.entities.slice(0, 200).map(entitySummary)), truncated: scene.entities.length > 200 });
     case 'entity.get': return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entity: entitySummary(requireEntity(scene, args.entityId as StableId)) });
@@ -287,6 +291,12 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
         digest: sha256(canonicalStringify(events as unknown as JsonValue)),
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       });
+    }
+    case 'camera.set': {
+      const camera = args.camera as JsonObject;
+      const next = await options.workspace.execute({ id: commandId(stored.call.id), label: 'Set Camera', baseRevision: args.baseRevision as number, key: PROJECT_CAMERA_SETTING_KEY, value: camera }, signal);
+      if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while setting its camera.');
+      return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, camera: projectCameraFromSettings(next.document.settings) as unknown as JsonValue });
     }
     case 'entity.create': {
       const beforeIds = new Set(scene.entities.map((item) => item.id));
@@ -344,10 +354,16 @@ function validateToolCall(value: unknown): GameToolCall {
 function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision: number): JsonObject {
   const raw = value as Record<string, unknown>;
   switch (toolId) {
-    case 'project.snapshot': case 'scene.list-entities': case 'preview.stop': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'project.snapshot': case 'camera.get': case 'scene.list-entities': case 'preview.stop': exact(raw, [], [], toolId); return Object.freeze({});
     case 'entity.get': exact(raw, ['entityId'], [], toolId); return Object.freeze({ entityId: stable(raw.entityId, 'entity id') });
     case 'script.get': { exact(raw, [], ['entityId', 'scriptId'], toolId); if (!raw.entityId && !raw.scriptId) throw invalid('script.get requires entityId or scriptId.'); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
     case 'diagnostics.query': return normalizeLogQuery(raw);
+    case 'camera.set': {
+      exact(raw, ['camera'], ['baseRevision'], toolId);
+      try {
+        return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), camera: normalizeProjectCamera(raw.camera) as unknown as JsonValue });
+      } catch (cause) { throw invalid(cause instanceof Error ? cause.message : 'Camera is invalid.'); }
+    }
     case 'entity.create': {
       exact(raw, ['kind'], ['baseRevision', 'name', 'parentId', 'material', 'color', 'transform'], toolId);
       if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
@@ -376,6 +392,7 @@ function normalizeLogQuery(raw: Record<string, unknown>): JsonObject {
 function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringService, proposals: ReadonlyMap<StableId, ScriptEditProposal>, plans: ReadonlyMap<StableId, PreviewPlan>): GameToolPreview {
   const raw = args as Record<string, unknown>; const snapshot = scene.snapshot();
   switch (toolId) {
+    case 'camera.set': return preview('Set camera', snapshot.documentId, 'Replace the main project camera for authoring and game preview.', canonicalStringify(raw.camera as JsonObject));
     case 'entity.create': return preview('Create entity', snapshot.documentId, `Create ${raw.kind}${raw.name ? ` named ${raw.name}` : ''}.`, `+ ${raw.kind} ${raw.name ?? ''}`.trim());
     case 'entity.rename': { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Rename entity', entity.id, `Rename ${entity.name} to ${raw.name}.`, `- ${entity.name}\n+ ${raw.name}`); }
     case 'transform.set': { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Set Transform', entity.id, `Replace Transform for ${entity.name}.`, `${canonicalStringify(entity.transform as unknown as JsonObject)}\n→ ${canonicalStringify(raw.transform as JsonObject)}`); }
@@ -409,7 +426,7 @@ function requireDocument(workspace: ProjectWorkspace): NonNullable<ReturnType<Pr
 function requireEntity(scene: ReturnType<SceneAuthoringService['snapshot']>, id: StableId) { const entity = scene.entities.find((item) => item.id === id); if (!entity) throw new GameToolProtocolError('tool.entity-missing', `Entity ${id} does not exist.`); return entity; }
 function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
-function historyLabel(toolId: StableId): string | undefined { return ({ 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;
   return Object.freeze({

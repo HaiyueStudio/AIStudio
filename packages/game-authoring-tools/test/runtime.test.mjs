@@ -21,10 +21,10 @@ const transform = entity.getComponent('CartesianTransform3D') as unknown as { se
 transform?.setPosition(0, 1, 0);
 `;
 
-test('fixed tool catalog exposes only the 14 bounded POC capabilities', () => {
+test('fixed tool catalog exposes only the 16 bounded authoring capabilities', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
-    'project.snapshot', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
-    'entity.create', 'entity.rename', 'transform.set', 'material.set', 'script.propose', 'script.apply',
+    'project.snapshot', 'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
+    'camera.set', 'entity.create', 'entity.rename', 'transform.set', 'material.set', 'script.propose', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
@@ -33,6 +33,33 @@ test('fixed tool catalog exposes only the 14 bounded POC capabilities', () => {
     [{ risk: 'low', requiresApproval: false }],
   );
   assert.doesNotMatch(JSON.stringify(GAME_AUTHORING_TOOL_DEFINITIONS), /shell|network|filesystem|delete|package|git/i);
+});
+
+test('main project camera persists through History and supports a distortion-free top-down board view', async () => {
+  const value = await fixture();
+  const topDown = {
+    projection: 'orthographic', target: { x: 0, y: 0, z: 0 }, distance: 25,
+    azimuthDegrees: 0, elevationDegrees: 90, fovDegrees: 45, orthographicSize: 24, near: 0.1, far: 1_000,
+  };
+  try {
+    const initial = await executeReady(value.runtime, call('call:camera-get-initial', 'camera.get', {}));
+    assert.equal(initial.value.camera.projection, 'perspective');
+    const prepared = await value.runtime.prepare(call('call:camera-top-down', 'camera.set', { baseRevision: 1, camera: topDown }));
+    assert.equal(prepared.status, 'ready');
+    assert.equal(prepared.approvalId, undefined);
+    const changed = await value.runtime.execute(prepared.id);
+    assert.equal(changed.afterRevision, 2);
+    assert.equal(changed.historyLabel, 'Set Camera');
+    assert.deepEqual(changed.value.camera, topDown);
+    assert.deepEqual(value.workspace.snapshot().document.settings['studio.camera.main'], topDown);
+
+    await value.workspace.undo(2);
+    const undone = await executeReady(value.runtime, call('call:camera-get-undone', 'camera.get', {}));
+    assert.equal(undone.value.camera.projection, 'perspective');
+    await value.workspace.redo(3);
+    const redone = await executeReady(value.runtime, call('call:camera-get-redone', 'camera.get', {}));
+    assert.deepEqual(redone.value.camera, topDown);
+  } finally { await dispose(value); }
 });
 
 test('planned entity creation is low risk while later scoped edits retain one-shot approval and History', async () => {
@@ -565,7 +592,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 14);
+      assert.equal(input.tools.length, 16);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -590,7 +617,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 14);
+      assert.equal(input.tools.length, 16);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');
