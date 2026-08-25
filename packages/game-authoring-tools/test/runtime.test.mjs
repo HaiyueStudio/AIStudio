@@ -403,29 +403,28 @@ test('observe tools degrade when journal append fails while every mutation remai
   } finally { value.operationLog.append = append; await dispose(value); }
 });
 
-test('pending approvals expire and revision drift invalidates them before a decision can be accepted', async () => {
+test('pending approvals have no wall-clock expiry while revision drift still invalidates them', async () => {
   const value = await fixture();
   try {
     const created = await executeReady(value.runtime, call('call:create-expiry-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before' }));
     const entityId = created.value.entity.id;
-    const pending = await value.runtime.prepare(call('call:expires', 'entity.rename', { baseRevision: 2, entityId, name: 'Expired' }));
-    assert.equal(pending.expiresAt, new Date(value.time.value + 5 * 60_000).toISOString());
-    assert.equal(value.runtime.approval(pending.approvalId).expiresAt, pending.expiresAt);
-    value.time.value += 5 * 60_000;
-    await assert.rejects(value.runtime.decide(pending.approvalId, 'allow-once'), /is expired/);
-    assert.equal(value.runtime.approval(pending.approvalId).decision, 'expired');
-    assert.equal((await value.runtime.execute(pending.id)).status, 'rejected');
-    assert.equal(value.scene.snapshot().entities[0].name, 'Before');
+    const pending = await value.runtime.prepare(call('call:no-expiry', 'entity.rename', { baseRevision: 2, entityId, name: 'Still valid' }));
+    assert.equal(pending.expiresAt, undefined);
+    assert.equal(value.runtime.approval(pending.approvalId).expiresAt, undefined);
+    value.time.value += 30 * 24 * 60 * 60_000;
+    assert.equal((await value.runtime.decide(pending.approvalId, 'allow-once')).decision, 'allow-once');
+    assert.equal((await value.runtime.execute(pending.id)).status, 'completed');
+    assert.equal(value.scene.snapshot().entities[0].name, 'Still valid');
 
-    const stale = await value.runtime.prepare(call('call:approval-stale', 'entity.rename', { baseRevision: 2, entityId, name: 'Must not apply' }));
-    await value.workspace.execute({ id: asStableId('command:approval-drift'), label: 'Approval drift', baseRevision: 2, key: 'fixture.approval-drift', value: true });
+    const stale = await value.runtime.prepare(call('call:approval-stale', 'entity.rename', { baseRevision: 3, entityId, name: 'Must not apply' }));
+    await value.workspace.execute({ id: asStableId('command:approval-drift'), label: 'Approval drift', baseRevision: 3, key: 'fixture.approval-drift', value: true });
     await assert.rejects(value.runtime.decide(stale.approvalId, 'allow-once'), /is stale/);
     assert.equal(value.runtime.approval(stale.approvalId).decision, 'stale');
     assert.equal((await value.runtime.execute(stale.id)).status, 'rejected');
-    assert.equal(value.scene.snapshot().entities[0].name, 'Before');
+    assert.equal(value.scene.snapshot().entities[0].name, 'Still valid');
 
-    const facts = await value.operationLog.query({ toolCallId: asStableId('call:expires'), limit: 30, traverseCorrelation: false });
-    assert.ok(facts.events.some((item) => item.kind === 'approval/expired'));
+    const facts = await value.operationLog.query({ toolCallId: asStableId('call:no-expiry'), limit: 30, traverseCorrelation: false });
+    assert.equal(facts.events.some((item) => item.kind === 'approval/expired'), false);
   } finally { await dispose(value); }
 });
 
@@ -551,7 +550,7 @@ async function fixture(runtimeOptions = {}, restartState = null) {
     async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', entityId: plan.entityId }; return this.state; },
     async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; }, snapshot() { return this.state; },
   };
-  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, clock: () => new Date(time.value), ...runtimeOptions });
+  const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, ...runtimeOptions });
   return { projectRoot, userDataRoot, time, operationLog, resources, workspace, scene, validator, projectScripts, scripts, preview, runtime };
 }
 

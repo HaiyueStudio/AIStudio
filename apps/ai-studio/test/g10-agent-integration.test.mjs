@@ -93,6 +93,7 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   const approvalNode = nodes(host).find((node) => node.kind === 'approval');
   assert.equal(approvalNode.content.argsDigest, `sha256:${'a'.repeat(64)}`);
   assert.equal(approvalNode.content.previewDigest, `sha256:${'b'.repeat(64)}`);
+  assert.equal(approvalNode.content.expiresAt, undefined);
   assert.ok(nodes(host).some((node) => node.kind === 'tool-result' && node.status === 'completed'));
   const toolResult = nodes(host).find((node) => node.kind === 'tool-result' && node.status === 'completed' && node.content.toolId === 'entity.create');
   assert.match(toolResult.content.summary, /已创建/);

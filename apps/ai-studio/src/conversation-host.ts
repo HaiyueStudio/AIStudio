@@ -526,21 +526,9 @@ export class StudioConversationHost {
     const releaseHumanWait = this.pauseForHumanInteraction(preparation.sessionId, preparation.turnId);
     return new Promise<void>((resolve, reject) => {
       let settled = false;
-      const expiry = Date.parse(approval.expiresAt);
-      const expiresIn = Number.isFinite(expiry) ? Math.max(0, expiry - Date.now()) : 5 * 60_000;
-      const timer = setTimeout(() => {
-        if (settled) return;
-        settled = true; releaseHumanWait(); this.approvals.delete(approval.approvalId); signal.removeEventListener('abort', abort);
-        void this.options.tools.decide(approval.approvalId, 'cancel').catch(() => undefined).finally(() => {
-          const latest = this.options.tools.approval(approval.approvalId) ?? Object.freeze({ ...approval, decision: 'expired' as const });
-          const current = this.nodes.get(nodeId);
-          if (current) this.project(nodeId, 'approval', 'cancelled', current.provenance, approvalContent(preparation, latest));
-          reject(new Error('Approval expired before a decision was made.'));
-        });
-      }, expiresIn);
       const abort = (): void => {
         if (settled) return;
-        settled = true; releaseHumanWait(); clearTimeout(timer); this.approvals.delete(approval.approvalId);
+        settled = true; releaseHumanWait(); this.approvals.delete(approval.approvalId);
         void this.options.tools.decide(approval.approvalId, 'cancel').catch(() => undefined);
         const current = this.nodes.get(nodeId);
         if (current && current.status === 'pending') this.project(nodeId, 'approval', 'cancelled', current.provenance, Object.freeze({ ...current.content, decision: 'cancel' }));
@@ -550,8 +538,8 @@ export class StudioConversationHost {
       signal.addEventListener('abort', abort, { once: true });
       this.approvals.set(approval.approvalId, Object.freeze({
         preparation, approval, nodeId,
-        resolve: () => { if (settled) return; settled = true; releaseHumanWait(); clearTimeout(timer); signal.removeEventListener('abort', abort); resolve(); },
-        reject: (cause: unknown) => { if (settled) return; settled = true; releaseHumanWait(); clearTimeout(timer); signal.removeEventListener('abort', abort); reject(cause); },
+        resolve: () => { if (settled) return; settled = true; releaseHumanWait(); signal.removeEventListener('abort', abort); resolve(); },
+        reject: (cause: unknown) => { if (settled) return; settled = true; releaseHumanWait(); signal.removeEventListener('abort', abort); reject(cause); },
       }));
     });
   }
@@ -750,7 +738,7 @@ function approvalContent(preparation: GameToolPreparation, approval: GameToolApp
     approvalId: approval.approvalId, toolCallId: approval.toolCallId, toolId: approval.toolId, toolVersion: approval.toolVersion,
     target: approval.target, effect: approval.effect, risk: approval.risk, argumentsSummary: preparation.preview.summary,
     previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: presentationDigest(approval.argumentsDigest),
-    previewDigest: presentationDigest(approval.previewDigest), expiresAt: approval.expiresAt,
+    previewDigest: presentationDigest(approval.previewDigest), ...(approval.expiresAt ? { expiresAt: approval.expiresAt } : {}),
     scope: approval.decision === 'allow-always' ? 'project-session' : 'operation', decision: approval.decision,
   });
 }

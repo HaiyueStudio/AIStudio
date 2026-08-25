@@ -80,7 +80,7 @@ export interface GameToolApproval {
   readonly documentId: StableId;
   readonly baseRevision: number;
   readonly target: string;
-  readonly expiresAt: string;
+  readonly expiresAt?: string;
   readonly decision: GameToolApprovalDecision;
 }
 
