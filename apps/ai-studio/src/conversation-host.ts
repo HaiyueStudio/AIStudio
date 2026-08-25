@@ -20,6 +20,7 @@ interface ActiveTurn {
   sessionId: StableId | null;
   turnId: StableId | null;
   readonly controller: AbortController;
+  readonly wallTimeBudget: WallTimeBudget;
   readonly initialProgressNodeId: StableId;
   readonly localSessionId: StableId;
   readonly localTurnId: StableId;
@@ -35,7 +36,7 @@ interface ActiveTurn {
 }
 interface BackendSelection { readonly model: string; readonly reasoningEffort: M12ReasoningEffort; readonly outputTokenLimit: number; }
 interface PendingApproval { readonly preparation: GameToolPreparation; readonly approval: GameToolApproval; readonly nodeId: StableId; readonly resolve: () => void; readonly reject: (cause: unknown) => void; }
-interface PendingQuestion { readonly backend: AgentBackend; readonly nodeId: StableId; readonly backendNodeId: StableId; }
+interface PendingQuestion { readonly backend: AgentBackend; readonly nodeId: StableId; readonly backendNodeId: StableId; readonly releaseHumanWait: () => void; readonly detachAbort: () => void; }
 interface PendingPlan {
   readonly nodeId: StableId;
   readonly toolCallId: StableId;
@@ -142,8 +143,9 @@ export class StudioConversationHost {
         const pending = this.questions.get(intent.nodeId);
         if (!pending) throw new Error('Question is stale or already answered.');
         this.questions.delete(intent.nodeId);
-        await pending.backend.answerQuestion(pending.backendNodeId, intent.answer, signal);
-        this.finishNode(intent.nodeId, 'completed');
+        pending.detachAbort(); pending.releaseHumanWait();
+        try { await pending.backend.answerQuestion(pending.backendNodeId, intent.answer, signal); this.finishNode(intent.nodeId, 'completed'); }
+        catch (cause) { this.finishNode(intent.nodeId, 'failed'); throw cause; }
         return;
       }
       case 'conversation/accept-plan': this.resolvePlan(intent.nodeId, intent.acceptedItemIds, intent.note, intent.mode ?? 'approve'); return;
@@ -227,9 +229,9 @@ export class StudioConversationHost {
     const budget = Object.freeze({ ...this.budgetTemplate, id: config.taskBudgetId, limits: Object.freeze({ ...this.budgetTemplate.limits }) });
     const account = this.options.runtime.accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
     assertBudgetAllowed(account.beginTurn());
-    const clearWallBudget = armWallTimeBudget(controller, account);
+    const wallTimeBudget = armWallTimeBudget(controller, account);
     this.latestTaskId = taskId;
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal: prompt, decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
+    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal: prompt, decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(userNodeId, 'text', 'completed', provenance, Object.freeze({ text: prompt, role: 'user' }));
     this.project(initialProgressNodeId, 'progress', 'pending', provenance, Object.freeze({
       label: '正在分析需求', message: 'Agent 正在读取项目上下文并规划下一步。', phase: 'awaiting-first-step',
@@ -238,7 +240,7 @@ export class StudioConversationHost {
       await this.consume(backendId, this.options.runtime.turns.start(backendId, { taskId, config, ...(context.reusedSessionId ? { sessionId: context.reusedSessionId } : {}), prompt: context.prompt, contextArtifactIds: context.contextArtifactIds, contextCache: context.cache, tools }, controller.signal), controller.signal);
     } catch (cause) { await this.captureFailure(backendId, cause); }
     finally {
-      clearWallBudget();
+      wallTimeBudget.dispose();
       const progress = this.nodes.get(initialProgressNodeId);
       if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
       const owned = this.active?.controller === controller ? this.active : null;
@@ -257,12 +259,12 @@ export class StudioConversationHost {
     const localTurnId = asStableId(`turn:approved-plan:${this.nodeSequence + 1}`);
     const initialProgressNodeId = this.nextNodeId('approved-plan-progress');
     assertBudgetAllowed(account.beginTurn());
-    const clearWallBudget = armWallTimeBudget(controller, account);
+    const wallTimeBudget = armWallTimeBudget(controller, account);
     const tools = this.modelTools();
     const project = this.options.projectContext?.() ?? null;
     const request = approvedPlanRequest(plan, project !== null);
     const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project });
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal, decisions: [`Approved plan: ${plan.title}. ${plan.summary}`], toolFacts: [], blockers: [], contextCommitted: false };
+    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal, decisions: [`Approved plan: ${plan.title}. ${plan.summary}`], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId }), Object.freeze({
       label: '正在执行已批准方案', message: '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。', phase: 'approved-plan-execution',
     }));
@@ -276,7 +278,7 @@ export class StudioConversationHost {
       }, controller.signal), controller.signal);
     } catch (cause) { await this.captureFailure(backendId, cause); }
     finally {
-      clearWallBudget();
+      wallTimeBudget.dispose();
       const progress = this.nodes.get(initialProgressNodeId);
       if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
       const owned = this.active?.controller === controller ? this.active : null;
@@ -294,17 +296,17 @@ export class StudioConversationHost {
     const budget = Object.freeze({ ...this.budgetTemplate, id: config.taskBudgetId, limits: Object.freeze({ ...this.budgetTemplate.limits }) });
     const account = existingAccount ?? this.options.runtime.accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
     if (!existingAccount) assertBudgetAllowed(account.beginTurn()); else assertBudgetAllowed(account.snapshot().budgetDecision);
-    const clearWallBudget = armWallTimeBudget(controller, account);
+    const wallTimeBudget = armWallTimeBudget(controller, account);
     this.latestTaskId = taskId;
     const project = this.options.projectContext?.() ?? null;
-    this.active = { backendId, taskId, config, account, sessionId, turnId, controller, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: null, continuationRequested: false, conversationKey: conversationKeyFor(project), projectId: project?.projectId ?? null, goal: 'Retry the interrupted visible task.', decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
+    this.active = { backendId, taskId, config, account, sessionId, turnId, controller, wallTimeBudget, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: null, continuationRequested: false, conversationKey: conversationKeyFor(project), projectId: project?.projectId ?? null, goal: 'Retry the interrupted visible task.', decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId, turnId }), Object.freeze({
       label: '正在恢复任务', message: 'Agent 正在恢复上次任务的上下文。', phase: 'awaiting-first-step',
     }));
     try { await this.consume(backendId, this.options.runtime.turns.resume(backendId, sessionId, turnId, controller.signal), controller.signal); }
     catch (cause) { await this.captureFailure(backendId, cause, sessionId, turnId); }
     finally {
-      clearWallBudget();
+      wallTimeBudget.dispose();
       const progress = this.nodes.get(initialProgressNodeId);
       if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
       if (this.active?.controller === controller) { this.active = null; this.changed(); }
@@ -345,8 +347,15 @@ export class StudioConversationHost {
       const backendNodeId = stablePayloadId(event.payload.nodeId, 'question node');
       const nodeId = this.nextNodeId('question');
       const options = questionOptions(event.payload.questions);
-      this.questions.set(nodeId, Object.freeze({ backend, nodeId, backendNodeId }));
       this.project(nodeId, 'question', 'pending', provenance, Object.freeze({ prompt: 'The Agent needs clarification before continuing.', options, allowFreeform: true, multiple: false }));
+      const releaseHumanWait = this.pauseForHumanInteraction(event.sessionId, event.turnId);
+      const abort = (): void => {
+        const pending = this.questions.get(nodeId); if (!pending) return;
+        this.questions.delete(nodeId); pending.releaseHumanWait(); this.finishNode(nodeId, 'cancelled');
+      };
+      signal.addEventListener('abort', abort, { once: true });
+      this.questions.set(nodeId, Object.freeze({ backend, nodeId, backendNodeId, releaseHumanWait, detachAbort: () => signal.removeEventListener('abort', abort) }));
+      if (signal.aborted) abort();
       return;
     }
     if (event.kind === 'diagnostic') {
@@ -450,14 +459,20 @@ export class StudioConversationHost {
       summary: proposal.summary,
       items: Object.freeze(items.map((item) => Object.freeze({ ...item, status: 'pending' }))),
     }));
+    const releaseHumanWait = this.pauseForHumanInteraction(sessionId, turnId);
     return new Promise<JsonObject>((resolve, reject) => {
-      const abort = (): void => { this.plans.delete(nodeId); reject(signal.reason ?? new Error('Plan review cancelled.')); };
+      const abort = (): void => {
+        this.plans.delete(nodeId); releaseHumanWait();
+        const current = this.nodes.get(nodeId);
+        if (current && current.status === 'pending') this.project(nodeId, 'plan', 'cancelled', current.provenance, Object.freeze({ ...current.content, decision: 'cancelled' }));
+        reject(signal.reason ?? new Error('Plan review cancelled.'));
+      };
       if (signal.aborted) { abort(); return; }
       signal.addEventListener('abort', abort, { once: true });
       this.plans.set(nodeId, Object.freeze({
         nodeId, toolCallId, sessionId, turnId, title: proposal.title, summary: proposal.summary, items,
-        resolve: (result: JsonObject) => { signal.removeEventListener('abort', abort); resolve(result); },
-        reject: (cause: unknown) => { signal.removeEventListener('abort', abort); reject(cause); },
+        resolve: (result: JsonObject) => { signal.removeEventListener('abort', abort); releaseHumanWait(); resolve(result); },
+        reject: (cause: unknown) => { signal.removeEventListener('abort', abort); releaseHumanWait(); reject(cause); },
       }));
     });
   }
@@ -508,13 +523,14 @@ export class StudioConversationHost {
     if (!approval) return Promise.reject(new Error('Prepared approval is unavailable.'));
     const nodeId = this.nextNodeId('approval');
     this.project(nodeId, 'approval', 'pending', provenance, approvalContent(preparation, approval));
+    const releaseHumanWait = this.pauseForHumanInteraction(preparation.sessionId, preparation.turnId);
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       const expiry = Date.parse(approval.expiresAt);
       const expiresIn = Number.isFinite(expiry) ? Math.max(0, expiry - Date.now()) : 5 * 60_000;
       const timer = setTimeout(() => {
         if (settled) return;
-        settled = true; this.approvals.delete(approval.approvalId); signal.removeEventListener('abort', abort);
+        settled = true; releaseHumanWait(); this.approvals.delete(approval.approvalId); signal.removeEventListener('abort', abort);
         void this.options.tools.decide(approval.approvalId, 'cancel').catch(() => undefined).finally(() => {
           const latest = this.options.tools.approval(approval.approvalId) ?? Object.freeze({ ...approval, decision: 'expired' as const });
           const current = this.nodes.get(nodeId);
@@ -524,18 +540,34 @@ export class StudioConversationHost {
       }, expiresIn);
       const abort = (): void => {
         if (settled) return;
-        settled = true; clearTimeout(timer); this.approvals.delete(approval.approvalId);
+        settled = true; releaseHumanWait(); clearTimeout(timer); this.approvals.delete(approval.approvalId);
         void this.options.tools.decide(approval.approvalId, 'cancel').catch(() => undefined);
+        const current = this.nodes.get(nodeId);
+        if (current && current.status === 'pending') this.project(nodeId, 'approval', 'cancelled', current.provenance, Object.freeze({ ...current.content, decision: 'cancel' }));
         reject(signal.reason ?? new Error('Approval cancelled.'));
       };
       if (signal.aborted) { abort(); return; }
       signal.addEventListener('abort', abort, { once: true });
       this.approvals.set(approval.approvalId, Object.freeze({
         preparation, approval, nodeId,
-        resolve: () => { if (settled) return; settled = true; clearTimeout(timer); signal.removeEventListener('abort', abort); resolve(); },
-        reject: (cause: unknown) => { if (settled) return; settled = true; clearTimeout(timer); signal.removeEventListener('abort', abort); reject(cause); },
+        resolve: () => { if (settled) return; settled = true; releaseHumanWait(); clearTimeout(timer); signal.removeEventListener('abort', abort); resolve(); },
+        reject: (cause: unknown) => { if (settled) return; settled = true; releaseHumanWait(); clearTimeout(timer); signal.removeEventListener('abort', abort); reject(cause); },
       }));
     });
+  }
+
+  private pauseForHumanInteraction(sessionId: StableId, turnId: StableId): () => void {
+    const active = this.active;
+    if (!active || active.sessionId !== sessionId || active.turnId !== turnId) return () => {};
+    active.wallTimeBudget.pause();
+    const ledger = this.options.runtime.usage?.get(turnId);
+    ledger?.pauseWallTime(Date.now());
+    let released = false;
+    return () => {
+      if (released) return; released = true;
+      ledger?.resumeWallTime(Date.now());
+      active.wallTimeBudget.resume();
+    };
   }
 
   private async resolveApproval(approvalId: StableId, decision: 'allow-once' | 'allow-always' | 'reject'): Promise<void> {
@@ -813,12 +845,39 @@ const DEFAULT_TASK_BUDGET: TaskBudgetV2 = Object.freeze({ schemaVersion: 2, id: 
 }) });
 function assertBudgetAllowed(decision: Readonly<{ allowed: boolean; warning: string | null }>): void { if (!decision.allowed) throw new BudgetStopError(decision.warning ?? 'Task budget is exhausted.'); }
 class BudgetStopError extends Error { readonly code = 'budget.hard-stop'; constructor(message: string) { super(message); this.name = 'BudgetStopError'; } }
-function armWallTimeBudget(controller: AbortController, account: TaskAccount): () => void {
-  if (account.options.budget.enforcement !== 'hard') return () => {};
-  const remaining = account.options.budget.limits.wallTimeMs - account.snapshot().consumption.wallTimeMs;
-  if (remaining <= 0) { account.expireWallTime(); controller.abort(new BudgetStopError('Hard wall-time budget is exhausted.')); return () => {}; }
-  const timer = setTimeout(() => { account.expireWallTime(); controller.abort(new BudgetStopError('Hard wall-time budget expired.')); }, remaining);
-  return () => clearTimeout(timer);
+interface WallTimeBudget { pause(): void; resume(): void; dispose(): void; }
+function armWallTimeBudget(controller: AbortController, account: TaskAccount): WallTimeBudget {
+  if (account.options.budget.enforcement !== 'hard') return Object.freeze({ pause() {}, resume() {}, dispose() {} });
+  let remaining = account.options.budget.limits.wallTimeMs - account.snapshot().consumption.wallTimeMs;
+  let armedAt = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pauseDepth = 0;
+  let disposed = false;
+  const expire = (): void => {
+    timer = null; remaining = 0;
+    account.expireWallTime(); controller.abort(new BudgetStopError('Hard wall-time budget expired.'));
+  };
+  const arm = (): void => {
+    if (disposed || pauseDepth > 0 || controller.signal.aborted) return;
+    if (remaining <= 0) { expire(); return; }
+    armedAt = Date.now(); timer = setTimeout(expire, remaining);
+  };
+  arm();
+  return Object.freeze({
+    pause(): void {
+      if (disposed) return;
+      pauseDepth += 1;
+      if (pauseDepth !== 1 || timer === null) return;
+      clearTimeout(timer); timer = null;
+      remaining = Math.max(0, remaining - (Date.now() - armedAt));
+    },
+    resume(): void {
+      if (disposed || pauseDepth === 0) return;
+      pauseDepth -= 1;
+      if (pauseDepth === 0) arm();
+    },
+    dispose(): void { if (disposed) return; disposed = true; if (timer !== null) clearTimeout(timer); timer = null; },
+  });
 }
 const PLAN_TOOL_ID = asStableId('studio.plan.propose');
 const PLAN_TOOL_DEFINITION = Object.freeze({

@@ -181,6 +181,80 @@ test('an approved plan that ends without edits continues once and executes witho
   await host.dispose();
 });
 
+test('plan review pauses hard wall time so a user can return later, approve, and continue editing', async () => {
+  let releasePlan; let releaseEdit;
+  const planReleased = new Promise((resolve) => { releasePlan = resolve; });
+  const editReleased = new Promise((resolve) => { releaseEdit = resolve; });
+  const usage = new UsageLedgerStore();
+  const accounting = new TaskAccountingRegistry(usage);
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
+    async modelCatalog() { return modelCatalog(); }, async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
+    async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {}, async answerQuestion() {}, async resolveBackendApproval() {},
+    async submitToolResult(id) { if (id === planToolCallId) releasePlan(); else releaseEdit(); },
+  };
+  const runtime = { context: contextFixture(), usage, accounting, registry: { descriptors: () => [backend.descriptor], get: () => backend }, turns: {
+    async *start(_backendId, input) {
+      const ledger = usage.open({ taskId: input.taskId, sessionId, turnId, providerRequestDigest: null, startedAtMs: Date.now() });
+      yield event('tool-request', { toolCallId: planToolCallId, toolId: 'studio.plan.propose', arguments: {
+        title: 'Return later plan', summary: 'Create one cube after the user returns.',
+        items: [{ label: 'Create cube', details: 'Create one independently editable cube entity.' }],
+      } });
+      await planReleased;
+      yield event('tool-request', { toolCallId, toolId: 'entity.create', arguments: { baseRevision: 1, kind: 'cube', name: 'Returned Player' } });
+      await editReleased;
+      ledger.markTerminal('stop', Date.now());
+      yield event('completed', { status: 'completed' });
+    }, async *resume() {}, async cancel() {}, async recordToolResult() {},
+  } };
+  const tools = {
+    definitions: () => [{ id: 'entity.create', description: 'Create entity', effect: 'reversible-edit', risk: 'low', inputSchema: {} }],
+    async prepare(call) { return { id: 'preparation:return-later', callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'low', documentId: 'document:test', baseRevision: 1, argumentsDigest: digest('a'), previewDigest: digest('b'), preview: { title: 'Create', target: 'Scene', summary: 'Create returned cube', diff: '+ cube' }, status: 'ready' }; },
+    async execute() { return { schemaVersion: 1, callId: toolCallId, toolId: 'entity.create', status: 'completed', value: { entity: { id: 'entity:return-later', name: 'Returned Player' } }, documentId: 'document:test', beforeRevision: 1, afterRevision: 2, historyLabel: 'Create Returned Player' }; },
+  };
+  const host = new StudioConversationHost({ runtime, tools, operationLog: { async append() {} }, isProjectOpen: () => true, projectContext: projectContextFixture });
+  await host.initialize();
+  await host.dispatch({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: { schemaVersion: 2, id: 'budget:return-later', enforcement: 'hard', limits: { inputTokens: 100_000, outputTokens: 10_000, estimatedCostMicros: 1_000_000, wallTimeMs: 80, turns: 2, toolCalls: 4, repairIterations: 1, observationBytes: 100_000 } } });
+  await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create a cube after I approve the plan.' });
+  await waitFor(() => nodes(host).some((node) => node.kind === 'plan' && node.status === 'pending'));
+  await new Promise((resolve) => setTimeout(resolve, 160));
+  const pendingPlan = nodes(host).find((node) => node.kind === 'plan' && node.status === 'pending');
+  assert.ok(pendingPlan);
+  assert.equal(host.replay().busy, true);
+  assert.equal(host.replay().taskAccounting.budgetStatus, 'within');
+  await host.dispatch({ type: 'conversation/accept-plan', nodeId: pendingPlan.id, acceptedItemIds: pendingPlan.content.items.map((item) => item.id), mode: 'approve' });
+  await waitFor(() => host.replay().busy === false);
+  assert.ok(nodes(host).some((node) => node.kind === 'plan' && node.status === 'completed' && node.content.decision === 'approved'));
+  assert.ok(nodes(host).some((node) => node.kind === 'tool-result' && node.content.toolId === 'entity.create' && node.status === 'completed'));
+  assert.equal(host.replay().taskAccounting.budgetStatus, 'within');
+  assert.ok(host.replay().taskAccounting.usage.wallTimeMs < 80, `active wall time should exclude user wait: ${host.replay().taskAccounting.usage.wallTimeMs}`);
+  assert.ok(!nodes(host).some((node) => node.kind === 'diagnostic' && /Hard wall-time budget/u.test(String(node.content.message))));
+  await host.dispose();
+});
+
+test('cancelling while a plan is pending terminalizes the plan so the composer can recover', async () => {
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} }, async modelCatalog() { return modelCatalog(); }, async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
+    async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {}, async submitToolResult() {}, async answerQuestion() {}, async resolveBackendApproval() {},
+  };
+  const runtime = { context: contextFixture(), accounting: accountingFixture(), registry: { descriptors: () => [backend.descriptor], get: () => backend }, turns: {
+    async *start(_backendId, _input, signal) {
+      yield event('tool-request', { toolCallId: planToolCallId, toolId: 'studio.plan.propose', arguments: { title: 'Cancelable plan', summary: 'Wait for review.', items: [{ label: 'Wait', details: 'Remain pending until cancelled.' }] } });
+      await new Promise((resolve, reject) => { const abort = () => reject(signal.reason); if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true }); });
+    },
+    async *resume() {}, async cancel() {}, async recordToolResult() {},
+  } };
+  const host = new StudioConversationHost({ runtime, tools: { definitions: () => [] }, operationLog: { async append() {} }, isProjectOpen: () => true });
+  await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Prepare a plan.' });
+  await waitFor(() => nodes(host).some((node) => node.kind === 'plan' && node.status === 'pending'));
+  await host.dispatch({ type: 'conversation/cancel', backendId, sessionId, turnId });
+  await waitFor(() => nodes(host).some((node) => node.kind === 'plan' && node.status === 'cancelled'));
+  const cancelledPlan = nodes(host).find((node) => node.kind === 'plan' && node.status === 'cancelled');
+  assert.equal(nodes(host).filter((node) => node.id === cancelledPlan.id).at(-1).status, 'cancelled');
+  await waitFor(() => host.replay().busy === false);
+  await host.dispose();
+});
+
 test('project Run prefers a current controller script over an incidentally selected board script', () => {
   const entities = [
     { id: 'entity:game', name: 'SnakeGame', kind: 'empty' },

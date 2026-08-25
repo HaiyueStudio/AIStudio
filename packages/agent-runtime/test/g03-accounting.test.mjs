@@ -60,6 +60,18 @@ test('usage ledger deduplicates and reorders deltas, then accepts late reconcili
   assert.equal(ledger.records().length, 4);
 });
 
+test('usage wall time excludes nested human-interaction pauses', () => {
+  const ledger = new UsageLedger({ taskId: asStableId('task:human-wait'), sessionId: asStableId('session:human-wait'), turnId: asStableId('turn:human-wait'), providerRequestDigest: null, startedAtMs: 1_000 });
+  ledger.reconcile({ eventId: 'usage:before-human-wait', sequence: 1, mode: 'delta', inputTokens: 1, observedAtMs: 1_020 });
+  ledger.pauseWallTime(1_030);
+  ledger.pauseWallTime(1_040);
+  const waiting = ledger.reconcile({ eventId: 'usage:during-human-wait', sequence: 2, mode: 'delta', outputTokens: 1, observedAtMs: 6_030 });
+  assert.equal(waiting.record.wallTimeMs, 30);
+  ledger.resumeWallTime(7_030);
+  ledger.resumeWallTime(8_030);
+  assert.equal(ledger.markTerminal('stop', 8_060).record.wallTimeMs, 60);
+});
+
 test('tool payload records retain tool-call provenance in the auditable ledger', () => {
   const ledger = new UsageLedger({ taskId: asStableId('task:tool'), sessionId: asStableId('session:tool'), turnId: asStableId('turn:tool'), providerRequestDigest: null, startedAtMs: 0 });
   ledger.reconcile({ eventId: 'tool:input', sequence: 1, mode: 'delta', toolCallId: asStableId('tool-call:one'), toolInputBytes: 12, observedAtMs: 1 });

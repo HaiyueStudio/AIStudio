@@ -41,6 +41,9 @@ export class UsageLedger {
   private executionState: 'running' | 'terminal' = 'running';
   private finishReason: NormalizedFinishReason | null = null;
   private terminalAtMs: number | null = null;
+  private pausedAtMs: number | null = null;
+  private pausedDurationMs = 0;
+  private pauseDepth = 0;
 
   constructor(private readonly identity: {
     readonly taskId: StableId;
@@ -64,10 +67,31 @@ export class UsageLedger {
     return this.snapshot();
   }
 
+  pauseWallTime(observedAtMs: number): void {
+    assertTime(observedAtMs, 'pause time');
+    if (this.executionState === 'terminal') return;
+    if (observedAtMs < this.identity.startedAtMs) throw new UsageLedgerError('usage.pause-time-invalid', 'Pause time precedes the turn start.');
+    this.pauseDepth += 1;
+    if (this.pauseDepth === 1) this.pausedAtMs = observedAtMs;
+  }
+
+  resumeWallTime(observedAtMs: number): void {
+    assertTime(observedAtMs, 'resume time');
+    if (this.executionState === 'terminal' || this.pauseDepth === 0) return;
+    if (this.pausedAtMs !== null && observedAtMs < this.pausedAtMs) throw new UsageLedgerError('usage.resume-time-invalid', 'Resume time precedes the active pause.');
+    this.pauseDepth -= 1;
+    if (this.pauseDepth === 0 && this.pausedAtMs !== null) {
+      this.pausedDurationMs += observedAtMs - this.pausedAtMs;
+      this.pausedAtMs = null;
+    }
+  }
+
   markTerminal(finishReason: NormalizedFinishReason, observedAtMs: number): UsageLedgerSnapshot {
     assertTime(observedAtMs, 'terminal time');
     if (!finishReasons.has(finishReason)) throw new UsageLedgerError('usage.finish-reason-invalid', 'Finish reason is invalid.');
     if (this.executionState === 'running') {
+      if (this.pausedAtMs !== null) this.pausedDurationMs += Math.max(0, observedAtMs - this.pausedAtMs);
+      this.pausedAtMs = null; this.pauseDepth = 0;
       this.executionState = 'terminal'; this.finishReason = finishReason; this.terminalAtMs = observedAtMs; this.appendRecord(observedAtMs);
     }
     return this.snapshot();
@@ -112,11 +136,15 @@ export class UsageLedger {
       taskId: this.identity.taskId, sessionId: this.identity.sessionId, turnId: this.identity.turnId,
       ...(update?.stepId ? { stepId: update.stepId } : {}), ...(update?.toolCallId ? { toolCallId: update.toolCallId } : {}),
       ...counts,
-      wallTimeMs: Math.max(0, Math.floor((this.terminalAtMs ?? observedAtMs) - this.identity.startedAtMs)),
+      wallTimeMs: Math.max(0, Math.floor((this.terminalAtMs ?? observedAtMs) - this.identity.startedAtMs - this.pausedDurationAt(this.terminalAtMs ?? observedAtMs))),
       providerRequestDigest: this.identity.providerRequestDigest,
       ...(this.identity.contextCache ? { contextCache: Object.freeze({ ...this.identity.contextCache, providerReportedHitTokens: counts.cachedInputTokens }) } : {}),
       final,
     });
+  }
+
+  private pausedDurationAt(observedAtMs: number): number {
+    return this.pausedDurationMs + (this.pausedAtMs === null ? 0 : Math.max(0, observedAtMs - this.pausedAtMs));
   }
 }
 

@@ -193,6 +193,16 @@ test('expired approval read models are visible but cannot block the composer or 
   controller.dispose();
 });
 
+test('a cancelled plan no longer blocks the composer after its turn terminates', () => {
+  const projector = new ConversationProjector();
+  const pending = node('node:cancelled-plan', 'plan', 'pending', { title: 'Plan', items: [{ id: 'plan:create', label: 'Create cube', status: 'pending' }] });
+  projector.reset(snapshot([projection(1, pending, 'replay')]));
+  assert.match(projector.snapshot().composerBlockedReason, /Review the implementation plan/);
+  projector.apply(projection(2, { ...pending, status: 'cancelled', content: { ...pending.content, decision: 'cancelled' } }, 'live'));
+  assert.equal(projector.snapshot().pendingInteraction, null);
+  assert.equal(projector.snapshot().composerBlockedReason, null);
+});
+
 function snapshot(events) {
   return { revision: 0, connection: 'connected', busy: false, backendId, backends: [{ id: backendId, label: 'Fixture', kind: 'harness-api-key', state: 'auth-required', authMode: 'api-key', rateLimits: [] }], events };
 }
