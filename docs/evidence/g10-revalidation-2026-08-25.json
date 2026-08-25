@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-25T18:30:00+08:00",
+  "implementationCommit": "aff013539c08972ce5c28e44117933c775072579",
+  "profiles": {
+    "poc-editor-harness": { "backend": "harness-api-key", "auth": "api-key" },
+    "poc-editor-codex": { "backend": "codex-app-server", "auth": "chatgpt" }
+  },
+  "commonPluginIds": [
+    "studio.editor-foundations",
+    "studio.operation-log.plugin",
+    "studio.project-workspace.plugin",
+    "studio.workspace-layout.plugin",
+    "studio.scene.plugin",
+    "studio.hierarchy.plugin",
+    "studio.selection.plugin",
+    "studio.transform.plugin",
+    "studio.viewport.plugin",
+    "studio.script-preview.plugin",
+    "studio.game-authoring-tools.plugin",
+    "studio.agent-runtime.plugin",
+    "studio.electron-ipc.plugin"
+  ],
+  "versions": {
+    "nodeMinimum": "22.19.0",
+    "nodeRunner": "24.19.0",
+    "electron": "43.2.0",
+    "engine": "0.1.0",
+    "ui": "0.1.1",
+    "editorCandidate": "0.1.0",
+    "deepseekHarnessTag": "dsh-v0.1.0-rc.7",
+    "deepseekHarnessCommit": "99f6f02fecdb7dff40c3fbc9470f5907c29f74ca",
+    "deepseekHarnessLicense": "MIT",
+    "codexCli": "0.148.0",
+    "codexSchemaSha256": "dc3613ce823c95087e660f8d12dac89856863eff653f2c8dd8f1ad0cac98ef11"
+  },
+  "environment": {
+    "os": "Windows 10 Pro 22H2 10.0.19045.6466",
+    "arch": "x64",
+    "gpu": "NVIDIA GeForce GTX 1070 Ti",
+    "gpuDriver": "560.94",
+    "renderer": "WebGPU"
+  },
+  "gates": {
+    "workspaceCheck": "pass",
+    "packageTests": { "passed": 127, "failed": 0 },
+    "appFocusedTests": { "passed": 25, "failed": 0 },
+    "audit": { "dependencies": 132, "totalVulnerabilities": 0 }
+  },
+  "realAgentGolden": [
+    { "backend": "harness-api-key", "model": "deepseek-v4-flash", "reasoningEffort": "low", "terminal": "completed", "mutations": ["entity.create", "transform.set"], "revision": 3, "persistenceObserved": false },
+    { "backend": "codex-app-server", "model": "gpt-5.6-sol", "reasoningEffort": "low", "terminal": "completed", "mutations": ["entity.create", "transform.set"], "revision": 3, "persistenceObserved": false }
+  ],
+  "browserWebGpu": {
+    "status": "pass",
+    "workflow": "new-create-select-transform-undo-redo-save-new-open",
+    "savedEntityRecovered": true,
+    "nodeGlobalsExposed": false
+  },
+  "electronWebGpu": {
+    "status": "fail",
+    "passed": 0,
+    "failed": 2,
+    "processExit": "0xC0000135",
+    "diagnostic": "Electron GPU subprocess cannot load a required driver/runtime dependency on this runner; software rendering and disabled GPU sandbox are not accepted substitutes."
+  },
+  "bugBundle": {
+    "offlineVerification": "pass",
+    "tamperRejection": "pass",
+    "checks": ["manifest", "file-bytes", "file-sha256", "content-digest", "jsonl-schema", "event-count", "artifact-count", "event-order", "correlation", "canary-scan", "path-boundary"]
+  },
+  "approvalAudit": {
+    "trustedScriptWrite": "exact-one-shot",
+    "firstRuntimeStart": "exact-one-shot",
+    "negativeDecisions": ["reject", "cancel", "expired", "stale", "unavailable"],
+    "negativeMutationCount": 0,
+    "expiryMs": 300000
+  },
+  "faultMatrix": {
+    "status": "pass",
+    "covered": ["script-exception", "stale-revision", "plugin-activation-failure", "backend-crash-restart", "partial-tail", "checksum-corruption", "rotation", "disk-full", "approval-race", "backend-cancel", "tool-timeout", "late-result", "restart-replay", "profile-replacement-100", "viewport-replacement-100"]
+  },
+  "decision": "NO-GO",
+  "blockingConditions": ["electron-webgpu-runner-unavailable"]
+}
