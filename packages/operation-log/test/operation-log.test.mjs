@@ -10,6 +10,7 @@ import {
   canonicalStringify,
   createOperationLogPlugin,
   sha256,
+  verifyBugBundle,
 } from '../dist/index.js';
 
 const source = asStableId('studio.test');
@@ -107,6 +108,13 @@ test('source redaction, taint, immutable artifacts and bug bundle contain no sec
     artifactIds: [artifact.id],
     versions: { app: '0.0.0-test', schema: 'operation-event/1', upstream: { harness: '0.1.0-rc.7' } },
   });
+  const verified = await verifyBugBundle(bundle.directory, {
+    forbiddenCanaries: ['SECRET_CANARY', 'CODEX_TOKEN_CANARY', 'API_KEY_CANARY', 'Bearer abcdef'],
+  });
+  assert.equal(verified.contentDigest, bundle.contentDigest);
+  assert.equal(verified.eventCount, 1);
+  assert.equal(verified.artifactCount, 1);
+  assert.ok(verified.correlationIds.includes(sessionId));
   const diskText = await readTreeText(root);
   const bundleText = await readTreeText(bundle.directory);
   for (const canary of ['SECRET_CANARY', 'CODEX_TOKEN_CANARY', 'API_KEY_CANARY', 'Bearer abcdef']) {
@@ -114,6 +122,25 @@ test('source redaction, taint, immutable artifacts and bug bundle contain no sec
     assert.doesNotMatch(bundleText, new RegExp(canary));
   }
   assert.match(bundleText, /contentDigest/);
+  await log.close();
+});
+
+test('offline bug bundle verification rejects artifact tampering', async () => {
+  const root = await tempRoot('operation-bundle-tamper');
+  const bundles = await tempRoot('operation-bundle-tamper-out');
+  const log = await OperationLog.open(options(root));
+  const artifact = await log.putArtifact({ diagnostic: 'safe' });
+  await log.append(event(0, { artifactRefs: [artifact.id] }));
+  const bundle = await log.exportBugBundle({
+    destinationRoot: bundles, query: allQuery, artifactIds: [artifact.id],
+    versions: { app: '0.0.0-test', schema: 'operation-event/1', upstream: {} },
+  });
+  const artifactFile = bundle.files.find((entry) => entry.path.startsWith('artifacts/'));
+  assert.ok(artifactFile);
+  await appendFile(path.join(bundle.directory, ...artifactFile.path.split('/')), 'tampered');
+  await assert.rejects(verifyBugBundle(bundle.directory), (error) => {
+    assert.equal(error.code, 'bundle.verify-file-digest'); return true;
+  });
   await log.close();
 });
 

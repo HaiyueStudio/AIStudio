@@ -58,7 +58,7 @@ export function installWebStudioHost(): void {
   }) });
 }
 
-class WebStudioHost {
+export class WebStudioHost {
   private project: WebProject | null = readProject(DRAFT_PROJECT_KEY);
   private readonly undoStack: WebProject[] = [];
   private readonly redoStack: WebProject[] = [];
@@ -94,7 +94,7 @@ class WebStudioHost {
       case 'project/new': {
         this.project = createProject(String(payload.name));
         this.undoStack.length = 0; this.redoStack.length = 0; this.proposals.clear(); this.plans.clear(); this.grants.clear();
-        this.saveProject();
+        this.persistDraft();
         await this.appendLog('project/created', 'info', 'studio.web-host', this.project.documentId);
         return this.projectSnapshot();
       }
@@ -327,7 +327,7 @@ class WebStudioHost {
 
 class WebHostError extends Error { constructor(readonly code: string, message: string) { super(message); this.name = 'WebHostError'; } }
 
-function createProject(name: string): WebProject { return { schemaVersion: 1, projectId: id('project'), documentId: id('document'), name: name.trim() || 'HaiYue Web Game', revision: 1, savedRevision: 1, sceneRevision: 1, entities: [], scripts: [] }; }
+function createProject(name: string): WebProject { return { schemaVersion: 1, projectId: id('project'), documentId: id('document'), name: name.trim() || 'HaiYue Web Game', revision: 1, savedRevision: 0, sceneRevision: 1, entities: [], scripts: [] }; }
 function identityTransform(): Transform { return { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }; }
 function id(prefix: string): StableId { return `${prefix}:${crypto.randomUUID()}` as StableId; }
 function number(value: unknown): number { if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw new WebHostError('web-number-invalid', 'Expected a non-negative integer.'); return value; }

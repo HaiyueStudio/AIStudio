@@ -10,8 +10,9 @@ test('real Electron loads a sandboxed renderer through the typed preload and clo
   const userData = await mkdtemp(path.join(tmpdir(), 'haiyue-electron-userdata-'));
   const pixelCandidate = path.join(userData, 'pixel-candidates', 'g05-cube-selected.png');
   const entry = new URL('../dist/main.js', import.meta.url);
+  const env = smokeEnvironment(process.env);
   const result = await run(electronPath, [entry.pathname.replace(/^\/(.:\/)/, '$1')], {
-    ...process.env,
+    ...env,
     HAIYUE_ELECTRON_SMOKE: '1',
     HAIYUE_ELECTRON_USER_DATA: userData,
     HAIYUE_ELECTRON_PIXEL_CANDIDATE: pixelCandidate,
@@ -22,6 +23,13 @@ test('real Electron loads a sandboxed renderer through the typed preload and clo
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.ok(png.byteLength > 10_000, `pixel candidate is unexpectedly small: ${png.byteLength}`);
 });
+
+function smokeEnvironment(source) {
+  const env = { ...source };
+  delete env.HAIYUE_STUDIO_DEEPSEEK_SECRET;
+  delete env.DEEPSEEK_API_KEY;
+  return env;
+}
 
 function run(command, args, env) {
   return new Promise((resolve, reject) => {
