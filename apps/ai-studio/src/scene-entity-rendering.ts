@@ -42,7 +42,7 @@ export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEn
 function createGeometry(kind: SceneEntityKind) {
   switch (kind) {
     case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();
-    case 'plane': return createPlane3D(); case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
+    case 'plane': return createPlane3D({ normal: 'y' }); case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
     default: throw new Error(`Entity kind ${kind} has no geometry.`);
   }
 }

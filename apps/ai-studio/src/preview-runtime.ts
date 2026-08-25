@@ -61,7 +61,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
   activeCamera = snapshot.camera ?? DEFAULT_PROJECT_CAMERA;
   applyProjectCamera(ownedScene, activeCamera, canvasAspect(canvas));
   installSceneEntityMaterialRenderers(ownedEngine, ownedScene);
-  ownedScene.addSystem(new InstancedMesh3DRenderSystem(ownedEngine, ownedScene.cameraEntity, { loadOp: 'load' }), false);
+  ownedScene.addSystem(new InstancedMesh3DRenderSystem(ownedEngine, ownedScene.cameraEntity, { loadOp: 'load' }));
   const entities = new Map<string, Entity>();
   for (const item of snapshot.entities) {
     const entity = new Entity(item.name);

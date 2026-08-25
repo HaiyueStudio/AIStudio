@@ -19,6 +19,14 @@ test('renderer projects built-in geometry, Engine materials and lights from Scen
   assert.ok(light);
   assert.equal(light.intensity, 1.5);
   assert.deepEqual(light.direction, [-1, -1, 0]);
+
+  const board = new Entity('Board');
+  attachSceneEntityVisuals(board, { kind: 'plane', appearance: { material: 'pbr', color: [0.1, 0.2, 0.3, 1] } });
+  const plane = board.getComponent(Mesh3D).geometry;
+  assert.deepEqual([...new Set([...plane.positions].filter((_, index) => index % 3 === 1))], [0]);
+  assert.deepEqual([...new Set([...plane.normals].filter((_, index) => index % 3 === 1))], [1]);
+  assert.deepEqual([Math.min(...plane.positions.filter((_, index) => index % 3 === 0)), Math.max(...plane.positions.filter((_, index) => index % 3 === 0))], [-0.5, 0.5]);
+  assert.deepEqual([Math.min(...plane.positions.filter((_, index) => index % 3 === 2)), Math.max(...plane.positions.filter((_, index) => index % 3 === 2))], [-0.5, 0.5]);
 });
 
 test('renderer installs the optional Blinn-Phong material adapter on every rendered Scene', () => {

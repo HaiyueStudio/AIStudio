@@ -28,6 +28,7 @@ test('fixed tool catalog exposes only the 16 bounded authoring capabilities', ()
     'preview.validate', 'preview.start', 'preview.stop',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
+  assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /time and delta are milliseconds/);
   assert.deepEqual(
     GAME_AUTHORING_TOOL_DEFINITIONS.filter((item) => item.id === 'entity.create').map((item) => ({ risk: item.risk, requiresApproval: item.requiresApproval })),
     [{ risk: 'low', requiresApproval: false }],
