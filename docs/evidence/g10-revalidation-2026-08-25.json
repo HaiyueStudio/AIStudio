@@ -58,11 +58,14 @@
     "nodeGlobalsExposed": false
   },
   "electronWebGpu": {
-    "status": "fail",
-    "passed": 0,
-    "failed": 2,
-    "processExit": "0xC0000135",
-    "diagnostic": "Electron GPU subprocess cannot load a required driver/runtime dependency on this runner; software rendering and disabled GPU sandbox are not accepted substitutes."
+    "status": "pass",
+    "passed": 2,
+    "failed": 0,
+    "desktopSmokeMs": 38044.9805,
+    "webHostSmokeMs": 3745.8532,
+    "runnerBoundary": "authorized process outside the Codex workspace sandbox; Electron security sandboxing remained enabled",
+    "electronSecurity": { "rendererSandbox": true, "gpuSandbox": true, "contextIsolation": true, "nodeIntegration": false, "realWebGpu": true },
+    "diagnostic": "The earlier 0xC0000135 came from the outer Codex workspace sandbox blocking the Electron GPU child from loading DriverStore components. Both unchanged smoke tests passed outside that outer sandbox without Electron flags or software fallback."
   },
   "bugBundle": {
     "offlineVerification": "pass",
@@ -80,6 +83,6 @@
     "status": "pass",
     "covered": ["script-exception", "stale-revision", "plugin-activation-failure", "backend-crash-restart", "partial-tail", "checksum-corruption", "rotation", "disk-full", "approval-race", "backend-cancel", "tool-timeout", "late-result", "restart-replay", "profile-replacement-100", "viewport-replacement-100"]
   },
-  "decision": "NO-GO",
-  "blockingConditions": ["electron-webgpu-runner-unavailable"]
+  "decision": "GO",
+  "blockingConditions": []
 }

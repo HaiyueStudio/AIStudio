@@ -60,16 +60,20 @@ for (const result of revalidation.realAgentGolden) {
   assert.deepEqual(result.mutations, ['entity.create', 'transform.set']);
 }
 assert.equal(revalidation.browserWebGpu.status, 'pass');
-assert.equal(revalidation.electronWebGpu.status, 'fail');
-assert.equal(revalidation.electronWebGpu.passed, 0);
-assert.equal(revalidation.electronWebGpu.failed, 2);
+assert.equal(revalidation.electronWebGpu.status, 'pass');
+assert.equal(revalidation.electronWebGpu.passed, 2);
+assert.equal(revalidation.electronWebGpu.failed, 0);
+assert.equal(revalidation.electronWebGpu.electronSecurity.rendererSandbox, true);
+assert.equal(revalidation.electronWebGpu.electronSecurity.gpuSandbox, true);
+assert.equal(revalidation.electronWebGpu.electronSecurity.contextIsolation, true);
 assert.equal(revalidation.bugBundle.offlineVerification, 'pass');
 assert.equal(revalidation.bugBundle.tamperRejection, 'pass');
 assert.equal(revalidation.approvalAudit.negativeMutationCount, 0);
 assert.equal(revalidation.approvalAudit.expiryMs, 300000);
-assert.equal(revalidation.decision, 'NO-GO');
+assert.equal(revalidation.decision, 'GO');
+assert.deepEqual(revalidation.blockingConditions, []);
 assert.equal(findForbiddenSecretKey(revalidation), null);
-console.log(`[g10-evidence] historicalCommit=${manifest.baseCommit.slice(0, 12)} implementationCommit=${revalidation.implementationCommit.slice(0, 12)} profiles=2 plugins=${manifest.commonPluginIds.length} packages=127 app=25 electron=0/2 decision=${revalidation.decision} secretKeys=0`);
+console.log(`[g10-evidence] historicalCommit=${manifest.baseCommit.slice(0, 12)} implementationCommit=${revalidation.implementationCommit.slice(0, 12)} profiles=2 plugins=${manifest.commonPluginIds.length} packages=${revalidation.gates.packageTests.passed} app=${revalidation.gates.appFocusedTests.passed} electron=${revalidation.electronWebGpu.passed}/${revalidation.electronWebGpu.passed + revalidation.electronWebGpu.failed} decision=${revalidation.decision} secretKeys=0`);
 
 function findForbiddenSecretKey(value, currentPath = '$') {
   if (Array.isArray(value)) {
