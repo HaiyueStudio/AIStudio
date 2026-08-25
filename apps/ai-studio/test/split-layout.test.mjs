@@ -23,12 +23,14 @@ test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme
   assert.match(html, /id="settings-dialog"[\s\S]*id="language-select"[\s\S]*id="theme-select"/);
   assert.match(html, /id="run-project"[\s\S]*id="run-dialog"[\s\S]*id="run-approve"/);
   assert.match(html, /id="run-validation"[^>]+role="alert"[^>]+hidden[\s\S]*id="run-diagnostics"/);
+  assert.match(html, /id="run-validation-heading"[\s\S]*id="run-validation-hint"/);
   assert.match(html, /id="run-fix-agent"[^>]+data-i18n="fixWithAgent"/);
   assert.match(webHtml, /id="run-project"[\s\S]*id="run-dialog"[\s\S]*id="run-approve"/);
   assert.match(renderer, /previewDisclosure\.diagnostics\.filter[\s\S]*diagnostic\.severity === 'error'/);
   assert.match(renderer, /run-approve'\)\.disabled = errors\.length > 0/);
   assert.match(renderer, /value: 'scripts'/);
   assert.match(renderer, /Fix the committed AIStudio project script[\s\S]*script\.get[\s\S]*never use import, export/);
+  assert.match(renderer, /No script is committed[\s\S]*approval may have expired[\s\S]*script\.propose[\s\S]*script\.apply/);
   assert.match(html, /data-theme="dark" data-language="zh-CN"/);
   assert.match(webHtml, /data-shell="web" data-theme="dark" data-language="zh-CN"/);
   assert.match(html, /min-first="\d+"[^>]+min-second="\d+"/);

@@ -41,6 +41,13 @@ app.whenReady().then(async () => {
               saveConfirmed = true;
               document.querySelector('.entity').click();
               wait(() => document.querySelector('#selection-label')?.textContent === 'Cube', () => {
+              document.querySelector('#run-project').click();
+              wait(() => document.querySelector('#run-dialog')?.open === true
+                && document.querySelector('#run-validation')?.hidden === false
+                && document.querySelector('#run-approve')?.disabled === true, () => {
+              const missingRunFeedback = document.querySelector('#run-validation-heading')?.textContent?.includes('No committed controller script') === true
+                && document.querySelector('#run-diagnostics')?.textContent?.includes('static entities only') === true;
+              document.querySelector('#run-cancel').click();
               document.querySelector('#propose-script').click();
               wait(() => !document.querySelector('#commit-script').disabled, () => {
                 document.querySelector('#commit-script').click();
@@ -67,11 +74,13 @@ app.whenReady().then(async () => {
                         theme: document.body.dataset.theme,
                         settingsClosed: document.querySelector('#settings-dialog')?.open === false,
                         saveConfirmed,
+                        missingRunFeedback,
                         runButtonConfirmed: true,
                       }));
                     });
                   });
                 });
+              });
               });
               });
             });
@@ -83,7 +92,7 @@ app.whenReady().then(async () => {
       || result.project !== 'HaiYue Game' || result.entities !== 1 || result.selected !== 'Cube' || result.preview !== 'stopped'
       || result.webgpu !== 'ready' || result.agentState !== 'unavailable' || result.defaultPreferences !== true
       || result.settingsOpened !== true || result.language !== 'en' || result.theme !== 'light' || result.settingsClosed !== true
-      || result.saveConfirmed !== true || result.runButtonConfirmed !== true) {
+      || result.saveConfirmed !== true || result.missingRunFeedback !== true || result.runButtonConfirmed !== true) {
       throw new Error(JSON.stringify(result));
     }
     await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');

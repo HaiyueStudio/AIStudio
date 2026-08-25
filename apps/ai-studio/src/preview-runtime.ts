@@ -1,5 +1,5 @@
 import { CartesianTransform3D, Entity, HaiyueEngine, Mesh3D, type Scene } from '@haiyue/engine';
-import { InstancedMesh3D, ScriptComponent, ScriptResource, type ScriptCapabilityName, type ScriptRuntimeApi, type ScriptRuntimeContext, type ScriptRuntimeErrorEvent } from '@haiyue/engine/components';
+import { InstancedMesh3D, KeyboardComponent, ScriptComponent, ScriptResource, type ScriptCapabilityName, type ScriptRuntimeApi, type ScriptRuntimeContext, type ScriptRuntimeErrorEvent } from '@haiyue/engine/components';
 import { InstancedPbrMaterial } from '@haiyue/engine/material';
 import { InstancedMesh3DRenderSystem } from '@haiyue/engine/systems';
 import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-editor-plugins';
@@ -69,6 +69,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
   target = entities.get(plan.entityId) ?? null;
   if (!target) throw new Error(`Preview target ${plan.entityId} is missing.`);
   resource = new ScriptResource({ name: plan.scriptId, sourcePath: `scripts/${plan.scriptId}.ts`, scripts: { onUpdate: plan.emittedText } });
+  target.addComponent(new KeyboardComponent());
   component = new ScriptComponent({}, resource);
   target.addComponent(component);
   ScriptComponent.setRuntimeApiFactory(studioRuntimeApi);

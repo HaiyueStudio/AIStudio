@@ -89,7 +89,10 @@ let logViewerSubscription: Readonly<{ dispose(): void }> | null = null;
 let handledPreviewCommand: StableId | null = null;
 let conversationBackendId: StableId | null = null;
 let conversationCanSend = false;
-let runScriptContext: Readonly<{ scriptId: StableId; entityId: StableId; entityName: string; diagnostics: readonly ScriptDiagnostic[] }> | null = null;
+type ProjectRunRepairContext =
+  | Readonly<{ kind: 'script-errors'; scriptId: StableId; entityId: StableId; entityName: string; diagnostics: readonly ScriptDiagnostic[] }>
+  | Readonly<{ kind: 'missing-script'; projectName: string; entities: readonly Readonly<{ id: StableId; name: string; kind: SceneEntityKind }>[] }>;
+let runScriptContext: ProjectRunRepairContext | null = null;
 const scriptDiagnosticsById = new Map<StableId, Readonly<{ textRevision: number; diagnostics: readonly ScriptDiagnostic[] }>>();
 const DEMO_SCRIPT = document.body.dataset.shell === 'web'
   ? `const transform = entity.getComponent('CartesianTransform3D');\ntransform?.setPosition(0.4 + Math.sin(time / 500) * 0.8, 0.2, 0);`
@@ -112,7 +115,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     cube: '立方体', sphere: '球体', cone: '锥体', cylinder: '圆柱体', plane: '平面', torus: '圆环', icosahedron: '二十面体', lights: '光源', directionalLight: '方向光', pointLight: '点光源', ambientLight: '环境光', builtinGeometry: '点击创建', defaultMaterial: '默认材质', builtinMaterial: '应用到选中几何体', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: '项目中暂无纹理', noModels: '项目中暂无模型', noScripts: '项目中暂无脚本',
     geometry: '几何体', materials: '材质', textures: '纹理', models: '模型', scripts: '脚本', scriptRevision: '脚本 r{revision}', scriptUnvalidated: '尚未验证', scriptValid: '验证通过', scriptErrors: '{count} 个错误', agent: 'AI 助手', logs: '日志', agentConversation: 'AI 助手对话',
     refresh: '刷新', exportLogs: '导出安全问题包', downloadLogs: '下载安全日志包', loading: '加载中…', starting: '正在启动 AIStudio…', startingWeb: '正在启动 AIStudio Web…',
-    language: '语言', themeColor: '主题色', settingsSaved: '偏好会保存在当前设备中。', done: '完成', browserLocal: '浏览器本地', cancel: '取消', approveRun: '批准并运行', fixWithAgent: '让 AI 自动修复', runApprovalHeading: '运行项目', runApprovalIntro: '项目脚本将在隔离预览环境中运行。请确认本次能力授权。', runValidationFailed: '脚本验证失败，暂时无法运行。', runValidationHint: '请让 AI 修复这些脚本错误，然后重新点击运行。', agentFixUnavailable: 'AI 助手当前不可发送消息，请先连接后端或等待当前任务完成。', fixRequestSent: '已向 AI 助手发送脚本修复任务',
+    language: '语言', themeColor: '主题色', settingsSaved: '偏好会保存在当前设备中。', done: '完成', browserLocal: '浏览器本地', cancel: '取消', approveRun: '批准并运行', fixWithAgent: '让 AI 自动修复', runApprovalHeading: '运行项目', runApprovalIntro: '项目脚本将在隔离预览环境中运行。请确认本次能力授权。', runValidationFailed: '脚本验证失败，暂时无法运行。', runValidationHint: '请让 AI 修复这些脚本错误，然后重新点击运行。', runMissingScriptHeading: '没有已提交的控制脚本，项目无法运行。', runMissingScriptDetail: '当前场景只有静态实体。脚本可能曾经生成，但在审批过期后没有写入项目。', runMissingScriptHint: '请让 AI 重新生成、验证并提交控制脚本，再批准执行。', agentFixUnavailable: 'AI 助手当前不可发送消息，请先连接后端或等待当前任务完成。', fixRequestSent: '已向 AI 助手发送脚本修复任务',
     webCapability: 'Web 模式将项目和结构化日志保存在当前浏览器中。本地 Codex、API Key、任意目录和原生问题包需要 Electron 应用。',
     chinese: '简体中文', english: 'English', lightTheme: '海月月光', darkTheme: '海月夜幕',
     revision: '文档 r{document} · 场景 r{scene}', ready: '就绪', working: '处理中…', saving: '正在保存项目…', projectSaved: '项目已保存', unsavedChanges: '有未保存的更改', allChangesSaved: '所有更改均已保存', preparingRun: '正在准备隔离预览…', previewRunning: '项目正在运行', previewStopped: '项目已停止', scriptValidationFailed: '脚本验证失败', noProjectRun: '请先新建或打开项目。', noRenderableRun: '场景中没有可渲染物体，请先创建一个立方体。', noScriptRun: '没有可运行的脚本，请先让 AI 或脚本工具为实体创建并提交脚本。', runDisclosure: '{entity} · 风险：{risk} · 能力：{capabilities}', agentPending: '正在提交 AI 请求…', agentAccepted: 'AI 请求已接受', editorReady: 'AIStudio 场景编辑器已就绪',
@@ -129,7 +132,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', lights: 'Lights', directionalLight: 'Directional Light', pointLight: 'Point Light', ambientLight: 'Ambient Light', builtinGeometry: 'Click to create', defaultMaterial: 'Default Material', builtinMaterial: 'Apply to selected geometry', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: 'No textures in this project', noModels: 'No models in this project', noScripts: 'No scripts in this project',
     geometry: 'Geometry', materials: 'Materials', textures: 'Textures', models: 'Models', scripts: 'Scripts', scriptRevision: 'Script r{revision}', scriptUnvalidated: 'Not validated', scriptValid: 'Valid', scriptErrors: '{count} error(s)', agent: 'AI Agent', logs: 'Logs', agentConversation: 'Agent conversation',
     refresh: 'Refresh', exportLogs: 'Export safe bug bundle', downloadLogs: 'Download safe log bundle', loading: 'Loading…', starting: 'Starting AIStudio…', startingWeb: 'Starting AIStudio Web…',
-    language: 'Language', themeColor: 'Theme color', settingsSaved: 'Preferences are stored on this device.', done: 'Done', browserLocal: 'Browser-local', cancel: 'Cancel', approveRun: 'Approve and run', fixWithAgent: 'Ask Agent to fix', runApprovalHeading: 'Run project', runApprovalIntro: 'Project scripts run in an isolated preview environment. Confirm this capability grant.', runValidationFailed: 'Script validation failed; the project cannot run yet.', runValidationHint: 'Ask the Agent to fix these script errors, then run again.', agentFixUnavailable: 'The Agent cannot send right now. Connect a backend or wait for the active turn to finish.', fixRequestSent: 'Script repair task sent to the Agent',
+    language: 'Language', themeColor: 'Theme color', settingsSaved: 'Preferences are stored on this device.', done: 'Done', browserLocal: 'Browser-local', cancel: 'Cancel', approveRun: 'Approve and run', fixWithAgent: 'Ask Agent to fix', runApprovalHeading: 'Run project', runApprovalIntro: 'Project scripts run in an isolated preview environment. Confirm this capability grant.', runValidationFailed: 'Script validation failed; the project cannot run yet.', runValidationHint: 'Ask the Agent to fix these script errors, then run again.', runMissingScriptHeading: 'No committed controller script; the project cannot run.', runMissingScriptDetail: 'The current scene contains static entities only. A script may have been generated but not written to the project after its approval expired.', runMissingScriptHint: 'Ask the Agent to regenerate, validate, and commit the controller script, then approve it.', agentFixUnavailable: 'The Agent cannot send right now. Connect a backend or wait for the active turn to finish.', fixRequestSent: 'Script repair task sent to the Agent',
     webCapability: 'Web mode stores projects and structured logs in this browser. Local Codex, API keys, arbitrary folders, and native bug bundles require the Electron app.',
     chinese: '简体中文', english: 'English', lightTheme: 'Haiyue Moonlight', darkTheme: 'Haiyue Nightfall',
     revision: 'Document r{document} · Scene r{scene}', ready: 'Ready', working: 'Working…', saving: 'Saving project…', projectSaved: 'Project saved', unsavedChanges: 'Unsaved changes', allChangesSaved: 'All changes saved', preparingRun: 'Preparing isolated preview…', previewRunning: 'Project is running', previewStopped: 'Project stopped', scriptValidationFailed: 'Script validation failed', noProjectRun: 'Create or open a project first.', noRenderableRun: 'The scene has no renderable entities. Create a Cube first.', noScriptRun: 'No runnable script is available. Ask the Agent or script tools to create and commit one for an entity.', runDisclosure: '{entity} · Risk: {risk} · Capabilities: {capabilities}', agentPending: 'Agent intent pending…', agentAccepted: 'Agent intent accepted', editorReady: 'AIStudio scene authoring ready',
@@ -796,7 +799,7 @@ async function toggleProjectRun(): Promise<void> {
     setStatus('Preparing isolated preview…');
     const valid = await prepareProjectRun();
     element<HYDialog>('run-dialog').showModal();
-    setStatus(valid ? 'Ready' : 'Script validation failed');
+    setStatus(valid ? 'Ready' : runScriptContext?.kind === 'missing-script' ? t('runMissingScriptHeading') : 'Script validation failed');
   } catch (cause) { setStatus(errorMessage(cause)); }
   finally { updateRunButton(); }
 }
@@ -806,14 +809,29 @@ async function prepareProjectRun(): Promise<boolean> {
   const sourceScene = scene;
   if (!sourceScene.entities.some((entity) => isRenderableSceneKind(entity.kind))) throw new Error(t('noRenderableRun'));
   const script = selectProjectRunScript(sourceScene.entities, scripts.resources, selection.activeEntityId);
-  if (!script) throw new Error(t('noScriptRun'));
+  if (!script) {
+    previewDisclosure = null;
+    runScriptContext = Object.freeze({
+      kind: 'missing-script',
+      projectName: project.document.name,
+      entities: Object.freeze(sourceScene.entities.map(({ id, name, kind }) => Object.freeze({ id, name, kind }))),
+    });
+    element('run-disclosure-text').textContent = '';
+    element('run-validation-heading').textContent = t('runMissingScriptHeading');
+    element('run-diagnostics').textContent = t('runMissingScriptDetail');
+    element('run-validation-hint').textContent = t('runMissingScriptHint');
+    element('run-validation').hidden = false;
+    element<HTMLButtonElement>('run-approve').disabled = true;
+    updateFixAgentButton();
+    return false;
+  }
   if (selection.activeEntityId !== script.entityId) {
     await selectEntity(script.entityId, 'system');
   }
   previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: script.id, capabilities: ['read', 'input', 'debug'] });
   const entity = sourceScene.entities.find((candidate) => candidate.id === script.entityId);
   scriptDiagnosticsById.set(script.id, Object.freeze({ textRevision: script.textRevision, diagnostics: previewDisclosure.diagnostics }));
-  runScriptContext = Object.freeze({ scriptId: script.id, entityId: script.entityId, entityName: entity?.name ?? script.entityId, diagnostics: previewDisclosure.diagnostics });
+  runScriptContext = Object.freeze({ kind: 'script-errors', scriptId: script.id, entityId: script.entityId, entityName: entity?.name ?? script.entityId, diagnostics: previewDisclosure.diagnostics });
   element('run-disclosure-text').textContent = t('runDisclosure', {
     entity: entity?.name ?? script.entityId,
     risk: previewDisclosure.risk,
@@ -823,6 +841,8 @@ async function prepareProjectRun(): Promise<boolean> {
   renderScriptPanel(entity ?? null);
   const errors = previewDisclosure.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
   const validation = element('run-validation');
+  element('run-validation-heading').textContent = t('runValidationFailed');
+  element('run-validation-hint').textContent = t('runValidationHint');
   validation.hidden = errors.length === 0;
   element('run-diagnostics').textContent = errors.map((diagnostic) => `${diagnostic.code} ${diagnostic.line}:${diagnostic.column} ${diagnostic.message}`).join('\n');
   element<HTMLButtonElement>('run-approve').disabled = errors.length > 0;
@@ -953,23 +973,31 @@ function renderScriptResources(): void {
 
 function updateFixAgentButton(): void {
   const button = element<HTMLButtonElement>('run-fix-agent');
-  const hasErrors = runScriptContext?.diagnostics.some((item) => item.severity === 'error') === true;
-  button.disabled = !hasErrors || !conversationCanSend || !conversationBackendId;
-  button.title = button.disabled && hasErrors ? t('agentFixUnavailable') : t('fixWithAgent');
+  const repairAvailable = runScriptContext?.kind === 'missing-script'
+    || runScriptContext?.diagnostics.some((item) => item.severity === 'error') === true;
+  button.disabled = !repairAvailable || !conversationCanSend || !conversationBackendId;
+  button.title = button.disabled && repairAvailable ? t('agentFixUnavailable') : t('fixWithAgent');
 }
 
 async function requestAgentScriptFix(): Promise<void> {
   const context = runScriptContext;
   const backendId = conversationBackendId;
   if (!context || !backendId || !conversationCanSend) { setStatus(t('agentFixUnavailable')); return; }
-  const diagnostics = context.diagnostics.filter((item) => item.severity === 'error').map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join('\n');
-  const prompt = [
-    'Fix the committed AIStudio project script identified below. Perform the edits with tools; do not only explain the fix.',
-    `Entity: ${context.entityName} (${context.entityId})`,
-    `Script: ${context.scriptId}`,
-    'Current validation errors:', diagnostics,
-    'Required workflow: call project.snapshot and script.get; rewrite the script as an onUpdate function body with entity, component, world, time, delta, and api already in scope; never use import, export, CommonJS, or lifecycle-function wrappers. If the source uses api.scene, include scene in script.propose capabilities and reuse the returned capabilities for preview.validate; script.ts.2339 for api.scene means the scene capability is missing. Call script.propose, inspect every diagnostic and keep correcting source or capabilities until there are no errors; only then call script.apply. Do not start preview until the committed script validates without errors.',
-  ].join('\n');
+  const prompt = context.kind === 'missing-script'
+    ? [
+        'Restore the missing controller script for the current AIStudio game. Perform the edits with tools; do not only explain the fix and do not recreate working scene content.',
+        `Project: ${context.projectName}`,
+        `Current entities: ${JSON.stringify(context.entities)}`,
+        'No script is committed. A prior script proposal or approval may have expired, so inspect authoritative project state and do not assume an old proposal is reusable.',
+        'Required workflow: call project.snapshot; choose or create one empty controller entity; author the complete game controller as an onUpdate function body with entity, component, world, time, delta, and api already in scope; never use import, export, CommonJS, or lifecycle-function wrappers. Declare every required capability, call script.propose, inspect every diagnostic and keep correcting source or capabilities until there are no errors; only then call script.apply and request approval. Preserve the intended game and existing entities. Do not start preview until the committed script validates without errors.',
+      ].join('\n')
+    : [
+        'Fix the committed AIStudio project script identified below. Perform the edits with tools; do not only explain the fix.',
+        `Entity: ${context.entityName} (${context.entityId})`,
+        `Script: ${context.scriptId}`,
+        'Current validation errors:', context.diagnostics.filter((item) => item.severity === 'error').map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join('\n'),
+        'Required workflow: call project.snapshot and script.get; rewrite the script as an onUpdate function body with entity, component, world, time, delta, and api already in scope; never use import, export, CommonJS, or lifecycle-function wrappers. If the source uses api.scene, include scene in script.propose capabilities and reuse the returned capabilities for preview.validate; script.ts.2339 for api.scene means the scene capability is missing. Call script.propose, inspect every diagnostic and keep correcting source or capabilities until there are no errors; only then call script.apply. Do not start preview until the committed script validates without errors.',
+      ].join('\n');
   conversationCanSend = false;
   updateFixAgentButton();
   element<HYDialog>('run-dialog').close('action');
