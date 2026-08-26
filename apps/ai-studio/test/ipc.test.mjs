@@ -48,6 +48,12 @@ test('IPC validator is versioned, allowlisted and never accepts renderer paths',
   assert.throws(() => validateStudioIpcRequest(request('preview/report', {
     event: 'started', message: 'invalid count', disposableCount: -1,
   })), /preview\/report payload/);
+  assert.equal(validateStudioIpcRequest(request('preview/report', {
+    event: 'paused', message: 'paused', disposableCount: 0,
+  })).channel, 'preview/report');
+  assert.equal(validateStudioIpcRequest(request('preview/report', {
+    event: 'resumed', message: 'resumed', disposableCount: 0,
+  })).channel, 'preview/report');
   assert.equal(validateStudioIpcRequest(request('conversation/intent', {
     intent: { type: 'conversation/send', backendId: 'backend:test', prompt: 'Create a cube' },
   })).channel, 'conversation/intent');

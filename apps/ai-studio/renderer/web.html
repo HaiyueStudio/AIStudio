@@ -25,6 +25,25 @@
       <section id="script-panel" hidden aria-hidden="true"><textarea id="script-source" spellcheck="false" aria-label="Entity script source"></textarea><button id="propose-script" type="button">Validate Proposal</button><button id="commit-script" type="button" disabled>Commit</button><button id="prepare-preview" type="button" disabled>Prepare Play</button><button id="approve-preview" type="button" disabled>Approve &amp; Play</button><button id="stop-preview" type="button" disabled>Stop</button><pre id="script-diagnostics">Select an entity to author a script.</pre><div id="preview-disclosure" class="risk">Web preview requires explicit approval.</div></section>
       <footer><span id="status" data-i18n="startingWeb">正在启动 AIStudio Web…</span><span id="revision">文档 r0 · 场景 r0</span></footer>
     </main>
+    <section id="play-page" hidden aria-label="运行预览" data-i18n-aria="playPage">
+      <div class="play-toolbar">
+        <div class="play-title"><strong id="play-project-name">运行预览</strong><span id="play-state" role="status" data-i18n="playRunning">运行中</span></div>
+        <label class="play-control"><span data-i18n="device">设备</span><select id="play-device-preset" aria-label="设备预设" data-i18n-aria="devicePreset"></select></label>
+        <label class="play-size-control"><span data-i18n="width">宽</span><input id="play-custom-width" type="number" min="240" max="3840" step="1" value="393" aria-label="自定义宽度" data-i18n-aria="customWidth"></label>
+        <span class="play-size-separator">×</span>
+        <label class="play-size-control"><span data-i18n="height">高</span><input id="play-custom-height" type="number" min="240" max="3840" step="1" value="852" aria-label="自定义高度" data-i18n-aria="customHeight"></label>
+        <button id="play-apply-size" type="button" data-i18n="applySize">应用</button>
+        <button id="play-rotate" type="button" data-i18n-title="rotateDevice" title="旋转设备" aria-label="旋转设备" data-i18n-aria="rotateDevice">↻</button>
+        <span id="play-size-label" class="play-size-label">自适应</span>
+        <span class="spacer"></span>
+        <button id="play-pause" type="button" data-i18n="pause">⏸ 暂停</button>
+        <button id="play-fullscreen" type="button" data-i18n="fullscreen">全屏</button>
+        <button id="play-exit" class="play-exit" type="button" data-i18n="exitPlay">退出运行</button>
+      </div>
+      <div id="play-stage">
+        <div id="play-device-shell" data-responsive="true"><div id="play-device-screen"></div></div>
+      </div>
+    </section>
     <hy-dialog id="settings-dialog" heading="设置" dismissible><div class="settings-form"><label><span data-i18n="language">语言</span><hy-select id="language-select" value="zh-CN" aria-label="语言"></hy-select></label><label><span data-i18n="themeColor">主题色</span><hy-select id="theme-select" value="dark" aria-label="主题色"></hy-select></label><p class="settings-note" data-i18n="settingsSaved">偏好会保存在当前设备中。</p></div><button slot="footer" id="settings-done" type="button" data-i18n="done">完成</button></hy-dialog>
     <hy-dialog id="run-dialog" heading="运行项目" dismissible><div class="run-confirmation"><p data-i18n="runApprovalIntro">项目脚本将在隔离预览环境中运行。请确认本次能力授权。</p><p id="run-disclosure-text" class="risk"></p><section id="run-validation" class="run-validation" role="alert" hidden><strong id="run-validation-heading" data-i18n="runValidationFailed">脚本验证失败，暂时无法运行。</strong><pre id="run-diagnostics"></pre><p id="run-validation-hint" data-i18n="runValidationHint">请让 AI 修复这些脚本错误，然后重新点击运行。</p><button id="run-fix-agent" type="button" data-i18n="fixWithAgent">让 AI 自动修复</button></section></div><div slot="footer" class="dialog-actions"><button id="run-cancel" type="button" data-i18n="cancel">取消</button><button id="run-approve" class="primary-action" type="button" data-i18n="approveRun">批准并运行</button></div></hy-dialog>
     <script src="./startup-guard.js"></script>

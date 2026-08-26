@@ -27,7 +27,7 @@ body[data-shell="web"] #app { grid-template-rows: auto auto minmax(0, 1fr) auto;
 .entity:hover { background: #203246; }
 #viewport-panel { position: relative; overflow: hidden; background: radial-gradient(circle at center, #152437, #070b10); }
 #viewport { display: block; width: 100%; height: 100%; outline: none; }
-#preview-frame { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border: 0; background: #111; }
+#preview-frame { display: block; width: 100%; height: 100%; border: 0; background: #05070a; }
 .viewport-badge { position: absolute; z-index: 3; top: 9px; left: 9px; padding: 4px 7px; border-radius: 4px; background: #0a1018cc; color: #8ec7ff; pointer-events: none; }
 #viewport-empty-state { position: absolute; z-index: 2; inset: 0; display: grid; place-content: center; gap: 6px; padding: 24px; text-align: center; color: #9eb4ca; pointer-events: none; }
 #viewport-empty-state strong { color: #dce7f2; font-size: 15px; }
@@ -195,3 +195,33 @@ footer { background: var(--studio-accent-strong); color: var(--studio-accent-tex
 .run-validation #run-fix-agent { justify-self: start; border-color: color-mix(in srgb, var(--studio-accent) 70%, var(--studio-border)); background: var(--studio-accent-strong); color: var(--studio-accent-text); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .primary-action { background: var(--studio-accent-strong); color: var(--studio-accent-text); }
+
+body[data-page="play"] #app { display: none; }
+#play-page { position: fixed; z-index: 5000; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: #070a0f; color: var(--studio-text); }
+#play-page[hidden] { display: none; }
+.play-toolbar { min-height: 52px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-bottom: 1px solid var(--studio-border); background: var(--studio-surface-elevated); box-shadow: 0 4px 18px rgb(0 0 0 / 28%); }
+.play-title { min-width: 150px; display: grid; gap: 2px; margin-right: 5px; }
+.play-title strong { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-title span { color: #61d894; font-size: 11px; }
+.play-title span.is-paused { color: #f0c36d; }
+.play-control, .play-size-control { display: flex; align-items: center; gap: 5px; color: var(--studio-text-secondary); font-size: 11px; }
+.play-control select, .play-size-control input { min-height: 30px; border: 1px solid var(--studio-border-strong); border-radius: 5px; background: var(--studio-input); color: var(--studio-text); padding: 4px 6px; }
+.play-control select { min-width: 145px; }
+.play-size-control input { width: 72px; }
+.play-size-separator { color: var(--studio-text-secondary); }
+.play-size-label { min-width: 92px; color: var(--studio-text-secondary); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; text-align: center; }
+.play-exit { border-color: #ad5252; background: #7e3034; color: #fff; }
+.play-exit:hover { background: #994047; }
+#play-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: radial-gradient(circle at 50% 42%, #202b3a 0%, #0a0f16 52%, #05070b 100%); }
+#play-stage::before { content: ''; position: absolute; inset: 0; opacity: .16; pointer-events: none; background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px); background-size: 24px 24px; }
+#play-device-shell { --play-scale: 1; position: absolute; left: 50%; top: 50%; box-sizing: content-box; width: 393px; height: 852px; padding: 7px; border: 1px solid #58677a; border-radius: 18px; background: #111821; box-shadow: 0 24px 70px rgb(0 0 0 / 55%); transform: translate(-50%, -50%) scale(var(--play-scale)); transform-origin: center; transition: transform 160ms ease, border-radius 160ms ease; }
+#play-device-shell[data-responsive="true"] { box-sizing: border-box; width: calc(100% - 48px); height: calc(100% - 48px); transform: translate(-50%, -50%); border-radius: 10px; }
+#play-device-screen { width: 100%; height: 100%; overflow: hidden; border-radius: 11px; background: #05070a; }
+#play-device-shell[data-responsive="true"] #play-device-screen { border-radius: 5px; }
+#play-page:fullscreen { width: 100vw; height: 100vh; }
+
+@media (max-width: 1050px) {
+  .play-toolbar { flex-wrap: wrap; }
+  .play-title { min-width: 120px; }
+  .play-title strong { max-width: 180px; }
+}

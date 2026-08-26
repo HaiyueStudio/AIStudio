@@ -24,6 +24,14 @@ import {
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
+import {
+  PLAY_DEVICE_PROFILES,
+  calculatePlayViewportScale,
+  findPlayDeviceProfile,
+  normalizePlayViewportSize,
+  rotatePlayViewportSize,
+  type PlayViewportSize,
+} from './play-device-profiles.js';
 import { selectProjectRunScript } from './run-script-selection.js';
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isLightSceneKind, isRenderableSceneKind } from './scene-entity-rendering.js';
 import {
@@ -89,6 +97,10 @@ let scripts: ScriptCatalogSnapshot = { documentRevision: 0, resources: [] };
 let pendingScriptProposal: ScriptProposal | null = null;
 let previewDisclosure: PreviewDisclosure | null = null;
 let playing = false;
+let previewPaused = false;
+let playViewportMode = 'responsive';
+let playViewportSize: PlayViewportSize = Object.freeze({ width: 393, height: 852 });
+let playStageResizeObserver: ResizeObserver | null = null;
 let loadedScriptIdentity = '';
 const conversationProjector = new ConversationProjector();
 let conversationRevision = -1;
@@ -120,6 +132,7 @@ let currentStatusKey: string | null = document.body.dataset.shell === 'web' ? 's
 const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>> = Object.freeze({
   'zh-CN': Object.freeze({
     newProject: '新建', openProject: '打开', saveProject: '保存', run: '▶ 运行', stop: '■ 停止', runTitle: '运行项目', stopTitle: '停止运行', undo: '撤销', redo: '重做', settings: '设置',
+    playPage: '独立运行预览', playRunning: '运行中', playPaused: '已暂停', playStarting: '正在启动…', device: '设备', devicePreset: '设备预设', responsive: '自适应', custom: '自定义', width: '宽', height: '高', customWidth: '自定义宽度', customHeight: '自定义高度', applySize: '应用', rotateDevice: '旋转设备', pause: '⏸ 暂停', resume: '▶ 继续', fullscreen: '全屏', exitFullscreen: '退出全屏', exitPlay: '退出运行',
     scene: '场景', createEmpty: '+ 空物体', createCube: '+ 立方体', inspector: '检查器', noSelection: '未选择物体',
     transformHistory: 'Transform 修改会通过历史记录提交。', position: '位置', rotation: '旋转', scale: '缩放', applyTransform: '应用 Transform',
     noRenderables: '没有可渲染物体', noRenderablesHint: '创建一个基础几何体即可显示。', authoring: '编辑', assets: '资源库',
@@ -137,6 +150,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
   }),
   en: Object.freeze({
     newProject: 'New', openProject: 'Open', saveProject: 'Save', run: '▶ Run', stop: '■ Stop', runTitle: 'Run project', stopTitle: 'Stop project', undo: 'Undo', redo: 'Redo', settings: 'Settings',
+    playPage: 'Standalone play preview', playRunning: 'Running', playPaused: 'Paused', playStarting: 'Starting…', device: 'Device', devicePreset: 'Device preset', responsive: 'Responsive', custom: 'Custom', width: 'W', height: 'H', customWidth: 'Custom width', customHeight: 'Custom height', applySize: 'Apply', rotateDevice: 'Rotate device', pause: '⏸ Pause', resume: '▶ Resume', fullscreen: 'Fullscreen', exitFullscreen: 'Exit fullscreen', exitPlay: 'Exit play',
     scene: 'Scene', createEmpty: '+ Empty', createCube: '+ Cube', inspector: 'Inspector', noSelection: 'No entity selected',
     transformHistory: 'Transform values are committed through History.', position: 'Position', rotation: 'Rotation', scale: 'Scale', applyTransform: 'Apply Transform',
     noRenderables: 'No renderable entities', noRenderablesHint: 'Create a primitive geometry to render the scene.', authoring: 'Authoring', assets: 'Assets',
@@ -346,6 +360,7 @@ class WebGpuViewportRuntime {
 }
 
 type PreviewRealmMessage = Readonly<Record<string, unknown> & { protocol: 'haiyue-preview/1'; type: string }>;
+type DeferredSignal = Readonly<{ promise: Promise<void>; resolve(value?: void): void; reject(cause: unknown): void; readonly settled: boolean }>;
 
 class SandboxedPreviewFrame {
   readonly previewId = `preview-realm:${requestSequence + 1}` as StableId;
@@ -357,6 +372,9 @@ class SandboxedPreviewFrame {
   private disposableCount = 0;
   private runtimeErrors = 0;
   private disposed = false;
+  private paused = false;
+  private pauseChange: DeferredSignal | null = null;
+  private expectedPaused = false;
 
   constructor(private readonly entityId: StableId) {
     this.frame.id = 'preview-frame';
@@ -364,7 +382,7 @@ class SandboxedPreviewFrame {
     this.frame.setAttribute('sandbox', 'allow-scripts');
     this.frame.src = document.body.dataset.shell === 'web' ? './preview.html' : 'haiyue-preview://app/preview.html';
     window.addEventListener('message', this.onMessage);
-    element('viewport-panel').append(this.frame);
+    element('play-device-screen').append(this.frame);
   }
 
   async start(snapshot: SceneSnapshot, plan: ConsumedPreviewPlan): Promise<void> {
@@ -378,6 +396,17 @@ class SandboxedPreviewFrame {
     this.post({ type: 'hot-reload', emittedText });
   }
 
+  async setPaused(paused: boolean): Promise<void> {
+    if (this.disposed) throw new Error('Preview realm is disposed.');
+    if (this.paused === paused) return;
+    if (this.pauseChange && !this.pauseChange.settled) throw new Error('Preview pause transition is already pending.');
+    const change = deferred<void>();
+    this.pauseChange = change;
+    this.expectedPaused = paused;
+    this.post({ type: paused ? 'pause' : 'resume' });
+    await withTimeout(change.promise, 2_000, paused ? 'Preview pause acknowledgement timed out.' : 'Preview resume acknowledgement timed out.');
+  }
+
   latestPosition(): Readonly<{ x: number; y: number; z: number }> | null { return this.position; }
   targetEntityId(): StableId { return this.entityId; }
   ownedDisposableCount(): number { return this.disposableCount; }
@@ -386,6 +415,7 @@ class SandboxedPreviewFrame {
   async dispose(): Promise<number> {
     if (this.disposed) return 0;
     this.disposed = true;
+    this.pauseChange?.resolve();
     const ownedBeforeStop = this.disposableCount;
     this.post({ type: 'stop' });
     await withTimeout(this.cleanup.promise, 2_000, 'Preview cleanup acknowledgement timed out.').catch(() => undefined);
@@ -408,6 +438,10 @@ class SandboxedPreviewFrame {
     } else if (message.type === 'hot-reloaded') {
       this.disposableCount = finiteNumber(message.disposableCount, this.disposableCount);
       void reportPreview('hot-reloaded', 'Runtime-only script replacement applied.', this.disposableCount, this.previewId, this.entityId);
+    } else if (message.type === 'paused' || message.type === 'resumed') {
+      this.paused = message.type === 'paused';
+      if (this.pauseChange && this.expectedPaused === this.paused) this.pauseChange.resolve();
+      void reportPreview(this.paused ? 'paused' : 'resumed', this.paused ? 'Preview paused.' : 'Preview resumed.', this.disposableCount, this.previewId, this.entityId);
     } else if (message.type === 'runtime-error') {
       this.runtimeErrors += 1;
       this.disposableCount = finiteNumber(message.disposableCount, this.disposableCount);
@@ -530,6 +564,8 @@ function applyLocale(): void {
   themeSelect.setAttribute('aria-label', t('themeColor'));
   element<HYDialog>('settings-dialog').heading = t('settings');
   element<HYDialog>('run-dialog').heading = t('runApprovalHeading');
+  renderPlayDeviceOptions();
+  updatePlayControls();
   if (currentStatusKey) element('status').textContent = t(currentStatusKey);
 }
 
@@ -585,7 +621,146 @@ function writeStoredSplitRatio(key: string, ratio: number): void {
   catch { /* Layout persistence is optional when storage is unavailable. */ }
 }
 
+function renderPlayDeviceOptions(): void {
+  const select = element<HTMLSelectElement>('play-device-preset');
+  const selected = playViewportMode;
+  const responsive = document.createElement('option');
+  responsive.value = 'responsive'; responsive.textContent = t('responsive');
+  const phones = document.createElement('optgroup'); phones.label = language === 'zh-CN' ? '主流手机' : 'Phones';
+  const tablets = document.createElement('optgroup'); tablets.label = language === 'zh-CN' ? '平板设备' : 'Tablets';
+  for (const profile of PLAY_DEVICE_PROFILES) {
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.textContent = `${profile.label} · ${profile.width}×${profile.height}`;
+    (profile.category === 'phone' ? phones : tablets).append(option);
+  }
+  const custom = document.createElement('option'); custom.value = 'custom'; custom.textContent = t('custom');
+  select.replaceChildren(responsive, phones, tablets, custom);
+  select.value = [...select.options].some((option) => option.value === selected) ? selected : 'responsive';
+}
+
+function setupPlayPageControls(): void {
+  const preset = element<HTMLSelectElement>('play-device-preset');
+  preset.addEventListener('change', () => applyPlayDevicePreset(preset.value));
+  element('play-apply-size').addEventListener('click', () => applyCustomPlayViewport());
+  element('play-rotate').addEventListener('click', () => {
+    playViewportMode = 'custom';
+    applyPlayViewportLayout(rotatePlayViewportSize(playViewportSize));
+    preset.value = 'custom';
+  });
+  for (const input of [element<HTMLInputElement>('play-custom-width'), element<HTMLInputElement>('play-custom-height')]) {
+    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') applyCustomPlayViewport(); });
+  }
+  element('play-pause').addEventListener('click', () => void action(togglePreviewPause));
+  element('play-exit').addEventListener('click', () => void action(async () => { await stopPreview(); setStatus('Project stopped'); }));
+  element('play-fullscreen').addEventListener('click', () => void action(togglePlayFullscreen));
+  document.addEventListener('fullscreenchange', () => { updatePlayControls(); updatePlayViewportScale(); });
+  playStageResizeObserver = new ResizeObserver(() => updatePlayViewportScale());
+  playStageResizeObserver.observe(element('play-stage'));
+  applyPlayViewportLayout(playViewportSize);
+  document.body.dataset.playPage = 'standalone-device-simulation';
+}
+
+function applyPlayDevicePreset(id: string): void {
+  playViewportMode = id;
+  if (id === 'responsive') { applyPlayViewportLayout(playViewportSize); return; }
+  if (id === 'custom') { applyCustomPlayViewport(); return; }
+  const profile = findPlayDeviceProfile(id);
+  if (!profile) { playViewportMode = 'responsive'; applyPlayViewportLayout(playViewportSize); return; }
+  applyPlayViewportLayout(profile);
+}
+
+function applyCustomPlayViewport(): void {
+  playViewportMode = 'custom';
+  element<HTMLSelectElement>('play-device-preset').value = 'custom';
+  applyPlayViewportLayout(normalizePlayViewportSize(
+    Number(element<HTMLInputElement>('play-custom-width').value),
+    Number(element<HTMLInputElement>('play-custom-height').value),
+  ));
+}
+
+function applyPlayViewportLayout(size: PlayViewportSize): void {
+  playViewportSize = normalizePlayViewportSize(size.width, size.height);
+  const shell = element('play-device-shell');
+  const responsive = playViewportMode === 'responsive';
+  shell.dataset.responsive = String(responsive);
+  element<HTMLInputElement>('play-custom-width').value = String(playViewportSize.width);
+  element<HTMLInputElement>('play-custom-height').value = String(playViewportSize.height);
+  if (responsive) {
+    shell.style.removeProperty('width'); shell.style.removeProperty('height'); shell.style.removeProperty('--play-scale');
+  } else {
+    shell.style.width = `${playViewportSize.width}px`;
+    shell.style.height = `${playViewportSize.height}px`;
+  }
+  updatePlayViewportScale();
+}
+
+function updatePlayViewportScale(): void {
+  const stage = element('play-stage');
+  const shell = element('play-device-shell');
+  const label = element('play-size-label');
+  if (playViewportMode === 'responsive') {
+    label.textContent = stage.clientWidth > 0 && stage.clientHeight > 0 ? `${stage.clientWidth} × ${stage.clientHeight}` : t('responsive');
+    return;
+  }
+  const scale = calculatePlayViewportScale(
+    { width: playViewportSize.width + 16, height: playViewportSize.height + 16 },
+    { width: stage.clientWidth, height: stage.clientHeight },
+  );
+  shell.style.setProperty('--play-scale', String(scale));
+  label.textContent = `${playViewportSize.width} × ${playViewportSize.height} · ${Math.round(scale * 100)}%`;
+}
+
+function showPlayPage(): void {
+  const page = element('play-page');
+  page.hidden = false;
+  document.body.dataset.page = 'play';
+  element('play-project-name').textContent = project?.document?.name ?? t('playPage');
+  previewPaused = false;
+  updatePlayControls();
+  requestAnimationFrame(() => updatePlayViewportScale());
+}
+
+async function hidePlayPage(): Promise<void> {
+  const page = element('play-page');
+  if (document.fullscreenElement === page) await document.exitFullscreen().catch(() => undefined);
+  page.hidden = true;
+  document.body.dataset.page = 'authoring';
+  updatePlayControls();
+}
+
+async function togglePreviewPause(): Promise<void> {
+  if (!playing || !previewFrame) return;
+  const button = element<HTMLButtonElement>('play-pause');
+  button.disabled = true;
+  try {
+    const next = !previewPaused;
+    await previewFrame.setPaused(next);
+    previewPaused = next;
+    document.body.dataset.preview = next ? 'paused' : 'playing';
+    setStatus(next ? 'Preview paused' : 'Project is running');
+  } finally { updatePlayControls(); }
+}
+
+async function togglePlayFullscreen(): Promise<void> {
+  const page = element('play-page');
+  if (document.fullscreenElement === page) await document.exitFullscreen();
+  else await page.requestFullscreen();
+}
+
+function updatePlayControls(): void {
+  const state = element('play-state');
+  state.textContent = !playing ? t('playStarting') : previewPaused ? t('playPaused') : t('playRunning');
+  state.classList.toggle('is-paused', previewPaused);
+  const pause = element<HTMLButtonElement>('play-pause');
+  pause.disabled = !playing;
+  pause.textContent = t(previewPaused ? 'resume' : 'pause');
+  const fullscreen = element<HTMLButtonElement>('play-fullscreen');
+  fullscreen.textContent = t(document.fullscreenElement === element('play-page') ? 'exitFullscreen' : 'fullscreen');
+}
+
 function bindUi(): void {
+  setupPlayPageControls();
   element('new-project').addEventListener('click', () => void action(async () => {
     project = await invoke<ProjectSnapshot & JsonObject>('project/new', { name: 'HaiYue Game' });
     selection = { activeEntityId: null, source: 'system' };
@@ -634,6 +809,7 @@ function bindUi(): void {
     disposeConversationChanged?.(); disposeConversationChanged = null;
     logViewerSubscription?.dispose(); logViewerSubscription = null;
     logViewer?.dispose(); logViewer = null;
+    playStageResizeObserver?.disconnect(); playStageResizeObserver = null;
     viewport?.dispose(); void previewFrame?.dispose();
   }, { once: true });
 }
@@ -1171,6 +1347,7 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   }
   viewport?.dispose();
   viewport = null;
+  showPlayPage();
   const frame = new SandboxedPreviewFrame(plan.entityId);
   previewFrame = frame;
   const previewScene = Object.freeze({ ...sourceScene, camera: sourceScene.camera ?? currentProjectCamera() });
@@ -1178,16 +1355,19 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   catch (cause) {
     await frame.dispose();
     if (previewFrame === frame) previewFrame = null;
+    await hidePlayPage();
     viewport = new WebGpuViewportRuntime(element<HTMLCanvasElement>('viewport'));
     await viewport.initialize();
     viewport.apply(sourceScene, selection.activeEntityId);
     throw cause;
   }
   playing = true;
+  previewPaused = false;
   element('viewport-empty-state').hidden = true;
   document.body.dataset.preview = 'playing';
   element('preview-disclosure').textContent = `Playing isolated trusted-project preview with ${plan.capabilities.join(', ')}.`;
   renderScriptPanel(sourceScene.entities.find((entity) => entity.id === plan.entityId) ?? null);
+  updatePlayControls();
   updateRunButton();
 }
 
@@ -1220,7 +1400,9 @@ async function stopPreview(): Promise<void> {
   previewFrame = null;
   await reportPreview('stopped', 'Preview stopped.', disposedSideEffects, previewId, selection.activeEntityId);
   playing = false;
+  previewPaused = false;
   document.body.dataset.preview = 'stopped';
+  await hidePlayPage();
   viewport = new WebGpuViewportRuntime(element<HTMLCanvasElement>('viewport'));
   await viewport.initialize();
   document.body.dataset.smokeStage = 'authoring-viewport-restored';
@@ -1282,6 +1464,11 @@ async function runSmokeWorkflow(): Promise<void> {
   const previewPlan = await invoke<ConsumedPreviewPlan & JsonObject>('preview/consume', { grantId: grant.id });
   await startPreview(previewPlan);
   document.body.dataset.smokeStage = 'preview-playing';
+  if (element('play-page').hidden || !document.querySelector('#play-device-screen > #preview-frame')) throw new Error('Preview did not switch to the standalone play page.');
+  applyPlayDevicePreset('iphone-15-pro');
+  if (element('play-device-shell').style.width !== '393px' || element('play-device-shell').style.height !== '852px') throw new Error('Phone viewport simulation did not apply logical dimensions.');
+  const simulatedFrame = document.querySelector<HTMLIFrameElement>('#play-device-screen > #preview-frame');
+  if (simulatedFrame?.clientWidth !== 393 || simulatedFrame.clientHeight !== 852) throw new Error(`Preview iframe size mismatch: ${simulatedFrame?.clientWidth}x${simulatedFrame?.clientHeight}`);
   let moved = false;
   for (let frame = 0; frame < 30 && !moved; frame += 1) {
     await nextFrames(1);
@@ -1289,6 +1476,17 @@ async function runSmokeWorkflow(): Promise<void> {
     moved = Boolean(position && Math.abs(position.x - 0.4) > 0.05);
   }
   if (!moved) throw new Error('Trusted preview script did not visibly move the Cube.');
+  const pausedPosition = previewFrame!.latestPosition();
+  await togglePreviewPause();
+  await nextFrames(3);
+  if (!previewPaused || previewFrame!.latestPosition()?.x !== pausedPosition?.x) throw new Error('Standalone preview did not pause deterministically.');
+  await togglePreviewPause();
+  let resumed = false;
+  for (let frame = 0; frame < 30 && !resumed; frame += 1) {
+    await nextFrames(1);
+    resumed = previewFrame!.latestPosition()?.x !== pausedPosition?.x;
+  }
+  if (!resumed) throw new Error('Standalone preview did not resume.');
   previewFrame!.hotReload(`if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   await nextFrames(2);
   document.body.dataset.smokeStage = 'preview-hot-reloaded';
@@ -1303,7 +1501,7 @@ async function runSmokeWorkflow(): Promise<void> {
   document.body.dataset.workflow = 'create-pick-transform-undo-redo-save-reopen';
   document.body.dataset.webgpu = 'ready';
   document.body.dataset.deviceRecovery = 'ready';
-  document.body.dataset.scriptWorkflow = 'proposal-commit-approve-play-hot-reload-fault-stop-isolated';
+  document.body.dataset.scriptWorkflow = 'proposal-commit-approve-standalone-play-pause-resume-device-hot-reload-fault-stop-isolated';
   await nextFrames(2);
 }
 
@@ -1311,7 +1509,7 @@ async function reportViewport(event: 'ready' | 'rendered' | 'device-lost' | 'fai
   await invoke('viewport/report', entityId ? { event, message, sceneRevision, entityId } : { event, message, sceneRevision });
 }
 
-async function reportPreview(event: 'started' | 'stopped' | 'hot-reloaded' | 'runtime-error' | 'cleanup-complete', message: string, disposableCount: number, previewId?: StableId | null, entityId?: StableId | null): Promise<void> {
+async function reportPreview(event: 'started' | 'stopped' | 'paused' | 'resumed' | 'hot-reloaded' | 'runtime-error' | 'cleanup-complete', message: string, disposableCount: number, previewId?: StableId | null, entityId?: StableId | null): Promise<void> {
   await invoke('preview/report', {
     event, message, disposableCount,
     ...(previewId ? { previewId } : {}),

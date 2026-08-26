@@ -379,7 +379,7 @@ const selectionSources = new Set<SelectionIntentSource>(['hierarchy', 'viewport'
 const sceneEntityKinds = new Set(['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light']);
 const sceneGeometryKinds = new Set(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron']);
 const sceneMaterialKinds = new Set(['basic', 'pbr', 'blinn-phong', 'normal']);
-const previewReportEvents = new Set(['started', 'stopped', 'hot-reloaded', 'runtime-error', 'cleanup-complete']);
+const previewReportEvents = new Set(['started', 'stopped', 'paused', 'resumed', 'hot-reloaded', 'runtime-error', 'cleanup-complete']);
 const scriptCapabilities = new Set(['read', 'scene', 'asset', 'input', 'physics', 'debug']);
 
 function requireShape(payload: Record<string, unknown>, keys: readonly string[], required: readonly string[], types: Readonly<Record<string, 'string' | 'number' | 'json'>>): void {

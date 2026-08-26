@@ -25,6 +25,7 @@ let resizeObserver: ResizeObserver | null = null;
 let activeCamera: ProjectCameraSnapshot | null = null;
 const instanceSets = new Map<number, StudioInstanceSet>();
 let disposed = false;
+let paused = false;
 let lifecycleGeneration = 0;
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
@@ -44,7 +45,9 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
       resource.setScript('onUpdate', event.data.emittedText);
       send('hot-reloaded', { disposableCount: component?.disposableCount ?? 0 });
     } catch (cause) { stop('hot-reload-failed'); fail(cause); }
-  } else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
+  } else if (event.data.type === 'pause' && exactKeys(event.data, ['protocol', 'type'])) pause();
+  else if (event.data.type === 'resume' && exactKeys(event.data, ['protocol', 'type'])) resume();
+  else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
 });
 
 async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: number): Promise<void> {
@@ -54,6 +57,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
   if (!canvas) throw new Error('Preview canvas is missing.');
   const ownedEngine = new HaiyueEngine({ canvas, renderProfile: 'batched', clearColor: { r: 0.03, g: 0.03, b: 0.03, a: 1 }, recoverDeviceLost: true });
   engine = ownedEngine;
+  paused = false;
   await ownedEngine.init();
   if (disposed || generation !== lifecycleGeneration || engine !== ownedEngine) { ownedEngine.destroy(); return; }
   const ownedScene = ownedEngine.createScene({ name: 'Trusted Project Preview', render3D: true });
@@ -100,6 +104,18 @@ function runtimeError(event: ScriptRuntimeErrorEvent): void {
   send('runtime-error', { code: event.error.code, message: event.error.message, line: event.sourceLocation.line, column: event.sourceLocation.column, disposableCount: component?.disposableCount ?? 0 });
 }
 
+function pause(): void {
+  if (!engine) { fail(new Error('Preview is not playing.')); return; }
+  if (!paused) { engine.stop(); paused = true; }
+  send('paused', { disposableCount: component?.disposableCount ?? 0 });
+}
+
+function resume(): void {
+  if (!engine) { fail(new Error('Preview is not playing.')); return; }
+  if (paused) { engine.run(); paused = false; }
+  send('resumed', { disposableCount: component?.disposableCount ?? 0 });
+}
+
 function stop(reason: string, invalidatePendingStart = true): void {
   if (invalidatePendingStart) lifecycleGeneration += 1;
   const disposableCount = component?.disposableCount ?? 0;
@@ -108,7 +124,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   instanceSets.clear();
   ScriptComponent.resetRuntimeApiFactory();
   ScriptComponent.resetExecutionOptions();
-  engine = null; scene = null; resource = null; component = null; target = null; activeCamera = null;
+  engine = null; scene = null; resource = null; component = null; target = null; activeCamera = null; paused = false;
   send('cleanup-complete', { reason, disposedSideEffects: disposableCount, disposableCount: 0 });
 }
 
