@@ -1450,8 +1450,9 @@ async function runSmokeWorkflow(): Promise<void> {
   await viewport!.exerciseDeviceLoss();
   document.body.dataset.smokeStage = 'device-recovered';
   render();
+  const smokePreviewSource = `${DEMO_SCRIPT}\nconst smokeInstances = api.scene.instances('${picked}', 4);\nsmokeInstances.setCount(1);\nsmokeInstances.set(0, { position: { x: 0, y: 0, z: 0 } });`;
   const scriptProposal = await invoke<ScriptProposal & JsonObject>('script/propose', {
-    entityId: picked, text: DEMO_SCRIPT, baseRevision: documentRevision(), capabilities: ['read', 'input', 'debug'],
+    entityId: picked, text: smokePreviewSource, baseRevision: documentRevision(), capabilities: ['read', 'input', 'debug', 'scene'],
   });
   document.body.dataset.smokeStage = 'script-proposed';
   if (scriptProposal.diagnostics.some((item) => item.severity === 'error')) throw new Error(`Smoke script validation failed: ${JSON.stringify(scriptProposal.diagnostics)}`);
@@ -1459,7 +1460,7 @@ async function runSmokeWorkflow(): Promise<void> {
   await refresh();
   const smokeScript = scripts.resources.find((resource) => resource.entityId === picked);
   if (!smokeScript) throw new Error('Smoke script did not commit.');
-  const disclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: smokeScript.id, capabilities: ['read', 'input', 'debug'] });
+  const disclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: smokeScript.id, capabilities: ['read', 'input', 'debug', 'scene'] });
   const grant = await invoke<PreviewGrant & JsonObject>('preview/authorize', { planId: disclosure.id, approved: true });
   const previewPlan = await invoke<ConsumedPreviewPlan & JsonObject>('preview/consume', { grantId: grant.id });
   await startPreview(previewPlan);

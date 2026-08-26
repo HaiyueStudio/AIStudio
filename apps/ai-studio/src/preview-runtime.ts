@@ -24,6 +24,7 @@ let target: Entity | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let activeCamera: ProjectCameraSnapshot | null = null;
 const instanceSets = new Map<number, StudioInstanceSet>();
+const entitiesByStableId = new Map<string, Entity>();
 let disposed = false;
 let paused = false;
 let lifecycleGeneration = 0;
@@ -72,6 +73,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
     entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: radians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) }));
     attachSceneEntityVisuals(entity, item);
     entities.set(item.id, entity);
+    entitiesByStableId.set(item.id, entity);
   }
   for (const item of snapshot.entities) { const entity = entities.get(item.id)!; if (item.parentId) entities.get(item.parentId)?.addChild(entity); else ownedScene.add(entity); }
   target = entities.get(plan.entityId) ?? null;
@@ -122,6 +124,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   resizeObserver?.disconnect(); resizeObserver = null;
   engine?.destroy();
   instanceSets.clear();
+  entitiesByStableId.clear();
   ScriptComponent.resetRuntimeApiFactory();
   ScriptComponent.resetExecutionOptions();
   engine = null; scene = null; resource = null; component = null; target = null; activeCamera = null; paused = false;
@@ -179,7 +182,11 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext)
     ...base,
     scene: Object.freeze({
       instances(target: Entity | number | string, capacity: number): StudioInstanceSet {
-        const entity = target instanceof Entity ? target : context.world?.getEntity(target) ?? null;
+        const entity = target instanceof Entity
+          ? target
+          : typeof target === 'string'
+            ? entitiesByStableId.get(target) ?? context.world?.getEntity(target) ?? null
+            : context.world?.getEntity(target) ?? null;
         if (!entity) throw new Error(`Instance target ${String(target)} was not found.`);
         if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > 4_096) throw new RangeError('Instance capacity must be an integer from 1 to 4096.');
         const cached = instanceSets.get(entity.id);

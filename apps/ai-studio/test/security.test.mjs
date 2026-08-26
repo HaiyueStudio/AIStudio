@@ -51,6 +51,7 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(renderer, /play-device-screen/);
   assert.match(previewRuntimeSource, /type === 'pause'[\s\S]*function pause\(\)[\s\S]*engine\.stop\(\)/);
   assert.match(previewRuntimeSource, /type === 'resume'[\s\S]*function resume\(\)[\s\S]*engine\.run\(\)/);
+  assert.match(previewRuntimeSource, /entitiesByStableId\.get\(target\)/);
   assert.match(main, /preview\.html/);
   assert.match(main, /preview-runtime\.js/);
   assert.match(main, /access-control-allow-origin/);
