@@ -17,9 +17,9 @@ const referenceRunner = () => new EvaluationRunner({
 
 test('enumeration is stable across three modes and all request variants', () => {
   const tasks = referenceRunner().enumerate();
-  assert.equal(tasks.length, 56);
+  assert.equal(tasks.length, 57);
   assert.deepEqual(tasks, referenceRunner().enumerate());
-  assert.equal(tasks.filter((entry) => entry.mode === 'seeded-defect').length, 14);
+  assert.equal(tasks.filter((entry) => entry.mode === 'seeded-defect').length, 15);
   assert.equal(tasks.filter((entry) => entry.mode === 'cold-create').length, 21);
   assert.equal(tasks.filter((entry) => entry.mode === 'warm-repair').length, 21);
 });

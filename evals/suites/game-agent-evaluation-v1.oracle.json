@@ -13,9 +13,11 @@
           { "evidenceType": "input-replay", "signal": "replay.deterministic", "operator": "equals", "expected": true }
         ] },
         { "acceptanceId": "snake.food-growth-score", "conditions": [
-          { "evidenceType": "state", "signal": "snake.lengthDelta", "operator": "gte", "expected": 1 },
-          { "evidenceType": "state", "signal": "score.delta", "operator": "gte", "expected": 1 },
-          { "evidenceType": "event-trace", "signal": "food.respawned", "operator": "equals", "expected": true }
+          { "evidenceType": "state", "signal": "snake.lengthDelta", "operator": "gte", "expected": 2 },
+          { "evidenceType": "state", "signal": "score.delta", "operator": "gte", "expected": 2 },
+          { "evidenceType": "event-trace", "signal": "food.collections", "operator": "gte", "expected": 2 },
+          { "evidenceType": "event-trace", "signal": "food.respawned", "operator": "equals", "expected": true },
+          { "evidenceType": "screenshot", "signal": "visual.foodMatchesState", "operator": "equals", "expected": true }
         ] },
         { "acceptanceId": "snake.collision-restart", "conditions": [
           { "evidenceType": "state", "signal": "terminal.collisionGameOver", "operator": "equals", "expected": true },

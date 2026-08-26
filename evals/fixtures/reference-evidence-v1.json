@@ -9,17 +9,18 @@
     {
       "caseId": "game-eval:snake:v1",
       "observations": [
-        { "type": "state", "tick": 600, "signals": { "movement.directionChanged": true, "movement.immediateReverseBlocked": true, "snake.lengthDelta": 1, "score.delta": 1, "terminal.collisionGameOver": true, "hud.scorePresent": true } },
-        { "type": "event-trace", "tick": 600, "signals": { "food.respawned": true } },
+        { "type": "state", "tick": 600, "signals": { "movement.directionChanged": true, "movement.immediateReverseBlocked": true, "snake.lengthDelta": 2, "score.delta": 2, "terminal.collisionGameOver": true, "hud.scorePresent": true } },
+        { "type": "event-trace", "tick": 600, "signals": { "food.collections": 2, "food.respawned": true } },
         { "type": "input-replay", "tick": 600, "signals": { "replay.deterministic": true, "restart.inputAccepted": true } },
-        { "type": "screenshot", "tick": 600, "signals": { "visual.rolesDistinct": true, "visual.hudReadable": true }, "media": { "mediaType": "image/png", "digest": "sha256:1000000000000000000000000000000000000000000000000000000000000001", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
+        { "type": "screenshot", "tick": 600, "signals": { "visual.rolesDistinct": true, "visual.hudReadable": true, "visual.foodMatchesState": true }, "media": { "mediaType": "image/png", "digest": "sha256:1000000000000000000000000000000000000000000000000000000000000001", "width": 1280, "height": 720, "semanticAnalyzerVersion": "fixture-semantic-1.0.0" } },
         { "type": "performance", "tick": 18000, "signals": { "simulation.speedDriftRatio": 0.001 } },
         { "type": "lifecycle", "tick": 18000, "signals": { "restart.initialStateRestored": true, "residue.count": 0 } },
         { "type": "log", "tick": 18000, "signals": { "runtime.unhandledErrors": 0 } }
       ],
       "failureSeeds": [
         { "id": "snake-no-self-collision", "overrides": [{ "evidenceType": "state", "signal": "terminal.collisionGameOver", "value": false }] },
-        { "id": "snake-hidden-score", "overrides": [{ "evidenceType": "screenshot", "signal": "visual.hudReadable", "value": false }] }
+        { "id": "snake-hidden-score", "overrides": [{ "evidenceType": "screenshot", "signal": "visual.hudReadable", "value": false }] },
+        { "id": "snake-stale-food-visual", "overrides": [{ "evidenceType": "screenshot", "signal": "visual.foodMatchesState", "value": false }] }
       ]
     },
     {

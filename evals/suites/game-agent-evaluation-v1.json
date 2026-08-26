@@ -61,7 +61,7 @@
       "acceptance": {
         "functional": [
           { "id": "snake.direction-and-step", "assertion": "方向输入会改变蛇的移动方向，且不会允许立即反向穿过自身。", "evidence": ["state", "input-replay"] },
-          { "id": "snake.food-growth-score", "assertion": "蛇吃到食物后长度和分数同步增加，并在可玩区域生成下一份食物。", "evidence": ["state", "event-trace"] },
+          { "id": "snake.food-growth-score", "assertion": "蛇连续吃到至少两份食物时长度和分数会逐次增加；每次生成的新食物都位于可玩区域，且画面位置与逻辑位置同步。", "evidence": ["state", "event-trace", "screenshot"] },
           { "id": "snake.collision-restart", "assertion": "边界或自身碰撞进入失败状态，重新开始会恢复初始长度、分数和运动。", "evidence": ["state", "lifecycle", "input-replay"] }
         ],
         "visual": [
@@ -73,7 +73,8 @@
       },
       "failureSeeds": [
         { "id": "snake-no-self-collision", "description": "关闭蛇身自碰撞检测，验证行为 oracle 能发现核心规则缺失。", "expectedFailedAcceptanceIds": ["snake.collision-restart"] },
-        { "id": "snake-hidden-score", "description": "把分数文字移出 viewport，验证截图与状态证据能够共同定位问题。", "expectedFailedAcceptanceIds": ["snake.roles-legible"] }
+        { "id": "snake-hidden-score", "description": "把分数文字移出 viewport，验证截图与状态证据能够共同定位问题。", "expectedFailedAcceptanceIds": ["snake.roles-legible"] },
+        { "id": "snake-stale-food-visual", "description": "逻辑食物重生后保留旧位置的食物模型，验证连续增长与视觉状态同步。", "expectedFailedAcceptanceIds": ["snake.food-growth-score"] }
       ]
     },
     {
