@@ -33,6 +33,7 @@
     "m12:g03:check": "npm test -w @haiyue/ai-studio-agent-runtime && npm test -w @haiyue/ai-studio-agent-backends && npm test -w @haiyue/ai-studio-shell && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g10-agent-integration.test.mjs && node --test evals/test/*.test.mjs && node scripts/verify-m12-g03.mjs",
     "m12:g04:check": "npm test -w @haiyue/ai-studio-operation-log && npm test -w @haiyue/ai-studio-agent-runtime && npm test -w @haiyue/ai-studio-agent-backends && npm test -w @haiyue/ai-studio-shell && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g10-agent-integration.test.mjs && node --test evals/test/*.test.mjs && node scripts/verify-m12-g04.mjs",
     "m12:g05:check": "npm run contracts:check && npm test -w @haiyue/ai-studio-editor-plugins && node scripts/verify-m12-g05.mjs",
+    "m12:g07:check": "npm run contracts:check && npm run engine:candidate:check && npm test -w @haiyue/ai-studio-editor-plugins && npm test -w @haiyue/ai-studio-script-preview && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g07-physics-runtime.test.mjs && node scripts/verify-m12-g07.mjs",
     "codex:schema:generate": "node scripts/generate-codex-schema.mjs",
     "g10:evidence:check": "node scripts/verify-g10-evidence.mjs"
   },

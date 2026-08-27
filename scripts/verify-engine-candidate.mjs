@@ -24,6 +24,8 @@ for (const exportName of candidate.requiredExports) assert.ok(installed.exports[
 const declarations = [
   await readFile(path.join(installedRoot, 'dist', 'systems', 'InteractionSystem.d.ts'), 'utf8'),
   await readFile(path.join(installedRoot, 'dist', 'script', 'ScriptRuntimeContract.d.ts'), 'utf8'),
+  await readFile(path.join(installedRoot, 'dist', 'physics', 'Physics2DSystem.d.ts'), 'utf8'),
+  await readFile(path.join(installedRoot, 'dist', 'physics', 'Physics3DSystem.d.ts'), 'utf8'),
 ].join('\n');
 for (const marker of candidate.requiredDeclarationMarkers) assert.ok(declarations.includes(marker), `Engine candidate is missing declaration marker ${marker}.`);
 console.log(`[engine-candidate] ${candidate.package}@${candidate.version} sha256=${candidate.sha256.slice(0, 16)} source=${candidate.sourceRevision.slice(0, 12)}`);

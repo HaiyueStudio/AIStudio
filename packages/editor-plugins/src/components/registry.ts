@@ -160,6 +160,38 @@ export const BUILTIN_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = O
   definition('haiyue.simulation.settings', 'simulation.fixed-step', 'runtime-owner', 'medium', 'Simulation Settings', 'Gameplay', 'inspector.simulation-settings', 'adapter.simulation.settings',
     objectSchema({ tickRateHz: numberSchema(1, 240), seed: { type: 'string', pattern: '^.{1,256}$' }, maxSubSteps: { type: 'integer', minimum: 1, maximum: 10_000 } }, ['tickRateHz', 'seed', 'maxSubSteps']),
     { tickRateHz: 60, seed: 'haiyue-play', maxSubSteps: 1_000 }),
+  definition('haiyue.physics.world.2d', 'physics.2d', 'runtime-owner', 'medium', 'Physics World 2D', 'Physics', 'inspector.physics-world-2d', 'adapter.physics.world-2d',
+    objectSchema({ backend: { enum: ['box2d'] }, gravity: vec2Schema(), pixelsPerMeter: numberSchema(0.001, 100_000), velocityIterations: integerSchema(1, 64), positionIterations: integerSchema(1, 64), maxEventsPerTick: integerSchema(1, 1_024) }, ['backend', 'gravity', 'pixelsPerMeter', 'velocityIterations', 'positionIterations', 'maxEventsPerTick']),
+    { backend: 'box2d', gravity: { x: 0, y: -980 }, pixelsPerMeter: 100, velocityIterations: 8, positionIterations: 3, maxEventsPerTick: 256 }),
+  definition('haiyue.physics.world.3d', 'physics.3d', 'runtime-owner', 'medium', 'Physics World 3D', 'Physics', 'inspector.physics-world-3d', 'adapter.physics.world-3d',
+    objectSchema({ backend: { enum: ['rapier3d'] }, gravity: vec3Schema(), solverIterations: integerSchema(1, 64), loadTimeoutMs: integerSchema(100, 60_000), maxEventsPerTick: integerSchema(1, 1_024) }, ['backend', 'gravity', 'solverIterations', 'loadTimeoutMs', 'maxEventsPerTick']),
+    { backend: 'rapier3d', gravity: { x: 0, y: -9.81, z: 0 }, solverIterations: 6, loadTimeoutMs: 10_000, maxEventsPerTick: 256 }),
+  definition('haiyue.physics.rigidbody.2d', 'physics.2d', 'runtime-owner', 'medium', 'Rigid Body 2D', 'Physics', 'inspector.rigidbody-2d', 'adapter.physics.rigidbody-2d',
+    objectSchema({ type: { enum: ['static', 'dynamic', 'kinematic'] }, fixedRotation: { type: 'boolean' }, linearDamping: numberSchema(0, 1_000), angularDamping: numberSchema(0, 1_000), bullet: { type: 'boolean' }, allowSleep: { type: 'boolean' }, syncTransform: { type: 'boolean' }, initialVelocity: vec2Schema(), initialAngularVelocity: numberSchema(-100_000, 100_000) }, ['type', 'fixedRotation', 'linearDamping', 'angularDamping', 'bullet', 'allowSleep', 'syncTransform', 'initialVelocity', 'initialAngularVelocity']),
+    { type: 'dynamic', fixedRotation: false, linearDamping: 0, angularDamping: 0, bullet: false, allowSleep: true, syncTransform: true, initialVelocity: { x: 0, y: 0 }, initialAngularVelocity: 0 }),
+  definition('haiyue.physics.collider.2d', 'physics.2d', 'runtime-owner', 'medium', 'Collider 2D', 'Physics', 'inspector.collider-2d', 'adapter.physics.collider-2d',
+    objectSchema({ shape: { enum: ['box', 'circle'] }, size: vec2PositiveSchema(), radius: numberSchema(0.000001, 100_000), density: numberSchema(0, 100_000), materialEntityId: entityReferenceSchema(), trigger: { type: 'boolean' }, categoryBits: integerSchema(1, 65_535), maskBits: integerSchema(0, 65_535), groupIndex: integerSchema(-32_768, 32_767) }, ['shape', 'size', 'radius', 'density', 'materialEntityId', 'trigger', 'categoryBits', 'maskBits', 'groupIndex']),
+    { shape: 'box', size: { x: 1, y: 1 }, radius: 0.5, density: 1, materialEntityId: 'entity:unbound', trigger: false, categoryBits: 1, maskBits: 65_535, groupIndex: 0 }),
+  definition('haiyue.physics.rigidbody.3d', 'physics.3d', 'runtime-owner', 'medium', 'Rigid Body 3D', 'Physics', 'inspector.rigidbody-3d', 'adapter.physics.rigidbody-3d',
+    objectSchema({ type: { enum: ['static', 'dynamic', 'kinematic'] }, linearDamping: numberSchema(0, 1_000), angularDamping: numberSchema(0, 1_000), gravityScale: numberSchema(-100, 100), ccd: { type: 'boolean' }, allowSleep: { type: 'boolean' }, lockTranslations: booleanArraySchema(3), lockRotations: booleanArraySchema(3), syncTransform: { type: 'boolean' }, initialVelocity: vec3Schema(), initialAngularVelocity: vec3Schema() }, ['type', 'linearDamping', 'angularDamping', 'gravityScale', 'ccd', 'allowSleep', 'lockTranslations', 'lockRotations', 'syncTransform', 'initialVelocity', 'initialAngularVelocity']),
+    { type: 'dynamic', linearDamping: 0, angularDamping: 0, gravityScale: 1, ccd: false, allowSleep: true, lockTranslations: [false, false, false], lockRotations: [false, false, false], syncTransform: true, initialVelocity: { x: 0, y: 0, z: 0 }, initialAngularVelocity: { x: 0, y: 0, z: 0 } }),
+  definition('haiyue.physics.collider.3d', 'physics.3d', 'runtime-owner', 'medium', 'Collider 3D', 'Physics', 'inspector.collider-3d', 'adapter.physics.collider-3d',
+    objectSchema({ shape: { enum: ['box', 'sphere', 'capsule', 'cylinder'] }, size: vec3PositiveSchema(), radius: numberSchema(0.000001, 100_000), halfHeight: numberSchema(0, 100_000), density: numberSchema(0, 100_000), materialEntityId: entityReferenceSchema(), trigger: { type: 'boolean' }, categoryBits: integerSchema(1, 65_535), maskBits: integerSchema(0, 65_535) }, ['shape', 'size', 'radius', 'halfHeight', 'density', 'materialEntityId', 'trigger', 'categoryBits', 'maskBits']),
+    { shape: 'box', size: { x: 1, y: 1, z: 1 }, radius: 0.5, halfHeight: 0.5, density: 1, materialEntityId: 'entity:unbound', trigger: false, categoryBits: 1, maskBits: 65_535 }),
+  definition('haiyue.physics.material', 'physics.2d', 'data', 'low', 'Physics Material', 'Physics', 'inspector.physics-material', null,
+    objectSchema({ friction: numberSchema(0, 10), restitution: numberSchema(0, 1) }, ['friction', 'restitution']), { friction: 0.5, restitution: 0.1 }),
+  definition('haiyue.physics.joint.2d', 'physics.2d', 'runtime-owner', 'medium', 'Joint 2D', 'Physics', 'inspector.joint-2d', 'adapter.physics.joint-2d',
+    objectSchema({ type: { enum: ['revolute', 'distance'] }, bodyAEntityId: entityReferenceSchema(), bodyBEntityId: entityReferenceSchema(), anchor: vec2Schema(), anchorA: vec2Schema(), anchorB: vec2Schema(), collideConnected: { type: 'boolean' }, enableLimit: { type: 'boolean' }, limits: numberArraySchema(2), enableMotor: { type: 'boolean' }, motorSpeed: numberSchema(-100_000, 100_000), maxMotorTorque: numberSchema(0, 100_000_000), length: numberSchema(0, 100_000), frequencyHz: numberSchema(0, 10_000), dampingRatio: numberSchema(0, 1) }, ['type', 'bodyAEntityId', 'bodyBEntityId', 'anchor', 'anchorA', 'anchorB', 'collideConnected', 'enableLimit', 'limits', 'enableMotor', 'motorSpeed', 'maxMotorTorque', 'length', 'frequencyHz', 'dampingRatio']),
+    { type: 'distance', bodyAEntityId: 'entity:unbound-a', bodyBEntityId: 'entity:unbound-b', anchor: { x: 0, y: 0 }, anchorA: { x: 0, y: 0 }, anchorB: { x: 0, y: 0 }, collideConnected: false, enableLimit: false, limits: [0, 0], enableMotor: false, motorSpeed: 0, maxMotorTorque: 0, length: 1, frequencyHz: 0, dampingRatio: 0 }),
+  definition('haiyue.physics.joint.3d', 'physics.3d', 'runtime-owner', 'medium', 'Joint 3D', 'Physics', 'inspector.joint-3d', 'adapter.physics.joint-3d',
+    objectSchema({ type: { enum: ['fixed', 'spherical', 'revolute', 'prismatic', 'spring', 'rope'] }, bodyAEntityId: entityReferenceSchema(), bodyBEntityId: entityReferenceSchema(), anchorA: vec3Schema(), anchorB: vec3Schema(), axis: vec3Schema(), collideConnected: { type: 'boolean' }, limits: numberArraySchema(2), restLength: numberSchema(0, 100_000), maxLength: numberSchema(0, 100_000), stiffness: numberSchema(0, 100_000_000), damping: numberSchema(0, 100_000_000) }, ['type', 'bodyAEntityId', 'bodyBEntityId', 'anchorA', 'anchorB', 'axis', 'collideConnected', 'limits', 'restLength', 'maxLength', 'stiffness', 'damping']),
+    { type: 'fixed', bodyAEntityId: 'entity:unbound-a', bodyBEntityId: 'entity:unbound-b', anchorA: { x: 0, y: 0, z: 0 }, anchorB: { x: 0, y: 0, z: 0 }, axis: { x: 1, y: 0, z: 0 }, collideConnected: false, limits: [0, 0], restLength: 1, maxLength: 1, stiffness: 30, damping: 3 }),
+  definition('haiyue.gameplay.character', 'physics.3d', 'runtime-owner', 'medium', 'Character Controller', 'Gameplay', 'inspector.character-controller', 'adapter.gameplay.character',
+    objectSchema({ dimension: { enum: ['2d', '3d'] }, moveActionX: { type: 'string', pattern: '^[A-Za-z][A-Za-z0-9._:-]{0,95}$' }, moveActionY: { type: 'string', pattern: '^[A-Za-z][A-Za-z0-9._:-]{0,95}$' }, jumpAction: { type: 'string', pattern: '^[A-Za-z][A-Za-z0-9._:-]{0,95}$' }, maxSpeed: numberSchema(0, 100_000), acceleration: numberSchema(0, 100_000), airControl: numberSchema(0, 1), jumpImpulse: numberSchema(0, 100_000_000) }, ['dimension', 'moveActionX', 'moveActionY', 'jumpAction', 'maxSpeed', 'acceleration', 'airControl', 'jumpImpulse']),
+    { dimension: '3d', moveActionX: 'MoveX', moveActionY: 'MoveY', jumpAction: 'Jump', maxSpeed: 8, acceleration: 40, airControl: 0.25, jumpImpulse: 5 }),
+  definition('haiyue.gameplay.ground-probe', 'physics.raycast', 'runtime-owner', 'medium', 'Ground Probe', 'Gameplay', 'inspector.ground-probe', 'adapter.gameplay.ground-probe',
+    objectSchema({ dimension: { enum: ['2d', '3d'] }, direction: vec3Schema(), distance: numberSchema(0.000001, 100_000), radius: numberSchema(0, 100_000), categoryBits: integerSchema(1, 65_535), maskBits: integerSchema(0, 65_535) }, ['dimension', 'direction', 'distance', 'radius', 'categoryBits', 'maskBits']),
+    { dimension: '3d', direction: { x: 0, y: -1, z: 0 }, distance: 0.65, radius: 0.2, categoryBits: 1, maskBits: 65_535 }),
 ]);
 
 function definition(
@@ -179,8 +211,14 @@ function vec3Schema(exclusiveMinimum?: number): JsonObject {
   const member: JsonObject = exclusiveMinimum === undefined ? { type: 'number' } : { type: 'number', minimum: exclusiveMinimum };
   return objectSchema({ x: member, y: member, z: member }, ['x', 'y', 'z']);
 }
+function vec2Schema(): JsonObject { return objectSchema({ x: numberSchema(), y: numberSchema() }, ['x', 'y']); }
+function vec2PositiveSchema(): JsonObject { return objectSchema({ x: numberSchema(0.000001), y: numberSchema(0.000001) }, ['x', 'y']); }
+function vec3PositiveSchema(): JsonObject { return objectSchema({ x: numberSchema(0.000001), y: numberSchema(0.000001), z: numberSchema(0.000001) }, ['x', 'y', 'z']); }
 function numberSchema(minimum?: number, maximum?: number): JsonObject { return { type: 'number', ...(minimum === undefined ? {} : { minimum }), ...(maximum === undefined ? {} : { maximum }) }; }
+function integerSchema(minimum?: number, maximum?: number): JsonObject { return { type: 'integer', ...(minimum === undefined ? {} : { minimum }), ...(maximum === undefined ? {} : { maximum }) }; }
 function numberArraySchema(length: number, minimum?: number, maximum?: number): JsonObject { return { type: 'array', minItems: length, maxItems: length, items: numberSchema(minimum, maximum) }; }
+function booleanArraySchema(length: number): JsonObject { return { type: 'array', minItems: length, maxItems: length, items: { type: 'boolean' } }; }
+function entityReferenceSchema(): JsonObject { return { type: 'string', pattern: '^entity:[A-Za-z0-9._:-]{3,120}$' }; }
 function viewportSchema(): JsonObject { return objectSchema({ x: numberSchema(0, 1), y: numberSchema(0, 1), width: numberSchema(0.000001, 1), height: numberSchema(0.000001, 1) }, ['x', 'y', 'width', 'height']); }
 function actionBindingSchema(): JsonObject {
   return objectSchema({
@@ -247,7 +285,12 @@ function validateNode(schema: Readonly<Record<string, unknown>>, value: unknown,
     if (typeof schema.maximum === 'number' && value > schema.maximum) invalid(path, `must be <= ${schema.maximum}`);
     return;
   }
-  if (type === 'integer') { if (!Number.isSafeInteger(value)) invalid(path, 'must be an integer'); return; }
+  if (type === 'integer') {
+    if (!Number.isSafeInteger(value)) invalid(path, 'must be an integer');
+    if (typeof schema.minimum === 'number' && (value as number) < schema.minimum) invalid(path, `must be >= ${schema.minimum}`);
+    if (typeof schema.maximum === 'number' && (value as number) > schema.maximum) invalid(path, `must be <= ${schema.maximum}`);
+    return;
+  }
   if (type === 'string') {
     if (typeof value !== 'string') invalid(path, 'must be a string');
     if (typeof schema.pattern === 'string' && !new RegExp(schema.pattern, 'u').test(value)) invalid(path, 'does not match the required pattern');

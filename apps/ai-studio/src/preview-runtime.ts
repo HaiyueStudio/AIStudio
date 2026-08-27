@@ -7,6 +7,7 @@ import { applyProjectCamera, applyProjectCameraProjection, DEFAULT_PROJECT_CAMER
 import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-editor-plugins';
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isRenderableSceneKind } from './scene-entity-rendering.js';
 import { PlaySimulation } from './play-simulation.js';
+import { PhysicsPlayRuntime } from './physics-play-runtime.js';
 
 interface Vec3 { readonly x: number; readonly y: number; readonly z: number; }
 interface SceneEntity {
@@ -35,6 +36,8 @@ let pollGamepadInput: (() => void) | null = null;
 let gameplayCamera: GameplayCameraRuntime | null = null;
 let activeSceneEntities: readonly SceneEntity[] | null = null;
 let interactionSystem: InteractionSystem | null = null;
+let physicsRuntime: PhysicsPlayRuntime | null = null;
+let physicsLoadController: AbortController | null = null;
 let interactionRaycast: InteractionRaycastResult = createInteractionRaycastResult();
 let interactionEvents: readonly StudioInteractionEvent[] = Object.freeze([]);
 let hoveredEntityId: string | null = null;
@@ -107,6 +110,17 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
   ownedScene.addSystem(interactionSystem, false);
   target = entities.get(plan.entityId) ?? null;
   if (!target) throw new Error(`Preview target ${plan.entityId} is missing.`);
+  physicsLoadController = new AbortController();
+  const ownedPhysics = await PhysicsPlayRuntime.create({
+    world: ownedScene.world,
+    sceneEntities: snapshot.entities,
+    entitiesByStableId,
+    stableIdByEntityId,
+    tickRateHz: readSimulationSettings(snapshot.entities).tickRateHz,
+    signal: physicsLoadController.signal,
+  });
+  if (disposed || generation !== lifecycleGeneration || engine !== ownedEngine) { ownedPhysics.dispose(); return; }
+  physicsRuntime = ownedPhysics;
   resource = new ScriptResource({ name: plan.scriptId, sourcePath: `scripts/${plan.scriptId}.ts`, scripts: { onUpdate: plan.emittedText } });
   component = new ScriptComponent({}, resource);
   target.addComponent(component);
@@ -128,9 +142,11 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
     seed: settings.seed,
     onTick: (step, input) => {
       activeInput = input;
+      physicsRuntime?.beforeTick(input, step.deltaMs);
       updateGameplayCamera(step.deltaMs);
       updateInteractions(input);
       ownedEngine.updateActiveScene(step.timeMs, step.deltaMs);
+      physicsRuntime?.afterTick(step.tick);
       publishState();
     },
     readState: readSimulationState,
@@ -138,7 +154,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, generation: num
   removeInputListeners = installInput(canvas, actionMap);
   previousFrameTime = null;
   animationFrame = requestAnimationFrame(displayFrame);
-  send('started', { entityId: plan.entityId, tickRateHz: settings.tickRateHz, seed: settings.seed, disposableCount: 0 });
+  send('started', { entityId: plan.entityId, tickRateHz: settings.tickRateHz, seed: settings.seed, physics: physicsRuntime.status(), disposableCount: 0 });
 }
 
 function publishState(): void {
@@ -198,7 +214,7 @@ function loadReplay(replay: InputReplayV1): void {
 function publishInspection(): void {
   if (!simulation) { fail(new Error('Preview is not playing.')); return; }
   const snapshot = simulation.snapshot();
-  send('inspection', { tick: snapshot.tick, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, input: snapshot.input, trace: snapshot.trace });
+  send('inspection', { tick: snapshot.tick, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, input: snapshot.input, trace: snapshot.trace, physics: physicsRuntime?.status() ?? null, physicsEvents: physicsRuntime?.events() ?? [] });
 }
 
 function readSimulationState(): SimulationStateValue {
@@ -208,6 +224,7 @@ function readSimulationState(): SimulationStateValue {
       const transform = entity.getComponent(CartesianTransform3D);
       return Object.freeze({ id, position: transform ? Object.freeze([...transform.position]) : null, rotation: transform ? Object.freeze([...transform.rotation]) : null, scale: transform ? Object.freeze([...transform.scale]) : null });
     })),
+    physics: physicsRuntime?.state() ?? null,
   });
 }
 
@@ -451,8 +468,10 @@ function stop(reason: string, invalidatePendingStart = true): void {
   if (animationFrame !== null) cancelAnimationFrame(animationFrame);
   animationFrame = null; previousFrameTime = null;
   removeInputListeners?.(); removeInputListeners = null;
+  physicsLoadController?.abort(new Error(`physics.runtime-stopped:${reason}`)); physicsLoadController = null;
   simulation?.reset(); simulation = null; activeInput = null;
   resizeObserver?.disconnect(); resizeObserver = null;
+  physicsRuntime?.dispose(); physicsRuntime = null;
   engine?.destroy();
   instanceSets.clear();
   entitiesByStableId.clear();
@@ -497,7 +516,7 @@ function isVec3(value: unknown): value is Vec3 {
   return isRecord(value) && Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z);
 }
 function isCapability(value: unknown): value is ScriptCapabilityName {
-  return value === 'read' || value === 'input' || value === 'debug' || value === 'scene';
+  return value === 'read' || value === 'input' || value === 'debug' || value === 'scene' || value === 'physics' || value === 'asset';
 }
 function isSceneEntityKind(value: unknown): value is SceneEntityKind { return value === 'empty' || ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(value)); }
 function isAppearance(value: unknown): boolean { return isRecord(value) && ['basic', 'pbr', 'blinn-phong', 'normal'].includes(String(value.material)) && Array.isArray(value.color) && value.color.length === 4 && value.color.every(Number.isFinite); }
@@ -534,6 +553,7 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext)
   return Object.freeze({
     ...base,
     input,
+    physics: physicsRuntime?.api(),
     scene: Object.freeze({
       ...(base.scene ?? {}),
       instances(target: Entity | number | string, capacity: number): StudioInstanceSet {

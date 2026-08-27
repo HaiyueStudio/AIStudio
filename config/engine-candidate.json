@@ -3,9 +3,9 @@
   "package": "@haiyue/engine",
   "version": "0.1.0",
   "tarball": "vendor/haiyue-engine-0.1.0.tgz",
-  "sha256": "f93c6af04a2eef8f05d123b0663b626f53bb46f109ab8b7d96a6d08938f5c6fa",
-  "integrity": "sha512-TB95HArWd7vFfXClI9mK37UeOGcN6uGwWdxbNk9dfil373OqM2MXQrmbJ7V1gNy0QxG1eV3BQ8y+RmaiphN02g==",
-  "sourceRevision": "a22155d441e503f065af666403a8cdd82a8c6bb8",
-  "requiredExports": ["./components", "./systems", "./experimental/simulation"],
-  "requiredDeclarationMarkers": ["bindCanvas?: boolean", "interface ScriptRuntimeInputApi", "interactions(): readonly unknown[]"]
+  "sha256": "ac46cb07eb24fbb6f141e76bd28265a9d69675cfd42cb6ccca4fa80193ad0a04",
+  "integrity": "sha512-dIHSWJVPygbgEL7QyDuVfO7J+3MISvPfG44T5ZBvzuPdGMI5XbDIXREWgUpHrJCYEKKCEnTk2qJajElutJvSRg==",
+  "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
+  "requiredExports": ["./components", "./systems", "./experimental/simulation", "./physics", "./physics/backend"],
+  "requiredDeclarationMarkers": ["bindCanvas?: boolean", "interface ScriptRuntimeInputApi", "interactions(): readonly unknown[]", "interface ScriptRuntimePhysicsApi", "Physics2DContactEvent", "Physics3DContactEvent", "resourceSnapshot(): Physics2DResourceSnapshot", "resourceSnapshot(): Physics3DResourceSnapshot"]
 }

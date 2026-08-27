@@ -12,6 +12,7 @@ import {
   PreviewAuthorizationService,
   ProjectScriptService,
   ScriptValidationWorker,
+  studioScriptRuntimeDeclarations,
 } from '../dist/index.js';
 
 const movementScript = `
@@ -71,6 +72,16 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
     });
     assert.deepEqual(inferredScene.capabilities, ['read', 'input', 'debug', 'scene']);
     assert.deepEqual(inferredScene.diagnostics, []);
+    const inferredPhysics = await worker.validate({
+      scriptId, textRevision: 7, sourcePath: 'scripts/physics.ts', capabilities: ['read', 'input', 'debug'],
+      text: `const body = api.physics.body(entity);\napi.physics.applyImpulse(entity, { x: 0, y: 5, z: 0 });\napi.debug.console.log(body);`,
+    });
+    assert.deepEqual(inferredPhysics.capabilities, ['read', 'input', 'debug', 'physics']);
+    assert.deepEqual(inferredPhysics.diagnostics, []);
+    const physicsDeclarations = studioScriptRuntimeDeclarations(['read', 'physics']);
+    assert.match(physicsDeclarations, /interface HaiyueScriptPhysicsApi/);
+    assert.match(physicsDeclarations, /readonly physics: HaiyueScriptPhysicsApi/);
+    assert.doesNotMatch(physicsDeclarations, /readonly input: HaiyueScriptInputApi/);
     const first = worker.validate({ scriptId, textRevision: 3, sourcePath: 'scripts/test.ts', text: movementScript });
     const second = worker.validate({ scriptId, textRevision: 4, sourcePath: 'scripts/test.ts', text: movementScript });
     assert.equal((await first).stale, true);

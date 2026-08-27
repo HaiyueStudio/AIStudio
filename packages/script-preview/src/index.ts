@@ -571,9 +571,14 @@ function normalizeStoredCapabilities(value: readonly string[]): ScriptCapability
 function normalizeCapabilities(value: readonly ScriptCapabilityName[] | undefined, text = ''): readonly ScriptCapabilityName[] {
   const requested = value ?? DEFAULT_SCRIPT_CAPABILITIES;
   const inferred = usesSceneApi(text) ? ['scene' as const] : [];
-  const unique = [...new Set([...requested, ...inferred])];
+  const physics = usesPhysicsApi(text) ? ['physics' as const] : [];
+  const unique = [...new Set([...requested, ...inferred, ...physics])];
   for (const capability of unique) if (!SCRIPT_CAPABILITIES.includes(capability)) throw new TypeError(`Unknown script capability ${capability}.`);
   return Object.freeze(unique);
+}
+function usesPhysicsApi(text: string): boolean {
+  return /\bapi\s*(?:\.|\?\.)\s*physics\b/u.test(text)
+    || /\bapi\s*(?:\?\.)?\[\s*(['"])physics\1\s*\]/u.test(text);
 }
 function usesSceneApi(text: string): boolean {
   return /\bapi\s*(?:\.|\?\.)\s*scene\b/u.test(text)

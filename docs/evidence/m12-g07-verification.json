@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g07-physics-gameplay-components",
+  "candidate": {
+    "package": "@haiyue/engine",
+    "version": "0.1.0",
+    "sha256": "ac46cb07eb24fbb6f141e76bd28265a9d69675cfd42cb6ccca4fa80193ad0a04",
+    "exports": ["./physics", "./physics/backend"]
+  },
+  "capabilities": [
+    { "id": "physics.2d", "owner": "g07-physics-gameplay-components", "implementationState": "g07-verified" },
+    { "id": "physics.3d", "owner": "g07-physics-gameplay-components", "implementationState": "g07-verified" },
+    { "id": "physics.raycast", "owner": "g07-physics-gameplay-components", "implementationState": "g07-verified" }
+  ],
+  "descriptors": [
+    { "type": "haiyue.gameplay.character", "capability": "physics.3d", "effect": "runtime-owner", "runtimeAdapter": "adapter.gameplay.character" },
+    { "type": "haiyue.gameplay.ground-probe", "capability": "physics.raycast", "effect": "runtime-owner", "runtimeAdapter": "adapter.gameplay.ground-probe" },
+    { "type": "haiyue.physics.collider.2d", "capability": "physics.2d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.collider-2d" },
+    { "type": "haiyue.physics.collider.3d", "capability": "physics.3d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.collider-3d" },
+    { "type": "haiyue.physics.joint.2d", "capability": "physics.2d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.joint-2d" },
+    { "type": "haiyue.physics.joint.3d", "capability": "physics.3d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.joint-3d" },
+    { "type": "haiyue.physics.material", "capability": "physics.2d", "effect": "data", "runtimeAdapter": null },
+    { "type": "haiyue.physics.rigidbody.2d", "capability": "physics.2d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.rigidbody-2d" },
+    { "type": "haiyue.physics.rigidbody.3d", "capability": "physics.3d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.rigidbody-3d" },
+    { "type": "haiyue.physics.world.2d", "capability": "physics.2d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.world-2d" },
+    { "type": "haiyue.physics.world.3d", "capability": "physics.3d", "effect": "runtime-owner", "runtimeAdapter": "adapter.physics.world-3d" }
+  ],
+  "backends": [
+    { "dimension": "2d", "id": "box2d", "load": "synchronous-candidate", "replaceable": true },
+    { "dimension": "3d", "id": "rapier3d", "load": "async-budgeted", "replaceable": true }
+  ],
+  "events": { "phases": ["enter", "stay", "exit"], "kinds": ["collision", "trigger"], "stableEntityIds": true, "boundedPerTick": 1024, "deterministicOrder": true },
+  "queries": ["2d.hitTest", "2d.raycast", "2d.aabb", "3d.raycast", "3d.shape", "gameplay.ground-probe"],
+  "fixtures": [
+    { "genre": "platform-jump", "backend": "rapier3d", "assertion": "land-ground-probe-jump" },
+    { "genre": "racing", "backend": "box2d", "assertion": "vehicle-boundary-collision" },
+    { "genre": "shooter", "backend": "rapier3d", "assertion": "ccd-trigger-enter-stay-exit" }
+  ],
+  "determinism": { "fixedHz": 60, "sameCandidateExactStateHash": true, "semanticPositionTolerance": 0.0001, "semanticVelocityTolerance": 0.001, "semanticContactTickTolerance": 1 },
+  "lifecycle": { "backendLoadTimeout": true, "abortAndLateResultSafe": true, "restartSafe": true, "authoringDocumentImmutable": true, "residualAfterStop": { "worlds": 0, "bodies": 0, "colliders": 0, "joints": 0, "activeContacts": 0 } },
+  "script": { "capability": "physics", "inferredFromApiUse": true, "generatedDeclarations": true, "authoringMutationAllowed": false }
+}
