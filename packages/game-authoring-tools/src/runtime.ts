@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
+import { asStableId, type ComponentDefinitionV2, type GameComponentInstanceV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, projectCameraFromSettings, PROJECT_CAMERA_SETTING_KEY, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type SceneMaterialColor, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
@@ -56,7 +56,7 @@ export class GameAuthoringToolRuntime {
   async prepare(value: unknown, signal?: AbortSignal): Promise<GameToolPreparation> {
     this.assertActive();
     const call = validateToolCall(value);
-    const definition = GAME_AUTHORING_TOOL_BY_ID.get(call.toolId);
+    let definition = GAME_AUTHORING_TOOL_BY_ID.get(call.toolId);
     if (!definition || call.toolVersion !== definition.version) {
       await this.options.operationLog.append({
         kind: 'tool/call-rejected', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(call),
@@ -72,6 +72,7 @@ export class GameAuthoringToolRuntime {
     try {
       const document = requireDocument(this.options.workspace);
       const args = normalizeArguments(definition.id, call.arguments, document.revision);
+      definition = resolveComponentToolPolicy(definition, args, this.options.workspace);
       enforceLogHealth(definition.id, definition.effect, this.options.operationLog.status());
       await this.appendFact(definition, {
         kind: 'tool/pre-policy-passed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
@@ -271,6 +272,18 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const workspace = options.workspace.snapshot(); const document = requireDocument(options.workspace);
       return Object.freeze({ projectId: document.projectId, documentId: document.documentId, name: document.name, revision: document.revision, savedRevision: document.savedRevision, dirty: document.dirty, sceneRevision: scene.revision, camera: projectCameraFromSettings(document.settings) as unknown as JsonValue, logHealth: workspace.logging.health });
     }
+    case 'engine.capabilities.describe': {
+      const manifest = options.workspace.componentRegistry.capabilityManifest();
+      return Object.freeze({ registryDigest: manifest.registryDigest, componentCount: manifest.components.length, components: manifest.components as unknown as JsonValue });
+    }
+    case 'component.describe': {
+      const definition = resolveComponentDefinition(options.workspace, args.type as string, args.version as string | undefined);
+      return Object.freeze({ definition: definition as unknown as JsonValue });
+    }
+    case 'component.get': {
+      const target = resolveComponentTarget(options.workspace, args);
+      return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entityId: target.entityId, component: target.component as unknown as JsonValue });
+    }
     case 'camera.get': {
       const document = requireDocument(options.workspace);
       return Object.freeze({ documentId: document.documentId, revision: document.revision, camera: projectCameraFromSettings(document.settings) as unknown as JsonValue });
@@ -315,6 +328,30 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const next = await options.scene.setMaterial({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, material: args.material as never, ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}) }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
+    case 'component.add': {
+      const type = asStableId(args.type as string, 'component type'); const version = args.version as string;
+      const component = options.workspace.componentRegistry.create({
+        id: asStableId(`component:${randomUUID()}`), type, version,
+        enabled: args.enabled as boolean, value: args.value as JsonObject,
+      });
+      const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: `Add ${type}`, baseRevision: args.baseRevision as number, operations: [{ op: 'component.add', entityId: args.entityId as StableId, component }] }, signal);
+      if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while adding a component.');
+      return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, entityId: args.entityId as StableId, component: component as unknown as JsonValue });
+    }
+    case 'component.set': {
+      const target = resolveComponentTarget(options.workspace, args);
+      const component = options.workspace.componentRegistry.validate({ ...target.component, enabled: args.enabled === undefined ? target.component.enabled : args.enabled, value: args.value });
+      const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: `Set ${component.type}`, baseRevision: args.baseRevision as number, operations: [{ op: 'component.replace', component }] }, signal);
+      if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while setting a component.');
+      return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, entityId: target.entityId, component: component as unknown as JsonValue });
+    }
+    case 'component.remove': {
+      const target = resolveComponentTarget(options.workspace, args);
+      if (target.component.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
+      const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: `Remove ${target.component.type}`, baseRevision: args.baseRevision as number, operations: [{ op: 'component.remove', entityId: target.entityId, componentId: target.component.id }] }, signal);
+      if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while removing a component.');
+      return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, entityId: target.entityId, componentId: target.component.id, removedType: target.component.type });
+    }
     case 'script.propose': {
       const proposal = await options.scripts.proposeEdit({ entityId: args.entityId as StableId, text: args.text as string, baseRevision: args.baseRevision as number, ...(args.capabilities ? { capabilities: args.capabilities as ScriptCapabilityName[] } : {}) });
       proposals.set(proposal.id, proposal);
@@ -354,7 +391,15 @@ function validateToolCall(value: unknown): GameToolCall {
 function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision: number): JsonObject {
   const raw = value as Record<string, unknown>;
   switch (toolId) {
-    case 'project.snapshot': case 'camera.get': case 'scene.list-entities': case 'preview.stop': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'component.describe': exact(raw, ['type'], ['version'], toolId); return Object.freeze({ type: componentTypeValue(raw.type), ...(raw.version === undefined ? {} : { version: componentVersionValue(raw.version) }) });
+    case 'component.get': {
+      exact(raw, [], ['componentId', 'entityId', 'type', 'version'], toolId);
+      const hasId = raw.componentId !== undefined; const hasLookup = raw.entityId !== undefined || raw.type !== undefined || raw.version !== undefined;
+      if (hasId === hasLookup || (hasLookup && (raw.entityId === undefined || raw.type === undefined))) throw invalid('component.get requires either componentId, or entityId plus type and optional version.');
+      if (hasId) return Object.freeze({ componentId: stable(raw.componentId, 'component id') });
+      return Object.freeze({ entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), ...(raw.version === undefined ? {} : { version: componentVersionValue(raw.version) }) }) as JsonObject;
+    }
     case 'entity.get': exact(raw, ['entityId'], [], toolId); return Object.freeze({ entityId: stable(raw.entityId, 'entity id') });
     case 'script.get': { exact(raw, [], ['entityId', 'scriptId'], toolId); if (!raw.entityId && !raw.scriptId) throw invalid('script.get requires entityId or scriptId.'); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
     case 'diagnostics.query': return normalizeLogQuery(raw);
@@ -374,6 +419,9 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'entity.rename': exact(raw, ['entityId', 'name'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
     case 'transform.set': exact(raw, ['entityId', 'transform'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
     case 'material.set': exact(raw, ['entityId', 'material'], ['baseRevision', 'color'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), material: raw.material, ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }) });
+    case 'component.add': exact(raw, ['entityId', 'type'], ['baseRevision', 'version', 'enabled', 'value'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), enabled: raw.enabled === undefined ? true : booleanValue(raw.enabled, 'enabled'), value: jsonObjectValue(raw.value ?? {}, 'component value') as JsonValue });
+    case 'component.set': exact(raw, ['componentId', 'value'], ['baseRevision', 'enabled'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), value: jsonObjectValue(raw.value, 'component value') as JsonValue });
+    case 'component.remove': exact(raw, ['componentId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id') });
     case 'script.propose': exact(raw, ['entityId', 'text'], ['baseRevision', 'capabilities'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
     case 'script.apply': exact(raw, ['proposalId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), proposalId: stable(raw.proposalId, 'proposal id') });
     case 'preview.validate': exact(raw, ['scriptId'], ['capabilities'], toolId); return Object.freeze({ scriptId: stable(raw.scriptId, 'script id'), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
@@ -402,6 +450,18 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       const color = raw.color as readonly number[] | undefined;
       return preview('Set material appearance', entity.id, `Apply ${raw.material}${color ? ` rgba(${color.join(', ')})` : ''} to ${entity.name}.`, `${entity.appearance?.material ?? 'none'} ${entity.appearance?.color?.join(',') ?? ''} → ${raw.material}${color ? ` ${color.join(',')}` : ''}`);
     }
+    case 'component.add': {
+      return preview('Add component', raw.entityId as string, `Add ${raw.type} to ${raw.entityId}.`, `+ ${raw.type}@${raw.version} ${canonicalStringify(raw.value as JsonObject)}`);
+    }
+    case 'component.set': {
+      const target = resolveSceneComponent(snapshot, raw.componentId as StableId);
+      return preview('Set component', target.entityId, `Replace ${target.component.type} on ${target.entityName}.`, `${canonicalStringify(target.component.value as JsonObject)}\n→ ${canonicalStringify(raw.value as JsonObject)}`);
+    }
+    case 'component.remove': {
+      const target = resolveSceneComponent(snapshot, raw.componentId as StableId);
+      if (target.component.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
+      return preview('Remove component', target.entityId, `Remove ${target.component.type} from ${target.entityName}.`, `- ${target.component.type}@${target.component.version}`);
+    }
     case 'script.apply': {
       const proposal = proposals.get(raw.proposalId as StableId);
       if (!proposal) throw new GameToolProtocolError('tool.proposal-missing', 'Script proposal is unavailable.');
@@ -424,9 +484,57 @@ function isAllowDecision(decision: GameToolApproval['decision']): boolean { retu
 function preview(title: string, target: string, summary: string, diff: string): GameToolPreview { return Object.freeze({ title, target, summary, diff }); }
 function requireDocument(workspace: ProjectWorkspace): NonNullable<ReturnType<ProjectWorkspace['snapshot']>['document']> { const document = workspace.snapshot().document; if (!document) throw new GameToolProtocolError('tool.project-missing', 'No project is open.'); return document; }
 function requireEntity(scene: ReturnType<SceneAuthoringService['snapshot']>, id: StableId) { const entity = scene.entities.find((item) => item.id === id); if (!entity) throw new GameToolProtocolError('tool.entity-missing', `Entity ${id} does not exist.`); return entity; }
-function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
+function resolveComponentDefinition(workspace: ProjectWorkspace, type: string, version?: string) {
+  if (version) {
+    try { return workspace.componentRegistry.get(type, version); }
+    catch (cause) { throw new GameToolProtocolError('tool.component-definition-missing', errorMessage(cause)); }
+  }
+  const matches = workspace.componentRegistry.snapshot().definitions.filter((item) => item.type === type).sort((left, right) => right.version.localeCompare(left.version, undefined, { numeric: true }));
+  if (!matches[0]) throw new GameToolProtocolError('tool.component-definition-missing', `Component definition ${type} does not exist.`);
+  return matches[0];
+}
+function resolveComponentTarget(workspace: ProjectWorkspace, args: Readonly<Record<string, JsonValue>>): Readonly<{ entityId: StableId; component: GameComponentInstanceV2 }> {
+  if (args.componentId) {
+    const componentId = args.componentId as StableId; const entityId = workspace.componentOwner(componentId);
+    if (!entityId) throw new GameToolProtocolError('tool.component-missing', `Component ${componentId} does not exist.`);
+    const result = workspace.queryGameDocument({ entityId, limit: 1 }); const component = result.components.find((item) => item.id === componentId);
+    if (!component) throw new GameToolProtocolError('tool.component-missing', `Component ${componentId} does not exist.`);
+    return Object.freeze({ entityId, component });
+  }
+  const entityId = args.entityId as StableId; const type = args.type as string; const version = args.version as string | undefined;
+  const result = workspace.queryGameDocument({ entityId, limit: 1 });
+  if (!result.entities[0]) throw new GameToolProtocolError('tool.entity-missing', `Entity ${entityId} does not exist.`);
+  const component = result.components.filter((item) => item.type === type && (version === undefined || item.version === version)).sort((left, right) => left.id.localeCompare(right.id))[0];
+  if (!component) throw new GameToolProtocolError('tool.component-missing', `Entity ${entityId} has no ${type}${version ? `@${version}` : ''} component.`);
+  return Object.freeze({ entityId, component });
+}
+function resolveSceneComponent(scene: ReturnType<SceneAuthoringService['snapshot']>, componentId: StableId): Readonly<{ entityId: StableId; entityName: string; component: GameComponentInstanceV2 }> {
+  for (const entity of scene.entities) {
+    const component = entity.components?.find((item) => item.id === componentId);
+    if (component) return Object.freeze({ entityId: entity.id, entityName: entity.name, component });
+  }
+  throw new GameToolProtocolError('tool.component-missing', `Component ${componentId} does not exist.`);
+}
+function resolveComponentToolPolicy(definition: GameToolDefinition, args: JsonObject, workspace: ProjectWorkspace): GameToolDefinition {
+  if (!['component.add', 'component.set', 'component.remove'].includes(definition.id)) return definition;
+  let componentDefinition: ComponentDefinitionV2;
+  if (definition.id === 'component.add') {
+    const entityId = args.entityId as StableId; const result = workspace.queryGameDocument({ entityId, limit: 1 });
+    if (!result.entities[0]) throw new GameToolProtocolError('tool.entity-missing', `Entity ${entityId} does not exist.`);
+    componentDefinition = resolveComponentDefinition(workspace, args.type as string, args.version as string);
+    if (componentDefinition.type === 'haiyue.transform.3d' && result.components.some((item) => item.type === componentDefinition.type)) throw new GameToolProtocolError('tool.component-duplicate', `Entity ${entityId} already has required component ${componentDefinition.type}.`);
+    workspace.componentRegistry.create({ id: asStableId('component:policy-validation'), type: asStableId(componentDefinition.type, 'component type'), version: componentDefinition.version, enabled: args.enabled as boolean, value: args.value as JsonObject });
+  } else {
+    const target = resolveComponentTarget(workspace, args);
+    componentDefinition = resolveComponentDefinition(workspace, target.component.type, target.component.version);
+    if (definition.id === 'component.set') workspace.componentRegistry.validate({ ...target.component, enabled: args.enabled === undefined ? target.component.enabled : args.enabled, value: args.value });
+    if (definition.id === 'component.remove' && target.component.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
+  }
+  return Object.freeze({ ...definition, risk: componentDefinition.risk, requiresApproval: componentDefinition.risk !== 'low' });
+}
+function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(entity.components ? { components: entity.components as unknown as JsonValue } : {}), ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
-function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;
   return Object.freeze({
@@ -467,6 +575,12 @@ function stringArray(value: unknown, maximum: number, maxLength: number): readon
 function stable(value: unknown, label: string): StableId { if (typeof value !== 'string') throw invalid(`${label} is invalid.`); try { return asStableId(value, label); } catch { throw invalid(`${label} is invalid.`); } }
 function string(value: unknown, label: string, maximum: number): string { if (typeof value !== 'string' || !value || value.length > maximum) throw invalid(`${label} is invalid.`); return value; }
 function boundedString(value: unknown, label: string, maximum: number, nonEmpty = false): string { if (typeof value !== 'string' || value.length > maximum || (nonEmpty && !value.trim())) throw invalid(`${label} is invalid.`); return value; }
+function componentTypeValue(value: unknown): string { if (typeof value !== 'string' || !/^[a-z][a-z0-9._:-]{2,159}$/u.test(value)) throw invalid('component type is invalid.'); return value; }
+function componentVersionValue(value: unknown): string { if (typeof value !== 'string' || !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(value)) throw invalid('component version is invalid.'); return value; }
+function booleanValue(value: unknown, label: string): boolean { if (typeof value !== 'boolean') throw invalid(`${label} is invalid.`); return value; }
+function jsonObjectValue(value: unknown, label: string): JsonObject { if (!isRecord(value)) throw invalid(`${label} must be an object.`); assertBoundedJsonObject(value); return cloneJsonObject(value); }
+function cloneJsonObject(value: Readonly<Record<string, unknown>>): JsonObject { return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, child]) => [key, cloneJsonValue(child)]))) as JsonObject; }
+function cloneJsonValue(value: unknown): JsonValue { if (Array.isArray(value)) return Object.freeze(value.map(cloneJsonValue)) as unknown as JsonValue; if (isRecord(value)) return cloneJsonObject(value); if (value === null || typeof value === 'boolean' || typeof value === 'string') return value; if (typeof value === 'number' && Number.isFinite(value)) return value; throw invalid('component value must contain JSON values only.'); }
 function integer(value: unknown, label: string): number { if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalid(`${label} is invalid.`); return value as number; }
 function revisionOrCurrent(value: unknown, currentRevision: number): number { return value === undefined ? currentRevision : integer(value, 'baseRevision'); }
 function number(value: unknown, label: string): number { if (typeof value !== 'number' || !Number.isFinite(value)) throw invalid(`${label} is invalid.`); return value; }

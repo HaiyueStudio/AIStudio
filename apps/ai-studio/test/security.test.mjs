@@ -31,7 +31,7 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.doesNotMatch(preload, /event\.sender|webContents|conversation\/replay/);
   assert.doesNotMatch(renderer, /node:fs|child_process|ipcRenderer|require\(/);
   assert.doesNotMatch(previewRuntime, /node:fs|child_process|ipcRenderer|require\(/);
-  assert.match(previewRuntimeSource, /KeyboardComponent[\s\S]*target\.addComponent\(new KeyboardComponent\(\)\)[\s\S]*new ScriptComponent/);
+  assert.match(previewRuntimeSource, /new PlaySimulation[\s\S]*installInput\(canvas, actionMap\)/);
   assert.match(html, /Content-Security-Policy/);
   assert.match(html, /href="\.\/styles\.css"/);
   assert.match(html, /src="\.\/startup-guard\.js"/);
@@ -49,8 +49,9 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(renderer, /allow-scripts/);
   assert.doesNotMatch(renderer, /allow-same-origin/);
   assert.match(renderer, /play-device-screen/);
-  assert.match(previewRuntimeSource, /type === 'pause'[\s\S]*function pause\(\)[\s\S]*engine\.stop\(\)/);
-  assert.match(previewRuntimeSource, /type === 'resume'[\s\S]*function resume\(\)[\s\S]*engine\.run\(\)/);
+  assert.match(previewRuntimeSource, /type === 'pause'[\s\S]*function pause\(\)[\s\S]*simulation\?\.pause\(\)/);
+  assert.match(previewRuntimeSource, /type === 'resume'[\s\S]*function resume\(\)[\s\S]*simulation\?\.resume\(\)/);
+  assert.doesNotMatch(previewRuntimeSource, /ownedEngine\.run\(\)/);
   assert.match(previewRuntimeSource, /entitiesByStableId\.get\(target\)/);
   assert.match(main, /preview\.html/);
   assert.match(main, /preview-runtime\.js/);

@@ -1480,7 +1480,7 @@ async function runSmokeWorkflow(): Promise<void> {
   const pausedPosition = previewFrame!.latestPosition();
   await togglePreviewPause();
   await nextFrames(3);
-  if (!previewPaused || previewFrame!.latestPosition()?.x !== pausedPosition?.x) throw new Error('Standalone preview did not pause deterministically.');
+  if (!previewPaused || previewFrame!.latestPosition()?.x !== pausedPosition?.x) throw new Error('Standalone preview did not remain stable while paused.');
   await togglePreviewPause();
   let resumed = false;
   for (let frame = 0; frame < 30 && !resumed; frame += 1) {

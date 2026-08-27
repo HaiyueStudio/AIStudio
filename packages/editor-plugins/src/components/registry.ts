@@ -131,6 +131,35 @@ export const BUILTIN_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = O
     { color: [0.7, 0.8, 1], intensity: 0.25 }),
   definition('haiyue.script.binding', 'play.multi-script', 'runtime-owner', 'high', 'Script Binding', 'Gameplay', 'inspector.script-binding', 'adapter.script.binding',
     objectSchema({ scriptId: { type: 'string', pattern: '^script:[A-Za-z0-9._:-]{3,120}$' } }, ['scriptId']), { scriptId: 'script:unbound' }),
+  definition('haiyue.camera.3d', 'camera.3d', 'gpu-owner', 'medium', 'Camera 3D', 'Camera', 'inspector.camera-3d', 'adapter.camera.3d',
+    objectSchema({
+      active: { type: 'boolean' }, projection: { enum: ['perspective', 'orthographic'] }, fovDegrees: numberSchema(1, 179),
+      orthographicHeight: numberSchema(0.01, 10_000), near: numberSchema(0.0001, 1_000), far: numberSchema(0.001, 1_000_000), reverseZ: { type: 'boolean' },
+      viewport: viewportSchema(),
+    }, ['active', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'reverseZ', 'viewport']),
+    { active: true, projection: 'perspective', fovDegrees: 45, orthographicHeight: 20, near: 0.1, far: 1_000, reverseZ: false, viewport: { x: 0, y: 0, width: 1, height: 1 } }),
+  definition('haiyue.camera.2d', 'camera.2d', 'gpu-owner', 'medium', 'Camera 2D', 'Camera', 'inspector.camera-2d', 'adapter.camera.2d',
+    objectSchema({
+      active: { type: 'boolean' }, designWidth: numberSchema(1, 32_768), designHeight: numberSchema(1, 32_768), zoom: numberSchema(0.001, 1_000),
+      near: numberSchema(-1_000_000, 1_000_000), far: numberSchema(-1_000_000, 1_000_000), viewportMode: { enum: ['expand', 'fit', 'fill', 'fixed'] }, viewport: viewportSchema(),
+    }, ['active', 'designWidth', 'designHeight', 'zoom', 'near', 'far', 'viewportMode', 'viewport']),
+    { active: true, designWidth: 800, designHeight: 600, zoom: 1, near: -1_000, far: 1_000, viewportMode: 'expand', viewport: { x: 0, y: 0, width: 1, height: 1 } }),
+  definition('haiyue.camera.follow', 'camera.follow', 'runtime-owner', 'medium', 'Camera Follow', 'Camera', 'inspector.camera-follow', 'adapter.camera.follow',
+    objectSchema({
+      targetEntityId: { type: 'string', pattern: '^entity:[A-Za-z0-9._:-]{3,120}$' }, mode: { enum: ['position', 'look-at', 'position-and-look-at'] },
+      offset: vec3Schema(), lookAtOffset: vec3Schema(), smoothing: numberSchema(0, 1),
+      bounds: objectSchema({ enabled: { type: 'boolean' }, minimum: vec3Schema(), maximum: vec3Schema() }, ['enabled', 'minimum', 'maximum']),
+    }, ['targetEntityId', 'mode', 'offset', 'lookAtOffset', 'smoothing', 'bounds']),
+    { targetEntityId: 'entity:unbound', mode: 'position-and-look-at', offset: { x: 0, y: 8, z: 10 }, lookAtOffset: { x: 0, y: 0, z: 0 }, smoothing: 0.15, bounds: { enabled: false, minimum: { x: -1_000, y: -1_000, z: -1_000 }, maximum: { x: 1_000, y: 1_000, z: 1_000 } } }),
+  definition('haiyue.input.action-map', 'input.keyboard', 'runtime-owner', 'medium', 'Input Action Map', 'Input', 'inspector.input-action-map', 'adapter.input.action-map',
+    objectSchema({ actions: { type: 'array', minItems: 1, maxItems: 128, items: actionBindingSchema() } }, ['actions']),
+    { actions: [{ name: 'MoveLeft', keys: ['ArrowLeft', 'KeyA'], pointerButtons: [], gamepadButtons: [], gamepadAxes: [] }, { name: 'MoveRight', keys: ['ArrowRight', 'KeyD'], pointerButtons: [], gamepadButtons: [], gamepadAxes: [] }, { name: 'Jump', keys: ['Space'], pointerButtons: [], gamepadButtons: [0], gamepadAxes: [] }, { name: 'Fire', keys: [], pointerButtons: [0], gamepadButtons: [7], gamepadAxes: [] }] }),
+  definition('haiyue.interaction.pointer', 'interaction.pointer', 'runtime-owner', 'medium', 'Pointer Interaction', 'Input', 'inspector.pointer-interaction', 'adapter.interaction.pointer',
+    objectSchema({ events: { type: 'array', minItems: 1, maxItems: 8, items: { enum: ['hover', 'click', 'move', 'down', 'up', 'drag', 'wheel', 'cancel'] } }, draggable: { type: 'boolean' }, capturePointer: { type: 'boolean' }, penetrable: { type: 'boolean' }, maxEventsPerTick: { type: 'integer', minimum: 1, maximum: 256 } }, ['events', 'draggable', 'capturePointer', 'penetrable', 'maxEventsPerTick']),
+    { events: ['hover', 'click', 'drag'], draggable: true, capturePointer: true, penetrable: false, maxEventsPerTick: 32 }),
+  definition('haiyue.simulation.settings', 'simulation.fixed-step', 'runtime-owner', 'medium', 'Simulation Settings', 'Gameplay', 'inspector.simulation-settings', 'adapter.simulation.settings',
+    objectSchema({ tickRateHz: numberSchema(1, 240), seed: { type: 'string', pattern: '^.{1,256}$' }, maxSubSteps: { type: 'integer', minimum: 1, maximum: 10_000 } }, ['tickRateHz', 'seed', 'maxSubSteps']),
+    { tickRateHz: 60, seed: 'haiyue-play', maxSubSteps: 1_000 }),
 ]);
 
 function definition(
@@ -152,6 +181,16 @@ function vec3Schema(exclusiveMinimum?: number): JsonObject {
 }
 function numberSchema(minimum?: number, maximum?: number): JsonObject { return { type: 'number', ...(minimum === undefined ? {} : { minimum }), ...(maximum === undefined ? {} : { maximum }) }; }
 function numberArraySchema(length: number, minimum?: number, maximum?: number): JsonObject { return { type: 'array', minItems: length, maxItems: length, items: numberSchema(minimum, maximum) }; }
+function viewportSchema(): JsonObject { return objectSchema({ x: numberSchema(0, 1), y: numberSchema(0, 1), width: numberSchema(0.000001, 1), height: numberSchema(0.000001, 1) }, ['x', 'y', 'width', 'height']); }
+function actionBindingSchema(): JsonObject {
+  return objectSchema({
+    name: { type: 'string', pattern: '^[A-Za-z][A-Za-z0-9._:-]{0,95}$' },
+    keys: { type: 'array', maxItems: 32, items: { type: 'string', pattern: '^[A-Za-z][A-Za-z0-9]{0,63}$' } },
+    pointerButtons: { type: 'array', maxItems: 32, items: { type: 'integer', minimum: 0, maximum: 31 } },
+    gamepadButtons: { type: 'array', maxItems: 64, items: { type: 'integer', minimum: 0, maximum: 255 } },
+    gamepadAxes: { type: 'array', maxItems: 32, items: objectSchema({ axis: { type: 'integer', minimum: 0, maximum: 63 }, direction: { enum: ['positive', 'negative', 'both'] }, deadZone: numberSchema(0, 0.999999), scale: numberSchema(0.000001, 10) }, ['axis', 'direction', 'deadZone', 'scale']) },
+  }, ['name', 'keys', 'pointerButtons', 'gamepadButtons', 'gamepadAxes']);
+}
 
 function validateDefinition(input: unknown): ComponentDefinitionV2 {
   if (!isRecord(input) || input.schemaVersion !== 2) throw new ComponentRegistryError('component.definition-version-unsupported', 'Component definition schemaVersion must be 2.');

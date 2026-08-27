@@ -4,22 +4,29 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "engines": { "node": ">=22.19.0" },
-  "workspaces": ["packages/*", "apps/*"],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "dependencies": {
     "@haiyue/editor-app-kit": "file:vendor/haiyue-editor-app-kit-0.1.0.tgz",
     "@haiyue/editor-platform": "file:vendor/haiyue-editor-platform-0.1.0.tgz",
     "@haiyue/editor-plugin-sdk": "file:vendor/haiyue-editor-plugin-sdk-0.1.0.tgz",
-    "@haiyue/editor-shell": "file:vendor/haiyue-editor-shell-0.1.0.tgz"
+    "@haiyue/editor-shell": "file:vendor/haiyue-editor-shell-0.1.0.tgz",
+    "@haiyue/engine": "file:vendor/haiyue-engine-0.1.0.tgz"
   },
   "scripts": {
     "contracts:check": "node scripts/verify-contracts.mjs",
     "boundaries:check": "node scripts/check-boundaries.mjs",
     "upstream:check": "node scripts/verify-upstream-pins.mjs",
     "editor:candidate:check": "node scripts/verify-editor-candidates.mjs",
+    "engine:candidate:check": "node scripts/verify-engine-candidate.mjs",
     "spike:check": "node scripts/verify-protocol-spikes.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "npm run contracts:check && npm run typecheck && npm run boundaries:check && npm run upstream:check && npm run spike:check",
+    "check": "npm run contracts:check && npm run typecheck && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run spike:check",
     "g01:check": "npm run check && npm run editor:candidate:check",
     "m12:g01:check": "npm run contracts:check && npm run typecheck -w @haiyue/ai-studio-contracts && npm run boundaries:check && node scripts/verify-m12-g01.mjs",
     "m12:g02:check": "node --test evals/test/*.test.mjs && node scripts/verify-m12-g02.mjs",

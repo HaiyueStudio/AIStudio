@@ -52,6 +52,7 @@ export interface SceneEntitySnapshot {
   readonly parentId: StableId | null;
   readonly order: number;
   readonly transform: TransformSnapshot;
+  readonly components?: readonly GameComponentInstanceV2[];
   readonly appearance?: Readonly<{ material: SceneMaterialKind; color: SceneMaterialColor }>;
   readonly light?: Readonly<{
     color: readonly [number, number, number]; intensity: number; range?: number;
@@ -604,10 +605,10 @@ function sceneFromWorkspace(workspace: ProjectWorkspace): SceneSnapshot {
 
 function sceneEntityFromWorkspace(workspace: ProjectWorkspace, entityId: StableId): SceneEntitySnapshot | null { const result = workspace.queryGameDocument({ entityId, limit: 1 }); const entity = result.entities[0]; return entity ? sceneEntity(entity, result.components) : null; }
 function sceneEntity(entity: ReturnType<ProjectWorkspace['queryGameDocument']>['entities'][number], components: readonly GameComponentInstanceV2[]): SceneEntitySnapshot {
-  const componentIds = new Set(entity.componentIds); const byType = new Map(components.filter((component) => componentIds.has(component.id)).map((component) => [component.type, component])); const transform = byType.get('haiyue.transform.3d'); if (!transform) throw new Error(`Entity ${entity.id} has no Transform component.`);
+  const componentIds = new Set(entity.componentIds); const ownedComponents = components.filter((component) => componentIds.has(component.id)).sort((left, right) => left.id.localeCompare(right.id)); const byType = new Map(ownedComponents.map((component) => [component.type, component])); const transform = byType.get('haiyue.transform.3d'); if (!transform) throw new Error(`Entity ${entity.id} has no Transform component.`);
   const geometry = byType.get('haiyue.render.geometry'); const material = byType.get('haiyue.render.material'); const directional = byType.get('haiyue.light.directional'); const point = byType.get('haiyue.light.point'); const ambient = byType.get('haiyue.light.ambient');
   const kind = geometry ? String(geometry.value.kind) : directional ? 'directional-light' : point ? 'point-light' : ambient ? 'ambient-light' : 'empty';
-  return freezeEntity({ id: asStableId(entity.id, 'entity id'), name: entity.name, kind: kind as SceneEntityKind, parentId: entity.parentId ? asStableId(entity.parentId, 'parent id') : null, order: entity.order, transform: transform.value as unknown as TransformSnapshot, ...(geometry && material ? { appearance: material.value as unknown as NonNullable<SceneEntitySnapshot['appearance']> } : {}), ...((directional ?? point ?? ambient) ? { light: (directional ?? point ?? ambient)!.value as unknown as NonNullable<SceneEntitySnapshot['light']> } : {}) });
+  return freezeEntity({ id: asStableId(entity.id, 'entity id'), name: entity.name, kind: kind as SceneEntityKind, parentId: entity.parentId ? asStableId(entity.parentId, 'parent id') : null, order: entity.order, transform: transform.value as unknown as TransformSnapshot, components: ownedComponents, ...(geometry && material ? { appearance: material.value as unknown as NonNullable<SceneEntitySnapshot['appearance']> } : {}), ...((directional ?? point ?? ambient) ? { light: (directional ?? point ?? ambient)!.value as unknown as NonNullable<SceneEntitySnapshot['light']> } : {}) });
 }
 
 function affectedEntityIds(delta: { readonly operations: readonly GameDocumentOperationV2[] }, workspace: ProjectWorkspace): Set<StableId> {
@@ -644,6 +645,7 @@ function freezeEntity(value: SceneEntitySnapshot): SceneEntitySnapshot {
   if (!isSceneEntityKind(value.kind) || !value.name.trim() || !Number.isSafeInteger(value.order) || value.order < 0) throw new TypeError('Scene entity metadata is invalid.');
   return Object.freeze({
     id: value.id, name: value.name, kind: value.kind, parentId: value.parentId, order: value.order, transform: freezeTransform(value.transform),
+    ...(value.components ? { components: Object.freeze(value.components.map(freezeComponentInstance)) } : {}),
     ...(isSceneGeometryKind(value.kind) ? { appearance: freezeAppearance(value.appearance ?? defaultAppearance()) } : {}),
     ...(isSceneLightKind(value.kind) ? { light: freezeLight(value.kind, value.light ?? defaultLight(value.kind)) } : {}),
   });
@@ -712,6 +714,12 @@ function createLight(kind: SceneLightKind, light: NonNullable<SceneEntitySnapsho
   if (kind === 'point-light') return new PointLight({ color: light.color, intensity: light.intensity, range: light.range });
   return new AmbientLight({ color: light.color, intensity: light.intensity });
 }
+function freezeComponentInstance(value: GameComponentInstanceV2): GameComponentInstanceV2 {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.enabled !== 'boolean' || typeof value.version !== 'string' || !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(value.version) || !value.value || typeof value.value !== 'object' || Array.isArray(value.value)) throw new TypeError('Scene component instance is invalid.');
+  return Object.freeze({ id: asStableId(value.id, 'component id'), type: asStableId(value.type, 'component type'), version: value.version, enabled: value.enabled, value: freezeJsonObject(value.value) });
+}
+function freezeJsonObject(value: Readonly<Record<string, JsonValue>>): Readonly<Record<string, JsonValue>> { return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, child]) => [key, freezeJsonValue(child)]))); }
+function freezeJsonValue(value: JsonValue): JsonValue { if (Array.isArray(value)) return Object.freeze(value.map(freezeJsonValue)) as unknown as JsonValue; if (value && typeof value === 'object') return freezeJsonObject(value as Readonly<Record<string, JsonValue>>) as JsonValue; return value; }
 function componentLightType(kind: SceneLightKind): string { return kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient'; }
 function entityKindLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }

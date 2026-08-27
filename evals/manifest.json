@@ -7,7 +7,7 @@
     {
       "role": "suite",
       "path": "evals/suites/game-agent-evaluation-v1.json",
-      "digest": "sha256:fbd5b42c50c48df9a13c9dfe2f935aeaa9cc37e827db49c2071bb26e19bae2f9"
+      "digest": "sha256:e720f5e46e6b305626816f434b6a7d555f5bba999e99b9ec0f6d1655e957f314"
     },
     {
       "role": "suite-schema",
@@ -17,12 +17,12 @@
     {
       "role": "hidden-oracle",
       "path": "evals/suites/game-agent-evaluation-v1.oracle.json",
-      "digest": "sha256:92e379354faf2fad69ab7eaa5a00d4d7e230d5def00510f835bd2be76b2d2881"
+      "digest": "sha256:536d0abe88b355711449d8d7605bc8f47f90b8da5a97fc138baf20d4cd7ba7ea"
     },
     {
       "role": "reference-evidence",
       "path": "evals/fixtures/reference-evidence-v1.json",
-      "digest": "sha256:d0155303726ca52c633bdff40473bc7d3b345de0691f0032daafcc81591b9eaf"
+      "digest": "sha256:6ffc5a1499ae88f5f5788618fb6418267c1d99c238f73f7ba03b63a1a2900bf1"
     },
     {
       "role": "report-schema",

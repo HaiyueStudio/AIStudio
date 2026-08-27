@@ -21,10 +21,12 @@ const transform = entity.getComponent('CartesianTransform3D') as unknown as { se
 transform?.setPosition(0, 1, 0);
 `;
 
-test('fixed tool catalog exposes only the 16 bounded authoring capabilities', () => {
+test('bounded tool catalog exposes registry-driven component authoring', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
-    'project.snapshot', 'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
-    'camera.set', 'entity.create', 'entity.rename', 'transform.set', 'material.set', 'script.propose', 'script.apply',
+    'project.snapshot', 'engine.capabilities.describe', 'component.describe', 'component.get',
+    'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
+    'camera.set', 'entity.create', 'entity.rename', 'transform.set', 'material.set',
+    'component.add', 'component.set', 'component.remove', 'script.propose', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
@@ -238,6 +240,52 @@ test('Agent tools create Engine primitives and lights and can change built-in ma
     await assert.rejects(value.runtime.prepare(call('call:light-material', 'material.set', { baseRevision: 4, entityId: light.value.entity.id, material: 'basic' })), /Only geometry entities/);
     await assert.rejects(value.runtime.prepare(call('call:empty-pbr', 'entity.create', { baseRevision: 4, kind: 'empty', material: 'pbr' })), /Only geometry entities/);
     await assert.rejects(value.runtime.prepare(call('call:bad-color', 'material.set', { baseRevision: 4, entityId: sphere.value.entity.id, material: 'pbr', color: [2, 0, 0, 1] })), /RGBA array/);
+  } finally { await dispose(value); }
+});
+
+test('registry-driven component tools preserve schema, risk, Scene projection and History', async () => {
+  const value = await fixture();
+  try {
+    const created = await executeReady(value.runtime, call('call:create-camera-owner', 'entity.create', { kind: 'empty', name: 'Gameplay Camera' }));
+    const entityId = created.value.entity.id;
+    const capabilities = await executeReady(value.runtime, call('call:capabilities', 'engine.capabilities.describe', {}));
+    assert.ok(capabilities.value.componentCount >= 13);
+    assert.ok(capabilities.value.components.some((item) => item.type === 'haiyue.camera.3d' && item.runtimeAdapter === 'adapter.camera.3d'));
+    const described = await executeReady(value.runtime, call('call:describe-camera', 'component.describe', { type: 'haiyue.camera.3d' }));
+    assert.equal(described.value.definition.risk, 'medium');
+    assert.equal(described.value.definition.capability, 'camera.3d');
+
+    const add = await value.runtime.prepare(call('call:add-gameplay-camera', 'component.add', { baseRevision: 2, entityId, type: 'haiyue.camera.3d', value: {} }));
+    assert.equal(add.risk, 'medium');
+    assert.equal(add.status, 'approval-required');
+    await value.runtime.decide(add.approvalId, 'allow-once');
+    const added = await value.runtime.execute(add.id);
+    assert.equal(added.historyLabel, 'Add Component');
+    assert.equal(added.value.component.value.projection, 'perspective');
+    const componentId = added.value.component.id;
+    assert.ok(value.scene.snapshot().entities[0].components.some((item) => item.id === componentId));
+
+    const byId = await executeReady(value.runtime, call('call:get-gameplay-camera', 'component.get', { componentId }));
+    const byType = await executeReady(value.runtime, call('call:get-gameplay-camera-by-type', 'component.get', { entityId, type: 'haiyue.camera.3d' }));
+    assert.equal(byId.value.component.id, byType.value.component.id);
+    const orthographic = { ...byId.value.component.value, projection: 'orthographic', orthographicHeight: 24 };
+    const set = await value.runtime.prepare(call('call:set-gameplay-camera', 'component.set', { baseRevision: 3, componentId, value: orthographic }));
+    assert.equal(set.risk, 'medium');
+    await value.runtime.decide(set.approvalId, 'allow-once');
+    const changed = await value.runtime.execute(set.id);
+    assert.equal(changed.value.component.value.projection, 'orthographic');
+    assert.equal(changed.historyLabel, 'Set Component');
+    await value.workspace.undo(4);
+    assert.equal((await executeReady(value.runtime, call('call:get-camera-after-undo', 'component.get', { componentId }))).value.component.value.projection, 'perspective');
+    await value.workspace.redo(5);
+
+    const remove = await value.runtime.prepare(call('call:remove-gameplay-camera', 'component.remove', { baseRevision: 6, componentId }));
+    assert.equal(remove.risk, 'medium');
+    await value.runtime.decide(remove.approvalId, 'allow-once');
+    const removed = await value.runtime.execute(remove.id);
+    assert.equal(removed.historyLabel, 'Remove Component');
+    assert.equal(value.scene.snapshot().entities[0].components.some((item) => item.id === componentId), false);
+    await assert.rejects(executeReady(value.runtime, call('call:get-removed-camera', 'component.get', { componentId })), /does not exist/);
   } finally { await dispose(value); }
 });
 
@@ -593,7 +641,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 16);
+      assert.equal(input.tools.length, 22);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -618,7 +666,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 16);
+      assert.equal(input.tools.length, 22);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');
