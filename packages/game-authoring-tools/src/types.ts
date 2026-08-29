@@ -1,4 +1,4 @@
-import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
+import type { JsonObject, JsonValue, StableId } from '@haiyue/ai-studio-contracts';
 import type { SceneSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-script-preview';
 
@@ -30,10 +30,47 @@ export interface GameToolCall {
   readonly id: StableId;
   readonly sessionId: StableId;
   readonly turnId: StableId;
+  /** Task provenance is required for persisted observations. Older callers may omit it; the runtime derives a session-scoped task id. */
+  readonly taskId?: StableId;
   readonly toolId: StableId;
   readonly toolVersion: string;
   readonly arguments: JsonObject;
 }
+
+export interface GamePlayObservation {
+  readonly playId: StableId;
+  readonly documentRevision: number;
+  readonly scriptDigests: readonly string[];
+  readonly tick: number;
+  readonly frame: number;
+  readonly viewport: Readonly<{ width: number; height: number }> | null;
+  readonly device: string | null;
+  readonly capturedAt: string;
+  readonly value: JsonObject;
+}
+
+export interface GamePlayCapture extends Omit<GamePlayObservation, 'value'> {
+  readonly mediaType: 'image/png';
+  readonly byteLength: number;
+  /** Transport-only payload. The tool runtime persists it before returning and never exposes it in a tool result or log. */
+  readonly base64: string;
+}
+
+export type GamePlayInputEvent = Readonly<{
+  tick: number;
+  kind: 'action' | 'pointer' | 'reset';
+  source?: 'synthetic' | 'keyboard' | 'pointer' | 'gamepad' | 'system';
+  action?: string;
+  phase?: 'down' | 'value' | 'up' | 'move' | 'cancel' | 'wheel';
+  pointerId?: number;
+  x?: number;
+  y?: number;
+  button?: number;
+  wheelX?: number;
+  wheelY?: number;
+  value?: number;
+  reason?: 'blur' | 'disconnect' | 'stop' | 'restart' | 'cancel' | 'manual';
+}>;
 
 export interface GameToolPreview {
   readonly title: string;
@@ -99,6 +136,10 @@ export interface GameToolResult {
 export interface GamePreviewControl {
   start(scene: SceneSnapshot, plan: PreviewPlan, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot>;
   stop(signal?: AbortSignal): Promise<PreviewRuntimeSnapshot>;
+  step(count: number, signal?: AbortSignal): Promise<GamePlayObservation>;
+  input(event: GamePlayInputEvent, signal?: AbortSignal): Promise<GamePlayObservation>;
+  inspect(signal?: AbortSignal): Promise<GamePlayObservation>;
+  capture(signal?: AbortSignal): Promise<GamePlayCapture>;
   snapshot(): PreviewRuntimeSnapshot;
 }
 

@@ -32,6 +32,16 @@ const camera = Object.freeze({
   }),
 });
 const resultSchema = Object.freeze({ type: 'object' }) as JsonObject;
+const playInputEvent = Object.freeze({
+  type: 'object', additionalProperties: false, required: Object.freeze(['tick', 'kind']), properties: Object.freeze({
+    tick: { type: 'integer', minimum: 0, maximum: 1_000_000_000 },
+    kind: { enum: ['action', 'pointer', 'reset'] }, source: { enum: ['synthetic', 'keyboard', 'pointer', 'gamepad', 'system'] },
+    action: { type: 'string', minLength: 1, maxLength: 80 }, phase: { enum: ['down', 'value', 'up', 'move', 'cancel', 'wheel'] }, pointerId: { type: 'integer', minimum: 0, maximum: 1_000_000 },
+    x: { type: 'number', minimum: 0, maximum: 1 }, y: { type: 'number', minimum: 0, maximum: 1 },
+    button: { type: 'integer', minimum: -1, maximum: 31 }, wheelX: { type: 'number' }, wheelY: { type: 'number' }, value: { type: 'number' }, reason: { enum: ['blur', 'disconnect', 'stop', 'restart', 'cancel', 'manual'] },
+  }),
+});
+const taskSpec = Object.freeze({ type: 'object', maxProperties: 8 });
 
 export const GAME_AUTHORING_TOOL_DEFINITIONS: readonly GameToolDefinition[] = Object.freeze([
   definition('project.snapshot', 'Project snapshot', 'Read the current project identity, revision and log health.', 'observe', 'low', empty, ['studio.project-workspace']),
@@ -64,6 +74,13 @@ export const GAME_AUTHORING_TOOL_DEFINITIONS: readonly GameToolDefinition[] = Ob
   definition('preview.validate', 'Validate preview', 'Validate the complete enabled project script set and prepare one trusted Play plan without starting it. By default every enabled script runs in stable order. Supply scriptIds only for an explicit bounded subset; capabilities are inferred independently from each committed script.', 'runtime-start', 'high', schema({ scriptIds: { type: 'array', minItems: 1, maxItems: 128, uniqueItems: true, items: scriptId } }, [], ['scriptIds']), ['studio.script-preview'], 20_000, 64 * 1024, false),
   definition('preview.start', 'Start preview', 'Start an exact validated trusted preview plan after one-shot authorization.', 'runtime-start', 'high', schema({ baseRevision: revision, planId: { type: 'string', pattern: '^preview-plan:' } }, ['planId'], ['baseRevision']), ['studio.script-preview', 'studio.preview-control'], 15_000, 32 * 1024, true),
   definition('preview.stop', 'Stop preview', 'Stop and release the currently owned preview runtime.', 'runtime-start', 'medium', empty, ['studio.preview-control'], 10_000, 16 * 1024, false),
+  definition('play.start', 'Start Play', 'Start an exact validated trusted Play plan after one-shot authorization. This is the observation-loop alias of preview.start.', 'runtime-start', 'high', schema({ baseRevision: revision, planId: { type: 'string', pattern: '^preview-plan:' } }, ['planId'], ['baseRevision']), ['play.multi-script', 'play.inspect'], 15_000, 32 * 1024, true),
+  definition('play.stop', 'Stop Play', 'Capture lifecycle cleanup evidence and stop the currently owned Play instance.', 'runtime-start', 'medium', empty, ['play.inspect'], 10_000, 32 * 1024, false),
+  definition('play.step', 'Step fixed Play', 'Pause the active Play instance if needed, advance 1-10000 fixed simulation ticks, and persist a state observation before returning its evidence id.', 'observe', 'low', schema({ count: { type: 'integer', minimum: 1, maximum: 10_000 } }, ['count']), ['play.inspect'], 15_000, 64 * 1024),
+  definition('play.input', 'Inject Play input', 'Inject one bounded action or pointer event into the active fixed-step Play timeline and persist the resulting state observation.', 'observe', 'low', schema({ event: playInputEvent }, ['event']), ['play.inspect'], 10_000, 64 * 1024),
+  definition('play.inspect', 'Inspect Play state', 'Capture and persist a bounded state, input, event, physics, effects and HUD observation from the active Play instance. A preview start acknowledgement is not acceptance evidence.', 'observe', 'low', empty, ['play.inspect'], 10_000, 64 * 1024),
+  definition('play.capture', 'Capture Play screenshot', 'Capture the active Play canvas as a bounded PNG, persist the binary in content-addressed storage, and return only provenance metadata and the evidence id.', 'observe', 'low', empty, ['play.capture'], 15_000, 32 * 1024),
+  definition('task.evaluate', 'Evaluate task acceptance', 'Evaluate a TaskSpec against persisted, provenance-compatible observations. Assertions use the fixed evidence DSL; unsupported semantic or visual claims are blocked rather than guessed.', 'observe', 'low', schema({ taskSpec, observationIds: { type: 'array', minItems: 1, maxItems: 256, uniqueItems: true, items: { type: 'string', pattern: '^artifact:sha256:' } }, budgetStatus: { enum: ['within', 'soft-exceeded', 'hard-exceeded'] }, usageRecordIds: { type: 'array', maxItems: 256, uniqueItems: true, items: { type: 'string' } }, costRecordIds: { type: 'array', maxItems: 256, uniqueItems: true, items: { type: 'string' } } }, ['taskSpec', 'observationIds'], ['budgetStatus', 'usageRecordIds', 'costRecordIds']), ['task.evaluate'], 15_000, 64 * 1024),
 ]);
 
 export const GAME_AUTHORING_TOOL_BY_ID: ReadonlyMap<StableId, GameToolDefinition> = new Map(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => [item.id, item]));

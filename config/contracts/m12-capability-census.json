@@ -49,11 +49,11 @@
     },
     {
       "id": "task.evaluate", "domain": "task", "owner": "g10-observation-playtest-repair-loop",
-      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "classification": "available-public", "integrationState": "g10-verified", "publicPath": "@haiyue/ai-studio-game-authoring-tools", "publicSymbols": ["DeterministicTaskEvaluator", "BoundedPlaytestTask"], "version": "0.0.0",
       "lifecycle": { "ownership": "task", "teardown": "terminal evaluation" },
-      "serialization": { "status": "not-supported", "path": null },
-      "toolExposure": { "m06": "model terminal is not bound to acceptance evidence", "m12Owner": "g10-observation-playtest-repair-loop" },
-      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/coordinator.ts"]
+      "serialization": { "status": "supported", "path": "TaskSpecV2 plus EvaluationResultV2 with persisted evidence ids" },
+      "toolExposure": { "m06": "task.evaluate deterministic DSL; unsupported visual semantics block until visual-analysis evidence exists", "m12Owner": "g10-observation-playtest-repair-loop" },
+      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/observations.ts", "packages/game-authoring-tools/src/playtest-loop.ts", "packages/game-authoring-tools/test/g10-observations.test.mjs"]
     },
     {
       "id": "document.v2", "domain": "authoring", "owner": "g05-game-document-v2-component-registry",
@@ -273,19 +273,19 @@
     },
     {
       "id": "play.capture", "domain": "observation", "owner": "g10-observation-playtest-repair-loop",
-      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "classification": "available-public", "integrationState": "g10-verified", "publicPath": "@haiyue/ai-studio-game-authoring-tools", "publicSymbols": ["GamePreviewControl", "GamePlayCapture", "PlayObservationRepository"], "version": "0.0.0",
       "lifecycle": { "ownership": "observation artifact owner", "teardown": "retention/quota policy" },
-      "serialization": { "status": "not-supported", "path": null },
-      "toolExposure": { "m06": "no Agent screenshot tool; G10 only checked PNG signature/minimum size manually", "m12Owner": "g10-observation-playtest-repair-loop" },
-      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["docs/evidence/g10-acceptance.md", "packages/game-authoring-tools/src/definitions.ts"]
+      "serialization": { "status": "supported", "path": "bounded PNG is persisted in Operation Log CAS before metadata is returned" },
+      "toolExposure": { "m06": "play.capture returns provenance metadata and artifact id; PNG bytes never enter tool result or event log", "m12Owner": "g10-observation-playtest-repair-loop" },
+      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/observations.ts", "apps/ai-studio/test/g10-observation-electron.test.mjs"]
     },
     {
       "id": "play.inspect", "domain": "observation", "owner": "g10-observation-playtest-repair-loop",
-      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "classification": "available-public", "integrationState": "g10-verified", "publicPath": "@haiyue/ai-studio-game-authoring-tools", "publicSymbols": ["GamePreviewControl", "GamePlayObservation", "PlayObservationRepository"], "version": "0.0.0",
       "lifecycle": { "ownership": "play instance", "teardown": "bounded snapshot release" },
-      "serialization": { "status": "not-supported", "path": null },
-      "toolExposure": { "m06": "preview.start returns only state/instance/entity/disposable count", "m12Owner": "g10-observation-playtest-repair-loop" },
-      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/runtime.ts"]
+      "serialization": { "status": "supported", "path": "play.inspect persists state, event-trace, runtime-errors and performance observations" },
+      "toolExposure": { "m06": "play.start/step/input/inspect/capture/stop tools bind play, task, turn, revision, scripts, tick, frame and viewport", "m12Owner": "g10-observation-playtest-repair-loop" },
+      "testOwner": "g10-observation-playtest-repair-loop", "evidence": ["packages/game-authoring-tools/src/runtime.ts", "apps/ai-studio/src/agent-preview-broker.ts", "apps/ai-studio/test/g10-observation-electron.test.mjs"]
     },
     {
       "id": "diagnostics.query", "domain": "diagnostics", "owner": "g10-observation-playtest-repair-loop",

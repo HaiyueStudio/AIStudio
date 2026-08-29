@@ -61,6 +61,8 @@ const stableIdByEntityId = new Map<number, string>();
 let disposed = false;
 let paused = false;
 let lifecycleGeneration = 0;
+let renderedFrame = 0;
+let runtimeErrorCount = 0;
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
   if (event.source !== parent || !isRecord(event.data) || event.data.protocol !== 'haiyue-preview/1') return;
@@ -83,10 +85,11 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
     } catch (cause) { fail(cause); }
   } else if (event.data.type === 'pause' && exactKeys(event.data, ['protocol', 'type'])) pause();
   else if (event.data.type === 'resume' && exactKeys(event.data, ['protocol', 'type'])) resume();
-  else if (event.data.type === 'step' && exactKeys(event.data, ['protocol', 'type', 'count']) && Number.isSafeInteger(event.data.count) && Number(event.data.count) >= 1 && Number(event.data.count) <= 10_000) step(Number(event.data.count));
+  else if (event.data.type === 'step' && exactKeys(event.data, ['protocol', 'type', 'requestId', 'count']) && typeof event.data.requestId === 'string' && Number.isSafeInteger(event.data.count) && Number(event.data.count) >= 1 && Number(event.data.count) <= 10_000) step(event.data.requestId, Number(event.data.count));
   else if (event.data.type === 'input' && exactKeys(event.data, ['protocol', 'type', 'event']) && isRecord(event.data.event)) injectInput(event.data.event as unknown as ReplayInputEventInput);
   else if (event.data.type === 'replay' && exactKeys(event.data, ['protocol', 'type', 'replay']) && isRecord(event.data.replay)) loadReplay(event.data.replay as unknown as InputReplayV1);
-  else if (event.data.type === 'inspect' && exactKeys(event.data, ['protocol', 'type'])) publishInspection();
+  else if (event.data.type === 'inspect' && exactKeys(event.data, ['protocol', 'type', 'requestId']) && typeof event.data.requestId === 'string') publishInspection(event.data.requestId);
+  else if (event.data.type === 'capture' && exactKeys(event.data, ['protocol', 'type', 'requestId']) && typeof event.data.requestId === 'string') void capture(event.data.requestId);
   else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
 });
 
@@ -226,6 +229,8 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   });
   removeInputListeners = installInput(canvas, actionMap);
   previousFrameTime = null;
+  renderedFrame = 0;
+  runtimeErrorCount = 0;
   animationFrame = requestAnimationFrame(displayFrame);
   send('started', { entityId: plan.scripts[0]!.entityId, scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, tickRateHz: settings.tickRateHz, seed: settings.seed, physics: physicsRuntime.status(), renderEffects: renderEffectsRuntime.manifest(), disposableCount: 0 });
 }
@@ -243,6 +248,7 @@ function publishState(): void {
 }
 
 function runtimeError(event: ScriptRuntimeErrorEvent): void {
+  runtimeErrorCount += 1;
   const plan = planByComponent.get(event.component);
   send('runtime-error', { scriptId: plan?.scriptId ?? null, entityId: plan?.entityId ?? null, code: event.error.code, message: event.error.message, line: event.sourceLocation.line, column: event.sourceLocation.column, disposableCount: totalDisposableCount() });
 }
@@ -270,16 +276,17 @@ function displayFrame(timestamp: number): void {
   try {
     beginManualRenderFrame(engine);
     simulation.advanceDisplayFrame(deltaMs);
+    renderedFrame += 1;
   }
   catch (cause) { stop('simulation-failed'); fail(cause); return; }
   animationFrame = requestAnimationFrame(displayFrame);
 }
 
-function step(count: number): void {
-  if (!simulation || !engine) { fail(new Error('Preview is not playing.')); return; }
-  if (!paused) { fail(new Error('Preview must be paused before stepping.')); return; }
-  try { beginManualRenderFrame(engine); simulation.step(count); send('stepped', { count, tick: simulation.clock.tick, disposableCount: totalDisposableCount() }); }
-  catch (cause) { fail(cause); }
+function step(requestId: string, count: number): void {
+  if (!simulation || !engine) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
+  if (!paused) { requestFailed(requestId, new Error('Preview must be paused before stepping.')); return; }
+  try { beginManualRenderFrame(engine); simulation.step(count); renderedFrame += 1; send('stepped', { requestId, count, tick: simulation.clock.tick, frame: renderedFrame, disposableCount: totalDisposableCount() }); }
+  catch (cause) { requestFailed(requestId, cause); }
 }
 
 function injectInput(event: ReplayInputEventInput): void {
@@ -294,10 +301,22 @@ function loadReplay(replay: InputReplayV1): void {
   catch (cause) { fail(cause); }
 }
 
-function publishInspection(): void {
-  if (!simulation) { fail(new Error('Preview is not playing.')); return; }
+function publishInspection(requestId: string): void {
+  if (!simulation) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
   const snapshot = simulation.snapshot();
-  send('inspection', { tick: snapshot.tick, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, input: snapshot.input, trace: snapshot.trace, physics: physicsRuntime?.status() ?? null, physicsEvents: physicsRuntime?.events() ?? [], renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot() });
+  send('inspection', { requestId, value: { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount } });
+}
+
+async function capture(requestId: string): Promise<void> {
+  const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas');
+  if (!simulation || !engine || !canvas) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
+  try {
+    await engine.device.queue.onSubmittedWorkDone();
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Canvas PNG encoding failed.')), 'image/png'));
+    if (blob.size < 8 || blob.size > 376 * 1024) throw new Error('Screenshot exceeds the 376 KiB observation limit.');
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    send('capture', { requestId, base64: bytesToBase64(bytes), byteLength: bytes.byteLength, tick: simulation.clock.tick, frame: renderedFrame });
+  } catch (cause) { requestFailed(requestId, cause); }
 }
 
 function readSimulationState(): SimulationStateValue {
@@ -585,6 +604,8 @@ function scriptRuntimeStates(): readonly Readonly<{ scriptId: string; entityId: 
   }));
 }
 function fail(cause: unknown): void { send('runtime-error', { code: 'preview-start-failed', message: cause instanceof Error ? cause.message : String(cause), line: 1, column: 1, disposableCount: totalDisposableCount() }); }
+function requestFailed(requestId: string, cause: unknown): void { send('request-failed', { requestId, message: cause instanceof Error ? cause.message : String(cause) }); }
+function bytesToBase64(bytes: Uint8Array): string { let value = ''; for (let index = 0; index < bytes.length; index += 0x8000) value += String.fromCharCode(...bytes.subarray(index, Math.min(bytes.length, index + 0x8000))); return btoa(value); }
 function send(type: string, payload: Record<string, unknown>): void { parent.postMessage({ protocol: 'haiyue-preview/1', type, ...payload }, '*'); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function exactKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {

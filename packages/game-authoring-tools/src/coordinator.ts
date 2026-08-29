@@ -49,7 +49,7 @@ export class AgentGameAuthoringCoordinator {
         try {
           if (!isRecord(event.payload.arguments)) throw new GameToolProtocolError('tool.arguments-invalid', 'Backend tool arguments must be a JSON object.');
           const args = event.payload.arguments as JsonObject;
-          const preparation = await this.runtime.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, toolId, toolVersion: '1.0.0', arguments: args }, controller.signal);
+          const preparation = await this.runtime.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, taskId: input.taskId, toolId, toolVersion: '1.0.0', arguments: args }, controller.signal);
           if (preparation.approvalId) {
             const approval = this.runtime.approval(preparation.approvalId);
             if (!approval) throw new Error('Prepared approval is unavailable.');

@@ -8,6 +8,10 @@ import {
   type ConversationNodeReadModel,
   type ConversationNodeStatus,
   type ConversationProvenance,
+  type ConversationTaskAcceptanceReadModel,
+  type ConversationTaskEvidenceReadModel,
+  type ConversationTaskRunReadModel,
+  type ConversationTaskTimelineItemReadModel,
   type PlanItemReadModel,
   type QuestionCardReadModel,
   type SafeLogSummary,
@@ -21,6 +25,11 @@ const knownKinds = new Set<string>(CONVERSATION_NODE_KINDS);
 const secretKey = /(?:api[-_]?key|access[-_]?token|refresh[-_]?token|authorization|cookie|password|credential|private[-_]?key|secret)/i;
 const bearerLike = /\b(?:bearer\s+)?(?:sk-[A-Za-z0-9_-]{12,}|[A-Za-z0-9_-]{32,})\b/gi;
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
+const evidenceTypes = ['state', 'event-trace', 'runtime-errors', 'performance', 'screenshot', 'visual-analysis', 'lifecycle'] as const;
+const taskPhases = ['planning', 'editing', 'validating', 'playing', 'evaluating', 'repairing', 'complete', 'blocked', 'cancelled'] as const;
+const taskStatuses = ['running', 'waiting-user', 'blocked', 'completed', 'failed', 'cancelled'] as const;
+const acceptanceCategories = ['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security'] as const;
+const MAX_SCREENSHOT_DATA_URL_BYTES = 520 * 1024;
 
 export class ConversationReadModelError extends Error {
   constructor(readonly code: string, message: string) { super(message); this.name = 'ConversationReadModelError'; }
@@ -60,9 +69,12 @@ export function normalizeBackend(value: unknown): ConversationBackendReadModel {
   const selectedModel = typeof value.selectedModel === 'string' && models.some((item) => item.id === value.selectedModel) ? safeText(value.selectedModel, 128) : null;
   const selectedReasoningEffort = reasoningEffort(value.selectedReasoningEffort);
   const outputTokenLimit = safeInteger(value.outputTokenLimit, 1, 1_000_000);
+  const capabilities = isRecord(value.capabilities) ? Object.freeze({ resume: value.capabilities.resume === true, questions: value.capabilities.questions === true, structuredTools: value.capabilities.structuredTools === true, backendApprovals: value.capabilities.backendApprovals === true, usage: value.capabilities.usage === true, rateLimits: value.capabilities.rateLimits === true }) : Object.freeze({ resume: false, questions: false, structuredTools: false, backendApprovals: false, usage: false, rateLimits: false });
+  let promptProfile: ConversationBackendReadModel['promptProfile'] = null;
+  if (isRecord(value.promptProfile)) { try { promptProfile = Object.freeze({ id: stable(value.promptProfile.id, 'prompt profile id'), version: safeText(typeof value.promptProfile.version === 'string' ? value.promptProfile.version : 'unknown', 64), digest: digest(value.promptProfile.digest) }); } catch { promptProfile = null; } }
   return Object.freeze({
     id: stable(value.id, 'backend id'), label: safeText(typeof value.label === 'string' ? value.label : String(kind), 80), kind,
-    state: state as ConversationBackendReadModel['state'], authMode: authMode as ConversationBackendReadModel['authMode'],
+    state: state as ConversationBackendReadModel['state'], authMode: authMode as ConversationBackendReadModel['authMode'], protocolVersion: safeText(typeof value.protocolVersion === 'string' ? value.protocolVersion : 'unknown', 96), capabilities, promptProfile,
     ...(typeof value.accountPlan === 'string' ? { accountPlan: safeText(value.accountPlan, 80) } : {}),
     rateLimits: Object.freeze(rateLimits), ...(diagnostic ? { diagnostic } : {}), models: Object.freeze(models), selectedModel, selectedReasoningEffort, outputTokenLimit,
   });
@@ -79,6 +91,88 @@ export function normalizeTaskAccounting(value: unknown): import('./types.js').Co
       cost: Object.freeze({ status: ['actual', 'estimated', 'unknown'].includes(String(value.cost.status)) ? value.cost.status as 'actual' | 'estimated' | 'unknown' : 'unknown', amountMicros: countOrNull(value.cost.amountMicros), currency: typeof value.cost.currency === 'string' ? safeText(value.cost.currency, 3) : null, cacheSavingMicros: countOrNull(value.cost.cacheSavingMicros), explanation: safeText(typeof value.cost.explanation === 'string' ? value.cost.explanation : 'Cost is unknown.', 512), final: value.cost.final === true }),
     });
   } catch { return null; }
+}
+
+export function normalizeTaskRuns(value: unknown): readonly ConversationTaskRunReadModel[] {
+  if (!Array.isArray(value)) return Object.freeze([]);
+  const seen = new Set<StableId>();
+  const runs: ConversationTaskRunReadModel[] = [];
+  for (const item of value.slice(-50)) {
+    try {
+      const run = normalizeTaskRun(item);
+      if (seen.has(run.taskId)) continue;
+      seen.add(run.taskId); runs.push(run);
+    } catch { /* malformed or future task projections fail closed */ }
+  }
+  return Object.freeze(runs.sort((left, right) => left.startedAt.localeCompare(right.startedAt) || left.taskId.localeCompare(right.taskId)));
+}
+
+export function normalizeTaskRun(value: unknown): ConversationTaskRunReadModel {
+  if (!isRecord(value) || value.schemaVersion !== 1) throw new ConversationReadModelError('conversation.task-version-unsupported', 'Task projection version is unsupported.');
+  const taskId = stable(value.taskId, 'task id');
+  const revision = safeInteger(value.revision, 0, 1_000_000_000); if (revision === null) throw new ConversationReadModelError('conversation.task-invalid', 'Task revision is invalid.');
+  const status = enumValue(value.status, taskStatuses); const phase = enumValue(value.phase, taskPhases);
+  if (!status || !phase || !isRecord(value.model) || !isRecord(value.promptProfile)) throw new ConversationReadModelError('conversation.task-invalid', 'Task status, phase or configuration is invalid.');
+  const reasoning = reasoningEffort(value.model.reasoningEffort); const outputTokenLimit = safeInteger(value.model.outputTokenLimit, 1, 1_000_000);
+  if (!reasoning || outputTokenLimit === null) throw new ConversationReadModelError('conversation.task-invalid', 'Task model configuration is invalid.');
+  const documentRevision = value.documentRevision === null ? null : safeInteger(value.documentRevision, 0, 1_000_000_000);
+  const repairIteration = safeInteger(value.repairIteration, 0, 100); const repairLimit = safeInteger(value.repairLimit, 0, 100);
+  if (documentRevision === null && value.documentRevision !== null || repairIteration === null || repairLimit === null || repairIteration > repairLimit) throw new ConversationReadModelError('conversation.task-invalid', 'Task revision or repair accounting is invalid.');
+  const evidence = Array.isArray(value.evidence) ? value.evidence.slice(0, 256).flatMap((item) => {
+    try { return [normalizeTaskEvidence(item, taskId, documentRevision)]; } catch { return []; }
+  }) : [];
+  const evidenceIds = new Set(evidence.map((item) => item.id));
+  const acceptance = Array.isArray(value.acceptance) ? value.acceptance.slice(0, 256).flatMap((item) => {
+    try { return [normalizeTaskAcceptance(item, evidenceIds)]; } catch { return []; }
+  }) : [];
+  const timeline = Array.isArray(value.timeline) ? value.timeline.slice(-400).flatMap((item) => {
+    try { return [normalizeTaskTimelineItem(item)]; } catch { return []; }
+  }) : [];
+  return Object.freeze({
+    schemaVersion: 1, revision, taskId, title: safeText(typeof value.title === 'string' ? value.title : 'Agent task', 160),
+    requestSummary: safeText(typeof value.requestSummary === 'string' ? value.requestSummary : 'Task details unavailable.', 2_048), status, phase,
+    startedAt: timestamp(value.startedAt, 'task startedAt'), updatedAt: timestamp(value.updatedAt, 'task updatedAt'), backendId: stable(value.backendId, 'backend id'),
+    sessionId: nullableStable(value.sessionId, 'session id'), turnId: nullableStable(value.turnId, 'turn id'),
+    model: Object.freeze({ id: safeText(typeof value.model.id === 'string' ? value.model.id : 'unknown', 128), reasoningEffort: reasoning, outputTokenLimit }),
+    promptProfile: Object.freeze({ id: stable(value.promptProfile.id, 'prompt profile id'), version: safeText(typeof value.promptProfile.version === 'string' ? value.promptProfile.version : 'unknown', 64), digest: digest(value.promptProfile.digest) }),
+    documentRevision, repairIteration, repairLimit, acceptance: Object.freeze(acceptance), evidence: Object.freeze(evidence), timeline: Object.freeze(timeline),
+    terminalDiagnostic: value.terminalDiagnostic === null ? null : safeText(typeof value.terminalDiagnostic === 'string' ? value.terminalDiagnostic : 'Task is blocked.', 512), resumable: value.resumable === true,
+  });
+}
+
+function normalizeTaskEvidence(value: unknown, taskId: StableId, currentRevision: number | null): ConversationTaskEvidenceReadModel {
+  if (!isRecord(value)) throw new ConversationReadModelError('conversation.evidence-invalid', 'Evidence must be an object.');
+  const type = enumValue(value.type, evidenceTypes); if (!type) throw new ConversationReadModelError('conversation.evidence-invalid', 'Evidence type is invalid.');
+  const evidenceTaskId = stable(value.taskId, 'evidence task id');
+  const documentRevision = safeInteger(value.documentRevision, 0, 1_000_000_000); const tick = safeInteger(value.tick, 0, 1_000_000_000); const frame = safeInteger(value.frame, 0, 1_000_000_000); const byteLength = safeInteger(value.byteLength, 0, 10_000_000);
+  if (documentRevision === null || tick === null || frame === null || byteLength === null) throw new ConversationReadModelError('conversation.evidence-invalid', 'Evidence coordinates are invalid.');
+  const viewport = value.viewport === null ? null : normalizeViewport(value.viewport);
+  const declared = enumValue(value.provenanceStatus, ['current', 'stale', 'invalid'] as const) ?? 'invalid';
+  const provenanceStatus: ConversationTaskEvidenceReadModel['provenanceStatus'] = evidenceTaskId !== taskId ? 'invalid' : currentRevision !== null && documentRevision !== currentRevision ? 'stale' : declared;
+  const previewDataUrl = type === 'screenshot' ? normalizeScreenshotDataUrl(value.previewDataUrl) : undefined;
+  return Object.freeze({
+    id: stable(value.id, 'evidence id'), type, taskId: evidenceTaskId, turnId: stable(value.turnId, 'evidence turn id'), playId: stable(value.playId, 'play id'), documentRevision, tick, frame, viewport,
+    device: value.device === null ? null : safeText(typeof value.device === 'string' ? value.device : 'unknown', 96), capturedAt: timestamp(value.capturedAt, 'evidence capturedAt'), byteLength,
+    redacted: value.redacted === true, producerVersion: safeText(typeof value.producerVersion === 'string' ? value.producerVersion : 'unknown', 96), provenanceStatus,
+    ...(previewDataUrl ? { previewDataUrl } : {}),
+  });
+}
+
+function normalizeTaskAcceptance(value: unknown, evidenceIds: ReadonlySet<StableId>): ConversationTaskAcceptanceReadModel {
+  if (!isRecord(value)) throw new ConversationReadModelError('conversation.acceptance-invalid', 'Acceptance item must be an object.');
+  const category = enumValue(value.category, acceptanceCategories); const status = enumValue(value.status, ['pending', 'pass', 'fail', 'blocked'] as const); const visibility = enumValue(value.visibility, ['agent', 'runner-only'] as const);
+  if (!category || !status || !visibility || !Array.isArray(value.evidenceIds)) throw new ConversationReadModelError('conversation.acceptance-invalid', 'Acceptance item fields are invalid.');
+  const referenced = Object.freeze(value.evidenceIds.slice(0, 64).flatMap((item) => { try { const id = stable(item, 'acceptance evidence id'); return evidenceIds.has(id) ? [id] : []; } catch { return []; } }));
+  const normalizedStatus = status === 'pass' && referenced.length === 0 ? 'blocked' : status;
+  return Object.freeze({ id: stable(value.id, 'acceptance id'), label: safeText(typeof value.label === 'string' ? value.label : 'Acceptance criterion', 240), assertion: safeText(typeof value.assertion === 'string' ? value.assertion : 'Unspecified assertion', 2_000), category, required: value.required === true, visibility, status: normalizedStatus, evidenceIds: referenced, diagnostic: value.diagnostic === null ? null : safeText(typeof value.diagnostic === 'string' ? value.diagnostic : 'Evidence is unavailable.', 512) });
+}
+
+function normalizeTaskTimelineItem(value: unknown): ConversationTaskTimelineItemReadModel {
+  if (!isRecord(value)) throw new ConversationReadModelError('conversation.timeline-invalid', 'Timeline item must be an object.');
+  const phase = enumValue(value.phase, taskPhases); const status = enumValue(value.status, ['active', 'complete', 'warning', 'error'] as const);
+  if (!phase || !status) throw new ConversationReadModelError('conversation.timeline-invalid', 'Timeline item status is invalid.');
+  const tick = value.tick === null ? null : safeInteger(value.tick, 0, 1_000_000_000); if (tick === null && value.tick !== null) throw new ConversationReadModelError('conversation.timeline-invalid', 'Timeline tick is invalid.');
+  return Object.freeze({ id: stable(value.id, 'timeline id'), at: timestamp(value.at, 'timeline timestamp'), phase, status, title: safeText(typeof value.title === 'string' ? value.title : 'Task update', 160), detail: safeText(typeof value.detail === 'string' ? value.detail : '', 1_024), turnId: nullableStable(value.turnId, 'timeline turn id'), toolCallId: nullableStable(value.toolCallId, 'timeline tool call id'), playId: nullableStable(value.playId, 'timeline play id'), tick });
 }
 
 export function approvalFromNode(node: ConversationNodeReadModel): ApprovalCardReadModel | null {
@@ -284,6 +378,18 @@ function stable(value: unknown, label: string): StableId {
   try { return asStableId(value, label); } catch { throw new ConversationReadModelError('conversation.id-invalid', `${label} is invalid.`); }
 }
 function stableOptional(value: unknown): StableId | undefined { try { return value === undefined ? undefined : stable(value, 'id'); } catch { return undefined; } }
+function nullableStable(value: unknown, label: string): StableId | null { return value === null || value === undefined ? null : stable(value, label); }
+function normalizeViewport(value: unknown): Readonly<{ width: number; height: number }> {
+  if (!isRecord(value)) throw new ConversationReadModelError('conversation.evidence-invalid', 'Evidence viewport is invalid.');
+  const width = safeInteger(value.width, 1, 16_384); const height = safeInteger(value.height, 1, 16_384);
+  if (width === null || height === null) throw new ConversationReadModelError('conversation.evidence-invalid', 'Evidence viewport is invalid.');
+  return Object.freeze({ width, height });
+}
+function normalizeScreenshotDataUrl(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || utf8Bytes(value) > MAX_SCREENSHOT_DATA_URL_BYTES || !/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/u.test(value)) throw new ConversationReadModelError('conversation.evidence-preview-invalid', 'Screenshot preview is invalid.');
+  return value;
+}
 function timestamp(value: unknown, label: string): string { if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) throw new ConversationReadModelError('conversation.timestamp-invalid', `${label} is invalid.`); return value; }
 function boundedString(value: unknown, label: string, maximum: number): string { if (typeof value !== 'string' || value.length === 0 || value.length > maximum) throw new ConversationReadModelError('conversation.string-invalid', `${label} is invalid.`); return safeText(value, maximum); }
 function text(value: unknown, maximum: number): string | undefined { return typeof value === 'string' ? safeText(value, maximum) : undefined; }

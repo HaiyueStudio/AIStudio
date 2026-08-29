@@ -27,7 +27,7 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query', 'asset.search',
     'camera.set', 'entity.create', 'entity.rename', 'transform.set', 'material.set',
     'component.add', 'component.set', 'component.remove', 'asset.import', 'asset.assign', 'script.propose', 'script.apply',
-    'preview.validate', 'preview.start', 'preview.stop',
+    'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /time and delta are milliseconds/);
@@ -227,15 +227,31 @@ test('script proposal, trusted apply and runtime start preserve separate approva
     assert.equal(applied.afterRevision, 3);
 
     const validated = await executeReady(value.runtime, call('call:validate', 'preview.validate', {}));
-    const start = await value.runtime.prepare(call('call:start', 'preview.start', { baseRevision: 3, planId: validated.value.planId }));
+    const start = await value.runtime.prepare(call('call:start', 'play.start', { baseRevision: 3, planId: validated.value.planId }));
     assert.notEqual(start.approvalId, apply.approvalId);
     await assert.rejects(value.runtime.decide(start.approvalId, 'allow-always'), /one-shot approval/);
     await value.runtime.decide(start.approvalId, 'allow-once');
     const started = await value.runtime.execute(start.id);
     assert.equal(started.value.state, 'playing');
     assert.equal(value.preview.starts, 1);
-    const stopped = await executeReady(value.runtime, call('call:stop', 'preview.stop', {}));
+    const stepped = await executeReady(value.runtime, call('call:play-step', 'play.step', { count: 3 }));
+    assert.equal(stepped.value.projection.stepped, 3);
+    const injected = await executeReady(value.runtime, call('call:play-input', 'play.input', { event: { tick: 13, kind: 'action', action: 'move-left', phase: 'down', source: 'synthetic' } }));
+    assert.equal(injected.value.projection.input.action, 'move-left');
+    const inspected = await executeReady(value.runtime, call('call:play-inspect', 'play.inspect', {}));
+    assert.match(inspected.value.observation.id, /^artifact:sha256:/);
+    const captured = await executeReady(value.runtime, call('call:play-capture', 'play.capture', {}));
+    assert.equal(captured.value.projection.byteLength, 8);
+    assert.equal('base64' in captured.value, false);
+    const evaluated = await executeReady(value.runtime, call('call:task-evaluate', 'task.evaluate', {
+      taskSpec: { schemaVersion: 2, id: 'task:session:fixture', request: 'Verify score', visibleConstraints: [], budgetId: 'budget:fixture', requiredCapabilities: ['play.inspect'], acceptance: [{ id: 'acceptance:score', required: true, visibility: 'agent', category: 'functional', assertion: 'evidence state signal score equals 4' }] },
+      observationIds: [inspected.value.observation.id],
+    }));
+    assert.equal(evaluated.value.status, 'pass');
+    assert.deepEqual(evaluated.value.acceptanceResults[0].evidenceIds, [inspected.value.observation.id]);
+    const stopped = await executeReady(value.runtime, call('call:stop', 'play.stop', {}));
     assert.equal(stopped.value.state, 'stopped');
+    assert.equal(stopped.value.projection.cleanupComplete, true);
     assert.equal(value.preview.stops, 1);
   } finally { await dispose(value); }
 });
@@ -692,7 +708,11 @@ async function fixture(runtimeOptions = {}, restartState = null) {
   const preview = {
     starts: 0, stops: 0, state: { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] },
     async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, scripts: plan.scripts.map((script) => ({ scriptId: script.scriptId, entityId: script.entityId, order: script.order, state: 'playing', position: null, disposableCount: 0, errorCount: 0 })), entityId: plan.scripts[0]?.entityId ?? null }; return this.state; },
-    async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; }, snapshot() { return this.state; },
+    async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; },
+    async step(count) { return this.observation({ stepped: count }); }, async input(event) { return this.observation({ input: event }); }, async inspect() { return this.observation({ score: 4 }); },
+    async capture() { const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]); return { ...this.observation({}), mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') }; },
+    observation(value) { return { playId: 'preview:fixture', documentRevision: 3, scriptDigests: [`sha256:${'a'.repeat(64)}`], tick: 12, frame: 9, viewport: { width: 393, height: 852 }, device: 'fixture', capturedAt: '2026-08-29T00:00:00.000Z', value }; },
+    snapshot() { return this.state; },
   };
   const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, ...runtimeOptions });
   return { projectRoot, userDataRoot, time, operationLog, resources, workspace, scene, validator, projectScripts, scripts, preview, runtime };
@@ -709,7 +729,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 25);
+      assert.equal(input.tools.length, 32);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -734,7 +754,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 25);
+      assert.equal(input.tools.length, 32);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');

@@ -94,7 +94,7 @@ interface PreviewDisclosure {
 }
 interface PreviewGrant { readonly id: StableId; }
 interface ConsumedPreviewPlan extends Omit<PreviewDisclosure, 'scripts'> { readonly scripts: readonly (PreviewScriptDisclosure & Readonly<{ emittedText: string }>)[]; }
-interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan }> }
+interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop' | 'step' | 'input' | 'inspect' | 'capture'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan; count?: number; event?: JsonObject }> }
 let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
 let scene: SceneSnapshot | null = null;
@@ -405,6 +405,12 @@ class SandboxedPreviewFrame {
   private readonly scriptPositions = new Map<StableId, Readonly<{ x: number; y: number; z: number }>>();
   private readonly faultedScripts = new Set<StableId>();
   private readonly startController = new AbortController();
+  private requestSequence = 0;
+  private readonly observationRequests = new Map<string, ReturnType<typeof deferred<JsonObject>>>();
+  private readonly stepRequests = new Map<string, ReturnType<typeof deferred<void>>>();
+  private readonly captureRequests = new Map<string, ReturnType<typeof deferred<Readonly<{ base64: string; byteLength: number; tick: number; frame: number }>>>>();
+  private documentRevision = 0;
+  private scriptDigests: readonly string[] = Object.freeze([]);
 
   constructor(private readonly entityId: StableId) {
     this.frame.id = 'preview-frame';
@@ -418,6 +424,8 @@ class SandboxedPreviewFrame {
   async start(snapshot: SceneSnapshot, plan: ConsumedPreviewPlan): Promise<void> {
     await withTimeout(this.ready.promise, 10_000, 'Preview realm did not become ready.');
     this.scriptSetDigest = plan.scriptSetDigest;
+    this.documentRevision = plan.documentRevision;
+    this.scriptDigests = Object.freeze(plan.scripts.map((script) => script.digest));
     this.scriptDescriptors = Object.freeze(plan.scripts.map(({ scriptId, entityId, order }) => Object.freeze({ scriptId, entityId, order })));
     const assets = await loadPreviewAssets(snapshot, (assetId) => invoke('asset/read', { assetId }), undefined, this.startController.signal);
     if (this.disposed) {
@@ -446,6 +454,33 @@ class SandboxedPreviewFrame {
     await withTimeout(change.promise, 2_000, paused ? 'Preview pause acknowledgement timed out.' : 'Preview resume acknowledgement timed out.');
   }
 
+  async step(count: number): Promise<JsonObject> {
+    if (!this.paused) await this.setPaused(true);
+    const requestId = this.nextRequestId('step');
+    const completed = deferred<void>(); this.stepRequests.set(requestId, completed);
+    this.post({ type: 'step', requestId, count });
+    await withTimeout(completed.promise, 5_000, 'Preview step acknowledgement timed out.').finally(() => this.stepRequests.delete(requestId));
+    return this.inspect();
+  }
+
+  async input(event: JsonObject): Promise<JsonObject> { this.post({ type: 'input', event }); return this.inspect(); }
+
+  async inspect(): Promise<JsonObject> {
+    const requestId = this.nextRequestId('inspect');
+    const request = deferred<JsonObject>(); this.observationRequests.set(requestId, request);
+    this.post({ type: 'inspect', requestId });
+    const value = await withTimeout(request.promise, 5_000, 'Preview inspection timed out.').finally(() => this.observationRequests.delete(requestId));
+    return this.withProvenance(value);
+  }
+
+  async capture(): Promise<JsonObject> {
+    const requestId = this.nextRequestId('capture');
+    const request = deferred<Readonly<{ base64: string; byteLength: number; tick: number; frame: number }>>(); this.captureRequests.set(requestId, request);
+    this.post({ type: 'capture', requestId });
+    const value = await withTimeout(request.promise, 8_000, 'Preview screenshot timed out.').finally(() => this.captureRequests.delete(requestId));
+    return Object.freeze({ ...this.provenance(value.tick, value.frame), mediaType: 'image/png', byteLength: value.byteLength, base64: value.base64 });
+  }
+
   latestPosition(): Readonly<{ x: number; y: number; z: number }> | null { return this.position; }
   targetEntityId(): StableId { return this.entityId; }
   ownedDisposableCount(): number { return this.disposableCount; }
@@ -466,6 +501,10 @@ class SandboxedPreviewFrame {
     this.disposed = true;
     this.startController.abort(new Error('Preview realm was disposed while loading assets.'));
     this.pauseChange?.resolve();
+    for (const request of this.observationRequests.values()) request.reject(new Error('Preview realm disposed.'));
+    for (const request of this.stepRequests.values()) request.reject(new Error('Preview realm disposed.'));
+    for (const request of this.captureRequests.values()) request.reject(new Error('Preview realm disposed.'));
+    this.observationRequests.clear(); this.stepRequests.clear(); this.captureRequests.clear();
     const ownedBeforeStop = this.disposableCount;
     this.post({ type: 'stop' });
     await withTimeout(this.cleanup.promise, 2_000, 'Preview cleanup acknowledgement timed out.').catch(() => undefined);
@@ -513,6 +552,17 @@ class SandboxedPreviewFrame {
       element('script-diagnostics').textContent = `${code} ${finiteNumber(message.line, 1)}:${finiteNumber(message.column, 1)} ${detail}`;
       void reportPreview('runtime-error', detail, this.disposableCount, this.previewId, this.entityId);
       if (!this.started.settled) this.started.reject(new Error(detail));
+    } else if (message.type === 'inspection' && typeof message.requestId === 'string' && isJsonObject(message.value)) {
+      this.observationRequests.get(message.requestId)?.resolve(message.value);
+    } else if (message.type === 'stepped' && typeof message.requestId === 'string') {
+      this.stepRequests.get(message.requestId)?.resolve();
+    } else if (message.type === 'capture' && typeof message.requestId === 'string' && typeof message.base64 === 'string'
+      && Number.isSafeInteger(message.byteLength) && Number(message.byteLength) >= 8 && Number(message.byteLength) <= 376 * 1024
+      && Number.isSafeInteger(message.tick) && Number.isSafeInteger(message.frame)) {
+      this.captureRequests.get(message.requestId)?.resolve(Object.freeze({ base64: message.base64, byteLength: Number(message.byteLength), tick: Number(message.tick), frame: Number(message.frame) }));
+    } else if (message.type === 'request-failed' && typeof message.requestId === 'string') {
+      const cause = new Error(typeof message.message === 'string' ? message.message : 'Preview observation request failed.');
+      this.observationRequests.get(message.requestId)?.reject(cause); this.stepRequests.get(message.requestId)?.reject(cause); this.captureRequests.get(message.requestId)?.reject(cause);
     } else if (message.type === 'cleanup-complete') {
       this.disposableCount = finiteNumber(message.disposableCount, 0);
       this.cleanup.resolve();
@@ -522,6 +572,17 @@ class SandboxedPreviewFrame {
 
   private post(payload: Readonly<Record<string, unknown>>): void {
     this.frame.contentWindow?.postMessage({ protocol: 'haiyue-preview/1', ...payload }, '*');
+  }
+
+  private nextRequestId(kind: string): string { this.requestSequence += 1; return `${this.previewId}:${kind}:${this.requestSequence}`; }
+  private withProvenance(value: JsonObject): JsonObject {
+    const tick = Number.isSafeInteger(value.tick) ? Number(value.tick) : 0;
+    const frame = Number.isSafeInteger(value.frame) ? Number(value.frame) : tick;
+    return Object.freeze({ ...this.provenance(tick, frame), value });
+  }
+  private provenance(tick: number, frame: number): JsonObject {
+    const screen = element('play-device-screen');
+    return Object.freeze({ playId: this.previewId, documentRevision: this.documentRevision, scriptDigests: this.scriptDigests, tick, frame, viewport: Object.freeze({ width: Math.max(1, screen.clientWidth), height: Math.max(1, screen.clientHeight) }), device: playViewportMode, capturedAt: new Date().toISOString() });
   }
 }
 
@@ -957,7 +1018,15 @@ async function processAgentPreviewCommand(): Promise<void> {
       if (playing) await stopPreview();
       if (!command.scene) await refresh();
       await startPreview(command.plan, command.scene ?? scene);
-    } else await stopPreview();
+    } else if (command.kind === 'stop') await stopPreview();
+    else {
+      if (!playing || !previewFrame) throw new Error('Play is not active.');
+      const result = command.kind === 'step' ? await previewFrame.step(Number(command.count))
+        : command.kind === 'input' ? await previewFrame.input(command.event ?? Object.freeze({}))
+          : command.kind === 'inspect' ? await previewFrame.inspect() : await previewFrame.capture();
+      await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: result });
+      return;
+    }
     await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: previewSnapshot() });
   } catch (cause) {
     await invoke('preview/agent-result', { commandId: command.id, ok: false, message: errorMessage(cause) });
@@ -1700,6 +1769,13 @@ function isVec3(value: unknown): value is Readonly<{ x: number; y: number; z: nu
 
 function finiteNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  const json = (item: unknown): boolean => item === null || typeof item === 'string' || typeof item === 'boolean'
+    || (typeof item === 'number' && Number.isFinite(item)) || (Array.isArray(item) && item.every(json))
+    || (Boolean(item) && typeof item === 'object' && !Array.isArray(item) && Object.values(item as Record<string, unknown>).every(json));
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && json(value);
 }
 
 function deferred<T>(): Readonly<{

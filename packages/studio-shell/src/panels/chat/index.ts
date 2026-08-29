@@ -7,6 +7,7 @@ import type {
   ConversationIntent,
   ConversationNodeReadModel,
   ConversationReadModel,
+  ConversationTaskRunReadModel,
 } from '../../conversation/types.js';
 
 export interface ChatPanelReadModel {
@@ -16,6 +17,7 @@ export interface ChatPanelReadModel {
   readonly composer: Readonly<{ busy: boolean; blockedReason: string | null; canSend: boolean; canCancel: boolean }>;
   readonly connection: ConversationReadModel['connection'];
   readonly taskAccounting: ConversationReadModel['taskAccounting'];
+  readonly taskRuns: ConversationReadModel['taskRuns'];
   readonly ariaLive: string;
 }
 
@@ -26,7 +28,7 @@ export function presentChatPanel(snapshot: ConversationReadModel, now = Date.now
   return Object.freeze({
     backendId: snapshot.backendId, backends: snapshot.backends, cards,
     composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : 'Authenticate and select a supported Agent model before sending.'), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
-    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting,
+    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns,
     ariaLive: cards.at(-1)?.body ?? (snapshot.connection === 'connected' ? 'Agent conversation ready.' : 'Agent conversation disconnected.'),
   });
 }
@@ -78,6 +80,7 @@ export function chatFeedIsNearLatest(position: ChatFeedScrollPosition, threshold
 
 export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void): void {
   const document = root.ownerDocument;
+  for (const image of [...(root.querySelectorAll?.('.chat-evidence-preview') ?? [])] as HTMLImageElement[]) image.removeAttribute('src');
   const previousFeed = root.querySelector?.('.chat-feed') as HTMLElement | null | undefined;
   const previousInput = root.querySelector?.('.chat-composer textarea') as HTMLTextAreaElement | null | undefined;
   const followLatest = !previousFeed || chatFeedIsNearLatest(previousFeed);
@@ -120,10 +123,19 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     limits.textContent = selectedBackend.rateLimits.map((item) => `${item.name}${item.usedPercent === undefined ? '' : ` ${item.usedPercent}%`}${item.resetsAt ? ` resets ${item.resetsAt}` : ''}`).join(' · ');
     backendControls.append(limits);
   }
+  if (selectedBackend) {
+    const capabilities = document.createElement('details'); capabilities.className = 'chat-backend-capabilities';
+    const summary = document.createElement('summary'); summary.textContent = `Backend capabilities · ${selectedBackend.protocolVersion}`;
+    const value = document.createElement('p'); value.textContent = Object.entries(selectedBackend.capabilities).map(([name, supported]) => `${supported ? '✓' : '—'} ${name}`).join(' · ');
+    capabilities.append(summary, value); backendControls.append(capabilities);
+  }
   if (selectedBackend?.models.length && selectedBackend.selectedModel && selectedBackend.selectedReasoningEffort && selectedBackend.outputTokenLimit) {
     const selectedModelInfo = selectedBackend.models.find((item) => item.id === selectedBackend.selectedModel)!;
     const settings = document.createElement('details'); settings.className = 'chat-agent-settings';
     const summary = document.createElement('summary'); summary.textContent = 'Model, reasoning and task budget'; settings.append(summary);
+    if (selectedBackend.promptProfile) {
+      const profile = document.createElement('p'); profile.className = 'chat-prompt-profile'; profile.textContent = `Prompt profile ${selectedBackend.promptProfile.id}@${selectedBackend.promptProfile.version} · ${selectedBackend.promptProfile.digest}`; settings.append(profile);
+    }
     const modelSelect = document.createElement('select'); modelSelect.setAttribute('aria-label', 'Agent model');
     for (const item of selectedBackend.models) { const option = document.createElement('option'); option.value = item.id; option.selected = item.id === selectedModelInfo.id; option.textContent = item.label; modelSelect.append(option); }
     const effortSelect = document.createElement('select'); effortSelect.setAttribute('aria-label', 'Reasoning effort');
@@ -146,6 +158,7 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     backendControls.append(settings);
   }
   fragment.append(backendControls);
+  if (model.taskRuns.length) fragment.append(renderTaskWorkspace(document, model.taskRuns, model.taskAccounting, dispatch));
   if (model.taskAccounting) fragment.append(renderTaskCostCard(document, model.taskAccounting));
   const status = document.createElement('p');
   status.className = 'chat-connection';
@@ -213,6 +226,88 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   jumpLatest.addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; syncLatestButton(); });
   syncLatestButton();
 }
+
+function renderTaskWorkspace(document: Document, runs: readonly ConversationTaskRunReadModel[], accounting: ConversationReadModel['taskAccounting'], dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const workspace = document.createElement('section'); workspace.className = 'chat-task-workspace'; workspace.setAttribute('aria-label', 'Agent task status and acceptance evidence');
+  const heading = document.createElement('div'); heading.className = 'chat-task-heading';
+  const title = document.createElement('strong'); title.textContent = '任务状态与验收证据';
+  const selector = document.createElement('select'); selector.setAttribute('aria-label', 'Task history');
+  const panels: HTMLElement[] = [];
+  const ordered = [...runs].reverse();
+  for (const [index, run] of ordered.entries()) {
+    const option = document.createElement('option'); option.value = run.taskId; option.selected = index === 0; option.textContent = `${run.title} · ${run.status}`; selector.append(option);
+    const panel = renderTaskRun(document, run, accounting?.taskId === run.taskId ? accounting : null, dispatch); panel.hidden = index !== 0; panels.push(panel);
+  }
+  selector.addEventListener('change', () => { for (const panel of panels) panel.hidden = panel.dataset.taskId !== selector.value; });
+  heading.append(title, selector); workspace.append(heading, ...panels); return workspace;
+}
+
+function renderTaskRun(document: Document, run: ConversationTaskRunReadModel, accounting: ConversationReadModel['taskAccounting'], dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const panel = document.createElement('article'); panel.className = `chat-task-run task-status-${run.status}`; panel.dataset.taskId = run.taskId;
+  const summary = document.createElement('div'); summary.className = 'chat-task-summary';
+  const status = document.createElement('strong'); status.textContent = `${taskStatusLabel(run.status)} · ${taskPhaseLabel(run.phase)}`;
+  const repair = document.createElement('span'); repair.textContent = `修复 ${run.repairIteration}/${run.repairLimit}`;
+  summary.append(status, repair);
+  const request = document.createElement('p'); request.textContent = run.requestSummary;
+  const config = document.createElement('p'); config.className = 'chat-task-config'; config.textContent = `Model ${run.model.id} · reasoning ${run.model.reasoningEffort} · max output ${run.model.outputTokenLimit} · prompt ${run.promptProfile.id}@${run.promptProfile.version} · r${run.documentRevision ?? 'unknown'}`;
+  panel.append(summary, request, config);
+  if (run.terminalDiagnostic) { const diagnostic = document.createElement('p'); diagnostic.className = 'chat-task-diagnostic'; diagnostic.textContent = `原因：${run.terminalDiagnostic}`; panel.append(diagnostic); }
+  if (run.resumable && run.sessionId && run.turnId) {
+    const resume = document.createElement('button'); resume.type = 'button'; resume.textContent = '从安全检查点继续';
+    resume.addEventListener('click', () => { resume.disabled = true; dispatch(Object.freeze({ type: 'conversation/retry', backendId: run.backendId, sessionId: run.sessionId!, turnId: run.turnId! })); }); panel.append(resume);
+  }
+  panel.append(renderPhaseRail(document, run));
+  const acceptance = document.createElement('details'); acceptance.className = 'chat-task-acceptance'; acceptance.open = run.status === 'completed' || run.status === 'blocked' || run.status === 'failed';
+  const acceptanceSummary = document.createElement('summary'); const passed = run.acceptance.filter((item) => item.status === 'pass').length;
+  acceptanceSummary.textContent = run.acceptance.length ? `验收标准 ${passed}/${run.acceptance.length} 通过` : '验收标准尚未提交'; acceptance.append(acceptanceSummary);
+  if (run.acceptance.length) {
+    const list = document.createElement('ul');
+    for (const item of run.acceptance) {
+      const row = document.createElement('li'); row.className = `acceptance-${item.status}`;
+      const label = document.createElement('strong'); label.textContent = `${acceptanceMark(item.status)} ${item.label}`;
+      const meta = document.createElement('span'); meta.textContent = `${item.category} · ${item.required ? '必需' : '可选'} · ${item.visibility === 'runner-only' ? '仅验收器可见' : 'Agent 可见'}`;
+      const assertion = document.createElement('code'); assertion.textContent = item.assertion;
+      row.append(label, meta, assertion);
+      if (item.diagnostic) { const diagnostic = document.createElement('small'); diagnostic.textContent = item.diagnostic; row.append(diagnostic); }
+      if (item.evidenceIds.length) { const refs = document.createElement('small'); refs.textContent = `Evidence: ${item.evidenceIds.join(', ')}`; row.append(refs); }
+      list.append(row);
+    }
+    acceptance.append(list);
+  }
+  panel.append(acceptance);
+  const evidence = document.createElement('details'); evidence.className = 'chat-task-evidence'; evidence.open = run.status === 'completed';
+  const evidenceSummary = document.createElement('summary'); evidenceSummary.textContent = `证据 ${run.evidence.length}`; evidence.append(evidenceSummary);
+  const evidenceGrid = document.createElement('div'); evidenceGrid.className = 'chat-evidence-grid';
+  for (const item of run.evidence) {
+    const card = document.createElement('article'); card.className = `chat-evidence-card evidence-${item.provenanceStatus}`;
+    const label = document.createElement('strong'); label.textContent = `${item.type} · ${item.provenanceStatus}`;
+    const coordinates = document.createElement('small'); coordinates.textContent = `${item.playId} · tick ${item.tick} / frame ${item.frame} · r${item.documentRevision} · ${item.device ?? 'device unknown'} · ${item.viewport ? `${item.viewport.width}×${item.viewport.height}` : 'viewport unknown'}`;
+    const id = document.createElement('code'); id.textContent = item.id; card.append(label, coordinates, id);
+    if (item.previewDataUrl) { const image = document.createElement('img'); image.className = 'chat-evidence-preview'; image.alt = `Screenshot evidence at tick ${item.tick}`; image.loading = 'lazy'; image.src = item.previewDataUrl; card.append(image); }
+    evidenceGrid.append(card);
+  }
+  evidence.append(evidenceGrid); panel.append(evidence);
+  const timeline = document.createElement('details'); timeline.className = 'chat-task-timeline';
+  const timelineSummary = document.createElement('summary'); timelineSummary.textContent = `任务时间线 ${run.timeline.length}`; timeline.append(timelineSummary);
+  const visible = run.timeline.slice(-100); if (visible.length < run.timeline.length) { const omitted = document.createElement('p'); omitted.textContent = `较早的 ${run.timeline.length - visible.length} 项已折叠，避免长任务占用过多界面资源。`; timeline.append(omitted); }
+  const timelineList = document.createElement('ol');
+  for (const item of visible) { const row = document.createElement('li'); row.className = `timeline-${item.status}`; const label = document.createElement('strong'); label.textContent = item.title; const detail = document.createElement('span'); detail.textContent = `${item.phase} · ${item.detail}${item.turnId ? ` · ${item.turnId}` : ''}${item.toolCallId ? ` · ${item.toolCallId}` : ''}${item.playId ? ` · ${item.playId}` : ''}${item.tick === null ? '' : ` · tick ${item.tick}`}`; row.append(label, detail); timelineList.append(row); }
+  timeline.append(timelineList); panel.append(timeline);
+  if (accounting) { const budget = document.createElement('p'); budget.className = 'chat-task-inline-accounting'; budget.textContent = `Budget ${accounting.budgetStatus} · wall ${(accounting.usage.wallTimeMs / 1_000).toFixed(1)}s · cost ${accounting.cost.amountMicros === null || !accounting.cost.currency ? `unknown (${accounting.cost.explanation})` : `${(accounting.cost.amountMicros / 1_000_000).toFixed(6)} ${accounting.cost.currency}`}`; panel.append(budget); }
+  return panel;
+}
+
+function renderPhaseRail(document: Document, run: ConversationTaskRunReadModel): HTMLElement {
+  const rail = document.createElement('ol'); rail.className = 'chat-task-phase-rail'; rail.setAttribute('aria-label', `Current task phase: ${run.phase}`);
+  const phases: readonly ConversationTaskRunReadModel['phase'][] = ['planning', 'editing', 'validating', 'playing', 'evaluating', 'repairing', 'complete', 'blocked', 'cancelled'];
+  const active = phases.indexOf(run.phase);
+  for (const [index, phase] of phases.entries()) { const item = document.createElement('li'); item.textContent = taskPhaseLabel(phase); item.className = phase === run.phase ? 'is-current' : active >= 0 && index < active ? 'is-complete' : ''; if (phase === run.phase) item.setAttribute('aria-current', 'step'); rail.append(item); }
+  return rail;
+}
+
+function taskStatusLabel(value: ConversationTaskRunReadModel['status']): string { return ({ running: '执行中', 'waiting-user': '等待用户', blocked: '已阻塞', completed: '已完成', failed: '失败', cancelled: '已取消' } as const)[value]; }
+function taskPhaseLabel(value: ConversationTaskRunReadModel['phase']): string { return ({ planning: '规划', editing: '编辑', validating: '校验', playing: '运行', evaluating: '验收', repairing: '修复', complete: '完成', blocked: '阻塞', cancelled: '取消' } as const)[value]; }
+function acceptanceMark(value: ConversationTaskRunReadModel['acceptance'][number]['status']): string { return ({ pending: '○', pass: '✓', fail: '✕', blocked: '!' } as const)[value]; }
 
 function numericInput(document: Document, ariaLabel: string, value: number, minimum: number, maximum: number): HTMLInputElement { const input = document.createElement('input'); input.type = 'number'; input.setAttribute('aria-label', ariaLabel); input.min = String(minimum); input.max = String(maximum); input.step = '1'; input.value = String(value); return input; }
 function labelled(document: Document, text: string, control: HTMLElement): HTMLElement { const label = document.createElement('label'); const span = document.createElement('span'); span.textContent = text; label.append(span, control); return label; }

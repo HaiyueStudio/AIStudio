@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g11-task-orchestrator-product-ux",
+  "authority": { "mainOwnsState": true, "rendererComputesCost": false, "rendererDecidesCompletion": false, "arbitraryArtifactPaths": false },
+  "settings": { "backendCapabilities": true, "protocolVersion": true, "model": true, "reasoningEffort": true, "outputLimit": true, "promptProfile": true, "finiteBudgets": true, "rateLimits": true },
+  "workflow": { "phases": ["planning", "editing", "validating", "playing", "evaluating", "repairing", "complete", "blocked", "cancelled"], "planApprovalSeparated": true, "toolApprovalSeparated": true, "backendCompletionSeparated": true, "boundedRepair": true, "hardBudgetContinuation": true, "stopPreservesOutput": true },
+  "evidence": { "types": ["state", "event-trace", "runtime-errors", "performance", "screenshot", "visual-analysis", "lifecycle"], "coordinates": ["task", "turn", "tool", "play", "revision", "tick", "frame", "viewport", "device"], "staleFailsClosed": true, "missingReferenceFailsClosed": true, "boundedPngDataUrl": true, "previewSourceReleased": true },
+  "retention": { "taskMaximum": 50, "authoritativeTimelineMaximum": 400, "renderedTimelineMaximum": 100, "restartReplay": true, "blockedResume": true, "previewBytesPersistedInSummary": false },
+  "validation": { "unknownVersion": true, "outOfOrderState": true, "secretFields": true, "crossTaskEvidence": true, "staleRevision": true, "imeKeyboard": true, "accessibility": true, "chineseEnglishCriticalPath": true, "genreNeutralUi": true },
+  "tests": { "readModel": "packages/studio-shell/test/conversation.test.mjs", "hostAndRestart": "apps/ai-studio/test/g11-task-product.test.mjs", "budgetApprovalRegression": "apps/ai-studio/test/g10-agent-integration.test.mjs", "electronProduct": "apps/ai-studio/test/g11-product-electron.test.mjs", "electronDesktop": "apps/ai-studio/test/electron-smoke.test.mjs" }
+}

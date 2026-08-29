@@ -5,6 +5,7 @@ import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, Controlle
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
+import { DeterministicTaskEvaluator, PlayObservationRepository } from './observations.js';
 import {
   GameToolProtocolError,
   type GamePreviewControl,
@@ -26,6 +27,7 @@ export interface GameAuthoringToolRuntimeOptions {
   readonly operationLog: OperationLog;
   readonly preview: GamePreviewControl;
   readonly timeoutCeilingMs?: number;
+  readonly observationByteLimit?: number;
 }
 
 interface StoredPreparation {
@@ -46,9 +48,13 @@ export class GameAuthoringToolRuntime {
   private readonly approvalGrants = new Set<string>();
   private mutationTail: Promise<void> = Promise.resolve();
   private disposed = false;
+  private readonly observations: PlayObservationRepository;
+  private readonly evaluator: DeterministicTaskEvaluator;
 
   constructor(private readonly options: GameAuthoringToolRuntimeOptions) {
     if (options.timeoutCeilingMs !== undefined && (!Number.isSafeInteger(options.timeoutCeilingMs) || options.timeoutCeilingMs < 1 || options.timeoutCeilingMs > 20_000)) throw new TypeError('Tool timeout ceiling must be between one millisecond and twenty seconds.');
+    this.observations = new PlayObservationRepository(options.operationLog, options.observationByteLimit);
+    this.evaluator = new DeterministicTaskEvaluator(this.observations, () => requireDocument(options.workspace).revision);
   }
 
   definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
@@ -165,7 +171,7 @@ export class GameAuthoringToolRuntime {
     if (stored.approval?.decision === 'pending') throw new GameToolProtocolError('approval.required', 'The exact tool operation still requires approval.');
     if (stored.approval && !isAllowDecision(stored.approval.decision)) return this.finishWithoutExecution(stored, stored.approval.decision === 'cancel' ? 'cancelled' : 'rejected');
     const operation = () => this.executeStored(stored, signal);
-    return stored.definition.effect === 'observe' || stored.definition.id === 'script.propose' || stored.definition.id === 'preview.validate' || stored.definition.id === 'preview.stop'
+    return (stored.definition.effect === 'observe' && !stored.definition.id.startsWith('play.')) || stored.definition.id === 'script.propose' || stored.definition.id === 'preview.validate' || stored.definition.id === 'preview.stop'
       ? operation() : this.serializeMutation(operation);
   }
 
@@ -206,7 +212,7 @@ export class GameAuthoringToolRuntime {
     const timer = setTimeout(() => controller.abort(new GameToolProtocolError('tool.timeout', `Tool ${stored.definition.id} exceeded ${timeoutMs} ms.`, true)), timeoutMs);
     try {
       await this.appendFact(stored.definition, { kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest } }, controller.signal);
-      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, controller.signal);
+      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, controller.signal);
       if (controller.signal.aborted) throw controller.signal.reason ?? new GameToolProtocolError('tool.cancelled', 'Tool call was cancelled.');
       assertResultBudget(value, stored.definition.maxResultBytes);
       const after = requireDocument(this.options.workspace);
@@ -265,7 +271,7 @@ export class GameAuthoringToolRuntime {
   private assertActive(): void { if (this.disposed) throw new GameToolProtocolError('tool.runtime-disposed', 'Game tool runtime is disposed.'); }
 }
 
-async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, signal: AbortSignal): Promise<JsonObject> {
+async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, observations: PlayObservationRepository, evaluator: DeterministicTaskEvaluator, signal: AbortSignal): Promise<JsonObject> {
   const args = stored.arguments as Record<string, JsonValue>;
   const scene = options.scene.snapshot();
   switch (stored.definition.id) {
@@ -438,7 +444,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
         diagnostics: plan.diagnostics.map((item) => Object.freeze({ scriptId: item.scriptId, entityId: item.entityId, code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })),
       });
     }
-    case 'preview.start': {
+    case 'preview.start': case 'play.start': {
       const planId = args.planId as StableId; const plan = plans.get(planId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Validated preview plan is unavailable.');
       const grant = await options.scripts.decide(planId, true); if (!grant) throw new GameToolProtocolError('tool.preview-rejected', 'Preview authorization was rejected.');
       const consumed = options.scripts.consume(grant.id); if (consumed.scriptSetDigest !== plan.scriptSetDigest) throw new GameToolProtocolError('approval.digest-mismatch', 'Preview script set changed after approval.');
@@ -447,20 +453,51 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     case 'preview.stop': {
       const runtime = await options.preview.stop(signal); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount });
     }
+    case 'play.stop': {
+      const before = await options.preview.inspect(signal);
+      const runtime = await options.preview.stop(signal);
+      const lifecycle = await observations.persistState(stored.call, { ...before, value: Object.freeze({ state: runtime.state, disposedSideEffects: runtime.disposableCount, cleanupComplete: runtime.state === 'stopped' }) }, 'lifecycle');
+      return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount, observation: lifecycle.artifact as unknown as JsonValue, projection: lifecycle.projection as JsonValue });
+    }
+    case 'play.step': {
+      const observation = await options.preview.step(args.count as number, signal);
+      const persisted = await observations.persistState(stored.call, observation);
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+    }
+    case 'play.input': {
+      const observation = await options.preview.input(args.event as never, signal);
+      const persisted = await observations.persistState(stored.call, observation);
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+    }
+    case 'play.inspect': {
+      const observation = await options.preview.inspect(signal);
+      const persisted = await observations.persistState(stored.call, observation);
+      const value = observation.value as Record<string, JsonValue>;
+      const eventTrace = await observations.persistState(stored.call, { ...observation, value: Object.freeze({ trace: value.trace ?? Object.freeze([]), physicsEvents: value.physicsEvents ?? Object.freeze([]) }) }, 'event-trace');
+      const runtimeErrors = await observations.persistState(stored.call, { ...observation, value: Object.freeze({ count: typeof value.runtimeErrorCount === 'number' ? value.runtimeErrorCount : 0 }) }, 'runtime-errors');
+      const performance = await observations.persistState(stored.call, { ...observation, value: Object.freeze({ finite: Number.isFinite(observation.tick) && Number.isFinite(observation.frame), tick: observation.tick, frame: observation.frame, timeMs: typeof value.timeMs === 'number' ? value.timeMs : null }) }, 'performance');
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, observations: [persisted.artifact, eventTrace.artifact, runtimeErrors.artifact, performance.artifact] as unknown as JsonValue, projection: persisted.projection as JsonValue });
+    }
+    case 'play.capture': {
+      const capture = await options.preview.capture(signal);
+      const persisted = await observations.persistCapture(stored.call, capture);
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+    }
+    case 'task.evaluate': return evaluator.evaluate(args, stored.call.taskId ?? asStableId(`task:${stored.call.sessionId}`)) as unknown as JsonObject;
     default: throw new GameToolProtocolError('tool.not-found', `Tool ${stored.definition.id} has no handler.`);
   }
 }
 
 function validateToolCall(value: unknown): GameToolCall {
-  if (!isRecord(value) || Object.keys(value).some((key) => !['schemaVersion', 'id', 'sessionId', 'turnId', 'toolId', 'toolVersion', 'arguments'].includes(key)) || value.schemaVersion !== 1 || !isRecord(value.arguments)) throw new GameToolProtocolError('tool.call-invalid', 'Tool call envelope is invalid.');
+  if (!isRecord(value) || Object.keys(value).some((key) => !['schemaVersion', 'id', 'sessionId', 'turnId', 'taskId', 'toolId', 'toolVersion', 'arguments'].includes(key)) || value.schemaVersion !== 1 || !isRecord(value.arguments)) throw new GameToolProtocolError('tool.call-invalid', 'Tool call envelope is invalid.');
   assertBoundedJsonObject(value.arguments);
-  return Object.freeze({ schemaVersion: 1, id: stable(value.id, 'tool call id'), sessionId: stable(value.sessionId, 'session id'), turnId: stable(value.turnId, 'turn id'), toolId: stable(value.toolId, 'tool id'), toolVersion: string(value.toolVersion, 'tool version', 32), arguments: value.arguments as JsonObject });
+  return Object.freeze({ schemaVersion: 1, id: stable(value.id, 'tool call id'), sessionId: stable(value.sessionId, 'session id'), turnId: stable(value.turnId, 'turn id'), ...(value.taskId === undefined ? {} : { taskId: stable(value.taskId, 'task id') }), toolId: stable(value.toolId, 'tool id'), toolVersion: string(value.toolVersion, 'tool version', 32), arguments: value.arguments as JsonObject });
 }
 
 function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision: number): JsonObject {
   const raw = value as Record<string, unknown>;
   switch (toolId) {
-    case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': case 'play.stop': case 'play.inspect': case 'play.capture': exact(raw, [], [], toolId); return Object.freeze({});
     case 'component.describe': exact(raw, ['type'], ['version'], toolId); return Object.freeze({ type: componentTypeValue(raw.type), ...(raw.version === undefined ? {} : { version: componentVersionValue(raw.version) }) });
     case 'component.get': {
       exact(raw, [], ['componentId', 'entityId', 'type', 'version'], toolId);
@@ -523,7 +560,10 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       if (new Set(scriptIds).size !== scriptIds.length) throw invalid('scriptIds must be unique.');
       return Object.freeze({ scriptIds });
     }
-    case 'preview.start': exact(raw, ['planId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), planId: stable(raw.planId, 'plan id') });
+    case 'preview.start': case 'play.start': exact(raw, ['planId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), planId: stable(raw.planId, 'plan id') });
+    case 'play.step': exact(raw, ['count'], [], toolId); return Object.freeze({ count: boundedInteger(raw.count, 'count', 1, 10_000) });
+    case 'play.input': exact(raw, ['event'], [], toolId); return Object.freeze({ event: normalizePlayInput(raw.event) as unknown as JsonValue });
+    case 'task.evaluate': return normalizeEvaluationArguments(raw);
     default: throw new GameToolProtocolError('tool.not-found', `Unknown tool ${toolId}.`);
   }
 }
@@ -533,6 +573,48 @@ function normalizeLogQuery(raw: Record<string, unknown>): JsonObject {
   const limit = integer(raw.limit, 'limit'); if (limit < 1 || limit > 100) throw invalid('Diagnostic query limit must be 1-100.');
   if (typeof raw.traverseCorrelation !== 'boolean') throw invalid('traverseCorrelation must be boolean.');
   return Object.freeze({ limit, traverseCorrelation: raw.traverseCorrelation, ...optionalIdFields(raw, ['sessionId', 'turnId', 'toolCallId', 'entityId', 'pluginId']), ...optionalIntegers(raw, ['afterSequence', 'beforeSequence']), ...(raw.severity ? { severity: enumArray(raw.severity, ['debug', 'info', 'warning', 'error'], 4) } : {}), ...(raw.kinds ? { kinds: stringArray(raw.kinds, 32, 96) } : {}), ...(raw.cursor ? { cursor: boundedString(raw.cursor, 'cursor', 2_048, true) } : {}) });
+}
+
+function normalizePlayInput(value: unknown): JsonObject {
+  if (!isRecord(value)) throw invalid('play.input event must be an object.');
+  exact(value, ['tick', 'kind'], ['source', 'action', 'phase', 'pointerId', 'x', 'y', 'button', 'wheelX', 'wheelY', 'value', 'reason'], 'play.input event');
+  const kind = String(value.kind);
+  if (!['action', 'pointer', 'reset'].includes(kind)) throw invalid('play.input event kind is invalid.');
+  const event: Record<string, JsonValue> = { tick: boundedInteger(value.tick, 'tick', 0, 1_000_000_000), kind };
+  if (value.source !== undefined) { const source = String(value.source); if (!['synthetic', 'keyboard', 'pointer', 'gamepad', 'system'].includes(source)) throw invalid('input source is invalid.'); event.source = source; }
+  if (value.action !== undefined) event.action = boundedString(value.action, 'action', 80, true);
+  if (value.phase !== undefined) { const phase = String(value.phase); if (!['down', 'value', 'up', 'move', 'cancel', 'wheel'].includes(phase)) throw invalid('input phase is invalid.'); event.phase = phase; }
+  if (value.pointerId !== undefined) event.pointerId = boundedInteger(value.pointerId, 'pointerId', 0, 1_000_000);
+  if (value.x !== undefined) event.x = boundedNumber(value.x, 'x', 0, 1);
+  if (value.y !== undefined) event.y = boundedNumber(value.y, 'y', 0, 1);
+  if (value.button !== undefined) event.button = boundedInteger(value.button, 'button', 0, 31);
+  if (value.wheelX !== undefined) event.wheelX = number(value.wheelX, 'wheelX');
+  if (value.wheelY !== undefined) event.wheelY = number(value.wheelY, 'wheelY');
+  if (value.value !== undefined) event.value = number(value.value, 'value');
+  if (value.reason !== undefined) { const reason = String(value.reason); if (!['blur', 'disconnect', 'stop', 'restart', 'cancel', 'manual'].includes(reason)) throw invalid('reset reason is invalid.'); event.reason = reason; }
+  if (kind === 'action' && (event.action === undefined || !['down', 'value', 'up'].includes(String(event.phase)))) throw invalid('Action input requires action and down/value/up phase.');
+  if (kind === 'pointer' && (event.pointerId === undefined || event.x === undefined || event.y === undefined || !['down', 'move', 'up', 'cancel', 'wheel'].includes(String(event.phase)))) throw invalid('Pointer input requires pointerId, x, y and a pointer phase.');
+  if (kind === 'reset' && event.reason === undefined) throw invalid('Reset input requires reason.');
+  return Object.freeze(event);
+}
+
+function normalizeEvaluationArguments(raw: Record<string, unknown>): JsonObject {
+  exact(raw, ['taskSpec', 'observationIds'], ['budgetStatus', 'usageRecordIds', 'costRecordIds'], 'task.evaluate');
+  const ids = (value: unknown, label: string, minimum: number): readonly StableId[] => {
+    if (!Array.isArray(value) || value.length < minimum || value.length > 256) throw invalid(`${label} is invalid.`);
+    const result = value.map((item) => stable(item, label));
+    if (new Set(result).size !== result.length) throw invalid(`${label} must be unique.`);
+    return Object.freeze(result);
+  };
+  if (!isRecord(raw.taskSpec)) throw invalid('taskSpec must be an object.');
+  const budgetStatus = raw.budgetStatus === undefined ? 'within' : String(raw.budgetStatus);
+  if (!['within', 'soft-exceeded', 'hard-exceeded'].includes(budgetStatus)) throw invalid('budgetStatus is invalid.');
+  return Object.freeze({
+    taskSpec: jsonObjectValue(raw.taskSpec, 'taskSpec') as JsonValue,
+    observationIds: ids(raw.observationIds, 'observationIds', 1), budgetStatus,
+    usageRecordIds: raw.usageRecordIds === undefined ? Object.freeze([]) : ids(raw.usageRecordIds, 'usageRecordIds', 0),
+    costRecordIds: raw.costRecordIds === undefined ? Object.freeze([]) : ids(raw.costRecordIds, 'costRecordIds', 0),
+  });
 }
 
 function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringService, proposals: ReadonlyMap<StableId, ScriptEditProposal>, plans: ReadonlyMap<StableId, PreviewPlan>): GameToolPreview {
@@ -574,7 +656,7 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       if (errors.length) throw new GameToolProtocolError('tool.script-validation-failed', `Script proposal has ${errors.length} validation error(s): ${errors.slice(0, 4).map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join(' | ')} Rewrite and propose again before apply.`);
       return preview('Apply script proposal', proposal.scriptId, `Commit validated proposal with +${proposal.addedLines}/-${proposal.removedLines} lines.`, `digest ${proposal.digest}`);
     }
-    case 'preview.start': { const plan = plans.get(raw.planId as StableId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Preview plan is unavailable.'); if (plan.documentRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Preview plan base revision differs.'); return preview('Start trusted preview', plan.documentId, `Start ${plan.scripts.length} trusted project script(s) with ${plan.capabilities.join(', ')}.`, `script-set digest ${plan.scriptSetDigest}`); }
+    case 'preview.start': case 'play.start': { const plan = plans.get(raw.planId as StableId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Preview plan is unavailable.'); if (plan.documentRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Preview plan base revision differs.'); return preview('Start trusted preview', plan.documentId, `Start ${plan.scripts.length} trusted project script(s) with ${plan.capabilities.join(', ')}.`, `script-set digest ${plan.scriptSetDigest}`); }
     default: return preview(GAME_AUTHORING_TOOL_BY_ID.get(toolId)?.title ?? toolId, snapshot.documentId, `Execute ${toolId}.`, 'No Document mutation in this step.');
   }
 }
@@ -718,6 +800,7 @@ function integer(value: unknown, label: string): number { if (!Number.isSafeInte
 function boundedInteger(value: unknown, label: string, minimum: number, maximum: number): number { const result = integer(value, label); if (result < minimum || result > maximum) throw invalid(`${label} must be between ${minimum} and ${maximum}.`); return result; }
 function revisionOrCurrent(value: unknown, currentRevision: number): number { return value === undefined ? currentRevision : integer(value, 'baseRevision'); }
 function number(value: unknown, label: string): number { if (typeof value !== 'number' || !Number.isFinite(value)) throw invalid(`${label} is invalid.`); return value; }
+function boundedNumber(value: unknown, label: string, minimum: number, maximum: number): number { const result = number(value, label); if (result < minimum || result > maximum) throw invalid(`${label} must be between ${minimum} and ${maximum}.`); return result; }
 function invalid(message: string): GameToolProtocolError { return new GameToolProtocolError('tool.arguments-invalid', message); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function assertBoundedJsonObject(value: Record<string, unknown>): void {

@@ -6,6 +6,7 @@ import {
   ConversationController,
   ConversationProjector,
   normalizeConversationNode,
+  normalizeTaskRun,
   presentChatPanel,
   renderChatPanel,
   validateConversationIntent,
@@ -137,6 +138,31 @@ test('model controls and task cost card expose effective settings, cache savings
   assert.throws(() => validateConversationIntent({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: value.taskAccounting.budget, apiKey: 'CANARY' }), /unknown fields/i);
 });
 
+test('task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields', () => {
+  const value = snapshot([]);
+  value.taskRuns = [taskRun({
+    apiKey: 'sk-TaskProjectionCanary123456',
+    evidence: [taskEvidence({ id: 'artifact:sha256:current', documentRevision: 7, previewDataUrl: 'data:image/png;base64,iVBORw0KGgo=' }), taskEvidence({ id: 'artifact:sha256:stale', documentRevision: 6 }), taskEvidence({ id: 'artifact:sha256:foreign', taskId: 'task:foreign' })],
+    acceptance: [{ id: 'acceptance:visible', label: 'Score changes', assertion: 'evidence state signal score gte 1', category: 'functional', required: true, visibility: 'agent', status: 'pass', evidenceIds: ['artifact:sha256:current'], diagnostic: null }],
+    timeline: Array.from({ length: 150 }, (_, index) => taskTimeline(index)),
+  })];
+  const snapshotValue = new ConversationProjector().reset(value);
+  assert.equal(snapshotValue.taskRuns.length, 1);
+  assert.equal(snapshotValue.taskRuns[0].evidence.find((item) => item.id === 'artifact:sha256:current').provenanceStatus, 'current');
+  assert.equal(snapshotValue.taskRuns[0].evidence.find((item) => item.id === 'artifact:sha256:stale').provenanceStatus, 'stale');
+  assert.equal(snapshotValue.taskRuns[0].evidence.find((item) => item.id === 'artifact:sha256:foreign').provenanceStatus, 'invalid');
+  assert.doesNotMatch(JSON.stringify(snapshotValue.taskRuns), /TaskProjectionCanary/);
+  const fake = fakeDom(); renderChatPanel(fake.root, presentChatPanel(snapshotValue), () => {});
+  assert.match(fake.text(), /任务状态与验收证据/); assert.match(fake.text(), /验收标准 1\/1 通过/); assert.match(fake.text(), /较早的 50 项已折叠/); assert.doesNotMatch(fake.text(), /timeline 0(?:\D|$)/);
+});
+
+test('unknown task versions and pass claims without retained evidence fail closed', () => {
+  assert.throws(() => normalizeTaskRun({ ...taskRun(), schemaVersion: 2 }), /version/i);
+  const value = snapshot([]); value.taskRuns = [{ ...taskRun(), schemaVersion: 99 }, taskRun({ acceptance: [{ id: 'acceptance:missing', label: 'Missing evidence', assertion: 'evidence state', category: 'functional', required: true, visibility: 'agent', status: 'pass', evidenceIds: ['artifact:sha256:not-present'], diagnostic: null }] })];
+  const runs = new ConversationProjector().reset(value).taskRuns;
+  assert.equal(runs.length, 1); assert.equal(runs[0].acceptance[0].status, 'blocked'); assert.deepEqual(runs[0].acceptance[0].evidenceIds, []);
+});
+
 test('user messages are projected as conversation input rather than assistant output', () => {
   const model = presentChatPanel(new ConversationProjector().reset(snapshot([
     projection(1, node('node:user', 'text', 'completed', { text: '创建一个小游戏', role: 'user' }), 'replay'),
@@ -233,6 +259,12 @@ function node(id, kind, status, content) { return { schemaVersion: 1, id, kind, 
 function approvalNode(decision, extra = {}) {
   return node('node:approval', 'approval', 'pending', { approvalId: 'approval:fixture', toolCallId: 'toolcall:fixture', toolId: 'script.apply', toolVersion: '1.0.0', target: 'script:player', effect: 'trusted-code', risk: 'high', argumentsSummary: 'Write player controller', previewDiff: '+ move cube', baseRevision: 4, argsDigest: digestA, previewDigest: digestB, scope: 'operation', decision, ...extra });
 }
+function taskRun(extra = {}) {
+  return { schemaVersion: 1, revision: 4, taskId: 'task:fixture', title: 'Cross-genre fixture', requestSummary: 'Build and verify a neutral game.', status: 'completed', phase: 'complete', startedAt: '2026-08-19T00:00:00.000Z', updatedAt: '2026-08-19T00:01:00.000Z', backendId, sessionId, turnId,
+    model: { id: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096 }, promptProfile: { id: 'prompt:general-game-authoring', version: '2.0.0', digest: digestA }, documentRevision: 7, repairIteration: 1, repairLimit: 3, acceptance: [], evidence: [], timeline: [taskTimeline(149)], terminalDiagnostic: null, resumable: false, ...extra };
+}
+function taskEvidence(extra = {}) { return { id: 'artifact:sha256:evidence', type: 'screenshot', taskId: 'task:fixture', turnId, playId: 'play:fixture', documentRevision: 7, tick: 42, frame: 42, viewport: { width: 393, height: 852 }, device: 'phone', capturedAt: '2026-08-19T00:00:42.000Z', byteLength: 128, redacted: false, producerVersion: 'fixture/1', provenanceStatus: 'current', ...extra }; }
+function taskTimeline(index) { return { id: `timeline:${index}`, at: `2026-08-19T00:${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}.000Z`, phase: index === 149 ? 'complete' : 'editing', status: index === 149 ? 'complete' : 'active', title: `timeline ${index}`, detail: 'bounded task update', turnId, toolCallId: null, playId: null, tick: null }; }
 function fakeConversationPort() {
   let listener;
   return {

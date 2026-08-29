@@ -44,6 +44,9 @@ export interface ConversationBackendReadModel {
   readonly kind: 'harness-api-key' | 'codex-app-server';
   readonly state: 'ready' | 'auth-required' | 'authenticating' | 'unavailable' | 'error';
   readonly authMode: 'api-key' | 'chatgpt' | 'none';
+  readonly protocolVersion: string;
+  readonly capabilities: Readonly<{ resume: boolean; questions: boolean; structuredTools: boolean; backendApprovals: boolean; usage: boolean; rateLimits: boolean }>;
+  readonly promptProfile: Readonly<{ id: StableId; version: string; digest: string }> | null;
   readonly accountPlan?: string;
   readonly rateLimits: readonly Readonly<{ name: string; usedPercent?: number; resetsAt?: string }>[];
   readonly diagnostic?: Readonly<{ code: string; message: string }>;
@@ -61,6 +64,79 @@ export interface ConversationTaskAccountingReadModel {
   readonly cost: Readonly<{ status: 'actual' | 'estimated' | 'unknown'; amountMicros: number | null; currency: string | null; cacheSavingMicros: number | null; explanation: string; final: boolean }>;
 }
 
+export type ConversationTaskPhase = 'planning' | 'editing' | 'validating' | 'playing' | 'evaluating' | 'repairing' | 'complete' | 'blocked' | 'cancelled';
+export type ConversationTaskStatus = 'running' | 'waiting-user' | 'blocked' | 'completed' | 'failed' | 'cancelled';
+
+export interface ConversationTaskEvidenceReadModel {
+  readonly id: StableId;
+  readonly type: 'state' | 'event-trace' | 'runtime-errors' | 'performance' | 'screenshot' | 'visual-analysis' | 'lifecycle';
+  readonly taskId: StableId;
+  readonly turnId: StableId;
+  readonly playId: StableId;
+  readonly documentRevision: number;
+  readonly tick: number;
+  readonly frame: number;
+  readonly viewport: Readonly<{ width: number; height: number }> | null;
+  readonly device: string | null;
+  readonly capturedAt: string;
+  readonly byteLength: number;
+  readonly redacted: boolean;
+  readonly producerVersion: string;
+  readonly provenanceStatus: 'current' | 'stale' | 'invalid';
+  /** A main-process approved, bounded PNG projection. Never an artifact path. */
+  readonly previewDataUrl?: string;
+}
+
+export interface ConversationTaskAcceptanceReadModel {
+  readonly id: StableId;
+  readonly label: string;
+  readonly assertion: string;
+  readonly category: 'functional' | 'visual' | 'performance' | 'lifecycle' | 'budget' | 'security';
+  readonly required: boolean;
+  readonly visibility: 'agent' | 'runner-only';
+  readonly status: 'pending' | 'pass' | 'fail' | 'blocked';
+  readonly evidenceIds: readonly StableId[];
+  readonly diagnostic: string | null;
+}
+
+export interface ConversationTaskTimelineItemReadModel {
+  readonly id: StableId;
+  readonly at: string;
+  readonly phase: ConversationTaskPhase;
+  readonly status: 'active' | 'complete' | 'warning' | 'error';
+  readonly title: string;
+  readonly detail: string;
+  readonly turnId: StableId | null;
+  readonly toolCallId: StableId | null;
+  readonly playId: StableId | null;
+  readonly tick: number | null;
+}
+
+export interface ConversationTaskRunReadModel {
+  readonly schemaVersion: 1;
+  readonly revision: number;
+  readonly taskId: StableId;
+  readonly title: string;
+  readonly requestSummary: string;
+  readonly status: ConversationTaskStatus;
+  readonly phase: ConversationTaskPhase;
+  readonly startedAt: string;
+  readonly updatedAt: string;
+  readonly backendId: StableId;
+  readonly sessionId: StableId | null;
+  readonly turnId: StableId | null;
+  readonly model: Readonly<{ id: string; reasoningEffort: M12ReasoningEffort; outputTokenLimit: number }>;
+  readonly promptProfile: Readonly<{ id: StableId; version: string; digest: string }>;
+  readonly documentRevision: number | null;
+  readonly repairIteration: number;
+  readonly repairLimit: number;
+  readonly acceptance: readonly ConversationTaskAcceptanceReadModel[];
+  readonly evidence: readonly ConversationTaskEvidenceReadModel[];
+  readonly timeline: readonly ConversationTaskTimelineItemReadModel[];
+  readonly terminalDiagnostic: string | null;
+  readonly resumable: boolean;
+}
+
 export interface ConversationReadModel {
   readonly revision: number;
   readonly lastSequence: number;
@@ -69,6 +145,7 @@ export interface ConversationReadModel {
   readonly backendId: StableId | null;
   readonly backends: readonly ConversationBackendReadModel[];
   readonly taskAccounting: ConversationTaskAccountingReadModel | null;
+  readonly taskRuns: readonly ConversationTaskRunReadModel[];
   readonly nodes: readonly ConversationNodeReadModel[];
   readonly pendingInteraction: PendingConversationInteraction | null;
   readonly composerBlockedReason: string | null;
@@ -81,6 +158,7 @@ export interface ConversationReplaySnapshot {
   readonly backendId: StableId | null;
   readonly backends: readonly unknown[];
   readonly taskAccounting?: unknown;
+  readonly taskRuns?: readonly unknown[];
   readonly events: readonly ConversationProjectionEvent[];
 }
 
@@ -106,7 +184,7 @@ export interface ConversationUiPort {
 
 export type ConversationUiEvent =
   | Readonly<{ type: 'conversation/event'; event: ConversationProjectionEvent }>
-  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; taskAccounting?: unknown }>;
+  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; taskAccounting?: unknown; taskRuns?: readonly unknown[] }>;
 
 export interface LogQueryIntent {
   readonly severity?: readonly ('debug' | 'info' | 'warning' | 'error')[];

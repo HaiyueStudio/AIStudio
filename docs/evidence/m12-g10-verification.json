@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g10-observation-playtest-repair-loop",
+  "capabilities": [
+    { "id": "task.evaluate", "classification": "available-public", "integrationState": "g10-verified", "publicPath": "@haiyue/ai-studio-game-authoring-tools" },
+    { "id": "play.capture", "classification": "available-public", "integrationState": "g10-verified", "publicPath": "@haiyue/ai-studio-game-authoring-tools" },
+    { "id": "play.inspect", "classification": "available-public", "integrationState": "g10-verified", "publicPath": "@haiyue/ai-studio-game-authoring-tools" }
+  ],
+  "tools": ["play.start", "play.step", "play.input", "play.inspect", "play.capture", "play.stop", "task.evaluate"],
+  "observations": { "types": ["state", "event-trace", "runtime-errors", "performance", "screenshot", "visual-analysis", "lifecycle"], "persistBeforeReference": true, "screenshotMaximumBytes": 385024, "taskQuota": true, "screenshotBytesInToolResult": false, "contentAddressed": true },
+  "provenance": { "task": true, "turn": true, "play": true, "documentRevision": true, "scriptDigests": true, "tick": true, "frame": true, "viewport": true, "device": true, "producerVersion": true, "staleAndMismatchFailClosed": true },
+  "evaluation": { "deterministicDsl": true, "visualVerifierRequired": true, "unsupportedClaimsBlocked": true, "completionRequiresEvidence": true, "crossGenreCases": 7 },
+  "repair": { "boundedIterations": true, "repeatedFingerprintStops": true, "evidenceRequired": true, "usageAndCostIds": true, "terminalEvidence": true },
+  "tests": { "core": ["packages/game-authoring-tools/test/g10-observations.test.mjs", "packages/game-authoring-tools/test/runtime.test.mjs"], "broker": "apps/ai-studio/test/g10-agent-integration.test.mjs", "electron": "apps/ai-studio/test/g10-observation-electron.test.mjs", "electronExpected": "tick=1 pngBytes>8 sameTick=true hud=true cleanup=0", "crossGenre": "evals/test/runner.test.mjs" }
+}

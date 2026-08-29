@@ -1,18 +1,20 @@
 import { asStableId, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
 import type { SceneSnapshot } from '@haiyue/ai-studio-editor-plugins';
-import type { GamePreviewControl } from '@haiyue/ai-studio-game-authoring-tools';
+import type { GamePlayCapture, GamePlayInputEvent, GamePlayObservation, GamePreviewControl } from '@haiyue/ai-studio-game-authoring-tools';
 import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-script-preview';
 
 export interface AgentPreviewCommand {
   readonly id: StableId;
-  readonly kind: 'start' | 'stop';
+  readonly kind: 'start' | 'stop' | 'step' | 'input' | 'inspect' | 'capture';
   readonly scene?: SceneSnapshot;
   readonly plan?: PreviewPlan;
+  readonly count?: number;
+  readonly event?: GamePlayInputEvent;
 }
 
 interface PendingCommand {
   readonly command: AgentPreviewCommand;
-  readonly resolve: (snapshot: PreviewRuntimeSnapshot) => void;
+  readonly resolve: (value: unknown) => void;
   readonly reject: (cause: unknown) => void;
   readonly unlink: () => void;
 }
@@ -37,12 +39,17 @@ export class AgentPreviewBroker implements GamePreviewControl {
   private disposed = false;
 
   start(scene: SceneSnapshot, plan: PreviewPlan, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot> {
-    return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'start', scene, plan }), signal);
+    return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'start', scene, plan }), signal).then((value) => value as PreviewRuntimeSnapshot);
   }
 
   stop(signal?: AbortSignal): Promise<PreviewRuntimeSnapshot> {
-    return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'stop' }), signal);
+    return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'stop' }), signal).then((value) => value as PreviewRuntimeSnapshot);
   }
+
+  step(count: number, signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'step', count }), signal).then((value) => value as GamePlayObservation); }
+  input(event: GamePlayInputEvent, signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'input', event }), signal).then((value) => value as GamePlayObservation); }
+  inspect(signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'inspect' }), signal).then((value) => value as GamePlayObservation); }
+  capture(signal?: AbortSignal): Promise<GamePlayCapture> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'capture' }), signal).then((value) => value as GamePlayCapture); }
 
   snapshot(): PreviewRuntimeSnapshot { return this.latest; }
 
@@ -53,11 +60,12 @@ export class AgentPreviewBroker implements GamePreviewControl {
 
   resolve(commandId: StableId, value: unknown): void {
     const pending = this.requirePending(commandId);
-    const snapshot = validatePreviewSnapshot(value);
+    const result = pending.command.kind === 'start' || pending.command.kind === 'stop' ? validatePreviewSnapshot(value)
+      : pending.command.kind === 'capture' ? validatePlayCapture(value) : validatePlayObservation(value);
     this.pending = null;
     pending.unlink();
-    this.latest = snapshot;
-    pending.resolve(snapshot);
+    if (pending.command.kind === 'start' || pending.command.kind === 'stop') this.latest = result as PreviewRuntimeSnapshot;
+    pending.resolve(result);
   }
 
   reject(commandId: StableId, message: string): void {
@@ -80,10 +88,10 @@ export class AgentPreviewBroker implements GamePreviewControl {
     pending?.reject(new Error(reason));
   }
 
-  private enqueue(command: AgentPreviewCommand, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot> {
+  private enqueue(command: AgentPreviewCommand, signal?: AbortSignal): Promise<unknown> {
     if (this.disposed) return Promise.reject(new Error('Agent preview broker is disposed.'));
     if (this.pending) return Promise.reject(new Error('Another Agent preview command is pending.'));
-    return new Promise<PreviewRuntimeSnapshot>((resolve, reject) => {
+    return new Promise<unknown>((resolve, reject) => {
       const abort = (): void => {
         if (this.pending?.command.id !== command.id) return;
         this.pending = null;
@@ -107,6 +115,35 @@ export class AgentPreviewBroker implements GamePreviewControl {
 
   private nextId(): StableId { this.sequence += 1; return asStableId(`preview-command:${this.sequence}`); }
 }
+
+function validatePlayObservation(value: unknown): GamePlayObservation {
+  const base = validateObservationBase(value);
+  if (!isRecord(value) || !isJsonObject(value.value)) throw new Error('Renderer Play observation value is invalid.');
+  return Object.freeze({ ...base, value: value.value as JsonObject });
+}
+
+function validatePlayCapture(value: unknown): GamePlayCapture {
+  const base = validateObservationBase(value);
+  if (!isRecord(value) || value.mediaType !== 'image/png' || !Number.isSafeInteger(value.byteLength) || Number(value.byteLength) < 8 || Number(value.byteLength) > 376 * 1024 || typeof value.base64 !== 'string' || value.base64.length > 513_376) throw new Error('Renderer Play capture is invalid.');
+  return Object.freeze({ ...base, mediaType: 'image/png', byteLength: Number(value.byteLength), base64: value.base64 });
+}
+
+function validateObservationBase(value: unknown): Omit<GamePlayObservation, 'value'> {
+  if (!isRecord(value) || typeof value.playId !== 'string' || !Number.isSafeInteger(value.documentRevision) || Number(value.documentRevision) < 0
+    || !Array.isArray(value.scriptDigests) || !value.scriptDigests.every((item) => typeof item === 'string' && /^sha256:[a-f0-9]{64}$/u.test(item))
+    || !Number.isSafeInteger(value.tick) || Number(value.tick) < 0 || !Number.isSafeInteger(value.frame) || Number(value.frame) < 0
+    || typeof value.capturedAt !== 'string' || (value.device !== null && typeof value.device !== 'string')) throw new Error('Renderer Play observation provenance is invalid.');
+  const viewport = value.viewport === null ? null : validateViewport(value.viewport);
+  return Object.freeze({ playId: asStableId(value.playId), documentRevision: Number(value.documentRevision), scriptDigests: Object.freeze([...(value.scriptDigests as string[])]), tick: Number(value.tick), frame: Number(value.frame), viewport, device: value.device as string | null, capturedAt: value.capturedAt });
+}
+
+function validateViewport(value: unknown): Readonly<{ width: number; height: number }> {
+  if (!isRecord(value) || !Number.isSafeInteger(value.width) || !Number.isSafeInteger(value.height) || Number(value.width) < 1 || Number(value.height) < 1 || Number(value.width) > 8192 || Number(value.height) > 8192) throw new Error('Renderer Play viewport is invalid.');
+  return Object.freeze({ width: Number(value.width), height: Number(value.height) });
+}
+
+function isJsonObject(value: unknown): value is JsonObject { return isRecord(value) && isJsonValue(value); }
+function isJsonValue(value: unknown): boolean { if (value === null || typeof value === 'string' || typeof value === 'boolean') return true; if (typeof value === 'number') return Number.isFinite(value); if (Array.isArray(value)) return value.every(isJsonValue); return isRecord(value) && Object.values(value).every(isJsonValue); }
 
 function validatePreviewSnapshot(value: unknown): PreviewRuntimeSnapshot {
   if (!isRecord(value) || !['stopped', 'playing', 'faulted'].includes(String(value.state))

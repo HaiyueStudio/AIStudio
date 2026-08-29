@@ -1,5 +1,5 @@
 import type { JsonObject, StableId, StudioDisposable } from '@haiyue/ai-studio-contracts';
-import { normalizeBackend, normalizeConversationNode, normalizeTaskAccounting, approvalFromNode, validateConversationIntent } from './validation.js';
+import { normalizeBackend, normalizeConversationNode, normalizeTaskAccounting, normalizeTaskRuns, approvalFromNode, validateConversationIntent } from './validation.js';
 import type {
   ConversationBackendReadModel,
   ConversationIntent,
@@ -24,6 +24,7 @@ export class ConversationProjector {
   private backendId: StableId | null = null;
   private backends: readonly ConversationBackendReadModel[] = Object.freeze([]);
   private taskAccounting: ConversationReadModel['taskAccounting'] = null;
+  private taskRuns: ConversationReadModel['taskRuns'] = Object.freeze([]);
 
   reset(snapshot: ConversationReplaySnapshot): ConversationReadModel {
     this.nodes.clear();
@@ -35,6 +36,7 @@ export class ConversationProjector {
     this.backendId = snapshot.backendId;
     this.backends = normalizeBackends(snapshot.backends);
     this.taskAccounting = normalizeTaskAccounting(snapshot.taskAccounting);
+    this.taskRuns = normalizeTaskRuns(snapshot.taskRuns);
     for (const event of [...snapshot.events].sort((left, right) => left.sequence - right.sequence)) this.apply(event);
     return this.snapshot();
   }
@@ -61,6 +63,7 @@ export class ConversationProjector {
     this.backendId = value.backendId;
     this.backends = normalizeBackends(value.backends);
     this.taskAccounting = normalizeTaskAccounting(value.taskAccounting);
+    this.taskRuns = normalizeTaskRuns(value.taskRuns);
     return this.snapshot();
   }
 
@@ -74,7 +77,7 @@ export class ConversationProjector {
         : this.busy ? 'Wait for the active turn or cancel it.' : null;
     return Object.freeze({
       revision: this.revision, lastSequence: this.lastSequence, connection: this.connection, busy: this.busy,
-      backendId: this.backendId, backends: this.backends, taskAccounting: this.taskAccounting, nodes, pendingInteraction, composerBlockedReason,
+      backendId: this.backendId, backends: this.backends, taskAccounting: this.taskAccounting, taskRuns: this.taskRuns, nodes, pendingInteraction, composerBlockedReason,
     });
   }
 }

@@ -379,6 +379,16 @@ test('G10 renderer preview broker uses one pending command and rejects stale ack
   broker.resolve(command.id, { instanceId: 'preview:test', state: 'playing', scriptSetDigest, scriptCount: 1, scripts: [runningScript], entityId: 'entity:test', position: { x: 0, y: 0, z: 0 }, disposableCount: 0, errors: [] });
   assert.equal((await started).state, 'playing');
   assert.throws(() => broker.resolve(command.id, { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] }), /missing, stale/);
+  const inspected = broker.inspect();
+  const inspectCommand = broker.command().command;
+  assert.equal(inspectCommand.kind, 'inspect');
+  broker.resolve(inspectCommand.id, { playId: 'preview:test', documentRevision: 1, scriptDigests: [scriptSetDigest], tick: 12, frame: 9, viewport: { width: 393, height: 852 }, device: 'iphone-15', capturedAt: '2026-08-29T00:00:00.000Z', value: { state: { score: 4 } } });
+  assert.deepEqual((await inspected).value.state, { score: 4 });
+  const captured = broker.capture();
+  const captureCommand = broker.command().command;
+  const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  broker.resolve(captureCommand.id, { playId: 'preview:test', documentRevision: 1, scriptDigests: [scriptSetDigest], tick: 12, frame: 9, viewport: { width: 393, height: 852 }, device: 'iphone-15', capturedAt: '2026-08-29T00:00:00.000Z', mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') });
+  assert.equal((await captured).byteLength, 8);
   const stopped = broker.stop();
   const stopCommand = broker.command().command;
   broker.resolve(stopCommand.id, { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] });
