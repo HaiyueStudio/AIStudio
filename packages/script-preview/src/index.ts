@@ -218,6 +218,23 @@ export class ScriptValidationWorker {
 
 export function studioScriptRuntimeDeclarations(capabilities: readonly ScriptCapabilityName[]): string {
   return `${generateScriptRuntimeDeclarations(capabilities)}
+interface HaiyueStudioPointerEvent {
+  readonly type: 'move' | 'down' | 'up' | 'cancel' | 'wheel';
+  readonly pointerId: number;
+  /** Viewport-normalized horizontal coordinate from 0 to 1. */
+  readonly x: number;
+  /** Viewport-normalized vertical coordinate from 0 to 1. */
+  readonly y: number;
+  readonly button?: number;
+  readonly wheelX?: number;
+  readonly wheelY?: number;
+}
+interface HaiyueScriptInputApi {
+  /** Convenience alias for isPressed(action); true on every tick while held. */
+  isDown(action: string): boolean;
+  /** Pointer-only events with phase exposed as type and normalized x/y coordinates. */
+  pointerEvents(): readonly HaiyueStudioPointerEvent[];
+}
 interface HaiyueStudioInstanceVector { readonly x: number; readonly y: number; readonly z: number; }
 interface HaiyueStudioInstanceTransform {
   readonly position: HaiyueStudioInstanceVector;
@@ -230,8 +247,19 @@ interface HaiyueStudioInstanceSet {
   setCount(count: number): void;
   set(index: number, transform: HaiyueStudioInstanceTransform): void;
 }
+interface HaiyueStudioHudTextOptions {
+  readonly position?: 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  readonly offsetX?: number;
+  readonly offsetY?: number;
+  readonly color?: string;
+  readonly backgroundColor?: string;
+  readonly fontSize?: number;
+}
 interface HaiyueScriptSceneApi {
   instances(entity: Entity | number | string, capacity: number): HaiyueStudioInstanceSet;
+  /** Create or update responsive text in the Play HUD. Reusing id updates in place. */
+  hudText(id: string, text: string, options?: HaiyueStudioHudTextOptions): void;
+  removeHudText(id: string): void;
 }
 `;
 }

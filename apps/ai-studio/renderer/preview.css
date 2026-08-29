@@ -1,3 +1,5 @@
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #111; }
 #preview-canvas { display: block; width: 100%; height: 100%; }
+#preview-hud { position: fixed; inset: 0; overflow: hidden; pointer-events: none; user-select: none; }
+.preview-hud-text { position: absolute; max-width: calc(100% - 24px); padding: 6px 9px; border-radius: 6px; color: #fff; background: #111a; white-space: pre-line; font: 700 22px/1.25 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; text-shadow: 0 1px 2px #000; box-sizing: border-box; }
 #badge { position: fixed; top: 9px; left: 9px; padding: 4px 7px; border-radius: 4px; background: #402600dd; color: #ffd28a; font: 12px system-ui; pointer-events: none; }

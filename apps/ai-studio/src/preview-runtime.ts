@@ -55,6 +55,7 @@ let interactionEvents: readonly StudioInteractionEvent[] = Object.freeze([]);
 let hoveredEntityId: string | null = null;
 const pointerDownTargets = new Map<number, string>();
 const instanceSets = new Map<number, StudioInstanceSet>();
+const hudTexts = new Map<string, Readonly<{ element: HTMLDivElement; text: string; position: HudTextPosition }>>();
 const entitiesByStableId = new Map<string, Entity>();
 const stableIdByEntityId = new Map<number, string>();
 let disposed = false;
@@ -238,7 +239,7 @@ function beginManualRenderFrame(ownedEngine: HaiyueEngine): void {
 function publishState(): void {
   const transform = target?.getComponent(CartesianTransform3D);
   if (!transform) return;
-  send('state', { tick: simulation?.clock.tick ?? 0, inputHash: activeInput?.hash ?? null, position: { x: transform.position[0], y: transform.position[1], z: transform.position[2] }, disposableCount: totalDisposableCount(), scripts: scriptRuntimeStates() });
+  send('state', { tick: simulation?.clock.tick ?? 0, inputHash: activeInput?.hash ?? null, position: { x: transform.position[0], y: transform.position[1], z: transform.position[2] }, disposableCount: totalDisposableCount(), scripts: scriptRuntimeStates(), hud: hudSnapshot() });
 }
 
 function runtimeError(event: ScriptRuntimeErrorEvent): void {
@@ -296,7 +297,7 @@ function loadReplay(replay: InputReplayV1): void {
 function publishInspection(): void {
   if (!simulation) { fail(new Error('Preview is not playing.')); return; }
   const snapshot = simulation.snapshot();
-  send('inspection', { tick: snapshot.tick, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, input: snapshot.input, trace: snapshot.trace, physics: physicsRuntime?.status() ?? null, physicsEvents: physicsRuntime?.events() ?? [], renderEffects: renderEffectsRuntime?.manifest() ?? null });
+  send('inspection', { tick: snapshot.tick, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, input: snapshot.input, trace: snapshot.trace, physics: physicsRuntime?.status() ?? null, physicsEvents: physicsRuntime?.events() ?? [], renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot() });
 }
 
 function readSimulationState(): SimulationStateValue {
@@ -564,6 +565,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   planByComponent.clear();
   engine?.destroy();
   instanceSets.clear();
+  clearHudTexts();
   entitiesByStableId.clear();
   ScriptComponent.resetRuntimeApiFactory();
   ScriptComponent.resetExecutionOptions();
@@ -684,10 +686,13 @@ function boundedDevicePixelRatio(canvas: HTMLCanvasElement, requested: number, m
 
 interface InstanceTransformInput { readonly position: Vec3; readonly rotationDegrees?: Vec3; readonly scale?: Vec3; readonly color?: readonly [number, number, number, number?]; }
 interface StudioInstanceSet { readonly capacity: number; setCount(count: number): void; set(index: number, transform: InstanceTransformInput): void; }
+type HudTextPosition = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+interface HudTextOptions { readonly position?: HudTextPosition; readonly offsetX?: number; readonly offsetY?: number; readonly color?: string; readonly backgroundColor?: string; readonly fontSize?: number; }
 
 function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext, capabilities: readonly ScriptCapabilityName[]): ScriptRuntimeApi {
   const input = Object.freeze({
     isPressed: (action: string): boolean => simulation?.input.isPressed(action) ?? false,
+    isDown: (action: string): boolean => simulation?.input.isPressed(action) ?? false,
     wasPressed: (action: string): boolean => simulation?.input.wasPressed(action) ?? false,
     wasReleased: (action: string): boolean => simulation?.input.wasReleased(action) ?? false,
     isKeyPressed: (code: string): boolean => simulation?.input.isPressed(code) ?? false,
@@ -697,6 +702,12 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
     action: (action: string) => simulation?.input.action(action),
     pointer: (pointerId = 1) => simulation?.input.pointer(pointerId),
     events: () => simulation?.input.events() ?? Object.freeze([]),
+    pointerEvents: () => Object.freeze((simulation?.input.events() ?? []).flatMap((event) => event.kind === 'pointer' ? [Object.freeze({
+      type: event.phase, pointerId: event.pointerId, x: event.x, y: event.y,
+      ...(event.button === undefined ? {} : { button: event.button }),
+      ...(event.wheelX === undefined ? {} : { wheelX: event.wheelX }),
+      ...(event.wheelY === undefined ? {} : { wheelY: event.wheelY }),
+    })] : [])),
     interactions: () => interactionEvents,
     snapshot: () => simulation?.input.snapshot(),
   });
@@ -755,12 +766,53 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
         instanceSets.set(entity.id, instances);
         return instances;
       },
+      hudText(id: string, text: string, options: HudTextOptions = {}): void { setHudText(id, text, options); },
+      removeHudText(id: string): void { removeHudText(id); },
     }),
   } as unknown as Record<string, unknown>;
   const filtered: Record<string, unknown> = {};
   for (const capability of capabilities) if (complete[capability] !== undefined) filtered[capability] = complete[capability];
   return Object.freeze(filtered) as unknown as ScriptRuntimeApi;
 }
+
+function setHudText(id: string, text: string, options: HudTextOptions): void {
+  if (!/^[A-Za-z0-9._:-]{1,64}$/u.test(id)) throw new TypeError('HUD text id must contain 1-64 letters, digits, dots, colons, underscores or hyphens.');
+  if (typeof text !== 'string' || text.length > 512) throw new TypeError('HUD text must contain at most 512 characters.');
+  const root = document.querySelector<HTMLDivElement>('#preview-hud');
+  if (!root) throw new Error('Preview HUD root is missing.');
+  const position = options.position ?? 'top-left';
+  if (!HUD_POSITIONS.has(position)) throw new TypeError(`Unsupported HUD position ${String(position)}.`);
+  let record = hudTexts.get(id);
+  const element = record?.element ?? document.createElement('div');
+  if (!record) { element.className = 'preview-hud-text'; element.dataset.hudId = id; root.append(element); }
+  element.textContent = text;
+  element.hidden = text.length === 0;
+  applyHudPosition(element, position, boundedHudOffset(options.offsetX), boundedHudOffset(options.offsetY));
+  element.style.color = safeHudColor(options.color, '#ffffff');
+  element.style.backgroundColor = safeHudColor(options.backgroundColor, '#111111aa');
+  element.style.fontSize = `${finiteNumber(options.fontSize, 8, 96, 22)}px`;
+  hudTexts.set(id, Object.freeze({ element, text, position }));
+}
+
+const HUD_POSITIONS = new Set<HudTextPosition>(['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right']);
+function boundedHudOffset(value: unknown): number { return finiteNumber(value, -2_048, 2_048, 0); }
+function safeHudColor(value: unknown, fallback: string): string { return typeof value === 'string' && /^#[0-9a-f]{3,8}$/iu.test(value) ? value : fallback; }
+function applyHudPosition(element: HTMLDivElement, position: HudTextPosition, offsetX: number, offsetY: number): void {
+  element.style.inset = 'auto'; element.style.transform = '';
+  const [vertical, horizontal] = position === 'center' ? ['center', 'center'] : position.split('-') as [string, string];
+  if (vertical === 'top') element.style.top = `${12 + offsetY}px`;
+  else if (vertical === 'bottom') element.style.bottom = `${12 - offsetY}px`;
+  else { element.style.top = `calc(50% + ${offsetY}px)`; element.style.transform = 'translateY(-50%)'; }
+  if (horizontal === 'left') element.style.left = `${12 + offsetX}px`;
+  else if (horizontal === 'right') element.style.right = `${12 - offsetX}px`;
+  else {
+    element.style.left = `calc(50% + ${offsetX}px)`;
+    element.style.transform = element.style.transform ? `${element.style.transform} translateX(-50%)` : 'translateX(-50%)';
+  }
+}
+function removeHudText(id: string): void { const record = hudTexts.get(id); record?.element.remove(); hudTexts.delete(id); }
+function clearHudTexts(): void { for (const record of hudTexts.values()) record.element.remove(); hudTexts.clear(); }
+function hudSnapshot(): readonly Readonly<{ id: string; text: string; position: HudTextPosition }>[] { return Object.freeze([...hudTexts].map(([id, value]) => Object.freeze({ id, text: value.text, position: value.position }))); }
 function isSceneComponent(value: unknown): boolean {
   return isRecord(value) && typeof value.id === 'string' && typeof value.type === 'string' && typeof value.version === 'string' && typeof value.enabled === 'boolean' && isRecord(value.value);
 }

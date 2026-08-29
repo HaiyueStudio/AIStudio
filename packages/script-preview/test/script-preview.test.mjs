@@ -66,6 +66,15 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
       text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
     });
     assert.deepEqual(instanced.diagnostics, []);
+    const gameplayInputAndHud = await worker.validate({
+      scriptId, textRevision: 51, sourcePath: 'scripts/input-hud.ts', capabilities: ['read', 'input', 'scene'],
+      text: `if (api.input.isDown('ArrowDown')) api.scene.hudText('score', 'SCORE 10', { position: 'top-right', color: '#ffffff' });\nfor (const event of api.input.pointerEvents()) if (event.type === 'move' && event.x > 0.5) api.scene.removeHudText('hint');`,
+    });
+    assert.deepEqual(gameplayInputAndHud.diagnostics, []);
+    const studioDeclarations = studioScriptRuntimeDeclarations(['read', 'input', 'scene']);
+    assert.match(studioDeclarations, /isDown\(action: string\): boolean/);
+    assert.match(studioDeclarations, /pointerEvents\(\): readonly HaiyueStudioPointerEvent\[\]/);
+    assert.match(studioDeclarations, /hudText\(id: string, text: string/);
     const inferredScene = await worker.validate({
       scriptId, textRevision: 6, sourcePath: 'scripts/test.ts', capabilities: ['read', 'input', 'debug'],
       text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
