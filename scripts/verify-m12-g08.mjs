@@ -53,10 +53,10 @@ for (const marker of ['workspace.readControlledAsset', "op: 'asset.upsert'", 'CO
 const repositorySource = await readFile(path.join(root, 'packages', 'editor-plugins', 'src', 'project', 'repository.ts'), 'utf8');
 for (const marker of ['readControlledAsset', 'assets/', 'project-asset-path-invalid', 'assertTargetSafe', 'lstat', 'isSymbolicLink']) assert.ok(repositorySource.includes(marker), `Controlled project read marker is missing: ${marker}`);
 const runtimeSource = await readFile(path.join(root, 'packages', 'script-preview', 'src', 'effects', 'render-effects-runtime.ts'), 'utf8');
-for (const marker of ['resolveTextureAsset', 'metallicRoughnessTexture', 'occlusionTexture', 'emissiveTexture', 'resolveEnvironmentAsset', 'resolveModelAsset', 'resolveAnimationAsset', 'resolveAudioAsset', 'GltfModelSystem', 'Animation2DRenderSystem', "from '@haiyue/extensions/animation3d'", 'Animation3DMixer', 'Animation3DPoseApplier', 'mixer.destroy()', 'onDeviceLost', 'runtimeAssets.splice(0).reverse()', 'pixelWidth', 'component.onEntityAddToWorld']) assert.ok(runtimeSource.includes(marker), `Effect runtime marker is missing: ${marker}`);
+for (const marker of ['resolveTextureAsset', 'metallicRoughnessTexture', 'occlusionTexture', 'emissiveTexture', 'resolveEnvironmentAsset', 'resolveModelAsset', 'resolveAnimationAsset', 'resolveAudioAsset', 'GltfModelSystem', 'Animation2DRenderSystem', "from '@haiyue/extensions/animation3d'", 'Animation3DMixer', 'Animation3DPoseApplier', 'mixer.destroy()', 'onDeviceLost', 'tickingSystems', 'runtimeAssets.push(asset)', 'runtimeAssets.splice(0).reverse()', 'pixelWidth', 'component.onEntityAddToWorld']) assert.ok(runtimeSource.includes(marker), `Effect runtime marker is missing: ${marker}`);
 for (const kind of postprocess) assert.ok(runtimeSource.includes(`'${kind}'`), `Post-process adapter is missing: ${kind}`);
 const runtimeTest = await readFile(path.join(root, 'apps', 'ai-studio', 'test', 'g08-render-effects-runtime.test.mjs'), 'utf8');
-for (const marker of ['viewport', 'enabledRuntime', 'late start is cancelled', 'unlock listeners', 'controlled texture and glTF', 'scene-owned material', 'HaiYue 2D animation', 'public Animation3DMixer', 'seven genres']) assert.ok(runtimeTest.includes(marker));
+for (const marker of ['viewport', 'enabledRuntime', 'late start is cancelled', 'releasedPartial', 'simulations.every(system => system.disabled)', 'unlock listeners', 'controlled texture and glTF', 'scene-owned material', 'HaiYue 2D animation', 'public Animation3DMixer', 'seven genres']) assert.ok(runtimeTest.includes(marker));
 const ipcSource = await readFile(path.join(root, 'apps', 'ai-studio', 'src', 'ipc.ts'), 'utf8');
 for (const marker of ["'asset/read'", 'workspace.readControlledAsset', 'entry.digest', "crypto.subtle.digest('SHA-256'", "Buffer.from(bytes).toString('base64')"]) assert.ok(ipcSource.includes(marker), `Product asset IPC marker is missing: ${marker}`);
 const transferSource = await readFile(path.join(root, 'apps', 'ai-studio', 'src', 'preview-asset-transfer.ts'), 'utf8');
@@ -69,7 +69,7 @@ const previewHtml = await readFile(path.join(root, 'apps', 'ai-studio', 'rendere
 for (const marker of ['img-src blob:', 'connect-src blob:', 'media-src blob:']) assert.ok(previewHtml.includes(marker));
 assert.doesNotMatch(previewHtml, /https?:\/\//u);
 const transferTest = await readFile(path.join(root, 'apps', 'ai-studio', 'test', 'preview-asset-transfer.test.mjs'), 'utf8');
-for (const marker of ['only enabled referenced assets', 'owned-before-failure', 'aggregate budgets']) assert.ok(transferTest.includes(marker));
+for (const marker of ['only enabled referenced assets', 'owned-before-failure', 'aggregate budgets', 'disposal aborts a pending read', 'owned-before-abort']) assert.ok(transferTest.includes(marker));
 const ipcTest = await readFile(path.join(root, 'apps', 'ai-studio', 'test', 'ipc.test.mjs'), 'utf8');
 for (const marker of ['asset/read', 'tampered', 'projectPath']) assert.ok(ipcTest.includes(marker));
 const electronTest = await readFile(path.join(root, 'apps', 'ai-studio', 'test', 'g08-render-electron.test.mjs'), 'utf8');

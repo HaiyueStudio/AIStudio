@@ -130,6 +130,12 @@ test('2D and 3D particle owners install bounded systems and tear down to zero', 
   assert.equal(runtime.manifest().owners.particles2d, 1);
   assert.equal(runtime.manifest().owners.particles3d, 1);
   assert.equal(setup.world.systems.size, 4);
+  const simulations = [...setup.world.systems.values()].filter(system => system.name === 'Particle2DSystem' || system.name === 'Particle3DSystem');
+  assert.equal(simulations.length, 2);
+  setup.engine.emit('device-lost');
+  assert.ok(simulations.every(system => system.disabled));
+  setup.engine.emit('device-restored');
+  assert.ok(simulations.every(system => !system.disabled));
   runtime.dispose();
   assert.equal(setup.world.systems.size, 0);
   setup.world.destroy();
@@ -152,6 +158,21 @@ test('audio fails closed without a controlled asset resolver and late start is c
   await assert.rejects(start, /Play stopped/);
   assert.equal(releasedLate, 1);
   late.world.destroy();
+
+  const partial = harness([component('haiyue.audio.source', { assetIds: ['asset:first', 'asset:second'] })]);
+  let releasedPartial = 0;
+  await assert.rejects(RenderEffectsPlayRuntime.create({
+    engine: partial.engine,
+    scene: { ...partial.scene, render3DSystem: null },
+    sceneEntities: [partial.source],
+    entitiesByStableId: partial.map,
+    resolveAudioAsset: async (assetId) => {
+      if (assetId === 'asset:second') throw new Error('second audio failed');
+      return { url: 'blob:first', release() { releasedPartial++; } };
+    },
+  }), /second audio failed/);
+  assert.equal(releasedPartial, 1);
+  partial.world.destroy();
 });
 
 test('controlled texture and glTF assets install through public adapters and release on teardown', async () => {

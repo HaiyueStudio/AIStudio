@@ -86,6 +86,7 @@ export class RenderEffectsPlayRuntime {
   private readonly runtimeAssets: Array<Readonly<{ release(): void }>> = [];
   private readonly restorations: Array<() => void> = [];
   private readonly animations: AnimationOwner[] = [];
+  private readonly tickingSystems: Array<{ disabled: boolean }> = [];
   private readonly postprocess: Array<Readonly<{ kind: string; order: number; enabled: boolean }>> = [];
   private disposed = false;
   private deviceLost = false;
@@ -164,6 +165,7 @@ export class RenderEffectsPlayRuntime {
     for (const system of this.installedSystems.splice(0).reverse()) {
       try { this.options.scene.world.removeSystem(system as never); } catch { /* Scene destruction remains the final owner. */ }
     }
+    this.tickingSystems.length = 0;
     for (const owner of this.animations.splice(0).reverse()) { try { owner.mixer.destroy(); } catch { /* Mixer teardown is idempotent at this owner boundary. */ } }
     for (const restore of this.restorations.splice(0).reverse()) { try { restore(); } catch { /* Scene destruction remains the final owner. */ } }
     for (const asset of this.runtimeAssets.splice(0).reverse()) { try { asset.release(); } catch { /* Release is best effort during stop. */ } }
@@ -369,8 +371,14 @@ export class RenderEffectsPlayRuntime {
     if (!this.options.resolveAudioAsset) throw new Error('audio.asset-resolver-unavailable: Play cannot resolve controlled audio assets.');
     const ids = Array.isArray(descriptor.value.assetIds) ? descriptor.value.assetIds.filter((item): item is string => typeof item === 'string') : [];
     const resolved: ResolvedAudioAsset[] = [];
-    for (const id of ids) { throwIfAborted(this.options.signal); resolved.push(await this.options.resolveAudioAsset(id, this.options.signal ?? new AbortController().signal)); }
-    this.runtimeAssets.push(...resolved);
+    for (const id of ids) {
+      throwIfAborted(this.options.signal);
+      const asset = await this.options.resolveAudioAsset(id, this.runtimeSignal());
+      // Take ownership immediately: a later resolver may fail or be aborted.
+      resolved.push(asset);
+      this.runtimeAssets.push(asset);
+      throwIfAborted(this.options.signal);
+    }
     const bus = typeof descriptor.value.bus === 'string' ? descriptor.value.bus : 'master';
     const busDescriptor = Array.isArray(mixer?.buses) ? mixer.buses.filter(isRecord).find((candidate) => candidate.name === bus) : undefined;
     const muted = mixer?.muted === true || busDescriptor?.muted === true;
@@ -407,6 +415,8 @@ export class RenderEffectsPlayRuntime {
     if (this.counts.particles3d > 0) {
       const simulation = new Particle3DSystem({ maxDeltaSeconds: 0.1, priority: -10 });
       const renderer = new Particle3DRenderSystem(this.options.engine, this.options.scene.activeCameraEntity, { loadOp: 'load', priority: 30 });
+      simulation.disabled = this.deviceLost;
+      this.tickingSystems.push(simulation);
       this.options.scene.addSystem(simulation, false).addSystem(renderer); this.installedSystems.push(simulation, renderer);
     }
     if (this.counts.particles2d > 0) {
@@ -415,6 +425,8 @@ export class RenderEffectsPlayRuntime {
       cameraEntity.addComponent(camera); this.installedComponents.push({ entity: cameraEntity, component: camera });
       const simulation = new Particle2DSystem({ maxDeltaSeconds: 0.1, priority: -9 });
       const renderer = new Particle2DRenderSystem(this.options.engine, cameraEntity, { loadOp: 'load', priority: 40 });
+      simulation.disabled = this.deviceLost;
+      this.tickingSystems.push(simulation);
       this.options.scene.addSystem(simulation, false).addSystem(renderer); this.installedSystems.push(simulation, renderer);
     }
   }
@@ -434,14 +446,22 @@ export class RenderEffectsPlayRuntime {
       .reduce((maximum, descriptor) => Math.max(maximum, integer(descriptor.value.maxMaskTargets, 1, 128, 32)), 1);
     const simulation = new Animation2DSystem({ assetManager: this.options.engine.assetManager });
     const renderer = new Animation2DRenderSystem(this.options.engine, this.options.scene.activeCameraEntity, { loadOp: 'load', maxMaskTargets: maximumTargets, priority: 35 });
+    simulation.disabled = this.deviceLost;
+    this.tickingSystems.push(simulation);
     this.options.scene.addSystem(simulation, false).addSystem(renderer);
     this.installedSystems.push(simulation, renderer);
   }
 
   private runtimeSignal(): AbortSignal { return this.options.signal ?? new AbortController().signal; }
 
-  private readonly onDeviceLost = (): void => { this.deviceLost = true; };
-  private readonly onDeviceRestored = (): void => { this.deviceLost = false; };
+  private readonly onDeviceLost = (): void => {
+    this.deviceLost = true;
+    for (const system of this.tickingSystems) system.disabled = true;
+  };
+  private readonly onDeviceRestored = (): void => {
+    this.deviceLost = false;
+    for (const system of this.tickingSystems) system.disabled = false;
+  };
 }
 
 function createPostprocessPass(kind: string, value: Readonly<Record<string, unknown>>): PostProcessPass {

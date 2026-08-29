@@ -11,7 +11,8 @@ export interface PreviewAssetTransferPlatform {
   decodeText(bytes: Uint8Array): string;
 }
 
-export async function loadPreviewAssets(snapshot: PreviewAssetScene, read: (assetId: StableId) => Promise<PreviewAssetReadResult>, platform: PreviewAssetTransferPlatform = browserPlatform()): Promise<readonly PreviewRuntimeAsset[]> {
+export async function loadPreviewAssets(snapshot: PreviewAssetScene, read: (assetId: StableId) => Promise<PreviewAssetReadResult>, platform: PreviewAssetTransferPlatform = browserPlatform(), signal?: AbortSignal): Promise<readonly PreviewRuntimeAsset[]> {
+  throwIfAborted(signal);
   const manifest = new Map((snapshot.assets ?? []).map((entry) => [entry.id, entry]));
   const referenced = new Set<StableId>();
   let visited = 0;
@@ -31,12 +32,15 @@ export async function loadPreviewAssets(snapshot: PreviewAssetScene, read: (asse
   const loaded: PreviewRuntimeAsset[] = [];
   try {
     for (const entry of descriptors) {
+      throwIfAborted(signal);
       const response = await read(entry.id);
+      throwIfAborted(signal);
       if (response.assetId !== entry.id || response.kind !== entry.kind || response.mimeType !== entry.mimeType || response.byteLength !== entry.byteLength) throw new Error(`Preview asset descriptor changed for ${entry.id}.`);
       const bytes = decodeBase64(response.base64, entry.byteLength);
       if (entry.kind === 'animation') loaded.push(Object.freeze({ id: entry.id, kind: entry.kind, mimeType: entry.mimeType, byteLength: entry.byteLength, source: platform.decodeText(bytes) }));
       else loaded.push(Object.freeze({ id: entry.id, kind: entry.kind, mimeType: entry.mimeType, byteLength: entry.byteLength, url: platform.createObjectUrl(bytes, entry.mimeType) }));
     }
+    throwIfAborted(signal);
     return Object.freeze(loaded);
   } catch (cause) {
     releasePreviewAssetUrls(loaded, platform);
@@ -61,3 +65,7 @@ function browserPlatform(): PreviewAssetTransferPlatform { return Object.freeze(
   revokeObjectUrl(url: string): void { URL.revokeObjectURL(url); },
   decodeText(bytes: Uint8Array): string { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); },
 }); }
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new Error('Preview asset transfer was aborted.');
+}

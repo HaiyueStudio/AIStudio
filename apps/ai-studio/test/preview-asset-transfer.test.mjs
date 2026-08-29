@@ -37,3 +37,19 @@ test('preview transfer fails closed on descriptor drift, encoded length and aggr
   assert.throws(() => decodeBase64('AQI=', 4), /byte length changed/);
   await assert.rejects(loadPreviewAssets({ assets: [{ id: textureId, kind: 'texture', mimeType: 'image/png', byteLength: 64 * 1024 * 1024 + 1, decodedBytes: 1 }], entities: [{ components: [{ enabled: true, value: { id: textureId } }] }] }, async () => { throw new Error('must not read'); }, platform), /aggregate source or decode budget/);
 });
+
+test('preview transfer releases owned URLs when disposal aborts a pending read', async () => {
+  const revoked = [];
+  const controller = new AbortController();
+  let resolveAnimation;
+  const animationResponse = new Promise((resolve) => { resolveAnimation = resolve; });
+  const platform = { createObjectUrl() { return 'blob:owned-before-abort'; }, revokeObjectUrl(url) { revoked.push(url); }, decodeText() { return '{}'; } };
+  const loading = loadPreviewAssets({ assets: manifest, entities: [{ components: [{ enabled: true, value: { textureId, animationId } }] }] }, async (id) => id === textureId
+    ? { assetId: id, kind: 'texture', mimeType: 'image/png', byteLength: 4, base64: 'AQIDBA==' }
+    : animationResponse, platform, controller.signal);
+  await new Promise((resolve) => setImmediate(resolve));
+  controller.abort(new Error('Preview disposed'));
+  resolveAnimation({ assetId: animationId, kind: 'animation', mimeType: 'application/vnd.haiyue.animation+json', byteLength: 2, base64: 'e30=' });
+  await assert.rejects(loading, /Preview disposed/);
+  assert.deepEqual(revoked, ['blob:owned-before-abort']);
+});

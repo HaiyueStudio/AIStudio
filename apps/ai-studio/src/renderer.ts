@@ -404,6 +404,7 @@ class SandboxedPreviewFrame {
   private readonly scriptDisposables = new Map<StableId, number>();
   private readonly scriptPositions = new Map<StableId, Readonly<{ x: number; y: number; z: number }>>();
   private readonly faultedScripts = new Set<StableId>();
+  private readonly startController = new AbortController();
 
   constructor(private readonly entityId: StableId) {
     this.frame.id = 'preview-frame';
@@ -418,7 +419,11 @@ class SandboxedPreviewFrame {
     await withTimeout(this.ready.promise, 10_000, 'Preview realm did not become ready.');
     this.scriptSetDigest = plan.scriptSetDigest;
     this.scriptDescriptors = Object.freeze(plan.scripts.map(({ scriptId, entityId, order }) => Object.freeze({ scriptId, entityId, order })));
-    const assets = await loadPreviewAssets(snapshot, (assetId) => invoke('asset/read', { assetId }));
+    const assets = await loadPreviewAssets(snapshot, (assetId) => invoke('asset/read', { assetId }), undefined, this.startController.signal);
+    if (this.disposed) {
+      releasePreviewAssetUrls(assets);
+      throw new Error('Preview realm was disposed while loading assets.');
+    }
     this.runtimeAssets.push(...assets);
     const { assets: _assetManifest, ...runtimeScene } = snapshot;
     this.post({ type: 'start', scene: runtimeScene, plan, assets });
@@ -459,6 +464,7 @@ class SandboxedPreviewFrame {
   async dispose(): Promise<number> {
     if (this.disposed) return 0;
     this.disposed = true;
+    this.startController.abort(new Error('Preview realm was disposed while loading assets.'));
     this.pauseChange?.resolve();
     const ownedBeforeStop = this.disposableCount;
     this.post({ type: 'stop' });
