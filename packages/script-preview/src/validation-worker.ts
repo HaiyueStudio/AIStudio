@@ -31,7 +31,9 @@ parentPort.on('message', (request: ValidationRequest) => {
 
 function validate(request: ValidationRequest): Readonly<{ id: string; diagnostics: readonly ScriptDiagnostic[]; emittedText: string }> {
   const prefix = `${request.declarations}\n`;
-  const virtualPath = path.join(process.cwd(), `.haiyue-script-${request.id.replaceAll(':', '-')}.ts`);
+  // Resolve injected Engine type imports relative to this package, not the
+  // directory from which Electron happened to be launched.
+  const virtualPath = path.join(import.meta.dirname, `.haiyue-script-${request.id.replaceAll(':', '-')}.ts`);
   const sourceText = prefix + request.text;
   const options: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2022,

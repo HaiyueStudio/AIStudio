@@ -96,6 +96,13 @@ export class ProjectWorkspace {
   scriptsSnapshot(): GameDocumentV2['scripts'] { return this.requireDocument().scriptsSnapshot(); }
   queryGameDocument(input: GameDocumentQueryV2): GameDocumentQueryResultV2 { return this.requireDocument().query(input); }
   componentOwner(componentId: StableId): StableId | null { return this.requireDocument().componentOwner(componentId); }
+  async readControlledAsset(relativePath: string, maxBytes: number, signal?: AbortSignal): Promise<Uint8Array> {
+    this.assertActive();
+    throwIfAborted(signal);
+    const bytes = await this.requireRepository().readControlledAsset(relativePath, maxBytes);
+    throwIfAborted(signal);
+    return bytes;
+  }
 
   async newProject(selectedRoot: string | null, name: string): Promise<ProjectWorkspaceSnapshot> {
     return this.serialize(async () => {

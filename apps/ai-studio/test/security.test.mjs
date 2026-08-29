@@ -44,7 +44,9 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(html, /id="play-device-screen"/);
   assert.doesNotMatch(html, /unsafe-eval/);
   assert.match(previewHtml, /script-src 'self' 'unsafe-eval'/);
-  assert.match(previewHtml, /connect-src 'none'/);
+  assert.match(previewHtml, /connect-src blob:/);
+  assert.match(previewHtml, /media-src blob:/);
+  assert.doesNotMatch(previewHtml, /https?:\/\//);
   assert.match(renderer, /haiyue-preview:\/\/app\/preview\.html/);
   assert.match(renderer, /allow-scripts/);
   assert.doesNotMatch(renderer, /allow-same-origin/);

@@ -265,11 +265,11 @@
     },
     {
       "id": "play.multi-script", "domain": "runtime", "owner": "g09-multi-script-play-runtime",
-      "classification": "missing-seam", "integrationState": "blocked-public-seam", "publicPath": null, "publicSymbols": [], "version": null,
+      "classification": "available-internal", "integrationState": "g09-verified", "publicPath": "@haiyue/ai-studio-script-preview", "publicSymbols": ["PreviewPlan", "PreviewScriptPlan", "PreviewAuthorizationService", "IsolatedTrustedPreviewRuntime", "MAX_PLAY_SCRIPTS"], "version": "0.0.0",
       "lifecycle": { "ownership": "play instance", "teardown": "all script scopes disposed in reverse order" },
-      "serialization": { "status": "not-supported", "path": "M06 preview plan carries one script id" },
-      "toolExposure": { "m06": "preview.validate requires one scriptId", "m12Owner": "g09-multi-script-play-runtime" },
-      "testOwner": "g09-multi-script-play-runtime", "evidence": ["packages/game-authoring-tools/src/definitions.ts", "packages/script-preview/src/index.ts"]
+      "serialization": { "status": "supported", "path": "PreviewPlan binds document revision, ordered scripts, script-set digest and fixed-step runtime config" },
+      "toolExposure": { "m06": "preview.validate runs all enabled scripts by default and accepts an optional bounded scriptIds subset", "m12Owner": "g09-multi-script-play-runtime" },
+      "testOwner": "g09-multi-script-play-runtime", "evidence": ["packages/script-preview/test/script-preview.test.mjs", "apps/ai-studio/test/g09-multi-script-electron.test.mjs", "docs/evidence/m12-g09-verification.json"]
     },
     {
       "id": "play.capture", "domain": "observation", "owner": "g10-observation-playtest-repair-loop",

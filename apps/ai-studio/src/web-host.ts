@@ -15,7 +15,7 @@ interface WebEntity {
   appearance?: { material: WebMaterialKind; color: [number, number, number, number] };
   light?: { color: [number, number, number]; intensity: number; range?: number; direction?: [number, number, number]; castShadow?: boolean };
 }
-interface WebScript { id: StableId; entityId: StableId; text: string; textRevision: number; }
+interface WebScript { id: StableId; entityId: StableId; text: string; textRevision: number; enabled?: boolean; order?: number; capabilities?: string[]; }
 interface WebProject {
   schemaVersion: 1;
   projectId: StableId;
@@ -33,8 +33,10 @@ interface WebProposal {
 }
 interface ScriptDiagnostic { code: string; severity: 'error' | 'warning'; line: number; column: number; message: string; }
 interface WebPreviewPlan {
-  id: StableId; scriptId: StableId; entityId: StableId; documentRevision: number; textRevision: number; digest: string;
-  capabilities: string[]; risk: 'trusted-project'; diagnostics: ScriptDiagnostic[]; emittedText: string;
+  id: StableId; documentId: StableId; documentRevision: number; selection: 'all-enabled' | 'explicit'; scriptSetDigest: string;
+  scripts: Array<{ scriptId: StableId; entityId: StableId; order: number; textRevision: number; digest: string; capabilities: string[]; diagnostics: ScriptDiagnostic[]; emittedText: string }>;
+  capabilities: string[]; runtimeConfig: { schemaVersion: 1; mode: 'fixed-step'; tickRateHz: number; maxSubSteps: number; seed: string };
+  risk: 'trusted-project'; diagnostics: Array<ScriptDiagnostic & { scriptId: StableId; entityId: StableId }>;
 }
 interface WebLogEvent {
   sequence: number;
@@ -116,6 +118,7 @@ export class WebStudioHost {
       case 'history/undo': return this.applyHistory('undo', number(payload.baseRevision));
       case 'history/redo': return this.applyHistory('redo', number(payload.baseRevision));
       case 'scene/snapshot': return this.sceneSnapshot();
+      case 'asset/read': throw new WebHostError('web-asset-unsupported', 'Controlled project asset bytes are available only in the desktop project host.');
       case 'scene/create': {
         const project = this.requireRevision(number(payload.baseRevision));
         const kind = payload.kind as WebEntityKind;
@@ -204,12 +207,12 @@ export class WebStudioHost {
 
   private sceneSnapshot(): JsonObject {
     const project = this.project;
-    return json({ schemaVersion: 1, revision: project?.sceneRevision ?? 0, documentId: project?.documentId ?? 'document:web-none', entities: project?.entities ?? [] });
+    return json({ schemaVersion: 1, revision: project?.revision ?? 0, documentId: project?.documentId ?? 'document:web-none', entities: project?.entities ?? [], assets: [] });
   }
 
   private scriptSnapshot(): JsonObject {
     const project = this.project;
-    return json({ schemaVersion: 1, documentId: project?.documentId ?? 'document:web-none', documentRevision: project?.revision ?? 0, resources: (project?.scripts ?? []).map((script) => ({ ...script, name: 'Entity Script', sourcePath: `scripts/${script.id.slice(7)}.js`, dirty: Boolean(project && project.revision !== project.savedRevision) })) });
+    return json({ schemaVersion: 1, documentId: project?.documentId ?? 'document:web-none', documentRevision: project?.revision ?? 0, resources: (project?.scripts ?? []).map((script, index) => ({ ...script, enabled: script.enabled ?? true, order: script.order ?? index, capabilities: script.capabilities ?? inferCapabilities(script.text), digest: '', name: 'Entity Script', sourcePath: `scripts/${script.id.slice(7)}.js`, dirty: Boolean(project && project.revision !== project.savedRevision) })) });
   }
 
   private async proposeScript(payload: Record<string, unknown>): Promise<JsonObject> {
@@ -236,7 +239,7 @@ export class WebStudioHost {
     const project = this.requireRevision(proposal.baseRevision);
     this.commitMutation(project, false, () => {
       project.scripts = project.scripts.filter((item) => item.entityId !== proposal.entityId);
-      project.scripts.push({ id: proposal.scriptId, entityId: proposal.entityId, text: proposal.text, textRevision: proposal.nextTextRevision });
+      project.scripts.push({ id: proposal.scriptId, entityId: proposal.entityId, text: proposal.text, textRevision: proposal.nextTextRevision, enabled: true, order: project.scripts.length, capabilities: inferCapabilities(proposal.text) });
     });
     this.proposals.delete(proposal.id);
     await this.appendLog('script/edit-committed', 'info', 'studio.script.web', proposal.scriptId);
@@ -245,17 +248,26 @@ export class WebStudioHost {
   }
 
   private async preparePreview(payload: Record<string, unknown>): Promise<JsonObject> {
-    const project = this.requireProject(); const script = project.scripts.find((item) => item.id === payload.scriptId);
-    if (!script) throw new WebHostError('web-script-missing', 'Committed script does not exist.');
-    const diagnostics = validateWebScript(script.text);
+    const project = this.requireProject();
+    const requested = Array.isArray(payload.scriptIds) ? new Set(payload.scriptIds.map(String)) : null;
+    const selected = project.scripts.filter((script) => requested ? requested.has(script.id) : script.enabled !== false)
+      .sort((left, right) => (left.order ?? project.scripts.indexOf(left)) - (right.order ?? project.scripts.indexOf(right)) || left.id.localeCompare(right.id));
+    if (selected.length < 1 || selected.length > 128 || (requested && selected.length !== requested.size)) throw new WebHostError('web-script-missing', 'Preview requires 1-128 existing enabled scripts.');
+    if (selected.some((script) => script.enabled === false) || new Set(selected.map((script) => script.entityId)).size !== selected.length) throw new WebHostError('web-script-invalid', 'Preview scripts must be enabled and bind one script per entity.');
+    const scripts = await Promise.all(selected.map(async (script, index) => {
+      const capabilities = script.capabilities ?? inferCapabilities(script.text);
+      return { scriptId: script.id, entityId: script.entityId, order: script.order ?? index, textRevision: script.textRevision, digest: await digest(`${script.text}\0${capabilities.join(',')}`), capabilities, diagnostics: validateWebScript(script.text), emittedText: script.text };
+    }));
+    const capabilities = [...new Set(scripts.flatMap((script) => script.capabilities))];
+    const runtimeConfig = { schemaVersion: 1 as const, mode: 'fixed-step' as const, tickRateHz: 60, maxSubSteps: 1_000, seed: 'haiyue-play' };
+    const diagnostics = scripts.flatMap((script) => script.diagnostics.map((diagnostic) => ({ ...diagnostic, scriptId: script.scriptId, entityId: script.entityId })));
     const plan: WebPreviewPlan = {
-      id: id('preview-plan'), scriptId: script.id, entityId: script.entityId, documentRevision: project.revision, textRevision: script.textRevision,
-      digest: await digest(`${script.text}\0${JSON.stringify(payload.capabilities ?? [])}`), capabilities: Array.isArray(payload.capabilities) ? payload.capabilities.map(String) : ['read', 'input', 'debug'],
-      risk: 'trusted-project', diagnostics, emittedText: script.text,
+      id: id('preview-plan'), documentId: project.documentId, documentRevision: project.revision, selection: requested ? 'explicit' : 'all-enabled',
+      scriptSetDigest: `sha256:${await digest(JSON.stringify({ schemaVersion: 1, documentId: project.documentId, documentRevision: project.revision, runtimeConfig, scripts: scripts.map(({ emittedText: _text, diagnostics: _diagnostics, ...script }) => script) }))}`,
+      scripts, capabilities, runtimeConfig, risk: 'trusted-project', diagnostics,
     };
     this.plans.set(plan.id, plan);
-    const { emittedText: _hidden, ...disclosure } = plan;
-    return json(disclosure);
+    return json({ ...plan, scripts: plan.scripts.map(({ emittedText: _hidden, ...script }) => script) });
   }
 
   private async authorizePreview(payload: Record<string, unknown>): Promise<JsonObject> {
@@ -274,8 +286,11 @@ export class WebStudioHost {
     if (!entry) throw new WebHostError('web-preview-grant-missing', 'Preview grant is missing or already consumed.');
     this.grants.delete(grantId);
     if (Date.now() > entry.expiresAt) throw new WebHostError('web-preview-grant-expired', 'Preview grant expired.');
-    const project = this.requireProject(); const script = project.scripts.find((item) => item.id === entry.plan.scriptId);
-    if (!script || project.revision !== entry.plan.documentRevision || script.textRevision !== entry.plan.textRevision) throw new WebHostError('web-preview-grant-stale', 'Preview grant is stale.');
+    const project = this.requireProject();
+    if (project.revision !== entry.plan.documentRevision || entry.plan.scripts.some((planned) => {
+      const script = project.scripts.find((item) => item.id === planned.scriptId);
+      return !script || script.entityId !== planned.entityId || script.textRevision !== planned.textRevision || script.enabled === false;
+    })) throw new WebHostError('web-preview-grant-stale', 'Preview grant is stale.');
     return json(entry.plan);
   }
 
@@ -357,6 +372,9 @@ function validateWebScript(text: string): ScriptDiagnostic[] {
   const typeMatch = typescript.exec(text);
   if (typeMatch) diagnostics.push(diagnostic(text, typeMatch.index, 'script.web.javascript-only', 'Web preview currently accepts a JavaScript function body; remove TypeScript-only annotations and assertions.'));
   return diagnostics;
+}
+function inferCapabilities(text: string): string[] {
+  return [...new Set(['read', 'input', 'debug', ...(text.includes('api.scene') ? ['scene'] : []), ...(text.includes('api.physics') ? ['physics'] : []), ...(text.includes('api.asset') ? ['asset'] : [])])];
 }
 function diagnostic(text: string, index: number, code: string, message: string): ScriptDiagnostic { const prefix = text.slice(0, index); const lines = prefix.split(/\r?\n/u); return { code, severity: 'error', line: lines.length, column: (lines.at(-1)?.length ?? 0) + 1, message }; }
 function lineDiff(before: string, after: string): Readonly<{ addedLines: number; removedLines: number }> { const left = before ? before.split(/\r?\n/u) : []; const right = after ? after.split(/\r?\n/u) : []; let shared = 0; const remaining = new Map<string, number>(); for (const line of left) remaining.set(line, (remaining.get(line) ?? 0) + 1); for (const line of right) { const count = remaining.get(line) ?? 0; if (count > 0) { shared += 1; remaining.set(line, count - 1); } } return { addedLines: right.length - shared, removedLines: left.length - shared }; }

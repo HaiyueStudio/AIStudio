@@ -76,6 +76,28 @@ test('same revision reuses a live session by reference, changed revision sends o
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 });
 
+test('restart rebuilds context metadata and conversation indexes through bounded sequence windows', async () => {
+  const fixture = await openFixture({ maxQueryScan: 5 });
+  try {
+    const runtime = new PromptContextRuntime(fixture.log);
+    const prepared = await runtime.prepare({ conversationKey, backendId, taskId, request: 'Build bounded restart context.', tools, project: null });
+    await runtime.commit({ conversationKey, backendId, taskId, sessionId: 'session:bounded-rebuild', turnId: 'turn:bounded-rebuild', projectId: null,
+      goals: ['bounded rebuild survives restart'], decisions: [], toolFacts: [], acceptance: [], blockers: [] });
+    for (let index = 0; index < 20; index += 1) {
+      await fixture.log.append({ kind: 'test/rebuild-filler', severity: 'debug', source: 'test:prompt-context', payload: { index } });
+    }
+    await fixture.log.close();
+
+    const reopened = await OperationLog.open({ rootDirectory: fixture.root, appVersion: 'test', maxQueryScan: 5 });
+    const restored = new PromptContextRuntime(reopened);
+    await restored.initialize();
+    await restored.assertReadable(prepared.contextArtifactIds);
+    const next = await restored.prepare({ conversationKey, backendId, taskId: 'task:bounded-rebuild-next', request: 'Continue.', tools, project: null });
+    assert.match(next.prompt, /bounded rebuild survives restart/u);
+    await reopened.close();
+  } finally { await fixture.log.close().catch(() => undefined); await rm(fixture.root, { recursive: true, force: true }); }
+});
+
 test('secret canaries are absent from artifacts, summaries, prompt logs and exported bug bundles', async () => {
   const fixture = await openFixture();
   const bundleRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-context-bundle-'));
@@ -141,6 +163,6 @@ function project(revision, scriptText, entities) {
     schemaVersion: 1, project: { id: 'project:context-fixture', revision }, scene: { revision, entities }, scripts: { resources: [{ id: 'script:fixture', textRevision: 1, text: scriptText }] },
   }) });
 }
-async function openFixture() { const root = await mkdtemp(path.join(tmpdir(), 'haiyue-prompt-context-')); return { root, log: await OperationLog.open({ rootDirectory: root, appVersion: 'test' }) }; }
+async function openFixture(overrides = {}) { const root = await mkdtemp(path.join(tmpdir(), 'haiyue-prompt-context-')); return { root, log: await OperationLog.open({ rootDirectory: root, appVersion: 'test', ...overrides }) }; }
 async function readTree(root) { const values = []; for (const entry of await readdir(root, { withFileTypes: true })) { const target = path.join(root, entry.name); if (entry.isDirectory()) values.push(await readTree(target)); else values.push(await readFile(target, 'utf8').catch(() => '')); } return values.join('\n'); }
 function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }

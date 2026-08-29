@@ -73,6 +73,7 @@ export class TaskAccount {
     return decision;
   }
   repair(): BudgetDecision { return this.controller.commit({ repairIterations: 1 }); }
+  authorizeContinuation(): BudgetDecision { return this.controller.authorizeContinuation(); }
   expireWallTime(): BudgetDecision {
     const limit = this.options.budget.limits.wallTimeMs; const current = this.controller.consumption().wallTimeMs;
     return this.controller.preflight({ wallTimeMs: Math.max(1, limit - current + 1) });
@@ -93,7 +94,7 @@ export class TaskAccount {
   }
   snapshot(): TaskAccountingSnapshot {
     const ledgers = this.taskLedgers(); const usage = aggregateUsage(ledgers);
-    return Object.freeze({ taskId: this.options.taskId, budget: this.options.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage, cost: this.lastCost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
+    return Object.freeze({ taskId: this.options.taskId, budget: this.controller.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage, cost: this.lastCost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
   }
   costRecords(): readonly CostRecordV2[] { return Object.freeze([...this.costHistory.values()].sort((a, b) => a.id.localeCompare(b.id))); }
   private taskLedgers(): readonly UsageLedgerSnapshot[] { return this.usageStore.snapshots().filter((entry) => entry.taskId === this.options.taskId); }

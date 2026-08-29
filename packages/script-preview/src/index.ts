@@ -7,6 +7,8 @@ import {
   ScriptComponent,
   ScriptResource,
   type ScriptCapabilityName,
+  type ScriptRuntimeApi,
+  type ScriptRuntimeContext,
   type ScriptRuntimeErrorEvent,
 } from '@haiyue/engine/components';
 import { CartesianTransform3D, Entity, World } from '@haiyue/engine';
@@ -29,6 +31,9 @@ import {
 import { operationLogServiceToken, type OperationLog } from '@haiyue/ai-studio-operation-log';
 
 export type { ScriptCapabilityName } from '@haiyue/engine/components';
+
+export const MAX_PLAY_SCRIPTS = 128;
+export const DEFAULT_PLAY_RUNTIME_CONFIG: PlayRuntimeConfig = Object.freeze({ schemaVersion: 1, mode: 'fixed-step', tickRateHz: 60, maxSubSteps: 1_000, seed: 'haiyue-play' });
 
 export interface ScriptDiagnostic {
   readonly code: string;
@@ -81,6 +86,27 @@ export interface ScriptEditProposal {
   readonly digest: string;
   readonly addedLines: number;
   readonly removedLines: number;
+  readonly capabilities: readonly ScriptCapabilityName[];
+  readonly diagnostics: readonly ScriptDiagnostic[];
+  readonly emittedText: string;
+}
+
+export interface PlayRuntimeConfig {
+  readonly schemaVersion: 1;
+  readonly mode: 'fixed-step';
+  readonly tickRateHz: number;
+  readonly maxSubSteps: number;
+  readonly seed: string;
+}
+
+export interface PreviewPrepareInput { readonly scriptIds?: readonly StableId[]; }
+
+export interface PreviewScriptPlan {
+  readonly scriptId: StableId;
+  readonly entityId: StableId;
+  readonly order: number;
+  readonly textRevision: number;
+  readonly digest: string;
   readonly capabilities: readonly ScriptCapabilityName[];
   readonly diagnostics: readonly ScriptDiagnostic[];
   readonly emittedText: string;
@@ -306,15 +332,15 @@ export class ProjectScriptService {
 
 export interface PreviewPlan {
   readonly id: StableId;
-  readonly scriptId: StableId;
-  readonly entityId: StableId;
+  readonly documentId: StableId;
   readonly documentRevision: number;
-  readonly textRevision: number;
-  readonly digest: string;
+  readonly selection: 'all-enabled' | 'explicit';
+  readonly scriptSetDigest: `sha256:${string}`;
+  readonly scripts: readonly PreviewScriptPlan[];
   readonly capabilities: readonly ScriptCapabilityName[];
+  readonly runtimeConfig: PlayRuntimeConfig;
   readonly risk: 'trusted-project';
-  readonly diagnostics: readonly ScriptDiagnostic[];
-  readonly emittedText: string;
+  readonly diagnostics: readonly Readonly<ScriptDiagnostic & { scriptId: StableId; entityId: StableId }>[];
 }
 
 export interface PreviewGrant { readonly id: StableId; readonly planId: StableId; readonly expiresAt: number; }
@@ -323,7 +349,7 @@ export interface ScriptPreviewStudioService {
   snapshot(): ScriptCatalogSnapshot;
   proposeEdit(input: Readonly<{ entityId: StableId; text: string; baseRevision: number; capabilities?: readonly ScriptCapabilityName[] }>): Promise<ScriptEditProposal>;
   commitProposal(proposalId: StableId, commandId: StableId, signal?: AbortSignal): Promise<ScriptResourceSnapshot>;
-  prepare(scriptId: StableId, capabilities?: readonly ScriptCapabilityName[]): Promise<PreviewPlan>;
+  prepare(input?: PreviewPrepareInput): Promise<PreviewPlan>;
   decide(planId: StableId, approved: boolean, ttlMs?: number): Promise<PreviewGrant | null>;
   consume(grantId: StableId): PreviewPlan;
 }
@@ -357,7 +383,7 @@ export function createScriptPreviewPlugin(): StudioPluginDefinition<JsonObject> 
       const log = context.services.get(operationLogServiceToken).log;
       const validator = new ScriptValidationWorker();
       const scripts = new ProjectScriptService(workspace, validator, log);
-      const authorization = new PreviewAuthorizationService(scripts, validator, log);
+      const authorization = new PreviewAuthorizationService(scripts, validator, log, Date.now, () => playRuntimeConfigFromScene(scene.snapshot()));
       const service: ScriptPreviewStudioService = Object.freeze({
         snapshot: () => scripts.snapshot(),
         proposeEdit: (input: Parameters<ScriptPreviewStudioService['proposeEdit']>[0]) => {
@@ -365,12 +391,19 @@ export function createScriptPreviewPlugin(): StudioPluginDefinition<JsonObject> 
           return scripts.proposeEdit(input);
         },
         commitProposal: scripts.commitProposal.bind(scripts),
-        prepare: authorization.prepare.bind(authorization),
+        prepare: async (input?: PreviewPrepareInput) => {
+          const plan = await authorization.prepare(input);
+          const snapshot = scene.snapshot();
+          if (snapshot.documentId !== plan.documentId || snapshot.revision !== plan.documentRevision) throw new Error('Preview scene changed during multi-script validation.');
+          const entityIds = new Set(snapshot.entities.map((entity) => entity.id));
+          for (const script of plan.scripts) if (!entityIds.has(script.entityId)) throw new Error(`Preview entity ${script.entityId} does not exist.`);
+          return plan;
+        },
         decide: authorization.decide.bind(authorization),
         consume: authorization.consume.bind(authorization),
       });
       context.services.provide(scriptPreviewServiceToken, service);
-      context.effects.own('script-preview.dispose', async () => { scripts.dispose(); await validator.dispose(); });
+      context.effects.own('script-preview.dispose', async () => { authorization.dispose(); scripts.dispose(); await validator.dispose(); });
     },
   });
 }
@@ -378,73 +411,123 @@ export function createScriptPreviewPlugin(): StudioPluginDefinition<JsonObject> 
 export class PreviewAuthorizationService {
   private readonly plans = new Map<StableId, PreviewPlan>();
   private readonly grants = new Map<StableId, Readonly<{ grant: PreviewGrant; plan: PreviewPlan }>>();
-  constructor(private readonly scripts: ProjectScriptService, private readonly validator: ScriptValidationWorker, private readonly log: OperationLog, private readonly clock: () => number = Date.now) {}
+  private readonly subscription: Readonly<{ dispose(): void }>;
+  private disposed = false;
+  constructor(
+    private readonly scripts: ProjectScriptService,
+    private readonly validator: ScriptValidationWorker,
+    private readonly log: OperationLog,
+    private readonly clock: () => number = Date.now,
+    private readonly runtimeConfig: () => PlayRuntimeConfig = () => DEFAULT_PLAY_RUNTIME_CONFIG,
+  ) {
+    let initial = true;
+    this.subscription = scripts.subscribe(() => {
+      if (initial) { initial = false; return; }
+      this.plans.clear(); this.grants.clear();
+    });
+  }
 
-  async prepare(scriptId: StableId, capabilities?: readonly ScriptCapabilityName[]): Promise<PreviewPlan> {
+  async prepare(input: PreviewPrepareInput = {}): Promise<PreviewPlan> {
+    this.assertActive();
     const catalog = this.scripts.snapshot();
-    const script = catalog.resources.find((resource) => resource.id === scriptId);
-    if (!script) throw new Error(`Script ${scriptId} does not exist.`);
-    const validation = await this.validator.validate({ scriptId, textRevision: script.textRevision, sourcePath: script.sourcePath, text: script.text, capabilities: capabilities ?? script.capabilities });
-    if (validation.stale) throw new Error('Preview validation result is stale.');
+    const selected = selectPreviewScripts(catalog, input.scriptIds);
+    const runtimeConfig = normalizePlayRuntimeConfig(this.runtimeConfig());
+    const validations = await Promise.all(selected.map((script) => this.validator.validate({
+      scriptId: script.id, textRevision: script.textRevision, sourcePath: script.sourcePath, text: script.text, capabilities: script.capabilities,
+    })));
+    if (validations.some((validation) => validation.stale)) throw new Error('Multi-script preview validation result is stale.');
+    const scripts = Object.freeze(selected.map((script, index): PreviewScriptPlan => {
+      const validation = validations[index]!;
+      return Object.freeze({
+        scriptId: script.id, entityId: script.entityId, order: script.order, textRevision: script.textRevision,
+        digest: digestScript(script.text, validation.capabilities), capabilities: validation.capabilities,
+        diagnostics: validation.diagnostics, emittedText: validation.emittedText,
+      });
+    }));
+    const capabilities = Object.freeze(SCRIPT_CAPABILITIES.filter((capability) => scripts.some((script) => script.capabilities.includes(capability))));
+    const scriptSetDigest = digestScriptSet(catalog.documentId, catalog.documentRevision, runtimeConfig, scripts);
+    const diagnostics = Object.freeze(scripts.flatMap((script) => script.diagnostics.map((diagnostic) => Object.freeze({ ...diagnostic, scriptId: script.scriptId, entityId: script.entityId }))));
     const plan: PreviewPlan = Object.freeze({
-      id: asStableId(`preview-plan:${randomUUID()}`), scriptId, entityId: script.entityId,
-      documentRevision: catalog.documentRevision, textRevision: script.textRevision,
-      digest: digestScript(script.text, validation.capabilities), capabilities: validation.capabilities,
-      risk: 'trusted-project', diagnostics: validation.diagnostics, emittedText: validation.emittedText,
+      id: asStableId(`preview-plan:${randomUUID()}`), documentId: catalog.documentId, documentRevision: catalog.documentRevision,
+      selection: input.scriptIds === undefined ? 'all-enabled' : 'explicit', scriptSetDigest, scripts, capabilities, runtimeConfig,
+      risk: 'trusted-project', diagnostics,
     });
     await this.log.append({
       kind: 'preview/approval-ready', severity: hasErrors(plan.diagnostics) ? 'warning' : 'info', source: asStableId('studio.preview'),
-      correlation: { documentId: catalog.documentId, entityId: plan.entityId, scriptId, revisionId: asStableId(`script-revision:${plan.textRevision}`) },
-      payload: { planId: plan.id, digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk, diagnosticCount: plan.diagnostics.length },
+      correlation: { documentId: catalog.documentId },
+      payload: { planId: plan.id, scriptSetDigest, scriptCount: scripts.length, scriptIds: scripts.map((script) => script.scriptId), capabilities: plan.capabilities, runtimeConfig: runtimeConfig as unknown as JsonObject, risk: plan.risk, diagnosticCount: plan.diagnostics.length },
     });
     this.plans.set(plan.id, plan);
     return plan;
   }
 
   async decide(planId: StableId, approved: boolean, ttlMs = 60_000): Promise<PreviewGrant | null> {
+    this.assertActive();
     const plan = this.plans.get(planId);
     if (!plan) throw new Error(`Preview plan ${planId} is missing.`);
     this.plans.delete(planId);
     if (!approved) {
-      await this.log.append({ kind: 'preview/authorization-denied', severity: 'warning', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId }, payload: { planId } });
+      await this.log.append({ kind: 'preview/authorization-denied', severity: 'warning', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId }, payload: { planId, scriptSetDigest: plan.scriptSetDigest } });
       return null;
     }
     if (hasErrors(plan.diagnostics)) throw new Error('A preview with validation errors cannot be authorized.');
     if (!Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 300_000) throw new RangeError('Preview grant TTL must be an integer from 1 to 300000 milliseconds.');
     const grant: PreviewGrant = Object.freeze({ id: asStableId(`preview-grant:${randomUUID()}`), planId, expiresAt: this.clock() + ttlMs });
-    await this.log.append({ kind: 'preview/authorized', severity: 'info', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId }, payload: { planId, grantId: grant.id, digest: plan.digest, expiresAt: grant.expiresAt } });
+    await this.log.append({ kind: 'preview/authorized', severity: 'info', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId }, payload: { planId, grantId: grant.id, scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, runtimeConfig: plan.runtimeConfig as unknown as JsonObject, expiresAt: grant.expiresAt } });
     this.grants.set(grant.id, Object.freeze({ grant, plan }));
     return grant;
   }
 
   consume(grantId: StableId): PreviewPlan {
+    this.assertActive();
     const entry = this.grants.get(grantId);
     if (!entry) throw new Error(`Preview grant ${grantId} is missing or already consumed.`);
     this.grants.delete(grantId);
     if (this.clock() > entry.grant.expiresAt) throw new Error('Preview grant expired.');
     const catalog = this.scripts.snapshot();
-    const script = catalog.resources.find((resource) => resource.id === entry.plan.scriptId);
-    if (!script || catalog.documentRevision !== entry.plan.documentRevision || script.textRevision !== entry.plan.textRevision
-      || digestScript(script.text, entry.plan.capabilities) !== entry.plan.digest) throw new Error('Preview grant is stale.');
+    if (catalog.documentId !== entry.plan.documentId || catalog.documentRevision !== entry.plan.documentRevision) throw new Error('Preview grant is stale.');
+    const selected = selectPreviewScripts(catalog, entry.plan.selection === 'all-enabled' ? undefined : entry.plan.scripts.map((script) => script.scriptId));
+    if (selected.length !== entry.plan.scripts.length) throw new Error('Preview grant script set is stale.');
+    for (let index = 0; index < selected.length; index += 1) {
+      const current = selected[index]!; const planned = entry.plan.scripts[index]!;
+      if (current.id !== planned.scriptId || current.entityId !== planned.entityId || current.order !== planned.order || current.textRevision !== planned.textRevision
+        || digestScript(current.text, planned.capabilities) !== planned.digest) throw new Error('Preview grant script set is stale.');
+    }
+    const runtimeConfig = normalizePlayRuntimeConfig(this.runtimeConfig());
+    if (JSON.stringify(runtimeConfig) !== JSON.stringify(entry.plan.runtimeConfig)
+      || digestScriptSet(catalog.documentId, catalog.documentRevision, runtimeConfig, entry.plan.scripts) !== entry.plan.scriptSetDigest) throw new Error('Preview grant runtime configuration is stale.');
     return entry.plan;
   }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true; this.subscription.dispose(); this.plans.clear(); this.grants.clear();
+  }
+  private assertActive(): void { if (this.disposed) throw new Error('Preview authorization service is disposed.'); }
 }
 
 export interface PreviewRuntimeSnapshot {
   readonly instanceId: StableId | null;
   readonly state: 'stopped' | 'playing' | 'faulted';
+  readonly scriptSetDigest: `sha256:${string}` | null;
+  readonly scriptCount: number;
+  readonly scripts: readonly Readonly<{
+    scriptId: StableId; entityId: StableId; order: number; state: 'playing' | 'faulted';
+    position: Readonly<{ x: number; y: number; z: number }> | null; disposableCount: number; errorCount: number;
+  }>[];
   readonly entityId: StableId | null;
   readonly position: Readonly<{ x: number; y: number; z: number }> | null;
   readonly disposableCount: number;
-  readonly errors: readonly Readonly<{ code: string; path: string; line: number | null; column: number | null; message: string }>[];
+  readonly errors: readonly Readonly<{ scriptId: StableId; entityId: StableId; code: string; path: string; line: number | null; column: number | null; message: string }>[];
 }
+
+interface PreviewScriptOwner { readonly plan: PreviewScriptPlan; readonly resource: ScriptResource; readonly component: ScriptComponent; readonly entity: Entity; }
 
 export class IsolatedTrustedPreviewRuntime {
   private world: World | null = null;
-  private resource: ScriptResource | null = null;
-  private component: ScriptComponent | null = null;
-  private entity: Entity | null = null;
-  private entityId: StableId | null = null;
+  private readonly owners: PreviewScriptOwner[] = [];
+  private readonly planByComponent = new Map<ScriptComponent, PreviewScriptPlan>();
+  private scriptSetDigest: `sha256:${string}` | null = null;
   private instanceId: StableId | null = null;
   private errors: PreviewRuntimeSnapshot['errors'] = Object.freeze([]);
   private lifecycleTail: Promise<void> = Promise.resolve();
@@ -457,6 +540,8 @@ export class IsolatedTrustedPreviewRuntime {
 
   private async startNow(scene: SceneSnapshot, plan: PreviewPlan): Promise<PreviewRuntimeSnapshot> {
     await this.stopNow('restart');
+    if (scene.documentId !== plan.documentId || scene.revision !== plan.documentRevision) throw new Error('Preview plan does not match the Scene document revision.');
+    if (plan.scripts.length < 1 || plan.scripts.length > MAX_PLAY_SCRIPTS) throw new Error(`Preview plan must contain 1-${MAX_PLAY_SCRIPTS} scripts.`);
     const world = new World('AIStudio Isolated Preview');
     try {
       const entities = new Map<StableId, Entity>();
@@ -469,26 +554,33 @@ export class IsolatedTrustedPreviewRuntime {
         const entity = entities.get(item.id)!;
         if (item.parentId) entities.get(item.parentId)?.addChild(entity); else world.addEntity(entity);
       }
-      const entity = entities.get(plan.entityId);
-      if (!entity) throw new Error(`Preview entity ${plan.entityId} does not exist.`);
-      const resource = new ScriptResource({ name: plan.scriptId, sourcePath: `scripts/${plan.scriptId}.ts`, scripts: { onUpdate: plan.emittedText } });
-      const component = new ScriptComponent({}, resource);
-      entity.addComponent(component);
       this.errors = Object.freeze([]);
+      ScriptComponent.setRuntimeApiFactory((base, context) => filterRuntimeApi(base, context, this.planByComponent));
       ScriptComponent.enableTrustedProject({
         capabilities: plan.capabilities,
         errorPolicy: 'disable-script',
         onError: (event) => this.captureError(event),
       });
-      this.world = world; this.resource = resource; this.component = component; this.entity = entity; this.entityId = plan.entityId;
+      for (const script of plan.scripts) {
+        const entity = entities.get(script.entityId);
+        if (!entity) throw new Error(`Preview entity ${script.entityId} does not exist.`);
+        const resource = new ScriptResource({ name: script.scriptId, sourcePath: `scripts/${script.scriptId}.ts`, scripts: { onUpdate: script.emittedText } });
+        const component = new ScriptComponent({}, resource);
+        this.planByComponent.set(component, script);
+        entity.addComponent(component);
+        this.owners.push(Object.freeze({ plan: script, resource, component, entity }));
+      }
+      this.world = world; this.scriptSetDigest = plan.scriptSetDigest;
       this.instanceId = asStableId(`preview-instance:${randomUUID()}`);
-      await this.log.append({ kind: 'preview/started', severity: 'info', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId, previewId: this.instanceId }, payload: { digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk } });
+      await this.log.append({ kind: 'preview/started', severity: 'info', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId, previewId: this.instanceId }, payload: { scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, scriptIds: plan.scripts.map((script) => script.scriptId), capabilities: plan.capabilities, runtimeConfig: plan.runtimeConfig as unknown as JsonObject, risk: plan.risk } });
       return this.snapshot();
     } catch (cause) {
+      this.releaseScriptOwners();
       world.destroy();
+      ScriptComponent.resetRuntimeApiFactory();
       ScriptComponent.resetExecutionOptions();
-      this.world = null; this.resource = null; this.component = null; this.entity = null; this.entityId = null; this.instanceId = null;
-      await this.log.append({ kind: 'preview/start-failed', severity: 'error', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId }, payload: { message: cause instanceof Error ? cause.message : String(cause) } }).catch(() => {});
+      this.world = null; this.scriptSetDigest = null; this.instanceId = null;
+      await this.log.append({ kind: 'preview/start-failed', severity: 'error', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId }, payload: { scriptSetDigest: plan.scriptSetDigest, message: cause instanceof Error ? cause.message : String(cause) } }).catch(() => {});
       throw cause;
     }
   }
@@ -499,21 +591,31 @@ export class IsolatedTrustedPreviewRuntime {
     return this.snapshot();
   }
 
-  hotReload(emittedText: string): PreviewRuntimeSnapshot {
-    if (!this.resource) throw new Error('Preview is not playing.');
-    this.resource.setScript('onUpdate', emittedText);
+  hotReload(scriptId: StableId, emittedText: string): PreviewRuntimeSnapshot {
+    const owner = this.owners.find((candidate) => candidate.plan.scriptId === scriptId);
+    if (!owner) throw new Error(`Preview script ${scriptId} is not playing.`);
+    owner.resource.setScript('onUpdate', emittedText);
+    this.errors = Object.freeze(this.errors.filter((error) => error.scriptId !== scriptId));
     return this.snapshot();
   }
 
   snapshot(): PreviewRuntimeSnapshot {
-    const transform = this.entity?.getComponent(CartesianTransform3D);
-    const position = transform ? Object.freeze({ x: transform.position[0]!, y: transform.position[1]!, z: transform.position[2]! }) : null;
+    const scripts = Object.freeze(this.owners.map((owner) => {
+      const transform = owner.entity.getComponent(CartesianTransform3D);
+      const position = transform ? Object.freeze({ x: transform.position[0]!, y: transform.position[1]!, z: transform.position[2]! }) : null;
+      const errorCount = this.errors.filter((error) => error.scriptId === owner.plan.scriptId).length;
+      return Object.freeze({ scriptId: owner.plan.scriptId, entityId: owner.plan.entityId, order: owner.plan.order, state: errorCount > 0 ? 'faulted' as const : 'playing' as const, position, disposableCount: owner.component.disposableCount, errorCount });
+    }));
+    const primary = scripts[0] ?? null;
     return Object.freeze({
       instanceId: this.instanceId,
       state: !this.world ? 'stopped' : this.errors.length > 0 ? 'faulted' : 'playing',
-      entityId: this.entityId,
-      position,
-      disposableCount: this.component?.disposableCount ?? 0,
+      scriptSetDigest: this.scriptSetDigest,
+      scriptCount: scripts.length,
+      scripts,
+      entityId: primary?.entityId ?? null,
+      position: primary?.position ?? null,
+      disposableCount: scripts.reduce((sum, script) => sum + script.disposableCount, 0),
       errors: this.errors,
     });
   }
@@ -525,11 +627,14 @@ export class IsolatedTrustedPreviewRuntime {
   private async stopNow(reason: string): Promise<PreviewRuntimeSnapshot> {
     if (!this.world) return this.snapshot();
     const instanceId = this.instanceId;
-    const disposableCount = this.component?.disposableCount ?? 0;
+    const disposableCount = this.owners.reduce((sum, owner) => sum + owner.component.disposableCount, 0);
+    const scriptCount = this.owners.length;
+    this.releaseScriptOwners();
     this.world.destroy();
+    ScriptComponent.resetRuntimeApiFactory();
     ScriptComponent.resetExecutionOptions();
-    this.world = null; this.resource = null; this.component = null; this.entity = null; this.entityId = null; this.instanceId = null;
-    await this.log.append({ kind: 'preview/stopped', severity: 'info', source: asStableId('studio.preview'), correlation: { previewId: instanceId ?? undefined }, payload: { reason, disposedSideEffects: disposableCount } });
+    this.world = null; this.scriptSetDigest = null; this.instanceId = null;
+    await this.log.append({ kind: 'preview/stopped', severity: 'info', source: asStableId('studio.preview'), correlation: { previewId: instanceId ?? undefined }, payload: { reason, scriptCount, disposedSideEffects: disposableCount } });
     return this.snapshot();
   }
 
@@ -543,7 +648,11 @@ export class IsolatedTrustedPreviewRuntime {
   }
 
   private captureError(event: ScriptRuntimeErrorEvent): void {
+    const plan = this.planByComponent.get(event.component);
+    if (!plan) return;
     const error = Object.freeze({
+      scriptId: plan.scriptId,
+      entityId: plan.entityId,
       code: event.error.code,
       path: event.error.path ?? '',
       line: event.sourceLocation.line,
@@ -551,7 +660,16 @@ export class IsolatedTrustedPreviewRuntime {
       message: event.error.message,
     });
     this.errors = Object.freeze([...this.errors, error]);
-    void this.log.append({ kind: 'preview/runtime-error', severity: 'error', source: asStableId('studio.preview'), correlation: { entityId: this.entityId ?? undefined, previewId: this.instanceId ?? undefined }, payload: error }).catch(() => {});
+    void this.log.append({ kind: 'preview/runtime-error', severity: 'error', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId, previewId: this.instanceId ?? undefined }, payload: error }).catch(() => {});
+  }
+
+  private releaseScriptOwners(): void {
+    for (const owner of this.owners.splice(0).reverse()) {
+      owner.entity.removeComponent(owner.component);
+      owner.component.destroy();
+      this.planByComponent.delete(owner.component);
+    }
+    this.planByComponent.clear();
   }
 }
 
@@ -564,6 +682,55 @@ function scriptsFromWorkspace(owner: ProjectWorkspace, workspace: ProjectWorkspa
     capabilities: Object.freeze(normalizeStoredCapabilities(script.capabilities)), digest: script.digest, dirty: document.dirty,
   }));
   return freezeCatalog({ schemaVersion: 1, documentId: document.documentId, documentRevision: document.revision, resources });
+}
+
+export function playRuntimeConfigFromScene(scene: SceneSnapshot): PlayRuntimeConfig {
+  const component = scene.entities.flatMap((entity) => entity.components ?? []).find((value) => value.enabled && value.type === 'haiyue.simulation.settings');
+  if (!component) return DEFAULT_PLAY_RUNTIME_CONFIG;
+  return normalizePlayRuntimeConfig({ schemaVersion: 1, mode: 'fixed-step', tickRateHz: component.value.tickRateHz, maxSubSteps: component.value.maxSubSteps, seed: component.value.seed });
+}
+
+function normalizePlayRuntimeConfig(value: unknown): PlayRuntimeConfig {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Play runtime config must be an object.');
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).some((key) => !['schemaVersion', 'mode', 'tickRateHz', 'maxSubSteps', 'seed'].includes(key))
+    || input.schemaVersion !== 1 || input.mode !== 'fixed-step'
+    || typeof input.tickRateHz !== 'number' || !Number.isFinite(input.tickRateHz) || input.tickRateHz < 1 || input.tickRateHz > 240
+    || !Number.isSafeInteger(input.maxSubSteps) || Number(input.maxSubSteps) < 1 || Number(input.maxSubSteps) > 10_000
+    || typeof input.seed !== 'string' || input.seed.length < 1 || input.seed.length > 256) throw new TypeError('Play runtime config is invalid.');
+  return Object.freeze({ schemaVersion: 1, mode: 'fixed-step', tickRateHz: input.tickRateHz, maxSubSteps: Number(input.maxSubSteps), seed: input.seed });
+}
+
+function selectPreviewScripts(catalog: ScriptCatalogSnapshot, requestedIds: readonly StableId[] | undefined): readonly ScriptResourceSnapshot[] {
+  if (requestedIds !== undefined && (!Array.isArray(requestedIds) || requestedIds.length < 1 || requestedIds.length > MAX_PLAY_SCRIPTS)) throw new RangeError(`Preview scriptIds must contain 1-${MAX_PLAY_SCRIPTS} ids.`);
+  if (requestedIds && new Set(requestedIds).size !== requestedIds.length) throw new TypeError('Preview scriptIds must be unique.');
+  const requested = requestedIds ? new Set(requestedIds) : null;
+  const selected = catalog.resources
+    .filter((script) => requested ? requested.has(script.id) : script.enabled)
+    .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
+  if (requested && selected.length !== requested.size) throw new Error('One or more requested preview scripts do not exist.');
+  if (selected.some((script) => !script.enabled)) throw new Error('Disabled scripts cannot enter a preview plan.');
+  if (selected.length < 1) throw new Error('Preview requires at least one enabled committed script.');
+  if (selected.length > MAX_PLAY_SCRIPTS) throw new Error(`Preview exceeds the ${MAX_PLAY_SCRIPTS}-script budget.`);
+  if (new Set(selected.map((script) => script.entityId)).size !== selected.length) throw new Error('Only one enabled preview script may bind to each entity.');
+  return Object.freeze(selected);
+}
+
+function digestScriptSet(documentId: StableId, documentRevision: number, runtimeConfig: PlayRuntimeConfig, scripts: readonly PreviewScriptPlan[]): `sha256:${string}` {
+  const value = JSON.stringify({
+    schemaVersion: 1, documentId, documentRevision, runtimeConfig,
+    scripts: scripts.map((script) => ({ scriptId: script.scriptId, entityId: script.entityId, order: script.order, textRevision: script.textRevision, digest: script.digest, capabilities: script.capabilities })),
+  });
+  return `sha256:${createHash('sha256').update(value).digest('hex')}`;
+}
+
+function filterRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext, plans: ReadonlyMap<ScriptComponent, PreviewScriptPlan>): ScriptRuntimeApi {
+  const plan = plans.get(context.component);
+  if (!plan) return Object.freeze({});
+  const source = base as unknown as Record<string, unknown>;
+  const output: Record<string, unknown> = {};
+  for (const capability of plan.capabilities) if (source[capability] !== undefined) output[capability] = source[capability];
+  return Object.freeze(output) as unknown as ScriptRuntimeApi;
 }
 
 function freezeCatalog(value: ScriptCatalogSnapshot): ScriptCatalogSnapshot { return Object.freeze({ ...value, resources: Object.freeze(value.resources.map((item) => Object.freeze(item))) }); }
@@ -597,3 +764,4 @@ function lineDiff(before: string, after: string): Readonly<{ addedLines: number;
 function hasErrors(diagnostics: readonly ScriptDiagnostic[]): boolean { return diagnostics.some((item) => item.severity === 'error'); }
 function tuple(value: Readonly<{ x: number; y: number; z: number }>): [number, number, number] { return [value.x, value.y, value.z]; }
 function tupleRadians(value: Readonly<{ x: number; y: number; z: number }>): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }
+export * from './effects/index.js';

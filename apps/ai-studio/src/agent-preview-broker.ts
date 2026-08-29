@@ -20,6 +20,9 @@ interface PendingCommand {
 const STOPPED: PreviewRuntimeSnapshot = Object.freeze({
   instanceId: null,
   state: 'stopped',
+  scriptSetDigest: null,
+  scriptCount: 0,
+  scripts: Object.freeze([]),
   entityId: null,
   position: null,
   disposableCount: 0,
@@ -108,18 +111,37 @@ export class AgentPreviewBroker implements GamePreviewControl {
 function validatePreviewSnapshot(value: unknown): PreviewRuntimeSnapshot {
   if (!isRecord(value) || !['stopped', 'playing', 'faulted'].includes(String(value.state))
     || (value.instanceId !== null && typeof value.instanceId !== 'string')
+    || (value.scriptSetDigest !== null && (typeof value.scriptSetDigest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(value.scriptSetDigest)))
+    || !Number.isSafeInteger(value.scriptCount) || Number(value.scriptCount) < 0 || Number(value.scriptCount) > 128
+    || !Array.isArray(value.scripts) || value.scripts.length !== value.scriptCount || !value.scripts.every(isPreviewScriptSnapshot)
     || (value.entityId !== null && typeof value.entityId !== 'string')
     || !Number.isSafeInteger(value.disposableCount) || (value.disposableCount as number) < 0
     || !Array.isArray(value.errors)) throw new Error('Renderer preview acknowledgement is invalid.');
   const position = value.position === null ? null : validatePosition(value.position);
+  const scripts = Object.freeze((value.scripts as Record<string, unknown>[]).map((script) => Object.freeze({
+    scriptId: asStableId(script.scriptId as string), entityId: asStableId(script.entityId as string), order: Number(script.order),
+    state: script.state as 'playing' | 'faulted', position: script.position === null ? null : validatePosition(script.position),
+    disposableCount: Number(script.disposableCount), errorCount: Number(script.errorCount),
+  })));
   return Object.freeze({
     instanceId: value.instanceId === null ? null : asStableId(value.instanceId as string),
     state: value.state as PreviewRuntimeSnapshot['state'],
+    scriptSetDigest: value.scriptSetDigest as `sha256:${string}` | null,
+    scriptCount: Number(value.scriptCount),
+    scripts,
     entityId: value.entityId === null ? null : asStableId(value.entityId as string),
     position,
     disposableCount: value.disposableCount as number,
     errors: Object.freeze([]),
   });
+}
+
+function isPreviewScriptSnapshot(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && typeof value.scriptId === 'string' && typeof value.entityId === 'string'
+    && Number.isSafeInteger(value.order) && (value.state === 'playing' || value.state === 'faulted')
+    && (value.position === null || (() => { try { validatePosition(value.position); return true; } catch { return false; } })())
+    && Number.isSafeInteger(value.disposableCount) && Number(value.disposableCount) >= 0
+    && Number.isSafeInteger(value.errorCount) && Number(value.errorCount) >= 0;
 }
 
 function validatePosition(value: unknown): Readonly<{ x: number; y: number; z: number }> {

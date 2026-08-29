@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { StudioIpcRouter, validateStudioIpcRequest } from '../dist/ipc.js';
 
 function request(channel, payload = {}) {
@@ -15,6 +16,8 @@ const agentOwners = {
 
 test('IPC validator is versioned, allowlisted and never accepts renderer paths', () => {
   assert.equal(validateStudioIpcRequest(request('app/status')).channel, 'app/status');
+  assert.equal(validateStudioIpcRequest(request('asset/read', { assetId: 'asset:0123456789abcdef01234567' })).channel, 'asset/read');
+  assert.throws(() => validateStudioIpcRequest(request('asset/read', { assetId: 'asset:bad', path: 'C:\\secret' })), /fields|invalid/);
   assert.throws(() => validateStudioIpcRequest(request('shell:exec')), /not allowed/);
   assert.throws(() => validateStudioIpcRequest(request('project/open', { path: 'C:\\secret' })), /does not accept payload/);
   assert.throws(() => validateStudioIpcRequest(request('project/command', {
@@ -39,9 +42,9 @@ test('IPC validator is versioned, allowlisted and never accepts renderer paths',
   assert.throws(() => validateStudioIpcRequest(request('viewport/report', {
     event: 'frame', message: 'spam', sceneRevision: 1,
   })), /viewport\/report event/);
-  assert.throws(() => validateStudioIpcRequest(request('preview/prepare', {
-    scriptId: 'script:test', capabilities: ['network'],
-  })), /preview\/prepare payload/);
+  assert.throws(() => validateStudioIpcRequest(request('preview/prepare', { scriptId: 'script:test' })), /fields/);
+  assert.throws(() => validateStudioIpcRequest(request('preview/prepare', { scriptIds: ['script:test', 'script:test'] })), /unique/);
+  assert.throws(() => validateStudioIpcRequest(request('preview/prepare', { scriptIds: Array.from({ length: 129 }, (_, index) => `script:${index}`) })), /1-128/);
   assert.throws(() => validateStudioIpcRequest(request('preview/report', {
     event: 'state', message: 'frame spam', disposableCount: 0,
   })), /preview\/report payload/);
@@ -68,12 +71,15 @@ test('IPC validator is versioned, allowlisted and never accepts renderer paths',
 test('scene IPC exposes immutable JSON projections and routes typed intents through shared services', async () => {
   const calls = [];
   const events = [];
+  const assetBytes = Uint8Array.from([1, 2, 3, 4]);
+  const assetDigest = `sha256:${createHash('sha256').update(assetBytes).digest('hex')}`;
   const workspace = {
     snapshot: () => ({ document: { revision: 4 }, history: { canUndo: true, canRedo: false } }),
     cancelAll() {},
+    async readControlledAsset(projectPath, maxBytes) { calls.push(['asset-read', { projectPath, maxBytes }]); return assetBytes; },
   };
   const scene = {
-    snapshot: () => ({ schemaVersion: 1, revision: 2, documentId: 'document:test', entities: [] }),
+    snapshot: () => ({ schemaVersion: 1, revision: 2, documentId: 'document:test', entities: [], assets: [{ schemaVersion: 1, id: 'asset:0123456789abcdef01234567', kind: 'texture', digest: assetDigest, projectPath: 'assets/player.png', mimeType: 'image/png', byteLength: 4, decodedBytes: 16, license: 'internal-test', provenance: 'fixture', width: 2, height: 2 }] }),
     async createEntity(intent) { calls.push(['create', intent]); return this.snapshot(); },
     async setTransform(intent) { calls.push(['transform', intent]); return this.snapshot(); },
     async setMaterial(intent) { calls.push(['material', intent]); return this.snapshot(); },
@@ -86,6 +92,14 @@ test('scene IPC exposes immutable JSON projections and routes typed intents thro
 
   assert.equal((await router.handle(request('app/status'))).payload.smoke, true);
   assert.equal((await router.handle(request('scene/snapshot'))).payload.revision, 2);
+  const asset = await router.handle(request('asset/read', { assetId: 'asset:0123456789abcdef01234567' }));
+  assert.equal(asset.ok, true);
+  assert.equal(asset.payload.base64, 'AQIDBA==');
+  assert.equal(Object.hasOwn(asset.payload, 'projectPath'), false);
+  assetBytes[0] = 9;
+  const tampered = await router.handle(request('asset/read', { assetId: 'asset:0123456789abcdef01234567' }));
+  assert.equal(tampered.ok, false);
+  assert.equal(tampered.payload.diagnostic.code, 'asset-integrity-failed');
   assert.equal((await router.handle(request('scene/create', { commandId: 'command:cube', baseRevision: 4, kind: 'cube', material: 'pbr', color: [0.15, 0.8, 0.25, 1] }))).ok, true);
   assert.equal((await router.handle(request('scene/select', { entityId: 'entity:cube', source: 'hierarchy' }))).payload.activeEntityId, 'entity:cube');
   assert.equal((await router.handle(request('scene/transform', {
@@ -94,9 +108,9 @@ test('scene IPC exposes immutable JSON projections and routes typed intents thro
   }))).ok, true);
   assert.equal((await router.handle(request('scene/material', { commandId: 'command:material', baseRevision: 6, entityId: 'entity:cube', material: 'pbr', color: [1, 0.2, 0.1, 1] }))).ok, true);
   assert.equal((await router.handle(request('viewport/report', { event: 'ready', message: 'gpu', sceneRevision: 2 }))).ok, true);
-  assert.deepEqual(calls.map(([kind]) => kind), ['create', 'select', 'transform', 'material']);
-  assert.deepEqual(calls[0][1].color, [0.15, 0.8, 0.25, 1]);
-  assert.deepEqual(calls[3][1].color, [1, 0.2, 0.1, 1]);
+  assert.deepEqual(calls.map(([kind]) => kind), ['asset-read', 'asset-read', 'create', 'select', 'transform', 'material']);
+  assert.deepEqual(calls[2][1].color, [0.15, 0.8, 0.25, 1]);
+  assert.deepEqual(calls[5][1].color, [1, 0.2, 0.1, 1]);
   assert.ok(events.some((event) => event.kind === 'viewport/ready' && event.source === 'studio.viewport.renderer'));
   router.dispose();
 });
@@ -125,12 +139,42 @@ test('new-project IPC stays untitled until first save selects a directory', asyn
   router.dispose();
 });
 
+test('project replacement clears project-scoped Agent work without cancelling a dismissed picker', async () => {
+  const calls = [];
+  const workspace = {
+    cancelAll() {},
+    snapshot: () => ({ projectRoot: 'D:\\old-project', document: { revision: 1 } }),
+    async newProject() { calls.push('workspace:new'); return { document: { revision: 1 } }; },
+    async openProject(root) { calls.push(`workspace:open:${root}`); return { document: { revision: 2 } }; },
+    async closeProject() { calls.push('workspace:close'); },
+    async reopen() { calls.push('workspace:reopen'); return { document: { revision: 3 } }; },
+  };
+  const conversation = { ...agentOwners.conversation, cancelPending(reason) { calls.push(`conversation:cancel:${reason}`); } };
+  const agentPreview = { ...agentOwners.agentPreview, cancelPending() { calls.push('preview:cancel'); } };
+  let selectedRoot = null;
+  const router = new StudioIpcRouter({ workspace, operationLog: { append: async () => ({}) }, ...agentOwners, conversation, agentPreview, selectProjectRoot: async () => selectedRoot });
+
+  const dismissed = await router.handle(request('project/open'));
+  assert.equal(dismissed.ok, false);
+  assert.deepEqual(calls, []);
+
+  selectedRoot = 'D:\\tetris';
+  assert.equal((await router.handle(request('project/open'))).ok, true);
+  assert.deepEqual(calls.slice(0, 3), ['conversation:cancel:Project replaced by an opened project.', 'preview:cancel', 'workspace:open:D:\\tetris']);
+  calls.length = 0;
+  assert.equal((await router.handle(request('project/new', { name: 'Next' }))).ok, true);
+  assert.deepEqual(calls, ['conversation:cancel:Project replaced by a new project.', 'preview:cancel', 'workspace:new']);
+  router.dispose();
+});
+
 test('script preview IPC discloses risk before one-shot code delivery and logs no source text', async () => {
   const events = [];
   const emittedText = 'compiled-secret-script();';
+  const digest = `sha256:${'a'.repeat(64)}`;
   const plan = {
-    id: 'preview-plan:test', scriptId: 'script:test', entityId: 'entity:test', documentRevision: 4,
-    textRevision: 2, digest: 'digest:test', capabilities: ['read'], risk: 'trusted-project', diagnostics: [], emittedText,
+    id: 'preview-plan:test', documentId: 'document:test', documentRevision: 4, selection: 'all-enabled', scriptSetDigest: digest,
+    scripts: [{ scriptId: 'script:test', entityId: 'entity:test', order: 0, textRevision: 2, digest: 'a'.repeat(64), capabilities: ['read'], diagnostics: [], emittedText }],
+    capabilities: ['read'], runtimeConfig: { schemaVersion: 1, mode: 'fixed-step', tickRateHz: 60, maxSubSteps: 1000, seed: 'test' }, risk: 'trusted-project', diagnostics: [],
   };
   const scripts = {
     snapshot: () => ({ schemaVersion: 1, documentId: 'document:test', documentRevision: 4, resources: [] }),
@@ -142,14 +186,14 @@ test('script preview IPC discloses risk before one-shot code delivery and logs n
   const operationLog = { async append(event) { events.push(event); return {}; } };
   const router = new StudioIpcRouter({ workspace, scripts, operationLog, ...agentOwners, selectProjectRoot: async () => null });
 
-  const disclosure = await router.handle(request('preview/prepare', { scriptId: 'script:test', capabilities: ['read'] }));
+  const disclosure = await router.handle(request('preview/prepare', {}));
   assert.equal(disclosure.ok, true);
   assert.equal(disclosure.payload.risk, 'trusted-project');
-  assert.equal(Object.hasOwn(disclosure.payload, 'emittedText'), false);
+  assert.equal(Object.hasOwn(disclosure.payload.scripts[0], 'emittedText'), false);
   const authorized = await router.handle(request('preview/authorize', { planId: plan.id, approved: true }));
   assert.equal(authorized.payload.id, 'preview-grant:test');
   const consumed = await router.handle(request('preview/consume', { grantId: 'preview-grant:test' }));
-  assert.equal(consumed.payload.emittedText, emittedText);
+  assert.equal(consumed.payload.scripts[0].emittedText, emittedText);
   assert.equal(JSON.stringify(events).includes(emittedText), false);
   router.dispose();
 });

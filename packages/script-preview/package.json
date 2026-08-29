@@ -5,7 +5,10 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./effects": { "types": "./dist/effects/index.d.ts", "import": "./dist/effects/index.js" }
+  },
   "engines": { "node": ">=22.19.0" },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log",
@@ -18,7 +21,9 @@
     "@haiyue/ai-studio-contracts": "0.0.0",
     "@haiyue/ai-studio-editor-plugins": "0.0.0",
     "@haiyue/ai-studio-operation-log": "0.0.0",
+    "@haiyue/animation-spec": "0.1.0",
     "@haiyue/engine": "0.1.0",
+    "@haiyue/extensions": "0.1.0",
     "typescript": "6.0.3"
   }
 }

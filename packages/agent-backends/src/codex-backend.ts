@@ -56,6 +56,8 @@ export class CodexAppServerBackend implements AgentBackend {
   private modelCatalogPromise?: Promise<AgentModelCatalog>;
   private readonly wireEfforts = new Map<string, ReadonlyMap<M12ReasoningEffort, string>>();
   private readonly usageSequences = new Map<StableId, number>();
+  private readonly threadUsageTotals = new Map<string, RpcObject>();
+  private readonly turnUsageBaselines = new Map<StableId, RpcObject>();
 
   constructor(private readonly options: CodexAppServerBackendOptions = {}) {
     if (options.requestTimeoutMs !== undefined && (!Number.isSafeInteger(options.requestTimeoutMs) || options.requestTimeoutMs < 10 || options.requestTimeoutMs > 120_000)) {
@@ -167,7 +169,7 @@ export class CodexAppServerBackend implements AgentBackend {
     for (const channel of this.turns.values()) channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(error), 'interrupted');
     this.pendingTools.clear(); this.pendingQuestions.clear();
     for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear();
-    this.threadToolNames.clear(); this.threadToolSignatures.clear();
+    this.threadToolNames.clear(); this.threadToolSignatures.clear(); this.threadUsageTotals.clear(); this.turnUsageBaselines.clear();
     const failures: unknown[] = []; let transportClosed = true;
     try { await this.transport?.dispose(); }
     catch (cause) { transportClosed = false; failures.push(cause); }
@@ -213,6 +215,7 @@ export class CodexAppServerBackend implements AgentBackend {
       const turn = isRecord(response) && isRecord(response.turn) ? response.turn : undefined;
       if (!turn || typeof turn.id !== 'string') throw this.protocol('codex.turn-malformed', 'Codex returned a malformed turn identity.');
       turnId = asStableId(turn.id); this.turns.set(turnId, channel); this.threadTurns.set(threadId, turnId);
+      this.turnUsageBaselines.set(turnId, this.threadUsageTotals.get(threadId) ?? Object.freeze({}));
       if (unownedTempCwd) { this.ownedCwds.set(threadId, unownedTempCwd); unownedTempCwd = undefined; }
       channel.emit(backendEvent(this.descriptor.id, threadId, turn.id, 'status', { status: 'running', model: effective.model, reasoningEffort: effective.reasoningEffort, outputTokenLimit: effective.outputTokenLimit }));
       if (signal) {
@@ -372,7 +375,9 @@ export class CodexAppServerBackend implements AgentBackend {
       const total = isRecord(params.tokenUsage.total) ? params.tokenUsage.total : {};
       const last = isRecord(params.tokenUsage.last) ? params.tokenUsage.last : {};
       const sequence = (this.usageSequences.get(turnId) ?? 0) + 1; this.usageSequences.set(turnId, sequence);
-      channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', normalizedTokenUsage(turnId, sequence, last, total, params.tokenUsage.modelContextWindow)));
+      const baseline = this.turnUsageBaselines.get(turnId) ?? Object.freeze({});
+      channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', normalizedTokenUsage(turnId, sequence, last, total, baseline, params.tokenUsage.modelContextWindow)));
+      this.threadUsageTotals.set(threadId, usageTotalSnapshot(total));
     } else if (method === 'error') {
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'diagnostic', { code: 'codex.server-error', message: diagnosticMessage(params), retryable: false }));
     } else if (method === 'turn/completed') {
@@ -387,7 +392,7 @@ export class CodexAppServerBackend implements AgentBackend {
       await this.rejectPendingForTurn(turnId, `Codex turn ended with status ${turn.status}.`);
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'completed', { status, finishReason: codexFinishReason(status) }));
       this.turnAbortCleanups.get(turnId)?.(); this.turnAbortCleanups.delete(turnId);
-      this.usageSequences.delete(turnId);
+      this.usageSequences.delete(turnId); this.turnUsageBaselines.delete(turnId);
       // The isolated cwd is owned by the reusable thread and is released on backend disposal or process exit.
     }
   }
@@ -503,17 +508,27 @@ function classifyTurnError(value: RpcObject): JsonObject {
 function toJsonObject(value: JsonValue): JsonObject { return isRecord(value) ? jsonObject(value) : { value }; }
 function jsonObject(value: RpcObject): JsonObject { return JSON.parse(JSON.stringify(value)) as JsonObject; }
 function jsonArray(value: unknown[]): JsonValue[] { return JSON.parse(JSON.stringify(value)) as JsonValue[]; }
-function normalizedTokenUsage(turnId: StableId, sequence: number, last: RpcObject, total: RpcObject, contextWindow: unknown): JsonObject {
+function normalizedTokenUsage(turnId: StableId, sequence: number, last: RpcObject, total: RpcObject, baseline: RpcObject, contextWindow: unknown): JsonObject {
   const result: Record<string, JsonValue> = { eventId: `${turnId}:usage:${sequence}`, sequence, mode: 'cumulative' };
-  copyNumber(total, 'inputTokens', result, 'inputTokens'); copyNumber(total, 'outputTokens', result, 'outputTokens'); copyNumber(total, 'cachedInputTokens', result, 'cachedInputTokens'); copyNumber(total, 'cacheWriteInputTokens', result, 'cacheWriteTokens'); copyNumber(total, 'reasoningOutputTokens', result, 'reasoningTokens');
+  copyTurnNumber(total, baseline, 'inputTokens', result, 'inputTokens'); copyTurnNumber(total, baseline, 'outputTokens', result, 'outputTokens'); copyTurnNumber(total, baseline, 'cachedInputTokens', result, 'cachedInputTokens'); copyTurnNumber(total, baseline, 'cacheWriteInputTokens', result, 'cacheWriteTokens'); copyTurnNumber(total, baseline, 'reasoningOutputTokens', result, 'reasoningTokens');
   copyNumber(last, 'inputTokens', result, 'lastInputTokens'); copyNumber(last, 'outputTokens', result, 'lastOutputTokens'); if (typeof contextWindow === 'number') result.modelContextWindow = contextWindow;
   return Object.freeze(result);
+}
+function usageTotalSnapshot(total: RpcObject): RpcObject {
+  const snapshot: RpcObject = {};
+  for (const key of codexTokenUsageKeys) if (typeof total[key] === 'number' && Number.isFinite(total[key]) && total[key] >= 0) snapshot[key] = total[key];
+  return Object.freeze(snapshot);
+}
+function copyTurnNumber(source: RpcObject, baseline: RpcObject, sourceKey: string, target: Record<string, JsonValue>, targetKey: string): void {
+  const value = source[sourceKey]; if (typeof value !== 'number') return;
+  const prior = baseline[sourceKey]; target[targetKey] = typeof prior === 'number' && value >= prior ? value - prior : value;
 }
 function copyNumber(source: RpcObject, sourceKey: string, target: Record<string, JsonValue>, targetKey: string): void { const value = source[sourceKey]; if (typeof value === 'number') target[targetKey] = value; }
 function isJsonValue(value: unknown): value is JsonValue { try { return value === null || ['string', 'number', 'boolean'].includes(typeof value) || (typeof value === 'object' && JSON.stringify(value) !== undefined); } catch { return false; } }
 function codexToolName(id: StableId, index: number): string { const normalized = id.replace(/[^A-Za-z0-9_-]/gu, '_').slice(0, 48); return `studio_${index}_${normalized}`; }
 const deniedServerMethods = new Set(['item/commandExecution/requestApproval', 'item/fileChange/requestApproval', 'item/permissions/requestApproval', 'applyPatchApproval', 'execCommandApproval', 'mcpServer/elicitation/request']);
 const forbiddenServerMethods = new Set(['account/chatgptAuthTokens/refresh', 'attestation/generate', 'currentTime/read']);
+const codexTokenUsageKeys = Object.freeze(['inputTokens', 'outputTokens', 'cachedInputTokens', 'cacheWriteInputTokens', 'reasoningOutputTokens']);
 export const CODEX_DISABLED_FEATURES = Object.freeze([
   'apps', 'auth_elicitation', 'browser_use', 'browser_use_external', 'browser_use_full_cdp_access', 'computer_use',
   'hooks', 'image_generation', 'in_app_browser', 'multi_agent', 'plugins', 'plugin_sharing', 'shell_snapshot', 'shell_tool',

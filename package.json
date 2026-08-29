@@ -12,11 +12,13 @@
     "apps/*"
   ],
   "dependencies": {
+    "@haiyue/animation-spec": "file:vendor/haiyue-animation-spec-0.1.0.tgz",
     "@haiyue/editor-app-kit": "file:vendor/haiyue-editor-app-kit-0.1.0.tgz",
     "@haiyue/editor-platform": "file:vendor/haiyue-editor-platform-0.1.0.tgz",
     "@haiyue/editor-plugin-sdk": "file:vendor/haiyue-editor-plugin-sdk-0.1.0.tgz",
     "@haiyue/editor-shell": "file:vendor/haiyue-editor-shell-0.1.0.tgz",
-    "@haiyue/engine": "file:vendor/haiyue-engine-0.1.0.tgz"
+    "@haiyue/engine": "file:vendor/haiyue-engine-0.1.0.tgz",
+    "@haiyue/extensions": "file:vendor/haiyue-extensions-0.1.0.tgz"
   },
   "scripts": {
     "contracts:check": "node scripts/verify-contracts.mjs",
@@ -24,9 +26,10 @@
     "upstream:check": "node scripts/verify-upstream-pins.mjs",
     "editor:candidate:check": "node scripts/verify-editor-candidates.mjs",
     "engine:candidate:check": "node scripts/verify-engine-candidate.mjs",
+    "render:candidate:check": "node scripts/verify-render-extension-candidates.mjs",
     "spike:check": "node scripts/verify-protocol-spikes.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "npm run contracts:check && npm run typecheck && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run spike:check",
+    "check": "npm run contracts:check && npm run typecheck && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run render:candidate:check && npm run spike:check",
     "g01:check": "npm run check && npm run editor:candidate:check",
     "m12:g01:check": "npm run contracts:check && npm run typecheck -w @haiyue/ai-studio-contracts && npm run boundaries:check && node scripts/verify-m12-g01.mjs",
     "m12:g02:check": "node --test evals/test/*.test.mjs && node scripts/verify-m12-g02.mjs",
@@ -34,6 +37,8 @@
     "m12:g04:check": "npm test -w @haiyue/ai-studio-operation-log && npm test -w @haiyue/ai-studio-agent-runtime && npm test -w @haiyue/ai-studio-agent-backends && npm test -w @haiyue/ai-studio-shell && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g10-agent-integration.test.mjs && node --test evals/test/*.test.mjs && node scripts/verify-m12-g04.mjs",
     "m12:g05:check": "npm run contracts:check && npm test -w @haiyue/ai-studio-editor-plugins && node scripts/verify-m12-g05.mjs",
     "m12:g07:check": "npm run contracts:check && npm run engine:candidate:check && npm test -w @haiyue/ai-studio-editor-plugins && npm test -w @haiyue/ai-studio-script-preview && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g07-physics-runtime.test.mjs && node scripts/verify-m12-g07.mjs",
+    "m12:g08:check": "npm run contracts:check && npm run engine:candidate:check && npm run render:candidate:check && npm test -w @haiyue/ai-studio-editor-plugins && npm test -w @haiyue/ai-studio-game-authoring-tools && npm test -w @haiyue/ai-studio-script-preview && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g08-render-effects-runtime.test.mjs apps/ai-studio/test/ipc.test.mjs apps/ai-studio/test/preview-asset-transfer.test.mjs apps/ai-studio/test/security.test.mjs && node --test --test-concurrency=1 apps/ai-studio/test/g08-render-electron.test.mjs apps/ai-studio/test/g08-preview-asset-electron.test.mjs && node scripts/verify-m12-g08.mjs",
+    "m12:g09:check": "npm run contracts:check && npm test -w @haiyue/ai-studio-script-preview && npm test -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/ipc.test.mjs apps/ai-studio/test/g10-agent-integration.test.mjs && node --test apps/ai-studio/test/g09-multi-script-electron.test.mjs && node scripts/verify-m12-g09.mjs",
     "codex:schema:generate": "node scripts/generate-codex-schema.mjs",
     "g10:evidence:check": "node scripts/verify-g10-evidence.mjs"
   },

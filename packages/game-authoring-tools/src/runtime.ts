@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { asStableId, type ComponentDefinitionV2, type GameComponentInstanceV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, projectCameraFromSettings, PROJECT_CAMERA_SETTING_KEY, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type SceneMaterialColor, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
+import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, ControlledAssetError, type ControlledAssetKind, type ControlledAssetLicense } from '@haiyue/ai-studio-editor-plugins/assets';
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
@@ -305,6 +306,15 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       });
     }
+    case 'asset.search': {
+      const catalog = controlledAssetCatalog(options.workspace);
+      const assets = catalog.search({
+        ...(args.text === undefined ? {} : { text: args.text as string }),
+        ...(args.kind === undefined ? {} : { kind: args.kind as ControlledAssetKind }),
+        ...(args.limit === undefined ? {} : { limit: args.limit as number }),
+      });
+      return Object.freeze({ assets: assets as unknown as JsonValue, count: assets.length });
+    }
     case 'camera.set': {
       const camera = args.camera as JsonObject;
       const next = await options.workspace.execute({ id: commandId(stored.call.id), label: 'Set Camera', baseRevision: args.baseRevision as number, key: PROJECT_CAMERA_SETTING_KEY, value: camera }, signal);
@@ -352,6 +362,58 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while removing a component.');
       return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, entityId: target.entityId, componentId: target.component.id, removedType: target.component.type });
     }
+    case 'asset.import': {
+      const catalog = controlledAssetCatalog(options.workspace);
+      let entry;
+      try {
+        const bytes = await options.workspace.readControlledAsset(args.projectPath as string, 32 * 1024 * 1024, signal);
+        entry = catalog.import({
+          projectPath: args.projectPath as string,
+          bytes,
+          mimeType: args.mimeType as string,
+          kind: args.kind as ControlledAssetKind,
+          license: args.license as ControlledAssetLicense,
+          provenance: args.provenance as string,
+          decodedBytes: args.decodedBytes as number,
+          ...(args.width === undefined ? {} : { width: args.width as number }),
+          ...(args.height === undefined ? {} : { height: args.height as number }),
+        });
+      } catch (cause) { throw assetProtocolError(cause); }
+      const next = await options.workspace.executeBatch({
+        id: commandId(stored.call.id), label: 'Import Asset', baseRevision: args.baseRevision as number,
+        operations: [
+          { op: 'asset.upsert', asset: { id: entry.id, kind: entry.kind, digest: entry.digest, source: 'project' } },
+          { op: 'setting.set', key: CONTROLLED_ASSET_CATALOG_SETTING_KEY, value: catalog.settingValue() },
+        ],
+      }, signal);
+      if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while importing an asset.');
+      return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, asset: entry as unknown as JsonValue });
+    }
+    case 'asset.assign': {
+      const catalog = controlledAssetCatalog(options.workspace);
+      const entityId = args.entityId as StableId;
+      const usage = args.usage as AssetUsage;
+      try { catalog.assignment(args.assetId as string, usage); } catch (cause) { throw assetProtocolError(cause); }
+      const sceneEntity = requireEntity(scene, entityId);
+      if (isPbrTextureUsage(usage) && !isSceneGeometryKind(sceneEntity.kind)) throw new GameToolProtocolError('asset.target-incompatible', `${usage} requires a geometry entity with Mesh3D.`);
+      const result = options.workspace.queryGameDocument({ entityId, limit: 256 });
+      if (!result.entities[0]) throw new GameToolProtocolError('tool.entity-missing', `Entity ${entityId} does not exist.`);
+      const binding = assetBinding(usage, args.assetId as StableId);
+      const existing = result.components.find((item) => item.type === binding.type && item.version === '1.0.0');
+      let component: GameComponentInstanceV2;
+      let operation;
+      if (existing) {
+        component = options.workspace.componentRegistry.validate({ ...existing, value: Object.freeze({ ...existing.value, ...binding.patch }) });
+        operation = { op: 'component.replace' as const, component };
+      } else {
+        const definition = resolveComponentDefinition(options.workspace, binding.type, '1.0.0');
+        component = options.workspace.componentRegistry.create({ id: asStableId(`component:${randomUUID()}`), type: binding.type, version: definition.version, enabled: true, value: Object.freeze({ ...definition.defaults, ...binding.patch }) });
+        operation = { op: 'component.add' as const, entityId, component };
+      }
+      const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: 'Assign Asset', baseRevision: args.baseRevision as number, operations: [operation] }, signal);
+      if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while assigning an asset.');
+      return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, entityId, assetId: args.assetId as StableId, usage, component: component as unknown as JsonValue });
+    }
     case 'script.propose': {
       const proposal = await options.scripts.proposeEdit({ entityId: args.entityId as StableId, text: args.text as string, baseRevision: args.baseRevision as number, ...(args.capabilities ? { capabilities: args.capabilities as ScriptCapabilityName[] } : {}) });
       proposals.set(proposal.id, proposal);
@@ -366,14 +428,21 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'preview.validate': {
       if (!scene.entities.some((item) => isSceneGeometryKind(item.kind))) throw new GameToolProtocolError('tool.preview-no-renderables', 'Preview scene has no renderable geometry. Create at least one primitive before Play.');
-      const plan = await options.scripts.prepare(args.scriptId as StableId, args.capabilities as ScriptCapabilityName[] | undefined); plans.set(plan.id, plan);
-      return Object.freeze({ planId: plan.id, scriptId: plan.scriptId, entityId: plan.entityId, documentRevision: plan.documentRevision, textRevision: plan.textRevision, digest: plan.digest, capabilities: plan.capabilities, risk: plan.risk, diagnostics: plan.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })) });
+      const scriptIds = args.scriptIds as readonly StableId[] | undefined;
+      const plan = await options.scripts.prepare(scriptIds ? { scriptIds } : undefined); plans.set(plan.id, plan);
+      return Object.freeze({
+        planId: plan.id, documentId: plan.documentId, documentRevision: plan.documentRevision,
+        selection: plan.selection, scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length,
+        scripts: plan.scripts.map((script) => Object.freeze({ scriptId: script.scriptId, entityId: script.entityId, textRevision: script.textRevision, digest: script.digest, capabilities: script.capabilities })),
+        capabilities: plan.capabilities, runtimeConfig: plan.runtimeConfig as unknown as JsonValue, risk: plan.risk,
+        diagnostics: plan.diagnostics.map((item) => Object.freeze({ scriptId: item.scriptId, entityId: item.entityId, code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })),
+      });
     }
     case 'preview.start': {
       const planId = args.planId as StableId; const plan = plans.get(planId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Validated preview plan is unavailable.');
       const grant = await options.scripts.decide(planId, true); if (!grant) throw new GameToolProtocolError('tool.preview-rejected', 'Preview authorization was rejected.');
-      const consumed = options.scripts.consume(grant.id); if (consumed.digest !== plan.digest) throw new GameToolProtocolError('approval.digest-mismatch', 'Preview plan changed after approval.');
-      const runtime = await options.preview.start(scene, consumed, signal); plans.delete(planId); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, entityId: runtime.entityId, disposableCount: runtime.disposableCount });
+      const consumed = options.scripts.consume(grant.id); if (consumed.scriptSetDigest !== plan.scriptSetDigest) throw new GameToolProtocolError('approval.digest-mismatch', 'Preview script set changed after approval.');
+      const runtime = await options.preview.start(scene, consumed, signal); plans.delete(planId); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, entityId: runtime.entityId, scriptSetDigest: runtime.scriptSetDigest, scriptCount: runtime.scriptCount, disposableCount: runtime.disposableCount });
     }
     case 'preview.stop': {
       const runtime = await options.preview.stop(signal); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount });
@@ -403,6 +472,14 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'entity.get': exact(raw, ['entityId'], [], toolId); return Object.freeze({ entityId: stable(raw.entityId, 'entity id') });
     case 'script.get': { exact(raw, [], ['entityId', 'scriptId'], toolId); if (!raw.entityId && !raw.scriptId) throw invalid('script.get requires entityId or scriptId.'); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
     case 'diagnostics.query': return normalizeLogQuery(raw);
+    case 'asset.search': {
+      exact(raw, [], ['text', 'kind', 'limit'], toolId);
+      return Object.freeze({
+        ...(raw.text === undefined ? {} : { text: boundedString(raw.text, 'text', 256) }),
+        ...(raw.kind === undefined ? {} : { kind: assetKindValue(raw.kind) }),
+        ...(raw.limit === undefined ? {} : { limit: boundedInteger(raw.limit, 'limit', 1, 200) }),
+      });
+    }
     case 'camera.set': {
       exact(raw, ['camera'], ['baseRevision'], toolId);
       try {
@@ -422,9 +499,30 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'component.add': exact(raw, ['entityId', 'type'], ['baseRevision', 'version', 'enabled', 'value'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), enabled: raw.enabled === undefined ? true : booleanValue(raw.enabled, 'enabled'), value: jsonObjectValue(raw.value ?? {}, 'component value') as JsonValue });
     case 'component.set': exact(raw, ['componentId', 'value'], ['baseRevision', 'enabled'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), value: jsonObjectValue(raw.value, 'component value') as JsonValue });
     case 'component.remove': exact(raw, ['componentId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id') });
+    case 'asset.import': {
+      exact(raw, ['projectPath', 'kind', 'mimeType', 'license', 'provenance', 'decodedBytes'], ['baseRevision', 'width', 'height'], toolId);
+      if ((raw.width === undefined) !== (raw.height === undefined)) throw invalid('Asset width and height must be supplied together.');
+      const projectPath = boundedString(raw.projectPath, 'projectPath', 512, true).replaceAll('\\', '/');
+      if (projectPath.startsWith('/') || /^[A-Za-z]:/u.test(projectPath) || projectPath.split('/').includes('..') || !projectPath.startsWith('assets/')) throw invalid('projectPath must stay under the project assets directory.');
+      return Object.freeze({
+        baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), projectPath,
+        kind: assetKindValue(raw.kind), mimeType: boundedString(raw.mimeType, 'mimeType', 128, true),
+        license: assetLicenseValue(raw.license), provenance: boundedString(raw.provenance, 'provenance', 512, true),
+        decodedBytes: boundedInteger(raw.decodedBytes, 'decodedBytes', 1, 128 * 1024 * 1024),
+        ...(raw.width === undefined ? {} : { width: boundedInteger(raw.width, 'width', 1, 8192), height: boundedInteger(raw.height, 'height', 1, 8192) }),
+      });
+    }
+    case 'asset.assign': exact(raw, ['entityId', 'assetId', 'usage'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), assetId: assetIdValue(raw.assetId), usage: assetUsageValue(raw.usage) });
     case 'script.propose': exact(raw, ['entityId', 'text'], ['baseRevision', 'capabilities'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
     case 'script.apply': exact(raw, ['proposalId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), proposalId: stable(raw.proposalId, 'proposal id') });
-    case 'preview.validate': exact(raw, ['scriptId'], ['capabilities'], toolId); return Object.freeze({ scriptId: stable(raw.scriptId, 'script id'), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+    case 'preview.validate': {
+      exact(raw, [], ['scriptIds'], toolId);
+      if (raw.scriptIds === undefined) return Object.freeze({});
+      if (!Array.isArray(raw.scriptIds) || raw.scriptIds.length < 1 || raw.scriptIds.length > 128) throw invalid('scriptIds must contain 1-128 script ids.');
+      const scriptIds = raw.scriptIds.map((item) => stable(item, 'script id'));
+      if (new Set(scriptIds).size !== scriptIds.length) throw invalid('scriptIds must be unique.');
+      return Object.freeze({ scriptIds });
+    }
     case 'preview.start': exact(raw, ['planId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), planId: stable(raw.planId, 'plan id') });
     default: throw new GameToolProtocolError('tool.not-found', `Unknown tool ${toolId}.`);
   }
@@ -462,6 +560,12 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       if (target.component.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
       return preview('Remove component', target.entityId, `Remove ${target.component.type} from ${target.entityName}.`, `- ${target.component.type}@${target.component.version}`);
     }
+    case 'asset.import': return preview('Register project asset', snapshot.documentId, `Register ${raw.kind} asset ${String(raw.projectPath).split('/').at(-1)} with ${raw.license} provenance.`, `+ ${raw.kind} ${raw.mimeType} (${raw.decodedBytes} decoded bytes)`);
+    case 'asset.assign': {
+      const entity = requireEntity(snapshot, raw.entityId as StableId);
+      if (isPbrTextureUsage(raw.usage as AssetUsage) && !isSceneGeometryKind(entity.kind)) throw new GameToolProtocolError('asset.target-incompatible', `${raw.usage} requires a geometry entity with Mesh3D.`);
+      return preview('Assign project asset', entity.id, `Assign ${raw.assetId} as ${raw.usage} on ${entity.name}.`, `+ ${raw.usage} → ${raw.assetId}`);
+    }
     case 'script.apply': {
       const proposal = proposals.get(raw.proposalId as StableId);
       if (!proposal) throw new GameToolProtocolError('tool.proposal-missing', 'Script proposal is unavailable.');
@@ -470,7 +574,7 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       if (errors.length) throw new GameToolProtocolError('tool.script-validation-failed', `Script proposal has ${errors.length} validation error(s): ${errors.slice(0, 4).map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join(' | ')} Rewrite and propose again before apply.`);
       return preview('Apply script proposal', proposal.scriptId, `Commit validated proposal with +${proposal.addedLines}/-${proposal.removedLines} lines.`, `digest ${proposal.digest}`);
     }
-    case 'preview.start': { const plan = plans.get(raw.planId as StableId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Preview plan is unavailable.'); if (plan.documentRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Preview plan base revision differs.'); return preview('Start trusted preview', plan.scriptId, `Start trusted-project preview with ${plan.capabilities.join(', ')}.`, `script digest ${plan.digest}`); }
+    case 'preview.start': { const plan = plans.get(raw.planId as StableId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Preview plan is unavailable.'); if (plan.documentRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Preview plan base revision differs.'); return preview('Start trusted preview', plan.documentId, `Start ${plan.scripts.length} trusted project script(s) with ${plan.capabilities.join(', ')}.`, `script-set digest ${plan.scriptSetDigest}`); }
     default: return preview(GAME_AUTHORING_TOOL_BY_ID.get(toolId)?.title ?? toolId, snapshot.documentId, `Execute ${toolId}.`, 'No Document mutation in this step.');
   }
 }
@@ -532,9 +636,34 @@ function resolveComponentToolPolicy(definition: GameToolDefinition, args: JsonOb
   }
   return Object.freeze({ ...definition, risk: componentDefinition.risk, requiresApproval: componentDefinition.risk !== 'low' });
 }
+type AssetUsage = 'texture.base-color' | 'texture.metallic-roughness' | 'texture.normal' | 'texture.occlusion' | 'texture.emissive' | 'texture.environment-diffuse' | 'texture.environment-specular' | 'model' | 'audio' | 'animation';
+function controlledAssetCatalog(workspace: ProjectWorkspace): ControlledAssetCatalog {
+  try { return ControlledAssetCatalog.fromManifest(workspace.gameSnapshot().settings[CONTROLLED_ASSET_CATALOG_SETTING_KEY]); }
+  catch (cause) { throw assetProtocolError(cause); }
+}
+function assetProtocolError(cause: unknown): GameToolProtocolError {
+  if (cause instanceof GameToolProtocolError) return cause;
+  if (cause instanceof ControlledAssetError) return new GameToolProtocolError(cause.code, cause.message);
+  return new GameToolProtocolError('asset.operation-failed', errorMessage(cause));
+}
+function assetBinding(usage: AssetUsage, assetId: StableId): Readonly<{ type: StableId; patch: JsonObject }> {
+  switch (usage) {
+    case 'texture.base-color': return Object.freeze({ type: asStableId('haiyue.material.pbr'), patch: Object.freeze({ baseColorAssetId: assetId }) });
+    case 'texture.metallic-roughness': return Object.freeze({ type: asStableId('haiyue.material.pbr'), patch: Object.freeze({ metallicRoughnessAssetId: assetId }) });
+    case 'texture.normal': return Object.freeze({ type: asStableId('haiyue.material.pbr'), patch: Object.freeze({ normalAssetId: assetId }) });
+    case 'texture.occlusion': return Object.freeze({ type: asStableId('haiyue.material.pbr'), patch: Object.freeze({ occlusionAssetId: assetId }) });
+    case 'texture.emissive': return Object.freeze({ type: asStableId('haiyue.material.pbr'), patch: Object.freeze({ emissiveAssetId: assetId }) });
+    case 'texture.environment-diffuse': return Object.freeze({ type: asStableId('haiyue.light.environment'), patch: Object.freeze({ diffuseAssetId: assetId }) });
+    case 'texture.environment-specular': return Object.freeze({ type: asStableId('haiyue.light.environment'), patch: Object.freeze({ specularAssetId: assetId }) });
+    case 'model': return Object.freeze({ type: asStableId('haiyue.model.gltf'), patch: Object.freeze({ assetId }) });
+    case 'audio': return Object.freeze({ type: asStableId('haiyue.audio.source'), patch: Object.freeze({ assetIds: Object.freeze([assetId]) }) });
+    case 'animation': return Object.freeze({ type: asStableId('haiyue.animation.2d'), patch: Object.freeze({ assetId }) });
+  }
+}
+function isPbrTextureUsage(usage: AssetUsage): boolean { return ['texture.base-color', 'texture.metallic-roughness', 'texture.normal', 'texture.occlusion', 'texture.emissive'].includes(usage); }
 function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(entity.components ? { components: entity.components as unknown as JsonValue } : {}), ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
-function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;
   return Object.freeze({
@@ -573,6 +702,10 @@ function stringArray(value: unknown, maximum: number, maxLength: number): readon
   return Object.freeze([...value]);
 }
 function stable(value: unknown, label: string): StableId { if (typeof value !== 'string') throw invalid(`${label} is invalid.`); try { return asStableId(value, label); } catch { throw invalid(`${label} is invalid.`); } }
+function assetIdValue(value: unknown): StableId { if (typeof value !== 'string' || !/^asset:[a-f0-9]{24}$/u.test(value)) throw invalid('asset id is invalid.'); return asStableId(value); }
+function assetKindValue(value: unknown): ControlledAssetKind { if (!['texture', 'model', 'audio', 'animation'].includes(String(value))) throw invalid('asset kind is invalid.'); return value as ControlledAssetKind; }
+function assetLicenseValue(value: unknown): ControlledAssetLicense { if (!['project-owned', 'cc0', 'cc-by-4.0', 'internal-test'].includes(String(value))) throw invalid('asset license is invalid.'); return value as ControlledAssetLicense; }
+function assetUsageValue(value: unknown): AssetUsage { if (!['texture.base-color', 'texture.metallic-roughness', 'texture.normal', 'texture.occlusion', 'texture.emissive', 'texture.environment-diffuse', 'texture.environment-specular', 'model', 'audio', 'animation'].includes(String(value))) throw invalid('asset usage is invalid.'); return value as AssetUsage; }
 function string(value: unknown, label: string, maximum: number): string { if (typeof value !== 'string' || !value || value.length > maximum) throw invalid(`${label} is invalid.`); return value; }
 function boundedString(value: unknown, label: string, maximum: number, nonEmpty = false): string { if (typeof value !== 'string' || value.length > maximum || (nonEmpty && !value.trim())) throw invalid(`${label} is invalid.`); return value; }
 function componentTypeValue(value: unknown): string { if (typeof value !== 'string' || !/^[a-z][a-z0-9._:-]{2,159}$/u.test(value)) throw invalid('component type is invalid.'); return value; }
@@ -582,6 +715,7 @@ function jsonObjectValue(value: unknown, label: string): JsonObject { if (!isRec
 function cloneJsonObject(value: Readonly<Record<string, unknown>>): JsonObject { return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, child]) => [key, cloneJsonValue(child)]))) as JsonObject; }
 function cloneJsonValue(value: unknown): JsonValue { if (Array.isArray(value)) return Object.freeze(value.map(cloneJsonValue)) as unknown as JsonValue; if (isRecord(value)) return cloneJsonObject(value); if (value === null || typeof value === 'boolean' || typeof value === 'string') return value; if (typeof value === 'number' && Number.isFinite(value)) return value; throw invalid('component value must contain JSON values only.'); }
 function integer(value: unknown, label: string): number { if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalid(`${label} is invalid.`); return value as number; }
+function boundedInteger(value: unknown, label: string, minimum: number, maximum: number): number { const result = integer(value, label); if (result < minimum || result > maximum) throw invalid(`${label} must be between ${minimum} and ${maximum}.`); return result; }
 function revisionOrCurrent(value: unknown, currentRevision: number): number { return value === undefined ? currentRevision : integer(value, 'baseRevision'); }
 function number(value: unknown, label: string): number { if (typeof value !== 'number' || !Number.isFinite(value)) throw invalid(`${label} is invalid.`); return value; }
 function invalid(message: string): GameToolProtocolError { return new GameToolProtocolError('tool.arguments-invalid', message); }

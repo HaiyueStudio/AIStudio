@@ -74,6 +74,12 @@ test('Harness preserves unknown provider cache evidence and Codex reuses a live 
   const threadId = first[0].sessionId;
   const second = await collect(codex.startTurn({ ...noTools, sessionId: threadId, prompt: 'Continue with the durable summary.' }));
   assert.equal(second[0].sessionId, threadId);
+  const firstUsage = first.filter((event) => event.kind === 'usage').at(-1).payload;
+  const secondUsageEvents = second.filter((event) => event.kind === 'usage');
+  const secondUsage = secondUsageEvents.at(-1).payload;
+  assert.deepEqual({ input: firstUsage.inputTokens, cached: firstUsage.cachedInputTokens, output: firstUsage.outputTokens, reasoning: firstUsage.reasoningTokens }, { input: 100, cached: 40, output: 10, reasoning: 2 });
+  assert.deepEqual({ input: secondUsage.inputTokens, cached: secondUsage.cachedInputTokens, output: secondUsage.outputTokens, reasoning: secondUsage.reasoningTokens }, { input: 35, cached: 15, output: 7, reasoning: 3 });
+  assert.equal(secondUsageEvents.length, 2);
   assert.equal(codexTransport.requests.filter((frame) => frame.method === 'thread/start').length, 1);
   assert.equal(codexTransport.requests.filter((frame) => frame.method === 'turn/start').length, 2);
   const codexDrift = await collect(codex.startTurn({ ...input, sessionId: threadId }));
@@ -320,7 +326,20 @@ class ReuseCodexTransport {
     else if (frame.method === 'account/rateLimits/read') this.result(frame.id, { rateLimits: null, rateLimitsByLimitId: null });
     else if (frame.method === 'model/list') this.result(frame.id, { data: [{ id: 'gpt-5.6-sol', model: 'gpt-5.6-sol', displayName: 'GPT-5.6 Sol', description: 'fixture', hidden: false, isDefault: true, defaultReasoningEffort: 'high', supportedReasoningEfforts: [{ reasoningEffort: 'high', description: 'high' }] }], nextCursor: null });
     else if (frame.method === 'thread/start') this.result(frame.id, { thread: { id: 'thread:reuse' } });
-    else if (frame.method === 'turn/start') { this.turn += 1; const turnId = `turn:reuse:${this.turn}`; this.result(frame.id, { turn: { id: turnId, status: 'inProgress' } }); setImmediate(() => this.queue.push(JSON.stringify({ method: 'turn/completed', params: { threadId: 'thread:reuse', turn: { id: turnId, status: 'completed', error: null } } }))); }
+    else if (frame.method === 'turn/start') {
+      this.turn += 1; const turnId = `turn:reuse:${this.turn}`; this.result(frame.id, { turn: { id: turnId, status: 'inProgress' } });
+      const total = this.turn === 1
+        ? { inputTokens: 100, cachedInputTokens: 40, cacheWriteInputTokens: 0, outputTokens: 10, reasoningOutputTokens: 2, totalTokens: 110 }
+        : { inputTokens: 135, cachedInputTokens: 55, cacheWriteInputTokens: 0, outputTokens: 17, reasoningOutputTokens: 5, totalTokens: 152 };
+      const last = this.turn === 1
+        ? { inputTokens: 100, cachedInputTokens: 40, cacheWriteInputTokens: 0, outputTokens: 10, reasoningOutputTokens: 2, totalTokens: 110 }
+        : { inputTokens: 35, cachedInputTokens: 15, cacheWriteInputTokens: 0, outputTokens: 7, reasoningOutputTokens: 3, totalTokens: 42 };
+      setImmediate(() => {
+        if (this.turn === 2) this.queue.push(JSON.stringify({ method: 'thread/tokenUsage/updated', params: { threadId: 'thread:reuse', turnId, tokenUsage: { total: { inputTokens: 120, cachedInputTokens: 48, cacheWriteInputTokens: 0, outputTokens: 13, reasoningOutputTokens: 3, totalTokens: 133 }, last: { inputTokens: 20, cachedInputTokens: 8, cacheWriteInputTokens: 0, outputTokens: 3, reasoningOutputTokens: 1, totalTokens: 23 }, modelContextWindow: 1000 } } }));
+        this.queue.push(JSON.stringify({ method: 'thread/tokenUsage/updated', params: { threadId: 'thread:reuse', turnId, tokenUsage: { total, last, modelContextWindow: 1000 } } }));
+        this.queue.push(JSON.stringify({ method: 'turn/completed', params: { threadId: 'thread:reuse', turn: { id: turnId, status: 'completed', error: null } } }));
+      });
+    }
   }
   result(id, result) { this.queue.push(JSON.stringify({ id, result })); }
   async dispose() { this.queue.close(); this.resolveExit({ code: 0, signal: null }); }

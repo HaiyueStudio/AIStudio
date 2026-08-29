@@ -31,6 +31,7 @@ export type StudioIpcMethod =
   | 'project/close'
   | 'project/reopen'
   | 'scene/snapshot'
+  | 'asset/read'
   | 'scene/create'
   | 'scene/select'
   | 'scene/transform'
@@ -147,11 +148,13 @@ export class StudioIpcRouter {
         return toJson({ ...this.options.workspace.snapshot(), smoke: this.options.smoke === true });
       case 'project/snapshot': return toJson(this.options.workspace.snapshot());
       case 'project/new': {
+        this.cancelProjectAgentState('Project replaced by a new project.');
         return toJson(await this.options.workspace.newProject(null, request.payload.name as string));
       }
       case 'project/open': {
         const root = await this.options.selectProjectRoot('open');
         if (!root) throw new IpcDiagnosticError('project-selection-cancelled', 'Project open was cancelled.');
+        this.cancelProjectAgentState('Project replaced by an opened project.');
         return toJson(await this.options.workspace.openProject(root));
       }
       case 'project/save': {
@@ -169,9 +172,19 @@ export class StudioIpcRouter {
       }, signal));
       case 'history/undo': return toJson(await this.options.workspace.undo(request.payload.baseRevision as number));
       case 'history/redo': return toJson(await this.options.workspace.redo(request.payload.baseRevision as number));
-      case 'project/close': await this.options.workspace.closeProject(); return Object.freeze({ closed: true });
-      case 'project/reopen': return toJson(await this.options.workspace.reopen());
+      case 'project/close': this.cancelProjectAgentState('Project closed.'); await this.options.workspace.closeProject(); return Object.freeze({ closed: true });
+      case 'project/reopen': this.cancelProjectAgentState('Project reopened.'); return toJson(await this.options.workspace.reopen());
       case 'scene/snapshot': return toJson(this.options.scene.snapshot());
+      case 'asset/read': {
+        const assetId = request.payload.assetId as StableId;
+        const entry = this.options.scene.snapshot().assets.find((item) => item.id === assetId);
+        if (!entry) throw new IpcDiagnosticError('asset-not-found', `Asset ${assetId} is not in the current controlled manifest.`);
+        const bytes = await this.options.workspace.readControlledAsset(entry.projectPath, entry.byteLength, signal);
+        if (bytes.byteLength !== entry.byteLength || `sha256:${await sha256Bytes(bytes)}` !== entry.digest) throw new IpcDiagnosticError('asset-integrity-failed', `Asset ${assetId} no longer matches its controlled manifest.`);
+        const current = this.options.scene.snapshot().assets.find((item) => item.id === assetId);
+        if (!current || current.digest !== entry.digest || current.projectPath !== entry.projectPath) throw new IpcDiagnosticError('asset-manifest-changed', `Asset ${assetId} changed while it was being read; restart Play.`);
+        return Object.freeze({ assetId: entry.id, kind: entry.kind, mimeType: entry.mimeType, digest: entry.digest, byteLength: entry.byteLength, base64: Buffer.from(bytes).toString('base64') });
+      }
       case 'scene/create': return toJson(await this.options.scene.createEntity({
         commandId: request.payload.commandId as StableId,
         baseRevision: request.payload.baseRevision as number,
@@ -224,9 +237,12 @@ export class StudioIpcRouter {
         signal,
       ));
       case 'preview/prepare': {
-        const plan = await this.options.scripts.prepare(request.payload.scriptId as StableId, request.payload.capabilities as never);
-        const { emittedText: _emittedText, ...disclosure } = plan;
-        return toJson(disclosure);
+        const scriptIds = request.payload.scriptIds as readonly StableId[] | undefined;
+        const plan = await this.options.scripts.prepare(scriptIds ? { scriptIds } : undefined);
+        return toJson({
+          ...plan,
+          scripts: plan.scripts.map(({ emittedText: _emittedText, ...script }) => script),
+        });
       }
       case 'preview/authorize': {
         const grant = await this.options.scripts.decide(request.payload.planId as StableId, request.payload.approved as boolean);
@@ -259,6 +275,11 @@ export class StudioIpcRouter {
       }));
     }
   }
+
+  private cancelProjectAgentState(reason: string): void {
+    this.options.conversation.cancelPending(reason);
+    this.options.agentPreview.cancelPending();
+  }
 }
 
 export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
@@ -275,6 +296,10 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     commandId: 'string', label: 'string', baseRevision: 'number', key: 'string', value: 'json',
   });
   else if (channel === 'history/undo' || channel === 'history/redo') requireShape(payload, keys, ['baseRevision'], { baseRevision: 'number' });
+  else if (channel === 'asset/read') {
+    requireShape(payload, keys, ['assetId'], { assetId: 'string' });
+    if (!/^asset:[a-f0-9]{24}$/u.test(String(payload.assetId))) throw new IpcDiagnosticError('ipc-payload-rejected', 'asset/read assetId is invalid.');
+  }
   else if (channel === 'scene/create') {
     requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId', 'material', 'color']);
     if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || !sceneEntityKinds.has(String(payload.kind))
@@ -319,8 +344,12 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
   }
   else if (channel === 'script/commit') requireShape(payload, keys, ['proposalId', 'commandId'], { proposalId: 'string', commandId: 'string' });
   else if (channel === 'preview/prepare') {
-    requireAllowedShape(payload, keys, ['scriptId'], ['capabilities']);
-    if (typeof payload.scriptId !== 'string' || !validCapabilities(payload.capabilities)) throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/prepare payload is invalid.');
+    requireAllowedShape(payload, keys, [], ['scriptIds']);
+    if (payload.scriptIds !== undefined && (!Array.isArray(payload.scriptIds) || payload.scriptIds.length < 1 || payload.scriptIds.length > 128
+      || payload.scriptIds.some((item) => typeof item !== 'string' || item.length < 1 || item.length > 256)
+      || new Set(payload.scriptIds).size !== payload.scriptIds.length)) {
+      throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/prepare scriptIds must contain 1-128 unique ids.');
+    }
   }
   else if (channel === 'preview/authorize') {
     requireShape(payload, keys, ['planId', 'approved'], { planId: 'string', approved: 'json' });
@@ -368,7 +397,7 @@ export class IpcDiagnosticError extends Error {
 const allowedChannels = new Set<StudioIpcMethod>([
   'app/status', 'project/new', 'project/open', 'project/save', 'project/snapshot',
   'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',
-  'scene/snapshot', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',
+  'scene/snapshot', 'asset/read', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',
   'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
   'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'logs/query', 'logs/export',
 ]);
@@ -425,3 +454,4 @@ function isRecord(value: unknown): value is Record<string, unknown> { return Boo
 function toJson(value: unknown): JsonObject { return JSON.parse(JSON.stringify(value)) as JsonObject; }
 function errorCode(value: unknown): string { return value instanceof IpcDiagnosticError ? value.code : value instanceof Error && 'code' in value ? String((value as Error & { code: unknown }).code) : 'ipc-operation-failed'; }
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }
+async function sha256Bytes(value: Uint8Array): Promise<string> { const bytes = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer; const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes)); return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join(''); }

@@ -32,7 +32,7 @@ import {
   rotatePlayViewportSize,
   type PlayViewportSize,
 } from './play-device-profiles.js';
-import { selectProjectRunScript } from './run-script-selection.js';
+import { loadPreviewAssets, releasePreviewAssetUrls, type PreviewAssetManifestEntry, type PreviewRuntimeAsset } from './preview-asset-transfer.js';
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isLightSceneKind, isRenderableSceneKind } from './scene-entity-rendering.js';
 import {
   applyProjectCamera,
@@ -67,10 +67,11 @@ interface TransformSnapshot { readonly position: Vec3Snapshot; readonly rotation
 interface SceneEntitySnapshot {
   readonly id: StableId; readonly name: string; readonly kind: SceneEntityKind;
   readonly parentId: StableId | null; readonly order: number; readonly transform: TransformSnapshot;
+  readonly components?: readonly Readonly<{ id: StableId; type: StableId; version: string; enabled: boolean; value: JsonObject }>[];
   readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
   readonly light?: Readonly<{ color: readonly [number, number, number]; intensity: number; range?: number; direction?: readonly [number, number, number]; castShadow?: boolean }>;
 }
-interface SceneSnapshot { readonly revision: number; readonly documentId: StableId; readonly entities: readonly SceneEntitySnapshot[]; readonly camera?: ProjectCameraSnapshot; }
+interface SceneSnapshot { readonly revision: number; readonly documentId: StableId; readonly entities: readonly SceneEntitySnapshot[]; readonly assets?: readonly PreviewAssetManifestEntry[]; readonly camera?: ProjectCameraSnapshot; }
 interface ProjectSnapshot {
   readonly smoke?: boolean;
   readonly document: Readonly<{ revision: number; savedRevision: number; dirty: boolean; name: string; settings: JsonObject }> | null;
@@ -78,13 +79,21 @@ interface ProjectSnapshot {
   readonly logging: Readonly<{ health: string; canPersist: boolean; nextSequence: number; eventCount: number }>;
 }
 interface SelectionSnapshot { readonly activeEntityId: StableId | null; readonly source: string; }
-interface ScriptResourceSnapshot { readonly id: StableId; readonly entityId: StableId; readonly name?: string; readonly text: string; readonly textRevision: number; readonly dirty: boolean; }
+interface ScriptResourceSnapshot { readonly id: StableId; readonly entityId: StableId; readonly name?: string; readonly text: string; readonly textRevision: number; readonly enabled: boolean; readonly order: number; readonly dirty: boolean; }
 interface ScriptCatalogSnapshot { readonly documentRevision: number; readonly resources: readonly ScriptResourceSnapshot[]; }
 interface ScriptProposal { readonly id: StableId; readonly diagnostics: readonly ScriptDiagnostic[]; readonly addedLines: number; readonly removedLines: number; }
 interface ScriptDiagnostic { readonly code: string; readonly severity: 'error' | 'warning'; readonly line: number; readonly column: number; readonly message: string; }
-interface PreviewDisclosure { readonly id: StableId; readonly scriptId: StableId; readonly entityId: StableId; readonly capabilities: readonly ScriptCapabilityName[]; readonly risk: 'trusted-project'; readonly diagnostics: readonly ScriptDiagnostic[]; }
+interface PreviewScriptDisclosure { readonly scriptId: StableId; readonly entityId: StableId; readonly order: number; readonly textRevision: number; readonly digest: string; readonly capabilities: readonly ScriptCapabilityName[]; readonly diagnostics: readonly ScriptDiagnostic[]; }
+interface PreviewDisclosure {
+  readonly id: StableId; readonly documentId: StableId; readonly documentRevision: number;
+  readonly selection: 'all-enabled' | 'explicit'; readonly scriptSetDigest: string;
+  readonly scripts: readonly PreviewScriptDisclosure[]; readonly capabilities: readonly ScriptCapabilityName[];
+  readonly runtimeConfig: Readonly<{ schemaVersion: 1; mode: 'fixed-step'; tickRateHz: number; maxSubSteps: number; seed: string }>;
+  readonly risk: 'trusted-project';
+  readonly diagnostics: readonly (ScriptDiagnostic & Readonly<{ scriptId: StableId; entityId: StableId }>)[];
+}
 interface PreviewGrant { readonly id: StableId; }
-interface ConsumedPreviewPlan extends PreviewDisclosure { readonly emittedText: string; }
+interface ConsumedPreviewPlan extends Omit<PreviewDisclosure, 'scripts'> { readonly scripts: readonly (PreviewScriptDisclosure & Readonly<{ emittedText: string }>)[]; }
 interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan }> }
 let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
@@ -203,6 +212,7 @@ class WebGpuViewportRuntime {
   private selectedEntityId: StableId | null = null;
   private cameraSnapshot: ProjectCameraSnapshot | null = null;
   private disposed = false;
+  private disposal: Promise<void> | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
@@ -269,7 +279,7 @@ class WebGpuViewportRuntime {
       if (item.parentId) entities.get(item.parentId)?.addChild(entity);
       else engineScene.add(entity);
     }
-    engineScene.update(performance.now(), 0);
+    // The running engine owns scene updates so each render gets a fresh swap-chain view.
     void reportViewport('rendered', selectedEntityId ?? 'Scene rendered.', snapshot.revision, selectedEntityId);
   }
 
@@ -298,7 +308,6 @@ class WebGpuViewportRuntime {
     const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
     const ndcY = 1 - ((clientY - rect.top) / rect.height) * 2;
     const result = createInteractionRaycastResult();
-    engineScene.update(performance.now(), 0);
     return interaction.raycast(engineScene.world, ndcX, ndcY, result) && result.entity
       ? this.stableByEngineId.get(result.entity.id) ?? null
       : null;
@@ -321,8 +330,8 @@ class WebGpuViewportRuntime {
     if (engine.state !== 'ready') throw new Error(`Engine device recovery ended in ${engine.state}.`);
   }
 
-  dispose(): void {
-    if (this.disposed) return;
+  dispose(): Promise<void> {
+    if (this.disposal) return this.disposal;
     this.disposed = true;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
@@ -332,10 +341,13 @@ class WebGpuViewportRuntime {
     this.interaction = null;
     this.stableByEngineId.clear();
     this.entitiesByStableId.clear();
-    this.engine?.destroy();
+    const engine = this.engine;
     this.engine = null;
     this.engineScene = null;
     this.selectedEntityId = null;
+    engine?.stop();
+    this.disposal = disposeEngineAfterSubmittedFrames(engine);
+    return this.disposal;
   }
 
   private requireScene(): Scene {
@@ -359,6 +371,17 @@ class WebGpuViewportRuntime {
   }
 }
 
+async function disposeEngineAfterSubmittedFrames(engine: HaiyueEngine | null): Promise<void> {
+  if (!engine) return;
+  try {
+    if (engine.state === 'ready') await engine.device.queue.onSubmittedWorkDone();
+  } catch {
+    // A lost device rejects queued-work completion; destroy still owns final cleanup.
+  } finally {
+    engine.destroy();
+  }
+}
+
 type PreviewRealmMessage = Readonly<Record<string, unknown> & { protocol: 'haiyue-preview/1'; type: string }>;
 type DeferredSignal = Readonly<{ promise: Promise<void>; resolve(value?: void): void; reject(cause: unknown): void; readonly settled: boolean }>;
 
@@ -375,6 +398,12 @@ class SandboxedPreviewFrame {
   private paused = false;
   private pauseChange: DeferredSignal | null = null;
   private expectedPaused = false;
+  private readonly runtimeAssets: PreviewRuntimeAsset[] = [];
+  private scriptSetDigest: string | null = null;
+  private scriptDescriptors: readonly Readonly<{ scriptId: StableId; entityId: StableId; order: number }>[] = Object.freeze([]);
+  private readonly scriptDisposables = new Map<StableId, number>();
+  private readonly scriptPositions = new Map<StableId, Readonly<{ x: number; y: number; z: number }>>();
+  private readonly faultedScripts = new Set<StableId>();
 
   constructor(private readonly entityId: StableId) {
     this.frame.id = 'preview-frame';
@@ -387,13 +416,18 @@ class SandboxedPreviewFrame {
 
   async start(snapshot: SceneSnapshot, plan: ConsumedPreviewPlan): Promise<void> {
     await withTimeout(this.ready.promise, 10_000, 'Preview realm did not become ready.');
-    this.post({ type: 'start', scene: snapshot, plan });
+    this.scriptSetDigest = plan.scriptSetDigest;
+    this.scriptDescriptors = Object.freeze(plan.scripts.map(({ scriptId, entityId, order }) => Object.freeze({ scriptId, entityId, order })));
+    const assets = await loadPreviewAssets(snapshot, (assetId) => invoke('asset/read', { assetId }));
+    this.runtimeAssets.push(...assets);
+    const { assets: _assetManifest, ...runtimeScene } = snapshot;
+    this.post({ type: 'start', scene: runtimeScene, plan, assets });
     await withTimeout(this.started.promise, 15_000, 'Preview realm did not start.');
   }
 
-  hotReload(emittedText: string): void {
+  hotReload(scriptId: StableId, emittedText: string): void {
     if (this.disposed) throw new Error('Preview realm is disposed.');
-    this.post({ type: 'hot-reload', emittedText });
+    this.post({ type: 'hot-reload', scriptId, emittedText });
   }
 
   async setPaused(paused: boolean): Promise<void> {
@@ -411,6 +445,16 @@ class SandboxedPreviewFrame {
   targetEntityId(): StableId { return this.entityId; }
   ownedDisposableCount(): number { return this.disposableCount; }
   runtimeErrorCount(): number { return this.runtimeErrors; }
+  activeScriptSetDigest(): string | null { return this.scriptSetDigest; }
+  scriptSnapshots(): readonly JsonObject[] {
+    return Object.freeze(this.scriptDescriptors.map((script) => Object.freeze({
+      ...script,
+      state: this.faultedScripts.has(script.scriptId) ? 'faulted' : 'playing',
+      position: this.scriptPositions.get(script.scriptId) ?? (script.entityId === this.entityId ? this.position : null),
+      disposableCount: this.scriptDisposables.get(script.scriptId) ?? 0,
+      errorCount: this.faultedScripts.has(script.scriptId) ? 1 : 0,
+    })));
+  }
 
   async dispose(): Promise<number> {
     if (this.disposed) return 0;
@@ -421,6 +465,8 @@ class SandboxedPreviewFrame {
     await withTimeout(this.cleanup.promise, 2_000, 'Preview cleanup acknowledgement timed out.').catch(() => undefined);
     window.removeEventListener('message', this.onMessage);
     this.frame.remove();
+    releasePreviewAssetUrls(this.runtimeAssets);
+    this.runtimeAssets.length = 0;
     return ownedBeforeStop;
   }
 
@@ -435,6 +481,16 @@ class SandboxedPreviewFrame {
     } else if (message.type === 'state' && isVec3(message.position)) {
       this.position = Object.freeze({ x: message.position.x, y: message.position.y, z: message.position.z });
       this.disposableCount = finiteNumber(message.disposableCount, this.disposableCount);
+      if (Array.isArray(message.scripts)) for (const script of message.scripts) {
+        if (script !== null && typeof script === 'object' && !Array.isArray(script)) {
+          const value = script as Record<string, unknown>;
+          if (typeof value.scriptId === 'string') {
+            const scriptId = value.scriptId as StableId;
+            this.scriptDisposables.set(scriptId, finiteNumber(value.disposableCount, 0));
+            if (isVec3(value.position)) this.scriptPositions.set(scriptId, Object.freeze({ x: value.position.x, y: value.position.y, z: value.position.z }));
+          }
+        }
+      }
     } else if (message.type === 'hot-reloaded') {
       this.disposableCount = finiteNumber(message.disposableCount, this.disposableCount);
       void reportPreview('hot-reloaded', 'Runtime-only script replacement applied.', this.disposableCount, this.previewId, this.entityId);
@@ -444,6 +500,7 @@ class SandboxedPreviewFrame {
       void reportPreview(this.paused ? 'paused' : 'resumed', this.paused ? 'Preview paused.' : 'Preview resumed.', this.disposableCount, this.previewId, this.entityId);
     } else if (message.type === 'runtime-error') {
       this.runtimeErrors += 1;
+      if (typeof message.scriptId === 'string') this.faultedScripts.add(message.scriptId as StableId);
       this.disposableCount = finiteNumber(message.disposableCount, this.disposableCount);
       const code = typeof message.code === 'string' ? message.code : 'preview-runtime-error';
       const detail = typeof message.message === 'string' ? message.message : 'Preview runtime failed.';
@@ -810,7 +867,7 @@ function bindUi(): void {
     logViewerSubscription?.dispose(); logViewerSubscription = null;
     logViewer?.dispose(); logViewer = null;
     playStageResizeObserver?.disconnect(); playStageResizeObserver = null;
-    viewport?.dispose(); void previewFrame?.dispose();
+    void viewport?.dispose(); void previewFrame?.dispose();
   }, { once: true });
 }
 
@@ -903,9 +960,13 @@ async function processAgentPreviewCommand(): Promise<void> {
 
 function previewSnapshot(): JsonObject {
   const position = previewFrame?.latestPosition() ?? null;
+  const runtimeScripts = playing ? previewFrame?.scriptSnapshots() ?? Object.freeze([]) : Object.freeze([]);
   return Object.freeze({
     instanceId: playing ? previewFrame?.previewId ?? null : null,
     state: playing ? (previewFrame?.runtimeErrorCount() ? 'faulted' : 'playing') : 'stopped',
+    scriptSetDigest: playing ? previewFrame?.activeScriptSetDigest() ?? null : null,
+    scriptCount: runtimeScripts.length,
+    scripts: runtimeScripts,
     entityId: playing ? previewFrame?.targetEntityId() ?? null : null,
     position,
     disposableCount: previewFrame?.ownedDisposableCount() ?? 0,
@@ -1010,8 +1071,8 @@ async function prepareProjectRun(): Promise<boolean> {
   if (!project?.document || !scene) throw new Error(t('noProjectRun'));
   const sourceScene = scene;
   if (!sourceScene.entities.some((entity) => isRenderableSceneKind(entity.kind))) throw new Error(t('noRenderableRun'));
-  const script = selectProjectRunScript(sourceScene.entities, scripts.resources, selection.activeEntityId);
-  if (!script) {
+  const enabledScripts = scripts.resources.filter((script) => script.enabled).sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
+  if (!enabledScripts.length) {
     previewDisclosure = null;
     runScriptContext = Object.freeze({
       kind: 'missing-script',
@@ -1028,20 +1089,22 @@ async function prepareProjectRun(): Promise<boolean> {
     return false;
   }
 
-  if (selection.activeEntityId !== script.entityId) {
-    await selectEntity(script.entityId, 'system');
+  previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', {});
+  for (const planned of previewDisclosure.scripts) {
+    const resource = enabledScripts.find((script) => script.id === planned.scriptId);
+    if (resource) scriptDiagnosticsById.set(resource.id, Object.freeze({ textRevision: resource.textRevision, diagnostics: planned.diagnostics }));
   }
-  previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: script.id, capabilities: ['read', 'input', 'debug'] });
-  const entity = sourceScene.entities.find((candidate) => candidate.id === script.entityId);
-  scriptDiagnosticsById.set(script.id, Object.freeze({ textRevision: script.textRevision, diagnostics: previewDisclosure.diagnostics }));
-  runScriptContext = Object.freeze({ kind: 'script-errors', scriptId: script.id, entityId: script.entityId, entityName: entity?.name ?? script.entityId, diagnostics: previewDisclosure.diagnostics });
+  const firstPlanned = previewDisclosure.scripts[0]!;
+  const entity = sourceScene.entities.find((candidate) => candidate.id === firstPlanned.entityId);
+  const firstErrors = previewDisclosure.diagnostics.filter((diagnostic) => diagnostic.scriptId === firstPlanned.scriptId);
+  runScriptContext = Object.freeze({ kind: 'script-errors', scriptId: firstPlanned.scriptId, entityId: firstPlanned.entityId, entityName: entity?.name ?? firstPlanned.entityId, diagnostics: firstErrors });
   element('run-disclosure-text').textContent = t('runDisclosure', {
-    entity: entity?.name ?? script.entityId,
+    entity: `${previewDisclosure.scripts.length} scripts`,
     risk: previewDisclosure.risk,
     capabilities: previewDisclosure.capabilities.join(', '),
   });
   element('preview-disclosure').textContent = element('run-disclosure-text').textContent;
-  renderScriptPanel(entity ?? null);
+  renderScriptPanel(entity ?? null, { preservePreviewDisclosure: true });
   const errors = previewDisclosure.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
   const validation = element('run-validation');
   element('run-validation-heading').textContent = t('runValidationFailed');
@@ -1281,14 +1344,17 @@ function renderSelection(): void {
   if (viewport && !playing) viewport.select(selection.activeEntityId);
 }
 
-function renderScriptPanel(selected: SceneEntitySnapshot | null): void {
+function renderScriptPanel(
+  selected: SceneEntitySnapshot | null,
+  options: Readonly<{ preservePreviewDisclosure?: boolean }> = {},
+): void {
   const script = selected ? scripts.resources.find((resource) => resource.entityId === selected.id) : undefined;
   const identity = `${selected?.id ?? ''}:${script?.textRevision ?? 0}`;
   if (identity !== loadedScriptIdentity) {
     loadedScriptIdentity = identity;
     element<HTMLTextAreaElement>('script-source').value = selected ? script?.text ?? DEMO_SCRIPT : '';
     pendingScriptProposal = null;
-    previewDisclosure = null;
+    if (!options.preservePreviewDisclosure) previewDisclosure = null;
     element('script-diagnostics').textContent = selected ? 'Edit the script, then create a validated proposal.' : 'Select an entity to author a script.';
   }
   element<HTMLButtonElement>('propose-script').disabled = !selected || playing;
@@ -1321,15 +1387,14 @@ async function commitScriptEdit(): Promise<void> {
 }
 
 async function preparePreview(): Promise<void> {
-  const entityId = selection.activeEntityId;
-  const script = scripts.resources.find((resource) => resource.entityId === entityId);
-  if (!script) throw new Error('Commit a valid script before Play.');
+  const enabledScripts = scripts.resources.filter((resource) => resource.enabled);
+  if (!enabledScripts.length) throw new Error('Commit a valid script before Play.');
   if (!scene?.entities.some((entity) => isRenderableSceneKind(entity.kind))) {
     throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
   }
-  previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: script.id, capabilities: ['read', 'input', 'debug'] });
-  element('preview-disclosure').textContent = `Risk: ${previewDisclosure.risk}. Capabilities: ${previewDisclosure.capabilities.join(', ')}. Script r${script.textRevision}.`;
-  renderScriptPanel(scene?.entities.find((entity) => entity.id === entityId) ?? null);
+  previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', {});
+  element('preview-disclosure').textContent = `Risk: ${previewDisclosure.risk}. ${previewDisclosure.scripts.length} scripts. Capabilities: ${previewDisclosure.capabilities.join(', ')}.`;
+  renderScriptPanel(scene?.entities.find((entity) => entity.id === previewDisclosure!.scripts[0]?.entityId) ?? null, { preservePreviewDisclosure: true });
 }
 
 async function approveAndStartPreview(): Promise<void> {
@@ -1345,13 +1410,17 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   if (!sourceScene.entities.some((entity) => isRenderableSceneKind(entity.kind))) {
     throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
   }
-  viewport?.dispose();
+  const authoringCleanup = viewport?.dispose();
   viewport = null;
   showPlayPage();
-  const frame = new SandboxedPreviewFrame(plan.entityId);
+  const primary = plan.scripts[0];
+  if (!primary) throw new Error('Preview plan has no scripts.');
+  const frame = new SandboxedPreviewFrame(primary.entityId);
   previewFrame = frame;
   const previewScene = Object.freeze({ ...sourceScene, camera: sourceScene.camera ?? currentProjectCamera() });
-  try { await frame.start(previewScene, plan); }
+  try {
+    await Promise.all([frame.start(previewScene, plan), authoringCleanup]);
+  }
   catch (cause) {
     await frame.dispose();
     if (previewFrame === frame) previewFrame = null;
@@ -1366,7 +1435,7 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   element('viewport-empty-state').hidden = true;
   document.body.dataset.preview = 'playing';
   element('preview-disclosure').textContent = `Playing isolated trusted-project preview with ${plan.capabilities.join(', ')}.`;
-  renderScriptPanel(sourceScene.entities.find((entity) => entity.id === plan.entityId) ?? null);
+  renderScriptPanel(sourceScene.entities.find((entity) => entity.id === primary.entityId) ?? null);
   updatePlayControls();
   updateRunButton();
 }
@@ -1460,7 +1529,7 @@ async function runSmokeWorkflow(): Promise<void> {
   await refresh();
   const smokeScript = scripts.resources.find((resource) => resource.entityId === picked);
   if (!smokeScript) throw new Error('Smoke script did not commit.');
-  const disclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', { scriptId: smokeScript.id, capabilities: ['read', 'input', 'debug', 'scene'] });
+  const disclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', {});
   const grant = await invoke<PreviewGrant & JsonObject>('preview/authorize', { planId: disclosure.id, approved: true });
   const previewPlan = await invoke<ConsumedPreviewPlan & JsonObject>('preview/consume', { grantId: grant.id });
   await startPreview(previewPlan);
@@ -1477,8 +1546,8 @@ async function runSmokeWorkflow(): Promise<void> {
     moved = Boolean(position && Math.abs(position.x - 0.4) > 0.05);
   }
   if (!moved) throw new Error('Trusted preview script did not visibly move the Cube.');
-  const pausedPosition = previewFrame!.latestPosition();
   await togglePreviewPause();
+  const pausedPosition = previewFrame!.latestPosition();
   await nextFrames(3);
   if (!previewPaused || previewFrame!.latestPosition()?.x !== pausedPosition?.x) throw new Error('Standalone preview did not remain stable while paused.');
   await togglePreviewPause();
@@ -1488,11 +1557,11 @@ async function runSmokeWorkflow(): Promise<void> {
     resumed = previewFrame!.latestPosition()?.x !== pausedPosition?.x;
   }
   if (!resumed) throw new Error('Standalone preview did not resume.');
-  previewFrame!.hotReload(`if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
+  previewFrame!.hotReload(smokeScript.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   await nextFrames(2);
   document.body.dataset.smokeStage = 'preview-hot-reloaded';
   if (previewFrame!.ownedDisposableCount() !== 1) throw new Error('Preview timer was not owned by ScriptExecutionScope.');
-  previewFrame!.hotReload(`throw new Error('injected preview fault');`);
+  previewFrame!.hotReload(smokeScript.id, `throw new Error('injected preview fault');`);
   await nextFrames(2);
   document.body.dataset.smokeStage = 'preview-fault-observed';
   if (previewFrame!.runtimeErrorCount() === 0 || previewFrame!.ownedDisposableCount() !== 0) throw new Error('Preview fault/cleanup evidence is missing.');

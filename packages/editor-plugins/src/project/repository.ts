@@ -40,6 +40,20 @@ export class ProjectRepository {
     return (await this.readWithMigration()).file;
   }
 
+  async readControlledAsset(relativePath: string, maxBytes: number): Promise<Uint8Array> {
+    const portable = relativePath.replaceAll('\\', '/');
+    if (portable === 'assets' || !portable.startsWith('assets/')) throw new ProjectPathError('project-asset-path-invalid', 'Controlled assets must stay under assets/.');
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 128 * 1024 * 1024) throw new ProjectPathError('project-asset-budget-invalid', 'Controlled asset read budget is invalid.');
+    const target = this.resolveProjectPath(portable);
+    await this.assertTargetSafe(target);
+    const info = await lstat(target);
+    if (info.isSymbolicLink() || !info.isFile()) throw new ProjectPathError('project-asset-file-invalid', 'Controlled asset must be a regular non-symlink file.');
+    if (info.size < 1 || info.size > maxBytes) throw new ProjectPathError('project-asset-source-budget', `Controlled asset must contain 1..${maxBytes} bytes.`);
+    const bytes = await readFile(target);
+    if (bytes.byteLength !== info.size) throw new ProjectPathError('project-asset-read-raced', 'Controlled asset changed while it was being read; retry the import.');
+    return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  }
+
   async readWithMigration(registry = new ComponentRegistry().freeze()): Promise<Readonly<{ file: ProjectDocumentFile; migration: ProjectMigrationReport | null }>> {
     const target = this.resolveProjectPath(PROJECT_FILE);
     await this.assertTargetSafe(target);

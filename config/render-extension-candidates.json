@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
+  "candidates": [
+    {
+      "package": "@haiyue/animation-spec",
+      "version": "0.1.0",
+      "tarball": "vendor/haiyue-animation-spec-0.1.0.tgz",
+      "sha256": "f2bc618a079bae845ad31b29f667b191336449c2134b87d4e87fb21ce951ae88",
+      "integrity": "sha512-4RuqxC8fVGxQSviit53DgCY70ffbTkqC0ocFqRu2UzS1bT7H4ioCRVTmuR29wv13JVUcqHIjPVlKCAQi7x9+7w==",
+      "requiredExports": ["."]
+    },
+    {
+      "package": "@haiyue/extensions",
+      "version": "0.1.0",
+      "tarball": "vendor/haiyue-extensions-0.1.0.tgz",
+      "sha256": "112db9547c4f2f666f9d62d91e43c7424ed9f8863c2f4b671872dfc942265335",
+      "integrity": "sha512-dbtWJtq3kUzGCyO8Z/o19JMwTlYP7XhhVrUI6zMiexARuBMzqX9mOp4rBb5bUXQxKKnOfhih52H9TIQl2N3AaQ==",
+      "requiredExports": [".", "./gltf", "./animation", "./animation3d"],
+      "requiredDeclarationFiles": [
+        "dist/gltf.d.ts",
+        "dist/gltf/GltfModelComponent.d.ts",
+        "dist/gltf/GltfModelSystem.d.ts",
+        "dist/animation3d.d.ts",
+        "dist/animation3d/Animation3DMixer.d.ts",
+        "dist/animation3d/hya/HyaAnimation3DRuntime.d.ts"
+      ],
+      "requiredDeclarationMarkers": ["GltfModelComponent", "GltfModelSystem", "loadTimeoutMs", "Animation3DMixer", "HyaAnimation3DRuntime"]
+    }
+  ]
+}

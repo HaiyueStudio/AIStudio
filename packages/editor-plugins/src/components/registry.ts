@@ -9,6 +9,7 @@ import {
   type StableId,
 } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, sha256 } from '@haiyue/ai-studio-operation-log';
+import { G08_COMPONENT_DEFINITIONS } from '../render/components.js';
 
 export interface ComponentRegistrySnapshot {
   readonly schemaVersion: 2;
@@ -121,8 +122,8 @@ export const BUILTIN_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = O
     objectSchema({ material: { enum: ['basic', 'pbr', 'blinn-phong', 'normal'] }, color: numberArraySchema(4, 0, 1) }, ['material', 'color']),
     { material: 'basic', color: [0.16, 0.58, 1, 1] }),
   definition('haiyue.light.directional', 'lighting', 'gpu-owner', 'medium', 'Directional Light', 'Lighting', 'inspector.light', 'adapter.light.directional',
-    objectSchema({ color: numberArraySchema(3, 0), intensity: numberSchema(0), direction: numberArraySchema(3), castShadow: { type: 'boolean' } }, ['color', 'intensity', 'direction', 'castShadow']),
-    { color: [1, 1, 1], intensity: 1, direction: [-0.5, -1, -0.35], castShadow: true }),
+    objectSchema({ color: numberArraySchema(3, 0), intensity: numberSchema(0), direction: numberArraySchema(3), castShadow: { type: 'boolean' }, shadow: objectSchema({ mapSize: { enum: [512, 1024, 2048] }, extent: numberSchema(1, 100_000), near: numberSchema(0.01, 100_000), far: numberSchema(1, 1_000_000), bias: numberSchema(0, 1), normalBias: numberSchema(0, 100) }, ['mapSize', 'extent', 'near', 'far', 'bias', 'normalBias']) }, ['color', 'intensity', 'direction', 'castShadow', 'shadow']),
+    { color: [1, 1, 1], intensity: 1, direction: [-0.5, -1, -0.35], castShadow: true, shadow: { mapSize: 1024, extent: 20, near: 0.1, far: 60, bias: 0.0015, normalBias: 0.02 } }),
   definition('haiyue.light.point', 'lighting', 'gpu-owner', 'medium', 'Point Light', 'Lighting', 'inspector.light', 'adapter.light.point',
     objectSchema({ color: numberArraySchema(3, 0), intensity: numberSchema(0), range: numberSchema(0.000001) }, ['color', 'intensity', 'range']),
     { color: [1, 0.9, 0.75], intensity: 2, range: 12 }),
@@ -192,6 +193,7 @@ export const BUILTIN_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = O
   definition('haiyue.gameplay.ground-probe', 'physics.raycast', 'runtime-owner', 'medium', 'Ground Probe', 'Gameplay', 'inspector.ground-probe', 'adapter.gameplay.ground-probe',
     objectSchema({ dimension: { enum: ['2d', '3d'] }, direction: vec3Schema(), distance: numberSchema(0.000001, 100_000), radius: numberSchema(0, 100_000), categoryBits: integerSchema(1, 65_535), maskBits: integerSchema(0, 65_535) }, ['dimension', 'direction', 'distance', 'radius', 'categoryBits', 'maskBits']),
     { dimension: '3d', direction: { x: 0, y: -1, z: 0 }, distance: 0.65, radius: 0.2, categoryBits: 1, maskBits: 65_535 }),
+  ...G08_COMPONENT_DEFINITIONS,
 ]);
 
 function definition(

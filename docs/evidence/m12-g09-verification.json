@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g09-multi-script-play-runtime",
+  "capability": { "id": "play.multi-script", "classification": "available-internal", "integrationState": "g09-verified", "publicPath": "@haiyue/ai-studio-script-preview" },
+  "contract": { "defaultSelection": "all-enabled", "explicitSubset": true, "maximumScripts": 128, "stableOrder": "order-then-script-id", "oneScriptPerEntity": true, "fixedStepBound": true, "scriptSetDigestBound": true },
+  "authorization": { "validateWholeSetBeforeApproval": true, "oneShotGrant": true, "documentChangeRevokes": true, "expiryChecked": true, "sourceHiddenBeforeConsume": true, "disposeRevokes": true },
+  "runtime": { "singlePlayOwner": true, "perScriptCapabilityView": true, "targetedHotReload": true, "faultIsolation": "disable-script", "reverseOrderTeardown": true, "authoringDocumentImmutable": true, "residualDisposablesAfterStop": 0 },
+  "product": { "manualRunDefaultsToAllEnabled": true, "agentToolDefaultsToAllEnabled": true, "sandboxedIframe": true, "perScriptStateAcknowledgement": true },
+  "tests": { "core": "packages/script-preview/test/script-preview.test.mjs", "toolAndIpc": ["packages/game-authoring-tools/test/runtime.test.mjs", "apps/ai-studio/test/ipc.test.mjs"], "electron": "apps/ai-studio/test/g09-multi-script-electron.test.mjs", "electronExpected": "scripts=2 stableOrder=true faultIsolated=true cleanup=0" }
+}

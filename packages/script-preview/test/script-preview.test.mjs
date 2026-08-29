@@ -92,6 +92,26 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
   }
 });
 
+test('worker resolves injected Engine declarations independently of the launch directory', async () => {
+  const launchDirectory = await mkdtemp(path.join(tmpdir(), 'haiyue-script-launch-'));
+  const originalDirectory = process.cwd();
+  let worker;
+  process.chdir(launchDirectory);
+  try {
+    worker = new ScriptValidationWorker();
+    const result = await worker.validate({
+      scriptId: asStableId('script:cwd-independent'),
+      textRevision: 1,
+      sourcePath: 'scripts/cwd-independent.ts',
+      text: movementScript,
+    });
+    assert.deepEqual(result.diagnostics, []);
+  } finally {
+    await worker?.dispose();
+    process.chdir(originalDirectory);
+  }
+});
+
 test('script proposal commits through History and survives undo, redo, save and reopen', async () => {
   const value = await fixture();
   try {
@@ -126,32 +146,33 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   const script = await value.scripts.commitProposal(proposal.id, asStableId('command:script-runtime'));
   const clock = { value: 1_000 };
   const authorization = new PreviewAuthorizationService(value.scripts, value.validator, value.operationLog, () => clock.value);
-  const plan = await authorization.prepare(script.id);
+  const plan = await authorization.prepare({ scriptIds: [script.id] });
   assert.equal(plan.risk, 'trusted-project');
+  assert.equal(plan.scripts.length, 1);
   const grant = await authorization.decide(plan.id, true);
   const consumed = authorization.consume(grant.id);
-  assert.equal(consumed.digest, plan.digest);
+  assert.equal(consumed.scriptSetDigest, plan.scriptSetDigest);
   assert.throws(() => authorization.consume(grant.id), /already consumed/);
 
   const runtime = new IsolatedTrustedPreviewRuntime(value.operationLog);
   const scene = {
-    schemaVersion: 1, revision: 1, documentId: value.scripts.snapshot().documentId,
+    schemaVersion: 1, revision: plan.documentRevision, documentId: value.scripts.snapshot().documentId,
     entities: [{ id: entityId, name: 'Cube', kind: 'cube', parentId: null, order: 0, transform: {
       position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 },
     } }],
   };
   await runtime.start(scene, consumed);
   assert.equal(runtime.tick(500, 16).position.x, 0.5);
-  runtime.hotReload(`if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
+  runtime.hotReload(script.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   assert.equal(runtime.tick(600, 16).disposableCount, 1);
   const [rapidRestartA, rapidRestartB] = await Promise.all([runtime.start(scene, consumed), runtime.start(scene, consumed)]);
   assert.equal(rapidRestartA.state, 'playing');
   assert.equal(rapidRestartB.state, 'playing');
   assert.equal(runtime.snapshot().disposableCount, 0);
   assert.ok(Math.abs(runtime.tick(650, 16).position.x - 0.65) < 0.000_001);
-  runtime.hotReload(`if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
+  runtime.hotReload(script.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   assert.equal(runtime.tick(675, 16).disposableCount, 1);
-  runtime.hotReload(`throw new Error('runtime boom');`);
+  runtime.hotReload(script.id, `throw new Error('runtime boom');`);
   const faulted = runtime.tick(700, 16);
   assert.equal(faulted.state, 'faulted');
   assert.equal(faulted.errors[0].line, 1);
@@ -160,17 +181,17 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   assert.equal(stopped.disposableCount, 0);
   assert.deepEqual(value.scripts.snapshot().resources[0].text, movementScript);
 
-  const invalidTtlPlan = await authorization.prepare(script.id);
+  const invalidTtlPlan = await authorization.prepare({ scriptIds: [script.id] });
   await assert.rejects(authorization.decide(invalidTtlPlan.id, true, 0), /TTL/);
-  const expiredPlan = await authorization.prepare(script.id);
+  const expiredPlan = await authorization.prepare({ scriptIds: [script.id] });
   const expiredGrant = await authorization.decide(expiredPlan.id, true, 10);
   clock.value = 1_011;
   assert.throws(() => authorization.consume(expiredGrant.id), /expired/);
   clock.value = 2_000;
-  const stalePlan = await authorization.prepare(script.id);
+  const stalePlan = await authorization.prepare({ scriptIds: [script.id] });
   const staleGrant = await authorization.decide(stalePlan.id, true, 10_000);
   await value.workspace.execute({ id: asStableId('command:stale-preview'), label: 'Advance document revision', baseRevision: 3, key: 'fixture.stale', value: true });
-  assert.throws(() => authorization.consume(staleGrant.id), /stale/);
+  assert.throws(() => authorization.consume(staleGrant.id), /stale|missing or already consumed/);
 
   const facts = await value.operationLog.query({ limit: 200, traverseCorrelation: false });
   const kinds = new Set(facts.events.map((event) => event.kind));
@@ -183,7 +204,68 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   const replacementRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-script-replacement-'));
   await value.workspace.newProject(replacementRoot, 'Replacement document');
   assert.equal(value.scripts.snapshot().resources.length, 0);
+  authorization.dispose();
   } finally { await dispose(value); }
+});
+
+test('one Play owner runs the exact enabled script set in stable order and isolates per-script faults and scopes', async () => {
+  const value = await fixture();
+  const authorization = new PreviewAuthorizationService(value.scripts, value.validator, value.operationLog);
+  try {
+    const leaderId = asStableId('entity:cube');
+    const leaderProposal = await value.scripts.proposeEdit({ entityId: leaderId, baseRevision: 2, text: `
+const transform = entity.getComponent('CartesianTransform3D') as unknown as { position: readonly number[]; setPosition(x: number, y: number, z: number): unknown };
+transform.setPosition(transform.position[0] + 1, 0, 0);
+` });
+    const leaderScript = await value.scripts.commitProposal(leaderProposal.id, asStableId('command:multi-leader'));
+    const followerId = asStableId('entity:follower');
+    await value.workspace.executeBatch({ id: asStableId('command:multi-follower-entity'), label: 'Create follower', baseRevision: 3, operations: [
+      { op: 'entity.add', entity: { id: followerId, sceneId: value.workspace.primarySceneId(), name: 'Follower', parentId: null, order: 1, componentIds: [] } },
+      { op: 'component.add', entityId: followerId, component: value.workspace.componentRegistry.create({ id: asStableId('component:multi-follower-transform'), type: asStableId('haiyue.transform.3d'), version: '1.0.0' }) },
+    ] });
+    const followerProposal = await value.scripts.proposeEdit({ entityId: followerId, baseRevision: 4, text: `
+const leader = api.read.find('Cube');
+const leaderTransform = leader?.getComponent('CartesianTransform3D') as unknown as { position: readonly number[] } | null;
+const transform = entity.getComponent('CartesianTransform3D') as unknown as { position: readonly number[]; setPosition(x: number, y: number, z: number): unknown };
+transform.setPosition((leaderTransform?.position[0] ?? -100) + 10, transform.position[1] + 1, 0);
+` });
+    const followerScript = await value.scripts.commitProposal(followerProposal.id, asStableId('command:multi-follower'));
+
+    const plan = await authorization.prepare();
+    assert.deepEqual(plan.scripts.map((script) => script.scriptId), [leaderScript.id, followerScript.id]);
+    assert.equal(plan.scriptSetDigest.startsWith('sha256:'), true);
+    assert.deepEqual(plan.runtimeConfig, { schemaVersion: 1, mode: 'fixed-step', tickRateHz: 60, maxSubSteps: 1000, seed: 'haiyue-play' });
+    const grant = await authorization.decide(plan.id, true);
+    const consumed = authorization.consume(grant.id);
+    const scene = {
+      schemaVersion: 1, revision: plan.documentRevision, documentId: plan.documentId,
+      entities: [
+        { id: leaderId, name: 'Cube', kind: 'cube', parentId: null, order: 0, transform: { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } } },
+        { id: followerId, name: 'Follower', kind: 'cube', parentId: null, order: 1, transform: { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } } },
+      ],
+    };
+    const runtime = new IsolatedTrustedPreviewRuntime(value.operationLog);
+    const started = await runtime.start(scene, consumed);
+    assert.equal(started.scriptCount, 2);
+    const firstTick = runtime.tick(16, 16);
+    assert.deepEqual(firstTick.scripts.map((script) => script.position), [{ x: 1, y: 0, z: 0 }, { x: 11, y: 1, z: 0 }]);
+    runtime.hotReload(leaderScript.id, `throw new Error('leader failed');`);
+    const degraded = runtime.tick(32, 16);
+    assert.equal(degraded.state, 'faulted');
+    assert.equal(degraded.scripts[0].state, 'faulted');
+    assert.deepEqual(degraded.scripts[1].position, { x: 11, y: 2, z: 0 }, 'healthy follower keeps ticking after leader fault');
+    runtime.hotReload(leaderScript.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
+    runtime.hotReload(followerScript.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
+    assert.equal(runtime.tick(48, 16).disposableCount, 2);
+    assert.equal((await runtime.stop()).disposableCount, 0);
+    assert.deepEqual(runtime.snapshot().scripts, []);
+
+    const subset = await authorization.prepare({ scriptIds: [followerScript.id] });
+    assert.deepEqual(subset.scripts.map((script) => script.scriptId), [followerScript.id]);
+    const revoked = await authorization.decide(subset.id, true);
+    authorization.dispose();
+    assert.throws(() => authorization.consume(revoked.id), /disposed/);
+  } finally { authorization.dispose(); await dispose(value); }
 });
 
 test('preview start fails closed and releases the isolated world when durable logging fails', async () => {
@@ -196,12 +278,14 @@ test('preview start fails closed and releases the isolated world when durable lo
     } }],
   };
   const plan = {
-    id: asStableId('preview-plan:log-failure'), scriptId: asStableId('script:log-failure'), entityId,
-    documentRevision: 1, textRevision: 1, digest: 'digest', capabilities: ['read'], risk: 'trusted-project', diagnostics: [], emittedText: '',
+    id: asStableId('preview-plan:log-failure'), documentId: asStableId('document:log-failure'), documentRevision: 1, selection: 'explicit',
+    scriptSetDigest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
+    scripts: [{ scriptId: asStableId('script:log-failure'), entityId, order: 0, textRevision: 1, digest: 'digest', capabilities: ['read'], diagnostics: [], emittedText: '' }],
+    capabilities: ['read'], runtimeConfig: { schemaVersion: 1, mode: 'fixed-step', tickRateHz: 60, maxSubSteps: 1000, seed: 'haiyue-play' }, risk: 'trusted-project', diagnostics: [],
   };
   await assert.rejects(runtime.start(scene, plan), /log unavailable/);
   assert.deepEqual(runtime.snapshot(), {
-    instanceId: null, state: 'stopped', entityId: null, position: null, disposableCount: 0, errors: [],
+    instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [],
   });
 });
 

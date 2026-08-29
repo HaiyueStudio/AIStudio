@@ -1,5 +1,5 @@
 import { asStableId, type ContextArtifactV2, type JsonObject, type JsonValue, type M12Digest, type StableId } from '@haiyue/ai-studio-contracts';
-import { canonicalStringify, redactJson, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
+import { canonicalStringify, OperationLogError, redactJson, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 
 export type PromptModuleLayer = 'policy' | 'tool-contract' | 'workflow';
 export interface PromptModuleDefinition {
@@ -91,6 +91,8 @@ const MAX_MODEL_CONTEXT_BYTES = 96 * 1024;
 const MAX_SUMMARY_ITEMS = 12;
 const MAX_SUMMARY_ITEM_BYTES = 512;
 const CONTEXT_SOURCE = asStableId('studio.prompt-context');
+const REBUILD_QUERY_LIMIT = 200;
+const REBUILD_MAX_SEQUENCE_WINDOW = 10_000;
 
 export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] = Object.freeze([
   module('prompt.policy.safe-authoring', '1.0.0', 'policy', [
@@ -160,8 +162,7 @@ export class PromptContextRuntime {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    await this.rebuildArtifactMetadata();
-    await this.rebuildIndex();
+    await this.rebuildDurableState();
     this.initialized = true;
   }
 
@@ -299,28 +300,38 @@ export class PromptContextRuntime {
 
   private projectRevision(projectId: StableId | null): number | null { return projectId ? this.projectStates.get(projectId)?.revision ?? null : null; }
 
-  private async rebuildIndex(): Promise<void> {
-    let cursor: string | undefined;
-    do {
-      const page = await this.log.query({ kinds: ['agent/conversation-indexed'], limit: 200, traverseCorrelation: false, ...(cursor ? { cursor } : {}) });
-      for (const event of page.events) {
-        const value = parseConversationIndex(event.payload, event.artifactRefs);
-        this.indexes.set(indexKey(value.conversationKey, value.backendId), value);
+  private async rebuildDurableState(): Promise<void> {
+    const status = this.log.status();
+    const untilSequence = status.nextSequence;
+    let afterSequence = Math.max(-1, untilSequence - status.eventCount - 1);
+    let windowSize = Math.max(1, Math.min(REBUILD_MAX_SEQUENCE_WINDOW, untilSequence - afterSequence - 1));
+    while (afterSequence < untilSequence - 1) {
+      const beforeSequence = Math.min(untilSequence, afterSequence + windowSize + 1);
+      let cursor: string | undefined;
+      try {
+        do {
+          const page = await this.log.query({
+            kinds: ['agent/context-artifact-created', 'agent/context-artifact-reused', 'agent/conversation-indexed'],
+            ...(afterSequence >= 0 ? { afterSequence } : {}), beforeSequence, limit: REBUILD_QUERY_LIMIT, traverseCorrelation: false,
+            ...(cursor ? { cursor } : {}),
+          });
+          for (const event of page.events) {
+            if (event.kind === 'agent/conversation-indexed') {
+              const value = parseConversationIndex(event.payload, event.artifactRefs);
+              this.indexes.set(indexKey(value.conversationKey, value.backendId), value);
+            } else {
+              const artifact = parseContextArtifact(event.payload.artifact, event.artifactRefs);
+              this.metadata.set(asStableId(artifact.id), artifact);
+            }
+          }
+          cursor = page.nextCursor;
+        } while (cursor);
+        afterSequence = beforeSequence - 1;
+      } catch (cause) {
+        if (!(cause instanceof OperationLogError) || cause.code !== 'query-scan-budget-exceeded' || windowSize === 1) throw cause;
+        windowSize = Math.max(1, Math.floor(windowSize / 2));
       }
-      cursor = page.nextCursor;
-    } while (cursor);
-  }
-
-  private async rebuildArtifactMetadata(): Promise<void> {
-    let cursor: string | undefined;
-    do {
-      const page = await this.log.query({ kinds: ['agent/context-artifact-created', 'agent/context-artifact-reused'], limit: 200, traverseCorrelation: false, ...(cursor ? { cursor } : {}) });
-      for (const event of page.events) {
-        const artifact = parseContextArtifact(event.payload.artifact, event.artifactRefs);
-        this.metadata.set(asStableId(artifact.id), artifact);
-      }
-      cursor = page.nextCursor;
-    } while (cursor);
+    }
   }
 }
 

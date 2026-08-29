@@ -131,7 +131,7 @@ test('task accounting aggregates turns, cache savings and a final cost without c
   assert.match(subscription.snapshot().cost.explanation, /Subscription limits/);
 });
 
-test('hard budget blocks before the next effect and late reconciliation cannot unlatch it', () => {
+test('hard budget blocks before the next effect until an explicit bounded continuation grant', () => {
   const hard = new TaskBudgetController(budget('hard'));
   assert.equal(hard.commit({ turns: 1, toolCalls: 1 }).allowed, true);
   const denied = hard.preflight({ toolCalls: 1 });
@@ -140,6 +140,11 @@ test('hard budget blocks before the next effect and late reconciliation cannot u
   hard.reconcileUsage(usageRecord({ inputTokens: 1, outputTokens: 1 }), 1);
   assert.equal(hard.state().allowed, false);
   assert.equal(hard.state().hardStopLatched, true);
+  const continued = hard.authorizeContinuation();
+  assert.equal(continued.allowed, true);
+  assert.equal(hard.budget.limits.toolCalls, 2);
+  assert.equal(hard.commit({ toolCalls: 1 }).allowed, true);
+  assert.throws(() => hard.authorizeContinuation(), /hard budget stop must be pending/i);
 
   const soft = new TaskBudgetController(budget('soft'));
   soft.commit({ toolCalls: 1 });

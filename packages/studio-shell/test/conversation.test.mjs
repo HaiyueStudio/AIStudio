@@ -104,6 +104,28 @@ test('chat feed follows new content only while the reader is near the latest mes
   assert.equal(chatFeedIsNearLatest({ scrollTop: 500, clientHeight: 300, scrollHeight: 1_000 }), false);
 });
 
+test('composer keeps an editable focused draft while sending is temporarily blocked', () => {
+  const value = snapshot([]);
+  value.busy = true;
+  const model = presentChatPanel(new ConversationProjector().reset(value));
+  assert.equal(model.composer.canSend, false);
+  const fake = fakeDom();
+  renderChatPanel(fake.root, model, () => assert.fail('No send expected while blocked.'));
+  const firstInput = fake.find('.chat-composer textarea');
+  const firstSend = fake.findButton('Send');
+  assert.notEqual(firstInput.disabled, true);
+  assert.equal(firstSend.disabled, true);
+  firstInput.value = '继续完善俄罗斯方块';
+  firstInput.focus();
+  firstInput.setSelectionRange(2, 6, 'forward');
+
+  renderChatPanel(fake.root, model, () => assert.fail('No send expected while blocked.'));
+  const nextInput = fake.find('.chat-composer textarea');
+  assert.equal(nextInput.value, '继续完善俄罗斯方块');
+  assert.equal(fake.document.activeElement, nextInput);
+  assert.deepEqual([nextInput.selectionStart, nextInput.selectionEnd, nextInput.selectionDirection], [2, 6, 'forward']);
+});
+
 test('model controls and task cost card expose effective settings, cache savings and unknown explanations safely', () => {
   const value = snapshot([]);
   value.backends = [{ ...value.backends[0], state: 'ready', models: [{ id: 'fixture-model', label: 'Fixture model', reasoningEfforts: ['low', 'high'], defaultReasoningEffort: 'high', maxOutputTokens: 8192, isDefault: true }], selectedModel: 'fixture-model', selectedReasoningEffort: 'high', outputTokenLimit: 4096 }];
@@ -224,17 +246,34 @@ function fakeConversationPort() {
 function fakeDom() {
   let innerHtmlWrites = 0;
   class FakeNode {
-    constructor(ownerDocument, tag = 'fragment') { this.ownerDocument = ownerDocument; this.tagName = tag; this.children = []; this.dataset = {}; this.attributes = {}; this._text = ''; }
+    constructor(ownerDocument, tag = 'fragment') { this.ownerDocument = ownerDocument; this.tagName = tag; this.children = []; this.dataset = {}; this.attributes = {}; this._text = ''; this.value = ''; this.selectionStart = 0; this.selectionEnd = 0; this.selectionDirection = 'none'; this.scrollTop = 0; this.scrollHeight = 0; this.clientHeight = 0; }
     append(...values) { this.children.push(...values); }
     replaceChildren(...values) { this.children = [...values]; }
     setAttribute(key, value) { this.attributes[key] = value; }
     addEventListener() {}
+    focus() { this.ownerDocument.activeElement = this; }
+    setSelectionRange(start, end, direction = 'none') { this.selectionStart = start; this.selectionEnd = end; this.selectionDirection = direction; }
+    querySelector(selector) { return find(this, selector); }
     set textContent(value) { this._text = String(value); }
     get textContent() { return this._text; }
     set innerHTML(_) { innerHtmlWrites += 1; throw new Error('innerHTML is forbidden'); }
   }
-  const document = { createElement: (tag) => new FakeNode(document, tag), createDocumentFragment: () => new FakeNode(document) };
+  const matches = (value, selector) => {
+    if (selector === '.chat-feed') return value.className === 'chat-feed';
+    if (selector === '.chat-composer textarea') return value.tagName === 'textarea' && value.parent?.className === 'chat-composer';
+    return value.tagName === selector;
+  };
+  const find = (value, selector) => {
+    if (matches(value, selector)) return value;
+    for (const child of value.children) { child.parent = value; const match = find(child, selector); if (match) return match; }
+    return null;
+  };
+  const document = { activeElement: null, createElement: (tag) => new FakeNode(document, tag), createDocumentFragment: () => new FakeNode(document) };
   const root = new FakeNode(document, 'root');
   const flatten = (value) => `${value._text}${value.children.map(flatten).join('')}`;
-  return { root, text: () => flatten(root), get innerHtmlWrites() { return innerHtmlWrites; } };
+  return { root, document, find: (selector) => find(root, selector), findButton: (label) => findAll(root, 'button').find((value) => value.textContent === label), text: () => flatten(root), get innerHtmlWrites() { return innerHtmlWrites; } };
+
+  function findAll(value, tag) {
+    return [value, ...value.children.flatMap((child) => findAll(child, tag))].filter((item) => item.tagName === tag);
+  }
 }

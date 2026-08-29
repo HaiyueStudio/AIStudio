@@ -28,6 +28,7 @@ import { AgentPreviewBroker } from './agent-preview-broker.js';
 import { StudioConversationHost } from './conversation-host.js';
 import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
 import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
+import { installStdioErrorGuards } from './stdio-safety.js';
 
 const descriptor = defineEditorAppDescriptor({
   schemaVersion: 1,
@@ -51,6 +52,7 @@ const descriptor = defineEditorAppDescriptor({
 
 const smoke = process.env.HAIYUE_ELECTRON_SMOKE === '1';
 const openDevTools = process.env.HAIYUE_OPEN_DEVTOOLS === '1';
+installStdioErrorGuards([process.stdout, process.stderr], (cause) => { void traceBoot(`stdio:failed:${errorMessage(cause)}`); });
 const previewScheme = 'haiyue-preview';
 const previewAssets = new Map<string, string>([
   ['/preview.html', 'preview.html'],
@@ -215,9 +217,11 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
 }
 
 async function boot(): Promise<void> {
+  await traceBoot('boot:start');
   const userDataRoot = app.getPath('userData');
   const deepSeekCredentials = new DeepSeekCredentialStore(userDataRoot, safeStorage);
   await deepSeekCredentials.importFromEnvironment(process.env);
+  await traceBoot('boot:credentials-ready');
   const plugins: StudioPluginDefinition<any>[] = [
     createEditorFoundationProviderPlugin(),
     createOperationLogPlugin(),
@@ -233,6 +237,7 @@ async function boot(): Promise<void> {
     }),
     createElectronIpcPlugin(),
   ];
+  await traceBoot('boot:activate-start');
   await root.activate({
     schemaVersion: 1,
     id: asStableId(`profile:${agentProfile.id}`),
@@ -247,7 +252,9 @@ async function boot(): Promise<void> {
     }],
     patches: [],
   }, plugins);
+  await traceBoot('boot:activate-ready');
   createWindow();
+  await traceBoot('boot:window-created');
 }
 
 function createWindow(): void {
@@ -297,7 +304,7 @@ function createWindow(): void {
     if (isMainFrame) activeRouter?.cancelPending();
   });
   window.webContents.on('render-process-gone', () => activeRouter?.cancelPending());
-  window.webContents.on('console-message', (details) => console.log(`[ai-studio-renderer:${details.level}] ${details.message}`));
+  if (smoke) window.webContents.on('console-message', (details) => console.log(`[ai-studio-renderer:${details.level}] ${details.message}`));
   window.once('closed', () => { activeRouter?.cancelPending(); if (mainWindow === window) mainWindow = null; });
   if (openDevTools && !smoke) window.webContents.once('did-finish-load', () => window.webContents.openDevTools({ mode: 'detach' }));
   if (smoke) {
@@ -365,9 +372,14 @@ async function shutdown(): Promise<void> {
 
 app.on('window-all-closed', () => { void shutdown().finally(() => app.quit()); });
 app.on('before-quit', () => { void shutdown(); });
-void app.whenReady().then(boot).catch((cause) => finishSmoke(1, errorMessage(cause)));
+void app.whenReady().then(boot).catch(async (cause) => { await traceBoot(`boot:failed:${errorMessage(cause)}`); finishSmoke(1, errorMessage(cause)); });
 
 function errorMessage(value: unknown): string { return value instanceof Error ? value.stack ?? value.message : String(value); }
+async function traceBoot(stage: string): Promise<void> {
+  const destination = process.env.HAIYUE_BOOT_TRACE?.trim();
+  if (!destination) return;
+  await writeFile(destination, `${new Date().toISOString()} ${stage.replaceAll(/\r?\n/gu, ' ')}\n`, { flag: 'a' }).catch(() => undefined);
+}
 
 function pluginConfig(pluginId: string, userDataRoot: string): JsonObject {
   if (pluginId === 'studio.operation-log.plugin') {

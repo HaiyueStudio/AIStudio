@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme seams', async () => {
-  const [html, webHtml, renderer, styles, manifest] = await Promise.all([
+  const [html, webHtml, renderer, previewRuntime, styles, manifest] = await Promise.all([
     readFile(new URL('../renderer/index.html', import.meta.url), 'utf8'),
     readFile(new URL('../renderer/web.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/renderer.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/preview-runtime.ts', import.meta.url), 'utf8'),
     readFile(new URL('../renderer/styles.css', import.meta.url), 'utf8'),
     readFile(new URL('../package.json', import.meta.url), 'utf8').then(JSON.parse),
   ]);
@@ -28,6 +29,13 @@ test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme
   assert.match(webHtml, /id="run-project"[\s\S]*id="run-dialog"[\s\S]*id="run-approve"/);
   assert.match(renderer, /previewDisclosure\.diagnostics\.filter[\s\S]*diagnostic\.severity === 'error'/);
   assert.match(renderer, /run-approve'\)\.disabled = errors\.length > 0/);
+  assert.match(renderer, /renderScriptPanel\(entity \?\? null, \{ preservePreviewDisclosure: true \}\)/);
+  assert.match(renderer, /if \(!options\.preservePreviewDisclosure\) previewDisclosure = null/);
+  assert.match(renderer, /engine\?\.stop\(\)[\s\S]*onSubmittedWorkDone\(\)[\s\S]*engine\.destroy\(\)/);
+  assert.match(renderer, /await Promise\.all\(\[frame\.start\(previewScene, plan\), authoringCleanup\]\)/);
+  assert.doesNotMatch(renderer, /engineScene\.update\(performance\.now\(\), 0\)/);
+  assert.match(previewRuntime, /beginManualRenderFrame\(engine\);[\s\S]*simulation\.advanceDisplayFrame/);
+  assert.match(previewRuntime, /renderTarget[\s\S]*beginFrame\(\)/);
   assert.match(renderer, /value: 'scripts'/);
   assert.match(renderer, /Fix the committed AIStudio project script[\s\S]*script\.get[\s\S]*never use import, export/);
   assert.match(renderer, /No script is committed[\s\S]*may not have been approved or committed[\s\S]*script\.propose[\s\S]*script\.apply/);

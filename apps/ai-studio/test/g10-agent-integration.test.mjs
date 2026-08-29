@@ -298,8 +298,8 @@ test('G10 conversation host gives project-missing turns recovery instructions th
   await host.dispose();
 });
 
-test('hard task budget blocks the next tool before prepare or mutation', async () => {
-  const releases = []; const submitted = []; let prepareCount = 0; let executeCount = 0;
+test('hard task budget releases the live tool call and continues in a fresh turn after a bounded user grant', async () => {
+  const releases = []; const submitted = []; let prepareCount = 0; let executeCount = 0; let startCount = 0;
   const backend = {
     descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} }, async modelCatalog() { return modelCatalog(); }, async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
     async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {}, async answerQuestion() {}, async resolveBackendApproval() {},
@@ -307,8 +307,13 @@ test('hard task budget blocks the next tool before prepare or mutation', async (
   };
   const runtime = { context: contextFixture(), registry: { descriptors: () => [backend.descriptor], get: () => backend }, accounting: new TaskAccountingRegistry(new UsageLedgerStore()), turns: {
     async *start() {
-      const first = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-one', toolId: 'project.snapshot', arguments: {} }); await first;
-      const second = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-two', toolId: 'diagnostics.query', arguments: {} }); await second;
+      startCount += 1;
+      if (startCount === 1) {
+        const first = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-one', toolId: 'project.snapshot', arguments: {} }); await first;
+        const second = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-two', toolId: 'diagnostics.query', arguments: {} }); await second;
+      } else {
+        const retry = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:budget-two-retry', toolId: 'diagnostics.query', arguments: {} }); await retry;
+      }
       yield event('completed', { status: 'completed' });
     }, async *resume() {}, async cancel() {}, async recordToolResult() {},
   } };
@@ -317,25 +322,66 @@ test('hard task budget blocks the next tool before prepare or mutation', async (
     async execute() { executeCount += 1; return { schemaVersion: 1, callId: 'tool-call:budget-one', toolId: 'project.snapshot', status: 'completed', value: {}, documentId: 'document:test', beforeRevision: 1, afterRevision: 1 }; } };
   const host = new StudioConversationHost({ runtime, tools, operationLog: { async append() {} }, isProjectOpen: () => true }); await host.initialize();
   await host.dispatch({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: { schemaVersion: 2, id: 'budget:hard-integration', enforcement: 'hard', limits: { inputTokens: 100_000, outputTokens: 10_000, estimatedCostMicros: 1_000_000, wallTimeMs: 60_000, turns: 2, toolCalls: 1, repairIterations: 1, observationBytes: 100_000 } } });
-  await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Inspect twice' }); await waitFor(() => host.replay().busy === false);
-  assert.equal(prepareCount, 1); assert.equal(executeCount, 1); assert.equal(submitted.length, 2); assert.equal(submitted[1].result.error.code, 'budget.hard-stop');
+  await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Inspect twice' });
+  await waitFor(() => nodes(host).some((node) => node.kind === 'question' && node.status === 'pending' && node.content.options?.some((option) => String(option.id).includes('budget-continue'))));
+  const budgetQuestion = nodes(host).filter((node) => node.kind === 'question' && node.status === 'pending').at(-1);
+  const continueOption = budgetQuestion.content.options.find((option) => String(option.id).includes('budget-continue'));
+  assert.equal(prepareCount, 1); assert.equal(executeCount, 1); assert.equal(submitted.length, 2);
+  assert.equal(submitted[1].result.status, 'cancelled'); assert.equal(submitted[1].result.value.code, 'budget.continuation-required');
+  await host.dispatch({ type: 'conversation/answer-question', nodeId: budgetQuestion.id, answer: { optionIds: [continueOption.id] } });
+  await waitFor(() => host.replay().busy === false);
+  assert.equal(startCount, 2); assert.equal(prepareCount, 2); assert.equal(executeCount, 2); assert.equal(submitted.length, 3); assert.equal(submitted[2].result.status, 'completed');
+  assert.equal(host.replay().taskAccounting.budgetStatus, 'within'); assert.equal(host.replay().taskAccounting.budget.limits.toolCalls, 2); await host.dispose();
+});
+
+test('declining a budget continuation stops without rolling back completed tool output', async () => {
+  const releases = []; const submitted = []; let prepareCount = 0; let executeCount = 0;
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} }, async modelCatalog() { return modelCatalog(); }, async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
+    async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {}, async answerQuestion() {}, async resolveBackendApproval() {},
+    async submitToolResult(id, result) { submitted.push({ id, result }); releases.shift()?.(); },
+  };
+  const runtime = { context: contextFixture(), registry: { descriptors: () => [backend.descriptor], get: () => backend }, accounting: new TaskAccountingRegistry(new UsageLedgerStore()), turns: {
+    async *start() {
+      const first = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:preserve-one', toolId: 'project.snapshot', arguments: {} }); await first;
+      const second = new Promise((resolve) => releases.push(resolve)); yield event('tool-request', { toolCallId: 'tool-call:preserve-two', toolId: 'diagnostics.query', arguments: {} }); await second;
+      yield event('completed', { status: 'completed' });
+    }, async *resume() {}, async cancel() {}, async recordToolResult() {},
+  } };
+  const tools = { definitions: () => ['project.snapshot', 'diagnostics.query'].map((id) => ({ id, description: id, effect: 'observe', risk: 'low', inputSchema: {} })),
+    async prepare(call) { prepareCount += 1; return { id: `preparation:preserve:${prepareCount}`, callId: call.id, sessionId, turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'observe', risk: 'low', documentId: 'document:test', baseRevision: 1, argumentsDigest: digest('a'), previewDigest: digest('b'), preview: { title: 'Read', target: 'Project', summary: 'Read only', diff: '' }, status: 'ready' }; },
+    async execute() { executeCount += 1; return { schemaVersion: 1, callId: 'tool-call:preserve-one', toolId: 'project.snapshot', status: 'completed', value: { retained: true }, documentId: 'document:test', beforeRevision: 1, afterRevision: 1 }; } };
+  const host = new StudioConversationHost({ runtime, tools, operationLog: { async append() {} }, isProjectOpen: () => true }); await host.initialize();
+  await host.dispatch({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: { schemaVersion: 2, id: 'budget:preserve-integration', enforcement: 'hard', limits: { inputTokens: 100_000, outputTokens: 10_000, estimatedCostMicros: 1_000_000, wallTimeMs: 60_000, turns: 2, toolCalls: 1, repairIterations: 1, observationBytes: 100_000 } } });
+  await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Inspect twice and preserve the first result' });
+  await waitFor(() => nodes(host).some((node) => node.kind === 'question' && node.status === 'pending' && node.content.options?.some((option) => String(option.id).includes('budget-stop'))));
+  const budgetQuestion = nodes(host).filter((node) => node.kind === 'question' && node.status === 'pending').at(-1);
+  const stopOption = budgetQuestion.content.options.find((option) => String(option.id).includes('budget-stop'));
+  assert.equal(submitted.length, 2); assert.equal(submitted[1].result.status, 'cancelled'); assert.equal(submitted[1].result.value.code, 'budget.continuation-required');
+  await host.dispatch({ type: 'conversation/answer-question', nodeId: budgetQuestion.id, answer: { optionIds: [stopOption.id] } });
+  await waitFor(() => host.replay().busy === false);
+  assert.equal(prepareCount, 1); assert.equal(executeCount, 1); assert.equal(submitted.length, 2);
+  assert.equal(submitted[1].result.status, 'cancelled'); assert.equal(submitted[1].result.value.preserved, true);
+  assert.ok(nodes(host).some((node) => node.kind === 'completion' && /project changes preserved/u.test(String(node.content.summary))));
   assert.equal(host.replay().taskAccounting.budgetStatus, 'hard-exceeded'); await host.dispose();
 });
 
 test('G10 renderer preview broker uses one pending command and rejects stale acknowledgements', async () => {
   const broker = new AgentPreviewBroker();
-  const plan = { id: 'preview-plan:test', scriptId: 'script:test', entityId: 'entity:test', documentRevision: 1, textRevision: 1, digest: 'digest:test', capabilities: ['read'], risk: 'trusted-project', diagnostics: [], emittedText: 'return;' };
+  const scriptSetDigest = `sha256:${'a'.repeat(64)}`;
+  const plan = { id: 'preview-plan:test', documentId: 'document:test', documentRevision: 1, selection: 'all-enabled', scriptSetDigest, scripts: [{ scriptId: 'script:test', entityId: 'entity:test', order: 0, textRevision: 1, digest: 'a'.repeat(64), capabilities: ['read'], diagnostics: [], emittedText: 'return;' }], capabilities: ['read'], runtimeConfig: { schemaVersion: 1, mode: 'fixed-step', tickRateHz: 60, maxSubSteps: 1000, seed: 'test' }, risk: 'trusted-project', diagnostics: [] };
   const scene = { schemaVersion: 1, revision: 1, documentId: 'document:test', entities: [{ id: 'entity:test', name: 'Player', kind: 'cube', parentId: null, order: 0, transform: { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } } }] };
   const started = broker.start(scene, plan);
   const command = broker.command().command;
   assert.equal(command.kind, 'start');
   assert.equal(command.scene.entities[0].kind, 'cube');
-  broker.resolve(command.id, { instanceId: 'preview:test', state: 'playing', entityId: 'entity:test', position: { x: 0, y: 0, z: 0 }, disposableCount: 0, errors: [] });
+  const runningScript = { scriptId: 'script:test', entityId: 'entity:test', order: 0, state: 'playing', position: { x: 0, y: 0, z: 0 }, disposableCount: 0, errorCount: 0 };
+  broker.resolve(command.id, { instanceId: 'preview:test', state: 'playing', scriptSetDigest, scriptCount: 1, scripts: [runningScript], entityId: 'entity:test', position: { x: 0, y: 0, z: 0 }, disposableCount: 0, errors: [] });
   assert.equal((await started).state, 'playing');
-  assert.throws(() => broker.resolve(command.id, { instanceId: null, state: 'stopped', entityId: null, position: null, disposableCount: 0, errors: [] }), /missing, stale/);
+  assert.throws(() => broker.resolve(command.id, { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] }), /missing, stale/);
   const stopped = broker.stop();
   const stopCommand = broker.command().command;
-  broker.resolve(stopCommand.id, { instanceId: null, state: 'stopped', entityId: null, position: null, disposableCount: 0, errors: [] });
+  broker.resolve(stopCommand.id, { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] });
   assert.equal((await stopped).state, 'stopped');
   broker.dispose(); broker.dispose();
 });

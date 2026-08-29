@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EditorDocumentHost, EditorHistoryService, EditorProjectSessionState, EditorTaskCoordinator } from '@haiyue/editor-platform';
@@ -24,9 +24,9 @@ transform?.setPosition(0, 1, 0);
 test('bounded tool catalog exposes registry-driven component authoring', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
     'project.snapshot', 'engine.capabilities.describe', 'component.describe', 'component.get',
-    'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
+    'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query', 'asset.search',
     'camera.set', 'entity.create', 'entity.rename', 'transform.set', 'material.set',
-    'component.add', 'component.set', 'component.remove', 'script.propose', 'script.apply',
+    'component.add', 'component.set', 'component.remove', 'asset.import', 'asset.assign', 'script.propose', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
@@ -98,6 +98,74 @@ test('planned entity creation is low risk while later scoped edits retain one-sh
   } finally { await dispose(value); }
 });
 
+test('controlled project assets import, search, assign, undo and survive project reopen', async () => {
+  const value = await fixture();
+  try {
+    await mkdir(path.join(value.projectRoot, 'assets', 'textures'), { recursive: true });
+    await writeFile(path.join(value.projectRoot, 'assets', 'textures', 'player.png'), pngHeader(2, 2));
+    const created = await executeReady(value.runtime, call('call:asset-entity', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Textured Player' }));
+    const entityId = created.value.entity.id;
+
+    await assert.rejects(
+      value.runtime.prepare(call('call:asset-traversal', 'asset.import', { baseRevision: 2, projectPath: 'assets/../outside.png', kind: 'texture', mimeType: 'image/png', license: 'project-owned', provenance: 'test fixture', decodedBytes: 8 })),
+      /project assets directory/,
+    );
+
+    const imported = await approveAndExecute(value.runtime, call('call:asset-import', 'asset.import', {
+      baseRevision: 2, projectPath: 'assets/textures/player.png', kind: 'texture', mimeType: 'image/png',
+      license: 'project-owned', provenance: 'runtime test fixture', decodedBytes: 64, width: 2, height: 2,
+    }));
+    assert.equal(imported.afterRevision, 3);
+    assert.equal(imported.historyLabel, 'Import Asset');
+    assert.match(imported.value.asset.id, /^asset:[a-f0-9]{24}$/);
+    assert.equal(value.workspace.gameSnapshot().assets.length, 1);
+    assert.equal(value.scene.snapshot().assets[0].id, imported.value.asset.id);
+
+    const search = await executeReady(value.runtime, call('call:asset-search', 'asset.search', { text: 'player', kind: 'texture', limit: 10 }));
+    assert.equal(search.value.count, 1);
+    assert.equal(search.value.assets[0].projectPath, 'assets/textures/player.png');
+    assert.equal(search.value.assets[0].license, 'project-owned');
+    assert.equal('bytes' in search.value.assets[0], false);
+
+    const assigned = await approveAndExecute(value.runtime, call('call:asset-assign', 'asset.assign', { baseRevision: 3, entityId, assetId: imported.value.asset.id, usage: 'texture.base-color' }));
+    assert.equal(assigned.afterRevision, 4);
+    assert.equal(assigned.historyLabel, 'Assign Asset');
+    assert.equal(assigned.value.component.type, 'haiyue.material.pbr');
+    assert.equal(assigned.value.component.value.baseColorAssetId, imported.value.asset.id);
+
+    await value.workspace.undo(4);
+    assert.equal(value.workspace.queryGameDocument({ entityId, limit: 256 }).components.some((item) => item.type === 'haiyue.material.pbr'), false);
+    await value.workspace.redo(5);
+    assert.equal(value.workspace.queryGameDocument({ entityId, limit: 256 }).components.find((item) => item.type === 'haiyue.material.pbr').value.baseColorAssetId, imported.value.asset.id);
+
+    await value.workspace.save();
+    await value.workspace.closeProject();
+    await value.workspace.openProject(value.projectRoot);
+    const reopened = await executeReady(value.runtime, call('call:asset-search-reopened', 'asset.search', { limit: 10 }));
+    assert.equal(reopened.value.count, 1);
+    assert.equal(reopened.value.assets[0].digest, imported.value.asset.digest);
+    assert.equal(value.scene.snapshot().assets[0].digest, imported.value.asset.digest);
+  } finally { await dispose(value); }
+});
+
+test('controlled asset import rejects decode-budget and kind/format violations without mutation', async () => {
+  const value = await fixture();
+  try {
+    await mkdir(path.join(value.projectRoot, 'assets'), { recursive: true });
+    await writeFile(path.join(value.projectRoot, 'assets', 'bad.png'), Buffer.from([1, 2, 3, 4]));
+    const prepared = await value.runtime.prepare(call('call:asset-budget', 'asset.import', { baseRevision: 1, projectPath: 'assets/bad.png', kind: 'texture', mimeType: 'image/png', license: 'internal-test', provenance: 'failure fixture', decodedBytes: 2 }));
+    await value.runtime.decide(prepared.approvalId, 'allow-once');
+    await assert.rejects(value.runtime.execute(prepared.id), (error) => error.code === 'asset.decode-budget');
+    assert.equal(value.workspace.gameSnapshot().revision, 1);
+    assert.equal(value.workspace.gameSnapshot().assets.length, 0);
+
+    const format = await value.runtime.prepare(call('call:asset-format', 'asset.import', { baseRevision: 1, projectPath: 'assets/bad.png', kind: 'model', mimeType: 'model/gltf-binary', license: 'internal-test', provenance: 'failure fixture', decodedBytes: 4 }));
+    await value.runtime.decide(format.approvalId, 'allow-once');
+    await assert.rejects(value.runtime.execute(format.id), (error) => error.code === 'asset.format-not-allowed');
+    assert.equal(value.workspace.gameSnapshot().revision, 1);
+  } finally { await dispose(value); }
+});
+
 test('diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload', async () => {
   const value = await fixture();
   try {
@@ -156,7 +224,7 @@ test('script proposal, trusted apply and runtime start preserve separate approva
     const applied = await value.runtime.execute(apply.id);
     assert.equal(applied.afterRevision, 3);
 
-    const validated = await executeReady(value.runtime, call('call:validate', 'preview.validate', { scriptId: applied.value.scriptId, capabilities: ['read', 'debug'] }));
+    const validated = await executeReady(value.runtime, call('call:validate', 'preview.validate', {}));
     const start = await value.runtime.prepare(call('call:start', 'preview.start', { baseRevision: 3, planId: validated.value.planId }));
     assert.notEqual(start.approvalId, apply.approvalId);
     await assert.rejects(value.runtime.decide(start.approvalId, 'allow-always'), /one-shot approval/);
@@ -203,10 +271,8 @@ test('scene capability is inferred from api.scene source and survives proposal a
     const applied = await approveAndExecute(value.runtime, call('call:apply-inferred-scene', 'script.apply', {
       baseRevision: created.afterRevision, proposalId: proposed.value.proposalId,
     }));
-    const validated = await executeReady(value.runtime, call('call:validate-inferred-scene', 'preview.validate', {
-      scriptId: applied.value.scriptId, capabilities: ['read', 'input', 'debug'],
-    }));
-    assert.deepEqual(validated.value.capabilities, ['read', 'input', 'debug', 'scene']);
+    const validated = await executeReady(value.runtime, call('call:validate-inferred-scene', 'preview.validate', {}));
+    assert.deepEqual(new Set(validated.value.capabilities), new Set(['read', 'input', 'debug', 'scene']));
     assert.deepEqual(validated.value.diagnostics, []);
   } finally { await dispose(value); }
 });
@@ -217,7 +283,7 @@ test('preview validation rejects scenes that contain only logic entities', async
     const create = await approveAndExecute(value.runtime, call('call:create-empty-script-entity', 'entity.create', { baseRevision: 1, kind: 'empty', name: 'Logic Root' }));
     const proposed = await executeReady(value.runtime, call('call:propose-empty-scene', 'script.propose', { baseRevision: 2, entityId: create.value.entity.id, text: movementScript, capabilities: ['read', 'debug'] }));
     const applied = await approveAndExecute(value.runtime, call('call:apply-empty-scene', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId }));
-    const prepared = await value.runtime.prepare(call('call:validate-empty-scene', 'preview.validate', { scriptId: applied.value.scriptId, capabilities: ['read', 'debug'] }));
+    const prepared = await value.runtime.prepare(call('call:validate-empty-scene', 'preview.validate', {}));
     await assert.rejects(value.runtime.execute(prepared.id), /no renderable geometry/);
     assert.equal(value.preview.starts, 0);
   } finally { await dispose(value); }
@@ -618,12 +684,12 @@ async function fixture(runtimeOptions = {}, restartState = null) {
   const scripts = {
     snapshot: () => projectScripts.snapshot(), proposeEdit: (input) => projectScripts.proposeEdit(input),
     commitProposal: (proposalId, commandId, signal) => projectScripts.commitProposal(proposalId, commandId, signal),
-    prepare: (scriptId, capabilities) => authorization.prepare(scriptId, capabilities),
+    prepare: (input) => authorization.prepare(input),
     decide: (planId, approved, ttl) => authorization.decide(planId, approved, ttl), consume: (grantId) => authorization.consume(grantId),
   };
   const preview = {
-    starts: 0, stops: 0, state: { instanceId: null, state: 'stopped', entityId: null, position: null, disposableCount: 0, errors: [] },
-    async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', entityId: plan.entityId }; return this.state; },
+    starts: 0, stops: 0, state: { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] },
+    async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, scripts: plan.scripts.map((script) => ({ scriptId: script.scriptId, entityId: script.entityId, order: script.order, state: 'playing', position: null, disposableCount: 0, errorCount: 0 })), entityId: plan.scripts[0]?.entityId ?? null }; return this.state; },
     async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; }, snapshot() { return this.state; },
   };
   const runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, diagnostics: operationLog.diagnosticsService(), operationLog, preview, ...runtimeOptions });
@@ -641,14 +707,14 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 22);
+      assert.equal(input.tools.length, 25);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
       result = yield* request('toolcall:transform', 'transform.set', { baseRevision: result.afterRevision, entityId, transform: { position: { x: 2, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 30, z: 0 }, scale: { x: 1, y: 1, z: 1 } } });
       result = yield* request('toolcall:propose', 'script.propose', { baseRevision: result.afterRevision, entityId, text: script, capabilities: ['read', 'debug'] });
       result = yield* request('toolcall:apply', 'script.apply', { baseRevision: result.afterRevision, proposalId: result.value.proposalId });
-      result = yield* request('toolcall:validate', 'preview.validate', { scriptId: result.value.scriptId, capabilities: ['read', 'debug'] });
+      result = yield* request('toolcall:validate', 'preview.validate', {});
       result = yield* request('toolcall:start', 'preview.start', { baseRevision: result.afterRevision, planId: result.value.planId });
       yield* request('toolcall:stop', 'preview.stop', {});
       yield event('completed', { status: 'completed' });
@@ -666,7 +732,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 22);
+      assert.equal(input.tools.length, 25);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');
@@ -692,3 +758,4 @@ function minimalBackend(startTurn, submitToolResult = async () => {}) {
 }
 function event(kind, payload) { return { schemaVersion: 1, backendId: 'backend:minimal-tools', sessionId: 'session:minimal-tools', turnId: 'turn:minimal-tools', kind, payload }; }
 function deferred() { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; }
+function pngHeader(width, height) { const bytes = new Uint8Array(24); bytes.set([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82]); const view = new DataView(bytes.buffer); view.setUint32(16, width, false); view.setUint32(20, height, false); return bytes; }

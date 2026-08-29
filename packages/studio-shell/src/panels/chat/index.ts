@@ -79,8 +79,14 @@ export function chatFeedIsNearLatest(position: ChatFeedScrollPosition, threshold
 export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void): void {
   const document = root.ownerDocument;
   const previousFeed = root.querySelector?.('.chat-feed') as HTMLElement | null | undefined;
+  const previousInput = root.querySelector?.('.chat-composer textarea') as HTMLTextAreaElement | null | undefined;
   const followLatest = !previousFeed || chatFeedIsNearLatest(previousFeed);
   const preservedScrollTop = previousFeed?.scrollTop ?? 0;
+  const preservedDraft = previousInput?.value ?? '';
+  const restoreInputFocus = previousInput !== undefined && previousInput !== null && document.activeElement === previousInput;
+  const preservedSelection = restoreInputFocus
+    ? Object.freeze({ start: previousInput.selectionStart, end: previousInput.selectionEnd, direction: previousInput.selectionDirection ?? undefined })
+    : null;
   const fragment = document.createDocumentFragment();
   const backendControls = document.createElement('div');
   backendControls.className = 'chat-backend-controls';
@@ -167,14 +173,13 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const input = document.createElement('textarea');
   input.setAttribute('aria-label', 'Message the game authoring Agent');
   input.setAttribute('aria-describedby', 'chat-composer-status');
-  input.disabled = !model.composer.canSend;
+  input.value = preservedDraft;
   const send = document.createElement('button'); send.type = 'button'; send.textContent = 'Send'; send.disabled = !model.composer.canSend;
   const sendIntent = (): void => {
     const prompt = input.value.trim();
     if (!model.backendId || !model.composer.canSend || !prompt || new TextEncoder().encode(prompt).byteLength > 16 * 1024) return;
     appendOptimisticTurn(document, feed, prompt);
     input.value = '';
-    input.disabled = true;
     send.disabled = true;
     feed.scrollTop = feed.scrollHeight;
     dispatch(Object.freeze({ type: 'conversation/send', backendId: model.backendId, prompt }));
@@ -197,6 +202,10 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const composerStatus = document.createElement('span'); composerStatus.id = 'chat-composer-status'; composerStatus.textContent = model.composer.blockedReason ?? 'Ready to send.'; composer.append(composerStatus);
   fragment.append(composer);
   root.replaceChildren(fragment);
+  if (restoreInputFocus) {
+    input.focus();
+    if (preservedSelection) input.setSelectionRange(preservedSelection.start, preservedSelection.end, preservedSelection.direction);
+  }
   const syncLatestButton = (): void => { jumpLatest.hidden = chatFeedIsNearLatest(feed); };
   if (followLatest) feed.scrollTop = feed.scrollHeight;
   else feed.scrollTop = Math.min(preservedScrollTop, Math.max(0, feed.scrollHeight - feed.clientHeight));

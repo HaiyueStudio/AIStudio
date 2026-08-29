@@ -1,5 +1,5 @@
 import { asStableId, type AgentTurnConfigV2, type JsonObject, type M12ReasoningEffort, type StableId, type TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
-import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type ContextProjectSnapshot, type PromptProfileSnapshot, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
+import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type BudgetDecision, type ContextProjectSnapshot, type PromptProfileSnapshot, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
 import type { GameAuthoringToolService, GameToolApproval, GameToolPreparation } from '@haiyue/ai-studio-game-authoring-tools';
 import { sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import {
@@ -26,6 +26,8 @@ interface ActiveTurn {
   readonly localTurnId: StableId;
   approvedPlan: ApprovedPlanExecution | null;
   continuationRequested: boolean;
+  continuationInstruction: string | null;
+  budgetCheckpoint: Readonly<{ toolId: StableId; summary: string }> | null;
   readonly conversationKey: StableId;
   readonly projectId: StableId | null;
   readonly goal: string;
@@ -36,7 +38,9 @@ interface ActiveTurn {
 }
 interface BackendSelection { readonly model: string; readonly reasoningEffort: M12ReasoningEffort; readonly outputTokenLimit: number; }
 interface PendingApproval { readonly preparation: GameToolPreparation; readonly approval: GameToolApproval; readonly nodeId: StableId; readonly resolve: () => void; readonly reject: (cause: unknown) => void; }
-interface PendingQuestion { readonly backend: AgentBackend; readonly nodeId: StableId; readonly backendNodeId: StableId; readonly releaseHumanWait: () => void; readonly detachAbort: () => void; }
+interface PendingBackendQuestion { readonly kind: 'backend'; readonly backend: AgentBackend; readonly nodeId: StableId; readonly backendNodeId: StableId; readonly releaseHumanWait: () => void; readonly detachAbort: () => void; }
+interface PendingBudgetQuestion { readonly kind: 'budget'; readonly nodeId: StableId; readonly continueOptionId: StableId; readonly stopOptionId: StableId; readonly releaseHumanWait: () => void; readonly detachAbort: () => void; readonly resolve: (continued: boolean) => void; readonly reject: (cause: unknown) => void; }
+type PendingQuestion = PendingBackendQuestion | PendingBudgetQuestion;
 interface PendingPlan {
   readonly nodeId: StableId;
   readonly toolCallId: StableId;
@@ -144,8 +148,16 @@ export class StudioConversationHost {
         if (!pending) throw new Error('Question is stale or already answered.');
         this.questions.delete(intent.nodeId);
         pending.detachAbort(); pending.releaseHumanWait();
-        try { await pending.backend.answerQuestion(pending.backendNodeId, intent.answer, signal); this.finishNode(intent.nodeId, 'completed'); }
-        catch (cause) { this.finishNode(intent.nodeId, 'failed'); throw cause; }
+        try {
+          if (pending.kind === 'backend') await pending.backend.answerQuestion(pending.backendNodeId, intent.answer, signal);
+          else {
+            const optionIds = Array.isArray(intent.answer.optionIds) ? intent.answer.optionIds : [];
+            if (optionIds.length !== 1 || (optionIds[0] !== pending.continueOptionId && optionIds[0] !== pending.stopOptionId)) throw new Error('Budget continuation answer is invalid.');
+            pending.resolve(optionIds[0] === pending.continueOptionId);
+          }
+          this.finishNode(intent.nodeId, 'completed');
+        }
+        catch (cause) { if (pending.kind === 'budget') pending.reject(cause); this.finishNode(intent.nodeId, 'failed'); throw cause; }
         return;
       }
       case 'conversation/accept-plan': this.resolvePlan(intent.nodeId, intent.acceptedItemIds, intent.note, intent.mode ?? 'approve'); return;
@@ -231,7 +243,7 @@ export class StudioConversationHost {
     assertBudgetAllowed(account.beginTurn());
     const wallTimeBudget = armWallTimeBudget(controller, account);
     this.latestTaskId = taskId;
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal: prompt, decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
+    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal: prompt, decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(userNodeId, 'text', 'completed', provenance, Object.freeze({ text: prompt, role: 'user' }));
     this.project(initialProgressNodeId, 'progress', 'pending', provenance, Object.freeze({
       label: '正在分析需求', message: 'Agent 正在读取项目上下文并规划下一步。', phase: 'awaiting-first-step',
@@ -245,32 +257,46 @@ export class StudioConversationHost {
       if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
       const owned = this.active?.controller === controller ? this.active : null;
       if (owned?.sessionId && owned.turnId) this.approvedPlanTurns.delete(turnKey(owned.sessionId, owned.turnId));
-      const continuation = owned?.continuationRequested ? owned.approvedPlan : null;
-      if (owned && continuation) {
-        await this.continueApprovedPlan(backendId, continuation, owned.taskId, owned.config, owned.account, owned.conversationKey, owned.goal).catch((cause) => this.captureFailure(backendId, cause));
+      if (owned?.continuationRequested) {
+        await this.continueTask(backendId, owned.approvedPlan, owned.taskId, owned.config, owned.account, owned.conversationKey, owned.goal, owned.continuationInstruction).catch((cause) => this.captureFailure(backendId, cause));
         if (this.active?.controller === controller) { this.active = null; this.changed(); }
       } else if (owned) { this.active = null; this.changed(); }
     }
   }
 
-  private async continueApprovedPlan(backendId: StableId, plan: ApprovedPlanExecution, taskId: StableId, config: AgentTurnConfigV2, account: TaskAccount, conversationKey: StableId, goal: string): Promise<void> {
+  private async continueTask(backendId: StableId, plan: ApprovedPlanExecution | null, taskId: StableId, config: AgentTurnConfigV2, account: TaskAccount, conversationKey: StableId, goal: string, continuationInstruction: string | null): Promise<void> {
     const controller = new AbortController();
     const localSessionId = asStableId(`session:approved-plan:${this.nodeSequence + 1}`);
     const localTurnId = asStableId(`turn:approved-plan:${this.nodeSequence + 1}`);
     const initialProgressNodeId = this.nextNodeId('approved-plan-progress');
-    assertBudgetAllowed(account.beginTurn());
+    let beginDecision = account.beginTurn();
+    if (!beginDecision.allowed && beginDecision.status === 'hard-exceeded') {
+      const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
+      const continued = await this.awaitBudgetContinuation(beginDecision, provenance, controller.signal);
+      if (!continued) {
+        if (this.active) this.active.decisions.push('User stopped before the approved-plan execution tranche; prior project work was preserved.');
+        this.project(this.nextNodeId('completion'), 'completion', 'completed', provenance, Object.freeze({ terminalStatus: 'completed', summary: '用户选择不增加预算；已批准方案未继续执行，此前已经生成并提交的项目产物均已保留。' }));
+        return;
+      }
+      assertBudgetAllowed(account.authorizeContinuation());
+      beginDecision = account.beginTurn();
+    }
+    assertBudgetAllowed(beginDecision);
     const wallTimeBudget = armWallTimeBudget(controller, account);
     const tools = this.modelTools();
     const project = this.options.projectContext?.() ?? null;
-    const request = approvedPlanRequest(plan, project !== null);
+    const request = [
+      plan ? approvedPlanRequest(plan, project !== null) : budgetContinuationRequest(goal, project !== null),
+      continuationInstruction,
+    ].filter((value): value is string => Boolean(value)).join('\n\n');
     const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project });
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, conversationKey, projectId: project?.projectId ?? null, goal, decisions: [`Approved plan: ${plan.title}. ${plan.summary}`], toolFacts: [], blockers: [], contextCommitted: false };
+    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal, decisions: plan ? [`Approved plan: ${plan.title}. ${plan.summary}`] : ['User approved continuation after a completed budget checkpoint.'], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId }), Object.freeze({
-      label: '正在执行已批准方案', message: '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。', phase: 'approved-plan-execution',
+      label: plan ? '正在执行已批准方案' : '正在恢复任务', message: plan ? '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。' : '预算续期已确认，Agent 正在从安全检查点恢复任务。', phase: plan ? 'approved-plan-execution' : 'budget-continuation',
     }));
     await this.options.operationLog.append({
       kind: 'conversation/approved-plan-continuing', severity: 'info', source: asStableId('studio.conversation-host'), correlation: {},
-      payload: { titleDigest: sha256(plan.title), itemCount: plan.items.length, attempt: plan.attempts },
+      payload: { titleDigest: sha256(plan?.title ?? goal), itemCount: plan?.items.length ?? 0, attempt: plan?.attempts ?? 0, reason: continuationInstruction ? 'budget-checkpoint' : 'approved-plan' },
     }).catch(() => undefined);
     try {
       await this.consume(backendId, this.options.runtime.turns.start(backendId, {
@@ -283,7 +309,10 @@ export class StudioConversationHost {
       if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
       const owned = this.active?.controller === controller ? this.active : null;
       if (owned?.sessionId && owned.turnId) this.approvedPlanTurns.delete(turnKey(owned.sessionId, owned.turnId));
-      if (owned) { this.active = null; this.changed(); }
+      if (owned?.continuationRequested) {
+        await this.continueTask(backendId, owned.approvedPlan, owned.taskId, owned.config, owned.account, owned.conversationKey, owned.goal, owned.continuationInstruction).catch((cause) => this.captureFailure(backendId, cause));
+        if (this.active?.controller === controller) { this.active = null; this.changed(); }
+      } else if (owned) { this.active = null; this.changed(); }
     }
   }
 
@@ -295,15 +324,26 @@ export class StudioConversationHost {
     const existingAccount = this.options.runtime.accounting.get(taskId);
     const budget = Object.freeze({ ...this.budgetTemplate, id: config.taskBudgetId, limits: Object.freeze({ ...this.budgetTemplate.limits }) });
     const account = existingAccount ?? this.options.runtime.accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
-    if (!existingAccount) assertBudgetAllowed(account.beginTurn()); else assertBudgetAllowed(account.snapshot().budgetDecision);
+    const resumeDecision = existingAccount ? account.snapshot().budgetDecision : account.beginTurn();
     const wallTimeBudget = armWallTimeBudget(controller, account);
     this.latestTaskId = taskId;
     const project = this.options.projectContext?.() ?? null;
-    this.active = { backendId, taskId, config, account, sessionId, turnId, controller, wallTimeBudget, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: null, continuationRequested: false, conversationKey: conversationKeyFor(project), projectId: project?.projectId ?? null, goal: 'Retry the interrupted visible task.', decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
+    this.active = { backendId, taskId, config, account, sessionId, turnId, controller, wallTimeBudget, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: null, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey: conversationKeyFor(project), projectId: project?.projectId ?? null, goal: 'Retry the interrupted visible task.', decisions: [], toolFacts: [], blockers: [], contextCommitted: false };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId, turnId }), Object.freeze({
       label: '正在恢复任务', message: 'Agent 正在恢复上次任务的上下文。', phase: 'awaiting-first-step',
     }));
-    try { await this.consume(backendId, this.options.runtime.turns.resume(backendId, sessionId, turnId, controller.signal), controller.signal); }
+    try {
+      if (!resumeDecision.allowed && resumeDecision.status === 'hard-exceeded') {
+        const continued = await this.awaitBudgetContinuation(resumeDecision, Object.freeze({ backendId, sessionId, turnId }), controller.signal);
+        if (!continued) {
+          this.active?.decisions.push('User declined budget continuation while retrying; prior project work was preserved.');
+          this.project(this.nextNodeId('completion'), 'completion', 'completed', Object.freeze({ backendId, sessionId, turnId }), Object.freeze({ terminalStatus: 'completed', summary: '用户选择停止恢复任务；此前已经生成并提交的项目产物均已保留。' }));
+          return;
+        }
+        assertBudgetAllowed(account.authorizeContinuation()); wallTimeBudget.resetAfterContinuation();
+      } else assertBudgetAllowed(resumeDecision);
+      await this.consume(backendId, this.options.runtime.turns.resume(backendId, sessionId, turnId, controller.signal), controller.signal);
+    }
     catch (cause) { await this.captureFailure(backendId, cause, sessionId, turnId); }
     finally {
       wallTimeBudget.dispose();
@@ -354,7 +394,7 @@ export class StudioConversationHost {
         this.questions.delete(nodeId); pending.releaseHumanWait(); this.finishNode(nodeId, 'cancelled');
       };
       signal.addEventListener('abort', abort, { once: true });
-      this.questions.set(nodeId, Object.freeze({ backend, nodeId, backendNodeId, releaseHumanWait, detachAbort: () => signal.removeEventListener('abort', abort) }));
+      this.questions.set(nodeId, Object.freeze({ kind: 'backend', backend, nodeId, backendNodeId, releaseHumanWait, detachAbort: () => signal.removeEventListener('abort', abort) }));
       if (signal.aborted) abort();
       return;
     }
@@ -368,6 +408,26 @@ export class StudioConversationHost {
     if (event.kind === 'completed') {
       const status = terminalStatus(event.payload.status);
       await this.commitContext(event, status);
+      const checkpoint = this.active?.budgetCheckpoint;
+      if (checkpoint && this.active) {
+        const active = this.active;
+        const continued = await this.awaitBudgetContinuation(active.account.snapshot().budgetDecision, provenance, signal);
+        active.budgetCheckpoint = null;
+        if (continued) {
+          assertBudgetAllowed(active.account.authorizeContinuation());
+          active.wallTimeBudget.resetAfterContinuation();
+          active.continuationRequested = true;
+          active.continuationInstruction = `The previous turn stopped safely before ${checkpoint.toolId} because it reached a budget checkpoint. The user approved another bounded tranche. Re-inspect the authoritative project revision, do not repeat completed edits, retry the interrupted step, and continue the visible goal.`;
+          active.decisions.push(`User approved budget continuation after ${checkpoint.toolId}.`);
+          await this.options.operationLog.append({
+            kind: 'agent/budget-continuation-authorized', severity: 'warning', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId },
+            payload: { taskId: active.account.options.taskId, budgetId: active.account.options.budget.id, limits: active.account.snapshot().budget.limits, safeBoundary: true },
+          }).catch(() => undefined);
+        } else {
+          active.decisions.push('User stopped at the safe budget checkpoint; all completed project work was preserved.');
+          active.toolFacts.push('Budget checkpoint: stopped by user after the active backend turn was safely released.');
+        }
+      }
       const approvedPlan = this.active?.sessionId === event.sessionId && this.active.turnId === event.turnId ? this.active.approvedPlan : null;
       if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && approvedPlan.attempts < 1) {
         approvedPlan.attempts += 1;
@@ -397,7 +457,35 @@ export class StudioConversationHost {
     let stage: 'budget' | 'prepare' | 'approval' | 'execute' | 'submit-result' = 'budget';
     this.project(toolNodeId, 'tool-call', 'pending', provenance, Object.freeze({ toolCallId, toolId, argumentsSummary: toolArgumentSummary(toolId, args) }));
     try {
-      const preflight = account.preflightTool(toolCallId);
+      if (this.active?.budgetCheckpoint) {
+        const value = Object.freeze({ code: 'budget.turn-stopping', preserved: true, retryable: true, message: 'This turn is already stopping at a safe budget checkpoint. Retry in the user-approved continuation turn.' });
+        this.project(toolNodeId, 'tool-call', 'cancelled', provenance, Object.freeze({ toolCallId, toolId, target: 'Current project', effect: 'observe', argumentsSummary: toolArgumentSummary(toolId, args) }));
+        this.project(this.nextNodeId('tool-result'), 'tool-result', 'cancelled', provenance, Object.freeze({ toolCallId, toolId, resultStatus: 'cancelled', summary: '当前回合正在预算检查点安全结束；该并行工具将在续期回合重试。', details: boundedJson(value) }));
+        await backend.submitToolResult(toolCallId, Object.freeze({ status: 'cancelled', value }), signal).catch(() => undefined);
+        await this.options.runtime.turns.recordToolResult(event.turnId, toolCallId, Object.freeze({ status: 'cancelled', value }));
+        return;
+      }
+      let preflight = account.preflightTool(toolCallId);
+      if (!preflight.allowed && preflight.status === 'hard-exceeded') {
+        const summary = toolArgumentSummary(toolId, args);
+        const value = Object.freeze({
+          code: 'budget.continuation-required', preserved: true, retryable: true,
+          message: 'Studio reached a budget checkpoint before this tool. The live backend call was released to avoid expiring while the user is away; completed project changes remain committed. Stop this turn and wait for Studio to resume in a fresh turn after user confirmation.',
+        });
+        this.project(toolNodeId, 'tool-call', 'cancelled', provenance, Object.freeze({ toolCallId, toolId, target: 'Current project', effect: 'observe', argumentsSummary: summary }));
+        this.project(this.nextNodeId('tool-result'), 'tool-result', 'cancelled', provenance,
+          Object.freeze({ toolCallId, toolId, resultStatus: 'cancelled', summary: '已到达预算检查点；当前模型工具调用已安全释放，已完成修改均已保留。', details: boundedJson(value) }));
+        if (this.active) {
+          this.active.budgetCheckpoint = Object.freeze({ toolId, summary });
+          this.active.decisions.push(`Budget checkpoint reached before ${toolId}; release the live backend tool call before waiting for the user.`);
+          this.active.toolFacts.push(`${toolId}: deferred at a safe budget checkpoint; prior project changes preserved.`);
+        }
+        await backend.submitToolResult(toolCallId, Object.freeze({ status: 'cancelled', value }), signal);
+        await this.options.runtime.turns.recordToolResult(event.turnId, toolCallId, Object.freeze({ status: 'cancelled', value }));
+        await this.recordTaskAccounting(account, event.sessionId, event.turnId); this.changed();
+        await this.options.runtime.turns.cancel(event.backendId, event.sessionId, event.turnId).catch(() => undefined);
+        return;
+      }
       if (preflight.status === 'soft-exceeded') this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'completed', provenance, Object.freeze({ code: 'budget.soft-warning', message: preflight.warning ?? 'Soft task budget is exceeded; execution is continuing.', severity: 'warning', retryable: false }));
       assertBudgetAllowed(preflight);
       assertBudgetAllowed(account.commitTool(toolCallId));
@@ -446,6 +534,41 @@ export class StudioConversationHost {
       await backend.submitToolResult(toolCallId, Object.freeze({ status: 'failed', error: diagnostic }), signal).catch(() => undefined);
       await this.options.runtime.turns.recordToolResult(event.turnId, toolCallId, Object.freeze({ status: 'failed', error: diagnostic })); await this.recordTaskAccounting(account, event.sessionId, event.turnId); this.changed();
     }
+  }
+
+  private awaitBudgetContinuation(decision: BudgetDecision, provenance: ConversationNodeReadModel['provenance'], signal: AbortSignal): Promise<boolean> {
+    const nodeId = this.nextNodeId('budget-question');
+    const continueOptionId = asStableId(`option:budget-continue:${this.nodeSequence}`);
+    const stopOptionId = asStableId(`option:budget-stop:${this.nodeSequence}`);
+    const violations = decision.violations.length
+      ? decision.violations.map((item) => `${budgetMetricLabel(item.metric)} ${item.projected}/${item.limit}`).join('，')
+      : '任务预算已达到当前上限';
+    this.project(nodeId, 'question', 'pending', provenance, Object.freeze({
+      prompt: `当前任务已达到预算检查点（${violations}）。继续将增加一个与初始任务相同的预算额度，并从当前步骤继续；停止不会回滚已经完成的场景、资源或脚本修改，当前脚本提案也会保留。`,
+      options: Object.freeze([
+        Object.freeze({ id: continueOptionId, label: '继续处理', description: '批准一个有界的额外预算额度，并从当前工具调用继续。' }),
+        Object.freeze({ id: stopOptionId, label: '停止并保留结果', description: '结束当前任务，保留所有已完成修改和当前提案。' }),
+      ]),
+      allowFreeform: false,
+      multiple: false,
+    }));
+    const active = this.active;
+    const releaseHumanWait = active?.sessionId && active.turnId ? this.pauseForHumanInteraction(active.sessionId, active.turnId) : () => {};
+    void this.options.operationLog.append({
+      kind: 'agent/budget-continuation-requested', severity: 'warning', source: asStableId('studio.conversation-host'), correlation: { sessionId: provenance.sessionId, turnId: provenance.turnId, ...(provenance.stepId ? { toolCallId: provenance.stepId } : {}) },
+      payload: { taskId: active?.taskId ?? null, violations: decision.violations.map((item) => ({ metric: item.metric, current: item.current, projected: item.projected, limit: item.limit })) },
+    }).catch(() => undefined);
+    return new Promise<boolean>((resolve, reject) => {
+      const abort = (): void => {
+        this.questions.delete(nodeId); releaseHumanWait(); this.finishNode(nodeId, 'cancelled'); reject(signal.reason ?? new Error('Budget continuation cancelled.'));
+      };
+      if (signal.aborted) { abort(); return; }
+      signal.addEventListener('abort', abort, { once: true });
+      this.questions.set(nodeId, Object.freeze({
+        kind: 'budget', nodeId, continueOptionId, stopOptionId, releaseHumanWait,
+        detachAbort: () => signal.removeEventListener('abort', abort), resolve, reject,
+      }));
+    });
   }
 
   private awaitPlan(toolCallId: StableId, sessionId: StableId, turnId: StableId, args: JsonObject, provenance: ConversationNodeReadModel['provenance'], signal: AbortSignal): Promise<JsonObject> {
@@ -804,7 +927,8 @@ function toolResultSummary(toolId: StableId, status: 'completed' | 'rejected' | 
   if (toolId === 'script.propose') {
     const diagnostics = Array.isArray(raw.diagnostics) ? raw.diagnostics : [];
     const errors = diagnostics.filter((item) => isRecord(item) && item.severity === 'error').length;
-    return errors > 0 ? `脚本提案有 ${errors} 个错误，需要修改后重新校验。` : `脚本提案校验通过 · +${numberField(raw.addedLines)}/-${numberField(raw.removedLines)} 行`;
+    const proposal = typeof raw.proposalId === 'string' ? ` ${raw.proposalId}` : '';
+    return errors > 0 ? `脚本提案${proposal}有 ${errors} 个错误，提案已保留，需要修改后重新校验。` : `脚本提案${proposal}校验通过并已保留 · +${numberField(raw.addedLines)}/-${numberField(raw.removedLines)} 行`;
   }
   if (toolId === 'script.apply') return `脚本已提交${typeof raw.textRevision === 'number' ? ` · 文本 r${raw.textRevision}` : ''}${revision}`;
   if (toolId === 'preview.validate') {
@@ -817,11 +941,21 @@ function toolResultSummary(toolId: StableId, status: 'completed' | 'rejected' | 
   return fallback;
 }
 function numberField(value: unknown): number { return typeof value === 'number' && Number.isFinite(value) ? value : 0; }
+function budgetMetricLabel(metric: BudgetDecision['violations'][number]['metric']): string {
+  return ({ inputTokens: '输入 token', outputTokens: '输出 token', estimatedCostMicros: '预计成本', wallTimeMs: '执行时间', turns: '回合数', toolCalls: '工具调用数', repairIterations: '修复次数', observationBytes: '工具结果字节数' } as const)[metric];
+}
 function approvedPlanRequest(plan: ApprovedPlanExecution, projectOpen: boolean): string {
   return [
     projectOpen ? 'Execute the already approved plan against the current project.' : 'The project closed after approval; report that execution cannot continue.',
     canonicalPlan(plan),
     'Do not request the same plan approval again. Re-inspect the current revision, execute accepted reversible steps, and report any scoped approval or capability that still blocks execution.',
+  ].join('\n\n');
+}
+function budgetContinuationRequest(goal: string, projectOpen: boolean): string {
+  return [
+    projectOpen ? 'Continue the visible task against the current project after a user-approved budget checkpoint.' : 'The project closed while waiting at a budget checkpoint; report that the task cannot safely continue.',
+    `Visible goal: ${goal.slice(0, 2_048)}`,
+    'Inspect authoritative project state before acting. Preserve and reuse completed work, do not recreate working scene content, and retry only the interrupted step. If project mutations are not covered by an already approved plan, propose a plan before editing.',
   ].join('\n\n');
 }
 function canonicalPlan(plan: ApprovedPlanExecution): string {
@@ -833,17 +967,17 @@ const DEFAULT_TASK_BUDGET: TaskBudgetV2 = Object.freeze({ schemaVersion: 2, id: 
 }) });
 function assertBudgetAllowed(decision: Readonly<{ allowed: boolean; warning: string | null }>): void { if (!decision.allowed) throw new BudgetStopError(decision.warning ?? 'Task budget is exhausted.'); }
 class BudgetStopError extends Error { readonly code = 'budget.hard-stop'; constructor(message: string) { super(message); this.name = 'BudgetStopError'; } }
-interface WallTimeBudget { pause(): void; resume(): void; dispose(): void; }
+interface WallTimeBudget { pause(): void; resume(): void; resetAfterContinuation(): void; dispose(): void; }
 function armWallTimeBudget(controller: AbortController, account: TaskAccount): WallTimeBudget {
-  if (account.options.budget.enforcement !== 'hard') return Object.freeze({ pause() {}, resume() {}, dispose() {} });
-  let remaining = account.options.budget.limits.wallTimeMs - account.snapshot().consumption.wallTimeMs;
+  if (account.options.budget.enforcement !== 'hard') return Object.freeze({ pause() {}, resume() {}, resetAfterContinuation() {}, dispose() {} });
+  let remaining = (account.snapshot().budget.limits.wallTimeMs ?? Number.MAX_SAFE_INTEGER) - account.snapshot().consumption.wallTimeMs;
   let armedAt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pauseDepth = 0;
   let disposed = false;
   const expire = (): void => {
     timer = null; remaining = 0;
-    account.expireWallTime(); controller.abort(new BudgetStopError('Hard wall-time budget expired.'));
+    account.expireWallTime();
   };
   const arm = (): void => {
     if (disposed || pauseDepth > 0 || controller.signal.aborted) return;
@@ -862,6 +996,13 @@ function armWallTimeBudget(controller: AbortController, account: TaskAccount): W
     resume(): void {
       if (disposed || pauseDepth === 0) return;
       pauseDepth -= 1;
+      if (pauseDepth === 0) arm();
+    },
+    resetAfterContinuation(): void {
+      if (disposed) return;
+      if (timer !== null) { clearTimeout(timer); timer = null; }
+      const snapshot = account.snapshot();
+      remaining = Math.max(1, (snapshot.budget.limits.wallTimeMs ?? Number.MAX_SAFE_INTEGER) - snapshot.consumption.wallTimeMs);
       if (pauseDepth === 0) arm();
     },
     dispose(): void { if (disposed) return; disposed = true; if (timer !== null) clearTimeout(timer); timer = null; },

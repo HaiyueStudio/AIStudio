@@ -22,7 +22,11 @@ export interface BudgetDecision {
 export class TaskBudgetController {
   private consumptionValue: BudgetConsumption = emptyConsumption();
   private hardStopLatched = false;
-  constructor(readonly budget: TaskBudgetV2) { validateTaskBudget(budget); }
+  private readonly tranche: TaskBudgetV2;
+  private budgetValue: TaskBudgetV2;
+  constructor(budget: TaskBudgetV2) { this.tranche = validateTaskBudget(budget); this.budgetValue = this.tranche; }
+
+  get budget(): TaskBudgetV2 { return this.budgetValue; }
 
   preflight(reservation: Partial<BudgetConsumption>): BudgetDecision {
     validateReservation(reservation);
@@ -51,6 +55,21 @@ export class TaskBudgetController {
     this.consumptionValue = Object.freeze(next);
     const violations = this.violations(next);
     if (violations.length && this.budget.enforcement === 'hard') this.hardStopLatched = true;
+    return this.state();
+  }
+
+  authorizeContinuation(): BudgetDecision {
+    if (this.budgetValue.enforcement !== 'hard' || !this.hardStopLatched) throw new BudgetError('budget.continuation-unavailable', 'A hard budget stop must be pending before continuation can be authorized.');
+    const limits = Object.fromEntries(metrics.map((metric) => {
+      const currentLimit = this.budgetValue.limits[metric];
+      const tranche = this.tranche.limits[metric];
+      if (currentLimit === null || tranche === null) return [metric, null];
+      const nextTranche = safeAdd(currentLimit, tranche);
+      const withHeadroom = safeAdd(this.consumptionValue[metric], tranche);
+      return [metric, Math.max(nextTranche, withHeadroom)];
+    })) as unknown as TaskBudgetV2['limits'];
+    this.budgetValue = Object.freeze({ ...this.budgetValue, limits: Object.freeze(limits) });
+    this.hardStopLatched = false;
     return this.state();
   }
 
@@ -84,6 +103,7 @@ export class BudgetError extends Error { constructor(readonly code: string, mess
 
 function emptyConsumption(): BudgetConsumption { return Object.freeze({ inputTokens: 0, outputTokens: 0, estimatedCostMicros: 0, wallTimeMs: 0, turns: 0, toolCalls: 0, repairIterations: 0, observationBytes: 0 }); }
 function addConsumption(base: BudgetConsumption, delta: Partial<BudgetConsumption>): BudgetConsumption { return Object.fromEntries(metrics.map((metric) => [metric, base[metric] + (delta[metric] ?? 0)])) as unknown as BudgetConsumption; }
+function safeAdd(left: number, right: number): number { return Math.min(Number.MAX_SAFE_INTEGER, left + right); }
 function validateReservation(value: Partial<BudgetConsumption>): void { for (const [key, amount] of Object.entries(value)) if (!metrics.includes(key as BudgetMetric) || !Number.isSafeInteger(amount) || amount! < 0) throw new BudgetError('budget.reservation-invalid', `Budget reservation ${key} is invalid.`); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function deepFreeze<T>(value: T): T { if (value && typeof value === 'object' && !Object.isFrozen(value)) { for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child); Object.freeze(value); } return value; }

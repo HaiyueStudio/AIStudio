@@ -6,6 +6,6 @@
   "sha256": "ac46cb07eb24fbb6f141e76bd28265a9d69675cfd42cb6ccca4fa80193ad0a04",
   "integrity": "sha512-dIHSWJVPygbgEL7QyDuVfO7J+3MISvPfG44T5ZBvzuPdGMI5XbDIXREWgUpHrJCYEKKCEnTk2qJajElutJvSRg==",
   "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
-  "requiredExports": ["./components", "./systems", "./experimental/simulation", "./physics", "./physics/backend"],
+  "requiredExports": ["./components", "./systems", "./assets", "./lighting", "./material", "./postprocess", "./experimental/simulation", "./physics", "./physics/backend"],
   "requiredDeclarationMarkers": ["bindCanvas?: boolean", "interface ScriptRuntimeInputApi", "interactions(): readonly unknown[]", "interface ScriptRuntimePhysicsApi", "Physics2DContactEvent", "Physics3DContactEvent", "resourceSnapshot(): Physics2DResourceSnapshot", "resourceSnapshot(): Physics3DResourceSnapshot"]
 }

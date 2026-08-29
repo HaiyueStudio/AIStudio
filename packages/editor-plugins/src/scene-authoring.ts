@@ -28,6 +28,7 @@ import { editorFoundationTokens } from '@haiyue/ai-studio-kernel';
 import { operationLogServiceToken, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import { projectWorkspaceServiceToken } from './project/index.js';
 import type { ProjectDocumentMutation, ProjectWorkspace } from './history/index.js';
+import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, type ControlledAssetManifestEntry } from './assets/catalog.js';
 
 export const SCENE_GEOMETRY_KINDS = Object.freeze(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] as const);
 export const SCENE_LIGHT_KINDS = Object.freeze(['directional-light', 'point-light', 'ambient-light'] as const);
@@ -64,6 +65,7 @@ export interface SceneSnapshot {
   readonly revision: number;
   readonly documentId: StableId;
   readonly entities: readonly SceneEntitySnapshot[];
+  readonly assets: readonly ControlledAssetManifestEntry[];
 }
 export interface CreateSceneEntityIntent {
   readonly commandId: StableId;
@@ -363,12 +365,17 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
       this.projection.rebuild(next); this.current = next; for (const listener of [...this.listeners]) listener(next); return;
     }
     const affected = affectedEntityIds(mutation.delta, this.workspace);
-    if (affected.size === 0) return;
+    if (affected.size === 0) {
+      const next = sceneFromWorkspace(this.workspace);
+      this.current = next;
+      for (const listener of [...this.listeners]) listener(next);
+      return;
+    }
     for (const entityId of affected) {
       const before = this.sceneEntities.get(entityId) ?? null; const after = sceneEntityFromWorkspace(this.workspace, entityId);
       this.projection.apply(before, after); if (after) this.sceneEntities.set(entityId, after); else this.sceneEntities.delete(entityId);
     }
-    this.current = freezeScene({ schemaVersion: 1, revision: mutation.delta.afterRevision, documentId: mutation.delta.documentId as StableId, entities: sortSceneEntities([...this.sceneEntities.values()]) });
+    this.current = freezeScene({ schemaVersion: 1, revision: mutation.delta.afterRevision, documentId: mutation.delta.documentId as StableId, entities: sortSceneEntities([...this.sceneEntities.values()]), assets: controlledAssets(this.workspace) });
     for (const listener of [...this.listeners]) listener(this.current);
   }
   private entityComponent(entityId: StableId, type: string): GameComponentInstanceV2 {
@@ -597,11 +604,13 @@ export function normalizePickPoint(input: ViewportPickInput): ViewportPickPoint 
 
 function sceneFromWorkspace(workspace: ProjectWorkspace): SceneSnapshot {
   const document = workspace.snapshot().document;
-  if (!document) return freezeScene({ schemaVersion: 1, revision: 0, documentId: asStableId('document:none'), entities: [] });
+  if (!document) return freezeScene({ schemaVersion: 1, revision: 0, documentId: asStableId('document:none'), entities: [], assets: [] });
   const entities: SceneEntitySnapshot[] = []; let cursor: string | undefined;
   do { const result = workspace.queryGameDocument({ limit: 1_000, ...(cursor ? { cursor } : {}) }); for (const entity of result.entities) entities.push(sceneEntity(entity, result.components)); cursor = result.nextCursor ?? undefined; } while (cursor);
-  return freezeScene({ schemaVersion: 1, revision: document.revision, documentId: document.documentId, entities: sortSceneEntities(entities) });
+  return freezeScene({ schemaVersion: 1, revision: document.revision, documentId: document.documentId, entities: sortSceneEntities(entities), assets: controlledAssets(workspace) });
 }
+
+function controlledAssets(workspace: ProjectWorkspace): readonly ControlledAssetManifestEntry[] { return ControlledAssetCatalog.fromManifest(workspace.gameSnapshot().settings[CONTROLLED_ASSET_CATALOG_SETTING_KEY]).manifest(); }
 
 function sceneEntityFromWorkspace(workspace: ProjectWorkspace, entityId: StableId): SceneEntitySnapshot | null { const result = workspace.queryGameDocument({ entityId, limit: 1 }); const entity = result.entities[0]; return entity ? sceneEntity(entity, result.components) : null; }
 function sceneEntity(entity: ReturnType<ProjectWorkspace['queryGameDocument']>['entities'][number], components: readonly GameComponentInstanceV2[]): SceneEntitySnapshot {
@@ -637,10 +646,11 @@ export function parseSceneSnapshot(value: JsonValue, documentId: StableId): Scen
     return freezeEntity(entity);
   });
   for (const entity of entities) if (entity.parentId && !ids.has(entity.parentId)) throw new TypeError(`Missing scene parent ${entity.parentId}.`);
-  return freezeScene({ schemaVersion: 1, revision: raw.revision as number, documentId, entities });
+  const assets = ControlledAssetCatalog.fromManifest(raw.assets).manifest();
+  return freezeScene({ schemaVersion: 1, revision: raw.revision as number, documentId, entities, assets });
 }
 
-function freezeScene(value: SceneSnapshot): SceneSnapshot { return Object.freeze({ ...value, entities: Object.freeze(value.entities.map(freezeEntity)) }); }
+function freezeScene(value: SceneSnapshot): SceneSnapshot { return Object.freeze({ ...value, entities: Object.freeze(value.entities.map(freezeEntity)), assets: Object.freeze([...value.assets]) }); }
 function freezeEntity(value: SceneEntitySnapshot): SceneEntitySnapshot {
   if (!isSceneEntityKind(value.kind) || !value.name.trim() || !Number.isSafeInteger(value.order) || value.order < 0) throw new TypeError('Scene entity metadata is invalid.');
   return Object.freeze({

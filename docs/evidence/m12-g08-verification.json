@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "goalId": "g08-render-assets-effects-adapters",
+  "candidates": [
+    { "package": "@haiyue/engine", "version": "0.1.0", "sha256": "ac46cb07eb24fbb6f141e76bd28265a9d69675cfd42cb6ccca4fa80193ad0a04", "exports": ["./assets", "./lighting", "./material", "./postprocess"] },
+    { "package": "@haiyue/animation-spec", "version": "0.1.0", "sha256": "f2bc618a079bae845ad31b29f667b191336449c2134b87d4e87fb21ce951ae88", "exports": ["."] },
+    { "package": "@haiyue/extensions", "version": "0.1.0", "sha256": "112db9547c4f2f666f9d62d91e43c7424ed9f8863c2f4b671872dfc942265335", "exports": [".", "./gltf", "./animation", "./animation3d"] }
+  ],
+  "capabilities": [
+    { "id": "lighting", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "shadow.directional", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "material.pbr", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "postprocess", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "particles.2d", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "particles.3d", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "animation.2d", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "animation.3d", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "audio.playback", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "asset.import", "classification": "available-public", "integrationState": "g08-verified" },
+    { "id": "prefab", "classification": "missing-seam", "integrationState": "blocked-public-seam" }
+  ],
+  "descriptors": [
+    { "type": "haiyue.animation.2d", "capability": "animation.2d", "effect": "gpu-owner", "runtimeAdapter": "adapter.animation.2d" },
+    { "type": "haiyue.animation.state", "capability": "animation.3d", "effect": "data", "runtimeAdapter": null },
+    { "type": "haiyue.animation.transform-clips", "capability": "animation.3d", "effect": "runtime-owner", "runtimeAdapter": "adapter.animation.3d-mixer" },
+    { "type": "haiyue.asset.reference", "capability": "asset.import", "effect": "data", "runtimeAdapter": null },
+    { "type": "haiyue.audio.mixer", "capability": "audio.playback", "effect": "audio-owner", "runtimeAdapter": "adapter.audio.mixer" },
+    { "type": "haiyue.audio.source", "capability": "audio.playback", "effect": "audio-owner", "runtimeAdapter": "adapter.audio.source" },
+    { "type": "haiyue.light.environment", "capability": "lighting", "effect": "gpu-owner", "runtimeAdapter": "adapter.light.environment" },
+    { "type": "haiyue.material.pbr", "capability": "material.pbr", "effect": "gpu-owner", "runtimeAdapter": "adapter.material.pbr" },
+    { "type": "haiyue.model.gltf", "capability": "asset.import", "effect": "gpu-owner", "runtimeAdapter": "adapter.model.gltf" },
+    { "type": "haiyue.particles.2d", "capability": "particles.2d", "effect": "gpu-owner", "runtimeAdapter": "adapter.particles.2d" },
+    { "type": "haiyue.particles.3d", "capability": "particles.3d", "effect": "gpu-owner", "runtimeAdapter": "adapter.particles.3d" },
+    { "type": "haiyue.render.fog", "capability": "lighting", "effect": "gpu-owner", "runtimeAdapter": "adapter.render.fog" },
+    { "type": "haiyue.render.postprocess-stack", "capability": "postprocess", "effect": "gpu-owner", "runtimeAdapter": "adapter.render.postprocess-stack" },
+    { "type": "haiyue.render.profile", "capability": "material.pbr", "effect": "gpu-owner", "runtimeAdapter": "adapter.render.profile" }
+  ],
+  "pbrTextureSlots": ["base-color", "metallic-roughness", "normal", "occlusion", "emissive"],
+  "postprocess": ["fxaa", "taa", "gaussian-blur", "outline", "grayscale", "motion-blur", "gtao", "sao", "ssao"],
+  "assets": {
+    "containedRoot": "assets",
+    "catalogSetting": "studio.assets.catalog.v1",
+    "networkAllowed": false,
+    "externalUrisAllowed": false,
+    "contentSignaturesVerified": true,
+    "textureDimensionsHeaderVerified": true,
+    "licenseRequired": true,
+    "provenanceRequired": true,
+    "sourceBudgetBytes": 33554432,
+    "decodedBudgetBytes": 134217728,
+    "maxImageDimension": 8192,
+    "maxEntries": 4096,
+    "toolExposure": ["asset.search", "asset.import", "asset.assign"],
+    "playTransfer": {
+      "ipcMethod": "asset/read",
+      "integrity": "sha-256-before-transfer",
+      "maxReferencedAssets": 128,
+      "aggregateSourceBudgetBytes": 67108864,
+      "aggregateDecodedBudgetBytes": 268435456,
+      "runtimePayload": "blob-url-or-bounded-animation-source",
+      "filesystemPathsExposed": false
+    }
+  },
+  "lifecycle": { "abortAndLateResultSafe": true, "deviceLossObservable": true, "audioUnlockScoped": true, "animation3dMixerDestroyed": true, "sceneMutationsRestored": true, "blobUrlsRevoked": true, "idempotentStop": true, "authoringDocumentImmutable": true, "residualAfterStop": { "components": 0, "systems": 0, "resolvedAssets": 0, "unlockListeners": 0, "blobUrls": 0 } },
+  "fixtures": ["snake", "match-3", "tetris", "jigsaw", "platformer", "racing", "shooter"],
+  "visualSmoke": { "runtime": "electron-webgpu", "features": ["pbr", "directional-shadow", "environment-light", "outline", "fxaa", "particles.3d"], "semanticBitmapOracle": true, "pngHeaderOnly": false },
+  "productAssetSmoke": { "runtime": "electron-sandboxed-product-preview", "asset": "controlled-png-blob", "expectedOwners": { "textures": 1, "materials": 1 }, "residualDisposables": 0 }
+}
