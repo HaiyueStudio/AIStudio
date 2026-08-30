@@ -693,6 +693,44 @@ test('coordinator can route backend turns and tool output accounting through Age
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
+test('coordinator automatically takes over backend questions through an explicit policy', async () => {
+  const value = await fixture(); const answered = deferred(); let submittedAnswer;
+  const backend = minimalBackend(async function* () {
+    yield event('question', { nodeId: 'question:auto', questions: [{ id: 'choice', options: [{ label: 'Safe' }] }], isBlocking: true });
+    await answered.promise;
+    yield event('completed', { status: 'completed' });
+  });
+  backend.answerQuestion = async (nodeId, answer) => { submittedAnswer = { nodeId, answer }; answered.resolve(); };
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, undefined, {
+    questionTakeover: { async answer() { return { choice: { answers: ['Safe'] } }; } },
+  });
+  try {
+    const summary = await coordinator.run(backend, { prompt: 'Use safe defaults.' });
+    assert.equal(summary.terminal, 'completed');
+    assert.deepEqual(submittedAnswer, { nodeId: 'question:auto', answer: { choice: { answers: ['Safe'] } } });
+    assert.ok(summary.diagnostics.some((item) => item.code === 'agent.question-auto-answered'));
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
+test('coordinator cancels a non-converging turn at its tool request boundary', async () => {
+  const value = await fixture(); let cancelled = 0;
+  const backend = minimalBackend(async function* () {
+    yield event('tool-request', { toolCallId: 'toolcall:bounded-1', toolId: 'project.snapshot', arguments: {} });
+    yield event('tool-request', { toolCallId: 'toolcall:bounded-2', toolId: 'scene.list-entities', arguments: {} });
+    yield event('tool-request', { toolCallId: 'toolcall:bounded-3', toolId: 'camera.get', arguments: {} });
+    yield event('completed', { status: 'completed' });
+  });
+  backend.cancelTurn = async () => { cancelled += 1; };
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, undefined, { maxToolRequests: 2 });
+  try {
+    const summary = await coordinator.run(backend, { prompt: 'Inspect with a bounded turn.' });
+    assert.equal(summary.terminal, 'failed');
+    assert.equal(summary.results.length, 2);
+    assert.equal(cancelled, 1);
+    assert.ok(summary.diagnostics.some((item) => item.code === 'agent.tool-call-budget-exceeded'));
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
 test('disposing the coordinator aborts an active backend turn and is idempotent', async () => {
   const value = await fixture(); const entered = deferred();
   const backend = minimalBackend(async function* (_input, signal) {

@@ -85,12 +85,46 @@ async function run() {
     const catalog = await backend.modelCatalog(); model = chooseModel(catalog.models);
     const reasoningEffort = model.reasoningEfforts.includes(args.reasoning) ? args.reasoning : model.reasoningEfforts.includes('low') ? 'low' : model.defaultReasoningEffort;
     config = { schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort, outputTokenLimit: Math.min(32_768, model.maxOutputTokens), taskBudgetId: testCase.id.replace('game-eval:', 'budget:g12-'), promptProfile: { id: 'prompt:g12-general-game-authoring', version: '2.0.0', digest: contentDigest({ profile: 'g12-general-game-authoring', version: 2 }) }, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] };
-    coordinator = new AgentGameAuthoringCoordinator(fixture.runtime, { async request() { return 'allow-once'; } }, turns);
+    coordinator = new AgentGameAuthoringCoordinator(fixture.runtime, { async request() { return 'allow-once'; } }, turns, {
+      questionTakeover: { async answer(event) { return defaultQuestionAnswer(event); } },
+      maxToolRequests: 120,
+      maxRepeatedToolRequests: 3,
+      maxNoProgressToolRequests: 24,
+    });
     const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
     const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
-    try { summary = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt }, undefined, controller.signal)); } finally { clearTimeout(timer); }
-    if (summary.turnId) account.bindTurn(summary.turnId, { provider: backendKind === 'harness' ? 'deepseek' : 'openai', model: model.id, billingMode: backendKind === 'harness' ? 'api' : 'subscription' });
-    for (const result of summary.results) account.commitTool(result.callId);
+    const boundTurnIds = new Set();
+    const observeEvent = (event) => {
+      if (boundTurnIds.has(event.turnId)) return;
+      boundTurnIds.add(event.turnId);
+      account.bindTurn(event.turnId, billingContext(model.id));
+    };
+    try {
+      const summaries = [];
+      const initial = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt }, observeEvent, controller.signal));
+      summaries.push(initial); summary = mergeTurnSummaries(summaries); commitToolResults(account, initial.results);
+      let current = initial;
+      let takeoverAttempts = 0;
+      while (isRecoverableSummary(current) && takeoverAttempts < 2) {
+        takeoverAttempts += 1;
+        account.repair(); account.beginTurn();
+        const takeoverPrompt = 'Studio 检测到上一回合发生可重试的传输或流中断。请从当前已保存的项目状态继续原任务；先读取 project.snapshot，保留已有产物，并完成尚未提交和验证的工作。';
+        current = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: takeoverPrompt, ...(current.sessionId ? { sessionId: current.sessionId } : {}) }, observeEvent, controller.signal));
+        summaries.push(current); summary = mergeTurnSummaries(summaries); commitToolResults(account, current.results);
+      }
+      if (current.terminal === 'completed' && enabledScriptCount(fixture.projectScripts.snapshot()) === 0) {
+        account.repair(); account.beginTurn();
+        const repairPrompt = 'Studio 自动检查发现当前项目仍没有已提交且启用的脚本。请继续原任务，使用通用 Studio 工具创建并提交至少一个脚本（script.propose 后执行 script.apply），随后运行 preview.validate；不要只描述方案，也不要结束于未提交状态。';
+        const repair = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: repairPrompt, ...(current.sessionId ? { sessionId: current.sessionId } : {}) }, observeEvent, controller.signal));
+        summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results);
+      }
+      summary = mergeTurnSummaries(summaries);
+    } finally { clearTimeout(timer); }
+    if (summary.terminal !== 'completed') {
+      const convergence = summary.diagnostics.find((entry) => entry.code === 'agent.tool-loop-detected' || entry.code === 'agent.tool-progress-stalled' || entry.code === 'agent.tool-call-budget-exceeded');
+      throw errorWithCode(convergence?.code ?? 'g12.agent-turn-not-completed', convergence?.message ?? `Agent turn ended with ${summary.terminal}.`);
+    }
+    if (enabledScriptCount(fixture.projectScripts.snapshot()) === 0) throw errorWithCode('g12.script-not-created', 'Agent completed both the initial and bounded repair turns without committing an enabled script.');
     const accountingSnapshot = account.reconcile();
     await fixture.workspace.save();
 
@@ -155,8 +189,9 @@ async function preservePartialEvidence({ cause, fixture, preview, turns, account
   const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
   await fixture.workspace.save().catch(() => undefined);
   const usageRecords = taskId && turns ? turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record) : [];
-  const costRecords = account ? safeValue(() => account.costRecords(), []) : [];
+  if (account && model) for (const record of usageRecords) safeValue(() => account.bindTurn(asStableId(record.turnId), billingContext(model.id)), undefined);
   const accounting = account ? safeValue(() => account.reconcile(), null) : null;
+  const costRecords = account ? safeValue(() => account.costRecords(), []) : [];
   const scene = safeValue(() => fixture.scene.snapshot(), null);
   const scripts = safeValue(() => fixture.projectScripts.snapshot(), null);
   const previewSnapshot = preview ? safeValue(() => preview.snapshot(), null) : null;
@@ -176,8 +211,9 @@ async function preservePartialEvidence({ cause, fixture, preview, turns, account
     taskId: taskId ?? null, backendDescriptor: backend ? { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion } : null,
     model: model ? { id: model.id, reasoningEffort: config?.reasoningEffort ?? null, configDigest: config ? contentDigest(config) : null } : null,
     conversationId: summary?.sessionId ?? null, toolResults: summary?.results?.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })) ?? [],
+    diagnostics: summary?.diagnostics ?? [],
     accounting, usageRecords, costRecords, cache: accounting?.usage?.contextCache ?? null,
-    preservedProject: { saved: true, projectId: safeValue(() => fixture.workspace.snapshot().document.projectId, null), sceneDigest: scene ? contentDigest(scene) : null, scriptSetDigest: scripts ? contentDigest(scripts) : null, scriptCount: Array.isArray(scripts) ? scripts.length : scripts?.scripts?.length ?? 0 },
+    preservedProject: { saved: true, projectId: safeValue(() => fixture.workspace.snapshot().document.projectId, null), sceneDigest: scene ? contentDigest(scene) : null, scriptSetDigest: scripts ? contentDigest(scripts) : null, scriptCount: enabledScriptCount(scripts) },
     preview: { snapshot: previewSnapshot, observationDigest: observation ? contentDigest(observation) : null, screenshot },
     evaluator: { status: 'not-run', reason: code }, completedAt: new Date().toISOString(),
   };
@@ -193,6 +229,24 @@ function taskBudget(testCase) { const shared = { inputTokens: 2_000_000, outputT
 function chooseModel(models) { const requested = args.model && models.find((entry) => entry.id === args.model); const priced = models.find((entry) => M12_DEFAULT_PRICING_CATALOG.entries.some((price) => price.model === entry.id)); return requested ?? models.find((entry) => entry.isDefault) ?? priced ?? models[0]; }
 function gameplaySignals(observation) { const output = {}; for (const record of observation.value.gameplay ?? []) flatten(record.value, '', output); return output; }
 function flatten(value, prefix, output) { if (value === null || typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number') { if (prefix && /^[a-z][a-zA-Z0-9.-]{2,127}$/u.test(prefix)) output[prefix] = value; return; } if (!value || typeof value !== 'object' || Array.isArray(value)) return; for (const [key, entry] of Object.entries(value)) flatten(entry, prefix ? `${prefix}.${key}` : key, output); }
+function billingContext(modelId) { return { provider: backendKind === 'harness' ? 'deepseek' : 'openai', model: modelId, billingMode: backendKind === 'harness' ? 'api' : 'subscription' }; }
+function commitToolResults(account, results) { for (const result of results) account.commitTool(result.callId); }
+function enabledScriptCount(snapshot) { const resources = Array.isArray(snapshot) ? snapshot : snapshot?.resources ?? snapshot?.scripts ?? []; return resources.filter((entry) => entry?.enabled !== false).length; }
+function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
+function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }
+function defaultQuestionAnswer(event) {
+  const questions = Array.isArray(event.payload.questions) ? event.payload.questions : [];
+  const answer = {};
+  for (const question of questions) {
+    if (!question || typeof question !== 'object' || typeof question.id !== 'string' || !question.id) continue;
+    const first = Array.isArray(question.options) ? question.options[0] : null;
+    const selected = first && typeof first === 'object'
+      ? typeof first.value === 'string' ? first.value : typeof first.label === 'string' ? first.label : null
+      : typeof first === 'string' ? first : null;
+    answer[question.id] = { answers: [selected ?? '请采用安全、通用且可验证的默认方案继续执行当前任务。'] };
+  }
+  return answer;
+}
 function revisionSet() { const repositories = { aistudio: root, engine: path.resolve(root, '..', 'Engine'), milestones: path.resolve(root, '..', 'milestones') }; return Object.fromEntries(Object.entries(repositories).map(([name, directory]) => [name, { revision: git(directory, ['rev-parse', 'HEAD']), clean: git(directory, ['status', '--porcelain']) === '' }])); }
 function git(directory, values) { const result = spawnSync('git', ['-C', directory, ...values], { encoding: 'utf8', windowsHide: true }); if (result.status !== 0) throw new Error(result.stderr); return result.stdout.trim(); }
 function sha256(bytes) { return `sha256:${createHash('sha256').update(bytes).digest('hex')}`; }

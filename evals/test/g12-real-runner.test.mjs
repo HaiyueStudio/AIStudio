@@ -44,6 +44,17 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /run-error-after-ready/u);
   assert.match(source, /restricted to preflight evidence/u);
   assert.match(source, /preview\.snapshot\(\)\.state !== 'stopped'/u);
+  assert.match(source, /questionTakeover/u);
+  assert.match(source, /maxRepeatedToolRequests/u);
+  assert.match(source, /maxNoProgressToolRequests/u);
+  assert.match(source, /account\.bindTurn\(event\.turnId/u);
+  assert.match(source, /g12\.script-not-created/u);
+  assert.match(source, /isRecoverableSummary/u);
+  assert.match(source, /上一回合发生可重试的传输或流中断/u);
+  assert.match(source, /diagnostics: summary\?\.diagnostics/u);
+  assert.match(source, /script\.propose.*script\.apply/u);
+  assert.match(source, /for \(const record of usageRecords\).*account\.bindTurn/su);
+  assert.ok(source.indexOf('const accounting = account ? safeValue(() => account.reconcile(), null)') < source.indexOf('const costRecords = account ? safeValue(() => account.costRecords(), [])'));
   for (const type of ['state', 'event-trace', 'input-replay', 'screenshot', 'performance', 'lifecycle', 'log']) assert.match(source, new RegExp(`type: '${type}'`, 'u'));
   assert.match(source, /evaluation = evaluateCase/u);
 });

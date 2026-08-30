@@ -1,10 +1,22 @@
 import { asStableId, type AgentTurnConfigV2, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
 import type { AgentBackend, AgentBackendEvent, AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
+import { canonicalStringify } from '@haiyue/ai-studio-operation-log';
 import type { GameAuthoringToolRuntime } from './runtime.js';
 import { GameToolProtocolError, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult } from './types.js';
 
 export interface GameToolApprovalPort {
   request(preparation: GameToolPreparation, approval: GameToolApproval, signal?: AbortSignal): Promise<GameToolApprovalResolution>;
+}
+
+export interface GameQuestionTakeoverPort {
+  answer(event: AgentBackendEvent, signal?: AbortSignal): Promise<JsonObject | null>;
+}
+
+export interface AgentGameAuthoringCoordinatorOptions {
+  readonly questionTakeover?: GameQuestionTakeoverPort;
+  readonly maxToolRequests?: number;
+  readonly maxRepeatedToolRequests?: number;
+  readonly maxNoProgressToolRequests?: number;
 }
 
 export interface AgentGameTurnInput {
@@ -32,7 +44,16 @@ export interface AgentTurnExecutionPort {
 export class AgentGameAuthoringCoordinator {
   private readonly lifecycle = new AbortController();
   private disposed = false;
-  constructor(private readonly runtime: GameAuthoringToolRuntime, private readonly approvals: GameToolApprovalPort, private readonly turns?: AgentTurnExecutionPort) {}
+  constructor(
+    private readonly runtime: GameAuthoringToolRuntime,
+    private readonly approvals: GameToolApprovalPort,
+    private readonly turns?: AgentTurnExecutionPort,
+    private readonly options: AgentGameAuthoringCoordinatorOptions = {},
+  ) {
+    validateOptionalLimit(options.maxToolRequests, 'maxToolRequests');
+    validateOptionalLimit(options.maxRepeatedToolRequests, 'maxRepeatedToolRequests');
+    validateOptionalLimit(options.maxNoProgressToolRequests, 'maxNoProgressToolRequests');
+  }
 
   async run(backend: AgentBackend, input: AgentGameTurnInput, onEvent?: (event: AgentBackendEvent) => void, signal?: AbortSignal): Promise<AgentGameTurnSummary> {
     this.assertActive();
@@ -44,6 +65,11 @@ export class AgentGameAuthoringCoordinator {
     let sessionId: StableId | null = input.sessionId ?? null;
     let turnId: StableId | null = null;
     let terminal: AgentGameTurnSummary['terminal'] | null = null;
+    let toolRequests = 0;
+    let previousToolSignature: string | null = null;
+    let consecutiveToolRepetitions = 0;
+    let noProgressToolRequests = 0;
+    let highestDocumentRevision = 0;
     const tools = this.runtime.definitions().map((definition) => Object.freeze({ id: definition.id, description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`, inputSchema: definition.inputSchema }));
     const turnInput = Object.freeze({ taskId: input.taskId, config: input.config, sessionId: input.sessionId, prompt: input.prompt, contextArtifactIds: input.contextArtifactIds ?? [], tools });
     const events = this.turns ? this.turns.start(backend.descriptor.id, turnInput, controller.signal) : backend.startTurn(turnInput, controller.signal);
@@ -53,6 +79,19 @@ export class AgentGameAuthoringCoordinator {
       if (event.kind === 'tool-request') {
         const toolCallId = stablePayloadId(event.payload.toolCallId, 'tool call id');
         const toolId = stablePayloadId(event.payload.toolId, 'tool id');
+        toolRequests += 1;
+        noProgressToolRequests += 1;
+        const signature = `${toolId}:${canonicalStringify((isRecord(event.payload.arguments) ? event.payload.arguments : {}) as JsonObject)}`;
+        consecutiveToolRepetitions = signature === previousToolSignature ? consecutiveToolRepetitions + 1 : 1;
+        previousToolSignature = signature;
+        const safeguard = toolRequestSafeguard(this.options, toolRequests, consecutiveToolRepetitions, noProgressToolRequests);
+        if (safeguard) {
+          diagnostics.push(safeguard);
+          terminal = 'failed';
+          try { await backend.cancelTurn(event.sessionId, event.turnId); }
+          catch (cause) { diagnostics.push(Object.freeze({ code: 'agent.turn-cancel-failed', message: cause instanceof Error ? cause.message : String(cause) })); }
+          break;
+        }
         try {
           if (!isRecord(event.payload.arguments)) throw new GameToolProtocolError('tool.arguments-invalid', 'Backend tool arguments must be a JSON object.');
           const args = event.payload.arguments as JsonObject;
@@ -65,6 +104,7 @@ export class AgentGameAuthoringCoordinator {
           }
           const result = await this.runtime.execute(preparation.id, controller.signal);
           results.push(result);
+          if (result.afterRevision > highestDocumentRevision) { highestDocumentRevision = result.afterRevision; noProgressToolRequests = 0; }
           const submitted = Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.historyLabel ? { historyLabel: result.historyLabel } : {}) });
           await backend.submitToolResult(toolCallId, submitted, controller.signal);
           await recordToolAccounting(this.turns, event.turnId, toolCallId, submitted, diagnostics);
@@ -75,6 +115,15 @@ export class AgentGameAuthoringCoordinator {
           const submitted = Object.freeze({ status: 'failed', error: diagnostic });
           await backend.submitToolResult(toolCallId, submitted, controller.signal);
           await recordToolAccounting(this.turns, event.turnId, toolCallId, submitted, diagnostics);
+        }
+      } else if (event.kind === 'question' && this.options.questionTakeover) {
+        const nodeId = stablePayloadId(event.payload.nodeId, 'question node id');
+        const answer = await this.options.questionTakeover.answer(event, controller.signal);
+        if (answer) {
+          await backend.answerQuestion(nodeId, answer, controller.signal);
+          diagnostics.push(Object.freeze({ code: 'agent.question-auto-answered', message: `Studio automatically answered backend question ${nodeId} using the configured takeover policy.` }));
+        } else {
+          diagnostics.push(Object.freeze({ code: 'agent.question-takeover-declined', message: `The configured takeover policy declined backend question ${nodeId}.` }));
         }
       } else if (event.kind === 'diagnostic') {
         diagnostics.push(Object.freeze({ code: typeof event.payload.code === 'string' ? event.payload.code : 'agent.diagnostic', message: typeof event.payload.message === 'string' ? event.payload.message : 'Agent backend reported a diagnostic.' }));
@@ -94,6 +143,13 @@ export class AgentGameAuthoringCoordinator {
 function stablePayloadId(value: unknown, label: string): StableId { if (typeof value !== 'string') throw new TypeError(`${label} is invalid.`); return asStableId(value, label); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function hasCode(value: unknown): value is Readonly<{ code: string }> { return Boolean(value) && typeof value === 'object' && typeof (value as Record<string, unknown>).code === 'string'; }
+function validateOptionalLimit(value: number | undefined, label: string): void { if (value !== undefined && (!Number.isSafeInteger(value) || value < 1)) throw new TypeError(`${label} must be a positive integer.`); }
+function toolRequestSafeguard(options: AgentGameAuthoringCoordinatorOptions, total: number, repetitions: number, noProgress: number): Readonly<{ code: string; message: string }> | null {
+  if (options.maxToolRequests !== undefined && total > options.maxToolRequests) return Object.freeze({ code: 'agent.tool-call-budget-exceeded', message: `Agent emitted more than ${options.maxToolRequests} tool requests in one turn.` });
+  if (options.maxRepeatedToolRequests !== undefined && repetitions > options.maxRepeatedToolRequests) return Object.freeze({ code: 'agent.tool-loop-detected', message: `Agent repeated the same tool request more than ${options.maxRepeatedToolRequests} consecutive times.` });
+  if (options.maxNoProgressToolRequests !== undefined && noProgress > options.maxNoProgressToolRequests) return Object.freeze({ code: 'agent.tool-progress-stalled', message: `Agent emitted more than ${options.maxNoProgressToolRequests} tool requests without advancing the document revision.` });
+  return null;
+}
 async function recordToolAccounting(turns: AgentTurnExecutionPort | undefined, turnId: StableId, toolCallId: StableId, result: JsonObject, diagnostics: Array<Readonly<{ code: string; message: string }>>): Promise<void> {
   if (!turns) return;
   try { await turns.recordToolResult(turnId, toolCallId, result, Date.now()); }

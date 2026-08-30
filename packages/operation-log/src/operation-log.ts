@@ -67,6 +67,9 @@ const DEFAULTS = Object.freeze({
   maxQueryScan: 10_000,
 });
 
+const INDEX_CHECKPOINT_INTERVAL = 32;
+const ATOMIC_RENAME_RETRY_DELAYS_MS = Object.freeze([5, 15, 40, 100]);
+
 export class OperationLogError extends Error {
   constructor(readonly code: string, message: string, options?: ErrorOptions) {
     super(message, options);
@@ -95,6 +98,7 @@ export class OperationLog {
   private appendTail: Promise<void> = Promise.resolve();
   private health: OperationLogHealth = 'healthy';
   private nextSequence = 0;
+  private indexDirty = false;
   private closed = false;
 
   private constructor(private readonly options: OperationLogOptions) {
@@ -162,12 +166,14 @@ export class OperationLog {
     const handle = await open(path.join(this.journalDirectory, active.name), 'a');
     try { await handle.sync(); }
     finally { await handle.close(); }
+    await this.checkpointIndex('index-flush-failed', 'Derived index flush failed');
   }
 
   async close(): Promise<void> {
     if (this.closed) return;
     await this.appendTail;
     if (this.flushPolicy === 'manual' && this.segments.length > 0) await this.flush();
+    else await this.checkpointIndex('index-close-failed', 'Derived index close checkpoint failed');
     this.closed = true;
     this.health = 'closed';
   }
@@ -410,11 +416,8 @@ export class OperationLog {
       await writeFile(path.join(this.journalDirectory, name), '', { flag: 'wx' });
       this.segments.push({ name, bytes: 0 });
     }
-    try { await this.writeIndex(); }
-    catch (cause) {
-      this.health = 'degraded';
-      this.addDiagnostic('index-rebuild-failed', 'error', `Derived index rebuild failed: ${errorMessage(cause)}`);
-    }
+    this.indexDirty = true;
+    await this.checkpointIndex('index-rebuild-failed', 'Derived index rebuild failed');
   }
 
   private async appendInternal(input: OperationEventInput, options: AppendOptions): Promise<DurableOperationEvent> {
@@ -472,10 +475,9 @@ export class OperationLog {
     segment.bytes += bytes;
     this.events.push({ segment: segment.name, event });
     this.nextSequence += 1;
-    try { await this.writeIndex(); }
-    catch (cause) {
-      this.health = 'degraded';
-      this.addDiagnostic('index-write-failed', 'error', `Derived index update failed after durable append: ${errorMessage(cause)}`, sequence, segment.name);
+    this.indexDirty = true;
+    if (this.nextSequence % INDEX_CHECKPOINT_INTERVAL === 0) {
+      await this.checkpointIndex('index-write-failed', 'Derived index checkpoint failed after durable append', sequence, segment.name);
     }
     return event;
   }
@@ -537,6 +539,18 @@ export class OperationLog {
     const body = `${canonicalStringify({ schemaVersion: 1, rows } as unknown as Readonly<Record<string, unknown>>)}\n`;
     await this.faultInjector?.('before-index-write', Buffer.byteLength(body));
     await atomicWrite(path.join(this.indexDirectory, 'events-v1.json'), body);
+    this.indexDirty = false;
+  }
+
+  private async checkpointIndex(code: string, message: string, sequence?: number, segment?: string): Promise<void> {
+    if (!this.indexDirty) return;
+    try { await this.writeIndex(); }
+    catch (cause) {
+      // The journal is the durable source of truth and the index is rebuilt on open.
+      // A transient index replacement failure must not disable protected operations.
+      if (this.health === 'healthy') this.health = 'recovered';
+      this.addDiagnostic(code, 'warning', `${message}: ${errorMessage(cause)}`, sequence, segment);
+    }
   }
 
   private async quarantineTail(
@@ -754,14 +768,34 @@ function fileEntry(relativePath: string, body: string): { path: string; bytes: n
 
 async function atomicWrite(target: string, body: string): Promise<void> {
   const temp = `${target}.${process.pid}.${randomUUID()}.tmp`;
-  const handle = await open(temp, 'wx');
   try {
-    await handle.writeFile(body, 'utf8');
-    await handle.sync();
-  } finally {
-    await handle.close();
+    const handle = await open(temp, 'wx');
+    try {
+      await handle.writeFile(body, 'utf8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await renameWithRetry(temp, target);
+  } catch (cause) {
+    await unlink(temp).catch(() => undefined);
+    throw cause;
   }
-  await rename(temp, target);
+}
+
+async function renameWithRetry(source: string, target: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try { await rename(source, target); return; }
+    catch (cause) {
+      if (!isTransientRenameError(cause) || attempt >= ATOMIC_RENAME_RETRY_DELAYS_MS.length) throw cause;
+      await new Promise((resolve) => setTimeout(resolve, ATOMIC_RENAME_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
+function isTransientRenameError(value: unknown): boolean {
+  const code = value instanceof Error && 'code' in value ? (value as NodeJS.ErrnoException).code : undefined;
+  return code === 'EACCES' || code === 'EBUSY' || code === 'EPERM';
 }
 
 function segmentName(number: number): string { return `segment-${String(number).padStart(6, '0')}.jsonl`; }

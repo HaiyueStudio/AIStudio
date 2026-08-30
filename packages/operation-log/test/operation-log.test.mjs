@@ -174,6 +174,38 @@ test('partial crash tail is quarantined, reported and recovered without losing c
   await recovered.close();
 });
 
+test('derived index failure stays writable and the journal rebuilds the projection on restart', async () => {
+  const root = await tempRoot('operation-index-recovery');
+  const log = await OperationLog.open(options(root, {
+    faultInjector(point) { if (point === 'before-index-write') throw new Error('injected index replacement failure'); },
+  }));
+  assert.equal(log.status().health, 'recovered');
+  assert.equal(log.status().allowsMutation, true);
+  assert.ok(log.status().diagnostics.some((item) => item.code === 'index-rebuild-failed'));
+  await log.append(event(0));
+  await log.close();
+
+  const reopened = await OperationLog.open(options(root));
+  assert.equal(reopened.status().eventCount, 1);
+  assert.equal(reopened.status().allowsMutation, true);
+  assert.deepEqual((await reopened.query(allQuery)).events.map((item) => item.sequence), [0]);
+  await reopened.close();
+});
+
+test('derived index checkpoints are amortized instead of rewriting the full projection per event', async () => {
+  const root = await tempRoot('operation-index-checkpoint');
+  let indexWrites = 0;
+  const log = await OperationLog.open(options(root, {
+    faultInjector(point) { if (point === 'before-index-write') indexWrites += 1; },
+  }));
+  for (let index = 0; index < 31; index += 1) await log.append(event(index));
+  assert.equal(indexWrites, 1);
+  await log.append(event(31));
+  assert.equal(indexWrites, 2);
+  await log.close();
+  assert.equal(indexWrites, 2);
+});
+
 test('checksum mismatch is isolated and fails closed for future protected operations', async () => {
   const root = await tempRoot('operation-checksum');
   const log = await OperationLog.open(options(root));
