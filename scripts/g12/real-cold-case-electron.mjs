@@ -82,7 +82,8 @@ async function run() {
     turns = new AgentTurnRuntime(registry, fixture.operationLog, context);
     const accounting = new TaskAccountingRegistry(turns.usage);
     taskId = asStableId(`task:g12-${backendKind}-${genre}-${randomUUID()}`);
-    account = accounting.open({ taskId, budget: taskBudget(testCase), pricingCatalog: M12_DEFAULT_PRICING_CATALOG }); account.beginTurn();
+    const budget = taskBudget(testCase);
+    account = accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG }); account.beginTurn();
     const catalog = await backend.modelCatalog(); model = chooseModel(catalog.models);
     const reasoningEffort = model.reasoningEfforts.includes(args.reasoning) ? args.reasoning : model.reasoningEfforts.includes('low') ? 'low' : model.defaultReasoningEffort;
     config = { schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort, outputTokenLimit: Math.min(32_768, model.maxOutputTokens), taskBudgetId: testCase.id.replace('game-eval:', 'budget:g12-'), promptProfile: { id: 'prompt:g12-general-game-authoring', version: '2.0.0', digest: contentDigest({ profile: 'g12-general-game-authoring', version: 2 }) }, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] };
@@ -95,10 +96,21 @@ async function run() {
     const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
     const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
     const boundTurnIds = new Set();
+    const liveTurnUsage = new Map();
     const observeEvent = (event) => {
-      if (boundTurnIds.has(event.turnId)) return;
-      boundTurnIds.add(event.turnId);
-      account.bindTurn(event.turnId, billingContext(model.id));
+      if (!boundTurnIds.has(event.turnId)) {
+        boundTurnIds.add(event.turnId);
+        account.bindTurn(event.turnId, billingContext(model.id));
+      }
+      if (event.kind === 'tool-request' && typeof event.payload.toolCallId === 'string') {
+        const decision = account.commitTool(asStableId(event.payload.toolCallId));
+        if (!decision.allowed) controller.abort(errorWithCode('budget.hard-stop', 'Agent exceeded the formal tool-call budget.'));
+      }
+      if (event.kind === 'usage') {
+        reconcileLiveUsage(liveTurnUsage, event);
+        const totals = aggregateLiveUsage(liveTurnUsage);
+        if (totals.inputTokens > budget.limits.inputTokens || totals.outputTokens > budget.limits.outputTokens) controller.abort(errorWithCode('budget.hard-stop', 'Agent exceeded the formal token budget.'));
+      }
     };
     try {
       const summaries = [];
@@ -233,6 +245,9 @@ function gameplaySignals(observation) { const output = {}; for (const record of 
 function flatten(value, prefix, output) { if (value === null || typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number') { if (prefix && /^[a-z][a-zA-Z0-9.-]{2,127}$/u.test(prefix)) output[prefix] = value; return; } if (!value || typeof value !== 'object' || Array.isArray(value)) return; for (const [key, entry] of Object.entries(value)) flatten(entry, prefix ? `${prefix}.${key}` : key, output); }
 function billingContext(modelId) { return { provider: backendKind === 'harness' ? 'deepseek' : 'openai', model: modelId, billingMode: backendKind === 'harness' ? 'api' : 'subscription' }; }
 function commitToolResults(account, results) { for (const result of results) account.commitTool(result.callId); }
+function reconcileLiveUsage(store, event) { const previous = store.get(event.turnId) ?? { inputTokens: 0, outputTokens: 0 }; const mode = event.payload.mode === 'cumulative' ? 'cumulative' : 'delta'; const inputTokens = nonNegativeInteger(event.payload.inputTokens); const outputTokens = nonNegativeInteger(event.payload.outputTokens); store.set(event.turnId, { inputTokens: mode === 'cumulative' ? inputTokens : previous.inputTokens + inputTokens, outputTokens: mode === 'cumulative' ? outputTokens : previous.outputTokens + outputTokens }); }
+function aggregateLiveUsage(store) { return [...store.values()].reduce((sum, entry) => ({ inputTokens: sum.inputTokens + entry.inputTokens, outputTokens: sum.outputTokens + entry.outputTokens }), { inputTokens: 0, outputTokens: 0 }); }
+function nonNegativeInteger(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
 function enabledScriptCount(snapshot) { const resources = Array.isArray(snapshot) ? snapshot : snapshot?.resources ?? snapshot?.scripts ?? []; return resources.filter((entry) => entry?.enabled !== false).length; }
 function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
 function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }

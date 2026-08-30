@@ -48,6 +48,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /maxRepeatedToolRequests/u);
   assert.match(source, /maxNoProgressToolRequests/u);
   assert.match(source, /account\.bindTurn\(event\.turnId/u);
+  assert.match(source, /account\.commitTool\(asStableId\(event\.payload\.toolCallId\)\)/u);
+  assert.match(source, /reconcileLiveUsage/u);
+  assert.match(source, /budget\.hard-stop/u);
   assert.match(source, /g12\.script-not-created/u);
   assert.match(source, /isRecoverableSummary/u);
   assert.match(source, /上一回合发生可重试的传输或流中断/u);
