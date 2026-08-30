@@ -51,6 +51,8 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /g12\.script-not-created/u);
   assert.match(source, /isRecoverableSummary/u);
   assert.match(source, /上一回合发生可重试的传输或流中断/u);
+  assert.match(source, /minimumTakeoverWindowMs/u);
+  assert.match(source, /caseDeadlineMs - Date\.now\(\) < minimumTakeoverWindowMs/u);
   assert.match(source, /diagnostics: summary\?\.diagnostics/u);
   assert.match(source, /script\.propose.*script\.apply/u);
   assert.match(source, /for \(const record of usageRecords\).*account\.bindTurn/su);

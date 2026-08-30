@@ -23,6 +23,7 @@ const evidenceClass = required(args['evidence-class'] ?? 'formal', ['formal', 'p
 const faultInjection = args['fault-injection'] ? required(args['fault-injection'], ['preview-window-close', 'run-error-after-ready'], 'fault-injection') : null;
 if (faultInjection && evidenceClass !== 'preflight') throw new Error('--fault-injection is restricted to preflight evidence.');
 const caseWallTimeMs = args['case-wall-time-ms'] ? positiveInteger(args['case-wall-time-ms'], 'case-wall-time-ms') : 15 * 60_000;
+const minimumTakeoverWindowMs = 2 * 60_000;
 if (args['case-wall-time-ms'] && evidenceClass !== 'preflight') throw new Error('--case-wall-time-ms is restricted to preflight evidence.');
 const outputRoot = path.resolve(args.output ?? path.join(root, 'evals', 'evidence', 'g12', 'runs'));
 assertContained(outputRoot, path.join(root, 'evals', 'evidence', 'g12'));
@@ -92,7 +93,7 @@ async function run() {
       maxNoProgressToolRequests: 24,
     });
     const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
-    const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
+    const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
     const boundTurnIds = new Set();
     const observeEvent = (event) => {
       if (boundTurnIds.has(event.turnId)) return;
@@ -106,13 +107,14 @@ async function run() {
       let current = initial;
       let takeoverAttempts = 0;
       while (isRecoverableSummary(current) && takeoverAttempts < 2) {
+        if (caseDeadlineMs - Date.now() < minimumTakeoverWindowMs) break;
         takeoverAttempts += 1;
         account.repair(); account.beginTurn();
         const takeoverPrompt = 'Studio 检测到上一回合发生可重试的传输或流中断。请从当前已保存的项目状态继续原任务；先读取 project.snapshot，保留已有产物，并完成尚未提交和验证的工作。';
         current = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: takeoverPrompt, ...(current.sessionId ? { sessionId: current.sessionId } : {}) }, observeEvent, controller.signal));
         summaries.push(current); summary = mergeTurnSummaries(summaries); commitToolResults(account, current.results);
       }
-      if (current.terminal === 'completed' && enabledScriptCount(fixture.projectScripts.snapshot()) === 0) {
+      if (current.terminal === 'completed' && enabledScriptCount(fixture.projectScripts.snapshot()) === 0 && caseDeadlineMs - Date.now() >= minimumTakeoverWindowMs) {
         account.repair(); account.beginTurn();
         const repairPrompt = 'Studio 自动检查发现当前项目仍没有已提交且启用的脚本。请继续原任务，使用通用 Studio 工具创建并提交至少一个脚本（script.propose 后执行 script.apply），随后运行 preview.validate；不要只描述方案，也不要结束于未提交状态。';
         const repair = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: repairPrompt, ...(current.sessionId ? { sessionId: current.sessionId } : {}) }, observeEvent, controller.signal));
