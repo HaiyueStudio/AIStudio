@@ -20,6 +20,10 @@ const args = Object.fromEntries(process.argv.slice(2).filter((value) => value.st
 const backendKind = required(args.backend, ['harness', 'codex'], 'backend');
 const genre = required(args.genre, ['snake', 'match-3', 'falling-blocks', 'jigsaw', 'platformer', 'racing', 'shooter'], 'genre');
 const evidenceClass = required(args['evidence-class'] ?? 'formal', ['formal', 'preflight'], 'evidence-class');
+const faultInjection = args['fault-injection'] ? required(args['fault-injection'], ['preview-window-close', 'run-error-after-ready'], 'fault-injection') : null;
+if (faultInjection && evidenceClass !== 'preflight') throw new Error('--fault-injection is restricted to preflight evidence.');
+const caseWallTimeMs = args['case-wall-time-ms'] ? positiveInteger(args['case-wall-time-ms'], 'case-wall-time-ms') : 15 * 60_000;
+if (args['case-wall-time-ms'] && evidenceClass !== 'preflight') throw new Error('--case-wall-time-ms is restricted to preflight evidence.');
 const outputRoot = path.resolve(args.output ?? path.join(root, 'evals', 'evidence', 'g12', 'runs'));
 assertContained(outputRoot, path.join(root, 'evals', 'evidence', 'g12'));
 if (process.env.HAIYUE_G12_ALLOW_REAL !== '1') throw new Error('G12 real runner requires HAIYUE_G12_ALLOW_REAL=1.');
@@ -29,58 +33,74 @@ if (backendKind === 'harness' && !deepSeekSecret) throw new Error('DeepSeek cred
 
 const revisions = revisionSet();
 if (evidenceClass === 'formal') for (const [name, value] of Object.entries(revisions)) if (!value.clean) throw new Error(`g12.formal-revision-dirty:${name}`);
-const runId = `g12-${backendKind}-${genre}-${randomUUID()}`;
+const runId = args['run-id'] ? runIdentifier(args['run-id']) : `g12-${backendKind}-${genre}-${randomUUID()}`;
 const caseRoot = path.join(outputRoot, revisions.aistudio.revision.slice(0, 12), backendKind, genre, runId);
 const projectRoot = path.join(caseRoot, 'project');
 const userDataRoot = path.join(caseRoot, 'runtime');
 await mkdir(projectRoot, { recursive: true }); await mkdir(userDataRoot, { recursive: true });
+await atomicJson(path.join(caseRoot, 'case-start.json'), { schemaVersion: 1, runId, backend: backendKind, genre, evidenceClass, revisions, startedAt: new Date().toISOString() });
 app.setPath('userData', path.join(userDataRoot, 'electron'));
 protocol.registerSchemesAsPrivileged([
   { scheme: 'g12host', privileges: { standard: true, secure: true, corsEnabled: true } },
   { scheme: 'haiyue-preview', privileges: { standard: true, secure: true, corsEnabled: true } },
 ]);
 
-app.whenReady().then(run).then(() => app.exit(0)).catch(async (cause) => {
-  await atomicJson(path.join(caseRoot, 'failure.json'), { schemaVersion: 1, runId, backend: backendKind, genre, evidenceClass, revisions, code: typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed', message: cause instanceof Error ? cause.message : String(cause), stack: cause instanceof Error ? cause.stack : null }).catch(() => undefined);
-  console.error(`[g12-real-case] ${cause instanceof Error ? cause.stack ?? cause.message : String(cause)}`); app.exit(1);
-});
+let settled = false; let finalizing = false; let cleanupInProgress = false; let partialWritten = false; let partialWriter = null;
+const keepAlive = setInterval(() => {}, 1_000);
+app.on('before-quit', (event) => { if (settled || finalizing) return; event.preventDefault(); if (!cleanupInProgress) void failAndExit(errorWithCode('g12.electron-premature-quit', 'Electron requested quit before the case emitted a terminal record.')); });
+process.once('SIGTERM', () => { void failAndExit(errorWithCode('g12.case-parent-timeout', 'The matrix parent terminated this case after its wall-time budget.')); });
+process.once('SIGINT', () => { void failAndExit(errorWithCode('g12.case-interrupted', 'The case was interrupted before completion.')); });
+app.whenReady().then(run).then(() => { settled = true; clearInterval(keepAlive); app.exit(0); }).catch(failAndExit);
+
+async function failAndExit(cause) {
+  if (finalizing || settled) return;
+  finalizing = true;
+  const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
+  await preserveFailure(cause);
+  await atomicJson(path.join(caseRoot, 'failure.json'), { schemaVersion: 1, runId, backend: backendKind, genre, evidenceClass, revisions, code, message: cause instanceof Error ? cause.message : String(cause), stack: cause instanceof Error ? cause.stack : null, completedAt: new Date().toISOString() }).catch(() => undefined);
+  console.error(`[g12-real-case] ${JSON.stringify({ runId, backend: backendKind, genre, terminal: 'failed', evaluation: null, errorCode: code, caseRoot })}`);
+  settled = true; clearInterval(keepAlive); app.exit(1);
+}
 
 async function run() {
   const assets = await loadEvaluationAssets();
   const testCase = assets.suite.cases.find((entry) => entry.genre === genre);
   const oracleCase = assets.oracle.cases.find((entry) => entry.caseId === testCase.id);
   const fixture = await createFixture(projectRoot, userDataRoot);
-  let window; let backend; let coordinator; let turns;
+  let windowGuard; let backend; let coordinator; let turns; let preview; let account; let taskId; let model; let config; let summary;
+  partialWriter = (cause) => preservePartialEvidence({ cause, fixture, preview, turns, account, taskId, backend, model, config, summary, testCase });
   try {
-    window = await createPreviewWindow();
-    const preview = new BrowserWindowPreviewControl(window); await preview.ready();
+    windowGuard = await createPreviewWindow();
+    preview = new BrowserWindowPreviewControl(windowGuard.window); await windowGuard.race(preview.ready());
+    if (faultInjection === 'preview-window-close') { windowGuard.window.destroy(); await windowGuard.race(new Promise((resolve) => setTimeout(resolve, 1_000))); }
+    if (faultInjection === 'run-error-after-ready') throw errorWithCode('g12.injected-run-failure', 'Injected preflight failure after preview readiness.');
     fixture.runtime = new GameAuthoringToolRuntime({ workspace: fixture.workspace, scene: fixture.scene, scripts: fixture.scriptPort, diagnostics: fixture.operationLog.diagnosticsService(), operationLog: fixture.operationLog, preview });
     backend = await createBackend();
     const registry = new AgentBackendRegistry(); registry.register(backend);
     const context = new PromptContextRuntime(fixture.operationLog); await context.initialize();
     turns = new AgentTurnRuntime(registry, fixture.operationLog, context);
     const accounting = new TaskAccountingRegistry(turns.usage);
-    const taskId = asStableId(`task:g12-${backendKind}-${genre}-${randomUUID()}`);
-    const account = accounting.open({ taskId, budget: taskBudget(testCase), pricingCatalog: M12_DEFAULT_PRICING_CATALOG }); account.beginTurn();
-    const catalog = await backend.modelCatalog(); const model = chooseModel(catalog.models);
+    taskId = asStableId(`task:g12-${backendKind}-${genre}-${randomUUID()}`);
+    account = accounting.open({ taskId, budget: taskBudget(testCase), pricingCatalog: M12_DEFAULT_PRICING_CATALOG }); account.beginTurn();
+    const catalog = await backend.modelCatalog(); model = chooseModel(catalog.models);
     const reasoningEffort = model.reasoningEfforts.includes(args.reasoning) ? args.reasoning : model.reasoningEfforts.includes('low') ? 'low' : model.defaultReasoningEffort;
-    const config = { schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort, outputTokenLimit: Math.min(32_768, model.maxOutputTokens), taskBudgetId: testCase.id.replace('game-eval:', 'budget:g12-'), promptProfile: { id: 'prompt:g12-general-game-authoring', version: '2.0.0', digest: contentDigest({ profile: 'g12-general-game-authoring', version: 2 }) }, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] };
+    config = { schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort, outputTokenLimit: Math.min(32_768, model.maxOutputTokens), taskBudgetId: testCase.id.replace('game-eval:', 'budget:g12-'), promptProfile: { id: 'prompt:g12-general-game-authoring', version: '2.0.0', digest: contentDigest({ profile: 'g12-general-game-authoring', version: 2 }) }, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] };
     coordinator = new AgentGameAuthoringCoordinator(fixture.runtime, { async request() { return 'allow-once'; } }, turns);
     const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
-    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(new Error('G12 cold-create case exceeded fifteen minutes.')), 15 * 60_000);
-    let summary;
-    try { summary = await coordinator.run(backend, { taskId, config, prompt }, undefined, controller.signal); } finally { clearTimeout(timer); }
+    const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
+    try { summary = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt }, undefined, controller.signal)); } finally { clearTimeout(timer); }
     if (summary.turnId) account.bindTurn(summary.turnId, { provider: backendKind === 'harness' ? 'deepseek' : 'openai', model: model.id, billingMode: backendKind === 'harness' ? 'api' : 'subscription' });
     for (const result of summary.results) account.commitTool(result.callId);
     const accountingSnapshot = account.reconcile();
     await fixture.workspace.save();
 
+    if (preview.snapshot().state !== 'stopped') await windowGuard.race(preview.stop());
     const plan = await fixture.authorization.prepare();
     if (plan.diagnostics.some((entry) => entry.severity === 'error')) throw new Error(`g12.preview-validation-errors:${plan.diagnostics.length}`);
-    const scene = fixture.scene.snapshot(); const started = await preview.start(scene, plan); const baseline = await preview.inspect();
+    const scene = fixture.scene.snapshot(); const started = await windowGuard.race(preview.start(scene, plan)); const baseline = await windowGuard.race(preview.inspect());
     const replayProgram = compileG12ReplayProgram(testCase.inputReplay, { baseTick: baseline.tick });
-    const replay = await executeG12ReplayProgram(preview, replayProgram, { capture: true, maxTriggerWaitTicks: 3_600 });
-    const stopped = await preview.stop();
+    const replay = await windowGuard.race(executeG12ReplayProgram(preview, replayProgram, { capture: true, maxTriggerWaitTicks: 3_600 }));
+    const stopped = await windowGuard.race(preview.stop());
     const png = Buffer.from(replay.capture.base64, 'base64'); const pngDigest = sha256(png); await writeFile(path.join(caseRoot, 'screenshot.png'), png);
     const signals = gameplaySignals(replay.finalObservation);
     const projectDigest = contentDigest({ scene, scripts: fixture.projectScripts.snapshot() });
@@ -99,17 +119,71 @@ async function run() {
     await atomicJson(path.join(caseRoot, 'task-report.json'), report);
     await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: evaluation.status === 'pass' && summary.terminal === 'completed' ? 'pass' : 'failed-acceptance', reportDigest: contentDigest(report), reportPath: path.relative(root, path.join(caseRoot, 'task-report.json')).replaceAll('\\', '/') });
     console.log(`[g12-real-case] ${JSON.stringify({ runId, backend: backendKind, genre, terminal: summary.terminal, evaluation: evaluation.status, passed: evaluation.passed, required: evaluation.passed + evaluation.failed, caseRoot })}`);
+  } catch (cause) {
+    await preserveFailure(cause);
+    throw cause;
   } finally {
-    coordinator?.dispose(); fixture.runtime?.dispose(); if (turns) await turns.dispose().catch(() => undefined); else if (backend) await backend.dispose().catch(() => undefined); if (window && !window.isDestroyed()) window.destroy(); await disposeFixture(fixture);
+    cleanupInProgress = true;
+    coordinator?.dispose(); fixture.runtime?.dispose(); if (turns) await turns.dispose().catch(() => undefined); else if (backend) await backend.dispose().catch(() => undefined); windowGuard?.close(); await disposeFixture(fixture);
   }
+}
+
+async function preserveFailure(cause) {
+  if (partialWritten) return;
+  partialWritten = true;
+  if (partialWriter) { try { await partialWriter(cause); return; } catch { /* Fall through to the minimal crash-safe record. */ } }
+  const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
+  const partial = { schemaVersion: 1, evidenceClass, runId, backend: backendKind, genre, revisions, terminal: 'failed', error: { code, message: cause instanceof Error ? cause.message : String(cause) }, accounting: null, usageRecords: [], costRecords: [], cache: null, preservedProject: null, preview: null, evaluator: { status: 'not-run', reason: code }, completedAt: new Date().toISOString() };
+  await atomicJson(path.join(caseRoot, 'partial-evidence.json'), partial).catch(() => undefined);
+  await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: 'failed-infrastructure', errorCode: code, partialEvidenceDigest: contentDigest(partial), partialEvidencePath: path.relative(root, path.join(caseRoot, 'partial-evidence.json')).replaceAll('\\', '/') }).catch(() => undefined);
 }
 
 async function createPreviewWindow() {
   const window = new BrowserWindow({ width: 420, height: 880, show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  let intentionalClose = false; let rejectFailure;
+  const failure = new Promise((_, reject) => { rejectFailure = reject; }); failure.catch(() => undefined);
+  window.once('closed', () => { if (!intentionalClose) rejectFailure(errorWithCode('g12.preview-window-closed', 'The hidden preview window closed before case completion.')); });
+  window.webContents.once('render-process-gone', (_event, details) => rejectFailure(errorWithCode('g12.preview-renderer-gone', `The hidden preview renderer exited: ${details.reason}.`)));
   const session = window.webContents.session; const host = path.join(root, 'apps', 'ai-studio', 'test', 'fixtures', 'g12-preview-host.html'); const previewRoot = path.join(root, 'apps', 'ai-studio', 'dist');
   session.protocol.handle('g12host', async () => new Response(new Uint8Array(await readFile(host)), { headers: { 'content-type': 'text/html; charset=utf-8' } }));
   session.protocol.handle('haiyue-preview', async (request) => { const candidate = path.resolve(previewRoot, new URL(request.url).pathname.replace(/^\//u, '')); assertContained(candidate, previewRoot); const bytes = await readFile(candidate); return new Response(new Uint8Array(bytes), { headers: { 'content-type': candidate.endsWith('.html') ? 'text/html; charset=utf-8' : candidate.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', 'access-control-allow-origin': '*' } }); });
-  await window.loadURL('g12host://app/host.html'); return window;
+  await window.loadURL('g12host://app/host.html');
+  return { window, race: (operation) => Promise.race([operation, failure]), close() { intentionalClose = true; if (!window.isDestroyed()) window.destroy(); } };
+}
+
+async function preservePartialEvidence({ cause, fixture, preview, turns, account, taskId, backend, model, config, summary, testCase }) {
+  const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
+  await fixture.workspace.save().catch(() => undefined);
+  const usageRecords = taskId && turns ? turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record) : [];
+  const costRecords = account ? safeValue(() => account.costRecords(), []) : [];
+  const accounting = account ? safeValue(() => account.reconcile(), null) : null;
+  const scene = safeValue(() => fixture.scene.snapshot(), null);
+  const scripts = safeValue(() => fixture.projectScripts.snapshot(), null);
+  const previewSnapshot = preview ? safeValue(() => preview.snapshot(), null) : null;
+  let observation = null; let screenshot = null;
+  if (preview && ['running', 'playing', 'paused'].includes(previewSnapshot?.state)) {
+    observation = await preview.inspect().catch(() => null);
+    const capture = await preview.capture().catch(() => null);
+    if (capture?.base64) {
+      const png = Buffer.from(capture.base64, 'base64');
+      await writeFile(path.join(caseRoot, 'partial-screenshot.png'), png).catch(() => undefined);
+      screenshot = { digest: sha256(png), width: capture.viewport?.width ?? null, height: capture.viewport?.height ?? null, path: 'partial-screenshot.png' };
+    }
+  }
+  const partial = {
+    schemaVersion: 1, evidenceClass, runId, backend: backendKind, genre, caseId: testCase?.id ?? null, revisions,
+    terminal: 'failed', error: { code, message: cause instanceof Error ? cause.message : String(cause) },
+    taskId: taskId ?? null, backendDescriptor: backend ? { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion } : null,
+    model: model ? { id: model.id, reasoningEffort: config?.reasoningEffort ?? null, configDigest: config ? contentDigest(config) : null } : null,
+    conversationId: summary?.sessionId ?? null, toolResults: summary?.results?.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })) ?? [],
+    accounting, usageRecords, costRecords, cache: accounting?.usage?.contextCache ?? null,
+    preservedProject: { saved: true, projectId: safeValue(() => fixture.workspace.snapshot().document.projectId, null), sceneDigest: scene ? contentDigest(scene) : null, scriptSetDigest: scripts ? contentDigest(scripts) : null, scriptCount: Array.isArray(scripts) ? scripts.length : scripts?.scripts?.length ?? 0 },
+    preview: { snapshot: previewSnapshot, observationDigest: observation ? contentDigest(observation) : null, screenshot },
+    evaluator: { status: 'not-run', reason: code }, completedAt: new Date().toISOString(),
+  };
+  const partialPath = path.join(caseRoot, 'partial-evidence.json');
+  await atomicJson(partialPath, partial);
+  await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: 'failed-infrastructure', errorCode: code, partialEvidenceDigest: contentDigest(partial), partialEvidencePath: path.relative(root, partialPath).replaceAll('\\', '/') });
 }
 
 async function createBackend() { return backendKind === 'harness' ? new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }) : new CodexAppServerBackend(); }
@@ -124,4 +198,8 @@ function git(directory, values) { const result = spawnSync('git', ['-C', directo
 function sha256(bytes) { return `sha256:${createHash('sha256').update(bytes).digest('hex')}`; }
 async function atomicJson(file, value) { await mkdir(path.dirname(file), { recursive: true }); const temporary = `${file}.${randomUUID()}.tmp`; await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8'); await rename(temporary, file); }
 function required(value, allowed, name) { if (!allowed.includes(value)) throw new Error(`--${name} must be ${allowed.join(' or ')}.`); return value; }
+function positiveInteger(value, name) { const result = Number(value); if (!Number.isSafeInteger(result) || result <= 0) throw new Error(`--${name} must be a positive integer.`); return result; }
+function runIdentifier(value) { if (!/^g12-(?:harness|codex)-(?:snake|match-3|falling-blocks|jigsaw|platformer|racing|shooter)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value)) throw new Error('--run-id is invalid.'); return value; }
+function errorWithCode(code, message) { const error = new Error(message); error.code = code; return error; }
+function safeValue(read, fallback) { try { return read(); } catch { return fallback; } }
 function assertContained(candidate, parent) { const resolved = path.resolve(candidate), rootPath = path.resolve(parent); if (resolved !== rootPath && !resolved.startsWith(`${rootPath}${path.sep}`)) throw new Error(`Path escapes ${rootPath}: ${resolved}`); }
