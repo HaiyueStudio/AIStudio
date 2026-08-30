@@ -1,5 +1,5 @@
 import { asStableId, type AgentTurnConfigV2, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
-import type { AgentBackend, AgentBackendEvent } from '@haiyue/ai-studio-agent-runtime';
+import type { AgentBackend, AgentBackendEvent, AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
 import type { GameAuthoringToolRuntime } from './runtime.js';
 import { GameToolProtocolError, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult } from './types.js';
 
@@ -24,10 +24,15 @@ export interface AgentGameTurnSummary {
   readonly diagnostics: readonly Readonly<{ code: string; message: string }>[];
 }
 
+export interface AgentTurnExecutionPort {
+  start(backendId: StableId, input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent>;
+  recordToolResult(turnId: StableId, toolCallId: StableId, result: JsonObject, observedAtMs?: number): Promise<void>;
+}
+
 export class AgentGameAuthoringCoordinator {
   private readonly lifecycle = new AbortController();
   private disposed = false;
-  constructor(private readonly runtime: GameAuthoringToolRuntime, private readonly approvals: GameToolApprovalPort) {}
+  constructor(private readonly runtime: GameAuthoringToolRuntime, private readonly approvals: GameToolApprovalPort, private readonly turns?: AgentTurnExecutionPort) {}
 
   async run(backend: AgentBackend, input: AgentGameTurnInput, onEvent?: (event: AgentBackendEvent) => void, signal?: AbortSignal): Promise<AgentGameTurnSummary> {
     this.assertActive();
@@ -40,7 +45,9 @@ export class AgentGameAuthoringCoordinator {
     let turnId: StableId | null = null;
     let terminal: AgentGameTurnSummary['terminal'] | null = null;
     const tools = this.runtime.definitions().map((definition) => Object.freeze({ id: definition.id, description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`, inputSchema: definition.inputSchema }));
-    try { for await (const event of backend.startTurn({ taskId: input.taskId, config: input.config, sessionId: input.sessionId, prompt: input.prompt, contextArtifactIds: input.contextArtifactIds ?? [], tools }, controller.signal)) {
+    const turnInput = Object.freeze({ taskId: input.taskId, config: input.config, sessionId: input.sessionId, prompt: input.prompt, contextArtifactIds: input.contextArtifactIds ?? [], tools });
+    const events = this.turns ? this.turns.start(backend.descriptor.id, turnInput, controller.signal) : backend.startTurn(turnInput, controller.signal);
+    try { for await (const event of events) {
       if (controller.signal.aborted) throw controller.signal.reason;
       sessionId = event.sessionId; turnId = event.turnId; onEvent?.(event);
       if (event.kind === 'tool-request') {
@@ -58,12 +65,16 @@ export class AgentGameAuthoringCoordinator {
           }
           const result = await this.runtime.execute(preparation.id, controller.signal);
           results.push(result);
-          await backend.submitToolResult(toolCallId, Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.historyLabel ? { historyLabel: result.historyLabel } : {}) }), controller.signal);
+          const submitted = Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.historyLabel ? { historyLabel: result.historyLabel } : {}) });
+          await backend.submitToolResult(toolCallId, submitted, controller.signal);
+          await recordToolAccounting(this.turns, event.turnId, toolCallId, submitted, diagnostics);
         } catch (cause) {
           if (controller.signal.aborted) { await this.runtime.cancel(toolCallId).catch(() => undefined); throw controller.signal.reason ?? cause; }
           const diagnostic = Object.freeze({ code: hasCode(cause) ? cause.code : 'tool.execution-failed', message: cause instanceof Error ? cause.message : String(cause) });
           diagnostics.push(diagnostic);
-          await backend.submitToolResult(toolCallId, Object.freeze({ status: 'failed', error: diagnostic }), controller.signal);
+          const submitted = Object.freeze({ status: 'failed', error: diagnostic });
+          await backend.submitToolResult(toolCallId, submitted, controller.signal);
+          await recordToolAccounting(this.turns, event.turnId, toolCallId, submitted, diagnostics);
         }
       } else if (event.kind === 'diagnostic') {
         diagnostics.push(Object.freeze({ code: typeof event.payload.code === 'string' ? event.payload.code : 'agent.diagnostic', message: typeof event.payload.message === 'string' ? event.payload.message : 'Agent backend reported a diagnostic.' }));
@@ -83,6 +94,11 @@ export class AgentGameAuthoringCoordinator {
 function stablePayloadId(value: unknown, label: string): StableId { if (typeof value !== 'string') throw new TypeError(`${label} is invalid.`); return asStableId(value, label); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function hasCode(value: unknown): value is Readonly<{ code: string }> { return Boolean(value) && typeof value === 'object' && typeof (value as Record<string, unknown>).code === 'string'; }
+async function recordToolAccounting(turns: AgentTurnExecutionPort | undefined, turnId: StableId, toolCallId: StableId, result: JsonObject, diagnostics: Array<Readonly<{ code: string; message: string }>>): Promise<void> {
+  if (!turns) return;
+  try { await turns.recordToolResult(turnId, toolCallId, result, Date.now()); }
+  catch (cause) { diagnostics.push(Object.freeze({ code: 'accounting.tool-result-failed', message: cause instanceof Error ? cause.message : String(cause) })); }
+}
 function forwardAbort(signal: AbortSignal | undefined, controller: AbortController): () => void {
   if (!signal) return () => {};
   const abort = (): void => controller.abort(signal.reason);

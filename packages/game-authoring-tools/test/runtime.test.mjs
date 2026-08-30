@@ -668,6 +668,31 @@ test('coordinator rejects malformed provider arguments instead of coercing them 
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
+test('coordinator can route backend turns and tool output accounting through AgentTurnRuntime', async () => {
+  const value = await fixture(); const calls = []; let submissions = 0;
+  const backend = minimalBackend(async function* () {
+    yield event('tool-request', { toolCallId: 'toolcall:accounted-snapshot', toolId: 'project.snapshot', arguments: {} });
+    yield event('completed', { status: 'completed' });
+  }, async () => { submissions += 1; });
+  const turns = {
+    start(backendId, input, signal) { calls.push({ kind: 'start', backendId, toolCount: input.tools.length }); return backend.startTurn(input, signal); },
+    async recordToolResult(turnId, toolCallId, result) { calls.push({ kind: 'result', turnId, toolCallId, status: result.status }); throw new Error('accounting sink unavailable'); },
+  };
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, turns);
+  try {
+    const summary = await coordinator.run(backend, { prompt: 'Inspect the project.' });
+    assert.equal(summary.terminal, 'completed');
+    assert.equal(summary.results.length, 1);
+    assert.deepEqual(calls.map((entry) => entry.kind), ['start', 'result']);
+    assert.equal(calls[0].backendId, backend.descriptor.id);
+    assert.ok(calls[0].toolCount > 10);
+    assert.equal(calls[1].toolCallId, 'toolcall:accounted-snapshot');
+    assert.equal(calls[1].status, 'completed');
+    assert.equal(submissions, 1, 'accounting failure must not submit a second contradictory tool result');
+    assert.equal(summary.diagnostics.at(-1).code, 'accounting.tool-result-failed');
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
 test('disposing the coordinator aborts an active backend turn and is idempotent', async () => {
   const value = await fixture(); const entered = deferred();
   const backend = minimalBackend(async function* (_input, signal) {

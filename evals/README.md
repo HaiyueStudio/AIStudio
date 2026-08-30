@@ -24,3 +24,13 @@ Only `{ schemaVersion, request, constraints }` is passed to the Agent. Replay sc
 The case ID and hidden replay are transport metadata and never become model-visible input. Adapters may also implement `dispose()`. `executeAgent` must report integer `turns` and `toolCalls`; the runner enforces suite budgets before scoring.
 
 Run `npm run m12:g02:check` to validate schemas, isolation, fixture truth tables, deterministic reports, manifest digests, and the complete G02 test suite.
+
+## G12 promotion boundary
+
+`npm run m12:g12:quick` is the credential-free cross-genre regression included in the repository root check. It validates all seven hidden-oracle cases and the fail-closed G12 promotion policy, but it is not formal acceptance evidence.
+
+Formal acceptance is read from `evals/evidence/g12/formal-acceptance.json` by `npm run m12:g12:verify`. The verifier recomputes every referenced artifact digest, requires AIStudio/Engine/milestones to match the same clean reviewed revisions, and then enforces the Electron/WebGPU, independent Harness/Codex, seeded-repair, lifecycle, cache, budget, secret, packaging and soak gates. Synthetic fixtures and artifacts under a `fixtures` directory are rejected from formal promotion.
+
+The real replay path is split into three reviewed layers: `compileG12ReplayProgram` rebases suite time to the actual paused iframe tick, the semantic-driver registry provides bounded black-box input strategies for every scripted action, and `executeG12ReplayProgram` schedules fixed input plus structured gameplay triggers. Generated scripts publish bounded owner-scoped JSON with `api.scene.observe`; replay completion requires this authoritative state, rejects runtime errors and stale ticks, and captures screenshots only at the matching final state tick. HUD text alone is never accepted as a trigger.
+
+`npm run m12:g12:real-cold -- --evidence-class=formal` runs the Harness/Codex × seven-genre matrix serially. Every case creates a fresh project and backend session, uses only allow-once tool authorization, executes the hidden replay in a real Electron/WebGPU iframe, and atomically writes project, usage, cost, cache, state, screenshot and evaluator artifacts. A matrix checkpoint is updated after every case, so `--resume=true` preserves completed provider work. Formal mode checks all three repository worktrees before launching Electron or making a provider request; `--evidence-class=preflight` is the only mode that permits dirty revisions and its reports remain non-promotable.

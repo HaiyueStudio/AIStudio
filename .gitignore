@@ -8,3 +8,4 @@ coverage/
 !.env.example
 artifacts/runtime/
 tmp/
+evals/evidence/g12/

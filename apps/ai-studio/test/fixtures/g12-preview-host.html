@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src haiyue-preview:; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+  <style>html,body{margin:0;background:#080b12}iframe{display:block;width:393px;height:852px;border:0}</style>
+</head>
+<body>
+<script>
+(() => {
+  const protocol = 'haiyue-preview/1';
+  const frame = document.createElement('iframe');
+  frame.sandbox = 'allow-scripts';
+  frame.src = 'haiyue-preview://app/preview.html';
+  document.body.append(frame);
+  let ready = false;
+  let active = null;
+  let current = null;
+  let playSequence = 0;
+  let runtimeErrors = [];
+
+  const post = value => frame.contentWindow.postMessage({ protocol, ...value }, '*');
+  const observation = value => ({
+    playId: current.playId,
+    documentRevision: current.scene.revision,
+    scriptDigests: current.plan.scripts.map(script => script.digest.startsWith('sha256:') ? script.digest : `sha256:${script.digest}`),
+    tick: value.tick,
+    frame: value.frame,
+    viewport: { width: 393, height: 852 },
+    device: 'g12-runner-phone-393x852',
+    capturedAt: new Date().toISOString(),
+    value,
+  });
+  const snapshot = state => ({
+    instanceId: state === 'stopped' ? null : current.playId,
+    state,
+    scriptSetDigest: state === 'stopped' ? null : current.plan.scriptSetDigest,
+    scriptCount: state === 'stopped' ? 0 : current.plan.scripts.length,
+    scripts: state === 'stopped' ? [] : current.plan.scripts.map(script => ({ scriptId: script.scriptId, entityId: script.entityId, order: script.order, state: runtimeErrors.some(error => error.scriptId === script.scriptId) ? 'faulted' : 'playing', position: null, disposableCount: 0, errorCount: runtimeErrors.filter(error => error.scriptId === script.scriptId).length })),
+    entityId: state === 'stopped' ? null : current.plan.scripts[0].entityId,
+    position: null,
+    disposableCount: 0,
+    errors: state === 'stopped' ? [] : runtimeErrors,
+  });
+  const settle = (error, value) => {
+    const pending = active;
+    active = null;
+    if (!pending) return;
+    if (error) pending.reject(error); else pending.resolve(value);
+  };
+  const begin = command => {
+    if (!ready) throw new Error('Preview iframe is not ready.');
+    if (active) throw new Error('Another preview command is active.');
+    return new Promise((resolve, reject) => {
+      active = { command, resolve, reject };
+      if (command.kind === 'start') {
+        current = { scene: command.scene, plan: command.plan, playId: `play:g12-runner-${++playSequence}` };
+        runtimeErrors = [];
+        post({ type: 'start', scene: command.scene, plan: command.plan, assets: [] });
+      } else if (!current && command.kind !== 'stop') settle(new Error('Preview is not playing.'));
+      else if (command.kind === 'stop') post({ type: 'stop' });
+      else if (command.kind === 'step') post({ type: 'step', requestId: `${command.id}:step`, count: command.count });
+      else if (command.kind === 'input') { post({ type: 'input', event: command.event }); post({ type: 'inspect', requestId: `${command.id}:input-inspect` }); }
+      else if (command.kind === 'inspect') post({ type: 'inspect', requestId: `${command.id}:inspect` });
+      else if (command.kind === 'capture') post({ type: 'capture', requestId: `${command.id}:capture` });
+    });
+  };
+  window.g12PreviewCommand = begin;
+
+  window.addEventListener('message', event => {
+    if (event.source !== frame.contentWindow || !event.data || event.data.protocol !== protocol) return;
+    const data = event.data;
+    if (data.type === 'ready') { ready = true; document.body.dataset.previewReady = 'true'; return; }
+    if (data.type === 'runtime-error') { runtimeErrors.push({ scriptId: data.scriptId, entityId: data.entityId, code: data.code, path: '', line: data.line ?? null, column: data.column ?? null, message: data.message }); return; }
+    if (!active) return;
+    if (data.type === 'failed') return settle(new Error(data.message || 'Preview failed.'));
+    if (data.type === 'request-failed' && String(data.requestId).startsWith(active.command.id)) return settle(new Error(data.message || 'Preview request failed.'));
+    if (active.command.kind === 'start' && data.type === 'started') { post({ type: 'pause' }); return; }
+    if (active.command.kind === 'start' && data.type === 'paused') return settle(null, snapshot(runtimeErrors.length ? 'faulted' : 'playing'));
+    if (active.command.kind === 'step' && data.type === 'stepped' && data.requestId === `${active.command.id}:step`) { post({ type: 'inspect', requestId: `${active.command.id}:step-inspect` }); return; }
+    if ((active.command.kind === 'step' || active.command.kind === 'input' || active.command.kind === 'inspect') && data.type === 'inspection' && String(data.requestId).startsWith(active.command.id)) return settle(null, observation(data.value));
+    if (active.command.kind === 'capture' && data.type === 'capture' && data.requestId === `${active.command.id}:capture`) return settle(null, { ...observation({ tick: data.tick, frame: data.frame }), mediaType: 'image/png', byteLength: data.byteLength, base64: data.base64 });
+    if (active.command.kind === 'stop' && data.type === 'cleanup-complete') { const value = snapshot('stopped'); current = null; return settle(null, value); }
+  });
+})();
+</script>
+</body>
+</html>

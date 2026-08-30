@@ -10,6 +10,7 @@ import { PlaySimulation } from './play-simulation.js';
 import { PhysicsPlayRuntime } from './physics-play-runtime.js';
 import { RenderEffectsPlayRuntime } from '@haiyue/ai-studio-script-preview/effects';
 import { createEquirectangularReflectionMap } from '@haiyue/engine/lighting';
+import { GameplayObservationStore } from './gameplay-observation-store.js';
 
 interface Vec3 { readonly x: number; readonly y: number; readonly z: number; }
 interface SceneEntity {
@@ -56,6 +57,7 @@ let hoveredEntityId: string | null = null;
 const pointerDownTargets = new Map<number, string>();
 const instanceSets = new Map<number, StudioInstanceSet>();
 const hudTexts = new Map<string, Readonly<{ element: HTMLDivElement; text: string; position: HudTextPosition }>>();
+const gameplayObservations = new GameplayObservationStore();
 const entitiesByStableId = new Map<string, Entity>();
 const stableIdByEntityId = new Map<number, string>();
 let disposed = false;
@@ -304,7 +306,7 @@ function loadReplay(replay: InputReplayV1): void {
 function publishInspection(requestId: string): void {
   if (!simulation) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
   const snapshot = simulation.snapshot();
-  send('inspection', { requestId, value: { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount } });
+  send('inspection', { requestId, value: { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount } });
 }
 
 async function capture(requestId: string): Promise<void> {
@@ -585,6 +587,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   engine?.destroy();
   instanceSets.clear();
   clearHudTexts();
+  gameplayObservations.clear();
   entitiesByStableId.clear();
   ScriptComponent.resetRuntimeApiFactory();
   ScriptComponent.resetExecutionOptions();
@@ -711,6 +714,7 @@ type HudTextPosition = 'top-left' | 'top-center' | 'top-right' | 'center-left' |
 interface HudTextOptions { readonly position?: HudTextPosition; readonly offsetX?: number; readonly offsetY?: number; readonly color?: string; readonly backgroundColor?: string; readonly fontSize?: number; }
 
 function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext, capabilities: readonly ScriptCapabilityName[]): ScriptRuntimeApi {
+  const observationOwner = gameplayObservationOwner(context);
   const input = Object.freeze({
     isPressed: (action: string): boolean => simulation?.input.isPressed(action) ?? false,
     isDown: (action: string): boolean => simulation?.input.isPressed(action) ?? false,
@@ -789,11 +793,19 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
       },
       hudText(id: string, text: string, options: HudTextOptions = {}): void { setHudText(id, text, options); },
       removeHudText(id: string): void { removeHudText(id); },
+      observe(id: string, value: unknown): void { gameplayObservations.set(observationOwner, id, value); },
+      removeObservation(id: string): void { gameplayObservations.remove(observationOwner, id); },
     }),
   } as unknown as Record<string, unknown>;
   const filtered: Record<string, unknown> = {};
   for (const capability of capabilities) if (complete[capability] !== undefined) filtered[capability] = complete[capability];
   return Object.freeze(filtered) as unknown as ScriptRuntimeApi;
+}
+
+function gameplayObservationOwner(context: ScriptRuntimeContext): Readonly<{ scriptId: string; entityId: string }> {
+  const plan = planByComponent.get(context.component);
+  if (!plan) throw new Error('Gameplay observation owner is not attached to an active preview plan.');
+  return Object.freeze({ scriptId: plan.scriptId, entityId: plan.entityId });
 }
 
 function setHudText(id: string, text: string, options: HudTextOptions): void {

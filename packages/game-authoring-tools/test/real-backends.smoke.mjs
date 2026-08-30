@@ -12,23 +12,29 @@ import { PreviewAuthorizationService, ProjectScriptService, ScriptValidationWork
 import { AgentGameAuthoringCoordinator, GameAuthoringToolRuntime } from '../dist/index.js';
 
 if (process.env.HAIYUE_STUDIO_ALLOW_REAL_G09_SMOKE !== '1') throw new Error('Real G09 backend smoke requires explicit authorization.');
-const deepSeekSecret = process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET;
+const requestedBackend = process.env.HAIYUE_STUDIO_REAL_BACKEND_FILTER?.trim() || 'all';
+if (!['all', 'harness', 'codex'].includes(requestedBackend)) throw new Error('HAIYUE_STUDIO_REAL_BACKEND_FILTER must be all, harness or codex.');
+const deepSeekSecret = requestedBackend === 'codex' ? null : process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET;
 delete process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET;
-if (!deepSeekSecret) throw new Error('DeepSeek smoke credential is unavailable.');
+if (requestedBackend !== 'codex' && !deepSeekSecret) throw new Error('DeepSeek smoke credential is unavailable.');
 
 const summaries = [];
+const failures = [];
 const backends = [
-  async () => new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }),
-  async () => new CodexAppServerBackend(),
-];
+  { kind: 'harness', create: async () => new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }) },
+  { kind: 'codex', create: async () => new CodexAppServerBackend() },
+].filter((entry) => requestedBackend === 'all' || entry.kind === requestedBackend);
 try {
-  for (const createBackend of backends) {
+  for (const entry of backends) {
     const value = await fixture();
-    const backend = await createBackend();
-    const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } });
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error(`G09 ${backend.descriptor.kind} smoke exceeded five minutes.`)), 5 * 60_000);
+    let backend;
+    let coordinator;
     try {
+      backend = await entry.create();
+      coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(new Error(`G09 ${backend.descriptor.kind} smoke exceeded five minutes.`)), 5 * 60_000);
+      try {
       const status = await backend.status();
       assert.equal(status.state, 'ready', JSON.stringify(status.diagnostic));
       const catalog = await backend.modelCatalog();
@@ -54,9 +60,13 @@ try {
       assert.equal(scene.entities.length, 1);
       assert.deepEqual(scene.entities[0].transform.position, { x: 1, y: 2, z: 3 });
       summaries.push({ backend: backend.descriptor.kind, model: model.id, reasoningEffort, terminal: summary.terminal, tools: summary.results.map((item) => item.toolId), revision: value.workspace.snapshot().document.revision, credentialPersisted: false });
-    } finally { clearTimeout(timer); coordinator.dispose(); await backend.dispose(); await dispose(value); }
+      } finally { clearTimeout(timer); }
+    } catch (cause) {
+      failures.push({ backend: entry.kind, code: typeof cause?.code === 'string' ? cause.code.slice(0, 96) : 'real-backend-smoke-failed', message: (cause instanceof Error ? cause.message : String(cause)).slice(0, 2_000) });
+    } finally { coordinator?.dispose(); await backend?.dispose(); await dispose(value); }
   }
-  console.log(JSON.stringify(summaries));
+  console.log(JSON.stringify({ summaries, failures }));
+  if (failures.length > 0) throw new Error(`Real backend smoke failed for ${failures.map((entry) => entry.backend).join(', ')}.`);
 } finally {
   process.env.HAIYUE_STUDIO_ALLOW_REAL_G09_SMOKE = '';
 }
