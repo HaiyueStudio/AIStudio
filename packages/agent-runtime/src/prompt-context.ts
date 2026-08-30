@@ -214,8 +214,8 @@ export class PromptContextRuntime {
     const transmissions = [] as JsonValue[];
     let eligibleBytes = 0;
     for (const stored of puts) {
-      const isUnchangedProject = reuseSessionId !== null && stored.artifact.kind === 'project-manifest' && stored.localHit && input.project !== null;
-      const body: JsonValue = isUnchangedProject
+      const isReusableArtifact = reuseSessionId !== null && stored.localHit && ['policy', 'capability-manifest', 'project-manifest', 'playbook'].includes(stored.artifact.kind);
+      const body: JsonValue = isReusableArtifact
         ? { artifactId: stored.artifact.id, kind: stored.artifact.kind, digest: stored.artifact.digest, transmission: 'reference-only', note: 'Unchanged from the live provider session.' }
         : { artifactId: stored.artifact.id, kind: stored.artifact.kind, digest: stored.artifact.digest, transmission: 'full', projection: stored.projection };
       transmissions.push(body);

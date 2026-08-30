@@ -39,7 +39,7 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /g12\.electron-premature-quit/u);
   assert.match(source, /cleanupInProgress/u);
   assert.match(source, /render-process-gone/u);
-  assert.match(source, /\['running', 'playing', 'paused'\]/u);
+  assert.match(source, /\['running', 'playing', 'paused', 'faulted'\]/u);
   assert.match(source, /fault-injection.*preview-window-close/u);
   assert.match(source, /run-error-after-ready/u);
   assert.match(source, /restricted to preflight evidence/u);
@@ -52,6 +52,12 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /reconcileLiveUsage/u);
   assert.match(source, /budget\.hard-stop/u);
   assert.match(source, /g12\.script-not-created/u);
+  assert.match(source, /inspectG12GameplayContract/u);
+  assert.match(source, /maxModelToolResultBytes/u);
+  assert.match(source, /modelToolIds: G12_AUTHORING_TOOL_IDS/u);
+  assert.match(source, /g12\.replay-runtime-error.*g12\.replay-trigger-timeout/su);
+  assert.match(source, /capturePage\(\)/u);
+  assert.match(source, /evidenceManifest, evaluator: evaluation/u);
   assert.match(source, /isRecoverableSummary/u);
   assert.match(source, /上一回合发生可重试的传输或流中断/u);
   assert.match(source, /minimumTakeoverWindowMs/u);

@@ -256,21 +256,37 @@ test('script proposal, trusted apply and runtime start preserve separate approva
   } finally { await dispose(value); }
 });
 
-test('invalid AI-generated module scripts must be rewritten before apply can be prepared', async () => {
+test('AI-generated engine imports and update wrappers are normalized before apply', async () => {
   const value = await fixture();
   try {
     const create = await approveAndExecute(value.runtime, call('call:create-invalid-script-entity', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Invalid Script' }));
     const proposed = await executeReady(value.runtime, call('call:propose-invalid-module', 'script.propose', {
+      baseRevision: 2, entityId: create.value.entity.id, text: "```ts\nimport { Entity } from '@haiyue/engine';\nexport function onUpdate(ctx: unknown): void { entity.name; }\n```", capabilities: ['read', 'debug'],
+    }));
+    assert.equal(proposed.value.canApply, true);
+    assert.deepEqual(new Set(proposed.value.repairs), new Set(['removed-markdown-fence', 'removed-redundant-engine-import', 'adapted-update-lifecycle-wrapper']));
+    const applied = await approveAndExecute(value.runtime, call('call:apply-normalized-module', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId }));
+    assert.equal(applied.afterRevision, 3);
+    const source = value.projectScripts.snapshot().resources[0].text;
+    assert.doesNotMatch(source, /```|import|export/u);
+    assert.match(source, /onUpdate\(\{ entity, component, world, time, delta, api \}\);/u);
+  } finally { await dispose(value); }
+});
+
+test('unsupported module entry points remain fail closed', async () => {
+  const value = await fixture();
+  try {
+    const create = await approveAndExecute(value.runtime, call('call:create-unsupported-module', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Unsupported Script' }));
+    const proposed = await executeReady(value.runtime, call('call:propose-unsupported-module', 'script.propose', {
       baseRevision: 2, entityId: create.value.entity.id, text: 'export function start(): void {}', capabilities: ['read', 'debug'],
     }));
     assert.equal(proposed.value.canApply, false);
-    assert.match(proposed.value.requiredAction, /Rewrite the complete script/);
-    assert.ok(proposed.value.diagnostics.some((item) => item.code === 'script.capability.module-forbidden' && item.severity === 'error'));
-    await assert.rejects(
-      value.runtime.prepare(call('call:apply-invalid-module', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId })),
-      /script\.capability\.module-forbidden[\s\S]*Rewrite and propose again/,
-    );
-    assert.equal(value.workspace.snapshot().document.revision, 2);
+    assert.ok(proposed.value.diagnostics.some((item) => item.code === 'script.capability.module-forbidden'));
+    const runtimeImport = await executeReady(value.runtime, call('call:propose-runtime-import', 'script.propose', {
+      baseRevision: 2, entityId: create.value.entity.id, text: "import { Entity } from '@haiyue/engine';\nconst extra = new Entity('unsafe');", capabilities: ['read', 'debug'],
+    }));
+    assert.equal(runtimeImport.value.canApply, false, 'value imports cannot be erased into a later runtime ReferenceError');
+    assert.deepEqual(runtimeImport.value.repairs, []);
   } finally { await dispose(value); }
 });
 
@@ -690,6 +706,25 @@ test('coordinator can route backend turns and tool output accounting through Age
     assert.equal(calls[1].status, 'completed');
     assert.equal(submissions, 1, 'accounting failure must not submit a second contradictory tool result');
     assert.equal(summary.diagnostics.at(-1).code, 'accounting.tool-result-failed');
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
+test('coordinator can expose a bounded tool profile and compact only the provider-facing result', async () => {
+  const value = await fixture(); let submitted; let visibleTools;
+  const backend = minimalBackend(async function* (input) {
+    visibleTools = input.tools.map((entry) => entry.id);
+    yield event('tool-request', { toolCallId: 'toolcall:compact-capabilities', toolId: 'engine.capabilities.describe', arguments: {} });
+    yield event('completed', { status: 'completed' });
+  }, async (_id, result) => { submitted = result; });
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, undefined, {
+    modelToolIds: ['project.snapshot', 'engine.capabilities.describe'], maxModelToolResultBytes: 512,
+  });
+  try {
+    const summary = await coordinator.run(backend, { prompt: 'Inspect capabilities.' });
+    assert.deepEqual(visibleTools, ['project.snapshot', 'engine.capabilities.describe']);
+    assert.equal(submitted.value.truncated, true);
+    assert.match(submitted.value.originalDigest, /^sha256:/u);
+    assert.ok(summary.results[0].value.components.length > 1, 'full evidence remains available to Studio');
   } finally { coordinator.dispose(); await dispose(value); }
 });
 

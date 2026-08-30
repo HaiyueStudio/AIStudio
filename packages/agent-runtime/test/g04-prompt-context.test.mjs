@@ -46,6 +46,8 @@ test('same revision reuses a live session by reference, changed revision sends o
     const same = await runtime.prepare({ conversationKey, backendId, taskId: 'task:context-second', request: 'Continue the same input task.', tools, project: project1 });
     assert.equal(same.reusedSessionId, 'session:context-one');
     assert.match(same.prompt, /"transmission":"reference-only"/);
+    assert.doesNotMatch(same.prompt, /Read bounded project identity and revision/u, 'unchanged tool metadata is referenced rather than retransmitted');
+    assert.ok(Buffer.byteLength(same.prompt) < Buffer.byteLength(first.prompt));
     assert.doesNotMatch(same.prompt, /SCRIPT_FULL_MARKER_ALPHA/);
     assert.ok(same.cache.localArtifactHits >= 3);
 

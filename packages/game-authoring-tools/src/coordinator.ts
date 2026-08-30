@@ -1,6 +1,6 @@
 import { asStableId, type AgentTurnConfigV2, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
 import type { AgentBackend, AgentBackendEvent, AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
-import { canonicalStringify } from '@haiyue/ai-studio-operation-log';
+import { canonicalStringify, sha256 } from '@haiyue/ai-studio-operation-log';
 import type { GameAuthoringToolRuntime } from './runtime.js';
 import { GameToolProtocolError, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult } from './types.js';
 
@@ -17,6 +17,10 @@ export interface AgentGameAuthoringCoordinatorOptions {
   readonly maxToolRequests?: number;
   readonly maxRepeatedToolRequests?: number;
   readonly maxNoProgressToolRequests?: number;
+  /** Maximum bytes returned to the provider for one successful tool call. Full results remain in Studio evidence. */
+  readonly maxModelToolResultBytes?: number;
+  /** Optional provider-visible subset. The Studio runtime retains the full catalog. */
+  readonly modelToolIds?: readonly StableId[];
 }
 
 export interface AgentGameTurnInput {
@@ -53,6 +57,12 @@ export class AgentGameAuthoringCoordinator {
     validateOptionalLimit(options.maxToolRequests, 'maxToolRequests');
     validateOptionalLimit(options.maxRepeatedToolRequests, 'maxRepeatedToolRequests');
     validateOptionalLimit(options.maxNoProgressToolRequests, 'maxNoProgressToolRequests');
+    validateOptionalLimit(options.maxModelToolResultBytes, 'maxModelToolResultBytes');
+    if (options.modelToolIds) {
+      if (new Set(options.modelToolIds).size !== options.modelToolIds.length) throw new TypeError('modelToolIds must be unique.');
+      const available = new Set(runtime.definitions().map((entry) => entry.id));
+      for (const id of options.modelToolIds) if (!available.has(id)) throw new TypeError(`Unknown provider-visible tool ${id}.`);
+    }
   }
 
   async run(backend: AgentBackend, input: AgentGameTurnInput, onEvent?: (event: AgentBackendEvent) => void, signal?: AbortSignal): Promise<AgentGameTurnSummary> {
@@ -70,7 +80,8 @@ export class AgentGameAuthoringCoordinator {
     let consecutiveToolRepetitions = 0;
     let noProgressToolRequests = 0;
     let highestDocumentRevision = 0;
-    const tools = this.runtime.definitions().map((definition) => Object.freeze({ id: definition.id, description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`, inputSchema: definition.inputSchema }));
+    const visible = this.options.modelToolIds ? new Set(this.options.modelToolIds) : null;
+    const tools = this.runtime.definitions().filter((definition) => !visible || visible.has(definition.id)).map((definition) => Object.freeze({ id: definition.id, description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`, inputSchema: definition.inputSchema }));
     const turnInput = Object.freeze({ taskId: input.taskId, config: input.config, sessionId: input.sessionId, prompt: input.prompt, contextArtifactIds: input.contextArtifactIds ?? [], tools });
     const events = this.turns ? this.turns.start(backend.descriptor.id, turnInput, controller.signal) : backend.startTurn(turnInput, controller.signal);
     try { for await (const event of events) {
@@ -105,9 +116,10 @@ export class AgentGameAuthoringCoordinator {
           const result = await this.runtime.execute(preparation.id, controller.signal);
           results.push(result);
           if (result.afterRevision > highestDocumentRevision) { highestDocumentRevision = result.afterRevision; noProgressToolRequests = 0; }
-          const submitted = Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.historyLabel ? { historyLabel: result.historyLabel } : {}) });
+          const complete = Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.historyLabel ? { historyLabel: result.historyLabel } : {}) });
+          const submitted = modelToolResult(complete, this.options.maxModelToolResultBytes);
           await backend.submitToolResult(toolCallId, submitted, controller.signal);
-          await recordToolAccounting(this.turns, event.turnId, toolCallId, submitted, diagnostics);
+          await recordToolAccounting(this.turns, event.turnId, toolCallId, complete, diagnostics);
         } catch (cause) {
           if (controller.signal.aborted) { await this.runtime.cancel(toolCallId).catch(() => undefined); throw controller.signal.reason ?? cause; }
           const diagnostic = Object.freeze({ code: hasCode(cause) ? cause.code : 'tool.execution-failed', message: cause instanceof Error ? cause.message : String(cause) });
@@ -144,6 +156,17 @@ function stablePayloadId(value: unknown, label: string): StableId { if (typeof v
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function hasCode(value: unknown): value is Readonly<{ code: string }> { return Boolean(value) && typeof value === 'object' && typeof (value as Record<string, unknown>).code === 'string'; }
 function validateOptionalLimit(value: number | undefined, label: string): void { if (value !== undefined && (!Number.isSafeInteger(value) || value < 1)) throw new TypeError(`${label} must be a positive integer.`); }
+function modelToolResult(result: JsonObject, maximum: number | undefined): JsonObject {
+  if (maximum === undefined || Buffer.byteLength(canonicalStringify(result)) <= maximum) return result;
+  const value = isRecord(result.value) ? result.value : {};
+  const retained = Object.fromEntries(Object.entries(value).filter(([key, entry]) => /(?:^id$|id$|revision|state|status|count|digest|canApply|requiredAction|planId|proposalId)/iu.test(key) && (entry === null || ['boolean', 'number', 'string'].includes(typeof entry))).slice(0, 32));
+  const compact = Object.freeze({
+    ...result,
+    value: Object.freeze({ ...retained, truncated: true, originalBytes: Buffer.byteLength(canonicalStringify(result)), originalDigest: `sha256:${sha256(canonicalStringify(result))}`, topLevelKeys: Object.keys(value).sort().slice(0, 64) }),
+  }) as JsonObject;
+  if (Buffer.byteLength(canonicalStringify(compact)) <= maximum) return compact;
+  return Object.freeze({ status: result.status, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, value: Object.freeze({ truncated: true, originalBytes: Buffer.byteLength(canonicalStringify(result)), originalDigest: `sha256:${sha256(canonicalStringify(result))}` }) }) as JsonObject;
+}
 function toolRequestSafeguard(options: AgentGameAuthoringCoordinatorOptions, total: number, repetitions: number, noProgress: number): Readonly<{ code: string; message: string }> | null {
   if (options.maxToolRequests !== undefined && total > options.maxToolRequests) return Object.freeze({ code: 'agent.tool-call-budget-exceeded', message: `Agent emitted more than ${options.maxToolRequests} tool requests in one turn.` });
   if (options.maxRepeatedToolRequests !== undefined && repetitions > options.maxRepeatedToolRequests) return Object.freeze({ code: 'agent.tool-loop-detected', message: `Agent repeated the same tool request more than ${options.maxRepeatedToolRequests} consecutive times.` });

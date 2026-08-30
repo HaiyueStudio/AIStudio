@@ -25,16 +25,17 @@ parentPort.on('message', (request: ValidationRequest) => {
     parentPort!.postMessage({ id: request.id, diagnostics: [{
       code: 'script.validator.failed', severity: 'error', path: request.sourcePath, line: 1, column: 1,
       message: cause instanceof Error ? cause.message : String(cause),
-    }], emittedText: '' });
+    }], emittedText: '', normalizedText: request.text, repairs: [] });
   }
 });
 
-function validate(request: ValidationRequest): Readonly<{ id: string; diagnostics: readonly ScriptDiagnostic[]; emittedText: string }> {
+function validate(request: ValidationRequest): Readonly<{ id: string; diagnostics: readonly ScriptDiagnostic[]; emittedText: string; normalizedText: string; repairs: readonly string[] }> {
+  const normalized = normalizeGeneratedScript(request.text, request.sourcePath);
   const prefix = `${request.declarations}\n`;
   // Resolve injected Engine type imports relative to this package, not the
   // directory from which Electron happened to be launched.
   const virtualPath = path.join(import.meta.dirname, `.haiyue-script-${request.id.replaceAll(':', '-')}.ts`);
-  const sourceText = prefix + request.text;
+  const sourceText = prefix + normalized.text;
   const options: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2022,
     module: ts.ModuleKind.ESNext,
@@ -71,12 +72,67 @@ function validate(request: ValidationRequest): Readonly<{ id: string; diagnostic
         message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
       });
     });
-  diagnostics.push(...capabilityDiagnostics(request.text, request.sourcePath));
-  const transpiled = ts.transpileModule(request.text, {
+  diagnostics.push(...capabilityDiagnostics(normalized.text, request.sourcePath));
+  const transpiled = ts.transpileModule(normalized.text, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, removeComments: false },
     fileName: request.sourcePath,
   });
-  return Object.freeze({ id: request.id, diagnostics: Object.freeze(diagnostics), emittedText: transpiled.outputText.trim() });
+  return Object.freeze({ id: request.id, diagnostics: Object.freeze(diagnostics), emittedText: transpiled.outputText.trim(), normalizedText: normalized.text, repairs: normalized.repairs });
+}
+
+function normalizeGeneratedScript(input: string, sourcePath: string): Readonly<{ text: string; repairs: readonly string[] }> {
+  let text = input;
+  const repairs: string[] = [];
+  const fenced = /^```(?:typescript|ts|javascript|js)?\s*\r?\n([\s\S]*?)\r?\n```$/iu.exec(input.trim());
+  if (fenced) { text = fenced[1]!.trim(); repairs.push('removed-markdown-fence'); }
+  const source = ts.createSourceFile(sourcePath, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const edits: Array<Readonly<{ start: number; end: number; replacement: string }>> = [];
+  for (const statement of source.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && ['@haiyue/engine', '@haiyue/engine/components'].includes(statement.moduleSpecifier.text) && importIsTypeSafeToRemove(statement, source)) {
+      edits.push({ start: statement.getFullStart(), end: statement.end, replacement: '' });
+      repairs.push('removed-redundant-engine-import');
+    }
+  }
+  const wrappers = source.statements.filter((statement): statement is ts.FunctionDeclaration => ts.isFunctionDeclaration(statement)
+    && Boolean(statement.body)
+    && ['onUpdate', 'update', 'tick'].includes(statement.name?.text ?? '')
+    && (ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword || modifier.kind === ts.SyntaxKind.DefaultKeyword) ?? false));
+  if (wrappers.length === 1) {
+    const wrapper = wrappers[0]!;
+    for (const modifier of ts.getModifiers(wrapper) ?? []) if (modifier.kind === ts.SyntaxKind.ExportKeyword || modifier.kind === ts.SyntaxKind.DefaultKeyword) edits.push({ start: modifier.getStart(source), end: modifier.end, replacement: '' });
+    const argument = '{ entity, component, world, time, delta, api }';
+    edits.push({ start: text.length, end: text.length, replacement: `\n${wrapper.name!.text}(${wrapper.parameters.length > 0 ? argument : ''});` });
+    repairs.push('adapted-update-lifecycle-wrapper');
+  }
+  for (const edit of edits.sort((left, right) => right.start - left.start)) text = `${text.slice(0, edit.start)}${edit.replacement}${text.slice(edit.end)}`;
+  return Object.freeze({ text: repairs.length > 0 ? text.trim() : text, repairs: Object.freeze([...new Set(repairs)]) });
+}
+
+function importIsTypeSafeToRemove(statement: ts.ImportDeclaration, source: ts.SourceFile): boolean {
+  const clause = statement.importClause;
+  if (!clause) return true;
+  if (clause.isTypeOnly) return true;
+  const names = new Set<string>();
+  if (clause.name) names.add(clause.name.text);
+  if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) names.add(clause.namedBindings.name.text);
+  if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) for (const element of clause.namedBindings.elements) if (!element.isTypeOnly) names.add(element.name.text);
+  let unsafe = false;
+  const visit = (node: ts.Node): void => {
+    if (unsafe || node === statement) return;
+    if (ts.isIdentifier(node) && names.has(node.text) && !identifierIsTypeOnly(node)) { unsafe = true; return; }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return !unsafe;
+}
+
+function identifierIsTypeOnly(identifier: ts.Identifier): boolean {
+  let node: ts.Node = identifier;
+  while (node.parent && !ts.isStatement(node.parent)) {
+    node = node.parent;
+    if (ts.isTypeNode(node)) return true;
+  }
+  return false;
 }
 
 function capabilityDiagnostics(text: string, sourcePath: string): ScriptDiagnostic[] {

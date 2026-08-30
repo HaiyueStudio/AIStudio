@@ -72,6 +72,8 @@ export interface ScriptValidationResult {
   readonly capabilities: readonly ScriptCapabilityName[];
   readonly diagnostics: readonly ScriptDiagnostic[];
   readonly emittedText: string;
+  readonly normalizedText: string;
+  readonly repairs: readonly string[];
   readonly stale: boolean;
 }
 
@@ -89,6 +91,7 @@ export interface ScriptEditProposal {
   readonly capabilities: readonly ScriptCapabilityName[];
   readonly diagnostics: readonly ScriptDiagnostic[];
   readonly emittedText: string;
+  readonly repairs: readonly string[];
 }
 
 export interface PlayRuntimeConfig {
@@ -116,6 +119,8 @@ interface WorkerResult {
   readonly id: string;
   readonly diagnostics: readonly ScriptDiagnostic[];
   readonly emittedText: string;
+  readonly normalizedText: string;
+  readonly repairs: readonly string[];
 }
 
 function isWorkerResult(value: unknown): value is WorkerResult {
@@ -123,6 +128,8 @@ function isWorkerResult(value: unknown): value is WorkerResult {
   const result = value as Record<string, unknown>;
   return typeof result.id === 'string'
     && typeof result.emittedText === 'string'
+    && typeof result.normalizedText === 'string'
+    && Array.isArray(result.repairs) && result.repairs.every((item) => typeof item === 'string')
     && Array.isArray(result.diagnostics)
     && result.diagnostics.every((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
@@ -190,6 +197,8 @@ export class ScriptValidationWorker {
       capabilities,
       diagnostics: Object.freeze(result.diagnostics.map((item) => Object.freeze(item))),
       emittedText: result.emittedText,
+      normalizedText: result.normalizedText,
+      repairs: Object.freeze([...result.repairs]),
       stale: generation !== this.generations.get(input.scriptId),
     });
   }
@@ -296,18 +305,19 @@ export class ProjectScriptService {
     const nextTextRevision = (previous?.textRevision ?? 0) + 1;
     const validation = await this.validator.validate({ scriptId, textRevision: nextTextRevision, sourcePath, text: input.text, capabilities: input.capabilities ?? previous?.capabilities });
     if (validation.stale) throw new Error('Script validation result is stale.');
+    const normalizedText = validation.normalizedText;
     const id = asStableId(`script-proposal:${randomUUID()}`);
-    const diff = lineDiff(previous?.text ?? '', input.text);
+    const diff = lineDiff(previous?.text ?? '', normalizedText);
     const proposal: ScriptEditProposal = Object.freeze({
       id, entityId: input.entityId, scriptId, baseRevision: input.baseRevision,
-      previousTextRevision: previous?.textRevision ?? 0, nextTextRevision, text: input.text,
-      digest: digestScript(input.text, validation.capabilities), addedLines: diff.addedLines, removedLines: diff.removedLines,
-      capabilities: validation.capabilities, diagnostics: validation.diagnostics, emittedText: validation.emittedText,
+      previousTextRevision: previous?.textRevision ?? 0, nextTextRevision, text: normalizedText,
+      digest: digestScript(normalizedText, validation.capabilities), addedLines: diff.addedLines, removedLines: diff.removedLines,
+      capabilities: validation.capabilities, diagnostics: validation.diagnostics, emittedText: validation.emittedText, repairs: validation.repairs,
     });
     await this.log.append({
       kind: 'script/proposal-ready', severity: hasErrors(proposal.diagnostics) ? 'warning' : 'info', source: asStableId('studio.script'),
       correlation: { documentId: this.current.documentId, entityId: input.entityId, scriptId, revisionId: asStableId(`script-revision:${nextTextRevision}`) },
-      payload: { proposalId: id, digest: proposal.digest, addedLines: diff.addedLines, removedLines: diff.removedLines, capabilities: proposal.capabilities, diagnosticCount: proposal.diagnostics.length },
+      payload: { proposalId: id, digest: proposal.digest, addedLines: diff.addedLines, removedLines: diff.removedLines, capabilities: proposal.capabilities, diagnosticCount: proposal.diagnostics.length, repairs: proposal.repairs },
     });
     this.proposals.set(id, proposal);
     return proposal;
