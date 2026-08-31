@@ -10,7 +10,7 @@ const evidenceClass = one(values['evidence-class'] ?? 'formal', ['formal', 'pref
 const backends = list(values.backends ?? 'harness,codex', ['harness', 'codex'], 'backends');
 const genres = list(values.genres ?? 'snake,match-3,falling-blocks,jigsaw,platformer,racing,shooter', ['snake', 'match-3', 'falling-blocks', 'jigsaw', 'platformer', 'racing', 'shooter'], 'genres');
 const output = path.resolve(values.output ?? path.join(root, 'evals', 'evidence', 'g12', 'runs'));
-const dryRun = values['dry-run'] === 'true'; const resume = values.resume !== 'false';
+const dryRun = values['dry-run'] === 'true'; const resume = values.resume !== 'false'; const retryFailed = values['retry-failed'] === 'true';
 assertContained(output, path.join(root, 'evals', 'evidence', 'g12'));
 const revisions = revisionSet();
 if (evidenceClass === 'formal') for (const [name, entry] of Object.entries(revisions)) if (!entry.clean) throw new Error(`g12.formal-revision-dirty:${name}`);
@@ -19,8 +19,11 @@ const matrixId = values['matrix-id'] ?? `matrix-${revisions.aistudio.revision.sl
 const checkpointPath = path.join(output, `${matrixId}.checkpoint.json`);
 const checkpoint = resume ? await readJson(checkpointPath).catch(() => null) : null;
 const results = Array.isArray(checkpoint?.results) ? [...checkpoint.results] : [];
-const tasks = backends.flatMap((backend) => genres.map((genre) => ({ backend, genre }))).filter((task) => !results.some((entry) => entry.backend === task.backend && entry.genre === task.genre && entry.status === 'pass'));
-console.log(`[g12-real-matrix] ${JSON.stringify({ matrixId, evidenceClass, revisions, requested: backends.length * genres.length, remaining: tasks.length, dryRun })}`);
+const tasks = backends.flatMap((backend) => genres.map((genre) => ({ backend, genre }))).filter((task) => {
+  const prior = results.find((entry) => entry.backend === task.backend && entry.genre === task.genre);
+  return !prior || (retryFailed && prior.status !== 'pass');
+});
+console.log(`[g12-real-matrix] ${JSON.stringify({ matrixId, evidenceClass, revisions, requested: backends.length * genres.length, remaining: tasks.length, dryRun, retryFailed })}`);
 if (dryRun) process.exit(0);
 
 for (const task of tasks) {

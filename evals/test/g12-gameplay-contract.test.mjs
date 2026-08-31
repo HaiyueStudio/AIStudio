@@ -11,3 +11,12 @@ test('gameplay contract requires state plus an authoritative event channel witho
   const misleading = inspectG12GameplayContract({ resources: [{ enabled: true, text: "const events = []; api.scene.observe('gameplay', { status: 'playing', recentEvents: events });" }] });
   assert.deepEqual(misleading.diagnostics, ['g12.gameplay-trigger-channel-missing']);
 });
+
+test('gameplay contract recognizes typed scene receivers and named payloads without weakening exact channel keys', () => {
+  const asserted = inspectG12GameplayContract({ resources: [{ enabled: true, text: "const payload = Object.freeze({ state: 'playing', events }); (api.scene as any).observe('gameplay', payload);" }] });
+  assert.equal(asserted.valid, true);
+  const aliased = inspectG12GameplayContract({ resources: [{ enabled: true, text: "const scene: any = api.scene; const telemetry = { phase: 'running', triggers }; scene.observe('gameplay', telemetry);" }] });
+  assert.equal(aliased.valid, true);
+  const misleading = inspectG12GameplayContract({ resources: [{ enabled: true, text: "const scene: any = api.scene; scene.observe('gameplay', { state: 'playing', recentEvents: events });" }] });
+  assert.deepEqual(misleading.diagnostics, ['g12.gameplay-trigger-channel-missing']);
+});

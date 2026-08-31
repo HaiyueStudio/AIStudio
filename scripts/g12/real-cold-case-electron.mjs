@@ -40,6 +40,7 @@ if (backendKind === 'harness' && !deepSeekSecret) throw new Error('DeepSeek cred
 const revisions = revisionSet();
 if (evidenceClass === 'formal') for (const [name, value] of Object.entries(revisions)) if (!value.clean) throw new Error(`g12.formal-revision-dirty:${name}`);
 const runId = args['run-id'] ? runIdentifier(args['run-id']) : `g12-${backendKind}-${genre}-${randomUUID()}`;
+const caseStartedAtMs = Date.now();
 const caseRoot = path.join(outputRoot, revisions.aistudio.revision.slice(0, 12), backendKind, genre, runId);
 const projectRoot = path.join(caseRoot, 'project');
 const userDataRoot = path.join(caseRoot, 'runtime');
@@ -213,7 +214,9 @@ async function executePreviewReplay({ fixture, preview, windowGuard, testCase })
   const plan = await fixture.authorization.prepare();
   if (plan.diagnostics.some((entry) => entry.severity === 'error')) throw errorWithCode('g12.preview-validation-errors', `Preview validation returned ${plan.diagnostics.length} diagnostic(s).`);
   const scene = fixture.scene.snapshot();
-  const started = await windowGuard.race(preview.start(scene, plan));
+  let started;
+  try { started = await windowGuard.race(preview.start(scene, plan)); }
+  catch (cause) { throw errorWithCode('g12.replay-runtime-error', `Generated scripts failed during actual Play startup: ${cause instanceof Error ? cause.message : String(cause)}`); }
   const baseline = await windowGuard.race(preview.inspect());
   const replayProgram = compileG12ReplayProgram(testCase.inputReplay, { baseTick: baseline.tick });
   const replay = await windowGuard.race(executeG12ReplayProgram(preview, replayProgram, { capture: true, maxTriggerWaitTicks: 3_600 }));
@@ -247,10 +250,11 @@ async function createPreviewWindow() {
 async function preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets }) {
   const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
   await fixture.workspace.save().catch(() => undefined);
-  const usageRecords = taskId && turns ? turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record) : [];
+  let usageRecords = taskId && turns ? turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record) : [];
   if (account && model) for (const record of usageRecords) safeValue(() => account.bindTurn(asStableId(record.turnId), billingContext(model.id)), undefined);
   const accounting = account ? safeValue(() => account.reconcile(), null) : null;
-  const costRecords = account ? safeValue(() => account.costRecords(), []) : [];
+  let costRecords = account ? safeValue(() => account.costRecords(), []) : [];
+  ({ usageRecords, costRecords } = ensureFailureAttribution(taskId, usageRecords, costRecords));
   const scene = safeValue(() => fixture.scene.snapshot(), null);
   const scripts = safeValue(() => fixture.projectScripts.snapshot(), null);
   const previewSnapshot = preview ? safeValue(() => preview.snapshot(), null) : null;
@@ -316,6 +320,22 @@ function reconcileLiveUsage(store, event) { const previous = store.get(event.tur
 function aggregateLiveUsage(store) { return [...store.values()].reduce((sum, entry) => ({ inputTokens: sum.inputTokens + entry.inputTokens, outputTokens: sum.outputTokens + entry.outputTokens }), { inputTokens: 0, outputTokens: 0 }); }
 function nonNegativeInteger(value) { return Number.isSafeInteger(value) && value >= 0 ? value : 0; }
 function enabledScriptCount(snapshot) { const resources = Array.isArray(snapshot) ? snapshot : snapshot?.resources ?? snapshot?.scripts ?? []; return resources.filter((entry) => entry?.enabled !== false).length; }
+function ensureFailureAttribution(taskId, usageRecords, costRecords) {
+  if (!taskId || (usageRecords.length > 0 && costRecords.length > 0)) return { usageRecords, costRecords };
+  const suffix = createHash('sha256').update(`${runId}\0${taskId}\0provider-usage-unreported`).digest('hex').slice(0, 24);
+  const fallbackUsage = Object.freeze({
+    schemaVersion: 2, id: asStableId(`usage:unreported:${suffix}`), taskId,
+    sessionId: asStableId(`session:unreported:${suffix}`), turnId: asStableId(`turn:unreported:${suffix}`),
+    inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, reasoningTokens: null,
+    toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: Math.max(0, Date.now() - caseStartedAtMs), providerRequestDigest: null, final: true,
+  });
+  const attributedUsage = usageRecords.length > 0 ? usageRecords : [fallbackUsage];
+  const attributedCosts = costRecords.length > 0 ? costRecords : attributedUsage.map((record, index) => Object.freeze({
+    schemaVersion: 2, id: asStableId(`cost:unreported:${suffix}:${index + 1}`), usageRecordId: record.id,
+    pricingCatalogId: null, pricingCatalogVersion: null, effectiveAt: null, currency: null, amountMicros: null, status: 'unknown', formula: null,
+  }));
+  return { usageRecords: attributedUsage, costRecords: attributedCosts };
+}
 function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
 function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }
 function defaultQuestionAnswer(event) {

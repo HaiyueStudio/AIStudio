@@ -11,7 +11,7 @@ test('real cold matrix runner enumerates independent backend/genre cases and che
   assert.match(source, /backends\.flatMap\(\(backend\) => genres\.map/u);
   assert.match(source, /await atomicJson\(checkpointPath/u);
   assert.match(source, /g12\.formal-revision-dirty/u);
-  assert.match(source, /status === 'pass'/u);
+  assert.match(source, /retryFailed && prior\.status !== 'pass'/u);
   assert.match(source, /const runId = `g12-\$\{task\.backend\}-\$\{task\.genre\}-\$\{randomUUID\(\)\}`/u);
   assert.match(source, /parent-start\.json/u);
   assert.match(source, /`--run-id=\$\{runId\}`/u);
@@ -20,7 +20,7 @@ test('real cold matrix runner enumerates independent backend/genre cases and che
   assert.match(source, /timedOut/u);
   const result = spawnSync(process.execPath, ['scripts/g12/run-real-cold-matrix.mjs', '--evidence-class=preflight', '--dry-run=true', '--backends=codex', '--genres=snake'], { cwd: root, encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /"requested":1.*"remaining":1.*"dryRun":true/u);
+  assert.match(result.stdout, /"requested":1.*"remaining":1.*"dryRun":true.*"retryFailed":false/u);
 });
 
 test('real case runner separates model-visible request from hidden replay and persists all evidence classes', async () => {
@@ -58,6 +58,7 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /backendKind === 'harness' \? 80 : 120/u);
   assert.match(source, /inputTokens: harness \? 1_000_000 : 2_000_000/u);
   assert.match(source, /g12\.replay-runtime-error.*g12\.replay-trigger-timeout/su);
+  assert.match(source, /Generated scripts failed during actual Play startup/u);
   assert.match(source, /capturePage\(\)/u);
   assert.match(source, /evidenceManifest, evaluator: evaluation/u);
   assert.match(source, /isRecoverableSummary/u);
@@ -67,7 +68,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /diagnostics: summary\?\.diagnostics/u);
   assert.match(source, /script\.propose.*script\.apply/u);
   assert.match(source, /for \(const record of usageRecords\).*account\.bindTurn/su);
-  assert.ok(source.indexOf('const accounting = account ? safeValue(() => account.reconcile(), null)') < source.indexOf('const costRecords = account ? safeValue(() => account.costRecords(), [])'));
+  assert.match(source, /ensureFailureAttribution/u);
+  assert.match(source, /provider-usage-unreported/u);
+  assert.ok(source.indexOf('const accounting = account ? safeValue(() => account.reconcile(), null)') < source.indexOf('let costRecords = account ? safeValue(() => account.costRecords(), [])'));
   for (const type of ['state', 'event-trace', 'input-replay', 'screenshot', 'performance', 'lifecycle', 'log']) assert.match(source, new RegExp(`type: '${type}'`, 'u'));
   assert.match(source, /evaluation = evaluateCase/u);
 });

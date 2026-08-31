@@ -26,7 +26,14 @@ export class BrowserWindowPreviewControl {
     if (signal?.aborted) throw signal.reason ?? new Error('Preview command aborted.');
     const id = `g12-preview-command:${++this.#sequence}`;
     const command = { id, kind, ...payload };
-    const execution = this.window.webContents.executeJavaScript(`window.g12PreviewCommand(${JSON.stringify(command)})`);
+    const execution = this.window.webContents.executeJavaScript(`Promise.resolve().then(() => window.g12PreviewCommand(${JSON.stringify(command)})).then(value => ({ ok: true, value }), error => ({ ok: false, error: { name: error?.name ?? 'Error', message: error?.message ?? String(error), stack: error?.stack ?? null } }))`).then(result => {
+      if (result?.ok === true) return result.value;
+      const error = new Error(result?.error?.message ?? `Preview ${kind} command failed.`);
+      error.name = result?.error?.name ?? 'Error';
+      if (typeof result?.error?.stack === 'string') error.stack = result.error.stack;
+      error.code = 'g12.preview-command-failed';
+      throw error;
+    });
     if (!signal) return execution;
     return new Promise((resolve, reject) => {
       const abort = () => reject(signal.reason ?? new Error('Preview command aborted.'));
