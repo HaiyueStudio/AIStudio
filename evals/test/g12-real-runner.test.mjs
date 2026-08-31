@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { preserveParentFailureEvidence } from '../../scripts/g12/parent-failure-evidence.mjs';
 
 const root = path.resolve(new URL('../../', import.meta.url).pathname.replace(/^\/(.:\/)/u, '$1'));
 
@@ -17,6 +20,7 @@ test('real cold matrix runner enumerates independent backend/genre cases and che
   assert.match(source, /`--run-id=\$\{runId\}`/u);
   assert.match(source, /g12\.child-missing-terminal-record/u);
   assert.match(source, /g12\.case-parent-timeout/u);
+  assert.match(source, /preserveParentFailureEvidence/u);
   assert.match(source, /timedOut/u);
   const result = spawnSync(process.execPath, ['scripts/g12/run-real-cold-matrix.mjs', '--evidence-class=preflight', '--dry-run=true', '--backends=codex', '--genres=snake'], { cwd: root, encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
@@ -73,4 +77,22 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.ok(source.indexOf('const accounting = account ? safeValue(() => account.reconcile(), null)') < source.indexOf('let costRecords = account ? safeValue(() => account.costRecords(), [])'));
   for (const type of ['state', 'event-trace', 'input-replay', 'screenshot', 'performance', 'lifecycle', 'log']) assert.match(source, new RegExp(`type: '${type}'`, 'u'));
   assert.match(source, /evaluation = evaluateCase/u);
+});
+
+test('parent timeout fallback preserves fail-closed state, PNG, evaluator, usage and cost evidence', async () => {
+  const caseRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-g12-parent-failure-'));
+  try {
+    const partial = await preserveParentFailureEvidence({
+      caseRoot, matrixId: 'matrix:test', evidenceClass: 'preflight', revisions: {},
+      runId: 'g12-codex-shooter-00000000-0000-4000-8000-000000000000', backend: 'codex', genre: 'shooter',
+      errorCode: 'g12.case-parent-timeout', timedOut: true, exitCode: 1,
+      startedAt: '2026-08-31T00:00:00.000Z', completedAt: '2026-08-31T00:16:00.000Z',
+    });
+    assert.equal(partial.evidenceManifest.artifacts.some((entry) => entry.type === 'state'), true);
+    assert.equal(partial.evidenceManifest.artifacts.some((entry) => entry.type === 'screenshot'), true);
+    assert.equal(partial.evaluator.status, 'fail');
+    assert.equal(partial.usageRecords.length, 1);
+    assert.equal(partial.costRecords[0].status, 'unknown');
+    assert.equal((await readFile(path.join(caseRoot, 'partial-screenshot.png'))).length > 0, true);
+  } finally { await rm(caseRoot, { recursive: true, force: true }); }
 });

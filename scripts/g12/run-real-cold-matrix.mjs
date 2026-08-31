@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import electronPath from 'electron';
+import { preserveParentFailureEvidence } from './parent-failure-evidence.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(.:\/)/u, '$1')), '..', '..');
 const values = Object.fromEntries(process.argv.slice(2).filter((entry) => entry.startsWith('--') && entry.includes('=')).map((entry) => { const index = entry.indexOf('='); return [entry.slice(2, index), entry.slice(index + 1)]; }));
@@ -38,8 +39,7 @@ for (const task of tasks) {
   const errorCode = parsed?.errorCode ?? (child.timedOut ? 'g12.case-parent-timeout' : parsed ? null : 'g12.child-missing-terminal-record');
   if (status === 'failed' && !parsed) {
     const completedAt = new Date().toISOString();
-    const partial = { schemaVersion: 1, matrixId, evidenceClass, revisions, runId, backend: task.backend, genre: task.genre, terminal: 'failed', error: { code: errorCode }, timedOut: child.timedOut, exitCode: child.code, accounting: null, usageRecords: [], costRecords: [], cache: null, preservedArtifacts: { projectPath: path.relative(root, path.join(caseRoot, 'project')).replaceAll('\\', '/'), runtimePath: path.relative(root, path.join(caseRoot, 'runtime')).replaceAll('\\', '/') }, evaluator: { status: 'not-run', reason: errorCode }, startedAt, completedAt };
-    await atomicJson(path.join(caseRoot, 'partial-evidence.json'), partial);
+    const partial = await preserveParentFailureEvidence({ caseRoot, matrixId, evidenceClass, revisions, runId, backend: task.backend, genre: task.genre, errorCode, timedOut: child.timedOut, exitCode: child.code, startedAt, completedAt });
     await atomicJson(path.join(caseRoot, 'failure.json'), { schemaVersion: 1, matrixId, evidenceClass, revisions, runId, backend: task.backend, genre: task.genre, code: errorCode, timedOut: child.timedOut, exitCode: child.code, startedAt, completedAt, outputDigest: digest(child.output) });
     await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: task.backend, genre: task.genre, status: 'failed-infrastructure', errorCode, partialEvidenceDigest: digest(JSON.stringify(partial)), partialEvidencePath: path.relative(root, path.join(caseRoot, 'partial-evidence.json')).replaceAll('\\', '/') });
   }
