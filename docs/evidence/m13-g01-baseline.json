@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "bindingId": "m13-g01-2026-09-01",
+  "baselineId": "m13-g01-old-architecture-v1",
+  "source": { "reviewedRevision": "9e554274ef9d95f869c57b82cc0e4f767710de07", "productionModifiedByRunner": false, "providerRequestIssued": false, "unknownValuesRemainNull": true },
+  "architecture": {
+    "conversationHost": { "path": "apps/ai-studio/src/conversation-host.ts", "bytes": 114201, "lines": 1344 },
+    "promptContext": { "path": "packages/agent-runtime/src/prompt-context.ts", "bytes": 28548, "lines": 437 },
+    "toolDefinitions": { "path": "packages/game-authoring-tools/src/definitions.ts", "bytes": 20086, "lines": 104 },
+    "contextByteLimit": 98304,
+    "summaryItemLimit": 12,
+    "serialToolDispatch": { "maxConcurrency": 1, "evidence": ["apps/ai-studio/src/conversation-host.ts:385", "apps/ai-studio/src/conversation-host.ts:413"] }
+  },
+  "genres": [
+    {
+      "genre": "snake", "caseId": "game-eval:snake:v1", "measurement": "observed-preflight-failure", "backend": "codex", "terminal": "failed", "errorCode": "agent.tool-loop-detected",
+      "sourcePath": "evals/evidence/g12/runs/2a6b4009194a/codex/snake/g12-codex-snake-09358219-3d87-4f9d-a2b0-c7a2a80c5bcd/partial-evidence.json",
+      "modelTurns": 2, "tokens": { "input": 322937, "cachedInput": 285184, "cacheWrite": 0, "output": 5781, "reasoning": 1095 },
+      "cache": { "localArtifactHits": 4, "localArtifactMisses": 7, "deltaReuseBytes": 0, "providerCacheEligibleBytes": 28666, "providerReportedHitTokens": 285184 },
+      "cost": { "status": "unknown", "currency": null, "amountMicros": null, "final": false }, "toolCalls": 16, "wallTimeMs": 215744, "preservedProject": true, "screenshotCaptured": false, "evaluatorStatus": "not-run"
+    },
+    {
+      "genre": "match-3", "caseId": "game-eval:match-3:v1", "measurement": "unavailable", "backend": null, "terminal": "unknown", "errorCode": null, "sourcePath": null, "modelTurns": null,
+      "tokens": { "input": null, "cachedInput": null, "cacheWrite": null, "output": null, "reasoning": null }, "cache": null, "cost": { "status": "unknown", "currency": null, "amountMicros": null, "final": false }, "toolCalls": null, "wallTimeMs": null, "preservedProject": null, "screenshotCaptured": null, "evaluatorStatus": "not-run"
+    },
+    {
+      "genre": "falling-blocks", "caseId": "game-eval:falling-blocks:v1", "measurement": "unavailable", "backend": null, "terminal": "unknown", "errorCode": null, "sourcePath": null, "modelTurns": null,
+      "tokens": { "input": null, "cachedInput": null, "cacheWrite": null, "output": null, "reasoning": null }, "cache": null, "cost": { "status": "unknown", "currency": null, "amountMicros": null, "final": false }, "toolCalls": null, "wallTimeMs": null, "preservedProject": null, "screenshotCaptured": null, "evaluatorStatus": "not-run"
+    },
+    {
+      "genre": "jigsaw", "caseId": "game-eval:jigsaw:v1", "measurement": "unavailable", "backend": null, "terminal": "unknown", "errorCode": null, "sourcePath": null, "modelTurns": null,
+      "tokens": { "input": null, "cachedInput": null, "cacheWrite": null, "output": null, "reasoning": null }, "cache": null, "cost": { "status": "unknown", "currency": null, "amountMicros": null, "final": false }, "toolCalls": null, "wallTimeMs": null, "preservedProject": null, "screenshotCaptured": null, "evaluatorStatus": "not-run"
+    },
+    {
+      "genre": "platformer", "caseId": "game-eval:platformer:v1", "measurement": "unavailable", "backend": null, "terminal": "unknown", "errorCode": null, "sourcePath": null, "modelTurns": null,
+      "tokens": { "input": null, "cachedInput": null, "cacheWrite": null, "output": null, "reasoning": null }, "cache": null, "cost": { "status": "unknown", "currency": null, "amountMicros": null, "final": false }, "toolCalls": null, "wallTimeMs": null, "preservedProject": null, "screenshotCaptured": null, "evaluatorStatus": "not-run"
+    },
+    {
+      "genre": "racing", "caseId": "game-eval:racing:v1", "measurement": "observed-preflight-failure", "backend": "harness", "terminal": "failed", "errorCode": "g12.agent-turn-not-completed",
+      "sourcePath": "evals/evidence/g12/runs/2a6b4009194a/harness/racing/g12-harness-racing-b8ef8708-9b07-4423-b9c2-af88fd2d582e/partial-evidence.json",
+      "modelTurns": 1, "tokens": { "input": 43549, "cachedInput": 38528, "cacheWrite": null, "output": 6423, "reasoning": 5784 },
+      "cache": { "localArtifactHits": 0, "localArtifactMisses": 8, "deltaReuseBytes": 0, "providerCacheEligibleBytes": 14333, "providerReportedHitTokens": 38528 },
+      "cost": { "status": "estimated", "currency": "USD", "amountMicros": 2609, "final": true }, "toolCalls": 14, "wallTimeMs": 110412, "preservedProject": true, "screenshotCaptured": false, "evaluatorStatus": "not-run"
+    },
+    {
+      "genre": "shooter", "caseId": "game-eval:shooter:v1", "measurement": "unavailable", "backend": null, "terminal": "unknown", "errorCode": null, "sourcePath": null, "modelTurns": null,
+      "tokens": { "input": null, "cachedInput": null, "cacheWrite": null, "output": null, "reasoning": null }, "cache": null, "cost": { "status": "unknown", "currency": null, "amountMicros": null, "final": false }, "toolCalls": null, "wallTimeMs": null, "preservedProject": null, "screenshotCaptured": null, "evaluatorStatus": "not-run"
+    }
+  ],
+  "largeProject": { "entityCount": 1000, "scriptCount": 200, "fullSnapshotBytes": 142973, "oneEntityChangedSnapshotBytes": 142981, "oneEntityDiffBytes": 158, "diffToSnapshotRatio": 0.001105 },
+  "contextGrowth": { "coldPromptBytes": 8688, "warmPromptBytes": 5694, "deltaPromptBytes": 6151, "stablePrefixBytes": 1126, "providerHitEvidence": "unavailable", "restartContextDigestEqual": true, "providerSessionRestored": false },
+  "recovery": [
+    { "scenario": "automatic-compaction", "result": "unsupported", "evidence": "packages/agent-runtime/src/prompt-context.ts:90" },
+    { "scenario": "manual-compaction", "result": "unsupported", "evidence": "packages/agent-runtime/src/prompt-context.ts" },
+    { "scenario": "parallel-tool-batch", "result": "unsupported", "evidence": "apps/ai-studio/src/conversation-host.ts:413" },
+    { "scenario": "unknown-tool-outcome", "result": "partial", "evidence": "apps/ai-studio/src/conversation-host.ts" },
+    { "scenario": "long-approval", "result": "partial", "evidence": "apps/ai-studio/src/conversation-host.ts" },
+    { "scenario": "renderer-reload", "result": "context-only", "evidence": "evals/evidence/m12-g04-prompt-comparison.json" },
+    { "scenario": "backend-reconnect", "result": "unsupported", "evidence": "evals/evidence/m12-g04-prompt-comparison.json" }
+  ],
+  "interpretation": { "passClaimed": false, "oldFormalMatrixComplete": false, "knownGenreMeasurements": 2, "requiredGenreCount": 7, "gate": "baseline-only-not-acceptance" }
+}

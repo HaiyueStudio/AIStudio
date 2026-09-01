@@ -77,6 +77,8 @@ export interface OperationLogStatus {
   readonly allowsMutation: boolean;
   readonly allowsTrustedCode: boolean;
   readonly allowsRuntimeStart: boolean;
+  /** First retained journal sequence, or nextSequence when the retained journal is empty. */
+  readonly retainedFromSequence: number;
   readonly nextSequence: number;
   readonly eventCount: number;
   readonly bytes: number;

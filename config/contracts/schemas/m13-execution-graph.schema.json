@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/execution-graph/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "sessionId", "revision", "nodes", "edges", "criticalPathNodeIds", "throughSequence", "digest"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "sessionId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "revision": { "type": "integer", "minimum": 0 },
+    "nodes": { "type": "array", "maxItems": 100000, "items": { "$ref": "#/definitions/node" } }, "edges": { "type": "array", "maxItems": 200000, "items": { "$ref": "#/definitions/edge" } },
+    "criticalPathNodeIds": { "type": "array", "maxItems": 100000, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } }, "throughSequence": { "type": "integer", "minimum": 0 }, "digest": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }
+  },
+  "definitions": {
+    "node": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "status", "title", "sourceOpIds", "artifactRefs"], "properties": { "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "kind": { "enum": ["goal", "plan", "turn", "tool-batch", "tool", "transaction", "approval", "question", "compaction", "evidence", "evaluation", "repair", "result"] }, "status": { "enum": ["pending", "running", "waiting", "completed", "failed", "cancelled"] }, "title": { "type": "string", "minLength": 1, "maxLength": 512 }, "sourceOpIds": { "type": "array", "minItems": 1, "maxItems": 1024, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } }, "artifactRefs": { "type": "array", "maxItems": 1024, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } } } },
+    "edge": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "from", "to"], "properties": { "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "kind": { "enum": ["depends-on", "produced", "modified", "validated-by", "blocked-by", "retried-from", "supersedes", "compacted-into"] }, "from": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "to": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } } }
+  }
+}

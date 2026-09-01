@@ -136,6 +136,7 @@ export class OperationLog {
       allowsMutation: writable,
       allowsTrustedCode: writable,
       allowsRuntimeStart: writable,
+      retainedFromSequence: this.events[0]?.event.sequence ?? this.nextSequence,
       nextSequence: this.nextSequence,
       eventCount: this.events.length,
       bytes: this.segments.reduce((sum, segment) => sum + segment.bytes, 0),

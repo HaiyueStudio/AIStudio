@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/agent-session/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "projectId", "documentId", "createdAt", "updatedAt", "status", "activeGoal", "surfaceGeneration", "backendBindings", "checkpoint", "taskBudgetId", "usageRecordIds", "costRecordIds"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" },
+    "projectId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" },
+    "documentId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" },
+    "createdAt": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/timestamp" },
+    "updatedAt": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/timestamp" },
+    "status": { "enum": ["idle", "running", "waiting-user", "waiting-approval", "compacting", "interrupted", "completed", "failed", "cancelled"] },
+    "activeGoal": { "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 32768 }] },
+    "surfaceGeneration": { "type": "integer", "minimum": 0 },
+    "backendBindings": { "type": "array", "maxItems": 16, "items": { "$ref": "#/definitions/backendBinding" } },
+    "checkpoint": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/checkpoint" }] },
+    "taskBudgetId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" },
+    "usageRecordIds": { "type": "array", "maxItems": 4096, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } },
+    "costRecordIds": { "type": "array", "maxItems": 4096, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } }
+  },
+  "definitions": {
+    "backendBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["bindingId", "backendId", "provider", "model", "remoteSessionId", "generation", "status", "capabilities", "lastConfirmedOpId"],
+      "properties": {
+        "bindingId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" },
+        "backendId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "remoteSessionId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" },
+        "generation": { "type": "integer", "minimum": 0 },
+        "status": { "enum": ["active", "stale", "detached"] },
+        "capabilities": {
+          "type": "object", "additionalProperties": false,
+          "required": ["maxInputTokens", "nativeCompaction", "parallelToolCalls", "codeMode", "providerUsage", "providerCache"],
+          "properties": {
+            "maxInputTokens": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 1024, "maximum": 100000000 }] },
+            "nativeCompaction": { "type": "boolean" }, "parallelToolCalls": { "type": "boolean" }, "codeMode": { "type": "boolean" },
+            "providerUsage": { "enum": ["reported", "unavailable", "unknown"] }, "providerCache": { "enum": ["reported", "unavailable", "unknown"] }
+          }
+        },
+        "lastConfirmedOpId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" }
+      }
+    },
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "sessionId", "throughSequence", "turnId", "batchId", "documentRevision", "surfaceGeneration", "unresolvedBarrierIds", "digest", "createdAt"],
+      "properties": {
+        "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "sessionId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" },
+        "throughSequence": { "type": "integer", "minimum": 0 }, "turnId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" }, "batchId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" },
+        "documentRevision": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableRevision" }, "surfaceGeneration": { "type": "integer", "minimum": 0 },
+        "unresolvedBarrierIds": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } },
+        "digest": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }, "createdAt": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/timestamp" }
+      }
+    }
+  }
+}

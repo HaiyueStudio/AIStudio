@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/model-surface/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "sessionId", "generation", "throughSequence", "nodes", "lastOperation", "digest"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "sessionId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "generation": { "type": "integer", "minimum": 0 }, "throughSequence": { "type": "integer", "minimum": 0 },
+    "nodes": { "type": "array", "maxItems": 16384, "items": { "$ref": "#/definitions/node" } },
+    "lastOperation": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/append" }, { "$ref": "#/definitions/replace" }] },
+    "digest": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }
+  },
+  "definitions": {
+    "idArray": { "type": "array", "minItems": 1, "maxItems": 16384, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } },
+    "node": { "type": "object", "additionalProperties": false, "required": ["id", "originOpId", "messageArtifactId", "role", "replacedSourceOpIds"], "properties": { "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "originOpId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "messageArtifactId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "role": { "enum": ["user", "assistant", "tool"] }, "replacedSourceOpIds": { "type": "array", "maxItems": 16384, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } } } },
+    "append": { "type": "object", "additionalProperties": false, "required": ["op", "id", "sourceOpIds", "messageArtifactId", "role"], "properties": { "op": { "const": "append" }, "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "sourceOpIds": { "$ref": "#/definitions/idArray" }, "messageArtifactId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "role": { "enum": ["user", "assistant", "tool"] } } },
+    "replace": { "type": "object", "additionalProperties": false, "required": ["op", "id", "sourceOpIds", "startNodeId", "endNodeId", "replacementArtifactId", "reason"], "properties": { "op": { "const": "replace" }, "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "sourceOpIds": { "$ref": "#/definitions/idArray" }, "startNodeId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "endNodeId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "replacementArtifactId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "reason": { "enum": ["compaction", "tool-result-prune"] } } }
+  }
+}

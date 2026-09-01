@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "bindingId": "m13-g01-2026-09-01",
+  "reviewDate": "2026-09-01",
+  "reviewedRevision": "9e554274ef9d95f869c57b82cc0e4f767710de07",
+  "immutableInputs": [
+    { "path": "evals/manifest.json", "kind": "seven-genre-suite-manifest" },
+    { "path": "evals/evidence/m12-g04-prompt-comparison.json", "kind": "context-cache-observation" },
+    { "path": "evals/evidence/g12/runs/matrix-58b2243dee3a.checkpoint.json", "kind": "formal-old-architecture-checkpoint" }
+  ],
+  "g01Artifacts": [
+    "config/contracts/m13-contract-index.json",
+    "config/contracts/fixtures/m13-contract-cases.json",
+    "packages/studio-contracts/src/m13.ts",
+    "docs/architecture/m13-contract-index.md",
+    "docs/architecture/m13-session-surface-failure-model.md",
+    "docs/evidence/m13-g01-baseline.json",
+    "docs/evidence/m13-g01-baseline.md",
+    "docs/evidence/m13-g01-verification.md",
+    "scripts/measure-m13-g01-baseline.mjs",
+    "scripts/verify-m13-g01.mjs"
+  ]
+}

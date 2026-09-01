@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/scene-diff/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "documentId", "fromRevision", "toRevision", "transactionIds", "addedEntityIds", "removedEntityIds", "changedEntities", "reorderedEntityIds", "componentPatches", "scriptChanges", "assetChanges", "cameraChanges", "renderChanges", "settingsChanged", "tombstoneIds", "provenanceOpIds", "truncated", "nextCursor", "digest"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "documentId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "fromRevision": { "type": "integer", "minimum": 0 }, "toRevision": { "type": "integer", "minimum": 0 },
+    "transactionIds": { "$ref": "#/definitions/idArray" }, "addedEntityIds": { "$ref": "#/definitions/idArray" }, "removedEntityIds": { "$ref": "#/definitions/idArray" }, "changedEntities": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/definitions/changedEntity" } }, "reorderedEntityIds": { "$ref": "#/definitions/idArray" },
+    "componentPatches": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/definitions/componentPatch" } }, "scriptChanges": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/definitions/scriptChange" } }, "assetChanges": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/definitions/assetChange" } },
+    "cameraChanges": { "type": "array", "maxItems": 1024, "items": { "$ref": "#/definitions/cameraChange" } }, "renderChanges": { "type": "array", "maxItems": 1024, "items": { "$ref": "#/definitions/renderChange" } },
+    "settingsChanged": { "type": "array", "maxItems": 1024, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 512 } }, "tombstoneIds": { "$ref": "#/definitions/idArray" }, "provenanceOpIds": { "$ref": "#/definitions/idArray" },
+    "truncated": { "type": "boolean" }, "nextCursor": { "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 2048 }] }, "digest": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }
+  },
+  "definitions": {
+    "idArray": { "type": "array", "maxItems": 10000, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } },
+    "paths": { "type": "array", "minItems": 1, "maxItems": 1024, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } },
+    "changedEntity": { "type": "object", "additionalProperties": false, "required": ["entityId", "paths"], "properties": { "entityId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "paths": { "$ref": "#/definitions/paths" } } },
+    "componentPatch": { "type": "object", "additionalProperties": false, "required": ["componentId", "entityId", "paths", "digest"], "properties": { "componentId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "entityId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "paths": { "$ref": "#/definitions/paths" }, "digest": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" } } },
+    "scriptChange": { "type": "object", "additionalProperties": false, "required": ["scriptId", "change", "digest"], "properties": { "scriptId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "change": { "enum": ["added", "updated", "removed"] }, "digest": { "anyOf": [{ "type": "null" }, { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }] } } },
+    "assetChange": { "type": "object", "additionalProperties": false, "required": ["assetId", "change", "digest"], "properties": { "assetId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "change": { "enum": ["added", "updated", "removed"] }, "digest": { "anyOf": [{ "type": "null" }, { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }] } } },
+    "cameraChange": { "type": "object", "additionalProperties": false, "required": ["cameraId", "change", "paths", "digest"], "properties": { "cameraId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "change": { "enum": ["added", "updated", "removed"] }, "paths": { "$ref": "#/definitions/paths" }, "digest": { "anyOf": [{ "type": "null" }, { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }] } } },
+    "renderChange": { "type": "object", "additionalProperties": false, "required": ["scopeId", "change", "paths", "digest"], "properties": { "scopeId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "change": { "enum": ["added", "updated", "removed"] }, "paths": { "$ref": "#/definitions/paths" }, "digest": { "anyOf": [{ "type": "null" }, { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }] } } }
+  }
+}

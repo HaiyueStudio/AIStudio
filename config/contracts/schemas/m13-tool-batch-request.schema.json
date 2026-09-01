@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/tool-batch-request/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "id", "sessionId", "turnId", "nodes", "maxConcurrency", "maxResultBytes", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "sessionId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "turnId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" },
+    "nodes": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/definitions/node" } }, "maxConcurrency": { "type": "integer", "minimum": 1, "maximum": 16 }, "maxResultBytes": { "type": "integer", "minimum": 1, "maximum": 16777216 }, "createdAt": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/timestamp" }
+  },
+  "definitions": {
+    "node": { "type": "object", "additionalProperties": false, "required": ["id", "toolCallId", "toolId", "toolVersion", "arguments", "dependsOn", "expectedRevision", "executionClass", "effects", "effectKeys", "outputProjection", "onFailure"], "properties": { "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "toolCallId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "toolId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "toolVersion": { "type": "string", "minLength": 1, "maxLength": 64 }, "arguments": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/jsonObject" }, "dependsOn": { "type": "array", "maxItems": 63, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } }, "expectedRevision": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableRevision" }, "executionClass": { "enum": ["parallel-read", "exclusive-mutation", "approval-barrier", "runtime-barrier", "trusted-code-barrier", "unknown-exclusive"] }, "effects": { "type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": { "enum": ["observe", "document-mutation", "runtime-control", "trusted-code", "approval", "external-side-effect", "unknown"] } }, "effectKeys": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } }, "outputProjection": { "enum": ["full", "summary", "digest-only"] }, "onFailure": { "enum": ["cancel-dependents", "stop-batch"] } } }
+  }
+}

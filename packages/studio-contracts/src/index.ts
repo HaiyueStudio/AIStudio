@@ -29,6 +29,37 @@ export type {
   TaskSpecV2,
   UsageRecordV2,
 } from './m12.js';
+export type {
+  AgentSessionStatusV1,
+  AgentSessionV1,
+  BackendSessionBindingV1,
+  CompactionRecordV1,
+  ContextFrameV1,
+  ContextPressureV1,
+  ExecutionGraphEdgeKindV1,
+  ExecutionGraphNodeKindV1,
+  ExecutionGraphNodeStatusV1,
+  ExecutionGraphV1,
+  KnowledgeHitV1,
+  M13DiagnosticCode,
+  M13DiagnosticV1,
+  M13Digest,
+  M13JsonObject,
+  M13JsonValue,
+  M13SchemaVersion,
+  M13StableId,
+  ModelSurfaceNodeV1,
+  ModelSurfaceV1,
+  SceneDiffV1,
+  SessionCheckpointV1,
+  SessionOpKindV1,
+  SessionOpV1,
+  SurfaceOpV1,
+  ToolBatchNodeV1,
+  ToolBatchRequestV1,
+  ToolEffectV1,
+  ToolExecutionClassV1,
+} from './m13.js';
 export type StableId = string & { readonly __stableId: unique symbol };
 
 export const STUDIO_PLUGIN_API_VERSION = '1.0' as const;

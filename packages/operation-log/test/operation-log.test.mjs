@@ -53,6 +53,7 @@ test('concurrent append is monotonic and restart replay equals the live projecti
   const reopened = await OperationLog.open(options(root));
   const replayed = await reopened.query(allQuery);
   assert.deepEqual(replayed.events, live.events);
+  assert.equal(reopened.status().retainedFromSequence, 0);
   assert.equal(reopened.status().nextSequence, 40);
   await reopened.close();
 });
@@ -261,7 +262,9 @@ test('rotation and quota retire complete segments while preserving monotonic res
   await log.close();
   const reopened = await OperationLog.open(options(root, { maxSegmentBytes: 750, maxTotalBytes: 1900, retentionSegments: 2 }));
   assert.equal(reopened.status().nextSequence, next);
-  assert.ok((await reopened.query(allQuery)).events[0].sequence > 0);
+  const firstRetained = (await reopened.query(allQuery)).events[0].sequence;
+  assert.ok(firstRetained > 0);
+  assert.equal(reopened.status().retainedFromSequence, firstRetained);
   await reopened.close();
 });
 

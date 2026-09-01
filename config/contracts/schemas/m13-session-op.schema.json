@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/session-op/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "id", "sessionId", "sequence", "kind", "timestamp", "turnId", "stepId", "batchId", "nodeId", "parentOpId", "dependsOn", "projectRevision", "artifactRefs", "payload", "payloadDigest"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "sessionId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "kind": { "enum": ["session.created", "session.status-changed", "session.checkpointed", "turn.started", "turn.completed", "user.message", "assistant.message", "tool-batch.planned", "tool-batch.started", "tool-batch.completed", "tool.started", "tool.completed", "tool.outcome-unknown", "approval.requested", "approval.resolved", "question.requested", "question.resolved", "document.committed", "evidence.captured", "evaluation.completed", "compaction.requested", "compaction.started", "compaction.summary-created", "compaction.completed", "compaction.failed", "backend.bound", "backend.detached"] },
+    "timestamp": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/timestamp" },
+    "turnId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" }, "stepId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" }, "batchId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" }, "nodeId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" }, "parentOpId": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableStableId" },
+    "dependsOn": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } },
+    "projectRevision": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableRevision" },
+    "artifactRefs": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" } },
+    "payload": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/jsonObject" }, "payloadDigest": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }
+  }
+}

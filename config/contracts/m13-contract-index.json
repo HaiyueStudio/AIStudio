@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "bindingId": "m13-g01-2026-09-01",
+  "typescriptOwner": "packages/studio-contracts/src/m13.ts",
+  "contracts": [
+    { "name": "AgentSessionV1", "schemaId": "haiyue://contracts/agent-session/v1", "schemaPath": "config/contracts/schemas/m13-agent-session.schema.json", "owner": "g02-durable-session-surface-replay", "consumers": ["g03-model-aware-context-compaction", "g04-backend-session-cache-adapters", "g09-execution-graph-product-ui", "g11-migration-cross-backend-acceptance"] },
+    { "name": "SessionOpV1", "schemaId": "haiyue://contracts/session-op/v1", "schemaPath": "config/contracts/schemas/m13-session-op.schema.json", "owner": "g02-durable-session-surface-replay", "consumers": ["g03-model-aware-context-compaction", "g06-multi-tool-batch-scheduler", "g09-execution-graph-product-ui", "g11-migration-cross-backend-acceptance"] },
+    { "name": "ModelSurfaceV1", "schemaId": "haiyue://contracts/model-surface/v1", "schemaPath": "config/contracts/schemas/m13-model-surface.schema.json", "owner": "g02-durable-session-surface-replay", "consumers": ["g03-model-aware-context-compaction", "g04-backend-session-cache-adapters", "g09-execution-graph-product-ui"] },
+    { "name": "ContextFrameV1", "schemaId": "haiyue://contracts/context-frame/v1", "schemaPath": "config/contracts/schemas/m13-context-frame.schema.json", "owner": "g03-model-aware-context-compaction", "consumers": ["g04-backend-session-cache-adapters", "g05-scene-diff-context-router", "g10-grounded-rag-tool-discovery", "g11-migration-cross-backend-acceptance"] },
+    { "name": "ToolBatchRequestV1", "schemaId": "haiyue://contracts/tool-batch-request/v1", "schemaPath": "config/contracts/schemas/m13-tool-batch-request.schema.json", "owner": "g06-multi-tool-batch-scheduler", "consumers": ["g07-transactions-effect-locks-recovery", "g08-high-value-semantic-tools", "g09-execution-graph-product-ui", "g11-migration-cross-backend-acceptance"] },
+    { "name": "SceneDiffV1", "schemaId": "haiyue://contracts/scene-diff/v1", "schemaPath": "config/contracts/schemas/m13-scene-diff.schema.json", "owner": "g05-scene-diff-context-router", "consumers": ["g08-high-value-semantic-tools", "g09-execution-graph-product-ui", "g10-grounded-rag-tool-discovery", "g11-migration-cross-backend-acceptance"] },
+    { "name": "ExecutionGraphV1", "schemaId": "haiyue://contracts/execution-graph/v1", "schemaPath": "config/contracts/schemas/m13-execution-graph.schema.json", "owner": "g09-execution-graph-product-ui", "consumers": ["g11-migration-cross-backend-acceptance", "m14-entity-logic-workspace"] },
+    { "name": "KnowledgeHitV1", "schemaId": "haiyue://contracts/knowledge-hit/v1", "schemaPath": "config/contracts/schemas/m13-knowledge-hit.schema.json", "owner": "g10-grounded-rag-tool-discovery", "consumers": ["g11-migration-cross-backend-acceptance"] }
+  ],
+  "nestedTypes": ["M13DiagnosticCode", "M13DiagnosticV1", "AgentSessionStatusV1", "BackendSessionBindingV1", "SessionCheckpointV1", "SurfaceOpV1", "ModelSurfaceNodeV1", "ContextPressureV1", "CompactionRecordV1", "ToolExecutionClassV1", "ToolEffectV1", "ToolBatchNodeV1", "ExecutionGraphNodeKindV1", "ExecutionGraphEdgeKindV1", "ExecutionGraphNodeStatusV1"],
+  "fallbacks": {
+    "unknownToolEffect": "unknown-exclusive",
+    "unknownContextCapacity": "context.capacity-unavailable",
+    "unknownProviderOutcome": "session.outcome-unknown",
+    "unknownSchemaVersion": "session.version-unsupported"
+  }
+}

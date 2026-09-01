@@ -4,6 +4,8 @@ import type { AgentModelCatalog } from './model-controls.js';
 import { validateAgentTurnConfig } from './model-controls.js';
 import { UsageLedgerStore, type NormalizedFinishReason, type UsageLedger } from './usage-ledger.js';
 import { PromptContextRuntime, type ContextCacheMetrics } from './prompt-context.js';
+import { DurableSessionRuntime } from './session/index.js';
+import { ModelContextRuntime } from './context/index.js';
 
 export { BudgetError, TaskBudgetController, validateTaskBudget } from './budget.js';
 export type { BudgetConsumption, BudgetDecision, BudgetMetric } from './budget.js';
@@ -19,6 +21,12 @@ export { UsageLedger, UsageLedgerError, UsageLedgerStore } from './usage-ledger.
 export type { NormalizedFinishReason, UsageLedgerSnapshot, UsageUpdate } from './usage-ledger.js';
 export { GENERAL_GAME_AUTHORING_MODULES, PromptContextError, PromptContextRuntime, PromptModuleRegistry } from './prompt-context.js';
 export type { CommitConversationInput, ContextCacheMetrics, ContextProjectSnapshot, PreparedTurnContext, PromptModuleDefinition, PromptModuleSnapshot, PromptProfileSnapshot, VisibleConversationFacts } from './prompt-context.js';
+export { AgentSessionError, DurableSessionRuntime, sessionPayloadDigest } from './session/index.js';
+export type { AppendSessionMessageInput, AppendSessionOpInput, CreateSessionInput, DurableSessionHandle, ForkSessionInput, OpenSessionOptions, ReplaceModelSurfaceInput, SessionForkSeedV1, SessionMessageArtifactV1, SessionRecoverySnapshotV1, SessionReplaySnapshotV1, SessionRuntimeOptions, TranscriptEntryV1 } from './session/index.js';
+export { ConservativeTokenEstimator, ContextFrameRuntime, ContextPolicyError, ContextPressureCalculator, DEFAULT_CONTEXT_THRESHOLDS, ModelContextRuntime } from './context/index.js';
+export type { CapturedContextFrameV1, CaptureContextFrameInput, ContextFrameInputDraft, ContextFrameRuntimeOptions, ContextMeasurementInput, ContextMeasurementResult, ContextPressureOptions, LatestCompactionRecord, TokenEstimator } from './context/index.js';
+export { assertCompactionRecordArtifact, ContextCompactionError, ContextCompactionRuntime, latestCompletedCompaction } from './compaction/index.js';
+export type { CompactionHistoryEntryV1, CompactionPreviewDecision, CompactionPreviewV1, CompactionRangePreviewV1, CompactionRunResultV1, CompactionRuntimeOptions, CompactionSourceMessageV1, CompactionSummarizer, CompactionSummaryRequestV1, CompactionSummaryResultV1, PinnedContextFactInput, PinnedContextFactKindV1, PinnedContextFactV1, PreviewCompactionInput, RunCompactionInput } from './compaction/index.js';
 
 export type AgentBackendKind = 'harness-api-key' | 'codex-app-server';
 export type AgentBackendEventKind = 'status' | 'conversation-node' | 'tool-request' | 'question' | 'approval' | 'usage' | 'completed' | 'diagnostic';
@@ -172,7 +180,7 @@ export class AgentTurnRuntime {
   private assertActive(): void { if (this.disposed) throw new AgentBackendProtocolError('agent.runtime-disposed', 'Agent turn runtime is disposed.'); }
 }
 
-export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; readonly usage: UsageLedgerStore; readonly accounting: import('./accounting.js').TaskAccountingRegistry; readonly context: PromptContextRuntime; }
+export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; readonly usage: UsageLedgerStore; readonly accounting: import('./accounting.js').TaskAccountingRegistry; readonly context: PromptContextRuntime; readonly sessions: DurableSessionRuntime; readonly modelContexts: ModelContextRuntime; }
 export const agentRuntimeServiceToken = createStudioServiceToken<AgentRuntimeService>('studio.agent-runtime');
 export const agentBackendRegistryToken = createStudioServiceToken<AgentBackendRegistry>('studio.agent-backend-registry');
 
@@ -194,9 +202,18 @@ export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): St
       } catch (cause) { await registry.dispose(); throw cause; }
       const promptContext = new PromptContextRuntime(log); await promptContext.initialize();
       const turns = new AgentTurnRuntime(registry, log, promptContext); const { TaskAccountingRegistry } = await import('./accounting.js');
-      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage), context: promptContext });
+      const sessions = new DurableSessionRuntime(log);
+      const modelContexts = new ModelContextRuntime(log, sessions);
+      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage), context: promptContext, sessions, modelContexts });
       context.services.provide(agentBackendRegistryToken, registry); context.services.provide(agentRuntimeServiceToken, service);
-      context.effects.own('agent-runtime.dispose', () => turns.dispose());
+      context.effects.own('agent-runtime.dispose', async () => {
+        const errors: unknown[] = [];
+        try { await modelContexts.dispose(); } catch (cause) { errors.push(cause); }
+        try { await sessions.dispose(); } catch (cause) { errors.push(cause); }
+        try { await turns.dispose(); } catch (cause) { errors.push(cause); }
+        if (errors.length === 1) throw errors[0];
+        if (errors.length > 1) throw new AggregateError(errors, 'Agent runtime resources failed during disposal.');
+      });
     },
   });
 }

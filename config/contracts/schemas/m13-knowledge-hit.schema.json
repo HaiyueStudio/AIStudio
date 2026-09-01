@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/knowledge-hit/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "id", "source", "sourceKind", "packageVersion", "projectRevision", "contentDigest", "chunk", "retrieval", "score", "reason", "permissionScope", "stale"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "id": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "source": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "sourceKind": { "enum": ["engine-doc", "component-schema", "project-doc", "asset-metadata", "verified-example", "session-decision"] }, "packageVersion": { "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 128 }] }, "projectRevision": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/nullableRevision" },
+    "contentDigest": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/digest" }, "chunk": { "type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": { "start": { "type": "integer", "minimum": 0 }, "end": { "type": "integer", "minimum": 1 } } },
+    "retrieval": { "enum": ["keyword", "embedding", "hybrid", "graph"] }, "score": { "type": "number", "minimum": 0, "maximum": 1 }, "reason": { "type": "string", "minLength": 1, "maxLength": 1024 }, "permissionScope": { "$ref": "haiyue://contracts/m13-common/v1#/definitions/stableId" }, "stale": { "type": "boolean" }
+  }
+}

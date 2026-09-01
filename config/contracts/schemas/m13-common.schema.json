@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/m13-common/v1",
+  "definitions": {
+    "stableId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{3})?Z$" },
+    "nullableStableId": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/stableId" }] },
+    "nullableRevision": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }] },
+    "jsonValue": {
+      "anyOf": [
+        { "type": "null" }, { "type": "boolean" }, { "type": "number" }, { "type": "string", "maxLength": 65536 },
+        { "type": "array", "maxItems": 4096, "items": { "$ref": "#/definitions/jsonValue" } },
+        { "type": "object", "maxProperties": 4096, "additionalProperties": { "$ref": "#/definitions/jsonValue" } }
+      ]
+    },
+    "jsonObject": { "type": "object", "maxProperties": 4096, "additionalProperties": { "$ref": "#/definitions/jsonValue" } }
+  }
+}

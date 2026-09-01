@@ -31,6 +31,10 @@ Rotation retires only complete oldest segments. The derived index is rewritten
 atomically and can always be rebuilt from journal records. No persistent file
 handle or timer is retained between calls.
 
+`OperationLogStatus.retainedFromSequence` exposes the first sequence still
+available after rotation. Semantic replay owners use it to issue bounded windows
+and must fail closed when their required root/prefix has been retired.
+
 ## Query and export boundary
 
 Queries accept exact kinds, fixed correlation fields, severity, time/sequence

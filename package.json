@@ -45,6 +45,10 @@
     "m12:g12:device": "npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/gameplay-observation-store.test.mjs apps/ai-studio/test/g12-preview-control.test.mjs && node --test apps/ai-studio/test/g12-preview-control-electron.test.mjs",
     "m12:g12:real-cold": "node scripts/g12/run-real-cold-matrix.mjs",
     "m12:g12:verify": "node scripts/verify-m12-g12.mjs",
+    "m13:g01:baseline": "node scripts/measure-m13-g01-baseline.mjs --check",
+    "m13:g01:check": "npm run contracts:check && npm run typecheck -w @haiyue/ai-studio-contracts && npm run boundaries:check && node scripts/measure-m13-g01-baseline.mjs --check && node scripts/verify-m13-g01.mjs",
+    "m13:g02:check": "npm run contracts:check && npm test -w @haiyue/ai-studio-operation-log && npm test -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g02-session-reload.test.mjs && node scripts/verify-m13-g02.mjs",
+    "m13:g03:check": "npm run contracts:check && npm test -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio && node --test apps/ai-studio/test/g02-session-reload.test.mjs apps/ai-studio/test/g03-context-compaction-reload.test.mjs && node scripts/verify-m13-g03.mjs",
     "codex:schema:generate": "node scripts/generate-codex-schema.mjs",
     "g10:evidence:check": "node scripts/verify-g10-evidence.mjs"
   },
