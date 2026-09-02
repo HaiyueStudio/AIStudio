@@ -1071,7 +1071,7 @@ test('coordinator preserves completed tool results when the host budget observer
 });
 
 test('coordinator can preserve completed tool results when a bounded host timebox aborts the caller', async () => {
-  const value = await fixture(); const completedFirstTool = deferred(); const controller = new AbortController(); let cancelled = 0;
+  const value = await fixture(); const completedFirstTool = deferred(); const controller = new AbortController(); let cancelled = 0; const retained = [];
   const backend = minimalBackend(async function* (_input, signal) {
     yield event('tool-request', { toolCallId: 'toolcall:timebox-preserved', toolId: 'project.snapshot', arguments: {} });
     completedFirstTool.resolve();
@@ -1081,7 +1081,7 @@ test('coordinator can preserve completed tool results when a bounded host timebo
     });
   });
   backend.cancelTurn = async () => { cancelled += 1; };
-  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, undefined, { preserveCompletedResultsOnCallerAbort: true });
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, undefined, { preserveCompletedResultsOnCallerAbort: true, onCompletedToolResult: (result) => retained.push(result) });
   try {
     const running = coordinator.run(backend, { prompt: 'Preserve completed work at the host timebox.' }, undefined, controller.signal);
     await completedFirstTool.promise;
@@ -1089,6 +1089,7 @@ test('coordinator can preserve completed tool results when a bounded host timebo
     const summary = await running;
     assert.equal(summary.terminal, 'failed');
     assert.deepEqual(summary.results.map((item) => item.toolId), ['project.snapshot']);
+    assert.deepEqual(retained.map((item) => item.toolId), ['project.snapshot']);
     assert.equal(cancelled, 1);
     assert.ok(summary.diagnostics.some((item) => item.code === 'g12.agent-authoring-timebox-reached'));
   } finally { coordinator.dispose(); await dispose(value); }

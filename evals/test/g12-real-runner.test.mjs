@@ -77,6 +77,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /g12\.agent-verification-takeover/u);
   assert.match(source, /g12\.agent-verification-ready/u);
   assert.match(source, /preserveCompletedResultsOnCallerAbort: true/u);
+  assert.match(source, /onCompletedToolResult: \(result\) => retainedToolResults\.push\(result\)/u);
+  assert.match(source, /Promise\.race\(\[execution, abortedFallback\]\)/u);
+  assert.match(source, /retainedToolResults\.slice\(resultOffset\)/u);
   assert.match(source, /authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs/u);
   for (const toolId of ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture']) assert.match(source, new RegExp(`'${toolId.replace('.', '\\.')}'`, 'u'));
   assert.match(source, /caseDeadlineMs - Date\.now\(\) < minimumTakeoverWindowMs/u);

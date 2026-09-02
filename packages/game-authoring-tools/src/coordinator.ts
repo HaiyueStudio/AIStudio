@@ -23,6 +23,8 @@ export interface AgentGameAuthoringCoordinatorOptions {
   readonly modelToolIds?: readonly StableId[];
   /** Return completed Studio-side results when the caller deliberately aborts a turn. */
   readonly preserveCompletedResultsOnCallerAbort?: boolean;
+  /** Receives each full Studio-side result immediately after its effect has completed. */
+  readonly onCompletedToolResult?: (result: GameToolResult) => void;
 }
 
 export interface AgentGameTurnInput {
@@ -142,6 +144,8 @@ export class AgentGameAuthoringCoordinator {
           }
           const result = await this.runtime.execute(preparation.id, controller.signal);
           results.push(result);
+          try { this.options.onCompletedToolResult?.(result); }
+          catch (cause) { diagnostics.push(Object.freeze({ code: 'agent.completed-result-observer-failed', message: cause instanceof Error ? cause.message : String(cause) })); }
           if (result.afterRevision > highestDocumentRevision) { highestDocumentRevision = result.afterRevision; noProgressToolRequests = 0; }
           const complete = Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.historyLabel ? { historyLabel: result.historyLabel } : {}) });
           const submitted = modelToolResult(complete, this.options.maxModelToolResultBytes);

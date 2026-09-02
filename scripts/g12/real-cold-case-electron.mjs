@@ -100,6 +100,7 @@ async function run() {
     const catalog = await backend.modelCatalog(); model = chooseModel(catalog.models);
     const reasoningEffort = model.reasoningEfforts.includes(args.reasoning) ? args.reasoning : model.reasoningEfforts.includes('low') ? 'low' : model.defaultReasoningEffort;
     config = { schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort, outputTokenLimit: Math.min(32_768, model.maxOutputTokens), taskBudgetId: testCase.id.replace('game-eval:', 'budget:g12-'), promptProfile: { id: 'prompt:g12-general-game-authoring', version: '2.0.0', digest: contentDigest({ profile: 'g12-general-game-authoring', version: 2 }) }, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] };
+    const retainedToolResults = [];
     coordinator = new AgentGameAuthoringCoordinator(fixture.runtime, { async request() { return 'allow-once'; } }, turns, {
       questionTakeover: { async answer(event) { return defaultQuestionAnswer(event); } },
       maxToolRequests: backendKind === 'harness' ? 80 : 120,
@@ -108,6 +109,7 @@ async function run() {
       maxModelToolResultBytes: 12 * 1024,
       modelToolIds: G12_AUTHORING_TOOL_IDS,
       preserveCompletedResultsOnCallerAbort: true,
+      onCompletedToolResult: (result) => retainedToolResults.push(result),
     });
     const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
     const controller = new AbortController(); const authoringTimeboxError = errorWithCode('g12.agent-authoring-timebox-reached', 'Studio stopped model authoring at its bounded timebox and retained all completed work.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs; const timer = setTimeout(() => controller.abort(authoringTimeboxError), Math.max(1, authoringDeadlineMs - Date.now()));
@@ -141,8 +143,28 @@ async function run() {
     const throwIfFormalCapReached = () => { if (formalCapError) throw formalCapError; };
     const runRecorded = async (turnPrompt, continuationSessionId) => {
       recordedEvents = [];
+      const resultOffset = retainedToolResults.length;
       try {
-        let turnSummary = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: turnPrompt, ...(continuationSessionId ? { sessionId: continuationSessionId } : {}) }, observeEvent, controller.signal));
+        const execution = windowGuard.race(coordinator.run(backend, { taskId, config, prompt: turnPrompt, ...(continuationSessionId ? { sessionId: continuationSessionId } : {}) }, observeEvent, controller.signal));
+        let releaseFallback = () => {};
+        const abortedFallback = new Promise((resolve) => {
+          let graceTimer = null;
+          const abort = () => { graceTimer = setTimeout(() => resolve(null), 2_000); };
+          if (controller.signal.aborted) abort(); else controller.signal.addEventListener('abort', abort, { once: true });
+          releaseFallback = () => { controller.signal.removeEventListener('abort', abort); if (graceTimer) clearTimeout(graceTimer); };
+        });
+        let turnSummary = await Promise.race([execution, abortedFallback]);
+        releaseFallback();
+        if (!turnSummary) {
+          void execution.catch(() => undefined);
+          const coordinates = recordedEvents.findLast((entry) => entry.sessionId && entry.turnId);
+          if (!coordinates) throw controller.signal.reason ?? errorWithCode('g12.agent-timebox-coordinates-missing', 'Timed-out authoring did not expose Session coordinates.');
+          turnSummary = Object.freeze({
+            backendId: backend.descriptor.id, sessionId: coordinates.sessionId, turnId: coordinates.turnId, terminal: 'failed',
+            results: Object.freeze(retainedToolResults.slice(resultOffset)),
+            diagnostics: Object.freeze([{ code: typeof controller.signal.reason?.code === 'string' ? controller.signal.reason.code : 'g12.agent-authoring-timebox-reached', message: controller.signal.reason instanceof Error ? controller.signal.reason.message : 'Studio stopped model authoring at its bounded timebox.' }]),
+          });
+        }
         if (isRecoverableSummary(turnSummary) && turnSummary.sessionId && turnSummary.turnId) {
           try {
             const recovered = await windowGuard.race(coordinator.recoverValidatedScriptProposal({ taskId, sessionId: turnSummary.sessionId, turnId: turnSummary.turnId, results: turnSummary.results }, controller.signal));
@@ -507,7 +529,7 @@ function takeOverVerifiedAuthoring(summary, fixture, preview) {
   const takeoverCodes = new Set(['agent.tool-progress-stalled', 'g12.agent-verification-ready', 'g12.agent-authoring-timebox-reached']);
   if (summary.terminal === 'completed' || !summary.diagnostics.some((entry) => takeoverCodes.has(entry.code))) return summary;
   const completed = new Set(summary.results.filter((entry) => entry.status === 'completed').map((entry) => entry.toolId));
-  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture'];
+  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect'];
   const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
   const snapshot = preview.snapshot();
   if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || required.some((toolId) => !completed.has(toolId)) || snapshot.errors.length > 0) return summary;
@@ -515,7 +537,7 @@ function takeOverVerifiedAuthoring(summary, fixture, preview) {
 }
 function readyForVerificationTakeover(events, fixture, preview) {
   const requested = new Set(events.filter((entry) => entry.kind === 'tool-request').map((entry) => entry.payload.toolId));
-  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture'];
+  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect'];
   const snapshot = preview.snapshot();
   return enabledScriptCount(fixture.projectScripts.snapshot()) > 0
     && inspectG12GameplayContract(fixture.projectScripts.snapshot()).valid
