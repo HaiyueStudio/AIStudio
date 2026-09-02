@@ -75,7 +75,7 @@ async function run() {
   const testCase = assets.suite.cases.find((entry) => entry.genre === genre);
   const oracleCase = assets.oracle.cases.find((entry) => entry.caseId === testCase.id);
   const fixture = await createFixture(projectRoot, userDataRoot);
-  let windowGuard; let backend; let coordinator; let turns; let preview; let account; let taskId; let model; let config; let summary; let durableSessions; let modelContexts; let contextFrames;
+  let windowGuard; let backend; let coordinator; let turns; let preview; let account; let taskId; let model; let config; let summary; let durableSessions; let modelContexts; let contextFrames; let authoringTimer;
   const m13Turns = [];
   const budgetContinuations = [];
   partialWriter = (cause) => preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets, m13Turns, budgetContinuations });
@@ -112,7 +112,7 @@ async function run() {
       onCompletedToolResult: (result) => retainedToolResults.push(result),
     });
     const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
-    const controller = new AbortController(); const authoringTimeboxError = errorWithCode('g12.agent-authoring-timebox-reached', 'Studio stopped model authoring at its bounded timebox and retained all completed work.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs; const timer = setTimeout(() => controller.abort(authoringTimeboxError), Math.max(1, authoringDeadlineMs - Date.now()));
+    const controller = new AbortController(); const authoringTimeboxError = errorWithCode('g12.agent-authoring-timebox-reached', 'Studio stopped model authoring at its bounded timebox and retained all completed work.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs; authoringTimer = setTimeout(() => controller.abort(authoringTimeboxError), Math.max(1, authoringDeadlineMs - Date.now()));
     const boundTurnIds = new Set();
     const liveTurnUsage = new Map();
     let formalCapError = null;
@@ -203,7 +203,7 @@ async function run() {
       }
     };
     const summaries = [];
-    try {
+    {
       const initial = await runRecorded(prompt, null);
       const acceptedInitial = takeOverVerifiedAuthoring(initial, fixture, preview);
       summaries.push(acceptedInitial); summary = mergeTurnSummaries(summaries); commitToolResults(account, acceptedInitial.results);
@@ -239,7 +239,7 @@ async function run() {
       summary = mergeTurnSummaries(summaries);
       if (summary.terminal !== 'completed') throw terminalSummaryError(summary);
       if (!gameplayContract.valid) throw errorWithCode('g12.gameplay-contract-missing', `Generated scripts do not satisfy the generic gameplay telemetry contract: ${gameplayContract.diagnostics.join(', ')}.`);
-    } finally { clearTimeout(timer); }
+    }
     if (enabledScriptCount(fixture.projectScripts.snapshot()) === 0) throw errorWithCode('g12.script-not-created', 'Agent completed both the initial and bounded repair turns without committing an enabled script.');
     await fixture.workspace.save();
 
@@ -248,7 +248,11 @@ async function run() {
       try { attempt = await executePreviewReplay({ fixture, preview, windowGuard, testCase, requireUsableVisual: repairAttempt === 0 }); break; }
       catch (cause) {
         const repairable = cause?.code === 'g12.replay-runtime-error' || cause?.code === 'g12.replay-trigger-timeout' || cause?.code === 'g12.replay-visual-unusable';
-        if (!repairable || repairAttempt > 0 || caseDeadlineMs - Date.now() < minimumTakeoverWindowMs) throw cause;
+        if (cause?.replayAttempt) attempt = cause.replayAttempt;
+        if (!repairable || repairAttempt > 0 || caseDeadlineMs - Date.now() < minimumTakeoverWindowMs) {
+          if (attempt) { summary = withDiagnostic(summary, cause); break; }
+          throw cause;
+        }
         const runtimeErrors = safeValue(() => preview.snapshot().errors, []).slice(0, 8).map((entry) => ({ code: entry.code, line: entry.line, column: entry.column, message: entry.message }));
         await preview.stop().catch(() => undefined);
         account.repair(); account.beginTurn();
@@ -257,12 +261,28 @@ async function run() {
           : cause?.code === 'g12.replay-visual-unusable'
             ? `Studio 的同 tick PNG 像素检查发现游戏画面不可用：${cause.message}。请检查持久化相机、几何体位置/尺寸/朝向、深度遮挡和角色颜色，再修复场景。HaiYue plane 的局部平面是 XY；作为水平 XZ 地面时 rotationDegrees.x 必须为 -90。修复后重新 Play 并截图确认主要玩法角色和 HUD 都实际可见。`
             : 'Studio 的黑盒固定步 Play 检测到某个实际发生的权威状态转换没有通过通用 gameplay telemetry 发布。请检查所有交互接受/拒绝、动作结算、碰撞/恢复、计分和终局转换，在转换发生的 tick 将稳定 lower-kebab-case 名称加入 events/triggers，并重新提交和运行 Play。隐藏验收名称不可用，请从游戏规则和实际状态机推导。';
-        const repair = await runRecorded(repairPrompt, summary.sessionId);
+        let repair;
+        try { repair = await runRecorded(repairPrompt, null); }
+        catch (repairCause) {
+          if (attempt) { summary = withDiagnostic(summary, repairCause); break; }
+          throw repairCause;
+        }
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results);
-        throwIfFormalCapReached();
-        if (repair.terminal !== 'completed') throw errorWithCode('g12.runtime-repair-not-completed', `Runtime repair turn ended with ${repair.terminal}.`);
+        try { throwIfFormalCapReached(); }
+        catch (budgetCause) {
+          if (attempt) { summary = withDiagnostic(summary, budgetCause); break; }
+          throw budgetCause;
+        }
+        if (repair.terminal !== 'completed') {
+          if (attempt) break;
+          throw errorWithCode('g12.runtime-repair-not-completed', `Runtime repair turn ended with ${repair.terminal}.`);
+        }
         const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
-        if (!contract.valid) throw errorWithCode('g12.gameplay-contract-missing', `Runtime repair removed required gameplay telemetry: ${contract.diagnostics.join(', ')}.`);
+        if (!contract.valid) {
+          const contractCause = errorWithCode('g12.gameplay-contract-missing', `Runtime repair removed required gameplay telemetry: ${contract.diagnostics.join(', ')}.`);
+          if (attempt) { summary = withDiagnostic(summary, contractCause); break; }
+          throw contractCause;
+        }
       }
     }
     if (!attempt) throw errorWithCode('g12.replay-attempt-missing', 'Preview replay did not produce a terminal attempt.');
@@ -295,6 +315,7 @@ async function run() {
     throw cause;
   } finally {
     cleanupInProgress = true;
+    clearTimeout(authoringTimer);
     coordinator?.dispose(); fixture.runtime?.dispose(); await modelContexts?.dispose().catch(() => undefined); await durableSessions?.dispose().catch(() => undefined); if (turns) await turns.dispose().catch(() => undefined); else if (backend) await backend.dispose().catch(() => undefined); windowGuard?.close(); await disposeFixture(fixture);
   }
 }
@@ -314,11 +335,13 @@ async function executePreviewReplay({ fixture, preview, windowGuard, testCase, r
   const image = nativeImage.createFromBuffer(png);
   const bitmapSize = image.getSize();
   const analysis = analyzeG12ReplayEvidence({ genre, replay, scene, bitmap: image.toBitmap(), width: bitmapSize.width, height: bitmapSize.height, tickRateHz: 60 });
+  const stopped = await windowGuard.race(preview.stop());
   const failedVisualSignals = Object.values(analysis.visualSignals).filter((value) => value !== true).length;
   if (requireUsableVisual && (analysis.visualMetrics.clusters < 4 || analysis.visualMetrics.visibleMaterialCount < 2 || failedVisualSignals > 0)) {
-    throw errorWithCode('g12.replay-visual-unusable', `the screenshot had ${analysis.visualMetrics.clusters} significant color clusters, ${analysis.visualMetrics.visibleMaterialCount} visible scene materials and ${failedVisualSignals} failed state-correlated visibility checks`);
+    const issue = errorWithCode('g12.replay-visual-unusable', `the screenshot had ${analysis.visualMetrics.clusters} significant color clusters, ${analysis.visualMetrics.visibleMaterialCount} visible scene materials and ${failedVisualSignals} failed state-correlated visibility checks`);
+    issue.replayAttempt = Object.freeze({ scene, started, replay, stopped, analysis });
+    throw issue;
   }
-  const stopped = await windowGuard.race(preview.stop());
   return { scene, started, replay, stopped, analysis };
 }
 
@@ -540,6 +563,7 @@ function ensureFailureAttribution(taskId, usageRecords, costRecords) {
   return { usageRecords: attributedUsage, costRecords: attributedCosts };
 }
 function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
+function withDiagnostic(summary, cause) { return Object.freeze({ ...summary, diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: typeof cause?.code === 'string' ? cause.code : 'g12.repair-failed', message: cause instanceof Error ? cause.message : String(cause) })]) }); }
 function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }
 function takeOverVerifiedAuthoring(summary, fixture, preview) {
   const takeoverCodes = new Set(['agent.tool-progress-stalled', 'g12.agent-verification-ready', 'g12.agent-authoring-timebox-reached']);

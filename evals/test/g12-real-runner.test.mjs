@@ -69,6 +69,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /g12\.replay-runtime-error.*g12\.replay-trigger-timeout/su);
   assert.match(source, /requireUsableVisual: repairAttempt === 0/u);
   assert.match(source, /Object\.values\(analysis\.visualSignals\).*value !== true/u);
+  assert.match(source, /repair = await runRecorded\(repairPrompt, null\)/u);
+  assert.match(source, /issue\.replayAttempt = Object\.freeze/u);
+  assert.match(source, /if \(attempt\) \{ summary = withDiagnostic\(summary, repairCause\); break; \}/u);
   assert.match(source, /Generated scripts failed during actual Play startup/u);
   assert.match(source, /capturePage\(\)/u);
   assert.match(source, /evidenceManifest, evaluator: evaluation/u);
@@ -84,6 +87,8 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /Promise\.race\(\[execution, abortedFallback\]\)/u);
   assert.match(source, /retainedToolResults\.slice\(resultOffset\)/u);
   assert.match(source, /authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs/u);
+  assert.match(source, /clearTimeout\(authoringTimer\).*coordinator\?\.dispose/su);
+  assert.doesNotMatch(source, /finally \{ clearTimeout\(authoringTimer\); \}/u);
   for (const toolId of ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture']) assert.match(source, new RegExp(`'${toolId.replace('.', '\\.')}'`, 'u'));
   assert.match(source, /caseDeadlineMs - Date\.now\(\) < minimumTakeoverWindowMs/u);
   assert.match(source, /diagnostics: summary\?\.diagnostics/u);
