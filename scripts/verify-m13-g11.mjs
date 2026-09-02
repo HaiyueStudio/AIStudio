@@ -26,7 +26,7 @@ const host = await read('apps/ai-studio/src/conversation-host.ts');
 assert.match(host, /restoreTaskRuns\(\); await this\.migrateLegacySessions\(\);/u);
 assert.match(host, /Claim the launch slot before the first asynchronous context read/u);
 const runner = await read('scripts/g12/real-cold-case-electron.mjs');
-for (const phrase of ['recordM13Turn', 'DurableSessionRuntime', 'ModelContextRuntime', 'projectExecutionGraph', 'tool.outcome-unknown', 'replayedSurfaceDigest', 'replayedDigest']) assert.match(runner, new RegExp(phrase.replaceAll('.', '\\.'), 'u'));
+for (const phrase of ['recordM13Turn', 'DurableSessionRuntime', 'ModelContextRuntime', 'projectExecutionGraph', 'tool.outcome-unknown', 'replayedSurfaceDigest', 'replayedDigest', 'budgetContinuations', 'user-authorized-formal-matrix', 'budget.formal-cap']) assert.match(runner, new RegExp(phrase.replaceAll('.', '\\.'), 'u'));
 
 const formalArgument = process.argv.find((entry) => entry.startsWith('--formal-checkpoint='));
 if (formalArgument) {

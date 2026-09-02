@@ -77,7 +77,8 @@ async function run() {
   const fixture = await createFixture(projectRoot, userDataRoot);
   let windowGuard; let backend; let coordinator; let turns; let preview; let account; let taskId; let model; let config; let summary; let durableSessions; let modelContexts; let contextFrames;
   const m13Turns = [];
-  partialWriter = (cause) => preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets, m13Turns });
+  const budgetContinuations = [];
+  partialWriter = (cause) => preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets, m13Turns, budgetContinuations });
   try {
     windowGuard = await createPreviewWindow();
     preview = new BrowserWindowPreviewControl(windowGuard.window); await windowGuard.race(preview.ready());
@@ -94,6 +95,7 @@ async function run() {
     const accounting = new TaskAccountingRegistry(turns.usage);
     taskId = asStableId(`task:g12-${backendKind}-${genre}-${randomUUID()}`);
     const budget = taskBudget(testCase);
+    const initialTranche = taskBudgetInitialTranche();
     account = accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG }); account.beginTurn();
     const catalog = await backend.modelCatalog(); model = chooseModel(catalog.models);
     const reasoningEffort = model.reasoningEfforts.includes(args.reasoning) ? args.reasoning : model.reasoningEfforts.includes('low') ? 'low' : model.defaultReasoningEffort;
@@ -119,12 +121,16 @@ async function run() {
       }
       if (event.kind === 'tool-request' && typeof event.payload.toolCallId === 'string') {
         const decision = account.commitTool(asStableId(event.payload.toolCallId));
-        if (!decision.allowed) controller.abort(errorWithCode('budget.hard-stop', 'Agent exceeded the formal tool-call budget.'));
+        const toolCalls = account.snapshot().consumption.toolCalls;
+        if (toolCalls > initialTranche.toolCalls && !budgetContinuations.some((entry) => entry.metric === 'toolCalls')) budgetContinuations.push(Object.freeze({ metric: 'toolCalls', initialLimit: initialTranche.toolCalls, extendedLimit: budget.limits.toolCalls, current: toolCalls, authorization: 'user-authorized-formal-matrix', action: 'continue-current-preserved-task' }));
+        if (!decision.allowed) controller.abort(errorWithCode('budget.formal-cap', 'Agent exceeded the explicitly authorized formal-matrix tool-call continuation cap.'));
       }
       if (event.kind === 'usage') {
         reconcileLiveUsage(liveTurnUsage, event);
         const totals = aggregateLiveUsage(liveTurnUsage);
-        if (totals.inputTokens > budget.limits.inputTokens || totals.outputTokens > budget.limits.outputTokens) controller.abort(errorWithCode('budget.hard-stop', 'Agent exceeded the formal token budget.'));
+        if (totals.inputTokens > initialTranche.inputTokens && !budgetContinuations.some((entry) => entry.metric === 'inputTokens')) budgetContinuations.push(Object.freeze({ metric: 'inputTokens', initialLimit: initialTranche.inputTokens, extendedLimit: budget.limits.inputTokens, current: totals.inputTokens, authorization: 'user-authorized-formal-matrix', action: 'continue-current-preserved-task' }));
+        if (totals.outputTokens > initialTranche.outputTokens && !budgetContinuations.some((entry) => entry.metric === 'outputTokens')) budgetContinuations.push(Object.freeze({ metric: 'outputTokens', initialLimit: initialTranche.outputTokens, extendedLimit: budget.limits.outputTokens, current: totals.outputTokens, authorization: 'user-authorized-formal-matrix', action: 'continue-current-preserved-task' }));
+        if (totals.inputTokens > budget.limits.inputTokens || totals.outputTokens > budget.limits.outputTokens) controller.abort(errorWithCode('budget.formal-cap', 'Agent exceeded the explicitly authorized formal-matrix continuation cap.'));
       }
     };
     const runRecorded = async (turnPrompt, continuationSessionId) => {
@@ -218,7 +224,7 @@ async function run() {
     ]);
     const evidenceManifest = collector.manifest(); const evaluation = evaluateCase({ testCase, oracleCase, evidenceManifest });
     const usageRecords = turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record);
-    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) }, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotDigest: pngDigest }, evidenceManifest, evaluation };
+    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, budgetContinuations, m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) }, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotDigest: pngDigest }, evidenceManifest, evaluation };
     await atomicJson(path.join(caseRoot, 'task-report.json'), report);
     await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: evaluation.status === 'pass' && summary.terminal === 'completed' ? 'pass' : 'failed-acceptance', reportDigest: contentDigest(report), reportPath: path.relative(root, path.join(caseRoot, 'task-report.json')).replaceAll('\\', '/') });
     console.log(`[g12-real-case] ${JSON.stringify({ runId, backend: backendKind, genre, terminal: summary.terminal, evaluation: evaluation.status, passed: evaluation.passed, required: evaluation.passed + evaluation.failed, caseRoot })}`);
@@ -363,7 +369,7 @@ async function createPreviewWindow() {
   return { window, race: (operation) => Promise.race([operation, failure]), close() { intentionalClose = true; if (!window.isDestroyed()) window.destroy(); } };
 }
 
-async function preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets, m13Turns }) {
+async function preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets, m13Turns, budgetContinuations }) {
   const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
   await fixture.workspace.save().catch(() => undefined);
   let usageRecords = taskId && turns ? turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record) : [];
@@ -413,7 +419,7 @@ async function preservePartialEvidence({ cause, fixture, preview, windowGuard, t
     model: model ? { id: model.id, reasoningEffort: config?.reasoningEffort ?? null, configDigest: config ? contentDigest(config) : null } : null,
     conversationId: summary?.sessionId ?? null, toolResults: summary?.results?.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })) ?? [],
     diagnostics: summary?.diagnostics ?? [],
-    accounting, usageRecords, costRecords, cache: accounting?.usage?.contextCache ?? null,
+    accounting, usageRecords, costRecords, cache: accounting?.usage?.contextCache ?? null, budgetContinuations,
     m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.length > 0 && m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) },
     preservedProject: { saved: true, projectId: safeValue(() => fixture.workspace.snapshot().document.projectId, null), sceneDigest: scene ? contentDigest(scene) : null, scriptSetDigest: scripts ? contentDigest(scripts) : null, scriptCount: enabledScriptCount(scripts) },
     preview: { snapshot: previewSnapshot, observationDigest: observation ? contentDigest(observation) : null, screenshot },
@@ -427,7 +433,8 @@ async function preservePartialEvidence({ cause, fixture, preview, windowGuard, t
 async function createBackend() { return backendKind === 'harness' ? new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }) : new CodexAppServerBackend(); }
 async function createFixture(projectRoot, userDataRoot) { const operationLog = await OperationLog.open({ rootDirectory: path.join(userDataRoot, 'log'), appVersion: 'g12-real-cold-case' }); const resources = { documents: new EditorDocumentHost(), history: new EditorHistoryService(), tasks: new EditorTaskCoordinator(), projectSession: new EditorProjectSessionState(), operationLog, recentProjects: new RecentProjectStore(userDataRoot) }; const workspace = new ProjectWorkspace(resources); await workspace.newProject(projectRoot, `G12 ${backendKind} ${genre}`); const scene = new ProjectSceneAuthoringService(workspace, operationLog); const validator = new ScriptValidationWorker(); const projectScripts = new ProjectScriptService(workspace, validator, operationLog); const authorization = new PreviewAuthorizationService(projectScripts, validator, operationLog); const scriptPort = { snapshot: () => projectScripts.snapshot(), proposeEdit: (input) => projectScripts.proposeEdit(input), commitProposal: (proposalId, commandId, signal) => projectScripts.commitProposal(proposalId, commandId, signal), prepare: (input) => authorization.prepare(input), decide: (planId, approved, ttl) => authorization.decide(planId, approved, ttl), consume: (grantId) => authorization.consume(grantId) }; return { operationLog, resources, workspace, scene, validator, projectScripts, authorization, scriptPort, runtime: null }; }
 async function disposeFixture(value) { value.authorization.dispose(); value.scene.dispose(); value.projectScripts.dispose(); await value.validator.dispose(); await value.workspace.dispose(); value.resources.tasks.dispose(); await value.resources.documents.dispose(); value.resources.history.dispose(); value.resources.projectSession.dispose(); await value.operationLog.close(); }
-function taskBudget(testCase) { const harness = backendKind === 'harness'; const shared = { inputTokens: harness ? 1_000_000 : 2_000_000, outputTokens: harness ? 120_000 : 250_000, estimatedCostMicros: harness ? 25_000_000 : 50_000_000, wallTimeMs: 900_000, turns: 8, toolCalls: harness ? 80 : 120, repairIterations: 4, observationBytes: 16_777_216 }; return { schemaVersion: 2, id: testCase.id.replace('game-eval:', 'budget:g12-'), enforcement: 'hard', limits: shared }; }
+function taskBudget(testCase) { const harness = backendKind === 'harness'; const shared = { inputTokens: harness ? 1_500_000 : 3_000_000, outputTokens: harness ? 180_000 : 375_000, estimatedCostMicros: harness ? 25_000_000 : 50_000_000, wallTimeMs: 900_000, turns: 8, toolCalls: harness ? 100 : 150, repairIterations: 4, observationBytes: 16_777_216 }; return { schemaVersion: 2, id: testCase.id.replace('game-eval:', 'budget:g12-'), enforcement: 'hard', limits: shared }; }
+function taskBudgetInitialTranche() { return backendKind === 'harness' ? Object.freeze({ inputTokens: 1_000_000, outputTokens: 120_000, toolCalls: 80 }) : Object.freeze({ inputTokens: 2_000_000, outputTokens: 250_000, toolCalls: 120 }); }
 function chooseModel(models) { const requested = args.model && models.find((entry) => entry.id === args.model); const priced = models.find((entry) => M12_DEFAULT_PRICING_CATALOG.entries.some((price) => price.model === entry.id)); return requested ?? models.find((entry) => entry.isDefault) ?? priced ?? models[0]; }
 function gameplaySignals(observation) { const output = {}; for (const record of observation.value.gameplay ?? []) flatten(record.value, '', output); return output; }
 function flatten(value, prefix, output) { if (value === null || typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number') { if (prefix && /^[a-z][a-zA-Z0-9.-]{2,127}$/u.test(prefix)) output[prefix] = value; return; } if (!value || typeof value !== 'object' || Array.isArray(value)) return; for (const [key, entry] of Object.entries(value)) flatten(entry, prefix ? `${prefix}.${key}` : key, output); }

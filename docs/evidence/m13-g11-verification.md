@@ -32,3 +32,5 @@ Every Harness/Codex × seven-genre report now persists:
 - execution Graph artifact and independently replayed Graph digest.
 
 The formal verifier rejects any case missing one of these fields, any digest drift, any non-pass evaluator result, duplicate backend/genre coverage, dirty revision binding or fewer than 14 independent cases.
+
+The first reviewed matrix attempt proved the failure-preservation path but also exposed an obsolete immediate hard stop at the initial Harness input tranche (1,020,271 versus 1,000,000 tokens). The corrective runner now treats the initial value as a visible checkpoint and continues the same preserved task only within an explicit formal-matrix cap (Harness 1.5M / Codex 3M input tokens). The continuation is recorded in `budgetContinuations`; exceeding that second cap still fails closed. This automation is limited to the already user-authorized formal matrix. Interactive Studio tasks continue to require the user's budget-continuation decision.
