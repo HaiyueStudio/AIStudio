@@ -112,6 +112,7 @@ async function run() {
     const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
     const boundTurnIds = new Set();
     const liveTurnUsage = new Map();
+    let formalCapError = null;
     let recordedEvents = [];
     const observeEvent = (event) => {
       recordedEvents.push(event);
@@ -120,19 +121,21 @@ async function run() {
         account.bindTurn(event.turnId, billingContext(model.id));
       }
       if (event.kind === 'tool-request' && typeof event.payload.toolCallId === 'string') {
+        if (formalCapError) throw formalCapError;
         const decision = account.commitTool(asStableId(event.payload.toolCallId));
         const toolCalls = account.snapshot().consumption.toolCalls;
         if (toolCalls > initialTranche.toolCalls && !budgetContinuations.some((entry) => entry.metric === 'toolCalls')) budgetContinuations.push(Object.freeze({ metric: 'toolCalls', initialLimit: initialTranche.toolCalls, extendedLimit: budget.limits.toolCalls, current: toolCalls, authorization: 'user-authorized-formal-matrix', action: 'continue-current-preserved-task' }));
-        if (!decision.allowed) controller.abort(errorWithCode('budget.formal-cap', 'Agent exceeded the explicitly authorized formal-matrix tool-call continuation cap.'));
+        if (!decision.allowed) throw (formalCapError ??= errorWithCode('budget.formal-cap', 'Agent exceeded the explicitly authorized formal-matrix tool-call continuation cap.'));
       }
       if (event.kind === 'usage') {
         reconcileLiveUsage(liveTurnUsage, event);
         const totals = aggregateLiveUsage(liveTurnUsage);
         if (totals.inputTokens > initialTranche.inputTokens && !budgetContinuations.some((entry) => entry.metric === 'inputTokens')) budgetContinuations.push(Object.freeze({ metric: 'inputTokens', initialLimit: initialTranche.inputTokens, extendedLimit: budget.limits.inputTokens, current: totals.inputTokens, authorization: 'user-authorized-formal-matrix', action: 'continue-current-preserved-task' }));
         if (totals.outputTokens > initialTranche.outputTokens && !budgetContinuations.some((entry) => entry.metric === 'outputTokens')) budgetContinuations.push(Object.freeze({ metric: 'outputTokens', initialLimit: initialTranche.outputTokens, extendedLimit: budget.limits.outputTokens, current: totals.outputTokens, authorization: 'user-authorized-formal-matrix', action: 'continue-current-preserved-task' }));
-        if (totals.inputTokens > budget.limits.inputTokens || totals.outputTokens > budget.limits.outputTokens) controller.abort(errorWithCode('budget.formal-cap', 'Agent exceeded the explicitly authorized formal-matrix continuation cap.'));
+        if (totals.inputTokens > budget.limits.inputTokens || totals.outputTokens > budget.limits.outputTokens) formalCapError ??= errorWithCode('budget.formal-cap', 'Agent exceeded the explicitly authorized formal-matrix continuation cap.');
       }
     };
+    const throwIfFormalCapReached = () => { if (formalCapError) throw formalCapError; };
     const runRecorded = async (turnPrompt, continuationSessionId) => {
       recordedEvents = [];
       try {
@@ -163,6 +166,7 @@ async function run() {
     try {
       const initial = await runRecorded(prompt, null);
       summaries.push(initial); summary = mergeTurnSummaries(summaries); commitToolResults(account, initial.results);
+      throwIfFormalCapReached();
       let current = initial;
       let takeoverAttempts = 0;
       while (isRecoverableSummary(current) && takeoverAttempts < 2) {
@@ -172,12 +176,14 @@ async function run() {
         const takeoverPrompt = 'Studio 检测到上一回合发生可重试的传输或流中断。请从当前已保存的项目状态继续原任务；先读取 project.snapshot，保留已有产物，并完成尚未提交和验证的工作。';
         current = await runRecorded(takeoverPrompt, current.sessionId);
         summaries.push(current); summary = mergeTurnSummaries(summaries); commitToolResults(account, current.results);
+        throwIfFormalCapReached();
       }
       if (current.terminal === 'completed' && enabledScriptCount(fixture.projectScripts.snapshot()) === 0 && caseDeadlineMs - Date.now() >= minimumTakeoverWindowMs) {
         account.repair(); account.beginTurn();
         const repairPrompt = 'Studio 自动检查发现当前项目仍没有已提交且启用的脚本。请继续原任务，使用通用 Studio 工具创建并提交至少一个脚本（script.propose 后执行 script.apply），随后运行 preview.validate；不要只描述方案，也不要结束于未提交状态。';
         const repair = await runRecorded(repairPrompt, current.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results);
+        throwIfFormalCapReached();
         current = repair;
       }
       let gameplayContract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
@@ -186,6 +192,7 @@ async function run() {
         const telemetryPrompt = `Studio 的通用 gameplay telemetry 检查未通过（${gameplayContract.diagnostics.join(', ')}）。请保留现有游戏功能并修复已提交脚本：每个固定步持续通过 api.scene.observe 发布权威 status/state，并用稳定的 lower-kebab-case events 或 triggers 数组发布所有实际发生的交互接受/拒绝、结算、碰撞、得分和终局转换。事件必须来自游戏状态转换，不可从 HUD 文本猜测。修复后重新提交脚本并运行 Play 自检。`;
         const repair = await runRecorded(telemetryPrompt, current.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results); current = repair;
+        throwIfFormalCapReached();
         gameplayContract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
       }
       summary = mergeTurnSummaries(summaries);
@@ -209,6 +216,7 @@ async function run() {
           : 'Studio 的黑盒固定步 Play 检测到某个实际发生的权威状态转换没有通过通用 gameplay telemetry 发布。请检查所有交互接受/拒绝、动作结算、碰撞/恢复、计分和终局转换，在转换发生的 tick 将稳定 lower-kebab-case 名称加入 events/triggers，并重新提交和运行 Play。隐藏验收名称不可用，请从游戏规则和实际状态机推导。';
         const repair = await runRecorded(repairPrompt, summary.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results);
+        throwIfFormalCapReached();
         if (repair.terminal !== 'completed') throw errorWithCode('g12.runtime-repair-not-completed', `Runtime repair turn ended with ${repair.terminal}.`);
         const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
         if (!contract.valid) throw errorWithCode('g12.gameplay-contract-missing', `Runtime repair removed required gameplay telemetry: ${contract.diagnostics.join(', ')}.`);

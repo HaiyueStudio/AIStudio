@@ -31,6 +31,8 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /time and delta are milliseconds/);
+  assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /strict-TypeScript/);
+  assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /component\.data is the only persistent/);
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /viewport-normalized 0\.\.1/);
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /hudText/);
   assert.deepEqual(
@@ -1018,6 +1020,30 @@ test('coordinator cancels a non-converging turn at its tool request boundary', a
     assert.equal(summary.results.length, 2);
     assert.equal(cancelled, 1);
     assert.ok(summary.diagnostics.some((item) => item.code === 'agent.tool-call-budget-exceeded'));
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
+test('coordinator preserves completed tool results when the host budget observer blocks the next request', async () => {
+  const value = await fixture(); let cancelled = 0;
+  const backend = minimalBackend(async function* () {
+    yield event('tool-request', { toolCallId: 'toolcall:budget-preserved', toolId: 'project.snapshot', arguments: {} });
+    yield event('tool-request', { toolCallId: 'toolcall:budget-blocked', toolId: 'scene.list-entities', arguments: {} });
+    yield event('completed', { status: 'completed' });
+  });
+  backend.cancelTurn = async () => { cancelled += 1; };
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } });
+  try {
+    const summary = await coordinator.run(backend, { prompt: 'Preserve work at the host budget boundary.' }, (backendEvent) => {
+      if (backendEvent.kind === 'tool-request' && backendEvent.payload.toolCallId === 'toolcall:budget-blocked') {
+        const cause = new Error('Formal cap reached before the next tool effect.');
+        cause.code = 'budget.formal-cap';
+        throw cause;
+      }
+    });
+    assert.equal(summary.terminal, 'failed');
+    assert.deepEqual(summary.results.map((item) => item.toolId), ['project.snapshot']);
+    assert.equal(cancelled, 1);
+    assert.ok(summary.diagnostics.some((item) => item.code === 'budget.formal-cap'));
   } finally { coordinator.dispose(); await dispose(value); }
 });
 

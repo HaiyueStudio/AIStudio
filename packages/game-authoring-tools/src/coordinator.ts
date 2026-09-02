@@ -100,7 +100,18 @@ export class AgentGameAuthoringCoordinator {
     const events = this.turns ? this.turns.start(backend.descriptor.id, turnInput, controller.signal) : backend.startTurn(turnInput, controller.signal);
     try { for await (const event of events) {
       if (controller.signal.aborted) throw controller.signal.reason;
-      sessionId = event.sessionId; turnId = event.turnId; onEvent?.(event);
+      sessionId = event.sessionId; turnId = event.turnId;
+      try { onEvent?.(event); }
+      catch (cause) {
+        diagnostics.push(Object.freeze({
+          code: hasCode(cause) ? cause.code : 'agent.event-observer-failed',
+          message: cause instanceof Error ? cause.message : String(cause),
+        }));
+        terminal = 'failed';
+        try { await backend.cancelTurn(event.sessionId, event.turnId); }
+        catch (cancelCause) { diagnostics.push(Object.freeze({ code: 'agent.turn-cancel-failed', message: cancelCause instanceof Error ? cancelCause.message : String(cancelCause) })); }
+        break;
+      }
       if (event.kind === 'tool-request') {
         const toolCallId = stablePayloadId(event.payload.toolCallId, 'tool call id');
         const toolId = stablePayloadId(event.payload.toolId, 'tool id');
