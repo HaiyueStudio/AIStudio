@@ -45,6 +45,16 @@ test('snake evidence is derived from the full authoritative trace and correlated
   });
 });
 
+test('snake evidence accepts authoritative XZ coordinates', () => {
+  const observations = [
+    observation(0, { head: { x: 2, z: 2 }, food: { x: 3, z: 2 }, direction: { x: 1, z: 0 }, score: 0, length: 3, state: 'playing' }),
+    observation(1, { head: { x: 3, z: 2 }, food: { x: 4, z: 2 }, direction: { x: 1, z: 0 }, score: 1, length: 4, state: 'playing' }),
+  ];
+  const analysis = analyzeG12ReplayEvidence({ genre: 'snake', replay: { observations }, scene: { entities: [] }, bitmap: Buffer.alloc(4), width: 1, height: 1 });
+  assert.equal(analysis.traceSignals['score.delta'], 1);
+  assert.equal(analysis.traceSignals['snake.lengthDelta'], 1);
+});
+
 function observation(tick, value) {
   return { tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ id: 'snake', value }], hud: { score: { text: `SCORE ${value.score}` } } } };
 }

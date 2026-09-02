@@ -120,12 +120,12 @@ function snakeState(observation) {
 
 function point(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const c = value.c ?? value.column ?? value.x, r = value.r ?? value.row ?? value.y;
+  const c = value.c ?? value.column ?? value.x, r = value.r ?? value.row ?? value.y ?? value.z;
   return Number.isFinite(c) && Number.isFinite(r) ? { c, r } : null;
 }
 function vector(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const dc = value.dc ?? value.x, dr = value.dr ?? value.y;
+  const dc = value.dc ?? value.x, dr = value.dr ?? value.y ?? value.z;
   return Number.isFinite(dc) && Number.isFinite(dr) ? { dc, dr } : null;
 }
 function positiveTransitions(states, key) {

@@ -35,6 +35,19 @@ test('semantic drivers fail closed for missing registration and tick-budget over
   await assert.rejects(() => executeG12SemanticDriver(registry, 'scripted-swap', previewControl(), {}), (error) => error.code === 'g12.semantic-driver-budget-exceeded');
 });
 
+test('snake verification accepts XZ gameplay state and maps vertical direction semantics', async () => {
+  const control = snakePreviewControl('xz');
+  const result = await executeG12SemanticDriver(
+    createG12SemanticDriverRegistry(),
+    'scripted-verify-snake',
+    control,
+    { collections: 2 },
+    { resolveControl: (value) => ({ ArrowUp: 'MoveUp', ArrowDown: 'MoveDown', ArrowLeft: 'MoveLeft', ArrowRight: 'MoveRight' })[value] ?? value },
+  );
+  assert.ok(result.inputs > 0);
+  assert.ok(control.events.some((event) => event.action === 'MoveDown'));
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -47,20 +60,22 @@ function previewControl(replayTargets = []) {
   };
 }
 
-function snakePreviewControl() {
+function snakePreviewControl(axis = 'row') {
   let tick = 5;
   let head = { c: 2, r: 1 };
-  let food = { c: 4, r: 1 };
+  let food = axis === 'xz' ? { c: 2, r: 3 } : { c: 4, r: 1 };
   let direction = { dc: 1, dr: 0 };
   let score = 0;
   let length = 3;
   let terminal = false;
   const events = [];
-  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : 'playing', head, food, dir: direction, score, length, events: terminal ? ['gameover'] : [] } }] } });
+  const external = (value) => axis === 'xz' ? { x: value.c ?? value.dc, z: value.r ?? value.dr } : value;
+  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : 'playing', head: external(head), food: external(food), dir: external(direction), score, length, events: terminal ? ['gameover'] : [] } }] } });
   const advance = () => {
     tick += 1;
     for (const event of events.filter((entry) => entry.tick === tick && entry.phase === 'down')) {
-      const requested = event.action === 'ArrowRight' ? { dc: 1, dr: 0 } : event.action === 'ArrowLeft' ? { dc: -1, dr: 0 } : event.action === 'ArrowUp' ? { dc: 0, dr: 1 } : event.action === 'ArrowDown' ? { dc: 0, dr: -1 } : direction;
+      const action = ({ MoveUp: 'ArrowUp', MoveDown: 'ArrowDown', MoveLeft: 'ArrowLeft', MoveRight: 'ArrowRight' })[event.action] ?? event.action;
+      const requested = action === 'ArrowRight' ? { dc: 1, dr: 0 } : action === 'ArrowLeft' ? { dc: -1, dr: 0 } : action === 'ArrowUp' ? { dc: 0, dr: axis === 'xz' ? -1 : 1 } : action === 'ArrowDown' ? { dc: 0, dr: axis === 'xz' ? 1 : -1 } : direction;
       if (requested.dc !== -direction.dc || requested.dr !== -direction.dr) direction = requested;
     }
     if (terminal) return;

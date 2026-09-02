@@ -230,7 +230,7 @@ async function verifySnake(session, parameters) {
   if (!state) throw new G12ReplayProgramError('g12.semantic-snake-state-missing', 'Snake verification requires authoritative numeric head, food, direction, score and length fields.');
   const initialScore = state.score;
   const initialDirection = state.direction;
-  const opposite = directionName(-initialDirection.dc, -initialDirection.dr);
+  const opposite = directionName(-initialDirection.dc, -initialDirection.dr, state.axis);
   if (opposite) {
     await session.action(opposite, 1);
     observation = await waitForSnakeMovement(session, state.head, 40);
@@ -271,9 +271,9 @@ function chooseSnakeDirection(state) {
   const dx = state.food.c - state.head.c;
   const dr = state.food.r - state.head.r;
   const candidates = [];
-  if (dx !== 0) candidates.push(directionName(Math.sign(dx), 0));
-  if (dr !== 0) candidates.push(directionName(0, Math.sign(dr)));
-  const opposite = directionName(-state.direction.dc, -state.direction.dr);
+  if (dx !== 0) candidates.push(directionName(Math.sign(dx), 0, state.axis));
+  if (dr !== 0) candidates.push(directionName(0, Math.sign(dr), state.axis));
+  const opposite = directionName(-state.direction.dc, -state.direction.dr, state.axis);
   const direct = candidates.find((entry) => entry && entry !== opposite);
   if (direct) return direct;
   const detour = state.head.r > 0 ? 'ArrowDown' : 'ArrowUp';
@@ -289,26 +289,29 @@ function snakeState(observation) {
     const score = finite(value.score), length = finite(value.length);
     if (!head || !food || !direction || score === null || length === null) continue;
     const terminal = ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(String(value.state ?? value.status ?? '').toLowerCase());
-    return { head, food, direction, score, length, terminal };
+    const axis = head.axis === 'z' || food.axis === 'z' || direction.axis === 'z' ? 'z' : 'row';
+    return { head, food, direction, score, length, terminal, axis };
   }
   return null;
 }
 
 function gridPoint(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const c = finite(value.c ?? value.column ?? value.x), r = finite(value.r ?? value.row ?? value.y);
-  return c === null || r === null ? null : { c, r };
+  const usesZ = value.r === undefined && value.row === undefined && value.y === undefined && value.z !== undefined;
+  const c = finite(value.c ?? value.column ?? value.x), r = finite(value.r ?? value.row ?? value.y ?? value.z);
+  return c === null || r === null ? null : { c, r, axis: usesZ ? 'z' : 'row' };
 }
 function gridDirection(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const dc = finite(value.dc ?? value.x), dr = finite(value.dr ?? value.y);
-  return dc === null || dr === null ? null : { dc, dr };
+  const usesZ = value.dr === undefined && value.y === undefined && value.z !== undefined;
+  const dc = finite(value.dc ?? value.x), dr = finite(value.dr ?? value.y ?? value.z);
+  return dc === null || dr === null ? null : { dc, dr, axis: usesZ ? 'z' : 'row' };
 }
-function directionName(dc, dr) {
+function directionName(dc, dr, axis = 'row') {
   if (dc === 1 && dr === 0) return 'ArrowRight';
   if (dc === -1 && dr === 0) return 'ArrowLeft';
-  if (dc === 0 && dr === 1) return 'ArrowUp';
-  if (dc === 0 && dr === -1) return 'ArrowDown';
+  if (dc === 0 && dr === 1) return axis === 'z' ? 'ArrowDown' : 'ArrowUp';
+  if (dc === 0 && dr === -1) return axis === 'z' ? 'ArrowUp' : 'ArrowDown';
   return null;
 }
 function finite(value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; }
