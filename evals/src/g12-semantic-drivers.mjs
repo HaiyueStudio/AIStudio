@@ -346,20 +346,22 @@ function snakeStateWithPrior(observation, prior) {
 function gridPoint(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const usesZ = value.r === undefined && value.row === undefined && value.y === undefined && value.z !== undefined;
+  const usesY = value.r === undefined && value.row === undefined && value.y !== undefined;
   const c = finite(value.c ?? value.column ?? value.x), r = finite(value.r ?? value.row ?? value.y ?? value.z);
-  return c === null || r === null ? null : { c, r, axis: usesZ ? 'z' : 'row' };
+  return c === null || r === null ? null : { c, r, axis: usesZ ? 'z' : usesY ? 'y' : 'row' };
 }
 function gridDirection(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const usesZ = value.dr === undefined && value.y === undefined && value.z !== undefined;
+  const usesY = value.dr === undefined && value.y !== undefined;
   const dc = finite(value.dc ?? value.x), dr = finite(value.dr ?? value.y ?? value.z);
-  return dc === null || dr === null ? null : { dc, dr, axis: usesZ ? 'z' : 'row' };
+  return dc === null || dr === null ? null : { dc, dr, axis: usesZ ? 'z' : usesY ? 'y' : 'row' };
 }
 function directionName(dc, dr, axis = 'row') {
   if (dc === 1 && dr === 0) return 'ArrowRight';
   if (dc === -1 && dr === 0) return 'ArrowLeft';
-  if (dc === 0 && dr === 1) return axis === 'z' ? 'ArrowDown' : 'ArrowUp';
-  if (dc === 0 && dr === -1) return axis === 'z' ? 'ArrowUp' : 'ArrowDown';
+  if (dc === 0 && dr === 1) return axis === 'y' ? 'ArrowUp' : 'ArrowDown';
+  if (dc === 0 && dr === -1) return axis === 'y' ? 'ArrowDown' : 'ArrowUp';
   return null;
 }
 function finite(value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; }

@@ -60,6 +60,12 @@ test('snake verification restarts a terminal handoff before replay', async () =>
   assert.equal(control.events.some((event) => event.action === 'KeyR'), true);
 });
 
+test('snake verification maps increasing board rows to the down control', async () => {
+  const control = snakePreviewControl('row', 'vector', 'playing', { c: 2, r: 3 });
+  await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.equal(control.events.some((event) => event.action === 'ArrowDown'), true);
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -72,10 +78,10 @@ function previewControl(replayTargets = []) {
   };
 }
 
-function snakePreviewControl(axis = 'row', directionMode = 'vector', initialState = 'playing') {
+function snakePreviewControl(axis = 'row', directionMode = 'vector', initialState = 'playing', initialFood = null) {
   let tick = 5;
   let head = { c: 2, r: 1 };
-  let food = axis === 'xz' ? { c: 2, r: 3 } : { c: 6, r: 1 };
+  let food = initialFood ?? (axis === 'xz' ? { c: 2, r: 3 } : { c: 6, r: 1 });
   let direction = { dc: 1, dr: 0 };
   let score = 0;
   let length = 3;
@@ -95,7 +101,7 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
         head = { c: 2, r: 1 }; direction = { dc: 1, dr: 0 }; score = 0; length = 3; terminal = false; phase = 'ready';
         continue;
       }
-      const requested = action === 'ArrowRight' ? { dc: 1, dr: 0 } : action === 'ArrowLeft' ? { dc: -1, dr: 0 } : action === 'ArrowUp' ? { dc: 0, dr: axis === 'xz' ? -1 : 1 } : action === 'ArrowDown' ? { dc: 0, dr: axis === 'xz' ? 1 : -1 } : direction;
+      const requested = action === 'ArrowRight' ? { dc: 1, dr: 0 } : action === 'ArrowLeft' ? { dc: -1, dr: 0 } : action === 'ArrowUp' ? { dc: 0, dr: -1 } : action === 'ArrowDown' ? { dc: 0, dr: 1 } : direction;
       if (requested.dc !== -direction.dc || requested.dr !== -direction.dr) { direction = requested; phase = 'playing'; }
     }
     if (terminal || phase !== 'playing') return;
