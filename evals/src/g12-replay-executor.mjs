@@ -10,6 +10,7 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
   assertG12SemanticDriverCoverage([program], Object.keys(registry));
   const tracker = new GameplaySignalTracker();
   const signal = options.signal;
+  const resolveControl = typeof options.resolveControl === 'function' ? options.resolveControl : (value) => value;
   const maxTriggerWaitTicks = integer(options.maxTriggerWaitTicks, 1, 100_000, 3_600);
   const initial = await observe(control.inspect(signal), tracker);
   if (initial.tick !== program.baseTick) throw new G12ReplayProgramError('g12.replay-base-tick-stale', `Compiled replay base tick ${program.baseTick} does not match paused preview tick ${initial.tick}.`);
@@ -18,7 +19,7 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
   const tickInputs = program.commands.filter((entry) => entry.kind === 'input' && entry.schedule.kind === 'tick').sort(compareTickCommand);
   for (const command of tickInputs) {
     if (command.schedule.tick <= initial.tick) throw new G12ReplayProgramError('g12.replay-input-in-past', `Input ${command.id} is not after the paused start tick.`);
-    const observation = await control.input(inputEvent(command), signal);
+    const observation = await control.input(inputEvent(command, command.schedule.tick, resolveControl), signal);
     tracker.observe(observation);
     trace.push(event('input-queued', command, observation.tick));
   }
@@ -26,7 +27,7 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
   const fixedDrivers = program.commands.filter((entry) => entry.kind === 'semantic-driver' && entry.schedule.kind === 'tick').sort(compareTickCommand);
   for (const command of fixedDrivers) {
     await advanceTo(control, command.schedule.tick, tracker, signal);
-    const result = await executeG12SemanticDriver(registry, command.driverId, control, command.parameters, { signal, onObservation: (value) => tracker.observe(value) });
+    const result = await executeG12SemanticDriver(registry, command.driverId, control, command.parameters, { signal, resolveControl, onObservation: (value) => tracker.observe(value) });
     trace.push(event('semantic-driver', command, result.afterTick, { result }));
   }
 
@@ -36,7 +37,7 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
     const triggerTick = await awaitG12GameplayTrigger(control, trigger, tracker, { signal, maxWaitTicks: maxTriggerWaitTicks });
     const semantic = group.commands.find((entry) => entry.kind === 'semantic-driver');
     if (semantic) {
-      const result = await executeG12SemanticDriver(registry, semantic.driverId, control, semantic.parameters, { signal, onObservation: (value) => tracker.observe(value) });
+      const result = await executeG12SemanticDriver(registry, semantic.driverId, control, semantic.parameters, { signal, resolveControl, onObservation: (value) => tracker.observe(value) });
       trace.push(event('semantic-driver', semantic, result.afterTick, { trigger, triggerTick, result }));
       continue;
     }
@@ -44,7 +45,7 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
     for (const command of group.commands) {
       const offset = command.schedule.kind === 'trigger-offset' ? command.schedule.offsetTicks : 0;
       const tick = Math.max(tracker.latestTick + 1, triggerTick + 1 + offset);
-      const observation = await control.input(inputEvent(command, tick), signal);
+      const observation = await control.input(inputEvent(command, tick, resolveControl), signal);
       tracker.observe(observation);
       lastTick = Math.max(lastTick, tick);
       trace.push(event('trigger-input-queued', command, observation.tick, { trigger, triggerTick, scheduledTick: tick }));
@@ -56,7 +57,7 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
   if (tracker.gameplayRecordCount < 1) throw new G12ReplayProgramError('g12.gameplay-observation-missing', 'Replay completed without authoritative gameplay observations.');
   const capture = options.capture === true ? await control.capture(signal) : null;
   if (capture && capture.tick !== finalObservation.tick) throw new G12ReplayProgramError('g12.replay-capture-tick-mismatch', 'Replay screenshot and final state were not captured at the same fixed tick.');
-  return deepFreeze({ schemaVersion: 1, replayProgramVersion: '1.0.0', baseTick: program.baseTick, finalTick: finalObservation.tick, semanticDriverIds: [...new Set(trace.filter((entry) => entry.kind === 'semantic-driver').map((entry) => entry.driverId))].sort(), observedSignals: tracker.signals(), trace, finalObservation, capture });
+  return deepFreeze({ schemaVersion: 1, replayProgramVersion: '1.0.0', baseTick: program.baseTick, finalTick: finalObservation.tick, semanticDriverIds: [...new Set(trace.filter((entry) => entry.kind === 'semantic-driver').map((entry) => entry.driverId))].sort(), observedSignals: tracker.signals(), observations: tracker.observations(), trace, finalObservation, capture });
 }
 
 export async function awaitG12GameplayTrigger(control, trigger, tracker = new GameplaySignalTracker(), options = {}) {
@@ -75,7 +76,7 @@ export async function awaitG12GameplayTrigger(control, trigger, tracker = new Ga
 }
 
 export class GameplaySignalTracker {
-  constructor() { this.seen = new Map(); this.latestTick = -1; this.gameplayRecordCount = 0; }
+  constructor() { this.seen = new Map(); this.latestTick = -1; this.gameplayRecordCount = 0; this.history = []; }
 
   observe(observation) {
     if (!Number.isSafeInteger(observation?.tick) || observation.tick < 0) throw new G12ReplayProgramError('g12.replay-observation-invalid', 'Replay observation has no valid fixed tick.');
@@ -84,6 +85,7 @@ export class GameplaySignalTracker {
     if (Number.isFinite(runtimeErrors) && runtimeErrors > 0) throw new G12ReplayProgramError('g12.replay-runtime-error', `Play reported ${runtimeErrors} runtime error(s).`);
     const records = Array.isArray(observation?.value?.gameplay) ? observation.value.gameplay : [];
     this.gameplayRecordCount = Math.max(this.gameplayRecordCount, records.length);
+    this.history.push(snapshotObservation(observation));
     for (const record of records) for (const value of signals(record?.value)) this.add(value, observation.tick);
     return observation;
   }
@@ -97,6 +99,7 @@ export class GameplaySignalTracker {
 
   tickFor(value) { return this.seen.get(normalizeSignal(value)) ?? null; }
   signals() { return [...this.seen.keys()].sort(); }
+  observations() { return this.history.slice(); }
 }
 
 async function advanceTo(control, targetTick, tracker, signal) {
@@ -137,7 +140,18 @@ function aliases(value) {
 }
 
 function normalizeSignal(value) { return typeof value === 'string' ? value.trim().toLowerCase().replace(/[\s_]+/gu, '-').replace(/[^a-z0-9.:-]/gu, '') : ''; }
-function inputEvent(command, tick = command.schedule.tick) { return { tick, kind: 'action', action: command.control, phase: command.phase, source: 'synthetic' }; }
+function snapshotObservation(observation) {
+  return JSON.parse(JSON.stringify({
+    tick: observation.tick,
+    value: {
+      timeMs: observation.value?.timeMs ?? null,
+      gameplay: Array.isArray(observation.value?.gameplay) ? observation.value.gameplay : [],
+      hud: observation.value?.hud ?? {},
+      runtimeErrorCount: observation.value?.runtimeErrorCount ?? 0,
+    },
+  }));
+}
+function inputEvent(command, tick = command.schedule.tick, resolveControl = (value) => value) { return { tick, kind: 'action', action: resolveControl(command.control), phase: command.phase, source: 'synthetic' }; }
 function compareTickCommand(left, right) { return left.schedule.tick - right.schedule.tick || left.ordinal - right.ordinal || left.id.localeCompare(right.id); }
 function triggerOffset(command) { return command.schedule.kind === 'trigger-offset' ? command.schedule.offsetTicks : 0; }
 function event(kind, command, tick, details = {}) { return { kind, commandId: command.id, sourceStepId: command.sourceStepId, ...(command.driverId ? { driverId: command.driverId } : {}), tick, ...details }; }

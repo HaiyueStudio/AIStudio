@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, nativeImage, protocol } from 'electron';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -13,7 +13,7 @@ import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { PreviewAuthorizationService, ProjectScriptService, ScriptValidationWorker } from '@haiyue/ai-studio-script-preview';
 import { AgentGameAuthoringCoordinator, GameAuthoringToolRuntime } from '@haiyue/ai-studio-game-authoring-tools';
 import { projectExecutionGraph } from '@haiyue/ai-studio-shell';
-import { EvidenceCollector, compileG12ReplayProgram, contentDigest, evaluateCase, executeG12ReplayProgram, inspectG12GameplayContract, loadEvaluationAssets } from '../../evals/src/index.mjs';
+import { EvidenceCollector, analyzeG12ReplayEvidence, compileG12ReplayProgram, contentDigest, evaluateCase, executeG12ReplayProgram, inspectG12GameplayContract, loadEvaluationAssets } from '../../evals/src/index.mjs';
 import { BrowserWindowPreviewControl } from '../../apps/ai-studio/test/fixtures/g12-browser-window-preview-control.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(.:\/)/u, '$1')), '..', '..');
@@ -208,14 +208,16 @@ async function run() {
     for (let repairAttempt = 0; repairAttempt < 2; repairAttempt += 1) {
       try { attempt = await executePreviewReplay({ fixture, preview, windowGuard, testCase }); break; }
       catch (cause) {
-        const repairable = cause?.code === 'g12.replay-runtime-error' || cause?.code === 'g12.replay-trigger-timeout';
+        const repairable = cause?.code === 'g12.replay-runtime-error' || cause?.code === 'g12.replay-trigger-timeout' || cause?.code === 'g12.replay-visual-unusable';
         if (!repairable || repairAttempt > 0 || caseDeadlineMs - Date.now() < minimumTakeoverWindowMs) throw cause;
         const runtimeErrors = safeValue(() => preview.snapshot().errors, []).slice(0, 8).map((entry) => ({ code: entry.code, line: entry.line, column: entry.column, message: entry.message }));
         await preview.stop().catch(() => undefined);
         account.repair(); account.beginTurn();
         const repairPrompt = cause?.code === 'g12.replay-runtime-error'
           ? `Studio 的实际固定步 Play 检测到生成脚本运行错误：${JSON.stringify(runtimeErrors)}。请读取已提交脚本和 diagnostics，修复根因，重新提交并运行 Play 验证。不要删除现有 gameplay telemetry。`
-          : 'Studio 的黑盒固定步 Play 检测到某个实际发生的权威状态转换没有通过通用 gameplay telemetry 发布。请检查所有交互接受/拒绝、动作结算、碰撞/恢复、计分和终局转换，在转换发生的 tick 将稳定 lower-kebab-case 名称加入 events/triggers，并重新提交和运行 Play。隐藏验收名称不可用，请从游戏规则和实际状态机推导。';
+          : cause?.code === 'g12.replay-visual-unusable'
+            ? `Studio 的同 tick PNG 像素检查发现游戏画面不可用：${cause.message}。请检查持久化相机、几何体位置/尺寸/朝向、深度遮挡和角色颜色，再修复场景。HaiYue plane 的局部平面是 XY；作为水平 XZ 地面时 rotationDegrees.x 必须为 -90。修复后重新 Play 并截图确认主要玩法角色和 HUD 都实际可见。`
+            : 'Studio 的黑盒固定步 Play 检测到某个实际发生的权威状态转换没有通过通用 gameplay telemetry 发布。请检查所有交互接受/拒绝、动作结算、碰撞/恢复、计分和终局转换，在转换发生的 tick 将稳定 lower-kebab-case 名称加入 events/triggers，并重新提交和运行 Play。隐藏验收名称不可用，请从游戏规则和实际状态机推导。';
         const repair = await runRecorded(repairPrompt, summary.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results);
         throwIfFormalCapReached();
@@ -225,24 +227,27 @@ async function run() {
       }
     }
     if (!attempt) throw errorWithCode('g12.replay-attempt-missing', 'Preview replay did not produce a terminal attempt.');
-    const { scene, started, replay, stopped } = attempt;
+    const { scene, started, replay, stopped, analysis } = attempt;
     await fixture.workspace.save();
     const accountingSnapshot = account.reconcile();
     const png = Buffer.from(replay.capture.base64, 'base64'); const pngDigest = sha256(png); await writeFile(path.join(caseRoot, 'screenshot.png'), png);
     const signals = gameplaySignals(replay.finalObservation);
+    const image = nativeImage.createFromBuffer(png);
+    const bitmapSize = image.getSize();
+    const traceSignals = { ...signals, ...analysis.traceSignals };
     const projectDigest = contentDigest({ scene, scripts: fixture.projectScripts.snapshot() });
     const collector = new EvidenceCollector({ runId, caseId: testCase.id, projectDigest, seed: assets.suite.sharedEnvironment.seed, viewport: assets.suite.sharedEnvironment.viewport, maxObservationBytes: assets.suite.sharedBudgets.maxObservationBytes });
     collector.collectAll([
-      { type: 'state', tick: replay.finalTick, signals }, { type: 'event-trace', tick: replay.finalTick, signals },
-      { type: 'input-replay', tick: replay.finalTick, signals: { ...signals, 'replay.deterministic': true } },
-      { type: 'screenshot', tick: replay.finalTick, signals: { 'visual.pngCaptured': true }, media: { mediaType: 'image/png', digest: pngDigest, width: replay.capture.viewport.width, height: replay.capture.viewport.height, semanticAnalyzerVersion: 'none-fail-closed' } },
-      { type: 'performance', tick: replay.finalTick, signals: { ...signals, 'simulation.finite': Number.isFinite(replay.finalTick) } },
-      { type: 'lifecycle', tick: replay.finalTick, signals: { ...signals, 'residue.count': stopped.disposableCount } },
+      { type: 'state', tick: replay.finalTick, signals: traceSignals }, { type: 'event-trace', tick: replay.finalTick, signals: traceSignals },
+      { type: 'input-replay', tick: replay.finalTick, signals: { ...traceSignals, 'replay.deterministic': true } },
+      { type: 'screenshot', tick: replay.finalTick, signals: analysis.visualSignals, media: { mediaType: 'image/png', digest: pngDigest, width: bitmapSize.width, height: bitmapSize.height, semanticAnalyzerVersion: analysis.version } },
+      { type: 'performance', tick: replay.finalTick, signals: { ...traceSignals, 'simulation.finite': Number.isFinite(replay.finalTick) } },
+      { type: 'lifecycle', tick: replay.finalTick, signals: { ...traceSignals, 'residue.count': stopped.disposableCount } },
       { type: 'log', tick: replay.finalTick, signals: { 'runtime.unhandledErrors': replay.finalObservation.value.runtimeErrorCount ?? 0 } },
     ]);
     const evidenceManifest = collector.manifest(); const evaluation = evaluateCase({ testCase, oracleCase, evidenceManifest });
     const usageRecords = turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record);
-    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, budgetContinuations, m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) }, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotDigest: pngDigest }, evidenceManifest, evaluation };
+    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, budgetContinuations, m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) }, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotDigest: pngDigest, evidenceAnalysis: { version: analysis.version, visualMetrics: analysis.visualMetrics } }, evidenceManifest, evaluation };
     await atomicJson(path.join(caseRoot, 'task-report.json'), report);
     await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: evaluation.status === 'pass' && summary.terminal === 'completed' ? 'pass' : 'failed-acceptance', reportDigest: contentDigest(report), reportPath: path.relative(root, path.join(caseRoot, 'task-report.json')).replaceAll('\\', '/') });
     console.log(`[g12-real-case] ${JSON.stringify({ runId, backend: backendKind, genre, terminal: summary.terminal, evaluation: evaluation.status, passed: evaluation.passed, required: evaluation.passed + evaluation.failed, caseRoot })}`);
@@ -265,9 +270,16 @@ async function executePreviewReplay({ fixture, preview, windowGuard, testCase })
   catch (cause) { throw errorWithCode('g12.replay-runtime-error', `Generated scripts failed during actual Play startup: ${cause instanceof Error ? cause.message : String(cause)}`); }
   const baseline = await windowGuard.race(preview.inspect());
   const replayProgram = compileG12ReplayProgram(testCase.inputReplay, { baseTick: baseline.tick });
-  const replay = await windowGuard.race(executeG12ReplayProgram(preview, replayProgram, { capture: true, maxTriggerWaitTicks: 3_600 }));
+  const replay = await windowGuard.race(executeG12ReplayProgram(preview, replayProgram, { capture: true, maxTriggerWaitTicks: 3_600, resolveControl: (control) => replayAction(scene, control) }));
+  const png = Buffer.from(replay.capture.base64, 'base64');
+  const image = nativeImage.createFromBuffer(png);
+  const bitmapSize = image.getSize();
+  const analysis = analyzeG12ReplayEvidence({ genre, replay, scene, bitmap: image.toBitmap(), width: bitmapSize.width, height: bitmapSize.height, tickRateHz: 60 });
+  if (analysis.visualMetrics.clusters < 4 || analysis.visualMetrics.visibleMaterialCount < 2) {
+    throw errorWithCode('g12.replay-visual-unusable', `only ${analysis.visualMetrics.clusters} significant color clusters and ${analysis.visualMetrics.visibleMaterialCount} visible scene materials were detected`);
+  }
   const stopped = await windowGuard.race(preview.stop());
-  return { scene, started, replay, stopped };
+  return { scene, started, replay, stopped, analysis };
 }
 
 async function recordM13Turn({ operationLog, sessions, contextFrames, backend, model, config, taskId, prompt, summary, events, projectRevision, failed = false }) {
@@ -455,6 +467,13 @@ function taskBudget(testCase) { const harness = backendKind === 'harness'; const
 function taskBudgetInitialTranche() { return backendKind === 'harness' ? Object.freeze({ inputTokens: 1_000_000, outputTokens: 120_000, toolCalls: 80 }) : Object.freeze({ inputTokens: 2_000_000, outputTokens: 250_000, toolCalls: 120 }); }
 function chooseModel(models) { const requested = args.model && models.find((entry) => entry.id === args.model); const priced = models.find((entry) => M12_DEFAULT_PRICING_CATALOG.entries.some((price) => price.model === entry.id)); return requested ?? models.find((entry) => entry.isDefault) ?? priced ?? models[0]; }
 function gameplaySignals(observation) { const output = {}; for (const record of observation.value.gameplay ?? []) flatten(record.value, '', output); return output; }
+function replayAction(scene, control) {
+  for (const entity of scene?.entities ?? []) for (const component of entity.components ?? []) {
+    if (component.type !== 'haiyue.input.action-map' || component.enabled === false) continue;
+    for (const action of component.value?.actions ?? []) if (Array.isArray(action?.keys) && action.keys.includes(control) && typeof action.name === 'string' && action.name) return action.name;
+  }
+  return control;
+}
 function flatten(value, prefix, output) { if (value === null || typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number') { if (prefix && /^[a-z][a-zA-Z0-9.-]{2,127}$/u.test(prefix)) output[prefix] = value; return; } if (!value || typeof value !== 'object' || Array.isArray(value)) return; for (const [key, entry] of Object.entries(value)) flatten(entry, prefix ? `${prefix}.${key}` : key, output); }
 function billingContext(modelId) { return { provider: backendKind === 'harness' ? 'deepseek' : 'openai', model: modelId, billingMode: backendKind === 'harness' ? 'api' : 'subscription' }; }
 function commitToolResults(account, results) { for (const result of results) account.commitTool(result.callId); }

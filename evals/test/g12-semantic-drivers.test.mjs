@@ -11,7 +11,7 @@ test('reviewed semantic registry exactly covers every hidden replay action', () 
 test('every semantic driver executes bounded real preview-control operations', async () => {
   const registry = createG12SemanticDriverRegistry();
   for (const driverId of G12_SEMANTIC_DRIVER_IDS) {
-    const control = previewControl();
+    const control = driverId === 'scripted-verify-snake' ? snakePreviewControl() : previewControl();
     const result = await executeG12SemanticDriver(registry, driverId, control, parameters(driverId));
     assert.ok(result.inputs > 0, `${driverId} issued no input`);
     assert.ok(result.ticksConsumed > 0 && result.ticksConsumed <= result.maxTicks, `${driverId} exceeded tick budget`);
@@ -44,6 +44,35 @@ function previewControl(replayTargets = []) {
     async inspect() { return observation(); },
     async input(event) { events.push(event); return observation(); },
     async step(count) { tick += count; return observation(); },
+  };
+}
+
+function snakePreviewControl() {
+  let tick = 5;
+  let head = { c: 2, r: 1 };
+  let food = { c: 4, r: 1 };
+  let direction = { dc: 1, dr: 0 };
+  let score = 0;
+  let length = 3;
+  let terminal = false;
+  const events = [];
+  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : 'playing', head, food, dir: direction, score, length, events: terminal ? ['gameover'] : [] } }] } });
+  const advance = () => {
+    tick += 1;
+    for (const event of events.filter((entry) => entry.tick === tick && entry.phase === 'down')) {
+      const requested = event.action === 'ArrowRight' ? { dc: 1, dr: 0 } : event.action === 'ArrowLeft' ? { dc: -1, dr: 0 } : event.action === 'ArrowUp' ? { dc: 0, dr: 1 } : event.action === 'ArrowDown' ? { dc: 0, dr: -1 } : direction;
+      if (requested.dc !== -direction.dc || requested.dr !== -direction.dr) direction = requested;
+    }
+    if (terminal) return;
+    head = { c: head.c + direction.dc, r: head.r + direction.dr };
+    if (head.c === food.c && head.r === food.r) { score += 1; length += 1; food = score === 1 ? { c: 5, r: 1 } : { c: 0, r: 0 }; }
+    if (head.c > 6 || head.c < 0 || head.r < 0 || head.r > 6) terminal = true;
+  };
+  return {
+    events,
+    async inspect() { return observation(); },
+    async input(event) { events.push(event); return observation(); },
+    async step(count) { for (let index = 0; index < count; index += 1) advance(); return observation(); },
   };
 }
 

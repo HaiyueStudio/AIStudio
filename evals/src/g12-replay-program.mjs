@@ -13,6 +13,7 @@ export const G12_SEMANTIC_REPLAY_ACTIONS = deepFreeze([
   'scripted-resolve-combat',
   'scripted-steer',
   'scripted-swap',
+  'scripted-verify-snake',
 ]);
 
 const DIRECT_ACTIONS = new Set(['press', 'hold', 'sequence']);

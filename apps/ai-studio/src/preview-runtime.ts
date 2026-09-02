@@ -329,11 +329,57 @@ async function capture(requestId: string): Promise<void> {
   if (!simulation || !engine || !canvas) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
   try {
     await engine.device.queue.onSubmittedWorkDone();
-    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Canvas PNG encoding failed.')), 'image/png'));
+    const blob = await captureCompositePng(canvas);
     if (blob.size < 8 || blob.size > 376 * 1024) throw new Error('Screenshot exceeds the 376 KiB observation limit.');
     const bytes = new Uint8Array(await blob.arrayBuffer());
     send('capture', { requestId, base64: bytesToBase64(bytes), byteLength: bytes.byteLength, tick: simulation.clock.tick, frame: renderedFrame });
   } catch (cause) { requestFailed(requestId, cause); }
+}
+
+async function captureCompositePng(canvas: HTMLCanvasElement): Promise<Blob> {
+  const output = document.createElement('canvas');
+  output.width = canvas.width; output.height = canvas.height;
+  const context = output.getContext('2d');
+  if (!context) throw new Error('Screenshot composition context is unavailable.');
+  context.drawImage(canvas, 0, 0, output.width, output.height);
+  const canvasRect = canvas.getBoundingClientRect();
+  const scaleX = output.width / Math.max(1, canvasRect.width), scaleY = output.height / Math.max(1, canvasRect.height);
+  for (const record of hudTexts.values()) {
+    const element = record.element;
+    if (element.hidden || !element.isConnected) continue;
+    const style = getComputedStyle(element);
+    if (record.kind === 'text') { drawCapturedHudText(context, record.text, record.position, style, output.width, output.height, scaleX, scaleY); continue; }
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    const x = (rect.left - canvasRect.left) * scaleX, y = (rect.top - canvasRect.top) * scaleY;
+    const width = rect.width * scaleX, height = rect.height * scaleY;
+    if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)') { context.fillStyle = style.backgroundColor; context.fillRect(x, y, width, height); }
+    if (element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0) { context.drawImage(element, x, y, width, height); continue; }
+    const fontSize = Math.max(8, Number.parseFloat(style.fontSize) * scaleY || 16 * scaleY);
+    context.font = `${style.fontWeight || '400'} ${fontSize}px ${style.fontFamily || 'sans-serif'}`;
+    context.textBaseline = 'top'; context.fillStyle = style.color || '#ffffff';
+    const paddingLeft = (Number.parseFloat(style.paddingLeft) || 0) * scaleX;
+    const paddingTop = (Number.parseFloat(style.paddingTop) || 0) * scaleY;
+    context.fillText(element.textContent ?? '', x + paddingLeft, y + paddingTop, Math.max(1, width - paddingLeft));
+  }
+  return new Promise<Blob>((resolve, reject) => output.toBlob((value) => value ? resolve(value) : reject(new Error('Composite PNG encoding failed.')), 'image/png'));
+}
+
+function drawCapturedHudText(context: CanvasRenderingContext2D, text: string, position: HudTextPosition, style: CSSStyleDeclaration, outputWidth: number, outputHeight: number, scaleX: number, scaleY: number): void {
+  const fontSize = Math.max(8, (Number.parseFloat(style.fontSize) || 22) * scaleY);
+  const lineHeight = fontSize * 1.25;
+  context.font = `${style.fontWeight || '700'} ${fontSize}px ${style.fontFamily || 'monospace'}`;
+  const lines = text.split('\n');
+  const paddingX = 9 * scaleX, paddingY = 6 * scaleY;
+  const width = Math.min(outputWidth - 24 * scaleX, Math.max(...lines.map((line) => context.measureText(line).width)) + paddingX * 2);
+  const height = lines.length * lineHeight + paddingY * 2;
+  const [vertical, horizontal] = position === 'center' ? ['center', 'center'] : position.split('-') as [string, string];
+  const x = horizontal === 'right' ? outputWidth - width - 12 * scaleX : horizontal === 'center' ? (outputWidth - width) / 2 : 12 * scaleX;
+  const y = vertical === 'bottom' ? outputHeight - height - 12 * scaleY : vertical === 'center' ? (outputHeight - height) / 2 : 12 * scaleY;
+  context.fillStyle = style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)' ? style.backgroundColor : 'rgba(17,17,17,0.67)';
+  context.fillRect(x, y, width, height);
+  context.fillStyle = style.color || '#ffffff'; context.textBaseline = 'top';
+  lines.forEach((line, index) => context.fillText(line, x + paddingX, y + paddingY + index * lineHeight, Math.max(1, width - paddingX * 2)));
 }
 
 function readSimulationState(): SimulationStateValue {

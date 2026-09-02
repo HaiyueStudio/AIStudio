@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, nativeImage, protocol } from 'electron';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BrowserWindowPreviewControl } from './g12-browser-window-preview-control.mjs';
@@ -39,8 +39,16 @@ app.whenReady().then(async () => {
     const replayProgram = compileG12ReplayProgram({ driver: 'fixed', steps: [{ id: 'semantic-input', at: 'play-ready', action: 'scripted-aim-and-fire', parameters: { target: 'nearest-visible-enemy', shots: 1 } }] }, { baseTick: inspected.tick });
     const replay = await executeG12ReplayProgram(control, replayProgram, { capture: true, maxTriggerWaitTicks: 30 });
     const stopped = await control.stop();
-    const result = { started: started.state, baselineTick: baseline.tick, tick: inspected.tick, advanced: inspected.tick === baseline.tick + 1, frame: inspected.frame, x: stepped.value.state.entities.find((entry) => entry.id === 'entity:g12-player')?.position?.[0], hud: inspected.value.hud?.length ?? 0, gameplay: inspected.value.gameplay?.find((entry) => entry.id === 'game')?.value?.score ?? null, semanticDrivers: replay.semanticDriverIds, replayPngBytes: replay.capture?.byteLength ?? 0, pngBytes: captured.byteLength, sameTick: captured.tick === inspected.tick, cleanup: stopped.disposableCount, stopped: stopped.state };
-    if (result.started !== 'playing' || !result.advanced || result.x !== 1 || result.hud < 1 || result.gameplay !== 1 || result.semanticDrivers.join(',') !== 'scripted-aim-and-fire' || result.replayPngBytes < 8 || result.pngBytes < 8 || !result.sameTick || result.cleanup !== 0 || result.stopped !== 'stopped') throw new Error(JSON.stringify(result));
+    const captureImage = nativeImage.createFromBuffer(Buffer.from(replay.capture.base64, 'base64'));
+    const captureSize = captureImage.getSize(), captureBitmap = captureImage.toBitmap();
+    let brightTop = 0;
+    for (let index = 0; index < captureSize.width * Math.ceil(captureSize.height * 0.25); index += 1) {
+      const offset = index * 4;
+      const brightness = captureBitmap[offset] + captureBitmap[offset + 1] + captureBitmap[offset + 2];
+      if (brightness > 600) brightTop += 1;
+    }
+    const result = { started: started.state, baselineTick: baseline.tick, tick: inspected.tick, advanced: inspected.tick === baseline.tick + 1, frame: inspected.frame, x: stepped.value.state.entities.find((entry) => entry.id === 'entity:g12-player')?.position?.[0], hud: inspected.value.hud?.length ?? 0, gameplay: inspected.value.gameplay?.find((entry) => entry.id === 'game')?.value?.score ?? null, semanticDrivers: replay.semanticDriverIds, replayPngBytes: replay.capture?.byteLength ?? 0, pngBytes: captured.byteLength, hudPixels: brightTop >= 8, sameTick: captured.tick === inspected.tick, cleanup: stopped.disposableCount, stopped: stopped.state };
+    if (result.started !== 'playing' || !result.advanced || result.x !== 1 || result.hud < 1 || result.gameplay !== 1 || result.semanticDrivers.join(',') !== 'scripted-aim-and-fire' || result.replayPngBytes < 8 || result.pngBytes < 8 || !result.hudPixels || !result.sameTick || result.cleanup !== 0 || result.stopped !== 'stopped') throw new Error(JSON.stringify(result));
     console.log(`[g12-preview-control] ${JSON.stringify(result)}`);
     app.exit(0);
   } catch (cause) {

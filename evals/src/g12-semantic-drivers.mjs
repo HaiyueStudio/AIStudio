@@ -22,6 +22,7 @@ export function createG12SemanticDriverRegistry() {
     driver('scripted-aim-and-fire', 180, aimAndFire),
     driver('scripted-fire-at-covered-enemy', 90, fireAtCoveredEnemy),
     driver('scripted-resolve-combat', 1_200, resolveCombat),
+    driver('scripted-verify-snake', 1_200, verifySnake),
   ];
   const registry = Object.freeze(Object.fromEntries(definitions.map((entry) => [entry.id, entry])));
   const actual = Object.keys(registry).sort();
@@ -35,7 +36,7 @@ export const G12_SEMANTIC_DRIVER_IDS = deepFreeze(Object.keys(createG12SemanticD
 export async function executeG12SemanticDriver(registry, driverId, control, parameters = {}, options = {}) {
   const definition = registry?.[driverId];
   if (!definition || typeof definition.run !== 'function') throw new G12ReplayProgramError('g12.semantic-driver-missing', `Semantic driver ${driverId} is not registered.`);
-  const session = new DriverSession(control, definition.maxTicks, options.signal, options.onObservation);
+  const session = new DriverSession(control, definition.maxTicks, options.signal, options.onObservation, options.resolveControl);
   const before = await session.inspect();
   await definition.run(session, deepCloneRecord(parameters));
   const after = await session.inspect();
@@ -45,12 +46,13 @@ export async function executeG12SemanticDriver(registry, driverId, control, para
 function driver(id, maxTicks, run) { return Object.freeze({ id, version: '1.0.0', maxTicks, run }); }
 
 class DriverSession {
-  constructor(control, maxTicks, signal, onObservation) {
+  constructor(control, maxTicks, signal, onObservation, resolveControl) {
     if (!control || typeof control.input !== 'function' || typeof control.step !== 'function' || typeof control.inspect !== 'function') throw new G12ReplayProgramError('g12.semantic-driver-control-invalid', 'Semantic drivers require input, step and inspect preview control methods.');
     this.control = control;
     this.maxTicks = maxTicks;
     this.signal = signal;
     this.onObservation = typeof onObservation === 'function' ? onObservation : null;
+    this.resolveControl = typeof resolveControl === 'function' ? resolveControl : (value) => value;
     this.startTick = null;
     this.inputs = 0;
     this.observations = 0;
@@ -78,16 +80,16 @@ class DriverSession {
   async action(control, durationTicks = 1) {
     const current = await this.inspect();
     const tick = current.tick + 1;
-    await this.inject({ tick, kind: 'action', action: control, phase: 'down', source: 'synthetic' });
-    await this.inject({ tick: tick + durationTicks, kind: 'action', action: control, phase: 'up', source: 'synthetic' });
+    await this.inject({ tick, kind: 'action', action: this.resolveControl(control), phase: 'down', source: 'synthetic' });
+    await this.inject({ tick: tick + durationTicks, kind: 'action', action: this.resolveControl(control), phase: 'up', source: 'synthetic' });
     return this.step(durationTicks + 1);
   }
 
   async chord(controls, durationTicks) {
     const current = await this.inspect();
     const tick = current.tick + 1;
-    for (const control of controls) await this.inject({ tick, kind: 'action', action: control, phase: 'down', source: 'synthetic' });
-    for (const control of [...controls].reverse()) await this.inject({ tick: tick + durationTicks, kind: 'action', action: control, phase: 'up', source: 'synthetic' });
+    for (const control of controls) await this.inject({ tick, kind: 'action', action: this.resolveControl(control), phase: 'down', source: 'synthetic' });
+    for (const control of [...controls].reverse()) await this.inject({ tick: tick + durationTicks, kind: 'action', action: this.resolveControl(control), phase: 'up', source: 'synthetic' });
     return this.step(durationTicks + 1);
   }
 
@@ -220,6 +222,96 @@ async function resolveCombat(session) {
     await aimAndFire(session, { shots: 6 });
   }
 }
+
+async function verifySnake(session, parameters) {
+  const targetCollections = integer(parameters.collections, 2, 8, 2);
+  let observation = await session.inspect();
+  let state = snakeState(observation);
+  if (!state) throw new G12ReplayProgramError('g12.semantic-snake-state-missing', 'Snake verification requires authoritative numeric head, food, direction, score and length fields.');
+  const initialScore = state.score;
+  const initialDirection = state.direction;
+  const opposite = directionName(-initialDirection.dc, -initialDirection.dr);
+  if (opposite) {
+    await session.action(opposite, 1);
+    observation = await waitForSnakeMovement(session, state.head, 40);
+    const afterReverse = snakeState(observation);
+    if (!afterReverse || afterReverse.direction.dc !== initialDirection.dc || afterReverse.direction.dr !== initialDirection.dr) {
+      throw new G12ReplayProgramError('g12.semantic-snake-reverse-accepted', 'Snake accepted an immediate reverse direction input.');
+    }
+    state = afterReverse;
+  }
+
+  while (state.score - initialScore < targetCollections) {
+    const desired = chooseSnakeDirection(state);
+    if (!desired) throw new G12ReplayProgramError('g12.semantic-snake-route-missing', 'Snake verification could not derive a safe route to the authoritative food coordinate.');
+    await session.action(desired, 1);
+    observation = await waitForSnakeMovement(session, state.head, 40);
+    state = snakeState(observation);
+    if (!state) throw new G12ReplayProgramError('g12.semantic-snake-state-lost', 'Snake stopped publishing authoritative state while collecting food.');
+    if (state.terminal) throw new G12ReplayProgramError('g12.semantic-snake-early-terminal', 'Snake reached a terminal state before collecting the required food.');
+  }
+
+  for (let index = 0; index < 400 && !state.terminal; index += 1) {
+    observation = await session.step(1);
+    state = snakeState(observation) ?? state;
+  }
+  if (!state.terminal) throw new G12ReplayProgramError('g12.semantic-snake-terminal-missing', 'Snake did not reach a collision terminal state within the bounded verification run.');
+}
+
+async function waitForSnakeMovement(session, before, maxTicks) {
+  for (let index = 0; index < maxTicks; index += 1) {
+    const observation = await session.step(1);
+    const state = snakeState(observation);
+    if (!state || state.terminal || state.head.c !== before.c || state.head.r !== before.r) return observation;
+  }
+  throw new G12ReplayProgramError('g12.semantic-snake-movement-timeout', 'Snake head did not move after a bounded direction input.');
+}
+
+function chooseSnakeDirection(state) {
+  const dx = state.food.c - state.head.c;
+  const dr = state.food.r - state.head.r;
+  const candidates = [];
+  if (dx !== 0) candidates.push(directionName(Math.sign(dx), 0));
+  if (dr !== 0) candidates.push(directionName(0, Math.sign(dr)));
+  const opposite = directionName(-state.direction.dc, -state.direction.dr);
+  const direct = candidates.find((entry) => entry && entry !== opposite);
+  if (direct) return direct;
+  const detour = state.head.r > 0 ? 'ArrowDown' : 'ArrowUp';
+  return detour === opposite ? (state.head.c > 0 ? 'ArrowLeft' : 'ArrowRight') : detour;
+}
+
+function snakeState(observation) {
+  const records = Array.isArray(observation?.value?.gameplay) ? observation.value.gameplay : [];
+  for (const record of records) {
+    const value = record?.value;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const head = gridPoint(value.head), food = gridPoint(value.food), direction = gridDirection(value.dir ?? value.direction);
+    const score = finite(value.score), length = finite(value.length);
+    if (!head || !food || !direction || score === null || length === null) continue;
+    const terminal = ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(String(value.state ?? value.status ?? '').toLowerCase());
+    return { head, food, direction, score, length, terminal };
+  }
+  return null;
+}
+
+function gridPoint(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const c = finite(value.c ?? value.column ?? value.x), r = finite(value.r ?? value.row ?? value.y);
+  return c === null || r === null ? null : { c, r };
+}
+function gridDirection(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const dc = finite(value.dc ?? value.x), dr = finite(value.dr ?? value.y);
+  return dc === null || dr === null ? null : { dc, dr };
+}
+function directionName(dc, dr) {
+  if (dc === 1 && dr === 0) return 'ArrowRight';
+  if (dc === -1 && dr === 0) return 'ArrowLeft';
+  if (dc === 0 && dr === 1) return 'ArrowUp';
+  if (dc === 0 && dr === -1) return 'ArrowDown';
+  return null;
+}
+function finite(value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; }
 
 function findTarget(observation, criteria) {
   const records = Array.isArray(observation?.value?.gameplay) ? observation.value.gameplay : [];

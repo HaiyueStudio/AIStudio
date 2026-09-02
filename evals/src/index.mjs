@@ -11,3 +11,4 @@ export { G12_BACKENDS, G12_GENRES, G12_REQUIRED_GATES, G12AcceptanceError, asser
 export { G12_SEMANTIC_REPLAY_ACTIONS, G12ReplayProgramError, assertG12SemanticDriverCoverage, compileG12ReplayProgram } from './g12-replay-program.mjs';
 export { G12_SEMANTIC_DRIVER_IDS, createG12SemanticDriverRegistry, executeG12SemanticDriver } from './g12-semantic-drivers.mjs';
 export { GameplaySignalTracker, awaitG12GameplayTrigger, executeG12ReplayProgram } from './g12-replay-executor.mjs';
+export { analyzeG12ReplayEvidence } from './g12-evidence-analysis.mjs';

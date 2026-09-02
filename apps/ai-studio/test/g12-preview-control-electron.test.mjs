@@ -12,7 +12,7 @@ test('G12 runner controls the real sandboxed iframe through the GamePreviewContr
   const userData = await mkdtemp(path.join(tmpdir(), 'haiyue-g12-preview-control-'));
   const result = await run(electronPath, [fixture], { ...process.env, HAIYUE_G12_PREVIEW_ROOT: path.join(appRoot, 'dist'), HAIYUE_G12_USER_DATA: userData });
   assert.equal(result.code, 0, result.output);
-  assert.match(result.output, /\[g12-preview-control\].*"started":"playing".*"advanced":true.*"x":1.*"gameplay":1.*"semanticDrivers":\["scripted-aim-and-fire"\].*"replayPngBytes":[1-9][0-9]*.*"sameTick":true.*"cleanup":0.*"stopped":"stopped"/u);
+  assert.match(result.output, /\[g12-preview-control\].*"started":"playing".*"advanced":true.*"x":1.*"gameplay":1.*"semanticDrivers":\["scripted-aim-and-fire"\].*"replayPngBytes":[1-9][0-9]*.*"hudPixels":true.*"sameTick":true.*"cleanup":0.*"stopped":"stopped"/u);
 });
 
 function run(command, args, env) { return new Promise((resolve, reject) => { const child = spawn(command, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }); let output = ''; child.stdout.on('data', chunk => { output += chunk; }); child.stderr.on('data', chunk => { output += chunk; }); child.once('error', reject); child.once('exit', code => resolve({ code, output })); }); }

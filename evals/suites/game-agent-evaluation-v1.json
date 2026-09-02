@@ -52,9 +52,7 @@
       "inputReplay": {
         "driver": "fixed",
         "steps": [
-          { "id": "start", "at": "play-ready", "action": "press", "control": "ArrowRight", "durationTicks": 1 },
-          { "id": "turn-down", "at": "tick:90", "action": "press", "control": "ArrowDown", "durationTicks": 1 },
-          { "id": "turn-left", "at": "tick:150", "action": "press", "control": "ArrowLeft", "durationTicks": 1 },
+          { "id": "verify-gameplay", "at": "play-ready", "action": "scripted-verify-snake", "parameters": { "collections": 2 } },
           { "id": "restart", "at": "after:game-over", "action": "press", "control": "KeyR", "durationTicks": 1 }
         ]
       },
@@ -220,7 +218,7 @@
         "steps": [
           { "id": "wrong-drop", "at": "play-ready", "action": "scripted-drag-piece", "parameters": { "destination": "wrong-slot", "release": true } },
           { "id": "near-correct", "at": "after:wrong-drop", "action": "scripted-drag-piece", "parameters": { "destination": "near-correct-slot", "release": true } },
-          { "id": "complete", "at": "after:first-piece-locked", "action": "scripted-complete-jigsaw", "parameters": { "order": "deterministic" } },
+          { "id": "complete", "at": "after:first-piece-locked", "action": "scripted-complete-jigsaw", "parameters": { "order": "stable" } },
           { "id": "reshuffle", "at": "after:complete", "action": "press", "control": "KeyR", "durationTicks": 1 }
         ]
       },

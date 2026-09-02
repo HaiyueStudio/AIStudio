@@ -15,10 +15,9 @@ test('all seven hidden replays compile and declare every semantic driver explici
 test('real iframe startup ticks rebase absolute suite ticks and play-ready input', () => {
   const snake = assets.suite.cases.find((entry) => entry.genre === 'snake');
   const program = compileG12ReplayProgram(snake.inputReplay, { baseTick: 3 });
-  const firstDown = program.commands.find((entry) => entry.sourceStepId === 'start' && entry.phase === 'down');
-  const turnDown = program.commands.find((entry) => entry.sourceStepId === 'turn-down' && entry.phase === 'down');
-  assert.equal(firstDown.schedule.tick, 4);
-  assert.equal(turnDown.schedule.tick, 93);
+  const verification = program.commands.find((entry) => entry.sourceStepId === 'verify-gameplay');
+  assert.equal(verification.schedule.tick, 4);
+  assert.equal(verification.driverId, 'scripted-verify-snake');
 });
 
 test('press, hold and sequence expand to deterministic down/up pairs', () => {

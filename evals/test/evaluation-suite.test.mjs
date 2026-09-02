@@ -47,7 +47,8 @@ test('relationship validator rejects unknown capabilities, duplicate IDs and uno
   assert.throws(() => verifySuiteRelationships({ suite: duplicateId, ...args() }), (error) => error.code === 'eval.id-duplicate');
 
   const unorderedTicks = deepClone(assets.suite);
-  unorderedTicks.cases[0].inputReplay.steps[1].at = 'tick:200';
-  unorderedTicks.cases[0].inputReplay.steps[2].at = 'tick:100';
+  unorderedTicks.cases[0].inputReplay.steps.splice(1, 0,
+    { id: 'later', at: 'tick:200', action: 'press', control: 'ArrowDown', durationTicks: 1 },
+    { id: 'earlier', at: 'tick:100', action: 'press', control: 'ArrowLeft', durationTicks: 1 });
   assert.throws(() => verifySuiteRelationships({ suite: unorderedTicks, ...args() }), (error) => error.code === 'eval.replay-tick-order-invalid');
 });

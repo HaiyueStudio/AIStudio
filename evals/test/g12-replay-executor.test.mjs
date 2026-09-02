@@ -44,6 +44,19 @@ test('terminal status aliases are normalized but HUD text is never treated as a 
   assert.equal(tracker.tickFor('terminal-state'), 7);
 });
 
+test('physical replay controls resolve through the project action map for direct and semantic input', async () => {
+  const control = previewControl();
+  const program = compileG12ReplayProgram({ driver: 'fixed', steps: [
+    { id: 'direct', at: 'play-ready', action: 'press', control: 'ArrowRight', durationTicks: 1 },
+    { id: 'semantic', at: 'tick:2', action: 'scripted-swap', parameters: {} },
+  ] });
+  const drivers = { 'scripted-swap': { id: 'scripted-swap', version: '1.0.0', maxTicks: 4, async run(session) { await session.action('KeyX', 1); } } };
+  await executeG12ReplayProgram(control, program, { drivers, resolveControl: (value) => ({ ArrowRight: 'right', KeyX: 'confirm' })[value] ?? value });
+  assert.ok(control.events.some((entry) => entry.action === 'right'));
+  assert.ok(control.events.some((entry) => entry.action === 'confirm'));
+  assert.equal(control.events.some((entry) => entry.action === 'ArrowRight' || entry.action === 'KeyX'), false);
+});
+
 function previewControl(options = {}) {
   let tick = options.startTick ?? 0;
   const events = [];
