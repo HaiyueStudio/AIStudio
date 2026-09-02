@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { asStableId, createStudioServiceToken, defineStudioPlugin } from '@haiyue/ai-studio-contracts';
 import { createHarnessStudioRoot } from '../dist/index.js';
 import { runHarnessBridgeUpstreamConformance } from '../dist/conformance.js';
-import { createPinnedHarnessAgentTransport, harnessToolName } from '../dist/harness-agent.js';
+import { createPinnedHarnessAgentTransport, harnessRequestRetryDelayMs, harnessToolName } from '../dist/harness-agent.js';
 
 const valueToken = createStudioServiceToken('fixture.value');
 const capability = asStableId('fixture.capability');
@@ -201,4 +201,13 @@ test('Harness maps dotted Studio tool ids to provider-safe deterministic names',
   assert.equal(harnessToolName('entity.create', 0), 'studio_0_entity_create');
   assert.equal(harnessToolName('preview.start', 12), 'studio_12_preview_start');
   assert.match(harnessToolName('studio.tool/unsafe value', 1), /^[a-zA-Z0-9_-]+$/);
+});
+
+test('Harness request recovery executes the upstream retry contract with a Studio hard bound', () => {
+  const policy = { mode: 'normal', maxRetries: 8, retryableCodes: ['TRANSPORT', 'TIMEOUT'], initialDelayMs: 500, maxDelayMs: 10_000 };
+  assert.equal(harnessRequestRetryDelayMs({ code: 'TRANSPORT' }, policy, 0), 500);
+  assert.equal(harnessRequestRetryDelayMs({ code: 'TRANSPORT', providerRetryAfterMs: 1_500 }, policy, 1), 1_500);
+  assert.equal(harnessRequestRetryDelayMs({ code: 'TRANSPORT' }, policy, 2), null, 'Studio caps even a larger provider policy at two attempts');
+  assert.equal(harnessRequestRetryDelayMs({ code: 'AUTH' }, policy, 0), null);
+  assert.equal(harnessRequestRetryDelayMs({ code: 'TIMEOUT' }, undefined, 0), null);
 });

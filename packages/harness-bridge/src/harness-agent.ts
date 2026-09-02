@@ -66,6 +66,27 @@ export interface PinnedHarnessAgentTransportOptions {
   readonly baseURL?: string;
 }
 
+interface HarnessRequestFailure { readonly code: string; readonly providerRetryAfterMs?: number; }
+interface HarnessRequestRetryPolicy {
+  readonly mode: 'normal' | 'always';
+  readonly maxRetries?: number;
+  readonly retryableCodes?: readonly string[];
+  readonly initialDelayMs: number;
+  readonly maxDelayMs: number;
+}
+
+const STUDIO_MAX_HARNESS_REQUEST_RETRIES = 2;
+
+/** Resolve one bounded, deterministic retry delay from the provider-owned Harness policy. */
+export function harnessRequestRetryDelayMs(failure: HarnessRequestFailure, policy: HarnessRequestRetryPolicy | undefined, failedAttempts: number): number | null {
+  if (!policy || !Number.isSafeInteger(failedAttempts) || failedAttempts < 0) return null;
+  const policyLimit = policy.mode === 'normal' ? Math.min(policy.maxRetries ?? 0, STUDIO_MAX_HARNESS_REQUEST_RETRIES) : STUDIO_MAX_HARNESS_REQUEST_RETRIES;
+  if (failedAttempts >= policyLimit || (policy.mode === 'normal' && !policy.retryableCodes?.includes(failure.code))) return null;
+  const exponential = Math.min(policy.maxDelayMs, policy.initialDelayMs * (2 ** failedAttempts));
+  const requested = Number.isFinite(failure.providerRetryAfterMs) && (failure.providerRetryAfterMs ?? 0) >= 0 ? failure.providerRetryAfterMs! : 0;
+  return Math.max(0, Math.min(policy.maxDelayMs, Math.max(exponential, requested)));
+}
+
 export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAgentTransportOptions): Promise<HarnessAgentTransport> {
   const context = new Context();
   const fibers = [
@@ -188,6 +209,16 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
       sessionId: SessionId(sessionId), agentOptions: { provider: 'deepseek-official', model: input.model, maxTokens: input.maxTokens }, signal,
       setup: (agentContext) => {
         installModelSelection(agentContext, selection);
+        const failedAttempts = new Map<string, number>();
+        agentContext.on('agent/request-error', async (payload, next) => {
+          const key = `${payload.turn}:${payload.step}`;
+          const attempt = failedAttempts.get(key) ?? 0;
+          const delayMs = harnessRequestRetryDelayMs(payload.failure, payload.retryPolicy, attempt);
+          if (delayMs === null) return next();
+          failedAttempts.set(key, attempt + 1);
+          await abortableDelay(delayMs, payload.signal);
+          return Object.freeze({ kind: 'retry' as const });
+        });
         input.tools.forEach((tool, index) => agentContext.tools.register(this.toolDefinition(tool, index)));
       },
     });
@@ -241,3 +272,12 @@ function latestTurn(agent: Agent | undefined): number { const events = agent?.se
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function harnessToolSetSignature(tools: readonly HarnessBridgeTool[]): string { return createHash('sha256').update(stableJson(tools.map((tool) => ({ id: tool.id, description: tool.description, inputSchema: tool.inputSchema })))).digest('hex'); }
 function stableJson(value: unknown): string { if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'; if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`; return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`).join(',')}}`; }
+function abortableDelay(delayMs: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(done, delayMs);
+    const abort = (): void => { clearTimeout(timer); signal.removeEventListener('abort', abort); reject(signal.reason); };
+    function done(): void { signal.removeEventListener('abort', abort); resolve(); }
+    signal.addEventListener('abort', abort, { once: true });
+  });
+}
