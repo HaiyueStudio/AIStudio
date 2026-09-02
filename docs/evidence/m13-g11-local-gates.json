@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "binding": "m13-g11-2026-09-02",
   "status": "local-gates-pass",
-  "generatedAt": "2026-09-02T09:20:22.473Z",
+  "generatedAt": "2026-09-02T09:43:35.824Z",
   "migration": {
     "mutationReplayCount": 0,
     "idempotencyTest": "apps/ai-studio/test/legacy-session-migration.test.mjs"
@@ -11,8 +11,8 @@
     "transcriptEntries": 126,
     "opCount": 136,
     "surfaceGeneration": 2,
-    "surfaceDigest": "sha256:07517c8a8e1333e8c95cd9d45a40bbdf26ea17e87269cd5589e6d1b3dc326efe",
-    "replayedSurfaceDigest": "sha256:07517c8a8e1333e8c95cd9d45a40bbdf26ea17e87269cd5589e6d1b3dc326efe",
+    "surfaceDigest": "sha256:0465bad2c34211e435f94a96b6d8aff829a0f6fcec318d7963c49b2bf8c4d181",
+    "replayedSurfaceDigest": "sha256:0465bad2c34211e435f94a96b6d8aff829a0f6fcec318d7963c49b2bf8c4d181",
     "automaticCompaction": "completed",
     "manualCompaction": "completed",
     "compactionRecords": 2
@@ -21,8 +21,8 @@
     "requestedNodes": 1000,
     "projectedNodes": 1000,
     "layoutNodes": 1000,
-    "projectionMs": 272.136,
-    "layoutMs": 11.046,
+    "projectionMs": 189.078,
+    "layoutMs": 8.317,
     "digest": "sha256:42caf4cc14b6c4166969e0b288cf7c344f09d7c7ba4090cebb3c2147a852fdd6"
   },
   "project": {
@@ -35,7 +35,7 @@
   "toolBatch": {
     "nodeCount": 32,
     "maxConcurrencyObserved": 4,
-    "wallTimeMs": 42.695,
+    "wallTimeMs": 42.341,
     "serialEstimateMs": 128,
     "modelTurnsBaseline": 3,
     "modelTurnsCurrent": 1,
@@ -46,8 +46,8 @@
     "schemaByteReduction": 0.606086744962732
   },
   "memory": {
-    "sessionHeapDeltaBytes": 8196280,
-    "graphHeapDeltaBytes": 10247792,
-    "totalHeapDeltaBytes": 18444072
+    "sessionHeapDeltaBytes": 8415320,
+    "graphHeapDeltaBytes": 10393960,
+    "totalHeapDeltaBytes": 18809280
   }
 }

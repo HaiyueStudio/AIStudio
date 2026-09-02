@@ -113,10 +113,12 @@ const metrics: readonly BudgetMetric[] = ['inputTokens', 'outputTokens', 'estima
  * Usage keeps the provider-reported total for audit and pricing, while the
  * budget charges only input that was newly processed. Treating cache reads as
  * fresh context makes a healthy cached tool loop look like unbounded growth.
- * Missing cache counters stay fail-closed and charge the complete input.
+ * Missing cache-read evidence stays fail-closed and charges the complete
+ * input. A missing cache-write counter is conservatively treated as zero,
+ * because that subtracts no unverified tokens.
  */
 function budgetedInputTokens(usage: UsageRecordV2): number | null {
   if (usage.inputTokens === null) return null;
-  if (usage.cachedInputTokens === null || usage.cacheWriteTokens === null) return usage.inputTokens;
-  return Math.max(0, usage.inputTokens - usage.cachedInputTokens - usage.cacheWriteTokens);
+  if (usage.cachedInputTokens === null) return usage.inputTokens;
+  return Math.max(0, usage.inputTokens - usage.cachedInputTokens - (usage.cacheWriteTokens ?? 0));
 }

@@ -162,8 +162,12 @@ test('input budget charges net-new provider input while preserving fail-closed u
   assert.equal(accepted.allowed, true);
   assert.equal(cached.consumption().inputTokens, 40);
 
+  const unknownWrite = new TaskBudgetController(budget('hard'));
+  assert.equal(unknownWrite.reconcileUsage(usageRecord({ inputTokens: 1_000, cachedInputTokens: 950, cacheWriteTokens: null }), 1).allowed, true);
+  assert.equal(unknownWrite.consumption().inputTokens, 50);
+
   const unknownCache = new TaskBudgetController(budget('hard'));
-  const denied = unknownCache.reconcileUsage(usageRecord({ inputTokens: 101, cachedInputTokens: null, cacheWriteTokens: null }), 1);
+  const denied = unknownCache.reconcileUsage(usageRecord({ inputTokens: 101, cachedInputTokens: null, cacheWriteTokens: 0 }), 1);
   assert.equal(denied.allowed, false);
   assert.equal(unknownCache.consumption().inputTokens, 101);
 });
