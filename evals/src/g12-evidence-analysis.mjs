@@ -8,13 +8,13 @@ export function analyzeG12ReplayEvidence({ genre, replay, scene, bitmap, width, 
 
 function analyzeSnake(replay, tickRateHz) {
   const observations = Array.isArray(replay?.observations) ? replay.observations : [];
-  const states = observations.map(snakeState).filter(Boolean);
+  const states = deriveDirections(observations.map(snakeState).filter(Boolean));
   if (states.length < 2) return {};
   const initial = states[0];
   const final = states.at(-1);
   const maximumScore = Math.max(...states.map((entry) => entry.score));
   const maximumLength = Math.max(...states.map((entry) => entry.length));
-  const directions = new Set(states.map((entry) => `${entry.direction.dc},${entry.direction.dr}`));
+  const directions = new Set(states.filter((entry) => entry.direction).map((entry) => `${entry.direction.dc},${entry.direction.dr}`));
   const collections = positiveTransitions(states, 'score');
   const respawned = collections > 0 && foodRespawned(states);
   const terminal = states.some((entry) => entry.terminal) && (replay.observedSignals ?? []).some((entry) => ['game-over', 'gameover'].includes(entry));
@@ -104,7 +104,7 @@ function snakeState(observation) {
     const value = record?.value;
     if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
     const head = point(value.head), food = point(value.food), direction = vector(value.dir ?? value.direction);
-    if (!head || !direction || !Number.isFinite(value.score) || !Number.isFinite(value.length)) continue;
+    if (!head || !Number.isFinite(value.score) || !Number.isFinite(value.length)) continue;
     return {
       tick: observation.tick,
       head,
@@ -116,6 +116,18 @@ function snakeState(observation) {
     };
   }
   return null;
+}
+
+function deriveDirections(states) {
+  let prior = null;
+  return states.map((state) => {
+    let direction = state.direction;
+    if (!direction && prior && (state.head.c !== prior.head.c || state.head.r !== prior.head.r)) direction = { dc: Math.sign(state.head.c - prior.head.c), dr: Math.sign(state.head.r - prior.head.r) };
+    if (!direction && prior?.direction) direction = prior.direction;
+    const derived = direction ? { ...state, direction } : state;
+    prior = derived;
+    return derived;
+  });
 }
 
 function point(value) {

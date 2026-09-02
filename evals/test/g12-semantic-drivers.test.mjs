@@ -36,7 +36,7 @@ test('semantic drivers fail closed for missing registration and tick-budget over
 });
 
 test('snake verification accepts XZ gameplay state and maps vertical direction semantics', async () => {
-  const control = snakePreviewControl('xz');
+  const control = snakePreviewControl('xz', 'index');
   const result = await executeG12SemanticDriver(
     createG12SemanticDriverRegistry(),
     'scripted-verify-snake',
@@ -60,7 +60,7 @@ function previewControl(replayTargets = []) {
   };
 }
 
-function snakePreviewControl(axis = 'row') {
+function snakePreviewControl(axis = 'row', directionMode = 'vector') {
   let tick = 5;
   let head = { c: 2, r: 1 };
   let food = axis === 'xz' ? { c: 2, r: 3 } : { c: 4, r: 1 };
@@ -70,7 +70,10 @@ function snakePreviewControl(axis = 'row') {
   let terminal = false;
   const events = [];
   const external = (value) => axis === 'xz' ? { x: value.c ?? value.dc, z: value.r ?? value.dr } : value;
-  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : 'playing', head: external(head), food: external(food), dir: external(direction), score, length, events: terminal ? ['gameover'] : [] } }] } });
+  const encodedDirection = () => directionMode === 'index'
+    ? [{ dc: 1, dr: 0 }, { dc: 0, dr: 1 }, { dc: -1, dr: 0 }, { dc: 0, dr: -1 }].findIndex((entry) => entry.dc === direction.dc && entry.dr === direction.dr)
+    : external(direction);
+  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : 'playing', head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] } }] } });
   const advance = () => {
     tick += 1;
     for (const event of events.filter((entry) => entry.tick === tick && entry.phase === 'down')) {
