@@ -136,7 +136,18 @@ async function run() {
     const runRecorded = async (turnPrompt, continuationSessionId) => {
       recordedEvents = [];
       try {
-        const turnSummary = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: turnPrompt, ...(continuationSessionId ? { sessionId: continuationSessionId } : {}) }, observeEvent, controller.signal));
+        let turnSummary = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: turnPrompt, ...(continuationSessionId ? { sessionId: continuationSessionId } : {}) }, observeEvent, controller.signal));
+        if (isRecoverableSummary(turnSummary) && turnSummary.sessionId && turnSummary.turnId) {
+          try {
+            const recovered = await windowGuard.race(coordinator.recoverValidatedScriptProposal({ taskId, sessionId: turnSummary.sessionId, turnId: turnSummary.turnId, results: turnSummary.results }, controller.signal));
+            if (recovered) {
+              recordedEvents.push(Object.freeze({ kind: 'tool-request', sessionId: turnSummary.sessionId, turnId: turnSummary.turnId, payload: Object.freeze({ toolCallId: recovered.result.callId, toolId: recovered.result.toolId, arguments: Object.freeze({ proposalId: recovered.proposalId }), source: 'studio.interrupted-transaction-recovery' }) }));
+              turnSummary = Object.freeze({ ...turnSummary, results: Object.freeze([...turnSummary.results, recovered.result]), diagnostics: Object.freeze([...turnSummary.diagnostics, Object.freeze({ code: 'agent.interrupted-script-proposal-recovered', message: `Studio committed validated proposal ${recovered.proposalId} after the provider stream was interrupted.` })]) });
+            }
+          } catch (recoveryCause) {
+            turnSummary = Object.freeze({ ...turnSummary, diagnostics: Object.freeze([...turnSummary.diagnostics, Object.freeze({ code: typeof recoveryCause?.code === 'string' ? recoveryCause.code : 'agent.interrupted-script-proposal-recovery-failed', message: recoveryCause instanceof Error ? recoveryCause.message : String(recoveryCause) })]) });
+          }
+        }
         m13Turns.push(await recordM13Turn({ operationLog: fixture.operationLog, sessions: durableSessions, contextFrames, backend, model, config, taskId, prompt: turnPrompt, summary: turnSummary, events: recordedEvents, projectRevision: fixture.workspace.snapshot().document.revision }));
         return turnSummary;
       } catch (cause) {
@@ -178,12 +189,9 @@ async function run() {
         gameplayContract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
       }
       summary = mergeTurnSummaries(summaries);
+      if (summary.terminal !== 'completed') throw terminalSummaryError(summary);
       if (!gameplayContract.valid) throw errorWithCode('g12.gameplay-contract-missing', `Generated scripts do not satisfy the generic gameplay telemetry contract: ${gameplayContract.diagnostics.join(', ')}.`);
     } finally { clearTimeout(timer); }
-    if (summary.terminal !== 'completed') {
-      const convergence = summary.diagnostics.find((entry) => entry.code === 'agent.tool-loop-detected' || entry.code === 'agent.tool-progress-stalled' || entry.code === 'agent.tool-call-budget-exceeded');
-      throw errorWithCode(convergence?.code ?? 'g12.agent-turn-not-completed', convergence?.message ?? `Agent turn ended with ${summary.terminal}.`);
-    }
     if (enabledScriptCount(fixture.projectScripts.snapshot()) === 0) throw errorWithCode('g12.script-not-created', 'Agent completed both the initial and bounded repair turns without committing an enabled script.');
     await fixture.workspace.save();
 
@@ -462,6 +470,11 @@ function ensureFailureAttribution(taskId, usageRecords, costRecords) {
 }
 function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
 function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }
+function terminalSummaryError(summary) {
+  const priority = ['budget.formal-cap', 'agent.tool-loop-detected', 'agent.tool-progress-stalled', 'agent.tool-call-budget-exceeded', 'TRANSPORT', 'agent.rate-limited', 'agent.stream-without-terminal'];
+  const root = priority.map((code) => summary.diagnostics.findLast((entry) => entry.code === code)).find(Boolean);
+  return errorWithCode(root?.code ?? 'g12.agent-turn-not-completed', root?.message ?? `Agent turn ended with ${summary.terminal}.`);
+}
 function defaultQuestionAnswer(event) {
   const questions = Array.isArray(event.payload.questions) ? event.payload.questions : [];
   const answer = {};

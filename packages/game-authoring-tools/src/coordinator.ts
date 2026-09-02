@@ -40,6 +40,20 @@ export interface AgentGameTurnSummary {
   readonly diagnostics: readonly Readonly<{ code: string; message: string }>[];
 }
 
+export interface InterruptedScriptProposalRecoveryInput {
+  readonly taskId: StableId;
+  readonly sessionId: StableId;
+  readonly turnId: StableId;
+  /** Full Studio-side tool results from the interrupted turn; provider-truncated results are not accepted here. */
+  readonly results: readonly GameToolResult[];
+}
+
+export interface InterruptedScriptProposalRecovery {
+  readonly sourceCallId: StableId;
+  readonly proposalId: StableId;
+  readonly result: GameToolResult;
+}
+
 export interface AgentTurnExecutionPort {
   start(backendId: StableId, input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent>;
   recordToolResult(turnId: StableId, toolCallId: StableId, result: JsonObject, observedAtMs?: number): Promise<void>;
@@ -146,6 +160,46 @@ export class AgentGameAuthoringCoordinator {
     } } finally { unlinkCaller(); unlinkLifecycle(); }
     if (!terminal) terminal = 'interrupted';
     return Object.freeze({ backendId: backend.descriptor.id, sessionId, turnId, terminal, results: Object.freeze(results), diagnostics: Object.freeze(diagnostics) });
+  }
+
+  /**
+   * Completes the exact validated script transaction left between script.propose/script.patch and
+   * script.apply when a provider stream is interrupted. This never bypasses policy: script.apply is
+   * prepared normally, receives a fresh one-shot approval decision, and is written to the Operation Log.
+   */
+  async recoverValidatedScriptProposal(input: InterruptedScriptProposalRecoveryInput, signal?: AbortSignal): Promise<InterruptedScriptProposalRecovery | null> {
+    this.assertActive();
+    const source = [...input.results].reverse().find((result) => {
+      if (result.status !== 'completed' || (result.toolId !== 'script.propose' && result.toolId !== 'script.patch')) return false;
+      const value = result.value as Record<string, unknown>;
+      return value.canApply === true && typeof value.proposalId === 'string' && Number.isSafeInteger(value.baseRevision) && (value.baseRevision as number) >= 0;
+    });
+    if (!source) return null;
+    const value = source.value as Record<string, unknown>;
+    const proposalId = asStableId(value.proposalId as string, 'proposal id');
+    const callId = asStableId(`toolcall:recovery:${sha256(canonicalStringify({ sourceCallId: source.callId, proposalId, sessionId: input.sessionId, turnId: input.turnId })).slice(0, 24)}`);
+    const preparation = await this.runtime.prepare({
+      schemaVersion: 1,
+      id: callId,
+      sessionId: input.sessionId,
+      turnId: input.turnId,
+      taskId: input.taskId,
+      toolId: asStableId('script.apply'),
+      toolVersion: '1.0.0',
+      arguments: Object.freeze({ proposalId, baseRevision: value.baseRevision as number }),
+    }, signal);
+    if (preparation.approvalId) {
+      const approval = this.runtime.approval(preparation.approvalId);
+      if (!approval) throw new Error('Prepared recovery approval is unavailable.');
+      const decision = await this.approvals.request(preparation, approval, signal);
+      await this.runtime.decide(approval.approvalId, decision);
+    }
+    const result = await this.runtime.execute(preparation.id, signal);
+    const complete = Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.historyLabel ? { historyLabel: result.historyLabel } : {}) });
+    const diagnostics: Array<Readonly<{ code: string; message: string }>> = [];
+    await recordToolAccounting(this.turns, input.turnId, result.callId, complete, diagnostics);
+    if (diagnostics[0]) throw new GameToolProtocolError(diagnostics[0].code, diagnostics[0].message);
+    return Object.freeze({ sourceCallId: source.callId, proposalId, result });
   }
 
   dispose(): void { if (this.disposed) return; this.disposed = true; this.lifecycle.abort(new GameToolProtocolError('tool.coordinator-disposed', 'Agent game authoring coordinator is disposed.')); }

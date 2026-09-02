@@ -843,6 +843,40 @@ test('fake backend deterministic E2E creates, transforms, scripts and starts pre
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
+test('coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval', async () => {
+  const value = await fixture();
+  const created = await executeReady(value.runtime, call('call:recovery-create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Recovery Target' }));
+  const approvals = [];
+  const backend = minimalBackend(async function* () {
+    yield event('tool-request', { toolCallId: 'toolcall:recovery-propose', toolId: 'script.propose', arguments: { baseRevision: created.afterRevision, entityId: created.value.entity.id, text: movementScript, capabilities: ['read', 'debug'] } });
+    yield event('diagnostic', { code: 'TRANSPORT', message: 'fixture provider connection closed' });
+  });
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, {
+    async request(preparation) { approvals.push(preparation.toolId); return 'allow-once'; },
+  });
+  try {
+    const summary = await coordinator.run(backend, { taskId: asStableId('task:recovery'), prompt: 'Create a script.' });
+    assert.equal(summary.terminal, 'interrupted');
+    assert.deepEqual(summary.results.map((item) => item.toolId), ['script.propose']);
+    assert.equal(summary.results[0].value.canApply, true);
+    assert.equal(value.scripts.snapshot().resources.length, 0);
+
+    const recovered = await coordinator.recoverValidatedScriptProposal({
+      taskId: asStableId('task:recovery'), sessionId: summary.sessionId, turnId: summary.turnId, results: summary.results,
+    });
+    assert.equal(recovered.result.toolId, 'script.apply');
+    assert.equal(recovered.result.status, 'completed');
+    assert.equal(recovered.sourceCallId, 'toolcall:recovery-propose');
+    assert.deepEqual(approvals, ['script.apply']);
+    assert.equal(value.scripts.snapshot().resources.length, 1);
+    assert.equal(value.scripts.snapshot().resources[0].text, movementScript);
+
+    const facts = await value.operationLog.query({ toolCallId: recovered.result.callId, limit: 100, traverseCorrelation: true });
+    assert.ok(facts.events.some((item) => item.kind === 'approval/allow-once'));
+    assert.ok(facts.events.some((item) => item.kind === 'document/command-committed'));
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
 test('agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam', async () => {
   const beforeRestart = await fixture(); let beforeDisposed = false; let afterRestart; let coordinator;
   try {
