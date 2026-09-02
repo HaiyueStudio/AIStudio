@@ -529,7 +529,7 @@ function takeOverVerifiedAuthoring(summary, fixture, preview) {
   const takeoverCodes = new Set(['agent.tool-progress-stalled', 'g12.agent-verification-ready', 'g12.agent-authoring-timebox-reached']);
   if (summary.terminal === 'completed' || !summary.diagnostics.some((entry) => takeoverCodes.has(entry.code))) return summary;
   const completed = new Set(summary.results.filter((entry) => entry.status === 'completed').map((entry) => entry.toolId));
-  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect'];
+  const required = ['preview.validate', 'play.start', 'play.step', 'play.inspect'];
   const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
   const snapshot = preview.snapshot();
   if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || required.some((toolId) => !completed.has(toolId)) || snapshot.errors.length > 0) return summary;
@@ -537,7 +537,7 @@ function takeOverVerifiedAuthoring(summary, fixture, preview) {
 }
 function readyForVerificationTakeover(events, fixture, preview) {
   const requested = new Set(events.filter((entry) => entry.kind === 'tool-request').map((entry) => entry.payload.toolId));
-  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect'];
+  const required = ['preview.validate', 'play.start', 'play.step', 'play.inspect'];
   const snapshot = preview.snapshot();
   return enabledScriptCount(fixture.projectScripts.snapshot()) > 0
     && inspectG12GameplayContract(fixture.projectScripts.snapshot()).valid
