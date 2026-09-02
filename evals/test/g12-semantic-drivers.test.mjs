@@ -48,6 +48,18 @@ test('snake verification accepts XZ gameplay state and maps vertical direction s
   assert.ok(control.events.some((event) => event.action === 'MoveDown'));
 });
 
+test('snake verification starts a ready game before testing reverse input', async () => {
+  const control = snakePreviewControl('row', 'vector', 'ready');
+  await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.equal(control.events.some((event) => event.action === 'ArrowRight'), true);
+});
+
+test('snake verification restarts a terminal handoff before replay', async () => {
+  const control = snakePreviewControl('row', 'vector', 'over');
+  await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.equal(control.events.some((event) => event.action === 'KeyR'), true);
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -60,31 +72,36 @@ function previewControl(replayTargets = []) {
   };
 }
 
-function snakePreviewControl(axis = 'row', directionMode = 'vector') {
+function snakePreviewControl(axis = 'row', directionMode = 'vector', initialState = 'playing') {
   let tick = 5;
   let head = { c: 2, r: 1 };
-  let food = axis === 'xz' ? { c: 2, r: 3 } : { c: 4, r: 1 };
+  let food = axis === 'xz' ? { c: 2, r: 3 } : { c: 6, r: 1 };
   let direction = { dc: 1, dr: 0 };
   let score = 0;
   let length = 3;
-  let terminal = false;
+  let phase = initialState;
+  let terminal = phase === 'over';
   const events = [];
   const external = (value) => axis === 'xz' ? { x: value.c ?? value.dc, z: value.r ?? value.dr } : value;
   const encodedDirection = () => directionMode === 'index'
     ? [{ dc: 1, dr: 0 }, { dc: 0, dr: 1 }, { dc: -1, dr: 0 }, { dc: 0, dr: -1 }].findIndex((entry) => entry.dc === direction.dc && entry.dr === direction.dr)
     : external(direction);
-  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : 'playing', head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] } }] } });
+  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : phase, head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] } }] } });
   const advance = () => {
     tick += 1;
     for (const event of events.filter((entry) => entry.tick === tick && entry.phase === 'down')) {
       const action = ({ MoveUp: 'ArrowUp', MoveDown: 'ArrowDown', MoveLeft: 'ArrowLeft', MoveRight: 'ArrowRight' })[event.action] ?? event.action;
+      if (action === 'KeyR' && terminal) {
+        head = { c: 2, r: 1 }; direction = { dc: 1, dr: 0 }; score = 0; length = 3; terminal = false; phase = 'ready';
+        continue;
+      }
       const requested = action === 'ArrowRight' ? { dc: 1, dr: 0 } : action === 'ArrowLeft' ? { dc: -1, dr: 0 } : action === 'ArrowUp' ? { dc: 0, dr: axis === 'xz' ? -1 : 1 } : action === 'ArrowDown' ? { dc: 0, dr: axis === 'xz' ? 1 : -1 } : direction;
-      if (requested.dc !== -direction.dc || requested.dr !== -direction.dr) direction = requested;
+      if (requested.dc !== -direction.dc || requested.dr !== -direction.dr) { direction = requested; phase = 'playing'; }
     }
-    if (terminal) return;
+    if (terminal || phase !== 'playing') return;
     head = { c: head.c + direction.dc, r: head.r + direction.dr };
-    if (head.c === food.c && head.r === food.r) { score += 1; length += 1; food = score === 1 ? { c: 5, r: 1 } : { c: 0, r: 0 }; }
-    if (head.c > 6 || head.c < 0 || head.r < 0 || head.r > 6) terminal = true;
+    if (head.c === food.c && head.r === food.r) { score += 1; length += 1; food = score === 1 ? (axis === 'xz' ? { c: 5, r: 1 } : { c: 8, r: 1 }) : { c: 0, r: 0 }; }
+    if (head.c > 10 || head.c < 0 || head.r < 0 || head.r > 10) { terminal = true; phase = 'over'; }
   };
   return {
     events,

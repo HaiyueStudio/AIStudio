@@ -228,6 +228,7 @@ async function verifySnake(session, parameters) {
   let observation = await session.inspect();
   let state = snakeState(observation);
   if (!state) throw new G12ReplayProgramError('g12.semantic-snake-state-missing', 'Snake verification requires authoritative numeric head, food, score and length fields.');
+  state = await normalizeSnakeRunState(session, state);
   if (!state.direction) {
     observation = await waitForSnakeMovement(session, state.head, 40);
     state = snakeStateWithPrior(observation, state);
@@ -257,6 +258,34 @@ async function verifySnake(session, parameters) {
     state = snakeStateWithPrior(observation, state) ?? state;
   }
   if (!state.terminal) throw new G12ReplayProgramError('g12.semantic-snake-terminal-missing', 'Snake did not reach a collision terminal state within the bounded verification run.');
+}
+
+async function normalizeSnakeRunState(session, state) {
+  let current = state;
+  if (current.terminal) {
+    const observation = await session.action('KeyR', 1);
+    current = snakeState(observation);
+    if (!current || current.terminal) throw new G12ReplayProgramError('g12.semantic-snake-restart-failed', 'Snake remained terminal after the authoritative restart input.');
+  }
+  if (isSnakeWaitingToStart(current)) {
+    const control = current.direction
+      ? directionName(current.direction.dc, current.direction.dr, current.axis)
+      : directionTowardFood(current);
+    if (!control) throw new G12ReplayProgramError('g12.semantic-snake-start-direction-missing', 'Snake verification could not derive a safe start direction.');
+    current = await moveSnakeWithAction(session, current, control);
+    if (!current || current.terminal) throw new G12ReplayProgramError('g12.semantic-snake-start-failed', 'Snake did not enter a playable state after the start direction input.');
+  }
+  return current;
+}
+
+function isSnakeWaitingToStart(state) {
+  return ['ready', 'idle', 'waiting', 'wait', 'start', 'stopped'].includes(state.phase);
+}
+
+function directionTowardFood(state) {
+  const dc = Math.sign(state.food.c - state.head.c);
+  const dr = Math.sign(state.food.r - state.head.r);
+  return dc !== 0 ? directionName(dc, 0, state.axis) : directionName(0, dr, state.axis);
 }
 
 async function moveSnakeWithAction(session, state, control) {
@@ -297,9 +326,10 @@ function snakeState(observation) {
     const head = gridPoint(value.head), food = gridPoint(value.food), direction = gridDirection(value.dir ?? value.direction);
     const score = finite(value.score), length = finite(value.length);
     if (!head || !food || score === null || length === null) continue;
-    const terminal = ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(String(value.state ?? value.status ?? '').toLowerCase());
+    const phase = String(value.state ?? value.status ?? '').toLowerCase();
+    const terminal = ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(phase);
     const axis = head.axis === 'z' || food.axis === 'z' || direction?.axis === 'z' ? 'z' : 'row';
-    return { head, food, direction, score, length, terminal, axis };
+    return { head, food, direction, score, length, terminal, phase, axis };
   }
   return null;
 }
