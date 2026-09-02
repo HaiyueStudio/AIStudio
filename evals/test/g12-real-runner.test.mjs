@@ -37,8 +37,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /partial-evidence\.json/u);
   assert.match(source, /failed-infrastructure/u);
   assert.match(source, /process\.once\('SIGTERM'/u);
-  assert.match(source, /controller\.abort\(wallTimeError\); void failAndExit\(wallTimeError\)/u);
-  assert.match(source, /g12\.case-wall-time-exceeded/u);
+  assert.match(source, /controller\.abort\(authoringTimeboxError\)/u);
+  assert.doesNotMatch(source, /void failAndExit\(authoringTimeboxError\)/u);
+  assert.match(source, /g12\.agent-authoring-timebox-reached/u);
   assert.match(source, /case-wall-time-ms.*restricted to preflight evidence/u);
   assert.match(source, /g12\.electron-premature-quit/u);
   assert.match(source, /cleanupInProgress/u);
@@ -74,6 +75,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /minimumTakeoverWindowMs/u);
   assert.match(source, /takeOverVerifiedAuthoring/u);
   assert.match(source, /g12\.agent-verification-takeover/u);
+  assert.match(source, /g12\.agent-verification-ready/u);
+  assert.match(source, /preserveCompletedResultsOnCallerAbort: true/u);
+  assert.match(source, /authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs/u);
   for (const toolId of ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture']) assert.match(source, new RegExp(`'${toolId.replace('.', '\\.')}'`, 'u'));
   assert.match(source, /caseDeadlineMs - Date\.now\(\) < minimumTakeoverWindowMs/u);
   assert.match(source, /diagnostics: summary\?\.diagnostics/u);

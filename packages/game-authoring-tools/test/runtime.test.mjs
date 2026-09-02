@@ -1070,6 +1070,30 @@ test('coordinator preserves completed tool results when the host budget observer
   } finally { coordinator.dispose(); await dispose(value); }
 });
 
+test('coordinator can preserve completed tool results when a bounded host timebox aborts the caller', async () => {
+  const value = await fixture(); const completedFirstTool = deferred(); const controller = new AbortController(); let cancelled = 0;
+  const backend = minimalBackend(async function* (_input, signal) {
+    yield event('tool-request', { toolCallId: 'toolcall:timebox-preserved', toolId: 'project.snapshot', arguments: {} });
+    completedFirstTool.resolve();
+    await new Promise((resolve, reject) => {
+      const abort = () => reject(signal.reason);
+      if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
+    });
+  });
+  backend.cancelTurn = async () => { cancelled += 1; };
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, undefined, { preserveCompletedResultsOnCallerAbort: true });
+  try {
+    const running = coordinator.run(backend, { prompt: 'Preserve completed work at the host timebox.' }, undefined, controller.signal);
+    await completedFirstTool.promise;
+    const cause = new Error('Authoring timebox reached.'); cause.code = 'g12.agent-authoring-timebox-reached'; controller.abort(cause);
+    const summary = await running;
+    assert.equal(summary.terminal, 'failed');
+    assert.deepEqual(summary.results.map((item) => item.toolId), ['project.snapshot']);
+    assert.equal(cancelled, 1);
+    assert.ok(summary.diagnostics.some((item) => item.code === 'g12.agent-authoring-timebox-reached'));
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
 test('disposing the coordinator aborts an active backend turn and is idempotent', async () => {
   const value = await fixture(); const entered = deferred();
   const backend = minimalBackend(async function* (_input, signal) {

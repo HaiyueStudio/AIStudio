@@ -107,14 +107,16 @@ async function run() {
       maxNoProgressToolRequests: 24,
       maxModelToolResultBytes: 12 * 1024,
       modelToolIds: G12_AUTHORING_TOOL_IDS,
+      preserveCompletedResultsOnCallerAbort: true,
     });
     const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
-    const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
+    const controller = new AbortController(); const authoringTimeboxError = errorWithCode('g12.agent-authoring-timebox-reached', 'Studio stopped model authoring at its bounded timebox and retained all completed work.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs; const timer = setTimeout(() => controller.abort(authoringTimeboxError), Math.max(1, authoringDeadlineMs - Date.now()));
     const boundTurnIds = new Set();
     const liveTurnUsage = new Map();
     let formalCapError = null;
     let recordedEvents = [];
     const observeEvent = (event) => {
+      if (event.kind !== 'completed' && readyForVerificationTakeover(recordedEvents, fixture, preview)) throw errorWithCode('g12.agent-verification-ready', 'Studio retained the completed authoring and Play proof; hidden replay now owns further verification.');
       recordedEvents.push(event);
       if (!boundTurnIds.has(event.turnId)) {
         boundTurnIds.add(event.turnId);
@@ -502,7 +504,8 @@ function ensureFailureAttribution(taskId, usageRecords, costRecords) {
 function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
 function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }
 function takeOverVerifiedAuthoring(summary, fixture, preview) {
-  if (summary.terminal === 'completed' || !summary.diagnostics.some((entry) => entry.code === 'agent.tool-progress-stalled')) return summary;
+  const takeoverCodes = new Set(['agent.tool-progress-stalled', 'g12.agent-verification-ready', 'g12.agent-authoring-timebox-reached']);
+  if (summary.terminal === 'completed' || !summary.diagnostics.some((entry) => takeoverCodes.has(entry.code))) return summary;
   const completed = new Set(summary.results.filter((entry) => entry.status === 'completed').map((entry) => entry.toolId));
   const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture'];
   const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
@@ -510,8 +513,17 @@ function takeOverVerifiedAuthoring(summary, fixture, preview) {
   if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || required.some((toolId) => !completed.has(toolId)) || snapshot.errors.length > 0) return summary;
   return Object.freeze({ ...summary, terminal: 'completed', diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: 'g12.agent-verification-takeover', message: 'Studio stopped a redundant model self-check loop after a committed script, valid gameplay telemetry, clean Play state, input, inspection and screenshot were all retained; hidden replay now owns acceptance.' })]) });
 }
+function readyForVerificationTakeover(events, fixture, preview) {
+  const requested = new Set(events.filter((entry) => entry.kind === 'tool-request').map((entry) => entry.payload.toolId));
+  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture'];
+  const snapshot = preview.snapshot();
+  return enabledScriptCount(fixture.projectScripts.snapshot()) > 0
+    && inspectG12GameplayContract(fixture.projectScripts.snapshot()).valid
+    && required.every((toolId) => requested.has(toolId))
+    && snapshot.errors.length === 0;
+}
 function terminalSummaryError(summary) {
-  const priority = ['budget.formal-cap', 'agent.tool-loop-detected', 'agent.tool-progress-stalled', 'agent.tool-call-budget-exceeded', 'TRANSPORT', 'agent.rate-limited', 'agent.stream-without-terminal'];
+  const priority = ['budget.formal-cap', 'g12.agent-authoring-timebox-reached', 'g12.agent-verification-ready', 'agent.tool-loop-detected', 'agent.tool-progress-stalled', 'agent.tool-call-budget-exceeded', 'TRANSPORT', 'agent.rate-limited', 'agent.stream-without-terminal'];
   const root = priority.map((code) => summary.diagnostics.findLast((entry) => entry.code === code)).find(Boolean);
   return errorWithCode(root?.code ?? 'g12.agent-turn-not-completed', root?.message ?? `Agent turn ended with ${summary.terminal}.`);
 }

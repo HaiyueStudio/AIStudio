@@ -21,6 +21,8 @@ export interface AgentGameAuthoringCoordinatorOptions {
   readonly maxModelToolResultBytes?: number;
   /** Optional provider-visible subset. The Studio runtime retains the full catalog. */
   readonly modelToolIds?: readonly StableId[];
+  /** Return completed Studio-side results when the caller deliberately aborts a turn. */
+  readonly preserveCompletedResultsOnCallerAbort?: boolean;
 }
 
 export interface AgentGameTurnInput {
@@ -168,7 +170,19 @@ export class AgentGameAuthoringCoordinator {
         const status = event.payload.status;
         terminal = status === 'completed' || status === 'cancelled' || status === 'failed' || status === 'interrupted' ? status : 'failed';
       }
-    } } finally { unlinkCaller(); unlinkLifecycle(); }
+    } } catch (cause) {
+      const preserve = this.options.preserveCompletedResultsOnCallerAbort === true && signal?.aborted === true && !this.lifecycle.signal.aborted;
+      if (!preserve) throw cause;
+      diagnostics.push(Object.freeze({
+        code: hasCode(signal.reason) ? signal.reason.code : 'agent.caller-aborted',
+        message: signal.reason instanceof Error ? signal.reason.message : 'The caller stopped the backend turn.',
+      }));
+      terminal = 'failed';
+      if (sessionId && turnId) {
+        try { await backend.cancelTurn(sessionId, turnId); }
+        catch (cancelCause) { diagnostics.push(Object.freeze({ code: 'agent.turn-cancel-failed', message: cancelCause instanceof Error ? cancelCause.message : String(cancelCause) })); }
+      }
+    } finally { unlinkCaller(); unlinkLifecycle(); }
     if (!terminal) terminal = 'interrupted';
     return Object.freeze({ backendId: backend.descriptor.id, sessionId, turnId, terminal, results: Object.freeze(results), diagnostics: Object.freeze(diagnostics) });
   }
