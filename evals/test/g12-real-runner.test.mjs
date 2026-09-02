@@ -67,6 +67,8 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /backendKind === 'harness' \? 80 : 120/u);
   assert.match(source, /taskBudgetInitialTranche\(\).*inputTokens: 1_000_000.*inputTokens: 2_000_000/u);
   assert.match(source, /g12\.replay-runtime-error.*g12\.replay-trigger-timeout/su);
+  assert.match(source, /requireUsableVisual: repairAttempt === 0/u);
+  assert.match(source, /Object\.values\(analysis\.visualSignals\).*value !== true/u);
   assert.match(source, /Generated scripts failed during actual Play startup/u);
   assert.match(source, /capturePage\(\)/u);
   assert.match(source, /evidenceManifest, evaluator: evaluation/u);

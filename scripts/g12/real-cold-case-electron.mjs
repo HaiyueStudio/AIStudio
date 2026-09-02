@@ -245,7 +245,7 @@ async function run() {
 
     let attempt;
     for (let repairAttempt = 0; repairAttempt < 2; repairAttempt += 1) {
-      try { attempt = await executePreviewReplay({ fixture, preview, windowGuard, testCase }); break; }
+      try { attempt = await executePreviewReplay({ fixture, preview, windowGuard, testCase, requireUsableVisual: repairAttempt === 0 }); break; }
       catch (cause) {
         const repairable = cause?.code === 'g12.replay-runtime-error' || cause?.code === 'g12.replay-trigger-timeout' || cause?.code === 'g12.replay-visual-unusable';
         if (!repairable || repairAttempt > 0 || caseDeadlineMs - Date.now() < minimumTakeoverWindowMs) throw cause;
@@ -299,7 +299,7 @@ async function run() {
   }
 }
 
-async function executePreviewReplay({ fixture, preview, windowGuard, testCase }) {
+async function executePreviewReplay({ fixture, preview, windowGuard, testCase, requireUsableVisual = true }) {
   if (preview.snapshot().state !== 'stopped') await windowGuard.race(preview.stop());
   const plan = await fixture.authorization.prepare();
   if (plan.diagnostics.some((entry) => entry.severity === 'error')) throw errorWithCode('g12.preview-validation-errors', `Preview validation returned ${plan.diagnostics.length} diagnostic(s).`);
@@ -314,8 +314,9 @@ async function executePreviewReplay({ fixture, preview, windowGuard, testCase })
   const image = nativeImage.createFromBuffer(png);
   const bitmapSize = image.getSize();
   const analysis = analyzeG12ReplayEvidence({ genre, replay, scene, bitmap: image.toBitmap(), width: bitmapSize.width, height: bitmapSize.height, tickRateHz: 60 });
-  if (analysis.visualMetrics.clusters < 4 || analysis.visualMetrics.visibleMaterialCount < 2) {
-    throw errorWithCode('g12.replay-visual-unusable', `only ${analysis.visualMetrics.clusters} significant color clusters and ${analysis.visualMetrics.visibleMaterialCount} visible scene materials were detected`);
+  const failedVisualSignals = Object.values(analysis.visualSignals).filter((value) => value !== true).length;
+  if (requireUsableVisual && (analysis.visualMetrics.clusters < 4 || analysis.visualMetrics.visibleMaterialCount < 2 || failedVisualSignals > 0)) {
+    throw errorWithCode('g12.replay-visual-unusable', `the screenshot had ${analysis.visualMetrics.clusters} significant color clusters, ${analysis.visualMetrics.visibleMaterialCount} visible scene materials and ${failedVisualSignals} failed state-correlated visibility checks`);
   }
   const stopped = await windowGuard.race(preview.stop());
   return { scene, started, replay, stopped, analysis };
