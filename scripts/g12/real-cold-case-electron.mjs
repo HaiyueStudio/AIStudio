@@ -180,6 +180,21 @@ async function run() {
         return turnSummary;
       } catch (cause) {
         const coordinates = recordedEvents.at(-1);
+        if (cause?.code === 'g12.agent-verification-ready' && coordinates?.sessionId && coordinates?.turnId) {
+          const interrupted = Object.freeze({
+            backendId: backend.descriptor.id,
+            sessionId: coordinates.sessionId,
+            turnId: coordinates.turnId,
+            terminal: 'failed',
+            results: Object.freeze(retainedToolResults.slice(resultOffset)),
+            diagnostics: Object.freeze([{ code: cause.code, message: cause.message }]),
+          });
+          const accepted = takeOverVerifiedAuthoring(interrupted, fixture, preview);
+          if (accepted.terminal === 'completed') {
+            m13Turns.push(await recordM13Turn({ operationLog: fixture.operationLog, sessions: durableSessions, contextFrames, backend, model, config, taskId, prompt: turnPrompt, summary: accepted, events: recordedEvents, projectRevision: fixture.workspace.snapshot().document.revision }));
+            return accepted;
+          }
+        }
         if (coordinates?.sessionId && coordinates?.turnId) {
           const partialSummary = Object.freeze({ sessionId: coordinates.sessionId, turnId: coordinates.turnId, terminal: 'failed', results: Object.freeze([]), diagnostics: Object.freeze([{ code: typeof cause?.code === 'string' ? cause.code : 'g12.turn-failed', message: cause instanceof Error ? cause.message : String(cause) }]) });
           m13Turns.push(await recordM13Turn({ operationLog: fixture.operationLog, sessions: durableSessions, contextFrames, backend, model, config, taskId, prompt: turnPrompt, summary: partialSummary, events: recordedEvents, projectRevision: fixture.workspace.snapshot().document.revision, failed: true }).catch((recordCause) => Object.freeze({ status: 'unavailable', diagnostic: recordCause instanceof Error ? recordCause.message : String(recordCause) })));
@@ -533,7 +548,7 @@ function takeOverVerifiedAuthoring(summary, fixture, preview) {
   const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
   const snapshot = preview.snapshot();
   if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || required.some((toolId) => !completed.has(toolId)) || snapshot.errors.length > 0) return summary;
-  return Object.freeze({ ...summary, terminal: 'completed', diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: 'g12.agent-verification-takeover', message: 'Studio stopped a redundant model self-check loop after a committed script, valid gameplay telemetry, clean Play state, input, inspection and screenshot were all retained; hidden replay now owns acceptance.' })]) });
+  return Object.freeze({ ...summary, terminal: 'completed', diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: 'g12.agent-verification-takeover', message: 'Studio stopped redundant model self-checks after retaining a committed script, valid gameplay telemetry, clean Play validation, fixed stepping and inspection; hidden replay now owns acceptance input and screenshots.' })]) });
 }
 function readyForVerificationTakeover(events, fixture, preview) {
   const requested = new Set(events.filter((entry) => entry.kind === 'tool-request').map((entry) => entry.payload.toolId));
