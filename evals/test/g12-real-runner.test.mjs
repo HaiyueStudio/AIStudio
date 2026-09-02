@@ -54,6 +54,8 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /account\.bindTurn\(event\.turnId/u);
   assert.match(source, /account\.commitTool\(asStableId\(event\.payload\.toolCallId\)\)/u);
   assert.match(source, /reconcileLiveUsage/u);
+  assert.match(source, /netNewInputTokens/u);
+  assert.match(source, /basis: 'net-new-provider-input'/u);
   assert.match(source, /budget\.formal-cap/u);
   assert.match(source, /if \(formalCapError\) throw formalCapError/u);
   assert.doesNotMatch(source, /controller\.abort\(errorWithCode\('budget\.formal-cap'/u);

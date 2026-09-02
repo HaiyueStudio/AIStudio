@@ -137,6 +137,10 @@ test('asset.dependencies and script symbols/patch provide exact incremental cont
     assert.deepEqual(symbols.value.symbols.variables, ['moving']); assert.deepEqual(symbols.value.symbols.apiNamespaces, ['input', 'scene']);
     assert.deepEqual(symbols.value.symbols.inputActions, ['MoveLeft']); assert.deepEqual(symbols.value.symbols.observationIds, ['player-state']); assert.equal(Object.hasOwn(symbols.value, 'text'), false);
 
+    const dualTarget = await executeReady(value.runtime, call('call:g08-script-patch-dual-target', 'script.patch', { baseRevision: 4, entityId, scriptId: symbols.value.scriptId, expectedDigest: symbols.value.digest, edits: [{ startLine: 1, endLine: 1, text: "const moving = api.input.isPressed('MoveUp');" }] }));
+    assert.equal(dualTarget.value.canApply, true);
+    await assert.rejects(executeReady(value.runtime, call('call:g08-script-patch-mismatch', 'script.patch', { baseRevision: 4, entityId: 'entity:mismatch-g08', scriptId: symbols.value.scriptId, expectedDigest: symbols.value.digest, edits: [{ startLine: 1, endLine: 1, text: "const moving = api.input.isPressed('MoveDown');" }] })), (error) => error.code === 'tool.script-target-mismatch');
+
     const patch = await executeReady(value.runtime, call('call:g08-script-patch', 'script.patch', { baseRevision: 4, entityId, expectedDigest: symbols.value.digest, edits: [{ startLine: 1, endLine: 1, text: "const moving = api.input.isPressed('MoveRight');" }] }));
     assert.equal(patch.value.canApply, true); assert.equal(patch.value.editCount, 1); assert.equal(patch.value.patchedFromDigest, symbols.value.digest);
     await approveAndExecute(value.runtime, call('call:g08-script-patch-apply', 'script.apply', { baseRevision: 4, proposalId: patch.value.proposalId }));
@@ -466,7 +470,7 @@ test('script proposal, trusted apply and runtime start preserve separate approva
     const applied = await value.runtime.execute(apply.id);
     assert.equal(applied.afterRevision, 3);
 
-    const validated = await executeReady(value.runtime, call('call:validate', 'preview.validate', {}));
+    const validated = await executeReady(value.runtime, call('call:validate', 'preview.validate', { baseRevision: 3 }));
     const start = await value.runtime.prepare(call('call:start', 'play.start', { baseRevision: 3, planId: validated.value.planId }));
     assert.notEqual(start.approvalId, apply.approvalId);
     await assert.rejects(value.runtime.decide(start.approvalId, 'allow-always'), /one-shot approval/);

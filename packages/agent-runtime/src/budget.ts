@@ -46,7 +46,7 @@ export class TaskBudgetController {
   reconcileUsage(usage: UsageRecordV2, estimatedCostMicros: number | null): BudgetDecision {
     const next = {
       ...this.consumptionValue,
-      inputTokens: usage.inputTokens ?? this.consumptionValue.inputTokens,
+      inputTokens: budgetedInputTokens(usage) ?? this.consumptionValue.inputTokens,
       outputTokens: usage.outputTokens ?? this.consumptionValue.outputTokens,
       wallTimeMs: usage.wallTimeMs,
       observationBytes: usage.toolOutputBytes,
@@ -108,3 +108,15 @@ function validateReservation(value: Partial<BudgetConsumption>): void { for (con
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function deepFreeze<T>(value: T): T { if (value && typeof value === 'object' && !Object.isFrozen(value)) { for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child); Object.freeze(value); } return value; }
 const metrics: readonly BudgetMetric[] = ['inputTokens', 'outputTokens', 'estimatedCostMicros', 'wallTimeMs', 'turns', 'toolCalls', 'repairIterations', 'observationBytes'];
+
+/**
+ * Usage keeps the provider-reported total for audit and pricing, while the
+ * budget charges only input that was newly processed. Treating cache reads as
+ * fresh context makes a healthy cached tool loop look like unbounded growth.
+ * Missing cache counters stay fail-closed and charge the complete input.
+ */
+function budgetedInputTokens(usage: UsageRecordV2): number | null {
+  if (usage.inputTokens === null) return null;
+  if (usage.cachedInputTokens === null || usage.cacheWriteTokens === null) return usage.inputTokens;
+  return Math.max(0, usage.inputTokens - usage.cachedInputTokens - usage.cacheWriteTokens);
+}

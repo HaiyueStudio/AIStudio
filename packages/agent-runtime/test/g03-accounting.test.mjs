@@ -156,6 +156,18 @@ test('hard budget blocks before the next effect until an explicit bounded contin
   assert.ok(warning.warning);
 });
 
+test('input budget charges net-new provider input while preserving fail-closed unknown cache accounting', () => {
+  const cached = new TaskBudgetController(budget('hard'));
+  const accepted = cached.reconcileUsage(usageRecord({ inputTokens: 1_000, cachedInputTokens: 950, cacheWriteTokens: 10 }), 1);
+  assert.equal(accepted.allowed, true);
+  assert.equal(cached.consumption().inputTokens, 40);
+
+  const unknownCache = new TaskBudgetController(budget('hard'));
+  const denied = unknownCache.reconcileUsage(usageRecord({ inputTokens: 101, cachedInputTokens: null, cacheWriteTokens: null }), 1);
+  assert.equal(denied.allowed, false);
+  assert.equal(unknownCache.consumption().inputTokens, 101);
+});
+
 test('hard wall-time expiry latches the task before later effects', () => {
   const registry = new TaskAccountingRegistry(new UsageLedgerStore());
   const account = registry.open({ taskId: asStableId('task:wall-expiry'), budget: { ...budget('hard'), id: asStableId('budget:wall-expiry'), limits: { ...budget('hard').limits, wallTimeMs: 1, turns: 2, toolCalls: 2 } }, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });

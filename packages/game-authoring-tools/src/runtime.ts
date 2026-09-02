@@ -855,7 +855,10 @@ function semanticGeneratedId(namespace: 'entity' | 'component' | 'script', callI
 function assertSemanticOperationLimit(operations: readonly GameDocumentOperationV2[]): void { if (operations.length < 1 || operations.length > 1_000) throw new GameToolProtocolError('tool.operation-limit', 'Semantic operation expands to more than 1000 Document operations.'); }
 type ScriptLineEdit = Readonly<{ startLine: number; endLine: number; text: string }>;
 function resolveScriptResource(catalog: ReturnType<ScriptPreviewStudioService['snapshot']>, args: Readonly<Record<string, JsonValue>>) {
-  const resource = catalog.resources.find((item) => item.id === args.scriptId || item.entityId === args.entityId);
+  const byScript = args.scriptId === undefined ? undefined : catalog.resources.find((item) => item.id === args.scriptId);
+  const byEntity = args.entityId === undefined ? undefined : catalog.resources.find((item) => item.entityId === args.entityId);
+  if (args.scriptId !== undefined && args.entityId !== undefined && (!byScript || !byEntity || byScript.id !== byEntity.id)) throw new GameToolProtocolError('tool.script-target-mismatch', 'scriptId and entityId do not identify the same script.');
+  const resource = byScript ?? byEntity;
   if (!resource) throw new GameToolProtocolError('tool.script-missing', 'Requested script does not exist.');
   return resource;
 }
@@ -1266,7 +1269,7 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'script.propose': exact(raw, ['entityId', 'text'], ['baseRevision', 'capabilities'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
     case 'script.patch': {
       exact(raw, ['expectedDigest', 'edits'], ['baseRevision', 'entityId', 'scriptId', 'capabilities'], toolId);
-      if ((raw.entityId === undefined) === (raw.scriptId === undefined)) throw invalid('script.patch requires exactly one of entityId or scriptId.');
+      if (raw.entityId === undefined && raw.scriptId === undefined) throw invalid('script.patch requires entityId, scriptId, or both.');
       if (typeof raw.expectedDigest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(raw.expectedDigest)) throw invalid('script.patch expectedDigest is invalid.');
       if (!Array.isArray(raw.edits) || raw.edits.length < 1 || raw.edits.length > 64) throw invalid('script.patch edits must contain 1-64 edits.');
       const edits = raw.edits.map((edit, index) => {
@@ -1277,16 +1280,17 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
         return Object.freeze({ startLine, endLine, text: boundedString(edit.text, 'edit text', 32_768) });
       }).sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
       if (edits.some((edit, index) => index > 0 && edits[index - 1]!.endLine >= edit.startLine)) throw invalid('script.patch edits must not overlap.');
-      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), expectedDigest: raw.expectedDigest, edits: Object.freeze(edits) as unknown as JsonValue, ...(raw.entityId === undefined ? { scriptId: stable(raw.scriptId, 'script id') } : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), expectedDigest: raw.expectedDigest, edits: Object.freeze(edits) as unknown as JsonValue, ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.scriptId === undefined ? {} : { scriptId: stable(raw.scriptId, 'script id') }), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
     }
     case 'script.apply': exact(raw, ['proposalId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), proposalId: stable(raw.proposalId, 'proposal id') });
     case 'preview.validate': {
-      exact(raw, [], ['scriptIds'], toolId);
-      if (raw.scriptIds === undefined) return Object.freeze({});
+      exact(raw, [], ['baseRevision', 'scriptIds'], toolId);
+      const baseRevision = revisionOrCurrent(raw.baseRevision, currentRevision);
+      if (raw.scriptIds === undefined) return Object.freeze({ baseRevision });
       if (!Array.isArray(raw.scriptIds) || raw.scriptIds.length < 1 || raw.scriptIds.length > 128) throw invalid('scriptIds must contain 1-128 script ids.');
       const scriptIds = raw.scriptIds.map((item) => stable(item, 'script id'));
       if (new Set(scriptIds).size !== scriptIds.length) throw invalid('scriptIds must be unique.');
-      return Object.freeze({ scriptIds });
+      return Object.freeze({ baseRevision, scriptIds });
     }
     case 'preview.start': case 'play.start': exact(raw, ['planId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), planId: stable(raw.planId, 'plan id') });
     case 'play.step': exact(raw, ['count'], [], toolId); return Object.freeze({ count: boundedInteger(raw.count, 'count', 1, 10_000) });
