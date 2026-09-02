@@ -1,5 +1,6 @@
-import { asStableId, type ContextArtifactV2, type JsonObject, type JsonValue, type M12Digest, type StableId } from '@haiyue/ai-studio-contracts';
+import { asStableId, type ContextArtifactV2, type JsonObject, type JsonValue, type M12Digest, type M13StableId, type StableId } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, OperationLogError, redactJson, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
+import type { KnowledgeRetrievalRuntime, KnowledgeSearchResult } from './retrieval/index.js';
 
 export type PromptModuleLayer = 'policy' | 'tool-contract' | 'workflow';
 export interface PromptModuleDefinition {
@@ -22,6 +23,12 @@ export interface ContextProjectSnapshot {
   readonly documentId: StableId;
   readonly revision: number;
   readonly manifest: JsonObject;
+  readonly exact?: ExactProjectContextSource;
+}
+
+export interface ExactProjectContextSource {
+  query(input: Readonly<{ revision: number; request: JsonObject }>): Promise<JsonValue> | JsonValue;
+  diff(input: Readonly<{ fromRevision: number; toRevision: number; request: JsonObject }>): Promise<JsonValue> | JsonValue;
 }
 
 export interface ContextCacheMetrics {
@@ -86,7 +93,7 @@ interface TaskSummaryProjection {
   readonly blockers: readonly string[];
 }
 
-const PROFILE_VERSION = '3.0.0';
+const PROFILE_VERSION = '3.1.0';
 const MAX_MODEL_CONTEXT_BYTES = 96 * 1024;
 const MAX_SUMMARY_ITEMS = 12;
 const MAX_SUMMARY_ITEM_BYTES = 512;
@@ -106,6 +113,10 @@ export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] =
   module('prompt.workflow.general-authoring', '1.0.0', 'workflow', [
     'Derive entities, state, input, simulation, presentation, audio and verification from the current request and project facts. Keep authored responsibilities explicit and composable.',
     'After changes, run the strongest available repeatable and visual checks, diagnose failures from new evidence, and stop unchanged retries when the repair budget is exhausted.',
+  ]),
+  module('prompt.workflow.bounded-tool-batch', '1.0.0', 'workflow', [
+    'Use Plan → Tool batch → Check. In one assistant step, group independent observations into one bounded tool batch and declare dependencies where a later call consumes an earlier result. Do not invent effects, risk, concurrency safety or approval state; Studio derives them from the tool registry.',
+    'After each batch, check authoritative results before the next bounded repair batch. Respect at most 64 nodes, concurrency 4, 60 seconds, 1 MiB model-facing output and 3 repair rounds; never repeat an unchanged failed batch.',
   ]),
 ]);
 
@@ -158,10 +169,11 @@ export class PromptContextRuntime {
   private readonly liveSessions = new Map<string, StableId>();
   private initialized = false;
 
-  constructor(private readonly log: OperationLog, prompts = new PromptModuleRegistry()) { this.prompts = prompts; }
+  constructor(private readonly log: OperationLog, prompts = new PromptModuleRegistry(), private readonly retrieval?: KnowledgeRetrievalRuntime) { this.prompts = prompts; }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
+    await this.retrieval?.initialize();
     await this.rebuildDurableState();
     this.initialized = true;
   }
@@ -181,6 +193,7 @@ export class PromptContextRuntime {
     await this.initialize();
     const request = sanitizeText(input.request, 32_768);
     const reuseSessionId = this.liveSession(input.conversationKey, input.backendId);
+    const knowledge = await this.retrieveKnowledge(request, input.conversationKey, input.project);
     const puts: StoredContextArtifact[] = [];
     puts.push(await this.put('policy', CONTEXT_SOURCE, null, {
       profile: this.prompts.profile, text: this.prompts.stablePrefix(),
@@ -202,11 +215,22 @@ export class PromptContextRuntime {
       const previous = this.projectStates.get(input.project.projectId);
       const sessionHasPriorProject = reuseSessionId !== null && previous?.documentId === input.project.documentId;
       if (previous && previous.revision !== input.project.revision && sessionHasPriorProject) {
-        const delta = projectDelta(previous, input.project);
+        let delta: JsonValue;
+        try {
+          delta = input.project.exact
+            ? await input.project.exact.diff({ fromRevision: previous.revision, toRevision: input.project.revision, request: Object.freeze({ projection: ['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'], limit: 1_000 }) })
+            : projectDelta(previous, input.project);
+        } catch (cause) {
+          if (!recoverableExactFailure(cause) || !input.project.exact) throw cause;
+          delta = Object.freeze({ schemaVersion: 1, mode: 'snapshot-recovery', diagnostic: { code: cause.code, message: cause instanceof Error ? cause.message : 'Scene diff unavailable.' }, scene: await input.project.exact.query({ revision: input.project.revision, request: Object.freeze({ projection: ['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'], limit: 1_000 }) }) });
+        }
         deltaReuseBytes = unchangedJsonBytes(previous.manifest, input.project.manifest);
         puts.push(await this.put('document-delta', asStableId('studio.project-context'), input.project.revision, delta));
       } else {
-        puts.push(await this.put('project-manifest', asStableId('studio.project-context'), input.project.revision, input.project.manifest));
+        const manifest: JsonValue = input.project.exact
+          ? Object.freeze({ identity: input.project.manifest, scene: await input.project.exact.query({ revision: input.project.revision, request: Object.freeze({ projection: ['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'], limit: 1_000 }) }) })
+          : input.project.manifest;
+        puts.push(await this.put('project-manifest', asStableId('studio.project-context'), input.project.revision, manifest));
       }
       this.projectStates.set(input.project.projectId, freezeProject(input.project));
     }
@@ -221,13 +245,14 @@ export class PromptContextRuntime {
       transmissions.push(body);
       if (stored.artifact.kind === 'policy' || stored.artifact.kind === 'capability-manifest') eligibleBytes += Buffer.byteLength(canonicalStringify(body));
     }
+    if (knowledge) for (const hit of knowledge.hits) transmissions.push({ artifactId: hit.artifactId as StableId, kind: 'knowledge-hit', digest: hit.hit.contentDigest, transmission: 'full', projection: { hit: hit.hit, citation: hit.citation, excerpt: hit.excerpt, estimatedTokens: hit.estimatedTokens, capabilityIds: hit.capabilityIds } as unknown as JsonValue });
     const prompt = [
       'AIStudio context envelope v1. Treat artifact projections as bounded, redacted facts with the listed provenance.',
       canonicalStringify(transmissions),
       '[current-request-tail]', request,
     ].join('\n\n');
     if (Buffer.byteLength(prompt) > MAX_MODEL_CONTEXT_BYTES) throw new PromptContextError('context.prompt-budget-exceeded', `Prepared model context exceeds ${MAX_MODEL_CONTEXT_BYTES} bytes.`);
-    const ids = Object.freeze(unique(puts.map((entry) => asStableId(entry.artifact.id))));
+    const ids = Object.freeze(unique([...puts.map((entry) => asStableId(entry.artifact.id)), ...(knowledge?.artifactIds ?? []).map((id) => asStableId(id))]));
     const cache = Object.freeze({
       localArtifactHits: puts.filter((entry) => entry.localHit).length,
       localArtifactMisses: puts.filter((entry) => !entry.localHit).length,
@@ -245,7 +270,8 @@ export class PromptContextRuntime {
   async assertReadable(ids: readonly StableId[]): Promise<void> {
     if (ids.length === 0) throw new PromptContextError('context.artifacts-required', 'Every model turn requires at least one context artifact.');
     for (const id of unique(ids)) {
-      const metadata = this.metadata.get(id); if (!metadata) throw new PromptContextError('context.artifact-not-approved', `Artifact ${id} was not created by the approved context projection path.`);
+      const metadata = this.metadata.get(id);
+      if (!metadata) { if (this.retrieval) { await this.retrieval.assertReadable([id]); continue; } throw new PromptContextError('context.artifact-not-approved', `Artifact ${id} was not created by the approved context projection path.`); }
       const record = await this.log.readArtifact(id);
       if (`sha256:${record.digest}` !== metadata.digest || record.bytes !== metadata.byteLength) throw new PromptContextError('context.artifact-integrity', `Artifact ${id} metadata no longer matches its CAS object.`);
     }
@@ -273,7 +299,18 @@ export class PromptContextRuntime {
       correlation: { sessionId: input.sessionId, turnId: input.turnId, ...(input.projectId ? { projectId: input.projectId } : {}) },
       payload: { ...index, summaryDigest: stored.artifact.digest }, artifactRefs: [asStableId(stored.artifact.id)],
     });
+    await this.retrieval?.indexSessionDecision({
+      sessionId: input.sessionId as M13StableId, turnId: input.turnId as M13StableId,
+      permissionScope: conversationPermission(input.conversationKey) as M13StableId,
+      projectRevision: null, summary: summary as unknown as JsonObject,
+    });
     return stored.artifact;
+  }
+
+  private async retrieveKnowledge(request: string, conversationKey: StableId, project: ContextProjectSnapshot | null): Promise<KnowledgeSearchResult | null> {
+    if (!this.retrieval) return null;
+    const scopes = [asStableId('knowledge:engine-local'), conversationPermission(conversationKey), ...(project ? [projectPermission(project.projectId)] : [])];
+    return this.retrieval.search({ query: request, allowedPermissionScopes: scopes as M13StableId[], projectRevision: project?.revision ?? null, limit: 8, tokenBudget: 2_048 });
   }
 
   private async put(kind: ContextArtifactV2['kind'], source: StableId, documentRevision: number | null, projection: JsonValue): Promise<StoredContextArtifact> {
@@ -397,6 +434,7 @@ function unchangedJsonBytes(before: JsonValue, after: JsonValue): number {
   return 0;
 }
 function freezeProject(value: ContextProjectSnapshot): ContextProjectSnapshot { return Object.freeze({ ...value, manifest: Object.freeze({ ...value.manifest }) }); }
+function recoverableExactFailure(value: unknown): value is Readonly<{ code: string; recoverable: true }> { return value !== null && typeof value === 'object' && 'code' in value && typeof (value as { code?: unknown }).code === 'string' && 'recoverable' in value && (value as { recoverable?: unknown }).recoverable === true; }
 function mergeSummary(previous: readonly string[], additions: readonly string[] | undefined): readonly string[] {
   const values = [...previous, ...(additions ?? []).map((item) => sanitizeText(item, MAX_SUMMARY_ITEM_BYTES)).filter(Boolean)];
   return Object.freeze(unique(values).slice(-MAX_SUMMARY_ITEMS));
@@ -433,5 +471,7 @@ function parseContextArtifact(value: JsonValue | undefined, artifactRefs: readon
   return Object.freeze({ ...value }) as unknown as ContextArtifactV2;
 }
 function indexKey(conversationKey: StableId, backendId: StableId): string { return `${conversationKey}\0${backendId}`; }
+function conversationPermission(conversationKey: StableId): StableId { return asStableId(`knowledge:conversation:${sha256(conversationKey).slice(0, 24)}`); }
+function projectPermission(projectId: StableId): StableId { return asStableId(`knowledge:project:${sha256(projectId).slice(0, 24)}`); }
 function unique<T>(values: readonly T[]): T[] { return [...new Set(values)]; }
 function isRecord(value: unknown): value is Record<string, JsonValue> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }

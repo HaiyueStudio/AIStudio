@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Context } from '@deepseek-ai/cordis';
 import AgentRegistry, { installModelSelection, type Agent, type AgentHandle, type ModelSelectionRef } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
@@ -15,6 +15,28 @@ export interface HarnessBridgeTurnInput {
   readonly sessionId?: string; readonly prompt: string; readonly tools: readonly HarnessBridgeTool[];
   readonly model: string; readonly reasoningEffort: HarnessReasoningEffort; readonly maxTokens: number;
 }
+export interface HarnessBridgeSessionOpenInput {
+  readonly sessionId?: string;
+  readonly model: string;
+  readonly reasoningEffort: HarnessReasoningEffort;
+  readonly maxTokens: number;
+  readonly tools: readonly HarnessBridgeTool[];
+  readonly lastConfirmedOpId: string;
+}
+export interface HarnessBridgeSessionCapabilities {
+  readonly maxInputTokens: number | null;
+  readonly nativeCompaction: false;
+  readonly parallelToolCalls: false;
+  readonly codeMode: false;
+  readonly providerUsage: 'reported';
+  readonly providerCache: 'reported';
+  readonly nativeCompactionTransport: 'unavailable';
+  readonly nativeCompactionMirror: 'fallback-required';
+  readonly diagnostic: Readonly<{ code: 'harness.compaction-driver-unavailable'; message: string }>;
+}
+export type HarnessBridgeSessionInspection =
+  | Readonly<{ state: 'available'; sessionId: string; model: string; lastConfirmedOpId: string | null }>
+  | Readonly<{ state: 'missing'; sessionId: string; diagnostic: Readonly<{ code: string; message: string }> }>;
 export type HarnessBridgeEvent =
   | Readonly<{ type: 'turn-start'; sessionId: string; turnId: string }>
   | Readonly<{ type: 'text-delta'; sessionId: string; turnId: string; text: string }>
@@ -26,6 +48,12 @@ export interface HarnessAgentTransport {
   readonly upstream: Readonly<{ tag: 'dsh-v0.1.0-rc.7'; commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' }>;
   modelCatalog(): readonly Readonly<{ id: string; name: string; description: string; maxTokens: number }>[];
   configured(): Promise<boolean>;
+  sessionCapabilities(model: string): HarnessBridgeSessionCapabilities;
+  openSession(input: HarnessBridgeSessionOpenInput, signal?: AbortSignal): Promise<Readonly<{ sessionId: string; capabilities: HarnessBridgeSessionCapabilities }>>;
+  inspectSession(sessionId: string): Promise<HarnessBridgeSessionInspection>;
+  confirmSessionBoundary(sessionId: string, lastConfirmedOpId: string): Promise<void>;
+  compactSession(sessionId: string): Promise<Readonly<{ status: 'unavailable'; diagnostic: Readonly<{ code: string; message: string }> }>>;
+  closeSession(sessionId: string): Promise<void>;
   start(input: HarnessBridgeTurnInput, signal?: AbortSignal): AsyncIterable<HarnessBridgeEvent>;
   submitToolResult(toolCallId: string, result: Readonly<Record<string, unknown>>, signal?: AbortSignal): Promise<void>;
   cancel(sessionId: string): Promise<void>;
@@ -69,6 +97,9 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   readonly upstream = Object.freeze({ tag: 'dsh-v0.1.0-rc.7' as const, commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' as const });
   private readonly handles = new Map<string, AgentHandle>();
   private readonly selections = new Map<string, ModelSelectionRef>();
+  private readonly sessionModels = new Map<string, string>();
+  private readonly sessionBoundaries = new Map<string, string>();
+  private readonly sessionToolSignatures = new Map<string, string>();
   private readonly streams = new Map<string, AsyncEventQueue<HarnessBridgeEvent>>();
   private readonly results = new Map<string, Deferred<Readonly<Record<string, unknown>>>>();
   private disposed = false;
@@ -79,23 +110,57 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     return Object.freeze(this.models.map((entry) => Object.freeze({ id: entry.id, name: entry.name ?? entry.id, description: entry.description ?? entry.name ?? entry.id, maxTokens: entry.maxTokens ?? 384_000 })));
   }
   async configured(): Promise<boolean> { return Boolean(await this.resolveApiKey()); }
+  sessionCapabilities(model: string): HarnessBridgeSessionCapabilities {
+    const catalog = this.modelCatalog().find((entry) => entry.id === model);
+    if (!catalog) throw new Error(`Harness model ${model} is not in the pinned catalog.`);
+    return Object.freeze({
+      maxInputTokens: null,
+      nativeCompaction: false,
+      parallelToolCalls: false,
+      codeMode: false,
+      providerUsage: 'reported',
+      providerCache: 'reported',
+      nativeCompactionTransport: 'unavailable',
+      nativeCompactionMirror: 'fallback-required',
+      diagnostic: Object.freeze({ code: 'harness.compaction-driver-unavailable', message: 'Pinned Harness exposes an output-token cap but no authoritative input Context Window or public compaction driver; model capacity remains unknown and Studio compaction is required.' }),
+    });
+  }
+  async openSession(input: HarnessBridgeSessionOpenInput, signal?: AbortSignal): Promise<Readonly<{ sessionId: string; capabilities: HarnessBridgeSessionCapabilities }>> {
+    this.assertActive();
+    const sessionId = input.sessionId ?? `harness-session-${randomUUID()}`;
+    await this.ensureHandle(sessionId, input, signal);
+    this.sessionBoundaries.set(sessionId, input.lastConfirmedOpId);
+    return Object.freeze({ sessionId, capabilities: this.sessionCapabilities(input.model) });
+  }
+  async inspectSession(sessionId: string): Promise<HarnessBridgeSessionInspection> {
+    this.assertActive();
+    return this.handles.has(sessionId)
+      ? Object.freeze({ state: 'available', sessionId, model: this.sessionModels.get(sessionId)!, lastConfirmedOpId: this.sessionBoundaries.get(sessionId) ?? null })
+      : Object.freeze({ state: 'missing', sessionId, diagnostic: Object.freeze({ code: 'harness.session-missing', message: `Harness Session ${sessionId} is not live in this process.` }) });
+  }
+  async confirmSessionBoundary(sessionId: string, lastConfirmedOpId: string): Promise<void> {
+    this.assertActive();
+    if (!this.handles.has(sessionId)) throw new Error(`Harness Session ${sessionId} is not live.`);
+    this.sessionBoundaries.set(sessionId, lastConfirmedOpId);
+  }
+  async compactSession(sessionId: string): Promise<Readonly<{ status: 'unavailable'; diagnostic: Readonly<{ code: string; message: string }> }>> {
+    this.assertActive();
+    if (!this.handles.has(sessionId)) throw new Error(`Harness Session ${sessionId} is not live.`);
+    return Object.freeze({ status: 'unavailable', diagnostic: Object.freeze({ code: 'harness.compaction-driver-unavailable', message: 'Pinned Harness has no public compaction driver; use Studio compaction.' }) });
+  }
+  async closeSession(sessionId: string): Promise<void> {
+    this.assertActive();
+    const handle = this.handles.get(sessionId);
+    if (!handle) return;
+    handle.agent.cancel({ kind: 'disposed' });
+    await handle.dispose();
+    this.handles.delete(sessionId); this.selections.delete(sessionId); this.sessionModels.delete(sessionId); this.sessionBoundaries.delete(sessionId); this.sessionToolSignatures.delete(sessionId);
+  }
   async *start(input: HarnessBridgeTurnInput, signal?: AbortSignal): AsyncIterable<HarnessBridgeEvent> {
     this.assertActive();
     if (typeof input.prompt !== 'string' || input.prompt.length === 0 || input.prompt.length > 200_000) throw new TypeError('Harness prompt is invalid.');
     const sessionId = input.sessionId ?? `harness-session-${randomUUID()}`;
-    let handle = this.handles.get(sessionId);
-    if (!handle) {
-      const selection: ModelSelectionRef = { current: { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) }, assembled: undefined };
-      handle = await this.context.agents.create({
-        sessionId: SessionId(sessionId), agentOptions: { provider: 'deepseek-official', model: input.model, maxTokens: input.maxTokens }, signal,
-        setup: (agentContext) => {
-          installModelSelection(agentContext, selection);
-          input.tools.forEach((tool, index) => agentContext.tools.register(this.toolDefinition(tool, index)));
-        },
-      });
-      this.handles.set(sessionId, handle);
-      this.selections.set(sessionId, selection);
-    }
+    const handle = await this.ensureHandle(sessionId, input, signal);
     if (this.streams.has(sessionId)) throw new Error(`Harness session ${sessionId} already has an active turn.`);
     const selection = this.selections.get(sessionId); if (selection) selection.current = { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) };
     handle.agent.options.maxTokens = input.maxTokens;
@@ -110,7 +175,25 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     if (signal?.aborted) throw signal.reason; const pending = this.results.get(toolCallId); if (!pending) throw new Error(`Harness tool call ${toolCallId} is not pending.`); this.results.delete(toolCallId); pending.resolve(Object.freeze({ ...result }));
   }
   async cancel(sessionId: string): Promise<void> { this.handles.get(sessionId)?.agent.cancel({ kind: 'user' }); }
-  async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.')); this.results.clear(); this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.'))); this.streams.clear(); await this.context.fiber.dispose(); this.handles.clear(); this.selections.clear(); }
+  async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.')); this.results.clear(); this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.'))); this.streams.clear(); await this.context.fiber.dispose(); this.handles.clear(); this.selections.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear(); }
+  private async ensureHandle(sessionId: string, input: Pick<HarnessBridgeSessionOpenInput, 'model' | 'reasoningEffort' | 'maxTokens' | 'tools'>, signal?: AbortSignal): Promise<AgentHandle> {
+    let handle = this.handles.get(sessionId);
+    if (handle) {
+      if (this.sessionModels.get(sessionId) !== input.model) throw new Error(`Harness Session ${sessionId} cannot change models without rebinding.`);
+      if (this.sessionToolSignatures.get(sessionId) !== harnessToolSetSignature(input.tools)) throw new Error(`Harness Session ${sessionId} cannot change its Studio tool allowlist without rebinding.`);
+      return handle;
+    }
+    const selection: ModelSelectionRef = { current: { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) }, assembled: undefined };
+    handle = await this.context.agents.create({
+      sessionId: SessionId(sessionId), agentOptions: { provider: 'deepseek-official', model: input.model, maxTokens: input.maxTokens }, signal,
+      setup: (agentContext) => {
+        installModelSelection(agentContext, selection);
+        input.tools.forEach((tool, index) => agentContext.tools.register(this.toolDefinition(tool, index)));
+      },
+    });
+    this.handles.set(sessionId, handle); this.selections.set(sessionId, selection); this.sessionModels.set(sessionId, input.model); this.sessionToolSignatures.set(sessionId, harnessToolSetSignature(input.tools));
+    return handle;
+  }
   private toolDefinition(tool: HarnessBridgeTool, index: number): ToolDefinition {
     return {
       name: harnessToolName(tool.id, index), description: `${tool.description}\nStudio tool id: ${tool.id}`, parameters: tool.inputSchema as Record<string, unknown>,
@@ -156,3 +239,5 @@ function deferred<T>(): Deferred<T> { let resolve!: (value: T) => void; let reje
 function turnId(sessionId: string, turn: number): string { return `${sessionId}:turn:${turn}`; }
 function latestTurn(agent: Agent | undefined): number { const events = agent?.session.events ?? []; for (let i = events.length - 1; i >= 0; i -= 1) { const event = events[i]!; if (event.type === 'turn/start') return event.data.turn; } return 1; }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+function harnessToolSetSignature(tools: readonly HarnessBridgeTool[]): string { return createHash('sha256').update(stableJson(tools.map((tool) => ({ id: tool.id, description: tool.description, inputSchema: tool.inputSchema })))).digest('hex'); }
+function stableJson(value: unknown): string { if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'; if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`; return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`).join(',')}}`; }

@@ -49,7 +49,7 @@ test('post-process ordering, enable state, device loss and teardown remain obser
   setup.engine.emit('device-restored'); assert.equal(runtime.manifest().device, 'active');
   runtime.dispose(); runtime.dispose();
   assert.equal(setup.world.systems.size, 0);
-  assert.deepEqual(runtime.manifest().owners, { materials: 0, textures: 0, models: 0, lighting: 0, fog: 0, particles2d: 0, particles3d: 0, animations2d: 0, animations3d: 0, audio: 0 });
+  assert.deepEqual(runtime.manifest().owners, { materials: 0, textures: 0, models: 0, lighting: 0, fog: 0, particles2d: 0, particles3d: 0, animations2d: 0, animations3d: 0, audio: 0, audioListeners: 0 });
   setup.world.destroy();
 
   const disabled = harness([{ ...component('haiyue.render.postprocess-stack', { passes: [pass('fxaa', 1, true)] }), enabled: false }]);
@@ -71,7 +71,8 @@ test('public Animation3DMixer and controlled audio owners run and release withou
   let released = 0;
   const animation = component('haiyue.animation.transform-clips', { clips: [{ name: 'Idle', durationTicks: 10, loop: false, from: { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }, to: { position: { x: 10, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 90, z: 0 }, scale: { x: 2, y: 2, z: 2 } } }] });
   const audio = component('haiyue.audio.source', { assetIds: ['asset:test-audio'], autoplay: false });
-  const setup = harness([animation, audio]);
+  const listener = component('haiyue.audio.listener', { active: true, spatial: true, masterGain: 0.75, dopplerFactor: 1.2, speedOfSound: 340 });
+  const setup = harness([animation, audio, listener]);
   const before = JSON.stringify(setup.source);
   const runtime = await RenderEffectsPlayRuntime.create({ engine: setup.engine, scene: { ...setup.scene, render3DSystem: null }, sceneEntities: [setup.source], entitiesByStableId: setup.map, resolveAudioAsset: async () => ({ url: 'blob:g08-audio', release() { released++; } }) });
   runtime.beforeTick(5);
@@ -81,6 +82,8 @@ test('public Animation3DMixer and controlled audio owners run and release withou
   assert.ok(Math.abs(transform.scale[0] - 1.5) < 0.001);
   assert.equal(runtime.manifest().owners.animations3d, 1);
   assert.equal(runtime.manifest().owners.audio, 1);
+  assert.equal(runtime.manifest().owners.audioListeners, 1);
+  assert.deepEqual(runtime.manifest().audioListener, { entityId: 'entity:effect-owner', spatial: true, masterGain: 0.75, dopplerFactor: 1.2, speedOfSound: 340 });
   runtime.dispose();
   assert.equal(runtime.manifest().owners.animations3d, 0);
   assert.equal(released, 1);

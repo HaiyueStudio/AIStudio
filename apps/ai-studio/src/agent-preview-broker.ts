@@ -1,15 +1,16 @@
 import { asStableId, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
 import type { SceneSnapshot } from '@haiyue/ai-studio-editor-plugins';
-import type { GamePlayCapture, GamePlayInputEvent, GamePlayObservation, GamePreviewControl } from '@haiyue/ai-studio-game-authoring-tools';
+import type { GamePhysicsQuery, GamePlayCapture, GamePlayInputEvent, GamePlayObservation, GamePreviewControl } from '@haiyue/ai-studio-game-authoring-tools';
 import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-script-preview';
 
 export interface AgentPreviewCommand {
   readonly id: StableId;
-  readonly kind: 'start' | 'stop' | 'step' | 'input' | 'inspect' | 'capture';
+  readonly kind: 'start' | 'stop' | 'step' | 'input' | 'physics-query' | 'inspect' | 'capture';
   readonly scene?: SceneSnapshot;
   readonly plan?: PreviewPlan;
   readonly count?: number;
   readonly event?: GamePlayInputEvent;
+  readonly query?: GamePhysicsQuery;
 }
 
 interface PendingCommand {
@@ -48,6 +49,7 @@ export class AgentPreviewBroker implements GamePreviewControl {
 
   step(count: number, signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'step', count }), signal).then((value) => value as GamePlayObservation); }
   input(event: GamePlayInputEvent, signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'input', event }), signal).then((value) => value as GamePlayObservation); }
+  physicsQuery(query: GamePhysicsQuery, signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'physics-query', query }), signal).then((value) => value as GamePlayObservation); }
   inspect(signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'inspect' }), signal).then((value) => value as GamePlayObservation); }
   capture(signal?: AbortSignal): Promise<GamePlayCapture> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'capture' }), signal).then((value) => value as GamePlayCapture); }
 

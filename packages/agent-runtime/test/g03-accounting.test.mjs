@@ -122,6 +122,8 @@ test('task accounting aggregates turns, cache savings and a final cost without c
   assert.equal(snapshot.cost.recordIds.length, 1);
   assert.equal(account.costRecords().length, 2);
   assert.deepEqual(new Set(account.costRecords().map((record) => record.status)), new Set(['unknown', 'estimated']));
+  assert.equal(account.latestCostRecord(asStableId('turn:account')).id, snapshot.cost.recordIds[0]);
+  assert.equal(account.latestCostRecord(asStableId('turn:missing')), undefined);
   assert.ok(snapshot.cost.cacheSavingMicros >= 0);
   const subscription = registry.open({ taskId: asStableId('task:subscription'), budget: { ...budget('observe'), id: asStableId('budget:subscription') }, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
   const other = store.open({ taskId: asStableId('task:subscription'), sessionId: asStableId('session:subscription'), turnId: asStableId('turn:subscription'), providerRequestDigest: null, startedAtMs: 0 });

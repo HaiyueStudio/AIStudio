@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "m13-g10-seven-game-retrieval",
+  "cases": [
+    {
+      "id": "snake",
+      "request": "Create a snake board game with grid movement, keyboard input, food collision, score HUD, top-down camera, deterministic play input, inspect and screenshot evidence.",
+      "expectedToolIds": ["script.propose", "play.input", "play.inspect"],
+      "expectedKnowledge": ["camera-framing", "input-actions", "play-evidence"]
+    },
+    {
+      "id": "match-three",
+      "request": "Create a match-three game with pointer drag swap, grid transform, match trigger, score HUD, particles, deterministic play input and screenshot evaluation.",
+      "expectedToolIds": ["entity.create", "script.propose", "play.input"],
+      "expectedKnowledge": ["input-actions", "play-evidence", "presentation-effects"]
+    },
+    {
+      "id": "tetris",
+      "request": "Create Tetris with falling blocks, rotation keyboard input, fixed-step timer, line clear score HUD, restart, play stepping and screenshot evidence.",
+      "expectedToolIds": ["script.propose", "play.step", "play.capture"],
+      "expectedKnowledge": ["input-actions", "fixed-step-physics", "play-evidence"]
+    },
+    {
+      "id": "sliding-puzzle",
+      "request": "Create a sliding jigsaw puzzle with touch drag, snapping transforms, completion trigger, timer HUD and screenshot validation.",
+      "expectedToolIds": ["entity.create", "play.input", "play.inspect"],
+      "expectedKnowledge": ["input-actions", "play-evidence", "presentation-effects"]
+    },
+    {
+      "id": "platform-jump",
+      "request": "Create a platform jumping game with 2D rigid body gravity collision grounded jump input, following camera, deterministic replay and evidence.",
+      "expectedToolIds": ["component.add", "component.configure", "play.physics-query"],
+      "expectedKnowledge": ["fixed-step-physics", "camera-framing", "play-evidence"]
+    },
+    {
+      "id": "racing",
+      "request": "Create a racing game with vehicle movement physics, keyboard and touch steering, camera follow, lap trigger, HUD, particles and replay evidence.",
+      "expectedToolIds": ["camera.author", "play.input", "play.inspect"],
+      "expectedKnowledge": ["camera-framing", "input-actions", "fixed-step-physics"]
+    },
+    {
+      "id": "shooting",
+      "request": "Create a shooting game with pointer aim, projectile pool, raycast collision, health and score HUD, camera, deterministic input and evaluator evidence.",
+      "expectedToolIds": ["component.configure", "play.input", "play.physics-query"],
+      "expectedKnowledge": ["input-actions", "fixed-step-physics", "play-evidence"]
+    }
+  ]
+}

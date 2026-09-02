@@ -4,8 +4,8 @@ import { createInterface } from 'node:readline';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
-import { asStableId, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type StableId } from '@haiyue/ai-studio-contracts';
-import { AgentBackendProtocolError, negotiateAgentTurnConfig, normalizeBackendFailure, type AgentBackend, type AgentBackendDescriptor, type AgentBackendEvent, type AgentBackendStatus, type AgentLoginHandoff, type AgentModelCatalog, type AgentRateLimitSnapshot, type AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
+import { asStableId, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type M13StableId, type StableId } from '@haiyue/ai-studio-contracts';
+import { AgentBackendProtocolError, negotiateAgentTurnConfig, normalizeBackendFailure, type AgentBackend, type AgentBackendDescriptor, type AgentBackendEvent, type AgentBackendStatus, type AgentLoginHandoff, type AgentModelCatalog, type AgentRateLimitSnapshot, type AgentTurnInput, type BackendNativeCompactionResultV1, type BackendRemoteSessionInspectionV1, type BackendSessionAdapter, type BackendSessionCapabilitySnapshotV1, type BackendSessionOpenInputV1, type BackendSessionOpenResultV1, type CompactionSummaryRequestV1 } from '@haiyue/ai-studio-agent-runtime';
 import { backendEvent, deferred, isRecord, toolSetSignature, TurnChannel, type Deferred } from './shared.js';
 
 type RpcId = number | string;
@@ -27,7 +27,7 @@ export interface CodexAppServerBackendOptions {
   readonly requestTimeoutMs?: number;
 }
 
-export class CodexAppServerBackend implements AgentBackend {
+export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapter {
   readonly upstream = Object.freeze({ package: '@openai/codex', version: '0.148.0', schemaSha256: 'dc3613ce823c95087e660f8d12dac89856863eff653f2c8dd8f1ad0cac98ef11' });
   readonly descriptor: AgentBackendDescriptor = Object.freeze({
     schemaVersion: 1,
@@ -58,12 +58,18 @@ export class CodexAppServerBackend implements AgentBackend {
   private readonly usageSequences = new Map<StableId, number>();
   private readonly threadUsageTotals = new Map<string, RpcObject>();
   private readonly turnUsageBaselines = new Map<StableId, RpcObject>();
+  private readonly threadModels = new Map<string, string>();
+  private readonly threadBoundaries = new Map<string, M13StableId>();
+  private readonly modelContextWindows = new Map<string, number>();
 
   constructor(private readonly options: CodexAppServerBackendOptions = {}) {
     if (options.requestTimeoutMs !== undefined && (!Number.isSafeInteger(options.requestTimeoutMs) || options.requestTimeoutMs < 10 || options.requestTimeoutMs > 120_000)) {
       throw new AgentBackendProtocolError('codex.request-timeout-invalid', 'Codex requestTimeoutMs must be an integer from 10 to 120000.');
     }
   }
+
+  get backendId(): StableId { return this.descriptor.id; }
+  readonly provider = 'openai-codex';
 
   async authenticate(signal?: AbortSignal): Promise<AgentLoginHandoff | null> {
     await this.ensureInitialized(signal);
@@ -118,6 +124,82 @@ export class CodexAppServerBackend implements AgentBackend {
     return Object.freeze({ ...result, status: 'degraded', diagnostics: Object.freeze([...result.diagnostics, diagnostic]) });
   }
 
+  async capabilities(model: string, signal?: AbortSignal): Promise<BackendSessionCapabilitySnapshotV1> {
+    const catalog = await this.modelCatalog(signal);
+    if (!catalog.models.some((entry) => entry.id === model)) throw this.protocol('codex.model-unavailable', `Codex model ${model} is unavailable.`);
+    return Object.freeze({
+      maxInputTokens: this.modelContextWindows.get(model) ?? null,
+      nativeCompaction: false,
+      parallelToolCalls: true,
+      codeMode: false,
+      providerUsage: 'reported',
+      providerCache: 'reported',
+      nativeCompactionTransport: 'available',
+      nativeCompactionMirror: 'fallback-required',
+      diagnostic: Object.freeze({ code: 'codex.compaction-summary-unavailable', message: 'Codex thread/compact/start returns no auditable summary or covered range; Studio compaction is required.' }),
+    });
+  }
+
+  async open(input: BackendSessionOpenInputV1, signal?: AbortSignal): Promise<BackendSessionOpenResultV1> {
+    this.assertActive(); await this.ensureInitialized(signal);
+    const capabilities = await this.capabilities(input.model, signal);
+    const cwd = this.options.isolatedCwd ?? await mkdtemp(join(tmpdir(), 'haiyue-codex-'));
+    let owned = this.options.isolatedCwd ? undefined : cwd;
+    try {
+      const dynamicTools = dynamicToolsFor(input.tools);
+      const response = await this.request('thread/start', codexThreadStartParams(cwd, input.model, dynamicTools), signal);
+      const thread = isRecord(response) && isRecord(response.thread) ? response.thread : undefined;
+      if (!thread || typeof thread.id !== 'string') throw this.protocol('codex.thread-malformed', 'Codex returned a malformed thread identity.');
+      const threadId = asStableId(thread.id);
+      this.threadToolNames.set(threadId, new Map(dynamicTools.map((tool, index) => [tool.name, input.tools[index]!.id])));
+      this.threadToolSignatures.set(threadId, toolSetSignature(input.tools));
+      this.threadModels.set(threadId, input.model);
+      this.threadBoundaries.set(threadId, input.lastConfirmedOpId);
+      if (owned) { this.ownedCwds.set(threadId, owned); owned = undefined; }
+      return Object.freeze({ remoteSessionId: threadId, capabilities });
+    } catch (cause) {
+      if (owned) await removeOwnedTemporaryCwd(owned).catch(() => {});
+      throw cause;
+    }
+  }
+
+  async inspect(remoteSessionId: StableId, signal?: AbortSignal): Promise<BackendRemoteSessionInspectionV1> {
+    this.assertActive();
+    try {
+      await this.ensureInitialized(signal);
+      const response = await this.request('thread/read', { threadId: remoteSessionId, includeTurns: false }, signal);
+      const thread = isRecord(response) && isRecord(response.thread) ? response.thread : undefined;
+      if (!thread || thread.id !== remoteSessionId) throw this.protocol('codex.thread-read-malformed', 'Codex returned malformed thread/read state.');
+      if (thread.canAcceptDirectInput !== true) return Object.freeze({ state: 'missing', remoteSessionId, diagnostic: Object.freeze({ code: 'codex.thread-not-resumable', message: `Codex thread ${remoteSessionId} is not loaded for direct input.` }) });
+      return Object.freeze({ state: 'available', remoteSessionId, model: this.threadModels.get(remoteSessionId) ?? null, lastConfirmedOpId: this.threadBoundaries.get(remoteSessionId) ?? null });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      if (/not[ -]?found|does not exist|unknown thread|no thread/iu.test(message)) return Object.freeze({ state: 'missing', remoteSessionId, diagnostic: Object.freeze({ code: 'codex.thread-missing', message }) });
+      return Object.freeze({ state: 'unavailable', remoteSessionId, diagnostic: Object.freeze({ code: cause instanceof AgentBackendProtocolError ? cause.code : 'codex.thread-inspection-failed', message }) });
+    }
+  }
+
+  async confirmBoundary(remoteSessionId: StableId, lastConfirmedOpId: StableId): Promise<void> {
+    this.assertActive();
+    if (!this.threadModels.has(remoteSessionId)) throw this.protocol('codex.thread-missing', `Codex thread ${remoteSessionId} is not owned by this adapter instance.`);
+    this.threadBoundaries.set(remoteSessionId, lastConfirmedOpId);
+  }
+
+  async compact(_remoteSessionId: StableId, _request: CompactionSummaryRequestV1): Promise<BackendNativeCompactionResultV1> {
+    this.assertActive();
+    return Object.freeze({ status: 'unavailable', diagnostic: Object.freeze({ code: 'codex.compaction-summary-unavailable', message: 'Codex native compaction cannot be mirrored because the pinned RPC returns no summary or covered range.' }) });
+  }
+
+  async detach(remoteSessionId: StableId, signal?: AbortSignal): Promise<void> {
+    this.assertActive();
+    const locallyKnown = this.threadModels.has(remoteSessionId) || this.threadToolNames.has(remoteSessionId);
+    if (locallyKnown) {
+      try { await this.ensureInitialized(signal); await this.request('thread/unsubscribe', { threadId: remoteSessionId }, signal); }
+      catch (cause) { if (!/not[ -]?found|does not exist|unknown thread|no thread/iu.test(cause instanceof Error ? cause.message : String(cause))) throw cause; }
+    }
+    this.threadModels.delete(remoteSessionId); this.threadBoundaries.delete(remoteSessionId); this.threadToolNames.delete(remoteSessionId); this.threadToolSignatures.delete(remoteSessionId); this.threadUsageTotals.delete(remoteSessionId); this.scheduleCwdCleanup(remoteSessionId);
+  }
+
   startTurn(input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     this.assertActive();
     const channel = new TurnChannel();
@@ -169,7 +251,7 @@ export class CodexAppServerBackend implements AgentBackend {
     for (const channel of this.turns.values()) channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(error), 'interrupted');
     this.pendingTools.clear(); this.pendingQuestions.clear();
     for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear();
-    this.threadToolNames.clear(); this.threadToolSignatures.clear(); this.threadUsageTotals.clear(); this.turnUsageBaselines.clear();
+    this.threadToolNames.clear(); this.threadToolSignatures.clear(); this.threadUsageTotals.clear(); this.turnUsageBaselines.clear(); this.threadModels.clear(); this.threadBoundaries.clear(); this.modelContextWindows.clear();
     const failures: unknown[] = []; let transportClosed = true;
     try { await this.transport?.dispose(); }
     catch (cause) { transportClosed = false; failures.push(cause); }
@@ -195,21 +277,16 @@ export class CodexAppServerBackend implements AgentBackend {
       const cwd = reusableThreadId ? this.ownedCwds.get(reusableThreadId) ?? this.options.isolatedCwd : this.options.isolatedCwd ?? await mkdtemp(join(tmpdir(), 'haiyue-codex-'));
       if (!cwd) throw this.protocol('codex.thread-cwd-missing', 'A reusable Codex thread lost its isolated working directory.');
       if (!reusableThreadId && !this.options.isolatedCwd) unownedTempCwd = cwd;
-      const dynamicTools = input.tools.map((tool, index) => ({ type: 'function', name: codexToolName(tool.id, index), description: `${tool.description}\nStudio tool id: ${tool.id}`, inputSchema: tool.inputSchema }));
+      const dynamicTools = dynamicToolsFor(input.tools);
       let threadId = reusableThreadId;
       if (!threadId) {
-        const threadResponse = await this.request('thread/start', {
-          cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', sandbox: 'read-only', ephemeral: true, environments: [], selectedCapabilityRoots: [], model: effective.model, allowProviderModelFallback: false,
-          config: { web_search: 'disabled', mcp_servers: {} },
-          baseInstructions: 'You are the AIStudio game-authoring agent. Use only the supplied dynamic Studio tools and the versioned context envelope in each turn.',
-          developerInstructions: 'Never invoke shell, command execution, file mutation, patching, direct filesystem access, network access, MCP, apps, or web search. Use only the supplied dynamic Studio tools. If no suitable Studio tool exists, explain the limitation.',
-          dynamicTools,
-        }, signal);
+        const threadResponse = await this.request('thread/start', codexThreadStartParams(cwd, effective.model, dynamicTools), signal);
         const thread = isRecord(threadResponse) && isRecord(threadResponse.thread) ? threadResponse.thread : undefined;
         if (!thread || typeof thread.id !== 'string') throw this.protocol('codex.thread-malformed', 'Codex returned a malformed thread identity.');
         threadId = asStableId(thread.id);
         this.threadToolNames.set(threadId, new Map(dynamicTools.map((tool, index) => [tool.name, input.tools[index]!.id])));
         this.threadToolSignatures.set(threadId, tools);
+        this.threadModels.set(threadId, effective.model);
       }
       const response = await this.request('turn/start', { threadId, input: [{ type: 'text', text: input.prompt, text_elements: [] }], environments: [], cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', model: effective.model, effort: wireEffort }, signal);
       const turn = isRecord(response) && isRecord(response.turn) ? response.turn : undefined;
@@ -378,6 +455,9 @@ export class CodexAppServerBackend implements AgentBackend {
       const baseline = this.turnUsageBaselines.get(turnId) ?? Object.freeze({});
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', normalizedTokenUsage(turnId, sequence, last, total, baseline, params.tokenUsage.modelContextWindow)));
       this.threadUsageTotals.set(threadId, usageTotalSnapshot(total));
+      if (typeof params.tokenUsage.modelContextWindow === 'number' && Number.isSafeInteger(params.tokenUsage.modelContextWindow) && params.tokenUsage.modelContextWindow >= 1024) {
+        const model = this.threadModels.get(threadId); if (model) this.modelContextWindows.set(model, params.tokenUsage.modelContextWindow);
+      }
     } else if (method === 'error') {
       channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'diagnostic', { code: 'codex.server-error', message: diagnosticMessage(params), retryable: false }));
     } else if (method === 'turn/completed') {
@@ -526,6 +606,18 @@ function copyTurnNumber(source: RpcObject, baseline: RpcObject, sourceKey: strin
 function copyNumber(source: RpcObject, sourceKey: string, target: Record<string, JsonValue>, targetKey: string): void { const value = source[sourceKey]; if (typeof value === 'number') target[targetKey] = value; }
 function isJsonValue(value: unknown): value is JsonValue { try { return value === null || ['string', 'number', 'boolean'].includes(typeof value) || (typeof value === 'object' && JSON.stringify(value) !== undefined); } catch { return false; } }
 function codexToolName(id: StableId, index: number): string { const normalized = id.replace(/[^A-Za-z0-9_-]/gu, '_').slice(0, 48); return `studio_${index}_${normalized}`; }
+function dynamicToolsFor(tools: readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[]): ReadonlyArray<Readonly<{ type: 'function'; name: string; description: string; inputSchema: JsonObject }>> {
+  return tools.map((tool, index) => Object.freeze({ type: 'function' as const, name: codexToolName(tool.id, index), description: `${tool.description}\nStudio tool id: ${tool.id}`, inputSchema: tool.inputSchema }));
+}
+function codexThreadStartParams(cwd: string, model: string, dynamicTools: ReturnType<typeof dynamicToolsFor>): JsonObject {
+  return {
+    cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', sandbox: 'read-only', ephemeral: true, environments: [], selectedCapabilityRoots: [], model, allowProviderModelFallback: false,
+    config: { web_search: 'disabled', mcp_servers: {} },
+    baseInstructions: 'You are the AIStudio game-authoring agent. Use only the supplied dynamic Studio tools and the versioned context envelope in each turn.',
+    developerInstructions: 'Never invoke shell, command execution, file mutation, patching, direct filesystem access, network access, MCP, apps, or web search. Use only the supplied dynamic Studio tools. If no suitable Studio tool exists, explain the limitation.',
+    dynamicTools,
+  };
+}
 const deniedServerMethods = new Set(['item/commandExecution/requestApproval', 'item/fileChange/requestApproval', 'item/permissions/requestApproval', 'applyPatchApproval', 'execCommandApproval', 'mcpServer/elicitation/request']);
 const forbiddenServerMethods = new Set(['account/chatgptAuthTokens/refresh', 'attestation/generate', 'currentTime/read']);
 const codexTokenUsageKeys = Object.freeze(['inputTokens', 'outputTokens', 'cachedInputTokens', 'cacheWriteInputTokens', 'reasoningOutputTokens']);

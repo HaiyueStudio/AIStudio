@@ -65,7 +65,8 @@ export interface RenderEffectManifest {
   readonly render: RenderEngineProfile;
   readonly viewport: Readonly<{ width: number; height: number; pixelWidth: number; pixelHeight: number }>;
   readonly postprocess: readonly Readonly<{ kind: string; order: number; enabled: boolean }>[];
-  readonly owners: Readonly<{ materials: number; textures: number; models: number; lighting: number; fog: number; particles2d: number; particles3d: number; animations2d: number; animations3d: number; audio: number }>;
+  readonly owners: Readonly<{ materials: number; textures: number; models: number; lighting: number; fog: number; particles2d: number; particles3d: number; animations2d: number; animations3d: number; audio: number; audioListeners: number }>;
+  readonly audioListener: Readonly<{ entityId: string; spatial: boolean; masterGain: number; dopplerFactor: number; speedOfSound: number }> | null;
   readonly device: 'active' | 'lost';
 }
 
@@ -90,7 +91,8 @@ export class RenderEffectsPlayRuntime {
   private readonly postprocess: Array<Readonly<{ kind: string; order: number; enabled: boolean }>> = [];
   private disposed = false;
   private deviceLost = false;
-  private counts = { materials: 0, textures: 0, models: 0, lighting: 0, fog: 0, particles2d: 0, particles3d: 0, animations2d: 0, animations3d: 0, audio: 0 };
+  private counts = { materials: 0, textures: 0, models: 0, lighting: 0, fog: 0, particles2d: 0, particles3d: 0, animations2d: 0, animations3d: 0, audio: 0, audioListeners: 0 };
+  private audioListener: RenderEffectManifest['audioListener'] = null;
 
   private constructor(private readonly options: RenderEffectsRuntimeOptions, private readonly profile: RenderEngineProfile) {}
 
@@ -150,7 +152,7 @@ export class RenderEffectsPlayRuntime {
       schemaVersion: 1,
       render: this.profile,
       viewport: Object.freeze({ width, height, pixelWidth: Math.max(1, Math.floor(width * scale)), pixelHeight: Math.max(1, Math.floor(height * scale)) }),
-      postprocess: Object.freeze([...this.postprocess]), owners: Object.freeze({ ...this.counts }), device: this.deviceLost ? 'lost' : 'active',
+      postprocess: Object.freeze([...this.postprocess]), owners: Object.freeze({ ...this.counts }), audioListener: this.audioListener, device: this.deviceLost ? 'lost' : 'active',
     });
   }
 
@@ -170,13 +172,21 @@ export class RenderEffectsPlayRuntime {
     for (const restore of this.restorations.splice(0).reverse()) { try { restore(); } catch { /* Scene destruction remains the final owner. */ } }
     for (const asset of this.runtimeAssets.splice(0).reverse()) { try { asset.release(); } catch { /* Release is best effort during stop. */ } }
     this.postprocess.length = 0;
-    this.counts = { materials: 0, textures: 0, models: 0, lighting: 0, fog: 0, particles2d: 0, particles3d: 0, animations2d: 0, animations3d: 0, audio: 0 };
+    this.counts = { materials: 0, textures: 0, models: 0, lighting: 0, fog: 0, particles2d: 0, particles3d: 0, animations2d: 0, animations3d: 0, audio: 0, audioListeners: 0 };
+    this.audioListener = null;
   }
 
   private async install(): Promise<void> {
     this.options.engine.on('device-lost', this.onDeviceLost);
     this.options.engine.on('device-restored', this.onDeviceRestored);
     const mixer = findEnabled(this.options.sceneEntities, 'haiyue.audio.mixer')?.value;
+    const listenerOwners = this.options.sceneEntities.flatMap((entity) => (entity.components ?? []).filter((component) => component.enabled && component.type === 'haiyue.audio.listener' && component.value.active === true).map((component) => ({ entity, component })));
+    if (listenerOwners.length > 1) throw new Error('audio.listener-conflict: only one active listener is allowed.');
+    const listener = listenerOwners[0];
+    if (listener) {
+      this.audioListener = Object.freeze({ entityId: listener.entity.id, spatial: listener.component.value.spatial === true, masterGain: finite(listener.component.value.masterGain, 0, 1, 1), dopplerFactor: finite(listener.component.value.dopplerFactor, 0, 10, 1), speedOfSound: finite(listener.component.value.speedOfSound, 1, 100_000, 343.3) });
+      this.counts.audioListeners = 1;
+    }
     for (const source of this.options.sceneEntities) {
       const entity = this.options.entitiesByStableId.get(source.id);
       if (!entity) throw new Error(`render.stale-entity: ${source.id}.`);
@@ -190,7 +200,7 @@ export class RenderEffectsPlayRuntime {
         else if (descriptor.type === 'haiyue.particles.3d') this.installParticle3D(entity, descriptor);
         else if (descriptor.type === 'haiyue.animation.transform-clips') this.installAnimation3D(entity, source.id, descriptor);
         else if (descriptor.type === 'haiyue.animation.2d') await this.installAnimation2D(entity, descriptor);
-        else if (descriptor.type === 'haiyue.audio.source') await this.installAudio(entity, descriptor, mixer);
+        else if (descriptor.type === 'haiyue.audio.source') await this.installAudio(entity, descriptor, mixer, this.audioListener);
         else if (descriptor.type === 'haiyue.model.gltf') await this.installModel(entity, descriptor);
       }
     }
@@ -367,7 +377,7 @@ export class RenderEffectsPlayRuntime {
     }
   }
 
-  private async installAudio(entity: Entity, descriptor: RenderEffectComponent, mixer: Readonly<Record<string, unknown>> | undefined): Promise<void> {
+  private async installAudio(entity: Entity, descriptor: RenderEffectComponent, mixer: Readonly<Record<string, unknown>> | undefined, listener: RenderEffectManifest['audioListener']): Promise<void> {
     if (!this.options.resolveAudioAsset) throw new Error('audio.asset-resolver-unavailable: Play cannot resolve controlled audio assets.');
     const ids = Array.isArray(descriptor.value.assetIds) ? descriptor.value.assetIds.filter((item): item is string => typeof item === 'string') : [];
     const resolved: ResolvedAudioAsset[] = [];
@@ -382,7 +392,7 @@ export class RenderEffectsPlayRuntime {
     const bus = typeof descriptor.value.bus === 'string' ? descriptor.value.bus : 'master';
     const busDescriptor = Array.isArray(mixer?.buses) ? mixer.buses.filter(isRecord).find((candidate) => candidate.name === bus) : undefined;
     const muted = mixer?.muted === true || busDescriptor?.muted === true;
-    const volume = muted ? 0 : finite(descriptor.value.volume, 0, 1, 1) * finite(mixer?.masterVolume, 0, 1, 1) * finite(busDescriptor?.volume, 0, 1, 1);
+    const volume = muted ? 0 : finite(descriptor.value.volume, 0, 1, 1) * finite(mixer?.masterVolume, 0, 1, 1) * finite(busDescriptor?.volume, 0, 1, 1) * (listener?.masterGain ?? 1);
     const component = new MusicPlayerComponent({ urls: resolved.map((asset) => asset.url), volume, autoplay: descriptor.value.autoplay === true, loop: descriptor.value.loop === true });
     entity.addComponent(component);
     // Runtime adapters attach after preview entities already entered the World, so

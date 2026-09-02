@@ -246,6 +246,9 @@ export function validateConversationIntent(value: unknown): ConversationIntent {
       exactKeys(value, ['type', 'approvalId', 'decision']);
       if (value.decision !== 'allow-once' && value.decision !== 'allow-always' && value.decision !== 'reject') throw new ConversationReadModelError('conversation.intent-invalid', 'Approval decision is invalid.');
       return Object.freeze({ type, approvalId: stable(value.approvalId, 'approval id'), decision: value.decision });
+    case 'conversation/request-compaction':
+      exactKeys(value, ['type', 'sessionId', 'requestId']);
+      return Object.freeze({ type, sessionId: stable(value.sessionId, 'session id'), requestId: stable(value.requestId, 'compaction request id') });
     case 'backend/select': case 'backend/authenticate': case 'backend/logout':
       exactKeys(value, ['type', 'backendId']); return Object.freeze({ type, backendId: stable(value.backendId, 'backend id') });
     case 'agent/configure': {

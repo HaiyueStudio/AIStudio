@@ -23,6 +23,8 @@ export interface GameToolDefinition {
   readonly timeoutMs: number;
   readonly maxResultBytes: number;
   readonly requiresApproval: boolean;
+  /** Registry-owned concurrency declaration. Only explicitly safe observations may be scheduled in parallel. */
+  readonly concurrencySafe: boolean;
 }
 
 export interface GameToolCall {
@@ -70,6 +72,19 @@ export type GamePlayInputEvent = Readonly<{
   wheelY?: number;
   value?: number;
   reason?: 'blur' | 'disconnect' | 'stop' | 'restart' | 'cancel' | 'manual';
+}>;
+
+export type GamePhysicsQuery = Readonly<{
+  kind: 'status' | 'events' | 'body' | 'raycast' | 'overlap';
+  dimension?: '2d' | '3d';
+  entityId?: StableId;
+  origin?: Readonly<{ x: number; y: number; z: number }>;
+  direction?: Readonly<{ x: number; y: number; z: number }>;
+  center?: Readonly<{ x: number; y: number; z: number }>;
+  size?: Readonly<{ x: number; y: number; z: number }>;
+  maxDistance?: number;
+  sinceTick?: number;
+  limit?: number;
 }>;
 
 export interface GameToolPreview {
@@ -131,6 +146,32 @@ export interface GameToolResult {
   readonly beforeRevision: number;
   readonly afterRevision: number;
   readonly historyLabel?: string;
+  readonly transaction?: Readonly<{
+    readonly transactionId: StableId;
+    readonly idempotencyKey: StableId;
+    readonly receiptDigest: string;
+    readonly receiptArtifactId: StableId;
+    readonly memberCount: number;
+    readonly replayed: boolean;
+  }>;
+}
+
+export interface GameToolTransactionInput {
+  readonly sessionId: StableId;
+  readonly turnId: StableId;
+  readonly batchId: StableId;
+  readonly preparationIds: readonly StableId[];
+}
+
+export interface GameToolTransactionResult {
+  readonly transactionId: StableId;
+  readonly idempotencyKey: StableId;
+  readonly receiptDigest: string;
+  readonly receiptArtifactId: StableId;
+  readonly beforeRevision: number;
+  readonly afterRevision: number;
+  readonly replayed: boolean;
+  readonly results: readonly GameToolResult[];
 }
 
 export interface GamePreviewControl {
@@ -138,6 +179,7 @@ export interface GamePreviewControl {
   stop(signal?: AbortSignal): Promise<PreviewRuntimeSnapshot>;
   step(count: number, signal?: AbortSignal): Promise<GamePlayObservation>;
   input(event: GamePlayInputEvent, signal?: AbortSignal): Promise<GamePlayObservation>;
+  physicsQuery(query: GamePhysicsQuery, signal?: AbortSignal): Promise<GamePlayObservation>;
   inspect(signal?: AbortSignal): Promise<GamePlayObservation>;
   capture(signal?: AbortSignal): Promise<GamePlayCapture>;
   snapshot(): PreviewRuntimeSnapshot;
@@ -149,6 +191,7 @@ export interface GameToolRuntimeSnapshot {
   readonly pendingApprovals: number;
   readonly activeCalls: number;
   readonly activeApprovalGrants: number;
+  readonly effectLocks: Readonly<{ heldOwners: number; heldKeys: number; waiting: number; acquisitions: number; conflicts: number; cancelledWaits: number }>;
   readonly disposed: boolean;
 }
 

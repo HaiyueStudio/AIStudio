@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { asStableId, type ComponentDefinitionV2, type GameComponentInstanceV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, projectCameraFromSettings, PROJECT_CAMERA_SETTING_KEY, type ProjectWorkspace, type SceneAuthoringService, type SceneEntityKind, type SceneMaterialColor, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
+import { asStableId, type ComponentDefinitionV2, type GameComponentInstanceV2, type GameDocumentOperationV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
+import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, projectCameraFromSettings, PROJECT_CAMERA_SETTING_KEY, type ProjectWorkspace, type SceneAuthoringService, type SceneContextProjection, type SceneContextScope, type SceneDiffInput, type SceneEntityKind, type SceneMaterialColor, type SceneQueryInput, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, ControlledAssetError, type ControlledAssetKind, type ControlledAssetLicense } from '@haiyue/ai-studio-editor-plugins/assets';
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import { DeterministicTaskEvaluator, PlayObservationRepository } from './observations.js';
+import { classifyToolConcurrency } from './scheduler/classify.js';
+import { EffectLockManager, effectLockKeys } from './scheduler/effect-locks.js';
+import { SceneTransactionCoordinator } from './transactions.js';
+import { ToolCatalogRuntime, type ToolSchemaSelection } from './catalog/index.js';
 import {
   GameToolProtocolError,
   type GamePreviewControl,
@@ -17,6 +21,8 @@ import {
   type GameToolPreview,
   type GameToolResult,
   type GameToolRuntimeSnapshot,
+  type GameToolTransactionInput,
+  type GameToolTransactionResult,
 } from './types.js';
 
 export interface GameAuthoringToolRuntimeOptions {
@@ -28,6 +34,7 @@ export interface GameAuthoringToolRuntimeOptions {
   readonly preview: GamePreviewControl;
   readonly timeoutCeilingMs?: number;
   readonly observationByteLimit?: number;
+  readonly effectLocks?: EffectLockManager;
 }
 
 interface StoredPreparation {
@@ -40,6 +47,37 @@ interface StoredPreparation {
   approvalScopeDigest?: string;
 }
 
+interface ReversibleTransactionMemberPlan {
+  readonly stored: StoredPreparation;
+  readonly label: string;
+  readonly operations: readonly GameDocumentOperationV2[];
+  readonly result: (afterRevision: number) => JsonObject;
+}
+interface TransactionPlanningContext { readonly createOffsets: Map<string, number>; assetCatalog?: ControlledAssetCatalog; }
+
+const PREFAB_REGISTRY_SETTING_KEY = 'studio.prefabs.v1';
+const MAX_PREFABS = 64;
+const MAX_PREFAB_ENTITIES = 128;
+const MAX_PREFAB_REGISTRY_BYTES = 512 * 1024;
+interface StoredPrefabEntity {
+  readonly id: StableId;
+  readonly name: string;
+  readonly parentId: StableId | null;
+  readonly order: number;
+  readonly componentIds: readonly StableId[];
+}
+interface StoredPrefab {
+  readonly schemaVersion: 1;
+  readonly id: StableId;
+  readonly name: string;
+  readonly rootEntityId: StableId;
+  readonly entities: readonly StoredPrefabEntity[];
+  readonly components: readonly GameComponentInstanceV2[];
+  readonly scripts: readonly ReturnType<ProjectWorkspace['gameSnapshot']>['scripts'][number][];
+  readonly digest: `sha256:${string}`;
+}
+interface StoredPrefabRegistry { readonly schemaVersion: 1; readonly prefabs: readonly StoredPrefab[]; }
+
 export class GameAuthoringToolRuntime {
   private readonly preparations = new Map<StableId, StoredPreparation>();
   private readonly proposals = new Map<StableId, ScriptEditProposal>();
@@ -50,15 +88,22 @@ export class GameAuthoringToolRuntime {
   private disposed = false;
   private readonly observations: PlayObservationRepository;
   private readonly evaluator: DeterministicTaskEvaluator;
+  private readonly effectLocks: EffectLockManager;
+  private readonly transactions: SceneTransactionCoordinator;
+  private readonly catalog: ToolCatalogRuntime;
 
   constructor(private readonly options: GameAuthoringToolRuntimeOptions) {
     if (options.timeoutCeilingMs !== undefined && (!Number.isSafeInteger(options.timeoutCeilingMs) || options.timeoutCeilingMs < 1 || options.timeoutCeilingMs > 20_000)) throw new TypeError('Tool timeout ceiling must be between one millisecond and twenty seconds.');
     this.observations = new PlayObservationRepository(options.operationLog, options.observationByteLimit);
     this.evaluator = new DeterministicTaskEvaluator(this.observations, () => requireDocument(options.workspace).revision);
+    this.effectLocks = options.effectLocks ?? new EffectLockManager();
+    this.transactions = new SceneTransactionCoordinator(options.workspace, options.operationLog, this.effectLocks);
+    this.catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => options.workspace.componentRegistry.snapshot().definitions);
   }
 
   definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
-  snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: GAME_AUTHORING_TOOL_DEFINITIONS, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, activeApprovalGrants: this.approvalGrants.size, disposed: this.disposed }); }
+  selectDefinitions(request: string, expandedIds: readonly StableId[] = []): ToolSchemaSelection { this.assertActive(); return this.catalog.selectDefinitions(request, expandedIds); }
+  snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: GAME_AUTHORING_TOOL_DEFINITIONS, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, activeApprovalGrants: this.approvalGrants.size, effectLocks: this.effectLocks.snapshot(), disposed: this.disposed }); }
 
   async prepare(value: unknown, signal?: AbortSignal): Promise<GameToolPreparation> {
     this.assertActive();
@@ -170,9 +215,77 @@ export class GameAuthoringToolRuntime {
     }
     if (stored.approval?.decision === 'pending') throw new GameToolProtocolError('approval.required', 'The exact tool operation still requires approval.');
     if (stored.approval && !isAllowDecision(stored.approval.decision)) return this.finishWithoutExecution(stored, stored.approval.decision === 'cancel' ? 'cancelled' : 'rejected');
-    const operation = () => this.executeStored(stored, signal);
+    const operation = () => this.executeWithEffectLock(stored, signal);
     return (stored.definition.effect === 'observe' && !stored.definition.id.startsWith('play.')) || stored.definition.id === 'script.propose' || stored.definition.id === 'preview.validate' || stored.definition.id === 'preview.stop'
       ? operation() : this.serializeMutation(operation);
+  }
+
+  async executeTransaction(input: GameToolTransactionInput, signal?: AbortSignal): Promise<GameToolTransactionResult> {
+    this.assertActive();
+    if (!input || !Array.isArray(input.preparationIds) || input.preparationIds.length < 1 || input.preparationIds.length > 100) throw new GameToolProtocolError('scene-transaction.members-invalid', 'A Scene transaction requires 1-100 prepared members.');
+    if (new Set(input.preparationIds).size !== input.preparationIds.length) throw new GameToolProtocolError('scene-transaction.members-invalid', 'Scene transaction preparation ids must be unique.');
+    return this.serializeMutation(async () => {
+      const storedMembers = input.preparationIds.map((id) => {
+        const stored = this.preparations.get(id);
+        if (!stored) throw new GameToolProtocolError('tool.preparation-missing', `Preparation ${id} is missing or consumed.`);
+        return stored;
+      });
+      const first = storedMembers[0]!;
+      if (first.call.sessionId !== input.sessionId || first.call.turnId !== input.turnId) throw new GameToolProtocolError('scene-transaction.coordinate-mismatch', 'Scene transaction coordinates do not match its prepared members.');
+      for (const stored of storedMembers) {
+        if (stored.call.sessionId !== input.sessionId || stored.call.turnId !== input.turnId || stored.view.documentId !== first.view.documentId || stored.view.baseRevision !== first.view.baseRevision) throw new GameToolProtocolError('scene-transaction.coordinate-mismatch', 'Every Scene transaction member must share one session, turn, document and base revision.');
+        if (stored.definition.effect !== 'reversible-edit') throw new GameToolProtocolError('scene-transaction.member-ineligible', `${stored.definition.id} is not a reversible Scene mutation.`);
+        if (stored.approval?.decision === 'pending') await this.invalidatePendingApproval(stored);
+        if (stored.view.status !== 'ready' || (stored.approval && !isAllowDecision(stored.approval.decision))) throw new GameToolProtocolError('scene-transaction.approval-required', `Preparation ${stored.view.id} is not approved and ready.`);
+        if (sha256(canonicalStringify(stored.arguments)) !== stored.view.argumentsDigest || sha256(canonicalStringify(stored.preview as unknown as JsonObject)) !== stored.view.previewDigest) throw new GameToolProtocolError('approval.digest-mismatch', 'Prepared arguments or preview changed.');
+      }
+      const document = requireDocument(this.options.workspace);
+      if (document.documentId !== first.view.documentId || document.revision !== first.view.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Document changed after transaction preparation; prepare every member again.', true);
+      const planning: TransactionPlanningContext = { createOffsets: new Map<string, number>() };
+      const plans: ReversibleTransactionMemberPlan[] = [];
+      for (const stored of storedMembers) plans.push(await planReversibleTransactionMember(stored, this.options, planning, signal));
+      for (const plan of plans) await this.appendFact(plan.stored.definition, { kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(plan.stored.call, plan.stored.approval?.approvalId), payload: { preparationId: plan.stored.view.id, toolId: plan.stored.definition.id, argumentsDigest: plan.stored.view.argumentsDigest, previewDigest: plan.stored.view.previewDigest, batchId: input.batchId, transaction: true } }, signal);
+      const prepared = await this.transactions.prepare({
+        sessionId: input.sessionId, turnId: input.turnId, batchId: input.batchId, documentId: first.view.documentId, baseRevision: first.view.baseRevision,
+        label: plans.length === 1 ? plans[0]!.label : `Agent batch · ${plans.length} edits`,
+        members: plans.map((plan) => {
+          const classification = classifyToolConcurrency(plan.stored.definition, plan.stored.arguments);
+          return Object.freeze({ nodeId: plan.stored.call.id, toolCallId: plan.stored.call.id, toolId: plan.stored.definition.id, toolVersion: plan.stored.definition.version, effectKeys: effectLockKeys(classification.executionClass, classification.effectKeys), operations: plan.operations });
+        }),
+      }, signal);
+      const committed = await this.transactions.commit(prepared.id, signal);
+      const receipt = committed.commit.receipt;
+      const transaction = Object.freeze({ transactionId: prepared.id, idempotencyKey: prepared.idempotencyKey, receiptDigest: receipt.receiptDigest, receiptArtifactId: receipt.artifactId, memberCount: plans.length, replayed: committed.commit.replayed });
+      const results = Object.freeze(plans.map((plan): GameToolResult => {
+        this.preparations.delete(plan.stored.view.id); plan.stored.view = Object.freeze({ ...plan.stored.view, status: 'consumed' });
+        return Object.freeze({ schemaVersion: 1, callId: plan.stored.call.id, toolId: plan.stored.definition.id, status: 'completed', value: plan.result(receipt.afterRevision), documentId: receipt.documentId, beforeRevision: receipt.beforeRevision, afterRevision: receipt.afterRevision, historyLabel: receipt.historyLabel, transaction });
+      }));
+      for (const result of results) {
+        const stored = storedMembers.find((candidate) => candidate.call.id === result.callId)!;
+        await this.appendFact(stored.definition, { kind: 'tool/execution-completed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), artifactRefs: [receipt.artifactId], payload: { toolId: stored.definition.id, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, resultDigest: sha256(canonicalStringify(result.value)), historyLabel: result.historyLabel ?? null, transactionId: prepared.id, idempotencyKey: prepared.idempotencyKey, receiptDigest: receipt.receiptDigest, receiptArtifactId: receipt.artifactId } });
+      }
+      return Object.freeze({ transactionId: prepared.id, idempotencyKey: prepared.idempotencyKey, receiptDigest: receipt.receiptDigest, receiptArtifactId: receipt.artifactId, beforeRevision: receipt.beforeRevision, afterRevision: receipt.afterRevision, replayed: committed.commit.replayed, results });
+    });
+  }
+
+  private async executeWithEffectLock(stored: StoredPreparation, signal?: AbortSignal): Promise<GameToolResult> {
+    const classification = classifyToolConcurrency(stored.definition, stored.arguments);
+    if (classification.executionClass === 'parallel-read') return this.executeStored(stored, signal);
+    const ownerId = asStableId(`effect-lock:${sha256(stored.call.id).slice(0, 24)}`);
+    const keys = effectLockKeys(classification.executionClass, classification.effectKeys);
+    const lease = await this.effectLocks.acquire(ownerId, keys, signal);
+    await this.appendFact(stored.definition, {
+      kind: 'tool/effect-lock-acquired', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId),
+      payload: { toolId: stored.definition.id, executionClass: classification.executionClass, effectKeys: keys, waitMs: lease.waitMs },
+    }, signal);
+    try { return await this.executeStored(stored, signal); }
+    finally {
+      lease.release();
+      await this.options.operationLog.append({
+        kind: 'tool/effect-lock-released', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId),
+        payload: { toolId: stored.definition.id, executionClass: classification.executionClass, effectKeys: keys },
+      }).catch(() => undefined);
+    }
   }
 
   async cancel(callId: StableId): Promise<void> {
@@ -212,7 +325,7 @@ export class GameAuthoringToolRuntime {
     const timer = setTimeout(() => controller.abort(new GameToolProtocolError('tool.timeout', `Tool ${stored.definition.id} exceeded ${timeoutMs} ms.`, true)), timeoutMs);
     try {
       await this.appendFact(stored.definition, { kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest } }, controller.signal);
-      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, controller.signal);
+      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, this.catalog, controller.signal);
       if (controller.signal.aborted) throw controller.signal.reason ?? new GameToolProtocolError('tool.cancelled', 'Tool call was cancelled.');
       assertResultBudget(value, stored.definition.maxResultBytes);
       const after = requireDocument(this.options.workspace);
@@ -271,13 +384,505 @@ export class GameAuthoringToolRuntime {
   private assertActive(): void { if (this.disposed) throw new GameToolProtocolError('tool.runtime-disposed', 'Game tool runtime is disposed.'); }
 }
 
-async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, observations: PlayObservationRepository, evaluator: DeterministicTaskEvaluator, signal: AbortSignal): Promise<JsonObject> {
+async function planReversibleTransactionMember(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, planning: TransactionPlanningContext, signal?: AbortSignal): Promise<ReversibleTransactionMemberPlan> {
+  if (signal?.aborted) throw signal.reason ?? new GameToolProtocolError('tool.cancelled', 'Tool transaction planning was cancelled.');
+  const args = stored.arguments as Record<string, JsonValue>;
+  const scene = options.scene.snapshot();
+  const result = (label: string, operations: readonly GameDocumentOperationV2[], project: (afterRevision: number) => JsonObject): ReversibleTransactionMemberPlan => Object.freeze({ stored, label, operations: Object.freeze([...operations]), result: project });
+  switch (stored.definition.id) {
+    case 'camera.set': {
+      const camera = args.camera as JsonObject;
+      return result('Set Camera', [{ op: 'setting.set', key: PROJECT_CAMERA_SETTING_KEY, value: camera }], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, camera: projectCameraFromSettings(requireDocument(options.workspace).settings) as unknown as JsonValue }));
+    }
+    case 'camera.author': return planCameraAuthorMember(stored, options, args);
+    case 'entity.create': {
+      const kind = args.kind as SceneEntityKind;
+      const parentId = 'parentId' in args ? args.parentId as StableId | null : null;
+      const parentKey = parentId ?? '';
+      const offset = planning.createOffsets.get(parentKey) ?? 0; planning.createOffsets.set(parentKey, offset + 1);
+      const id = transactionGeneratedId('entity', stored.call.id);
+      const name = typeof args.name === 'string' ? args.name : transactionEntityLabel(kind);
+      const transform = (args.transform ?? DEFAULT_TRANSACTION_TRANSFORM) as unknown as TransformSnapshot;
+      const operations: GameDocumentOperationV2[] = [
+        { op: 'entity.add', entity: { id, sceneId: options.workspace.primarySceneId(), name, parentId, order: scene.entities.filter((item) => item.parentId === parentId).length + offset, componentIds: [] } },
+        { op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-transform', stored.call.id), type: asStableId('haiyue.transform.3d'), version: '1.0.0', value: transform as unknown as JsonObject }) },
+      ];
+      if (isSceneGeometryKind(kind)) {
+        const appearance = Object.freeze({ material: (args.material ?? 'basic') as string, color: (args.color ?? DEFAULT_TRANSACTION_COLOR) as JsonValue }) as unknown as JsonObject;
+        operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', stored.call.id), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind } }) });
+        operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-material', stored.call.id), type: asStableId('haiyue.render.material'), version: '1.0.0', value: appearance }) });
+      } else if (kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light') {
+        const type = kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient';
+        operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-light', stored.call.id), type: asStableId(type), version: '1.0.0', value: transactionDefaultLight(kind) }) });
+      }
+      return result(`Create ${transactionEntityLabel(kind)}`, operations, (revision) => Object.freeze({ entity: entitySummary(requireEntity(options.scene.snapshot(), id)), revision }));
+    }
+    case 'entity.rename': {
+      const entityId = args.entityId as StableId; const name = args.name as string;
+      requireEntity(scene, entityId);
+      return result('Rename Entity', [{ op: 'entity.update', entityId, patch: { name } }], (revision) => Object.freeze({ entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)), revision }));
+    }
+    case 'entity.hierarchy': return planEntityHierarchyMember(stored, options, args);
+    case 'prefab.manage': return planPrefabMember(stored, options, args);
+    case 'transform.set': {
+      const entityId = args.entityId as StableId; const component = ownedComponent(options.workspace, entityId, 'haiyue.transform.3d');
+      const replacement = options.workspace.componentRegistry.validate({ ...component, value: args.transform as JsonObject });
+      return result('Edit Transform', [{ op: 'component.replace', component: replacement }], (revision) => Object.freeze({ entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)), revision }));
+    }
+    case 'transform.batch': return planTransformBatchMember(stored, options, args);
+    case 'material.set': {
+      const entityId = args.entityId as StableId; const target = requireEntity(scene, entityId);
+      if (!isSceneGeometryKind(target.kind) || !target.appearance) throw new GameToolProtocolError('tool.material-target-invalid', 'Only geometry entities can use materials.');
+      const component = ownedComponent(options.workspace, entityId, 'haiyue.render.material');
+      const replacement = options.workspace.componentRegistry.validate({ ...component, value: Object.freeze({ material: args.material, color: args.color ?? target.appearance.color }) as JsonObject });
+      return result('Set Material', [{ op: 'component.replace', component: replacement }], (revision) => Object.freeze({ entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)), revision }));
+    }
+    case 'component.add': {
+      const entityId = args.entityId as StableId; const type = asStableId(args.type as string, 'component type'); const definition = resolveComponentDefinition(options.workspace, type, args.version as string | undefined);
+      const component = options.workspace.componentRegistry.create({ id: transactionGeneratedId('component', stored.call.id), type, version: definition.version, enabled: args.enabled as boolean, value: args.value as JsonObject });
+      return result(`Add ${type}`, [{ op: 'component.add', entityId, component }], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, entityId, component: component as unknown as JsonValue }));
+    }
+    case 'component.set': {
+      const target = resolveComponentTarget(options.workspace, args); const component = options.workspace.componentRegistry.validate({ ...target.component, enabled: args.enabled === undefined ? target.component.enabled : args.enabled, value: args.value });
+      return result(`Set ${component.type}`, [{ op: 'component.replace', component }], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, entityId: target.entityId, component: component as unknown as JsonValue }));
+    }
+    case 'component.remove': {
+      const target = resolveComponentTarget(options.workspace, args); if (target.component.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
+      return result(`Remove ${target.component.type}`, [{ op: 'component.remove', entityId: target.entityId, componentId: target.component.id }], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, entityId: target.entityId, componentId: target.component.id, removedType: target.component.type }));
+    }
+    case 'component.configure': {
+      const entityId = args.entityId as StableId; const type = asStableId(args.type as string, 'component type'); const version = args.version as string;
+      const definition = resolveComponentDefinition(options.workspace, type, version); const existing = ownedComponentByType(options.workspace, entityId, type, version);
+      if (args.action === 'remove') {
+        if (!existing) throw new GameToolProtocolError('tool.component-missing', `Entity ${entityId} has no ${type}@${version} component.`);
+        if (existing.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
+        return result(`Remove ${type}`, [{ op: 'component.remove', entityId, componentId: existing.id }], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, action: 'remove', entityId, componentId: existing.id, type, version }));
+      }
+      const value = mergeJsonObjects(existing?.value ?? definition.defaults, (args.patch ?? {}) as JsonObject);
+      const component = existing
+        ? options.workspace.componentRegistry.validate({ ...existing, enabled: args.enabled === undefined ? existing.enabled : args.enabled as boolean, value })
+        : options.workspace.componentRegistry.create({ id: semanticGeneratedId('component', stored.call.id, `${type}@${version}`), type, version, enabled: args.enabled === undefined ? true : args.enabled as boolean, value });
+      const operation: GameDocumentOperationV2 = existing ? { op: 'component.replace', component } : { op: 'component.add', entityId, component };
+      return result(`Configure ${type}`, [operation], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, action: existing ? 'update' : 'add', entityId, component: component as unknown as JsonValue }));
+    }
+    case 'asset.import': {
+      const catalog = planning.assetCatalog ??= controlledAssetCatalog(options.workspace); let entry;
+      try {
+        const bytes = await options.workspace.readControlledAsset(args.projectPath as string, 32 * 1024 * 1024, signal);
+        entry = catalog.import({ projectPath: args.projectPath as string, bytes, mimeType: args.mimeType as string, kind: args.kind as ControlledAssetKind, license: args.license as ControlledAssetLicense, provenance: args.provenance as string, decodedBytes: args.decodedBytes as number, ...(args.width === undefined ? {} : { width: args.width as number }), ...(args.height === undefined ? {} : { height: args.height as number }) });
+      } catch (cause) { throw assetProtocolError(cause); }
+      return result('Import Asset', [{ op: 'asset.upsert', asset: { id: entry.id, kind: entry.kind, digest: entry.digest, source: 'project' } }, { op: 'setting.set', key: CONTROLLED_ASSET_CATALOG_SETTING_KEY, value: catalog.settingValue() }], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, asset: entry as unknown as JsonValue }));
+    }
+    case 'asset.assign': {
+      const catalog = planning.assetCatalog ??= controlledAssetCatalog(options.workspace); const entityId = args.entityId as StableId; const usage = args.usage as AssetUsage;
+      try { catalog.assignment(args.assetId as string, usage); } catch (cause) { throw assetProtocolError(cause); }
+      const sceneEntity = requireEntity(scene, entityId); if (isPbrTextureUsage(usage) && !isSceneGeometryKind(sceneEntity.kind)) throw new GameToolProtocolError('asset.target-incompatible', `${usage} requires a geometry entity with Mesh3D.`);
+      const query = options.workspace.queryGameDocument({ entityId, limit: 256 }); const binding = assetBinding(usage, args.assetId as StableId); const existing = query.components.find((item) => item.type === binding.type && item.version === '1.0.0');
+      const component = existing ? options.workspace.componentRegistry.validate({ ...existing, value: Object.freeze({ ...existing.value, ...binding.patch }) }) : options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-asset', stored.call.id), type: binding.type, version: resolveComponentDefinition(options.workspace, binding.type, '1.0.0').version, enabled: true, value: Object.freeze({ ...resolveComponentDefinition(options.workspace, binding.type, '1.0.0').defaults, ...binding.patch }) });
+      const operation: GameDocumentOperationV2 = existing ? { op: 'component.replace', component } : { op: 'component.add', entityId, component };
+      return result('Assign Asset', [operation], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, entityId, assetId: args.assetId as StableId, usage, component: component as unknown as JsonValue }));
+    }
+    default: throw new GameToolProtocolError('scene-transaction.member-ineligible', `${stored.definition.id} cannot participate in an atomic Scene transaction.`);
+  }
+}
+
+const DEFAULT_TRANSACTION_TRANSFORM = Object.freeze({ position: Object.freeze({ x: 0, y: 0, z: 0 }), rotationDegrees: Object.freeze({ x: 0, y: 0, z: 0 }), scale: Object.freeze({ x: 1, y: 1, z: 1 }) });
+const DEFAULT_TRANSACTION_COLOR = Object.freeze([0.16, 0.58, 1, 1]);
+function transactionGeneratedId(prefix: string, callId: StableId): StableId { return asStableId(`${prefix}:m13:${sha256(`${prefix}:${callId}`).slice(0, 24)}`); }
+function transactionEntityLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
+function transactionDefaultLight(kind: 'directional-light' | 'point-light' | 'ambient-light'): JsonObject {
+  if (kind === 'directional-light') return Object.freeze({ color: Object.freeze([1, 1, 1]), intensity: 1, direction: Object.freeze([-0.5, -1, -0.35]), castShadow: true });
+  if (kind === 'point-light') return Object.freeze({ color: Object.freeze([1, 0.9, 0.75]), intensity: 2, range: 12 });
+  return Object.freeze({ color: Object.freeze([0.7, 0.8, 1]), intensity: 0.25 });
+}
+function ownedComponent(workspace: ProjectWorkspace, entityId: StableId, type: string): GameComponentInstanceV2 {
+  const query = workspace.queryGameDocument({ entityId, limit: 256 }); const entity = query.entities[0];
+  const component = entity ? query.components.find((candidate) => entity.componentIds.includes(candidate.id) && candidate.type === type) : undefined;
+  if (!component) throw new GameToolProtocolError('tool.component-missing', `Entity ${entityId} does not contain ${type}.`);
+  return component;
+}
+
+function planCameraAuthorMember(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, args: Readonly<Record<string, JsonValue>>): ReversibleTransactionMemberPlan {
+  const action = args.action as 'create' | 'activate' | 'frame' | 'orbit' | 'follow' | 'projection' | 'viewport';
+  const document = options.workspace.gameSnapshot(); const scene = options.scene.snapshot();
+  const member = (label: string, operations: readonly GameDocumentOperationV2[], result: (revision: number) => JsonObject): ReversibleTransactionMemberPlan => Object.freeze({ stored, label, operations: Object.freeze([...operations]), result });
+  if (action === 'create') {
+    const entityId = transactionGeneratedId('entity', stored.call.id); const transform = (args.transform ?? DEFAULT_TRANSACTION_TRANSFORM) as unknown as TransformSnapshot;
+    const definition = resolveComponentDefinition(options.workspace, 'haiyue.camera.3d', '1.0.0');
+    const patch = Object.freeze(Object.fromEntries(['projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport'].flatMap((key) => args[key] === undefined ? [] : [[key, args[key]]]))) as JsonObject;
+    const component = options.workspace.componentRegistry.create({ id: semanticGeneratedId('component', stored.call.id, 'camera:descriptor'), type: asStableId('haiyue.camera.3d'), version: definition.version, value: mergeJsonObjects(definition.defaults, patch) });
+    const operations: readonly GameDocumentOperationV2[] = Object.freeze([
+      { op: 'entity.add', entity: { id: entityId, sceneId: options.workspace.primarySceneId(), name: (args.name as string | undefined) ?? 'Gameplay Camera', parentId: null, order: siblingCount(document.entities, null), componentIds: [] } },
+      { op: 'component.add', entityId, component: options.workspace.componentRegistry.create({ id: semanticGeneratedId('component', stored.call.id, 'camera:transform'), type: asStableId('haiyue.transform.3d'), version: '1.0.0', value: transform as unknown as JsonObject }) },
+      { op: 'component.add', entityId, component },
+    ]);
+    return member('Create Gameplay Camera', operations, (revision) => Object.freeze({ revision, action, entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)), cameraComponent: component as unknown as JsonValue }));
+  }
+  if (action === 'frame' || action === 'orbit') {
+    const current = projectCameraFromSettings(requireDocument(options.workspace).settings);
+    let camera;
+    if (action === 'frame') {
+      const target = requireEntity(scene, args.targetEntityId as StableId); const padding = (args.padding as number | undefined) ?? 2;
+      const extent = Math.max(target.transform.scale.x, target.transform.scale.y, target.transform.scale.z, 0.5) * padding;
+      camera = normalizeProjectCamera({ ...current, target: target.transform.position, distance: Math.max(1, extent * 2), orthographicSize: Math.max(1, extent * 2) });
+    } else camera = normalizeProjectCamera({ ...current, azimuthDegrees: current.azimuthDegrees + ((args.azimuthDelta as number | undefined) ?? 0), elevationDegrees: Math.max(-89.9, Math.min(90, current.elevationDegrees + ((args.elevationDelta as number | undefined) ?? 0))), distance: (args.distance as number | undefined) ?? current.distance });
+    return member(action === 'frame' ? 'Frame Entity with Camera' : 'Orbit Camera', [{ op: 'setting.set', key: PROJECT_CAMERA_SETTING_KEY, value: camera as unknown as JsonValue }], (revision) => Object.freeze({ revision, action, camera: projectCameraFromSettings(requireDocument(options.workspace).settings) as unknown as JsonValue }));
+  }
+
+  const entityId = args.entityId as StableId; requireEntity(scene, entityId);
+  if (action === 'activate') {
+    const cameraComponents = document.components.filter((component) => component.type === 'haiyue.camera.3d' || component.type === 'haiyue.camera.2d');
+    const owners = new Map(document.entities.flatMap((entity) => entity.componentIds.map((componentId) => [componentId, entity.id] as const)));
+    if (!cameraComponents.some((component) => owners.get(component.id) === entityId)) throw new GameToolProtocolError('tool.camera-missing', `Entity ${entityId} has no gameplay camera component.`);
+    const operations = cameraComponents.flatMap((component): GameDocumentOperationV2[] => {
+      const active = owners.get(component.id) === entityId; if (component.value.active === active) return [];
+      return [{ op: 'component.replace', component: options.workspace.componentRegistry.validate({ ...component, value: Object.freeze({ ...component.value, active }) }) }];
+    });
+    if (!operations.length) throw new GameToolProtocolError('tool.no-change', 'The requested gameplay camera is already the only active camera.');
+    return member('Activate Gameplay Camera', operations, (revision) => Object.freeze({ revision, action, entityId, deactivatedCount: cameraComponents.length - 1 }));
+  }
+  if (action === 'follow') {
+    requireEntity(scene, args.targetEntityId as StableId); ownedComponent(options.workspace, entityId, 'haiyue.camera.3d');
+    const definition = resolveComponentDefinition(options.workspace, 'haiyue.camera.follow', '1.0.0'); const existing = ownedComponentByType(options.workspace, entityId, 'haiyue.camera.follow', '1.0.0');
+    const patch = Object.freeze(Object.fromEntries(['targetEntityId', 'mode', 'offset', 'lookAtOffset', 'smoothing'].flatMap((key) => args[key] === undefined ? [] : [[key, args[key]]]))) as JsonObject;
+    const component = existing ? options.workspace.componentRegistry.validate({ ...existing, value: mergeJsonObjects(existing.value, patch) }) : options.workspace.componentRegistry.create({ id: semanticGeneratedId('component', stored.call.id, 'camera:follow'), type: asStableId('haiyue.camera.follow'), version: definition.version, value: mergeJsonObjects(definition.defaults, patch) });
+    return member('Configure Camera Follow', [existing ? { op: 'component.replace', component } : { op: 'component.add', entityId, component }], (revision) => Object.freeze({ revision, action, entityId, component: component as unknown as JsonValue }));
+  }
+  const component = ownedComponent(options.workspace, entityId, 'haiyue.camera.3d');
+  const keys = action === 'projection' ? ['projection', 'fovDegrees', 'orthographicHeight', 'near', 'far'] : ['viewport'];
+  const patch = Object.freeze(Object.fromEntries(keys.flatMap((key) => args[key] === undefined ? [] : [[key, args[key]]]))) as JsonObject;
+  const replacement = options.workspace.componentRegistry.validate({ ...component, value: mergeJsonObjects(component.value, patch) });
+  return member(action === 'projection' ? 'Set Camera Projection' : 'Set Camera Viewport', [{ op: 'component.replace', component: replacement }], (revision) => Object.freeze({ revision, action, entityId, component: replacement as unknown as JsonValue }));
+}
+function ownedComponentByType(workspace: ProjectWorkspace, entityId: StableId, type: string, version?: string): GameComponentInstanceV2 | undefined {
+  const query = workspace.queryGameDocument({ entityId, limit: 256 }); const entity = query.entities[0];
+  if (!entity) throw new GameToolProtocolError('tool.entity-missing', `Entity ${entityId} does not exist.`);
+  return query.components.find((candidate) => entity.componentIds.includes(candidate.id) && candidate.type === type && (version === undefined || candidate.version === version));
+}
+function mergeJsonObjects(base: JsonObject, patch: JsonObject): JsonObject {
+  const entries = Object.entries(base).map(([key, value]) => [key, value] as const);
+  const result: Record<string, JsonValue> = Object.fromEntries(entries);
+  for (const [key, value] of Object.entries(patch)) {
+    const previous = result[key];
+    result[key] = isRecord(previous) && isRecord(value) ? mergeJsonObjects(previous as JsonObject, value as JsonObject) : value;
+  }
+  return Object.freeze(result);
+}
+
+function planEntityHierarchyMember(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, args: Readonly<Record<string, JsonValue>>): ReversibleTransactionMemberPlan {
+  const document = options.workspace.gameSnapshot();
+  const entityId = args.entityId as StableId;
+  const root = document.entities.find((entity) => entity.id === entityId);
+  if (!root) throw new GameToolProtocolError('tool.entity-missing', `Entity ${entityId} does not exist.`);
+  const action = args.action as 'clone' | 'reparent' | 'delete';
+  if (action === 'reparent') {
+    const parentId = args.parentId as StableId | null;
+    if (parentId === entityId) throw new GameToolProtocolError('tool.parent-cycle', 'An entity cannot be its own parent.');
+    if (parentId !== null) {
+      const parent = document.entities.find((entity) => entity.id === parentId);
+      if (!parent) throw new GameToolProtocolError('tool.entity-missing', `Parent entity ${parentId} does not exist.`);
+      if (parent.sceneId !== root.sceneId) throw new GameToolProtocolError('tool.parent-scene-mismatch', 'Parent and child must belong to the same scene.');
+    }
+    const patch = Object.freeze({ parentId, ...(args.order === undefined ? {} : { order: args.order as number }) });
+    const operations: readonly GameDocumentOperationV2[] = Object.freeze([{ op: 'entity.update', entityId, patch }]);
+    return Object.freeze({ stored, label: 'Reparent Entity', operations, result: (revision: number) => Object.freeze({ revision, action, entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)) }) });
+  }
+
+  const subtree = hierarchySubtree(document.entities, entityId);
+  if (subtree.length > 128) throw new GameToolProtocolError('tool.hierarchy-limit', 'Entity hierarchy operations are limited to 128 entities.');
+  const includeDescendants = args.includeDescendants === true;
+  if (!includeDescendants && subtree.length > 1 && action === 'delete') throw new GameToolProtocolError('tool.entity-has-children', 'The entity has descendants; set includeDescendants to true for a recoverable subtree removal.');
+  const selected = includeDescendants ? subtree : Object.freeze([root]);
+
+  if (action === 'delete') {
+    const selectedIds = new Set(selected.map((entity) => entity.id));
+    const operations: GameDocumentOperationV2[] = [];
+    for (const script of document.scripts.filter((candidate) => selectedIds.has(candidate.entityId)).sort((left, right) => left.id.localeCompare(right.id))) operations.push({ op: 'script.remove', scriptId: script.id });
+    for (const entity of [...selected].reverse()) {
+      for (const componentId of [...entity.componentIds].sort()) operations.push({ op: 'component.remove', entityId: entity.id, componentId });
+      operations.push({ op: 'entity.remove', entityId: entity.id });
+    }
+    assertSemanticOperationLimit(operations);
+    const removedEntityIds = Object.freeze(selected.map((entity) => entity.id));
+    return Object.freeze({ stored, label: selected.length === 1 ? 'Delete Entity' : `Delete Entity Subtree (${selected.length})`, operations: Object.freeze(operations), result: (revision: number) => Object.freeze({ revision, action, removedEntityIds, removedCount: removedEntityIds.length }) });
+  }
+
+  const cloneIds = new Map<string, StableId>(selected.map((entity) => [entity.id, semanticGeneratedId('entity', stored.call.id, entity.id)]));
+  const operations: GameDocumentOperationV2[] = [];
+  for (const source of selected) {
+    const cloneId = cloneIds.get(source.id)!;
+    const isRoot = source.id === entityId;
+    const parentIdValue = isRoot
+      ? (Object.hasOwn(args, 'parentId') ? args.parentId as StableId | null : source.parentId)
+      : cloneIds.get(source.parentId as StableId) ?? source.parentId;
+    const parentId = parentIdValue === null ? null : asStableId(parentIdValue, 'parent id');
+    if (parentId !== null) {
+      const parent = document.entities.find((entity) => entity.id === parentId) ?? selected.find((entity) => cloneIds.get(entity.id) === parentId);
+      if (!parent || parent.sceneId !== source.sceneId) throw new GameToolProtocolError('tool.parent-scene-mismatch', 'Clone parent must belong to the same scene.');
+    }
+    const cloneName = isRoot ? (args.name as string | undefined) ?? `${source.name} Copy` : source.name;
+    operations.push({ op: 'entity.add', entity: { id: cloneId, sceneId: source.sceneId, name: cloneName, parentId, order: isRoot ? siblingCount(document.entities, parentId) : source.order, componentIds: [] } });
+    for (const componentId of source.componentIds) {
+      const component = document.components.find((candidate) => candidate.id === componentId);
+      if (!component) throw new GameToolProtocolError('tool.component-missing', `Component ${componentId} does not exist.`);
+      const cloned = options.workspace.componentRegistry.validate({ ...component, id: semanticGeneratedId('component', stored.call.id, component.id) });
+      operations.push({ op: 'component.add', entityId: cloneId, component: cloned });
+    }
+    for (const script of document.scripts.filter((candidate) => candidate.entityId === source.id).sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))) {
+      const scriptId = semanticGeneratedId('script', stored.call.id, script.id);
+      operations.push({ op: 'script.upsert', script: { ...script, id: scriptId, entityId: cloneId, name: isRoot ? `${script.name} Copy` : script.name, sourcePath: `scripts/${scriptId.replaceAll(':', '-')}.ts` } });
+    }
+  }
+  assertSemanticOperationLimit(operations);
+  const clonedEntityIds = Object.freeze(selected.map((entity) => cloneIds.get(entity.id)!));
+  const clonedRootId = cloneIds.get(entityId)!;
+  return Object.freeze({ stored, label: selected.length === 1 ? 'Clone Entity' : `Clone Entity Subtree (${selected.length})`, operations: Object.freeze(operations), result: (revision: number) => Object.freeze({ revision, action, clonedEntityIds, entity: entitySummary(requireEntity(options.scene.snapshot(), clonedRootId)) }) });
+}
+
+function planPrefabMember(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, args: Readonly<Record<string, JsonValue>>): ReversibleTransactionMemberPlan {
+  const action = args.action as 'capture' | 'instantiate' | 'remove';
+  const prefabId = args.prefabId as StableId;
+  const document = options.workspace.gameSnapshot();
+  const registry = readPrefabRegistry(options.workspace);
+  const existing = registry.prefabs.find((item) => item.id === prefabId);
+  const member = (label: string, operations: readonly GameDocumentOperationV2[], project: (revision: number) => JsonObject): ReversibleTransactionMemberPlan => Object.freeze({ stored, label, operations: Object.freeze([...operations]), result: project });
+
+  if (action === 'capture') {
+    const rootId = args.entityId as StableId;
+    const root = document.entities.find((item) => item.id === rootId);
+    if (!root) throw new GameToolProtocolError('tool.entity-missing', `Entity ${rootId} does not exist.`);
+    const entities = hierarchySubtree(document.entities, rootId);
+    if (entities.length > MAX_PREFAB_ENTITIES) throw new GameToolProtocolError('tool.prefab-limit', `Prefab capture is limited to ${MAX_PREFAB_ENTITIES} entities.`);
+    if (!existing && registry.prefabs.length >= MAX_PREFABS) throw new GameToolProtocolError('tool.prefab-limit', `A project may contain at most ${MAX_PREFABS} prefabs.`);
+    const selectedIds = new Set(entities.map((item) => item.id));
+    const componentIds = new Set(entities.flatMap((item) => [...item.componentIds]));
+    const components = Object.freeze(document.components.filter((item) => componentIds.has(item.id)).map((item) => options.workspace.componentRegistry.validate(item)));
+    if (components.length !== componentIds.size) throw new GameToolProtocolError('tool.component-missing', 'Prefab subtree references a missing component.');
+    const scripts = Object.freeze(document.scripts.filter((item) => selectedIds.has(item.entityId)).sort((left, right) => left.entityId.localeCompare(right.entityId) || left.order - right.order || left.id.localeCompare(right.id)));
+    const storedEntities: readonly StoredPrefabEntity[] = Object.freeze(entities.map((item) => Object.freeze({ id: asStableId(item.id), name: item.name, parentId: item.id === rootId ? null : item.parentId === null ? null : asStableId(item.parentId), order: item.order, componentIds: Object.freeze(item.componentIds.map((componentId) => asStableId(componentId))) })));
+    const body = Object.freeze({ schemaVersion: 1 as const, id: prefabId, name: (args.name as string | undefined) ?? root.name, rootEntityId: rootId, entities: storedEntities, components, scripts });
+    const prefab = Object.freeze({ ...body, digest: prefabDigest(body) });
+    const prefabs = Object.freeze([...registry.prefabs.filter((item) => item.id !== prefabId), prefab].sort((left, right) => left.id.localeCompare(right.id)));
+    const nextRegistry = checkedPrefabRegistryValue(prefabs);
+    return member(existing ? 'Update Prefab' : 'Capture Prefab', [{ op: 'setting.set', key: PREFAB_REGISTRY_SETTING_KEY, value: nextRegistry }], (revision) => Object.freeze({ revision, action, prefab: prefabSummary(prefab), replaced: Boolean(existing) }));
+  }
+
+  if (!existing) throw new GameToolProtocolError('tool.prefab-missing', `Prefab ${prefabId} does not exist.`);
+  if (action === 'remove') {
+    const prefabs = Object.freeze(registry.prefabs.filter((item) => item.id !== prefabId));
+    const operations: readonly GameDocumentOperationV2[] = prefabs.length === 0
+      ? Object.freeze([{ op: 'setting.remove', key: PREFAB_REGISTRY_SETTING_KEY }])
+      : Object.freeze([{ op: 'setting.set', key: PREFAB_REGISTRY_SETTING_KEY, value: checkedPrefabRegistryValue(prefabs) }]);
+    return member('Remove Prefab', operations, (revision) => Object.freeze({ revision, action, prefabId, removed: true, remainingCount: prefabs.length }));
+  }
+
+  const parentId = Object.hasOwn(args, 'parentId') ? args.parentId as StableId | null : null;
+  if (parentId !== null && !document.entities.some((item) => item.id === parentId && item.sceneId === options.workspace.primarySceneId())) throw new GameToolProtocolError('tool.parent-scene-mismatch', 'Prefab parent must exist in the active scene.');
+  const entityIds = new Map(existing.entities.map((item) => [item.id, semanticGeneratedId('entity', stored.call.id, `${prefabId}:${item.id}`)]));
+  const operations: GameDocumentOperationV2[] = [];
+  for (const source of existing.entities) {
+    const entityId = entityIds.get(source.id)!;
+    const isRoot = source.id === existing.rootEntityId;
+    const mappedParent = isRoot ? parentId : entityIds.get(source.parentId!);
+    if (!isRoot && !mappedParent) throw new GameToolProtocolError('tool.prefab-invalid', `Prefab ${prefabId} contains a disconnected entity.`);
+    operations.push({ op: 'entity.add', entity: { id: entityId, sceneId: options.workspace.primarySceneId(), name: isRoot ? (args.name as string | undefined) ?? source.name : source.name, parentId: mappedParent ?? null, order: isRoot ? siblingCount(document.entities, parentId) : source.order, componentIds: [] } });
+    for (const componentId of source.componentIds) {
+      const sourceComponent = existing.components.find((item) => item.id === componentId);
+      if (!sourceComponent) throw new GameToolProtocolError('tool.prefab-invalid', `Prefab ${prefabId} references missing component ${componentId}.`);
+      const component = options.workspace.componentRegistry.validate({ ...sourceComponent, id: semanticGeneratedId('component', stored.call.id, `${prefabId}:${componentId}`) });
+      operations.push({ op: 'component.add', entityId, component });
+    }
+    for (const script of existing.scripts.filter((item) => item.entityId === source.id).sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))) {
+      const scriptId = semanticGeneratedId('script', stored.call.id, `${prefabId}:${script.id}`);
+      operations.push({ op: 'script.upsert', script: { ...script, id: scriptId, entityId, sourcePath: `scripts/${scriptId.replaceAll(':', '-')}.ts` } });
+    }
+  }
+  assertSemanticOperationLimit(operations);
+  const instantiatedEntityIds = Object.freeze(existing.entities.map((item) => entityIds.get(item.id)!));
+  const rootEntityId = entityIds.get(existing.rootEntityId)!;
+  return member(`Instantiate Prefab · ${existing.name}`, operations, (revision) => Object.freeze({ revision, action, prefab: prefabSummary(existing), rootEntityId, instantiatedEntityIds, entity: entitySummary(requireEntity(options.scene.snapshot(), rootEntityId)) }));
+}
+
+function readPrefabRegistry(workspace: ProjectWorkspace): StoredPrefabRegistry {
+  const value = workspace.gameSnapshot().settings[PREFAB_REGISTRY_SETTING_KEY];
+  if (value === undefined) return Object.freeze({ schemaVersion: 1, prefabs: Object.freeze([]) });
+  if (new TextEncoder().encode(canonicalStringify(value)).byteLength > MAX_PREFAB_REGISTRY_BYTES) throw new GameToolProtocolError('tool.prefab-registry-invalid', 'Prefab registry exceeds its serialized byte limit.');
+  if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.prefabs) || value.prefabs.length > MAX_PREFABS) throw new GameToolProtocolError('tool.prefab-registry-invalid', 'Prefab registry is invalid.');
+  const prefabs = Object.freeze(value.prefabs.map((item, index) => parseStoredPrefab(workspace, item, index)));
+  if (new Set(prefabs.map((item) => item.id)).size !== prefabs.length) throw new GameToolProtocolError('tool.prefab-registry-invalid', 'Prefab ids must be unique.');
+  return Object.freeze({ schemaVersion: 1, prefabs });
+}
+
+function parseStoredPrefab(workspace: ProjectWorkspace, value: unknown, index: number): StoredPrefab {
+  if (!isRecord(value)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${index} must be an object.`);
+  exact(value, ['schemaVersion', 'id', 'name', 'rootEntityId', 'entities', 'components', 'scripts', 'digest'], [], `prefab[${index}]`);
+  if (value.schemaVersion !== 1 || typeof value.id !== 'string' || !/^prefab:[A-Za-z0-9._:-]{3,120}$/u.test(value.id)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${index} id is invalid.`);
+  const id = asStableId(value.id); const name = boundedString(value.name, 'prefab name', 80, true); const rootEntityId = stable(value.rootEntityId, 'prefab root entity id');
+  if (!Array.isArray(value.entities) || value.entities.length < 1 || value.entities.length > MAX_PREFAB_ENTITIES || !Array.isArray(value.components) || !Array.isArray(value.scripts)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} collections are invalid.`);
+  const entities = Object.freeze(value.entities.map((entry, entityIndex) => {
+    if (!isRecord(entry)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} entity ${entityIndex} is invalid.`);
+    exact(entry, ['id', 'name', 'parentId', 'order', 'componentIds'], [], `prefab ${id} entity`);
+    const componentIds = stableIdArray(entry.componentIds, 'prefab componentIds', 1_000);
+    if (new Set(componentIds).size !== componentIds.length) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} component ids must be unique per entity.`);
+    return Object.freeze({ id: stable(entry.id, 'prefab entity id'), name: boundedString(entry.name, 'prefab entity name', 80, true), parentId: entry.parentId === null ? null : stable(entry.parentId, 'prefab parent id'), order: boundedInteger(entry.order, 'prefab entity order', 0, 1_000_000), componentIds });
+  }));
+  const entityIdSet = new Set(entities.map((item) => item.id));
+  if (entityIdSet.size !== entities.length || !entityIdSet.has(rootEntityId)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} entity ids or root are invalid.`);
+  const root = entities.find((item) => item.id === rootEntityId)!;
+  if (root.parentId !== null || entities.some((item) => item.id !== rootEntityId && (item.parentId === null || !entityIdSet.has(item.parentId) || item.parentId === item.id))) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} hierarchy is disconnected.`);
+  const reachable = hierarchySubtree(entities.map((item) => ({ ...item, sceneId: asStableId('scene:prefab') })), rootEntityId);
+  if (reachable.length !== entities.length) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} hierarchy contains a cycle or disconnected entity.`);
+  const components = Object.freeze(value.components.map((entry) => {
+    if (!isRecord(entry)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} component is invalid.`);
+    try { return workspace.componentRegistry.validate(entry as unknown as GameComponentInstanceV2); }
+    catch (cause) { throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} component is invalid: ${errorMessage(cause)}`); }
+  }));
+  const allComponentIds = new Set<string>(entities.flatMap((item) => [...item.componentIds]));
+  if (new Set(components.map((item) => item.id)).size !== components.length || components.length !== allComponentIds.size || components.some((item) => !allComponentIds.has(item.id))) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} component ownership is invalid.`);
+  const scripts = Object.freeze(value.scripts.map((entry, scriptIndex) => parseStoredPrefabScript(entry, id, scriptIndex, entityIdSet)));
+  if (new Set(scripts.map((item) => item.id)).size !== scripts.length) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} script ids must be unique.`);
+  if (typeof value.digest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(value.digest)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} digest is invalid.`);
+  const body = Object.freeze({ schemaVersion: 1 as const, id, name, rootEntityId, entities, components, scripts });
+  const digest = prefabDigest(body);
+  if (digest !== value.digest) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${id} digest does not match its contents.`);
+  return Object.freeze({ ...body, digest });
+}
+
+function parseStoredPrefabScript(value: unknown, prefabId: StableId, index: number, entityIds: ReadonlySet<StableId>): ReturnType<ProjectWorkspace['gameSnapshot']>['scripts'][number] {
+  if (!isRecord(value)) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${prefabId} script ${index} is invalid.`);
+  exact(value, ['id', 'entityId', 'name', 'sourcePath', 'source', 'textRevision', 'enabled', 'order', 'capabilities', 'digest'], [], `prefab ${prefabId} script`);
+  const id = stable(value.id, 'prefab script id'); const entityId = stable(value.entityId, 'prefab script entity id');
+  const source = boundedString(value.source, 'prefab script source', 65_536, true);
+  if (!entityIds.has(entityId) || typeof value.digest !== 'string' || value.digest !== `sha256:${sha256(source)}`) throw new GameToolProtocolError('tool.prefab-registry-invalid', `Prefab ${prefabId} script ${id} ownership or digest is invalid.`);
+  const capabilities = normalizeCapabilities(value.capabilities);
+  return Object.freeze({ id, entityId, name: boundedString(value.name, 'prefab script name', 80, true), sourcePath: boundedString(value.sourcePath, 'prefab script sourcePath', 512, true), source, textRevision: boundedInteger(value.textRevision, 'prefab script textRevision', 1, 1_000_000_000), enabled: booleanValue(value.enabled, 'prefab script enabled'), order: boundedInteger(value.order, 'prefab script order', 0, 1_000_000), capabilities, digest: value.digest as `sha256:${string}` });
+}
+
+function prefabDigest(value: Omit<StoredPrefab, 'digest'>): `sha256:${string}` { return `sha256:${sha256(canonicalStringify(value as unknown as JsonValue))}`; }
+function prefabSummary(prefab: StoredPrefab): JsonObject { return Object.freeze({ id: prefab.id, name: prefab.name, digest: prefab.digest, rootEntityId: prefab.rootEntityId, entityCount: prefab.entities.length, componentCount: prefab.components.length, scriptCount: prefab.scripts.length }); }
+function checkedPrefabRegistryValue(prefabs: readonly StoredPrefab[]): JsonObject {
+  const value = Object.freeze({ schemaVersion: 1 as const, prefabs: Object.freeze([...prefabs]) });
+  if (new TextEncoder().encode(canonicalStringify(value as unknown as JsonValue)).byteLength > MAX_PREFAB_REGISTRY_BYTES) throw new GameToolProtocolError('tool.prefab-limit', 'Prefab registry exceeds its serialized byte limit.');
+  return value as unknown as JsonObject;
+}
+
+function planTransformBatchMember(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, args: Readonly<Record<string, JsonValue>>): ReversibleTransactionMemberPlan {
+  const action = args.action as 'set' | 'align' | 'distribute' | 'snap' | 'look-at';
+  const assignments = new Map<StableId, TransformSnapshot>();
+  if (action === 'set') {
+    for (const assignment of args.transforms as unknown as readonly Readonly<{ entityId: StableId; transform: TransformSnapshot }>[]) assignments.set(assignment.entityId, assignment.transform);
+  } else {
+    const entityIds = args.entityIds as readonly StableId[];
+    const current = new Map(entityIds.map((entityId) => [entityId, ownedComponent(options.workspace, entityId, 'haiyue.transform.3d').value as unknown as TransformSnapshot]));
+    if (action === 'align') {
+      const axis = args.axis as Axis; const values = [...current.values()].map((value) => value.position[axis]);
+      const coordinate = args.mode === 'min' ? Math.min(...values) : args.mode === 'max' ? Math.max(...values) : (Math.min(...values) + Math.max(...values)) / 2;
+      for (const [entityId, value] of current) assignments.set(entityId, withPosition(value, axis, coordinate));
+    } else if (action === 'distribute') {
+      const axis = args.axis as Axis;
+      const ordered = [...current.entries()].sort((left, right) => left[1].position[axis] - right[1].position[axis] || left[0].localeCompare(right[0]));
+      const start = ordered[0]![1].position[axis];
+      const spacing = args.spacing === undefined ? (ordered.at(-1)![1].position[axis] - start) / Math.max(1, ordered.length - 1) : args.spacing as number;
+      ordered.forEach(([entityId, value], index) => assignments.set(entityId, withPosition(value, axis, start + spacing * index)));
+    } else if (action === 'snap') {
+      const grid = args.grid as number; const axis = args.axis as Axis | undefined;
+      for (const [entityId, value] of current) {
+        const position = { ...value.position };
+        for (const key of axis ? [axis] : AXES) position[key] = Math.round(position[key] / grid) * grid;
+        assignments.set(entityId, Object.freeze({ ...value, position: Object.freeze(position) }));
+      }
+    } else {
+      const target = args.target as unknown as TransformSnapshot['position'];
+      for (const [entityId, value] of current) assignments.set(entityId, lookAtTransform(value, target));
+    }
+  }
+  const operations: GameDocumentOperationV2[] = [];
+  for (const [entityId, transform] of assignments) {
+    const component = ownedComponent(options.workspace, entityId, 'haiyue.transform.3d');
+    operations.push({ op: 'component.replace', component: options.workspace.componentRegistry.validate({ ...component, value: transform as unknown as JsonObject }) });
+  }
+  assertSemanticOperationLimit(operations);
+  const entityIds = Object.freeze([...assignments.keys()]);
+  return Object.freeze({ stored, label: `Transform Batch · ${action} (${entityIds.length})`, operations: Object.freeze(operations), result: (revision: number) => Object.freeze({ revision, action, entityIds, entities: Object.freeze(entityIds.map((id) => entitySummary(requireEntity(options.scene.snapshot(), id)))) }) });
+}
+
+type Axis = 'x' | 'y' | 'z';
+const AXES: readonly Axis[] = Object.freeze(['x', 'y', 'z']);
+function withPosition(transform: TransformSnapshot, axis: Axis, coordinate: number): TransformSnapshot { return Object.freeze({ ...transform, position: Object.freeze({ ...transform.position, [axis]: coordinate }) }); }
+function lookAtTransform(transform: TransformSnapshot, target: TransformSnapshot['position']): TransformSnapshot {
+  const dx = target.x - transform.position.x; const dy = target.y - transform.position.y; const dz = target.z - transform.position.z;
+  const horizontal = Math.hypot(dx, dz);
+  if (horizontal < 1e-9 && Math.abs(dy) < 1e-9) throw new GameToolProtocolError('tool.look-at-degenerate', 'Look-at target must differ from every entity position.');
+  return Object.freeze({ ...transform, rotationDegrees: Object.freeze({ x: -(Math.atan2(dy, horizontal) * 180) / Math.PI, y: (Math.atan2(dx, dz) * 180) / Math.PI, z: transform.rotationDegrees.z }) });
+}
+function hierarchySubtree(entities: ReturnType<ProjectWorkspace['gameSnapshot']>['entities'], rootId: string): readonly ReturnType<ProjectWorkspace['gameSnapshot']>['entities'][number][] {
+  const result: ReturnType<ProjectWorkspace['gameSnapshot']>['entities'][number][] = [];
+  const visit = (id: string) => { const entity = entities.find((candidate) => candidate.id === id); if (!entity) return; result.push(entity); for (const child of entities.filter((candidate) => candidate.parentId === id).sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))) visit(child.id); };
+  visit(rootId); return Object.freeze(result);
+}
+function siblingCount(entities: ReturnType<ProjectWorkspace['gameSnapshot']>['entities'], parentId: string | null): number { return entities.filter((entity) => entity.parentId === parentId).length; }
+function semanticGeneratedId(namespace: 'entity' | 'component' | 'script', callId: StableId, sourceId: string): StableId { return asStableId(`${namespace}:m13:${sha256(`${namespace}:${callId}:${sourceId}`).slice(0, 24)}`); }
+function assertSemanticOperationLimit(operations: readonly GameDocumentOperationV2[]): void { if (operations.length < 1 || operations.length > 1_000) throw new GameToolProtocolError('tool.operation-limit', 'Semantic operation expands to more than 1000 Document operations.'); }
+type ScriptLineEdit = Readonly<{ startLine: number; endLine: number; text: string }>;
+function resolveScriptResource(catalog: ReturnType<ScriptPreviewStudioService['snapshot']>, args: Readonly<Record<string, JsonValue>>) {
+  const resource = catalog.resources.find((item) => item.id === args.scriptId || item.entityId === args.entityId);
+  if (!resource) throw new GameToolProtocolError('tool.script-missing', 'Requested script does not exist.');
+  return resource;
+}
+function scriptProposalResult(proposal: ScriptEditProposal): JsonObject {
+  const diagnostics = Object.freeze(proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })));
+  const canApply = !proposal.diagnostics.some((item) => item.severity === 'error');
+  return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Resolve every error diagnostic with another script.patch or script.propose call. Do not call script.apply for this proposal.' });
+}
+function applyScriptLineEdits(source: string, edits: readonly ScriptLineEdit[]): string {
+  const lines = source.split('\n');
+  for (const edit of [...edits].sort((left, right) => right.startLine - left.startLine)) {
+    if (edit.endLine > lines.length) throw new GameToolProtocolError('tool.script-patch-range', `Patch line ${edit.endLine} exceeds the current ${lines.length}-line script.`, true);
+    lines.splice(edit.startLine - 1, edit.endLine - edit.startLine + 1, ...edit.text.split('\n'));
+  }
+  const result = lines.join('\n');
+  if (result.length < 1 || result.length > 65_536) throw new GameToolProtocolError('tool.script-patch-size', 'Patched script must contain 1-65536 characters.');
+  return result;
+}
+function extractScriptSymbols(source: string): JsonObject {
+  const collect = (pattern: RegExp, group = 1, maximum = 128) => Object.freeze([...new Set([...source.matchAll(pattern)].map((match) => match[group]).filter((value): value is string => Boolean(value)))].sort().slice(0, maximum));
+  const functions = Object.freeze([...new Set([...collect(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/gu), ...collect(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/gu)])].sort().slice(0, 128));
+  return Object.freeze({
+    lineCount: source.split('\n').length, byteLength: new TextEncoder().encode(source).byteLength,
+    functions,
+    variables: collect(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gu),
+    apiNamespaces: collect(/\bapi\.([A-Za-z_$][\w$]*)/gu),
+    inputActions: collect(/\b(?:wasPressed|isPressed|isDown)\(\s*['"]([^'"]+)['"]/gu),
+    observationIds: collect(/\bapi\.scene\.observe\(\s*['"]([^'"]+)['"]/gu),
+  });
+}
+function catalogMatchScore(query: string, candidate: string): number { const text = candidate.toLocaleLowerCase(); if (text === query) return 0; if (text.startsWith(query)) return 1; const index = text.indexOf(query); return index < 0 ? 100 : 2 + Math.min(index / 1_000, 0.9); }
+function collectAssetReferences(value: JsonValue, path: string, output: { assetId: string; path: string }[]): void {
+  if (typeof value === 'string') { if (/^asset:[A-Za-z0-9._:-]{3,120}$/u.test(value)) output.push({ assetId: value, path: path || '/' }); return; }
+  if (Array.isArray(value)) { value.forEach((item, index) => collectAssetReferences(item, `${path}/${index}`, output)); return; }
+  if (isRecord(value)) for (const [key, child] of Object.entries(value)) collectAssetReferences(child as JsonValue, `${path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`, output);
+}
+
+async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, observations: PlayObservationRepository, evaluator: DeterministicTaskEvaluator, catalog: ToolCatalogRuntime, signal: AbortSignal): Promise<JsonObject> {
   const args = stored.arguments as Record<string, JsonValue>;
   const scene = options.scene.snapshot();
   switch (stored.definition.id) {
     case 'project.snapshot': {
       const workspace = options.workspace.snapshot(); const document = requireDocument(options.workspace);
-      return Object.freeze({ projectId: document.projectId, documentId: document.documentId, name: document.name, revision: document.revision, savedRevision: document.savedRevision, dirty: document.dirty, sceneRevision: scene.revision, camera: projectCameraFromSettings(document.settings) as unknown as JsonValue, logHealth: workspace.logging.health });
+      return Object.freeze({ projectId: document.projectId, documentId: document.documentId, name: document.name, revision: document.revision, savedRevision: document.savedRevision, dirty: document.dirty, counts: document.counts, registryDigest: document.registryDigest, logHealth: workspace.logging.health });
+    }
+    case 'scene.query': return options.workspace.queryScene(args as unknown as SceneQueryInput) as unknown as JsonObject;
+    case 'scene.diff': return options.workspace.diffScene(args as unknown as SceneDiffInput) as unknown as JsonObject;
+    case 'scene.get-many': {
+      const entityIds = args.entityIds as readonly StableId[]; const includeComponents = args.includeComponents !== false;
+      const byId = new Map(scene.entities.map((entity) => [entity.id, entity]));
+      const entities = Object.freeze(entityIds.flatMap((entityId) => { const entity = byId.get(entityId); return entity ? [entitySummary(entity, includeComponents)] : []; }));
+      const missingEntityIds = Object.freeze(entityIds.filter((entityId) => !byId.has(entityId)));
+      return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entities, missingEntityIds, count: entities.length, requestedCount: entityIds.length, includeComponents });
+    }
+    case 'tool.search': {
+      const matches = catalog.search(args.text as string, { limit: args.limit as number, includeSchemas: args.includeSchemas === true });
+      return Object.freeze({ query: args.text as string, matches: matches as unknown as JsonValue, count: matches.length, truncated: matches.length === args.limit, source: 'authoritative-tool-and-component-registries', semantic: true });
     }
     case 'engine.capabilities.describe': {
       const manifest = options.workspace.componentRegistry.capabilityManifest();
@@ -295,12 +900,15 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const document = requireDocument(options.workspace);
       return Object.freeze({ documentId: document.documentId, revision: document.revision, camera: projectCameraFromSettings(document.settings) as unknown as JsonValue });
     }
-    case 'scene.list-entities': return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entities: Object.freeze(scene.entities.slice(0, 200).map(entitySummary)), truncated: scene.entities.length > 200 });
+    case 'scene.list-entities': return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entities: Object.freeze(scene.entities.slice(0, 200).map((entity) => entitySummary(entity))), truncated: scene.entities.length > 200 });
     case 'entity.get': return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entity: entitySummary(requireEntity(scene, args.entityId as StableId)) });
     case 'script.get': {
-      const catalog = options.scripts.snapshot(); const resource = catalog.resources.find((item) => item.id === args.scriptId || item.entityId === args.entityId);
-      if (!resource) throw new GameToolProtocolError('tool.script-missing', 'Requested script does not exist.');
+      const catalog = options.scripts.snapshot(); const resource = resolveScriptResource(catalog, args);
       return Object.freeze({ documentId: catalog.documentId, revision: catalog.documentRevision, script: Object.freeze({ id: resource.id, entityId: resource.entityId, name: resource.name, text: resource.text.slice(0, 65_536), textRevision: resource.textRevision, truncated: resource.text.length > 65_536 }) });
+    }
+    case 'script.symbols': {
+      const catalog = options.scripts.snapshot(); const resource = resolveScriptResource(catalog, args);
+      return Object.freeze({ documentId: catalog.documentId, revision: catalog.documentRevision, scriptId: resource.id, entityId: resource.entityId, textRevision: resource.textRevision, digest: resource.digest, symbols: extractScriptSymbols(resource.text) });
     }
     case 'diagnostics.query': {
       const query = args as unknown as OperationLogQuery; const page = await options.diagnostics.query(query);
@@ -312,6 +920,13 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       });
     }
+    case 'history.query': {
+      const workspace = options.workspace.snapshot(); const document = requireDocument(options.workspace);
+      const beforeEntryId = args.beforeEntryId as number | undefined; const limit = args.limit as number;
+      const eligible = workspace.history.entries.filter((entry) => beforeEntryId === undefined || entry.id < beforeEntryId);
+      const entries = Object.freeze(eligible.slice(Math.max(0, eligible.length - limit)).reverse().map((entry) => Object.freeze({ id: entry.id, label: entry.label, estimatedBytes: entry.estimatedBytes })));
+      return Object.freeze({ documentId: document.documentId, documentRevision: document.revision, historyRevision: workspace.history.revision, canUndo: workspace.history.canUndo, canRedo: workspace.history.canRedo, undoLabel: workspace.history.undoLabel ?? null, redoLabel: workspace.history.redoLabel ?? null, busy: workspace.history.busy, estimatedBytes: workspace.history.estimatedBytes, entries, count: entries.length, truncated: eligible.length > entries.length, nextBeforeEntryId: eligible.length > entries.length ? entries.at(-1)!.id : null });
+    }
     case 'asset.search': {
       const catalog = controlledAssetCatalog(options.workspace);
       const assets = catalog.search({
@@ -320,6 +935,19 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
         ...(args.limit === undefined ? {} : { limit: args.limit as number }),
       });
       return Object.freeze({ assets: assets as unknown as JsonValue, count: assets.length });
+    }
+    case 'asset.dependencies': {
+      const document = options.workspace.gameSnapshot(); const requestedAssetId = args.assetId as StableId | undefined; const requestedEntityId = args.entityId as StableId | undefined;
+      if (requestedEntityId && !document.entities.some((entity) => entity.id === requestedEntityId)) throw new GameToolProtocolError('tool.entity-missing', `Entity ${requestedEntityId} does not exist.`);
+      const owners = new Map(document.entities.flatMap((entity) => entity.componentIds.map((componentId) => [componentId, entity.id] as const)));
+      const references: JsonObject[] = [];
+      for (const component of document.components) {
+        const entityId = owners.get(component.id); if (!entityId || (requestedEntityId && entityId !== requestedEntityId)) continue;
+        const found: { assetId: string; path: string }[] = []; collectAssetReferences(component.value, '', found);
+        for (const reference of found) if (!requestedAssetId || reference.assetId === requestedAssetId) references.push(Object.freeze({ assetId: reference.assetId, entityId, componentId: component.id, componentType: component.type, path: reference.path }));
+      }
+      const bounded = Object.freeze(references.slice(0, 500));
+      return Object.freeze({ documentId: document.id, revision: document.revision, references: bounded, count: bounded.length, truncated: references.length > bounded.length });
     }
     case 'camera.set': {
       const camera = args.camera as JsonObject;
@@ -335,6 +963,13 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     case 'entity.rename': {
       const next = await options.scene.renameEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, name: args.name as string }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
+    }
+    case 'camera.author': case 'entity.hierarchy': case 'prefab.manage': case 'transform.batch': case 'component.configure': {
+      const planning: TransactionPlanningContext = { createOffsets: new Map<string, number>() };
+      const plan = await planReversibleTransactionMember(stored, options, planning, signal);
+      const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: plan.label, baseRevision: args.baseRevision as number, operations: plan.operations }, signal);
+      if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while applying a semantic Scene operation.');
+      return plan.result(next.document.revision);
     }
     case 'transform.set': {
       const next = await options.scene.setTransform({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, transform: args.transform as unknown as TransformSnapshot }, signal);
@@ -423,9 +1058,15 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     case 'script.propose': {
       const proposal = await options.scripts.proposeEdit({ entityId: args.entityId as StableId, text: args.text as string, baseRevision: args.baseRevision as number, ...(args.capabilities ? { capabilities: args.capabilities as ScriptCapabilityName[] } : {}) });
       proposals.set(proposal.id, proposal);
-      const diagnostics = proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message }));
-      const canApply = !proposal.diagnostics.some((item) => item.severity === 'error');
-      return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Rewrite the complete script to resolve every error diagnostic, then call script.propose again. Do not call script.apply for this proposal.' });
+      return scriptProposalResult(proposal);
+    }
+    case 'script.patch': {
+      const catalog = options.scripts.snapshot(); const resource = resolveScriptResource(catalog, args);
+      if (resource.digest !== args.expectedDigest) throw new GameToolProtocolError('tool.script-stale', 'Script digest changed; read script.symbols or script.get and prepare a new patch.', true);
+      const text = applyScriptLineEdits(resource.text, args.edits as unknown as readonly ScriptLineEdit[]);
+      const proposal = await options.scripts.proposeEdit({ entityId: resource.entityId, text, baseRevision: args.baseRevision as number, ...(args.capabilities ? { capabilities: args.capabilities as ScriptCapabilityName[] } : { capabilities: resource.capabilities }) });
+      proposals.set(proposal.id, proposal);
+      return Object.freeze({ ...scriptProposalResult(proposal), patchedFromDigest: resource.digest, editCount: (args.edits as readonly JsonValue[]).length });
     }
     case 'script.apply': {
       const proposalId = args.proposalId as StableId; if (!proposals.has(proposalId)) throw new GameToolProtocolError('tool.proposal-missing', 'Script proposal is unavailable or already consumed.');
@@ -469,6 +1110,11 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const persisted = await observations.persistState(stored.call, observation);
       return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
     }
+    case 'play.physics-query': {
+      const observation = await options.preview.physicsQuery(args as never, signal);
+      const persisted = await observations.persistState(stored.call, observation);
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+    }
     case 'play.inspect': {
       const observation = await options.preview.inspect(signal);
       const persisted = await observations.persistState(stored.call, observation);
@@ -498,6 +1144,15 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
   const raw = value as Record<string, unknown>;
   switch (toolId) {
     case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': case 'play.stop': case 'play.inspect': case 'play.capture': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'scene.query': return normalizeSceneContextArguments(raw, false);
+    case 'scene.diff': return normalizeSceneContextArguments(raw, true);
+    case 'scene.get-many': {
+      exact(raw, ['entityIds'], ['includeComponents'], toolId);
+      const entityIds = stableIdArray(raw.entityIds, 'entityIds', 128);
+      if (entityIds.length < 1) throw invalid('scene.get-many requires 1-128 entity ids.');
+      return Object.freeze({ entityIds, includeComponents: raw.includeComponents === undefined ? true : booleanValue(raw.includeComponents, 'includeComponents') });
+    }
+    case 'tool.search': exact(raw, ['text'], ['limit', 'includeSchemas'], toolId); return Object.freeze({ text: boundedString(raw.text, 'text', 512, true), limit: raw.limit === undefined ? 12 : boundedInteger(raw.limit, 'limit', 1, 50), includeSchemas: raw.includeSchemas === true });
     case 'component.describe': exact(raw, ['type'], ['version'], toolId); return Object.freeze({ type: componentTypeValue(raw.type), ...(raw.version === undefined ? {} : { version: componentVersionValue(raw.version) }) });
     case 'component.get': {
       exact(raw, [], ['componentId', 'entityId', 'type', 'version'], toolId);
@@ -507,8 +1162,12 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       return Object.freeze({ entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), ...(raw.version === undefined ? {} : { version: componentVersionValue(raw.version) }) }) as JsonObject;
     }
     case 'entity.get': exact(raw, ['entityId'], [], toolId); return Object.freeze({ entityId: stable(raw.entityId, 'entity id') });
-    case 'script.get': { exact(raw, [], ['entityId', 'scriptId'], toolId); if (!raw.entityId && !raw.scriptId) throw invalid('script.get requires entityId or scriptId.'); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
+    case 'script.get': case 'script.symbols': { exact(raw, [], ['entityId', 'scriptId'], toolId); if (!raw.entityId && !raw.scriptId) throw invalid(`${toolId} requires entityId or scriptId.`); return Object.freeze({ ...(raw.entityId ? { entityId: stable(raw.entityId, 'entity id') } : {}), ...(raw.scriptId ? { scriptId: stable(raw.scriptId, 'script id') } : {}) }); }
     case 'diagnostics.query': return normalizeLogQuery(raw);
+    case 'history.query': {
+      exact(raw, [], ['beforeEntryId', 'limit'], toolId);
+      return Object.freeze({ ...(raw.beforeEntryId === undefined ? {} : { beforeEntryId: boundedInteger(raw.beforeEntryId, 'beforeEntryId', 1, Number.MAX_SAFE_INTEGER) }), limit: raw.limit === undefined ? 20 : boundedInteger(raw.limit, 'limit', 1, 100) });
+    }
     case 'asset.search': {
       exact(raw, [], ['text', 'kind', 'limit'], toolId);
       return Object.freeze({
@@ -517,12 +1176,14 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
         ...(raw.limit === undefined ? {} : { limit: boundedInteger(raw.limit, 'limit', 1, 200) }),
       });
     }
+    case 'asset.dependencies': exact(raw, [], ['assetId', 'entityId'], toolId); return Object.freeze({ ...(raw.assetId === undefined ? {} : { assetId: assetIdValue(raw.assetId) }), ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }) });
     case 'camera.set': {
       exact(raw, ['camera'], ['baseRevision'], toolId);
       try {
         return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), camera: normalizeProjectCamera(raw.camera) as unknown as JsonValue });
       } catch (cause) { throw invalid(cause instanceof Error ? cause.message : 'Camera is invalid.'); }
     }
+    case 'camera.author': return normalizeCameraAuthorArguments(raw, currentRevision);
     case 'entity.create': {
       exact(raw, ['kind'], ['baseRevision', 'name', 'parentId', 'material', 'color', 'transform'], toolId);
       if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
@@ -531,11 +1192,20 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
     }
     case 'entity.rename': exact(raw, ['entityId', 'name'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
+    case 'entity.hierarchy': return normalizeEntityHierarchyArguments(raw, currentRevision);
+    case 'prefab.manage': return normalizePrefabArguments(raw, currentRevision);
     case 'transform.set': exact(raw, ['entityId', 'transform'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
+    case 'transform.batch': return normalizeTransformBatchArguments(raw, currentRevision);
     case 'material.set': exact(raw, ['entityId', 'material'], ['baseRevision', 'color'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), material: raw.material, ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }) });
     case 'component.add': exact(raw, ['entityId', 'type'], ['baseRevision', 'version', 'enabled', 'value'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), enabled: raw.enabled === undefined ? true : booleanValue(raw.enabled, 'enabled'), value: jsonObjectValue(raw.value ?? {}, 'component value') as JsonValue });
     case 'component.set': exact(raw, ['componentId', 'value'], ['baseRevision', 'enabled'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), value: jsonObjectValue(raw.value, 'component value') as JsonValue });
     case 'component.remove': exact(raw, ['componentId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id') });
+    case 'component.configure': {
+      exact(raw, ['action', 'entityId', 'type'], ['baseRevision', 'version', 'enabled', 'patch'], toolId);
+      const action = String(raw.action); if (!['upsert', 'remove'].includes(action)) throw invalid('component.configure action is invalid.');
+      if (action === 'remove' && (raw.enabled !== undefined || raw.patch !== undefined)) throw invalid('component.configure remove does not accept enabled or patch.');
+      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action, entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), ...(raw.patch === undefined ? {} : { patch: jsonObjectValue(raw.patch, 'component patch') as JsonValue }) });
+    }
     case 'asset.import': {
       exact(raw, ['projectPath', 'kind', 'mimeType', 'license', 'provenance', 'decodedBytes'], ['baseRevision', 'width', 'height'], toolId);
       if ((raw.width === undefined) !== (raw.height === undefined)) throw invalid('Asset width and height must be supplied together.');
@@ -551,6 +1221,21 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     }
     case 'asset.assign': exact(raw, ['entityId', 'assetId', 'usage'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), assetId: assetIdValue(raw.assetId), usage: assetUsageValue(raw.usage) });
     case 'script.propose': exact(raw, ['entityId', 'text'], ['baseRevision', 'capabilities'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+    case 'script.patch': {
+      exact(raw, ['expectedDigest', 'edits'], ['baseRevision', 'entityId', 'scriptId', 'capabilities'], toolId);
+      if ((raw.entityId === undefined) === (raw.scriptId === undefined)) throw invalid('script.patch requires exactly one of entityId or scriptId.');
+      if (typeof raw.expectedDigest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(raw.expectedDigest)) throw invalid('script.patch expectedDigest is invalid.');
+      if (!Array.isArray(raw.edits) || raw.edits.length < 1 || raw.edits.length > 64) throw invalid('script.patch edits must contain 1-64 edits.');
+      const edits = raw.edits.map((edit, index) => {
+        if (!isRecord(edit)) throw invalid(`script.patch edits[${index}] must be an object.`);
+        exact(edit, ['startLine', 'endLine', 'text'], [], `script.patch edits[${index}]`);
+        const startLine = boundedInteger(edit.startLine, 'startLine', 1, 100_000); const endLine = boundedInteger(edit.endLine, 'endLine', 1, 100_000);
+        if (endLine < startLine) throw invalid('script.patch edit endLine must be >= startLine.');
+        return Object.freeze({ startLine, endLine, text: boundedString(edit.text, 'edit text', 32_768) });
+      }).sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
+      if (edits.some((edit, index) => index > 0 && edits[index - 1]!.endLine >= edit.startLine)) throw invalid('script.patch edits must not overlap.');
+      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), expectedDigest: raw.expectedDigest, edits: Object.freeze(edits) as unknown as JsonValue, ...(raw.entityId === undefined ? { scriptId: stable(raw.scriptId, 'script id') } : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+    }
     case 'script.apply': exact(raw, ['proposalId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), proposalId: stable(raw.proposalId, 'proposal id') });
     case 'preview.validate': {
       exact(raw, [], ['scriptIds'], toolId);
@@ -563,9 +1248,148 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'preview.start': case 'play.start': exact(raw, ['planId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), planId: stable(raw.planId, 'plan id') });
     case 'play.step': exact(raw, ['count'], [], toolId); return Object.freeze({ count: boundedInteger(raw.count, 'count', 1, 10_000) });
     case 'play.input': exact(raw, ['event'], [], toolId); return Object.freeze({ event: normalizePlayInput(raw.event) as unknown as JsonValue });
+    case 'play.physics-query': return normalizePhysicsQuery(raw);
     case 'task.evaluate': return normalizeEvaluationArguments(raw);
     default: throw new GameToolProtocolError('tool.not-found', `Unknown tool ${toolId}.`);
   }
+}
+
+function normalizeCameraAuthorArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
+  exact(raw, ['action'], ['baseRevision', 'entityId', 'targetEntityId', 'name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport', 'mode', 'offset', 'lookAtOffset', 'smoothing', 'padding', 'azimuthDelta', 'elevationDelta', 'distance'], 'camera.author');
+  const action = String(raw.action); if (!['create', 'activate', 'frame', 'orbit', 'follow', 'projection', 'viewport'].includes(action)) throw invalid('camera.author action is invalid.');
+  const actionFields: Record<string, readonly string[]> = {
+    create: ['name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport'], activate: ['entityId'], frame: ['targetEntityId', 'padding'], orbit: ['azimuthDelta', 'elevationDelta', 'distance'],
+    follow: ['entityId', 'targetEntityId', 'mode', 'offset', 'lookAtOffset', 'smoothing'], projection: ['entityId', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far'], viewport: ['entityId', 'viewport'],
+  };
+  const allowed = new Set(['action', 'baseRevision', ...actionFields[action]!]);
+  const unexpected = Object.keys(raw).filter((key) => !allowed.has(key)); if (unexpected.length) throw invalid(`camera.author ${action} does not accept: ${unexpected.join(', ')}.`);
+  if (['activate', 'projection', 'viewport', 'follow'].includes(action) && raw.entityId === undefined) throw invalid(`camera.author ${action} requires entityId.`);
+  if (['frame', 'follow'].includes(action) && raw.targetEntityId === undefined) throw invalid(`camera.author ${action} requires targetEntityId.`);
+  if (action === 'projection' && raw.projection === undefined) throw invalid('camera.author projection requires projection.');
+  if (action === 'viewport' && raw.viewport === undefined) throw invalid('camera.author viewport requires viewport.');
+  if (action === 'orbit' && raw.azimuthDelta === undefined && raw.elevationDelta === undefined && raw.distance === undefined) throw invalid('camera.author orbit requires azimuthDelta, elevationDelta, or distance.');
+  const projection = raw.projection === undefined ? undefined : String(raw.projection); if (projection && !['perspective', 'orthographic'].includes(projection)) throw invalid('camera projection is invalid.');
+  const mode = raw.mode === undefined ? undefined : String(raw.mode); if (mode && !['position', 'look-at', 'position-and-look-at'].includes(mode)) throw invalid('camera follow mode is invalid.');
+  return Object.freeze({
+    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action,
+    ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.targetEntityId === undefined ? {} : { targetEntityId: stable(raw.targetEntityId, 'target entity id') }),
+    ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }),
+    ...(projection === undefined ? {} : { projection }), ...(raw.fovDegrees === undefined ? {} : { fovDegrees: boundedNumber(raw.fovDegrees, 'fovDegrees', 1, 179) }),
+    ...(raw.orthographicHeight === undefined ? {} : { orthographicHeight: boundedNumber(raw.orthographicHeight, 'orthographicHeight', 0.01, 10_000) }),
+    ...(raw.near === undefined ? {} : { near: boundedNumber(raw.near, 'near', 0.0001, 1_000) }), ...(raw.far === undefined ? {} : { far: boundedNumber(raw.far, 'far', 0.001, 1_000_000) }),
+    ...(raw.viewport === undefined ? {} : { viewport: normalizeViewport(raw.viewport) as unknown as JsonValue }), ...(mode === undefined ? {} : { mode }),
+    ...(raw.offset === undefined ? {} : { offset: vec(raw.offset, 'offset') as unknown as JsonValue }), ...(raw.lookAtOffset === undefined ? {} : { lookAtOffset: vec(raw.lookAtOffset, 'lookAtOffset') as unknown as JsonValue }),
+    ...(raw.smoothing === undefined ? {} : { smoothing: boundedNumber(raw.smoothing, 'smoothing', 0, 1) }), ...(raw.padding === undefined ? {} : { padding: boundedNumber(raw.padding, 'padding', 1, 100) }),
+    ...(raw.azimuthDelta === undefined ? {} : { azimuthDelta: boundedNumber(raw.azimuthDelta, 'azimuthDelta', -360, 360) }), ...(raw.elevationDelta === undefined ? {} : { elevationDelta: boundedNumber(raw.elevationDelta, 'elevationDelta', -180, 180) }),
+    ...(raw.distance === undefined ? {} : { distance: boundedNumber(raw.distance, 'distance', 0.5, 500) }),
+  });
+}
+
+function normalizeViewport(value: unknown): JsonObject { if (!isRecord(value)) throw invalid('viewport must be an object.'); exact(value, ['x', 'y', 'width', 'height'], [], 'viewport'); const result = { x: boundedNumber(value.x, 'viewport.x', 0, 1), y: boundedNumber(value.y, 'viewport.y', 0, 1), width: boundedNumber(value.width, 'viewport.width', Number.EPSILON, 1), height: boundedNumber(value.height, 'viewport.height', Number.EPSILON, 1) }; if (result.x + result.width > 1 || result.y + result.height > 1) throw invalid('viewport must remain inside normalized bounds.'); return Object.freeze(result); }
+
+function normalizeEntityHierarchyArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
+  exact(raw, ['action', 'entityId'], ['baseRevision', 'parentId', 'name', 'order', 'includeDescendants'], 'entity.hierarchy');
+  const action = String(raw.action);
+  if (!['clone', 'reparent', 'delete'].includes(action)) throw invalid('entity.hierarchy action is invalid.');
+  if (action === 'reparent' && !Object.hasOwn(raw, 'parentId')) throw invalid('entity.hierarchy reparent requires parentId, which may be null.');
+  if (action === 'delete' && (raw.parentId !== undefined || raw.name !== undefined || raw.order !== undefined)) throw invalid('entity.hierarchy delete only accepts includeDescendants.');
+  if (action === 'reparent' && (raw.name !== undefined || raw.includeDescendants !== undefined)) throw invalid('entity.hierarchy reparent only accepts parentId and optional order.');
+  return Object.freeze({
+    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action, entityId: stable(raw.entityId, 'entity id'),
+    ...(Object.hasOwn(raw, 'parentId') ? { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') } : {}),
+    ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }),
+    ...(raw.order === undefined ? {} : { order: boundedInteger(raw.order, 'order', 0, 1_000_000) }),
+    ...(raw.includeDescendants === undefined ? {} : { includeDescendants: booleanValue(raw.includeDescendants, 'includeDescendants') }),
+  });
+}
+
+function normalizePrefabArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
+  exact(raw, ['action', 'prefabId'], ['baseRevision', 'entityId', 'parentId', 'name'], 'prefab.manage');
+  const action = String(raw.action);
+  if (!['capture', 'instantiate', 'remove'].includes(action)) throw invalid('prefab.manage action is invalid.');
+  if (typeof raw.prefabId !== 'string' || !/^prefab:[A-Za-z0-9._:-]{3,120}$/u.test(raw.prefabId)) throw invalid('prefab.manage prefabId is invalid.');
+  if (action === 'capture' && raw.entityId === undefined) throw invalid('prefab.manage capture requires entityId.');
+  if (action === 'capture' && raw.parentId !== undefined) throw invalid('prefab.manage capture does not accept parentId.');
+  if (action === 'instantiate' && raw.entityId !== undefined) throw invalid('prefab.manage instantiate does not accept entityId.');
+  if (action === 'remove' && (raw.entityId !== undefined || raw.parentId !== undefined || raw.name !== undefined)) throw invalid('prefab.manage remove only accepts prefabId and baseRevision.');
+  return Object.freeze({
+    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action, prefabId: asStableId(raw.prefabId),
+    ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }),
+    ...(Object.hasOwn(raw, 'parentId') ? { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') } : {}),
+    ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }),
+  });
+}
+
+function normalizeTransformBatchArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
+  exact(raw, ['action'], ['baseRevision', 'entityIds', 'transforms', 'axis', 'mode', 'spacing', 'grid', 'target'], 'transform.batch');
+  const action = String(raw.action);
+  if (!['set', 'align', 'distribute', 'snap', 'look-at'].includes(action)) throw invalid('transform.batch action is invalid.');
+  const entityIds = raw.entityIds === undefined ? undefined : stableIdArray(raw.entityIds, 'entityIds', 128);
+  if (entityIds && entityIds.length < 1) throw invalid('transform.batch entityIds must contain 1-128 ids.');
+  let transforms: readonly JsonObject[] | undefined;
+  if (raw.transforms !== undefined) {
+    if (!Array.isArray(raw.transforms) || raw.transforms.length < 1 || raw.transforms.length > 128) throw invalid('transform.batch transforms must contain 1-128 assignments.');
+    transforms = Object.freeze(raw.transforms.map((entry, index) => {
+      if (!isRecord(entry)) throw invalid(`transform.batch transforms[${index}] must be an object.`);
+      exact(entry, ['entityId', 'transform'], [], `transform.batch transforms[${index}]`);
+      return Object.freeze({ entityId: stable(entry.entityId, 'entity id'), transform: normalizeTransform(entry.transform) as unknown as JsonValue });
+    }));
+    if (new Set(transforms.map((entry) => entry.entityId)).size !== transforms.length) throw invalid('transform.batch transform entity ids must be unique.');
+  }
+  if (action === 'set') {
+    if (!transforms || entityIds || raw.axis !== undefined || raw.mode !== undefined || raw.spacing !== undefined || raw.grid !== undefined || raw.target !== undefined) throw invalid('transform.batch set requires only transforms.');
+  } else {
+    if (!entityIds || transforms) throw invalid(`transform.batch ${action} requires entityIds and does not accept transforms.`);
+    if (action === 'align' && (raw.axis === undefined || raw.mode === undefined || raw.spacing !== undefined || raw.grid !== undefined || raw.target !== undefined)) throw invalid('transform.batch align requires axis and mode only.');
+    if (action === 'distribute' && (raw.axis === undefined || raw.mode !== undefined || raw.grid !== undefined || raw.target !== undefined)) throw invalid('transform.batch distribute requires axis and optional spacing.');
+    if (action === 'distribute' && entityIds.length < 2) throw invalid('transform.batch distribute requires at least two entities.');
+    if (action === 'snap' && (raw.grid === undefined || raw.mode !== undefined || raw.spacing !== undefined || raw.target !== undefined)) throw invalid('transform.batch snap requires grid and optional axis.');
+    if (action === 'look-at' && (raw.target === undefined || raw.axis !== undefined || raw.mode !== undefined || raw.spacing !== undefined || raw.grid !== undefined)) throw invalid('transform.batch look-at requires target only.');
+  }
+  const axis = raw.axis === undefined ? undefined : String(raw.axis);
+  if (axis !== undefined && !['x', 'y', 'z'].includes(axis)) throw invalid('transform.batch axis is invalid.');
+  const mode = raw.mode === undefined ? undefined : String(raw.mode);
+  if (mode !== undefined && !['min', 'center', 'max'].includes(mode)) throw invalid('transform.batch mode is invalid.');
+  const grid = raw.grid === undefined ? undefined : number(raw.grid, 'grid');
+  if (grid !== undefined && grid <= 0) throw invalid('transform.batch grid must be positive.');
+  return Object.freeze({
+    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action,
+    ...(entityIds ? { entityIds } : {}), ...(transforms ? { transforms: transforms as unknown as JsonValue } : {}),
+    ...(axis === undefined ? {} : { axis }), ...(mode === undefined ? {} : { mode }),
+    ...(raw.spacing === undefined ? {} : { spacing: number(raw.spacing, 'spacing') }),
+    ...(grid === undefined ? {} : { grid }), ...(raw.target === undefined ? {} : { target: vec(raw.target, 'target') as unknown as JsonValue }),
+  });
+}
+
+function normalizeSceneContextArguments(raw: Record<string, unknown>, diff: boolean): JsonObject {
+  exact(raw, diff ? ['fromRevision'] : [], diff ? ['toRevision', 'scope', 'projection', 'cursor', 'limit'] : ['revision', 'scope', 'projection', 'cursor', 'limit'], diff ? 'scene.diff' : 'scene.query');
+  const scope = raw.scope === undefined ? undefined : normalizeSceneScope(raw.scope);
+  const projection = raw.projection === undefined ? undefined : enumArray(raw.projection, ['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'], 7) as readonly SceneContextProjection[];
+  const common = {
+    ...(scope ? { scope: scope as unknown as JsonValue } : {}),
+    ...(projection ? { projection: projection as unknown as JsonValue } : {}),
+    ...(raw.cursor === undefined ? {} : { cursor: boundedString(raw.cursor, 'cursor', 2_048, true) }),
+    ...(raw.limit === undefined ? {} : { limit: boundedInteger(raw.limit, 'limit', 1, 1_000) }),
+  };
+  if (diff) return Object.freeze({ fromRevision: boundedInteger(raw.fromRevision, 'fromRevision', 0, Number.MAX_SAFE_INTEGER), ...(raw.toRevision === undefined ? {} : { toRevision: boundedInteger(raw.toRevision, 'toRevision', 0, Number.MAX_SAFE_INTEGER) }), ...common });
+  return Object.freeze({ ...(raw.revision === undefined ? {} : { revision: boundedInteger(raw.revision, 'revision', 0, Number.MAX_SAFE_INTEGER) }), ...common });
+}
+
+function normalizeSceneScope(value: unknown): SceneContextScope {
+  if (!isRecord(value)) throw invalid('scene scope must be an object.');
+  exact(value, [], ['sceneId', 'entityIds', 'componentTypes'], 'scene scope');
+  const entityIds = value.entityIds === undefined ? undefined : stableIdArray(value.entityIds, 'entityIds', 1_000);
+  const componentTypes = value.componentTypes === undefined ? undefined : componentTypeArray(value.componentTypes, 128);
+  return Object.freeze({ ...(value.sceneId === undefined ? {} : { sceneId: stable(value.sceneId, 'scene id') }), ...(entityIds ? { entityIds } : {}), ...(componentTypes ? { componentTypes } : {}) });
+}
+
+function stableIdArray(value: unknown, label: string, maximum: number): readonly StableId[] {
+  if (!Array.isArray(value) || value.length > maximum) throw invalid(`${label} must contain at most ${maximum} ids.`);
+  const result = value.map((entry) => stable(entry, label)); if (new Set(result).size !== result.length) throw invalid(`${label} must be unique.`); return Object.freeze(result);
+}
+function componentTypeArray(value: unknown, maximum: number): readonly StableId[] {
+  if (!Array.isArray(value) || value.length > maximum) throw invalid(`componentTypes must contain at most ${maximum} values.`);
+  const result = value.map((entry) => asStableId(componentTypeValue(entry))); if (new Set(result).size !== result.length) throw invalid('componentTypes must be unique.'); return Object.freeze(result);
 }
 
 function normalizeLogQuery(raw: Record<string, unknown>): JsonObject {
@@ -598,6 +1422,43 @@ function normalizePlayInput(value: unknown): JsonObject {
   return Object.freeze(event);
 }
 
+function normalizePhysicsQuery(raw: Record<string, unknown>): JsonObject {
+  exact(raw, ['kind'], ['dimension', 'entityId', 'origin', 'direction', 'center', 'size', 'maxDistance', 'sinceTick', 'limit'], 'play.physics-query');
+  const kind = String(raw.kind);
+  if (!['status', 'events', 'body', 'raycast', 'overlap'].includes(kind)) throw invalid('Physics query kind is invalid.');
+  const allowedByKind: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    status: [], events: ['sinceTick', 'limit'], body: ['entityId'], raycast: ['dimension', 'origin', 'direction', 'maxDistance'], overlap: ['dimension', 'center', 'size', 'limit'],
+  });
+  const allowed = new Set(['kind', ...allowedByKind[kind]!]);
+  for (const key of Object.keys(raw)) if (!allowed.has(key)) throw invalid(`play.physics-query ${kind} does not accept ${key}.`);
+  const requiredByKind: Readonly<Record<string, readonly string[]>> = Object.freeze({ status: [], events: [], body: ['entityId'], raycast: ['dimension', 'origin', 'direction'], overlap: ['dimension', 'center', 'size'] });
+  for (const key of requiredByKind[kind]!) if (raw[key] === undefined) throw invalid(`play.physics-query ${kind} requires ${key}.`);
+  const dimension = raw.dimension === undefined ? undefined : String(raw.dimension);
+  if (dimension !== undefined && dimension !== '2d' && dimension !== '3d') throw invalid('Physics query dimension is invalid.');
+  return Object.freeze({
+    kind,
+    ...(dimension === undefined ? {} : { dimension }),
+    ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }),
+    ...(raw.origin === undefined ? {} : { origin: normalizeVec3Value(raw.origin, 'origin') as JsonValue }),
+    ...(raw.direction === undefined ? {} : { direction: normalizeVec3Value(raw.direction, 'direction') as JsonValue }),
+    ...(raw.center === undefined ? {} : { center: normalizeVec3Value(raw.center, 'center') as JsonValue }),
+    ...(raw.size === undefined ? {} : { size: normalizePositiveVec3Value(raw.size, 'size') as JsonValue }),
+    ...(raw.maxDistance === undefined ? {} : { maxDistance: boundedNumber(raw.maxDistance, 'maxDistance', Number.EPSILON, 1_000_000) }),
+    ...(raw.sinceTick === undefined ? {} : { sinceTick: boundedInteger(raw.sinceTick, 'sinceTick', 0, 1_000_000_000) }),
+    ...(raw.limit === undefined ? {} : { limit: boundedInteger(raw.limit, 'limit', 1, 256) }),
+  });
+}
+
+function normalizeVec3Value(value: unknown, label: string): JsonObject {
+  if (!isRecord(value)) throw invalid(`${label} must be an object.`); exact(value, ['x', 'y', 'z'], [], label);
+  return Object.freeze({ x: number(value.x, `${label}.x`), y: number(value.y, `${label}.y`), z: number(value.z, `${label}.z`) });
+}
+function normalizePositiveVec3Value(value: unknown, label: string): JsonObject {
+  const result = normalizeVec3Value(value, label) as Readonly<Record<string, number>>;
+  if (result.x <= 0 || result.y <= 0 || result.z <= 0) throw invalid(`${label} members must be greater than zero.`);
+  return result as unknown as JsonObject;
+}
+
 function normalizeEvaluationArguments(raw: Record<string, unknown>): JsonObject {
   exact(raw, ['taskSpec', 'observationIds'], ['budgetStatus', 'usageRecordIds', 'costRecordIds'], 'task.evaluate');
   const ids = (value: unknown, label: string, minimum: number): readonly StableId[] => {
@@ -621,9 +1482,27 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
   const raw = args as Record<string, unknown>; const snapshot = scene.snapshot();
   switch (toolId) {
     case 'camera.set': return preview('Set camera', snapshot.documentId, 'Replace the main project camera for authoring and game preview.', canonicalStringify(raw.camera as JsonObject));
+    case 'camera.author': return preview('Author gameplay camera', String(raw.entityId ?? raw.targetEntityId ?? snapshot.documentId), `${raw.action} gameplay camera state through one recoverable operation.`, `${raw.action}${raw.projection ? ` · ${raw.projection}` : ''}${raw.viewport ? ` · ${canonicalStringify(raw.viewport as JsonObject)}` : ''}`);
     case 'entity.create': return preview('Create entity', snapshot.documentId, `Create ${raw.kind}${raw.name ? ` named ${raw.name}` : ''}.`, `+ ${raw.kind} ${raw.name ?? ''}`.trim());
     case 'entity.rename': { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Rename entity', entity.id, `Rename ${entity.name} to ${raw.name}.`, `- ${entity.name}\n+ ${raw.name}`); }
+    case 'entity.hierarchy': {
+      const entity = requireEntity(snapshot, raw.entityId as StableId); const action = String(raw.action);
+      const scope = raw.includeDescendants === true ? ' including descendants' : '';
+      if (action === 'clone') return preview('Clone entity hierarchy', entity.id, `Clone ${entity.name}${scope} through Document History.`, `+ clone ${entity.id}${raw.parentId !== undefined ? ` under ${raw.parentId ?? 'scene root'}` : ''}`);
+      if (action === 'reparent') return preview('Reparent entity', entity.id, `Move ${entity.name} under ${raw.parentId ?? 'the scene root'}.`, `${entity.parentId ?? 'scene root'} → ${raw.parentId ?? 'scene root'}`);
+      return preview('Recoverably delete entity hierarchy', entity.id, `Remove ${entity.name}${scope}; Undo restores entities, components and scripts.`, `- ${entity.id}${scope}`);
+    }
+    case 'prefab.manage': {
+      const action = String(raw.action); const prefabId = String(raw.prefabId);
+      if (action === 'capture') { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Capture project prefab', entity.id, `Capture ${entity.name} and its bounded subtree as ${prefabId}.`, `~ ${prefabId} from ${entity.id}`); }
+      if (action === 'instantiate') return preview('Instantiate project prefab', String(raw.parentId ?? snapshot.documentId), `Instantiate ${prefabId} with fresh entity, component and script ids.`, `+ ${prefabId}${raw.parentId !== undefined ? ` under ${raw.parentId ?? 'scene root'}` : ''}`);
+      return preview('Remove project prefab', prefabId, `Recoverably remove ${prefabId} from the project registry.`, `- ${prefabId}`);
+    }
     case 'transform.set': { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Set Transform', entity.id, `Replace Transform for ${entity.name}.`, `${canonicalStringify(entity.transform as unknown as JsonObject)}\n→ ${canonicalStringify(raw.transform as JsonObject)}`); }
+    case 'transform.batch': {
+      const count = Array.isArray(raw.transforms) ? raw.transforms.length : Array.isArray(raw.entityIds) ? raw.entityIds.length : 0;
+      return preview('Batch spatial transform', snapshot.documentId, `${raw.action} ${count} entities in one History transaction.`, `${raw.action} · ${count} entities${raw.axis ? ` · ${raw.axis} axis` : ''}`);
+    }
     case 'material.set': {
       const entity = requireEntity(snapshot, raw.entityId as StableId);
       if (!isSceneGeometryKind(entity.kind)) throw invalid('Only geometry entities can use materials.');
@@ -642,6 +1521,10 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       if (target.component.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
       return preview('Remove component', target.entityId, `Remove ${target.component.type} from ${target.entityName}.`, `- ${target.component.type}@${target.component.version}`);
     }
+    case 'component.configure': {
+      const entity = requireEntity(snapshot, raw.entityId as StableId); const action = String(raw.action);
+      return preview(`${action === 'remove' ? 'Remove' : 'Configure'} semantic component`, entity.id, `${action} ${raw.type}@${raw.version} on ${entity.name} using the Component Registry.`, `${action === 'remove' ? '-' : '~'} ${raw.type}@${raw.version}${raw.patch ? ` ${canonicalStringify(raw.patch as JsonObject)}` : ''}`);
+    }
     case 'asset.import': return preview('Register project asset', snapshot.documentId, `Register ${raw.kind} asset ${String(raw.projectPath).split('/').at(-1)} with ${raw.license} provenance.`, `+ ${raw.kind} ${raw.mimeType} (${raw.decodedBytes} decoded bytes)`);
     case 'asset.assign': {
       const entity = requireEntity(snapshot, raw.entityId as StableId);
@@ -656,6 +1539,7 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       if (errors.length) throw new GameToolProtocolError('tool.script-validation-failed', `Script proposal has ${errors.length} validation error(s): ${errors.slice(0, 4).map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join(' | ')} Rewrite and propose again before apply.`);
       return preview('Apply script proposal', proposal.scriptId, `Commit validated proposal with +${proposal.addedLines}/-${proposal.removedLines} lines.`, `digest ${proposal.digest}`);
     }
+    case 'script.patch': return preview('Patch script lines', String(raw.scriptId ?? raw.entityId), `Validate ${(raw.edits as readonly unknown[]).length} bounded line edit(s) against ${raw.expectedDigest}.`, `patch digest ${sha256(canonicalStringify(raw.edits as JsonValue))}`);
     case 'preview.start': case 'play.start': { const plan = plans.get(raw.planId as StableId); if (!plan) throw new GameToolProtocolError('tool.preview-plan-missing', 'Preview plan is unavailable.'); if (plan.documentRevision !== raw.baseRevision) throw new GameToolProtocolError('tool.stale-revision', 'Preview plan base revision differs.'); return preview('Start trusted preview', plan.documentId, `Start ${plan.scripts.length} trusted project script(s) with ${plan.capabilities.join(', ')}.`, `script-set digest ${plan.scriptSetDigest}`); }
     default: return preview(GAME_AUTHORING_TOOL_BY_ID.get(toolId)?.title ?? toolId, snapshot.documentId, `Execute ${toolId}.`, 'No Document mutation in this step.');
   }
@@ -702,9 +1586,22 @@ function resolveSceneComponent(scene: ReturnType<SceneAuthoringService['snapshot
   throw new GameToolProtocolError('tool.component-missing', `Component ${componentId} does not exist.`);
 }
 function resolveComponentToolPolicy(definition: GameToolDefinition, args: JsonObject, workspace: ProjectWorkspace): GameToolDefinition {
-  if (!['component.add', 'component.set', 'component.remove'].includes(definition.id)) return definition;
+  if (!['component.add', 'component.set', 'component.remove', 'component.configure'].includes(definition.id)) return definition;
   let componentDefinition: ComponentDefinitionV2;
-  if (definition.id === 'component.add') {
+  if (definition.id === 'component.configure') {
+    const entityId = args.entityId as StableId; const result = workspace.queryGameDocument({ entityId, limit: 256 });
+    if (!result.entities[0]) throw new GameToolProtocolError('tool.entity-missing', `Entity ${entityId} does not exist.`);
+    componentDefinition = resolveComponentDefinition(workspace, args.type as string, args.version as string);
+    const existing = result.components.find((item) => item.type === componentDefinition.type && item.version === componentDefinition.version);
+    if (args.action === 'remove') {
+      if (!existing) throw new GameToolProtocolError('tool.component-missing', `Entity ${entityId} has no ${componentDefinition.type}@${componentDefinition.version} component.`);
+      if (existing.type === 'haiyue.transform.3d') throw new GameToolProtocolError('tool.component-required', 'The required Transform component cannot be removed.');
+    } else {
+      const value = mergeJsonObjects(existing?.value ?? componentDefinition.defaults, (args.patch ?? {}) as JsonObject);
+      if (existing) workspace.componentRegistry.validate({ ...existing, enabled: args.enabled === undefined ? existing.enabled : args.enabled as boolean, value });
+      else workspace.componentRegistry.create({ id: asStableId('component:policy-validation'), type: asStableId(componentDefinition.type), version: componentDefinition.version, enabled: args.enabled === undefined ? true : args.enabled as boolean, value });
+    }
+  } else if (definition.id === 'component.add') {
     const entityId = args.entityId as StableId; const result = workspace.queryGameDocument({ entityId, limit: 1 });
     if (!result.entities[0]) throw new GameToolProtocolError('tool.entity-missing', `Entity ${entityId} does not exist.`);
     componentDefinition = resolveComponentDefinition(workspace, args.type as string, args.version as string);
@@ -743,9 +1640,9 @@ function assetBinding(usage: AssetUsage, assetId: StableId): Readonly<{ type: St
   }
 }
 function isPbrTextureUsage(usage: AssetUsage): boolean { return ['texture.base-color', 'texture.metallic-roughness', 'texture.normal', 'texture.occlusion', 'texture.emissive'].includes(usage); }
-function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number]): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(entity.components ? { components: entity.components as unknown as JsonValue } : {}), ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
+function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number], includeComponents = true): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(includeComponents && entity.components ? { components: entity.components as unknown as JsonValue } : {}), ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
-function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'transform.set': 'Edit Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;
   return Object.freeze({

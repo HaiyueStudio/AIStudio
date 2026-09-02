@@ -16,15 +16,16 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   const second = new PromptModuleRegistry().profile;
   assert.deepEqual(first, second);
   assert.equal(first.id, 'prompt:game-authoring-general');
-  assert.equal(first.version, '3.0.0');
+  assert.equal(first.version, '3.1.0');
   assert.deepEqual(first.modules.map(({ id, version, layer }) => ({ id, version, layer })), [
     { id: 'prompt.policy.safe-authoring', version: '1.0.0', layer: 'policy' },
     { id: 'prompt.tools.structured-effects', version: '1.0.0', layer: 'tool-contract' },
     { id: 'prompt.workflow.general-authoring', version: '1.0.0', layer: 'workflow' },
+    { id: 'prompt.workflow.bounded-tool-batch', version: '1.0.0', layer: 'workflow' },
   ]);
   const production = first.modules.map((entry) => entry.content).join('\n').toLowerCase();
   for (const genrePatch of ['snake', 'snakebody', 'tetris', 'match-3', 'platformer', 'racing', 'shooter', '贪吃蛇', '俄罗斯方块', '消消乐']) assert.doesNotMatch(production, new RegExp(escapeRegExp(genrePatch), 'iu'));
-  assert.equal(first.digest, 'sha256:1a419fd0f5827490fda8e4b69218fbc9e27263171ab29a2fa4006d9013b58f1b');
+  assert.equal(first.digest, 'sha256:9f9e64eae01ddd4bfba8c8be63114fd691ea37d71e463004f5e218b61b090d92');
 });
 
 test('same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest', async () => {
@@ -75,6 +76,26 @@ test('same revision reuses a live session by reference, changed revision sends o
     assert.match(afterRestart.prompt, /scene\.list-entities: revision 8/);
     assert.match(afterRestart.prompt, /SCRIPT_FULL_MARKER_ALPHA/, 'a new provider session receives the full current manifest');
     await reopened.close();
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('exact project source replaces legacy full manifests with bounded scene snapshot then revision diff', async () => {
+  const fixture = await openFixture();
+  try {
+    const calls = []; const runtime = new PromptContextRuntime(fixture.log); await runtime.initialize();
+    const exact = {
+      query({ revision, request }) { calls.push({ kind: 'query', revision, request }); return { schemaVersion: 1, documentId: 'document:context-fixture', revision, items: [{ kind: 'script', id: 'script:fixture', value: { digest: `sha256:${'1'.repeat(64)}`, textRevision: 1 } }], truncated: false }; },
+      diff({ fromRevision, toRevision, request }) { calls.push({ kind: 'diff', fromRevision, toRevision, request }); return { schemaVersion: 1, documentId: 'document:context-fixture', fromRevision, toRevision, scriptChanges: [{ scriptId: 'script:fixture', change: 'updated', digest: `sha256:${'2'.repeat(64)}` }], truncated: false }; },
+    };
+    const firstProject = { projectId: 'project:context-fixture', documentId: 'document:context-fixture', revision: 20, manifest: { schemaVersion: 1, project: { id: 'project:context-fixture', revision: 20, counts: { entities: 1, scripts: 1 } } }, exact };
+    const first = await runtime.prepare({ conversationKey, backendId, taskId: 'task:exact-first', request: 'Inspect exact project context.', tools, project: firstProject });
+    assert.match(first.prompt, /"kind":"project-manifest"/u); assert.match(first.prompt, /"kind":"script"/u); assert.doesNotMatch(first.prompt, /FULL_SCRIPT_SOURCE_MUST_NOT_APPEAR/u);
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:exact-first', sessionId: 'session:exact', turnId: 'turn:exact-first', projectId: firstProject.projectId, goals: [], decisions: [], toolFacts: [], acceptance: [], blockers: [] });
+    const secondProject = { ...firstProject, revision: 21, manifest: { schemaVersion: 1, project: { id: 'project:context-fixture', revision: 21, counts: { entities: 1, scripts: 1 } } } };
+    const second = await runtime.prepare({ conversationKey, backendId, taskId: 'task:exact-second', request: 'Continue with exact deltas.', tools, project: secondProject });
+    assert.match(second.prompt, /"kind":"document-delta"/u); assert.match(second.prompt, /"fromRevision":20/u); assert.match(second.prompt, /"toRevision":21/u);
+    assert.deepEqual(calls.map((entry) => entry.kind), ['query', 'diff']); assert.equal(calls[0].request.limit, 1_000); assert.ok(calls[1].request.projection.includes('components'));
+    await fixture.log.close();
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 });
 

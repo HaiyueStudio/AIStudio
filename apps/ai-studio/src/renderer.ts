@@ -94,7 +94,7 @@ interface PreviewDisclosure {
 }
 interface PreviewGrant { readonly id: StableId; }
 interface ConsumedPreviewPlan extends Omit<PreviewDisclosure, 'scripts'> { readonly scripts: readonly (PreviewScriptDisclosure & Readonly<{ emittedText: string }>)[]; }
-interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop' | 'step' | 'input' | 'inspect' | 'capture'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan; count?: number; event?: JsonObject }> }
+interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop' | 'step' | 'input' | 'physics-query' | 'inspect' | 'capture'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan; count?: number; event?: JsonObject; query?: JsonObject }> }
 let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
 let scene: SceneSnapshot | null = null;
@@ -464,6 +464,14 @@ class SandboxedPreviewFrame {
   }
 
   async input(event: JsonObject): Promise<JsonObject> { this.post({ type: 'input', event }); return this.inspect(); }
+
+  async physicsQuery(query: JsonObject): Promise<JsonObject> {
+    const requestId = this.nextRequestId('physics-query');
+    const request = deferred<JsonObject>(); this.observationRequests.set(requestId, request);
+    this.post({ type: 'physics-query', requestId, query });
+    const value = await withTimeout(request.promise, 5_000, 'Preview physics query timed out.').finally(() => this.observationRequests.delete(requestId));
+    return this.withProvenance(value);
+  }
 
   async inspect(): Promise<JsonObject> {
     const requestId = this.nextRequestId('inspect');
@@ -1023,7 +1031,8 @@ async function processAgentPreviewCommand(): Promise<void> {
       if (!playing || !previewFrame) throw new Error('Play is not active.');
       const result = command.kind === 'step' ? await previewFrame.step(Number(command.count))
         : command.kind === 'input' ? await previewFrame.input(command.event ?? Object.freeze({}))
-          : command.kind === 'inspect' ? await previewFrame.inspect() : await previewFrame.capture();
+          : command.kind === 'physics-query' ? await previewFrame.physicsQuery(command.query ?? Object.freeze({}))
+            : command.kind === 'inspect' ? await previewFrame.inspect() : await previewFrame.capture();
       await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: result });
       return;
     }

@@ -4,15 +4,18 @@ import { diagnosticsQueryServiceToken, operationLogServiceToken } from '@haiyue/
 import { scriptPreviewServiceToken } from '@haiyue/ai-studio-script-preview';
 import { GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import { GameAuthoringToolRuntime } from './runtime.js';
-import type { GamePreviewControl, GameToolApproval, GameToolApprovalResolution, GameToolCall, GameToolPreparation, GameToolResult, GameToolRuntimeSnapshot } from './types.js';
+import type { GamePreviewControl, GameToolApproval, GameToolApprovalResolution, GameToolCall, GameToolPreparation, GameToolResult, GameToolRuntimeSnapshot, GameToolTransactionInput, GameToolTransactionResult } from './types.js';
+import type { ToolSchemaSelection } from './catalog/index.js';
 
 export interface GameAuthoringToolService {
   definitions(): ReturnType<GameAuthoringToolRuntime['definitions']>;
+  selectDefinitions?(request: string, expandedIds?: readonly StableId[]): ToolSchemaSelection;
   snapshot(): GameToolRuntimeSnapshot;
   prepare(call: GameToolCall, signal?: AbortSignal): Promise<GameToolPreparation>;
   approval(id: StableId): GameToolApproval | undefined;
   decide(id: StableId, decision: GameToolApprovalResolution): Promise<GameToolApproval>;
   execute(preparationId: StableId, signal?: AbortSignal): Promise<GameToolResult>;
+  executeTransaction(input: GameToolTransactionInput, signal?: AbortSignal): Promise<GameToolTransactionResult>;
   cancel(callId: StableId): Promise<void>;
 }
 
@@ -44,8 +47,8 @@ export function createGameAuthoringToolsPlugin(options: GameAuthoringToolsPlugin
         operationLog: context.services.get(operationLogServiceToken).log, preview: options.preview,
       });
       const service: GameAuthoringToolService = Object.freeze({
-        definitions: runtime.definitions.bind(runtime), snapshot: runtime.snapshot.bind(runtime), prepare: runtime.prepare.bind(runtime),
-        approval: runtime.approval.bind(runtime), decide: runtime.decide.bind(runtime), execute: runtime.execute.bind(runtime), cancel: runtime.cancel.bind(runtime),
+        definitions: runtime.definitions.bind(runtime), selectDefinitions: runtime.selectDefinitions.bind(runtime), snapshot: runtime.snapshot.bind(runtime), prepare: runtime.prepare.bind(runtime),
+        approval: runtime.approval.bind(runtime), decide: runtime.decide.bind(runtime), execute: runtime.execute.bind(runtime), executeTransaction: runtime.executeTransaction.bind(runtime), cancel: runtime.cancel.bind(runtime),
       });
       context.services.provide(gameAuthoringToolServiceToken, service);
       for (const definition of GAME_AUTHORING_TOOL_DEFINITIONS) context.contributions.register({ id: definition.id, kind: gameAuthoringToolContributionKind, value: definition, priority: 100 });

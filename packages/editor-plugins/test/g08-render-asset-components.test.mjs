@@ -7,6 +7,7 @@ const REQUIRED = [
   'haiyue.render.profile', 'haiyue.material.pbr', 'haiyue.light.environment', 'haiyue.render.fog', 'haiyue.render.postprocess-stack',
   'haiyue.particles.2d', 'haiyue.particles.3d', 'haiyue.animation.transform-clips', 'haiyue.animation.2d', 'haiyue.animation.state',
   'haiyue.audio.mixer', 'haiyue.audio.source', 'haiyue.model.gltf', 'haiyue.asset.reference',
+  'haiyue.gameplay.state', 'haiyue.gameplay.timers', 'haiyue.gameplay.pool', 'haiyue.gameplay.rules', 'haiyue.ui.hud', 'haiyue.audio.listener',
 ];
 
 test('G08 registry round-trips render, effects, animation, audio and asset descriptors', () => {
@@ -27,6 +28,8 @@ test('post-process, particles and render budgets fail closed at schema boundarie
   assert.throws(() => registry.create({ id: 'component:bad-profile', type: 'haiyue.render.profile', version: '1.0.0', value: { maxRenderPixels: 1 } }), /maxRenderPixels must be >= 65536/);
   assert.throws(() => registry.create({ id: 'component:bad-particles', type: 'haiyue.particles.3d', version: '1.0.0', value: { maxParticles: 20_001 } }), /maxParticles must be <= 20000/);
   assert.throws(() => registry.create({ id: 'component:bad-stack', type: 'haiyue.render.postprocess-stack', version: '1.0.0', value: { passes: [{ kind: 'bloom' }] } }), /passes\[0\]/);
+  assert.throws(() => registry.create({ id: 'component:bad-hud', type: 'haiyue.ui.hud', version: '1.0.0', value: { items: [] } }), /items has too few items/);
+  assert.throws(() => registry.create({ id: 'component:bad-timer', type: 'haiyue.gameplay.timers', version: '1.0.0', value: { timers: [{ id: 'fall', durationTicks: 0, startDelayTicks: 0, repeat: true, running: true, event: 'fall' }] } }), /durationTicks must be >= 1/);
 });
 
 test('controlled asset catalog enforces containment, format, license, decode and image budgets', () => {

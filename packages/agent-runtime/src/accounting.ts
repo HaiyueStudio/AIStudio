@@ -97,6 +97,7 @@ export class TaskAccount {
     return Object.freeze({ taskId: this.options.taskId, budget: this.controller.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage, cost: this.lastCost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
   }
   costRecords(): readonly CostRecordV2[] { return Object.freeze([...this.costHistory.values()].sort((a, b) => a.id.localeCompare(b.id))); }
+  latestCostRecord(turnId: StableId): CostRecordV2 | undefined { return this.latestCosts.get(turnId)?.record; }
   private taskLedgers(): readonly UsageLedgerSnapshot[] { return this.usageStore.snapshots().filter((entry) => entry.taskId === this.options.taskId); }
 }
 

@@ -8,6 +8,7 @@ import {
   normalizeConversationNode,
   normalizeTaskRun,
   presentChatPanel,
+  projectExecutionGraph,
   renderChatPanel,
   validateConversationIntent,
 } from '../dist/index.js';
@@ -53,7 +54,7 @@ test('unknown, oversized and injection-shaped nodes get bounded safe presentatio
   assert.equal(fake.innerHtmlWrites, 0);
 });
 
-test('controller blocks ambiguous sends, keeps plan acceptance separate, and makes approval one-shot', async () => {
+test('controller keeps the composer available across durable barriers, keeps plan acceptance separate, and makes approval one-shot', async () => {
   const port = fakeConversationPort();
   const controller = new ConversationController(port, () => Date.parse('2026-08-19T00:00:00.000Z'));
   await controller.mount();
@@ -61,7 +62,8 @@ test('controller blocks ambiguous sends, keeps plan acceptance separate, and mak
   assert.deepEqual(port.intents.at(-1), { type: 'conversation/send', backendId, prompt: 'Build a cube' });
 
   port.emit({ type: 'conversation/event', event: projection(1, node('node:question', 'question', 'pending', { prompt: 'Choose size', options: [{ id: 'option:small', label: 'Small' }] }), 'live') });
-  await assert.rejects(controller.send('continue'), /pending question/);
+  await controller.send('continue');
+  assert.deepEqual(port.intents.at(-1), { type: 'conversation/send', backendId, prompt: 'continue' });
   await controller.answerQuestion('node:question', { optionIds: ['option:small'] });
   await assert.rejects(controller.answerQuestion('node:question', { optionIds: ['option:small'] }), /already being resolved/);
 
@@ -245,16 +247,53 @@ test('a cancelled plan no longer blocks the composer after its turn terminates',
   const projector = new ConversationProjector();
   const pending = node('node:cancelled-plan', 'plan', 'pending', { title: 'Plan', items: [{ id: 'plan:create', label: 'Create cube', status: 'pending' }] });
   projector.reset(snapshot([projection(1, pending, 'replay')]));
-  assert.match(projector.snapshot().composerBlockedReason, /Review the implementation plan/);
+  assert.equal(projector.snapshot().composerBlockedReason, null, 'a durable plan barrier must not own the composer');
   projector.apply(projection(2, { ...pending, status: 'cancelled', content: { ...pending.content, decision: 'cancelled' } }, 'live'));
   assert.equal(projector.snapshot().pendingInteraction, null);
   assert.equal(projector.snapshot().composerBlockedReason, null);
+});
+
+test('execution workspace renders a replayed topology and dispatches one durable manual compaction request', () => {
+  const pressure = { maxInputTokens: 100_000, reservedOutputTokens: 10_000, reservedSafetyTokens: 10_000, usedInputTokens: 64_000, ratio: 0.8, measurement: 'tokenizer-estimated', state: 'compact-required' };
+  const ops = [
+    executionOp(0, 'session.created', { turnId: null, payload: { activeGoal: 'Build a puzzle game' } }),
+    executionOp(1, 'turn.started'),
+    executionOp(2, 'user.message', { artifactRefs: ['artifact:user'] }),
+    executionOp(3, 'evidence.captured', { nodeId: 'context:1', artifactRefs: ['artifact:context'], payload: { evidenceKind: 'context-frame', pressure } }),
+    executionOp(4, 'assistant.message', { artifactRefs: ['artifact:assistant'] }),
+    executionOp(5, 'turn.completed', { payload: { status: 'completed', summary: 'Puzzle game completed.' } }),
+  ];
+  const graph = projectExecutionGraph({
+    sessionId,
+    status: 'completed',
+    activeGoal: 'Build a puzzle game',
+    ops,
+    transcript: [
+      { id: 'transcript:user', opId: 'execution-op:2', role: 'user', content: 'Create a puzzle game.', timestamp: ops[2].timestamp },
+      { id: 'transcript:assistant', opId: 'execution-op:4', role: 'assistant', content: 'The game is ready.', timestamp: ops[4].timestamp },
+    ],
+  });
+  assert.equal(graph.context.compactionAvailable, true);
+  const value = snapshot([]); value.executionGraphs = [graph];
+  const intents = []; const fake = fakeDom();
+  renderChatPanel(fake.root, presentChatPanel(new ConversationProjector().reset(value)), (intent) => intents.push(intent));
+  assert.match(fake.text(), /Build a puzzle game/);
+  assert.match(fake.text(), /上下文 80%/);
+  assert.match(fake.text(), /完整记录 3/);
+  assert.match(fake.text(), /使用层级列表浏览全部执行步骤/);
+  const compact = fake.findButton('压缩上下文');
+  assert.equal(compact.disabled, false);
+  compact.click(); compact.click();
+  assert.deepEqual(intents, [{ type: 'conversation/request-compaction', sessionId, requestId: `compaction-request:${sessionId}:${graph.revision}` }]);
 });
 
 function snapshot(events) {
   return { revision: 0, connection: 'connected', busy: false, backendId, backends: [{ id: backendId, label: 'Fixture', kind: 'harness-api-key', state: 'auth-required', authMode: 'api-key', rateLimits: [] }], events };
 }
 function projection(sequence, value, source) { return { schemaVersion: 1, sequence, source, node: value }; }
+function executionOp(sequence, kind, options = {}) {
+  return { schemaVersion: 1, id: `execution-op:${sequence}`, sessionId, sequence, kind, timestamp: `2026-08-19T00:00:${String(sequence).padStart(2, '0')}.000Z`, turnId: options.turnId === undefined ? turnId : options.turnId, stepId: null, batchId: null, nodeId: options.nodeId ?? null, parentOpId: null, dependsOn: [], projectRevision: null, artifactRefs: options.artifactRefs ?? [], payload: options.payload ?? {}, payloadDigest: `sha256:${String(sequence).padStart(64, '0')}` };
+}
 function node(id, kind, status, content) { return { schemaVersion: 1, id, kind, status, createdAt: `2026-08-19T00:00:${String(Number(id.length % 50)).padStart(2, '0')}.000Z`, provenance: { backendId, sessionId, turnId }, content }; }
 function approvalNode(decision, extra = {}) {
   return node('node:approval', 'approval', 'pending', { approvalId: 'approval:fixture', toolCallId: 'toolcall:fixture', toolId: 'script.apply', toolVersion: '1.0.0', target: 'script:player', effect: 'trusted-code', risk: 'high', argumentsSummary: 'Write player controller', previewDiff: '+ move cube', baseRevision: 4, argsDigest: digestA, previewDigest: digestB, scope: 'operation', decision, ...extra });
@@ -278,11 +317,12 @@ function fakeConversationPort() {
 function fakeDom() {
   let innerHtmlWrites = 0;
   class FakeNode {
-    constructor(ownerDocument, tag = 'fragment') { this.ownerDocument = ownerDocument; this.tagName = tag; this.children = []; this.dataset = {}; this.attributes = {}; this._text = ''; this.value = ''; this.selectionStart = 0; this.selectionEnd = 0; this.selectionDirection = 'none'; this.scrollTop = 0; this.scrollHeight = 0; this.clientHeight = 0; }
+    constructor(ownerDocument, tag = 'fragment') { this.ownerDocument = ownerDocument; this.tagName = tag; this.children = []; this.dataset = {}; this.attributes = {}; this.style = {}; this.listeners = new Map(); this._text = ''; this.value = ''; this.selectionStart = 0; this.selectionEnd = 0; this.selectionDirection = 'none'; this.scrollTop = 0; this.scrollHeight = 0; this.clientHeight = 0; }
     append(...values) { this.children.push(...values); }
     replaceChildren(...values) { this.children = [...values]; }
     setAttribute(key, value) { this.attributes[key] = value; }
-    addEventListener() {}
+    addEventListener(type, listener) { const values = this.listeners.get(type) ?? []; values.push(listener); this.listeners.set(type, values); }
+    click() { if (this.disabled) return; for (const listener of this.listeners.get('click') ?? []) listener({ currentTarget: this, target: this, preventDefault() {} }); }
     focus() { this.ownerDocument.activeElement = this; }
     setSelectionRange(start, end, direction = 'none') { this.selectionStart = start; this.selectionEnd = end; this.selectionDirection = direction; }
     querySelector(selector) { return find(this, selector); }
@@ -300,7 +340,7 @@ function fakeDom() {
     for (const child of value.children) { child.parent = value; const match = find(child, selector); if (match) return match; }
     return null;
   };
-  const document = { activeElement: null, createElement: (tag) => new FakeNode(document, tag), createDocumentFragment: () => new FakeNode(document) };
+  const document = { activeElement: null, createElement: (tag) => new FakeNode(document, tag), createElementNS: (_namespace, tag) => new FakeNode(document, tag), createDocumentFragment: () => new FakeNode(document) };
   const root = new FakeNode(document, 'root');
   const flatten = (value) => `${value._text}${value.children.map(flatten).join('')}`;
   return { root, document, find: (selector) => find(root, selector), findButton: (label) => findAll(root, 'button').find((value) => value.textContent === label), text: () => flatten(root), get innerHtmlWrites() { return innerHtmlWrites; } };

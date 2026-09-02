@@ -1,5 +1,6 @@
 import type { JsonObject, StableId, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 import { approvalFromNode, planFromNode, questionFromNode, safeText } from '../../conversation/validation.js';
+import { layoutExecutionGraph } from '../../conversation/execution-layout.js';
 import type {
   ChatCardAction,
   ChatCardReadModel,
@@ -9,6 +10,7 @@ import type {
   ConversationReadModel,
   ConversationTaskRunReadModel,
 } from '../../conversation/types.js';
+import type { ExecutionGraphNodeReadModel, ExecutionGraphReadModel, ExecutionGraphProductNodeStatus } from '../../conversation/execution-graph-types.js';
 
 export interface ChatPanelReadModel {
   readonly backendId: StableId | null;
@@ -18,6 +20,7 @@ export interface ChatPanelReadModel {
   readonly connection: ConversationReadModel['connection'];
   readonly taskAccounting: ConversationReadModel['taskAccounting'];
   readonly taskRuns: ConversationReadModel['taskRuns'];
+  readonly executionGraphs: ConversationReadModel['executionGraphs'];
   readonly ariaLive: string;
 }
 
@@ -28,7 +31,7 @@ export function presentChatPanel(snapshot: ConversationReadModel, now = Date.now
   return Object.freeze({
     backendId: snapshot.backendId, backends: snapshot.backends, cards,
     composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : 'Authenticate and select a supported Agent model before sending.'), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
-    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns,
+    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns, executionGraphs: snapshot.executionGraphs ?? Object.freeze([]),
     ariaLive: cards.at(-1)?.body ?? (snapshot.connection === 'connected' ? 'Agent conversation ready.' : 'Agent conversation disconnected.'),
   });
 }
@@ -79,6 +82,7 @@ export function chatFeedIsNearLatest(position: ChatFeedScrollPosition, threshold
 }
 
 export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void): void {
+  currentChatModels.set(root, model);
   const document = root.ownerDocument;
   for (const image of [...(root.querySelectorAll?.('.chat-evidence-preview') ?? [])] as HTMLImageElement[]) image.removeAttribute('src');
   const previousFeed = root.querySelector?.('.chat-feed') as HTMLElement | null | undefined;
@@ -158,6 +162,7 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     backendControls.append(settings);
   }
   fragment.append(backendControls);
+  if (model.executionGraphs?.length) fragment.append(renderExecutionWorkspace(root, document, model.executionGraphs, model.taskAccounting, dispatch));
   if (model.taskRuns.length) fragment.append(renderTaskWorkspace(document, model.taskRuns, model.taskAccounting, dispatch));
   if (model.taskAccounting) fragment.append(renderTaskCostCard(document, model.taskAccounting));
   const status = document.createElement('p');
@@ -226,6 +231,159 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   jumpLatest.addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; syncLatestButton(); });
   syncLatestButton();
 }
+
+interface ExecutionWorkspaceState {
+  sessionId: string | null;
+  mode: 'graph' | 'transcript';
+  selectedNodeId: string | null;
+  query: string;
+  filter: 'all' | 'current' | 'waiting' | 'failed' | 'changes' | 'validation' | 'compaction' | 'approval' | 'cost-unknown';
+  detailMode: 'overview' | 'expanded';
+  scale: number;
+}
+
+const executionWorkspaceStates = new WeakMap<HTMLElement, ExecutionWorkspaceState>();
+
+function renderExecutionWorkspace(root: HTMLElement, document: Document, graphs: readonly ExecutionGraphReadModel[], accounting: ConversationReadModel['taskAccounting'], dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const latest = graphs.at(-1)!;
+  const prior = executionWorkspaceStates.get(root);
+  const state: ExecutionWorkspaceState = prior ?? { sessionId: latest.sessionId, mode: 'graph', selectedNodeId: null, query: '', filter: 'all', detailMode: 'overview', scale: 1 };
+  const graph = graphs.find((candidate) => candidate.sessionId === state.sessionId) ?? latest;
+  state.sessionId = graph.sessionId;
+  if (state.selectedNodeId && !graph.nodes.some((node) => node.id === state.selectedNodeId)) state.selectedNodeId = null;
+  executionWorkspaceStates.set(root, state);
+  const workspace = document.createElement('section'); workspace.className = 'execution-workspace'; workspace.setAttribute('aria-label', 'Agent execution graph and transcript'); workspace.dataset.sessionId = graph.sessionId;
+  const header = document.createElement('header'); header.className = 'execution-header';
+  const heading = document.createElement('div'); const title = document.createElement('strong'); title.textContent = graph.title; const status = document.createElement('span'); status.className = `execution-status status-${graph.status}`; status.textContent = executionStatusLabel(graph.status); heading.append(title, status);
+  const sessionSelect = document.createElement('select'); sessionSelect.setAttribute('aria-label', 'Agent session');
+  for (const candidate of [...graphs].reverse()) { const option = document.createElement('option'); option.value = candidate.sessionId; option.selected = candidate.sessionId === graph.sessionId; option.textContent = `${candidate.title} · ${executionStatusLabel(candidate.status)}`; sessionSelect.append(option); }
+  sessionSelect.addEventListener('change', () => { state.sessionId = sessionSelect.value; state.selectedNodeId = null; renderChatPanel(root, currentChatModel(root), dispatch); });
+  header.append(heading, sessionSelect); workspace.append(header);
+
+  const summary = document.createElement('div'); summary.className = 'execution-summary';
+  const pressure = document.createElement('div'); pressure.className = `execution-pressure pressure-${graph.context.pressure?.state ?? 'unknown'}`;
+  const pressureLabel = document.createElement('span'); const ratio = graph.context.pressure?.ratio; pressureLabel.textContent = `上下文 ${ratio === null || ratio === undefined ? '未知' : `${Math.round(ratio * 100)}%`} · ${contextStateLabel(graph.context.pressure?.state ?? 'unknown')}`;
+  const meter = document.createElement('progress'); meter.max = 100; meter.value = ratio === null || ratio === undefined ? 0 : Math.round(ratio * 100); meter.setAttribute('aria-label', pressureLabel.textContent);
+  const compact = document.createElement('button'); compact.type = 'button'; compact.textContent = '压缩上下文'; compact.disabled = !graph.context.compactionAvailable; compact.title = graph.context.compactionBlockedReason ?? (graph.context.pressure ? '在下一个安全边界压缩模型可见上下文；完整记录不会删除。' : '当前模型尚未提供可验证的上下文容量。'); compact.addEventListener('click', () => { if (compact.disabled) return; compact.disabled = true; dispatch(Object.freeze({ type: 'conversation/request-compaction', sessionId: graph.sessionId as StableId, requestId: `compaction-request:${graph.sessionId}:${graph.revision}` as StableId })); });
+  pressure.append(pressureLabel, meter, compact);
+  const totals = document.createElement('p'); totals.className = 'execution-totals'; totals.textContent = executionAccountingLabel(graph, accounting);
+  summary.append(pressure, totals); workspace.append(summary);
+
+  const controls = document.createElement('div'); controls.className = 'execution-controls';
+  const graphTab = tabButton(document, '拓扑图', state.mode === 'graph', () => { state.mode = 'graph'; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const transcriptTab = tabButton(document, `完整记录 ${graph.transcript.length}`, state.mode === 'transcript', () => { state.mode = 'transcript'; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const search = document.createElement('input'); search.type = 'search'; search.placeholder = '搜索步骤、工具、实体或错误'; search.setAttribute('aria-label', 'Search execution graph'); search.value = state.query;
+  search.addEventListener('change', () => { state.query = search.value; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const filter = document.createElement('select'); filter.setAttribute('aria-label', 'Filter execution graph');
+  for (const [value, label] of [['all','全部'],['current','当前'],['waiting','等待'],['failed','失败'],['changes','修改'],['validation','验证'],['compaction','压缩'],['approval','审批'],['cost-unknown','成本未知']] as const) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = state.filter === value; filter.append(option); }
+  filter.addEventListener('change', () => { state.filter = filter.value as ExecutionWorkspaceState['filter']; renderChatPanel(root, currentChatModel(root), dispatch); });
+  controls.append(graphTab, transcriptTab, search, filter); workspace.append(controls);
+
+  if (state.mode === 'transcript') workspace.append(renderExecutionTranscript(root, document, graph, state, dispatch));
+  else workspace.append(renderExecutionGraph(root, document, graph, state, dispatch));
+  return workspace;
+}
+
+/* The current model is retained only for same-render interaction callbacks. */
+const currentChatModels = new WeakMap<HTMLElement, ChatPanelReadModel>();
+function currentChatModel(root: HTMLElement): ChatPanelReadModel { const value = currentChatModels.get(root); if (!value) throw new Error('Chat panel model is unavailable.'); return value; }
+
+function renderExecutionGraph(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const region = document.createElement('div'); region.className = 'execution-graph-region';
+  const toolbar = document.createElement('div'); toolbar.className = 'execution-graph-toolbar';
+  const detail = document.createElement('button'); detail.type = 'button'; detail.textContent = state.detailMode === 'overview' ? '展开全部' : '折叠已完成读取'; detail.addEventListener('click', () => { state.detailMode = state.detailMode === 'overview' ? 'expanded' : 'overview'; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const zoomOut = document.createElement('button'); zoomOut.type = 'button'; zoomOut.textContent = '−'; zoomOut.setAttribute('aria-label', 'Zoom out execution graph'); zoomOut.addEventListener('click', () => { state.scale = Math.max(0.5, state.scale - 0.1); renderChatPanel(root, currentChatModel(root), dispatch); });
+  const zoomIn = document.createElement('button'); zoomIn.type = 'button'; zoomIn.textContent = '+'; zoomIn.setAttribute('aria-label', 'Zoom in execution graph'); zoomIn.addEventListener('click', () => { state.scale = Math.min(1.8, state.scale + 0.1); renderChatPanel(root, currentChatModel(root), dispatch); });
+  const fit = document.createElement('button'); fit.type = 'button'; fit.textContent = '适应视图'; fit.addEventListener('click', () => { state.scale = 1; renderChatPanel(root, currentChatModel(root), dispatch); });
+  toolbar.append(detail, zoomOut, zoomIn, fit); region.append(toolbar);
+  const options = graphFilterOptions(state);
+  const layout = layoutExecutionGraph(graph, { mode: state.detailMode, query: state.query, ...options });
+  const visible = new Set(layout.visibleNodeIds); const nodes = new Map(graph.nodes.map((node) => [node.id, node])); const positions = new Map(layout.nodes.map((node) => [node.id, node]));
+  const viewport = document.createElement('div'); viewport.className = 'execution-graph-viewport'; viewport.tabIndex = 0; viewport.setAttribute('aria-label', `${layout.visibleNodeIds.length} visible execution nodes. Use Tab or arrow keys to navigate.`);
+  const stage = document.createElement('div'); stage.className = 'execution-graph-stage'; stage.style.width = `${layout.width * state.scale}px`; stage.style.height = `${layout.height * state.scale}px`; stage.style.transformOrigin = 'top left';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'execution-edges'); svg.setAttribute('width', String(layout.width * state.scale)); svg.setAttribute('height', String(layout.height * state.scale)); svg.setAttribute('aria-hidden', 'true');
+  for (const edge of graph.edges) {
+    if (!visible.has(edge.from) || !visible.has(edge.to) || edge.kind === 'contains') continue;
+    const from = positions.get(edge.from)!; const to = positions.get(edge.to)!;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path'); const x1 = (from.x + from.width) * state.scale; const y1 = (from.y + from.height / 2) * state.scale; const x2 = to.x * state.scale; const y2 = (to.y + to.height / 2) * state.scale; const middle = (x1 + x2) / 2;
+    line.setAttribute('d', `M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2}`); line.setAttribute('class', `edge-${edge.kind}`); svg.append(line);
+  }
+  stage.append(svg);
+  for (const position of layout.nodes) {
+    const node = nodes.get(position.id)!; const button = document.createElement('button'); button.type = 'button'; button.id = executionDomId(node.id); button.className = `execution-node kind-${node.kind} status-${node.status}${graph.criticalPathNodeIds.includes(node.id) ? ' is-critical' : ''}${state.selectedNodeId === node.id ? ' is-selected' : ''}`; button.style.left = `${position.x * state.scale}px`; button.style.top = `${position.y * state.scale}px`; button.style.width = `${position.width * state.scale}px`; button.style.minHeight = `${position.height * state.scale}px`; button.dataset.nodeId = node.id; button.dataset.layer = String(position.layer); button.dataset.order = String(position.order); button.tabIndex = state.selectedNodeId === node.id || (!state.selectedNodeId && graph.currentNodeIds.includes(node.id)) ? 0 : -1; button.setAttribute('aria-label', `${node.title}. ${executionStatusLabel(node.status)}. ${node.summary}`);
+    const kind = document.createElement('span'); kind.className = 'execution-node-kind'; kind.textContent = executionKindLabel(node.kind); const label = document.createElement('strong'); label.textContent = node.title; const summary = document.createElement('span'); summary.className = 'execution-node-summary'; summary.textContent = node.summary; button.append(kind, label, summary);
+    button.addEventListener('click', () => { state.selectedNodeId = node.id; renderChatPanel(root, currentChatModel(root), dispatch); });
+    button.addEventListener('keydown', (event) => navigateGraphNode(event, root, graph, layout.nodes, node.id, state, dispatch));
+    stage.append(button);
+  }
+  viewport.append(stage); region.append(viewport);
+  const selected = graph.nodes.find((node) => node.id === state.selectedNodeId) ?? graph.nodes.find((node) => graph.currentNodeIds.includes(node.id)) ?? graph.nodes.at(-1);
+  if (selected) region.append(renderExecutionNodeDetail(root, document, graph, selected, state, dispatch));
+  region.append(renderAccessibleGraphList(root, document, graph, state, dispatch));
+  return region;
+}
+
+function renderExecutionTranscript(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const region = document.createElement('section'); region.className = 'execution-transcript'; region.setAttribute('aria-label', 'Complete human transcript');
+  const list = document.createElement('ol');
+  const query = state.query.trim().toLocaleLowerCase();
+  for (const item of graph.transcript) {
+    if (query && !`${item.title}\n${item.body}`.toLocaleLowerCase().includes(query)) continue;
+    const row = document.createElement('li'); row.className = `transcript-item transcript-${item.kind} status-${item.status}`; row.id = `transcript-${executionDomId(item.id)}`;
+    const header = document.createElement('div'); const title = document.createElement('strong'); title.textContent = item.title; const time = document.createElement('time'); time.dateTime = item.timestamp; time.textContent = new Date(item.timestamp).toLocaleTimeString(); header.append(title, time);
+    const body = document.createElement('p'); body.textContent = item.body; row.append(header, body);
+    if (item.graphNodeIds.length) { const locate = document.createElement('button'); locate.type = 'button'; locate.textContent = '在拓扑中定位'; locate.addEventListener('click', () => { state.selectedNodeId = item.graphNodeIds[0] ?? null; state.mode = 'graph'; renderChatPanel(root, currentChatModel(root), dispatch); }); row.append(locate); }
+    list.append(row);
+  }
+  region.append(list); return region;
+}
+
+function renderExecutionNodeDetail(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, node: ExecutionGraphNodeReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const aside = document.createElement('aside'); aside.className = 'execution-node-detail'; aside.setAttribute('aria-label', `Execution detail: ${node.title}`);
+  const heading = document.createElement('h3'); heading.textContent = node.title; const summary = document.createElement('p'); summary.textContent = node.summary; aside.append(heading, summary);
+  const facts = document.createElement('dl');
+  for (const [label, value] of [['状态', executionStatusLabel(node.status)], ['类型', executionKindLabel(node.kind)], ['耗时', node.durationMs === null ? 'unknown' : `${node.durationMs} ms`], ['项目修订', node.projectRevisionBefore === null && node.projectRevisionAfter === null ? 'unknown' : `r${node.projectRevisionBefore ?? '?'} → r${node.projectRevisionAfter ?? '?'}`], ['工具', node.detail.toolId ? `${node.detail.toolId}${node.detail.toolVersion ? `@${node.detail.toolVersion}` : ''}` : 'none'], ['执行类别', node.detail.executionClass ?? 'unknown'], ['事务', node.detail.transactionId ?? 'none'], ['诊断', node.detail.diagnostic ?? 'none']] as const) { const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value; facts.append(term, description); }
+  aside.append(facts);
+  if (node.artifactRefs.length) { const artifacts = document.createElement('details'); const label = document.createElement('summary'); label.textContent = `证据与产物 ${node.artifactRefs.length}`; const list = document.createElement('ul'); for (const id of node.artifactRefs) { const item = document.createElement('li'); const code = document.createElement('code'); code.textContent = id; item.append(code); list.append(item); } artifacts.append(label, list); aside.append(artifacts); }
+  if (node.detail.usageRecordIds.length || node.detail.costRecordIds.length) { const accounting = document.createElement('p'); accounting.className = 'execution-node-accounting'; accounting.textContent = `Usage ${node.detail.usageRecordIds.join(', ') || 'unknown'} · Cost ${node.detail.costRecordIds.join(', ') || 'unknown'}`; aside.append(accounting); }
+  const transcriptItems = graph.transcript.filter((item) => item.graphNodeIds.includes(node.id));
+  if (transcriptItems.length) { const locate = document.createElement('button'); locate.type = 'button'; locate.textContent = '查看对应记录'; locate.addEventListener('click', () => { state.mode = 'transcript'; renderChatPanel(root, currentChatModel(root), dispatch); }); aside.append(locate); }
+  return aside;
+}
+
+function renderAccessibleGraphList(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const details = document.createElement('details'); details.className = 'execution-accessible-list'; const summary = document.createElement('summary'); summary.textContent = '使用层级列表浏览全部执行步骤'; const list = document.createElement('ol');
+  for (const node of graph.nodes) { const item = document.createElement('li'); const button = document.createElement('button'); button.type = 'button'; button.textContent = `${executionKindLabel(node.kind)} · ${node.title} · ${executionStatusLabel(node.status)}`; button.addEventListener('click', () => { state.selectedNodeId = node.id; renderChatPanel(root, currentChatModel(root), dispatch); }); item.append(button); list.append(item); }
+  details.append(summary, list); return details;
+}
+
+function navigateGraphNode(event: KeyboardEvent, root: HTMLElement, graph: ExecutionGraphReadModel, layout: readonly Readonly<{ id: string; layer: number; order: number }>[], nodeId: string, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): void {
+  if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key)) return;
+  event.preventDefault(); const current = layout.find((node) => node.id === nodeId); if (!current) return;
+  let candidate = event.key === 'Home' ? layout.find((node) => graph.currentNodeIds.includes(node.id)) ?? layout[0] : undefined;
+  if (!candidate && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) candidate = layout.filter((node) => node.layer === current.layer).sort((left, right) => Math.abs(left.order - (current.order + (event.key === 'ArrowUp' ? -1 : 1))) - Math.abs(right.order - (current.order + (event.key === 'ArrowUp' ? -1 : 1))))[0];
+  if (!candidate) { const targetLayer = current.layer + (event.key === 'ArrowLeft' ? -1 : 1); candidate = layout.filter((node) => node.layer === targetLayer).sort((left, right) => Math.abs(left.order - current.order) - Math.abs(right.order - current.order))[0]; }
+  if (candidate) { state.selectedNodeId = candidate.id; renderChatPanel(root, currentChatModel(root), dispatch); root.querySelector<HTMLElement>(`#${executionDomId(candidate.id)}`)?.focus(); }
+}
+
+function graphFilterOptions(state: ExecutionWorkspaceState): Readonly<{ statuses?: readonly ExecutionGraphProductNodeStatus[]; kinds?: readonly ExecutionGraphNodeReadModel['kind'][]; costUnknown?: boolean }> {
+  if (state.filter === 'current') return { statuses: ['running','waiting','outcome-unknown'] };
+  if (state.filter === 'waiting') return { statuses: ['waiting','outcome-unknown'] };
+  if (state.filter === 'failed') return { statuses: ['failed'] };
+  if (state.filter === 'changes') return { kinds: ['transaction','tool'] };
+  if (state.filter === 'validation') return { kinds: ['evidence','evaluation'] };
+  if (state.filter === 'compaction') return { kinds: ['compaction'] };
+  if (state.filter === 'approval') return { kinds: ['approval','question','plan'] };
+  if (state.filter === 'cost-unknown') return { costUnknown: true };
+  return {};
+}
+
+function tabButton(document: Document, label: string, selected: boolean, action: () => void): HTMLButtonElement { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(selected)); button.className = selected ? 'is-selected' : ''; button.addEventListener('click', action); return button; }
+function executionDomId(id: string): string { return `execution-${id.replace(/[^a-zA-Z0-9_-]/gu, '-')}`; }
+function executionStatusLabel(value: ExecutionGraphNodeReadModel['status']): string { return ({ pending:'待处理', running:'执行中', waiting:'等待用户', completed:'已完成', failed:'失败', cancelled:'已取消', 'outcome-unknown':'结果待核验' } as const)[value]; }
+function executionKindLabel(value: ExecutionGraphNodeReadModel['kind']): string { return ({ goal:'目标', plan:'方案', turn:'回合', 'tool-batch':'工具批次', tool:'工具', transaction:'修改', approval:'审批', question:'问题', compaction:'上下文压缩', evidence:'证据', evaluation:'验证', repair:'修复', result:'结果', unknown:'未知步骤' } as const)[value]; }
+function contextStateLabel(value: string): string { return ({ normal:'正常', warning:'接近上限', preparing:'准备压缩', 'compact-required':'需要压缩', emergency:'紧急', unknown:'容量未知' } as Record<string,string>)[value] ?? value; }
+function executionAccountingLabel(graph: ExecutionGraphReadModel, accounting: ConversationReadModel['taskAccounting']): string { const usageRefs = new Set(graph.nodes.flatMap((node) => node.detail.usageRecordIds)); const costRefs = new Set(graph.nodes.flatMap((node) => node.detail.costRecordIds)); if (!accounting) return `Usage ${usageRefs.size || 'unknown'} records · Cost ${costRefs.size || 'unknown'} records`; const cost = accounting.cost.amountMicros === null || !accounting.cost.currency ? `unknown (${accounting.cost.explanation})` : `${(accounting.cost.amountMicros / 1_000_000).toFixed(6)} ${accounting.cost.currency}`; return `Input ${accounting.usage.inputTokens ?? 'unknown'} · Cached ${accounting.usage.cachedInputTokens ?? 'unknown'} · Output ${accounting.usage.outputTokens ?? 'unknown'} · Cost ${cost}`; }
 
 function renderTaskWorkspace(document: Document, runs: readonly ConversationTaskRunReadModel[], accounting: ConversationReadModel['taskAccounting'], dispatch: (intent: ConversationIntent) => void): HTMLElement {
   const workspace = document.createElement('section'); workspace.className = 'chat-task-workspace'; workspace.setAttribute('aria-label', 'Agent task status and acceptance evidence');

@@ -23,11 +23,11 @@ transform?.setPosition(0, 1, 0);
 
 test('bounded tool catalog exposes registry-driven component authoring', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
-    'project.snapshot', 'engine.capabilities.describe', 'component.describe', 'component.get',
-    'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query', 'asset.search',
-    'camera.set', 'entity.create', 'entity.rename', 'transform.set', 'material.set',
-    'component.add', 'component.set', 'component.remove', 'asset.import', 'asset.assign', 'script.propose', 'script.apply',
-    'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.inspect', 'play.capture', 'task.evaluate',
+    'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search', 'engine.capabilities.describe', 'component.describe', 'component.get',
+    'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
+    'camera.set', 'camera.author', 'entity.create', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
+    'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
+    'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /time and delta are milliseconds/);
@@ -37,7 +37,189 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
     GAME_AUTHORING_TOOL_DEFINITIONS.filter((item) => item.id === 'entity.create').map((item) => ({ risk: item.risk, requiresApproval: item.requiresApproval })),
     [{ risk: 'low', requiresApproval: false }],
   );
-  assert.doesNotMatch(JSON.stringify(GAME_AUTHORING_TOOL_DEFINITIONS), /shell|network|filesystem|delete|package|git/i);
+  assert.doesNotMatch(JSON.stringify(GAME_AUTHORING_TOOL_DEFINITIONS), /shell|network|filesystem|package|git/i);
+  assert.equal(GAME_AUTHORING_TOOL_DEFINITIONS.some((item) => item.id === 'project.delete'), false);
+});
+
+test('camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically', async () => {
+  const value = await fixture();
+  try {
+    const first = await approveAndExecute(value.runtime, call('call:g08-camera-first', 'camera.author', { baseRevision: 1, action: 'create', name: 'Primary Camera', transform: { position: { x: 0, y: 8, z: 12 }, rotationDegrees: { x: -30, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } } }));
+    const second = await approveAndExecute(value.runtime, call('call:g08-camera-second', 'camera.author', { baseRevision: 2, action: 'create', name: 'Secondary Camera', projection: 'orthographic', orthographicHeight: 18 }));
+    const firstId = first.value.entity.id; const secondId = second.value.entity.id;
+    assert.match(firstId, /^entity:/u); assert.match(secondId, /^entity:/u);
+    const activated = await approveAndExecute(value.runtime, call('call:g08-camera-activate', 'camera.author', { baseRevision: 3, action: 'activate', entityId: firstId }));
+    assert.equal(activated.value.deactivatedCount, 1);
+    assert.equal(value.workspace.queryGameDocument({ entityId: firstId, limit: 256 }).components.find((item) => item.type === 'haiyue.camera.3d').value.active, true);
+    assert.equal(value.workspace.queryGameDocument({ entityId: secondId, limit: 256 }).components.find((item) => item.type === 'haiyue.camera.3d').value.active, false);
+
+    const projection = await approveAndExecute(value.runtime, call('call:g08-camera-projection', 'camera.author', { baseRevision: 4, action: 'projection', entityId: firstId, projection: 'orthographic', orthographicHeight: 24, near: 0.2, far: 2_000 }));
+    assert.equal(projection.value.component.value.projection, 'orthographic'); assert.equal(projection.value.component.value.orthographicHeight, 24);
+    const viewport = await approveAndExecute(value.runtime, call('call:g08-camera-viewport', 'camera.author', { baseRevision: 5, action: 'viewport', entityId: firstId, viewport: { x: 0, y: 0, width: 0.5, height: 1 } }));
+    assert.deepEqual(viewport.value.component.value.viewport, { x: 0, y: 0, width: 0.5, height: 1 });
+
+    const target = await executeReady(value.runtime, call('call:g08-camera-target', 'entity.create', { baseRevision: 6, kind: 'cube', name: 'Camera Target', transform: { position: { x: 5, y: 2, z: -3 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 4, y: 2, z: 6 } } }));
+    const followed = await approveAndExecute(value.runtime, call('call:g08-camera-follow', 'camera.author', { baseRevision: 7, action: 'follow', entityId: firstId, targetEntityId: target.value.entity.id, mode: 'position-and-look-at', offset: { x: 0, y: 10, z: 14 }, smoothing: 0.25 }));
+    assert.equal(followed.value.component.value.targetEntityId, target.value.entity.id); assert.equal(followed.value.component.value.smoothing, 0.25);
+    const framed = await approveAndExecute(value.runtime, call('call:g08-camera-frame', 'camera.author', { baseRevision: 8, action: 'frame', targetEntityId: target.value.entity.id, padding: 2 }));
+    assert.deepEqual(framed.value.camera.target, { x: 5, y: 2, z: -3 }); assert.equal(framed.value.camera.orthographicSize, 24);
+    const orbited = await approveAndExecute(value.runtime, call('call:g08-camera-orbit', 'camera.author', { baseRevision: 9, action: 'orbit', azimuthDelta: 45, elevationDelta: 20, distance: 30 }));
+    assert.equal(orbited.value.camera.azimuthDegrees, framed.value.camera.azimuthDegrees + 45); assert.equal(orbited.value.camera.elevationDegrees, framed.value.camera.elevationDegrees + 20); assert.equal(orbited.value.camera.distance, 30);
+    await value.workspace.undo(10);
+    assert.equal((await executeReady(value.runtime, call('call:g08-camera-orbit-undone', 'camera.get', {}))).value.camera.azimuthDegrees, framed.value.camera.azimuthDegrees);
+  } finally { await dispose(value); }
+});
+
+test('tool.search and component.configure expose registry defaults as partial semantic upserts', async () => {
+  const value = await fixture();
+  try {
+    const search = await executeReady(value.runtime, call('call:g08-tool-search', 'tool.search', { text: 'camera', limit: 20 }));
+    assert.ok(search.value.matches.some((item) => item.kind === 'tool' && item.id === 'camera.set'));
+    assert.ok(search.value.matches.some((item) => item.kind === 'component' && item.id === 'haiyue.camera.3d'));
+    assert.ok(search.value.matches.every((item) => !Object.hasOwn(item, 'inputSchema') && !Object.hasOwn(item, 'valueSchema')));
+
+    const entity = await executeReady(value.runtime, call('call:g08-camera-holder', 'entity.create', { baseRevision: 1, kind: 'empty', name: 'Gameplay Camera' }));
+    const camera = await approveAndExecute(value.runtime, call('call:g08-camera-configure', 'component.configure', {
+      baseRevision: 2, action: 'upsert', entityId: entity.value.entity.id, type: 'haiyue.camera.3d',
+      patch: { projection: 'orthographic', orthographicHeight: 30, viewport: { width: 0.5 } },
+    }));
+    assert.equal(camera.value.action, 'add'); assert.equal(camera.value.component.value.projection, 'orthographic');
+    assert.deepEqual(camera.value.component.value.viewport, { x: 0, y: 0, width: 0.5, height: 1 });
+    assert.equal(camera.value.component.value.fovDegrees, 45, 'registry defaults fill fields the caller did not transmit');
+    const updated = await approveAndExecute(value.runtime, call('call:g08-camera-update', 'component.configure', { baseRevision: 3, action: 'upsert', entityId: entity.value.entity.id, type: 'haiyue.camera.3d', patch: { fovDegrees: 60 } }));
+    assert.equal(updated.value.action, 'update'); assert.equal(updated.value.component.value.fovDegrees, 60); assert.equal(updated.value.component.value.projection, 'orthographic');
+
+    const lowRisk = await value.runtime.prepare(call('call:g08-low-risk-configure', 'component.configure', { baseRevision: 4, action: 'upsert', entityId: entity.value.entity.id, type: 'haiyue.animation.state', patch: { state: 'playing' } }));
+    assert.equal(lowRisk.status, 'ready'); assert.equal(lowRisk.risk, 'low'); assert.equal(lowRisk.approvalId, undefined);
+    await value.runtime.execute(lowRisk.id);
+    const removed = await approveAndExecute(value.runtime, call('call:g08-camera-remove', 'component.configure', { baseRevision: 5, action: 'remove', entityId: entity.value.entity.id, type: 'haiyue.camera.3d' }));
+    assert.equal(removed.value.action, 'remove'); assert.equal(value.workspace.queryGameDocument({ entityId: entity.value.entity.id, limit: 256 }).components.some((item) => item.type === 'haiyue.camera.3d'), false);
+    await value.workspace.undo(6);
+    assert.equal(value.workspace.queryGameDocument({ entityId: entity.value.entity.id, limit: 256 }).components.some((item) => item.type === 'haiyue.camera.3d'), true);
+  } finally { await dispose(value); }
+});
+
+test('asset.dependencies and script symbols/patch provide exact incremental context without whole-script retransmission', async () => {
+  const value = await fixture();
+  try {
+    const created = await executeReady(value.runtime, call('call:g08-incremental-entity', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Incremental Player' }));
+    const entityId = created.value.entity.id;
+    const assetId = 'asset:1234567890abcdef12345678';
+    await approveAndExecute(value.runtime, call('call:g08-pbr-dependency', 'component.configure', { baseRevision: 2, action: 'upsert', entityId, type: 'haiyue.material.pbr', patch: { baseColorAssetId: assetId } }));
+    const dependencies = await executeReady(value.runtime, call('call:g08-asset-dependencies', 'asset.dependencies', { assetId, entityId }));
+    assert.equal(dependencies.value.count, 1); assert.equal(dependencies.value.references[0].componentType, 'haiyue.material.pbr'); assert.equal(dependencies.value.references[0].path, '/baseColorAssetId');
+
+    const source = "const moving = api.input.isPressed('MoveLeft');\napi.scene.observe('player-state', { moving });";
+    const proposal = await executeReady(value.runtime, call('call:g08-script-propose', 'script.propose', { baseRevision: 3, entityId, text: source, capabilities: ['read', 'input', 'scene'] }));
+    await approveAndExecute(value.runtime, call('call:g08-script-apply', 'script.apply', { baseRevision: 3, proposalId: proposal.value.proposalId }));
+    const symbols = await executeReady(value.runtime, call('call:g08-script-symbols', 'script.symbols', { entityId }));
+    assert.deepEqual(symbols.value.symbols.variables, ['moving']); assert.deepEqual(symbols.value.symbols.apiNamespaces, ['input', 'scene']);
+    assert.deepEqual(symbols.value.symbols.inputActions, ['MoveLeft']); assert.deepEqual(symbols.value.symbols.observationIds, ['player-state']); assert.equal(Object.hasOwn(symbols.value, 'text'), false);
+
+    const patch = await executeReady(value.runtime, call('call:g08-script-patch', 'script.patch', { baseRevision: 4, entityId, expectedDigest: symbols.value.digest, edits: [{ startLine: 1, endLine: 1, text: "const moving = api.input.isPressed('MoveRight');" }] }));
+    assert.equal(patch.value.canApply, true); assert.equal(patch.value.editCount, 1); assert.equal(patch.value.patchedFromDigest, symbols.value.digest);
+    await approveAndExecute(value.runtime, call('call:g08-script-patch-apply', 'script.apply', { baseRevision: 4, proposalId: patch.value.proposalId }));
+    const after = await executeReady(value.runtime, call('call:g08-script-after', 'script.get', { entityId }));
+    assert.match(after.value.script.text, /MoveRight/); assert.doesNotMatch(after.value.script.text, /MoveLeft/);
+    await assert.rejects(executeReady(value.runtime, call('call:g08-script-stale-patch', 'script.patch', { baseRevision: 5, entityId, expectedDigest: symbols.value.digest, edits: [{ startLine: 1, endLine: 1, text: 'const moving = false;' }] })), (error) => error.code === 'tool.script-stale');
+  } finally { await dispose(value); }
+});
+
+test('scene.get-many and recoverable hierarchy operations clone, reparent and restore complete subtrees', async () => {
+  const value = await fixture();
+  try {
+    const root = await executeReady(value.runtime, call('call:g08-root', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Root' }));
+    const child = await executeReady(value.runtime, call('call:g08-child', 'entity.create', { baseRevision: 2, kind: 'sphere', name: 'Child', parentId: root.value.entity.id }));
+    const many = await executeReady(value.runtime, call('call:g08-get-many', 'scene.get-many', { entityIds: [child.value.entity.id, 'entity:missing-g08', root.value.entity.id], includeComponents: false }));
+    assert.deepEqual(many.value.entities.map((entity) => entity.id), [child.value.entity.id, root.value.entity.id]);
+    assert.deepEqual(many.value.missingEntityIds, ['entity:missing-g08']);
+    assert.ok(many.value.entities.every((entity) => !Object.hasOwn(entity, 'components')));
+
+    await assert.rejects(
+      approveAndExecute(value.runtime, call('call:g08-delete-nonrecursive', 'entity.hierarchy', { baseRevision: 3, action: 'delete', entityId: root.value.entity.id })),
+      (error) => error.code === 'tool.entity-has-children',
+    );
+    assert.equal(value.workspace.gameSnapshot().revision, 3);
+
+    const cloned = await approveAndExecute(value.runtime, call('call:g08-clone-subtree', 'entity.hierarchy', { baseRevision: 3, action: 'clone', entityId: root.value.entity.id, includeDescendants: true, name: 'Root Clone' }));
+    assert.equal(cloned.afterRevision, 4); assert.equal(cloned.historyLabel, 'Edit Entity Hierarchy'); assert.equal(cloned.value.clonedEntityIds.length, 2);
+    const [clonedRootId, clonedChildId] = cloned.value.clonedEntityIds;
+    const clonedScene = value.scene.snapshot();
+    assert.equal(clonedScene.entities.find((entity) => entity.id === clonedRootId).name, 'Root Clone');
+    assert.equal(clonedScene.entities.find((entity) => entity.id === clonedChildId).parentId, clonedRootId);
+    assert.equal(value.workspace.queryGameDocument({ entityId: clonedChildId, limit: 256 }).components.length, value.workspace.queryGameDocument({ entityId: child.value.entity.id, limit: 256 }).components.length);
+
+    const reparented = await approveAndExecute(value.runtime, call('call:g08-reparent', 'entity.hierarchy', { baseRevision: 4, action: 'reparent', entityId: clonedChildId, parentId: null, order: 20 }));
+    assert.equal(reparented.value.entity.parentId, null); assert.equal(reparented.value.entity.order, 20);
+    const removed = await approveAndExecute(value.runtime, call('call:g08-delete-subtree', 'entity.hierarchy', { baseRevision: 5, action: 'delete', entityId: clonedRootId, includeDescendants: true }));
+    assert.deepEqual(removed.value.removedEntityIds, [clonedRootId]);
+    assert.equal(value.scene.snapshot().entities.some((entity) => entity.id === clonedRootId), false);
+    await value.workspace.undo(6);
+    assert.equal(value.scene.snapshot().entities.some((entity) => entity.id === clonedRootId), true, 'History Undo must restore removed entities and components');
+  } finally { await dispose(value); }
+});
+
+test('prefab.manage captures, instantiates and removes reusable subtrees while history.query stays bounded and source-redacted', async () => {
+  const value = await fixture();
+  try {
+    const root = await executeReady(value.runtime, call('call:g08-prefab-root', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Reusable Root' }));
+    const child = await executeReady(value.runtime, call('call:g08-prefab-child', 'entity.create', { baseRevision: 2, kind: 'sphere', name: 'Reusable Child', parentId: root.value.entity.id }));
+    const source = "api.scene.observe('prefab-state', { state: 'ready' });";
+    const proposal = await executeReady(value.runtime, call('call:g08-prefab-script-propose', 'script.propose', { baseRevision: 3, entityId: child.value.entity.id, text: source, capabilities: ['read', 'scene'] }));
+    await approveAndExecute(value.runtime, call('call:g08-prefab-script-apply', 'script.apply', { baseRevision: 3, proposalId: proposal.value.proposalId }));
+
+    const captured = await approveAndExecute(value.runtime, call('call:g08-prefab-capture', 'prefab.manage', { baseRevision: 4, action: 'capture', prefabId: 'prefab:reusable-enemy', entityId: root.value.entity.id, name: 'Reusable Enemy' }));
+    assert.equal(captured.afterRevision, 5); assert.equal(captured.value.prefab.entityCount, 2); assert.equal(captured.value.prefab.scriptCount, 1);
+    assert.doesNotMatch(JSON.stringify(captured.value), /prefab-state|observe/u, 'tool results must not disclose captured source');
+    const settings = await executeReady(value.runtime, call('call:g08-prefab-settings-redaction', 'scene.query', { revision: 5, projection: ['settings'], limit: 100 }));
+    assert.equal(settings.value.items.some((item) => item.value?.key === 'studio.prefabs.v1'), false, 'exact context must not expose private prefab script storage');
+
+    const history = await executeReady(value.runtime, call('call:g08-prefab-history', 'history.query', { limit: 2 }));
+    assert.equal(history.value.entries[0].label, 'Capture Prefab'); assert.equal(history.value.count, 2); assert.equal(history.value.truncated, true);
+    assert.equal(Object.hasOwn(history.value.entries[0], 'operations'), false); assert.doesNotMatch(JSON.stringify(history.value), /prefab-state|observe/u);
+    const older = await executeReady(value.runtime, call('call:g08-prefab-history-page', 'history.query', { beforeEntryId: history.value.nextBeforeEntryId, limit: 100 }));
+    assert.ok(older.value.entries.length >= 1); assert.ok(older.value.entries.every((entry) => entry.id < history.value.nextBeforeEntryId));
+
+    const instantiated = await approveAndExecute(value.runtime, call('call:g08-prefab-instantiate', 'prefab.manage', { baseRevision: 5, action: 'instantiate', prefabId: 'prefab:reusable-enemy', name: 'Enemy Instance' }));
+    assert.equal(instantiated.afterRevision, 6); assert.equal(instantiated.value.instantiatedEntityIds.length, 2); assert.equal(instantiated.value.entity.name, 'Enemy Instance');
+    assert.ok(instantiated.value.instantiatedEntityIds.every((id) => ![root.value.entity.id, child.value.entity.id].includes(id)));
+    const clonedScript = value.workspace.gameSnapshot().scripts.find((item) => item.entityId === instantiated.value.instantiatedEntityIds[1]);
+    assert.equal(clonedScript.source, source); assert.match(clonedScript.sourcePath, /^scripts\/script-m13-/u);
+    assert.doesNotMatch(JSON.stringify(instantiated.value), /prefab-state|observe/u);
+
+    await value.workspace.undo(6);
+    assert.ok(instantiated.value.instantiatedEntityIds.every((id) => !value.scene.snapshot().entities.some((entity) => entity.id === id)), 'one Undo removes the complete instance');
+    await value.workspace.redo(value.workspace.gameSnapshot().revision);
+    assert.ok(instantiated.value.instantiatedEntityIds.every((id) => value.scene.snapshot().entities.some((entity) => entity.id === id)), 'Redo restores the complete instance');
+
+    const removed = await approveAndExecute(value.runtime, call('call:g08-prefab-remove', 'prefab.manage', { baseRevision: value.workspace.gameSnapshot().revision, action: 'remove', prefabId: 'prefab:reusable-enemy' }));
+    assert.equal(removed.value.remainingCount, 0); assert.equal(Object.hasOwn(value.workspace.gameSnapshot().settings, 'studio.prefabs.v1'), false);
+    await value.workspace.undo(value.workspace.gameSnapshot().revision);
+    const reinstantiated = await approveAndExecute(value.runtime, call('call:g08-prefab-after-undo', 'prefab.manage', { baseRevision: value.workspace.gameSnapshot().revision, action: 'instantiate', prefabId: 'prefab:reusable-enemy' }));
+    assert.equal(reinstantiated.value.instantiatedEntityIds.length, 2, 'Undo restores the removed prefab registry entry');
+  } finally { await dispose(value); }
+});
+
+test('transform.batch applies set, align, distribute, snap and look-at as bounded single-revision edits', async () => {
+  const value = await fixture();
+  try {
+    const created = [];
+    for (const [index, kind] of ['cube', 'sphere', 'cone'].entries()) created.push(await executeReady(value.runtime, call(`call:g08-transform-create-${index}`, 'entity.create', { baseRevision: 1 + index, kind, name: `Spatial ${index}` })));
+    const ids = created.map((result) => result.value.entity.id);
+    const transform = (x, y, z) => ({ position: { x, y, z }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
+    const set = await approveAndExecute(value.runtime, call('call:g08-transform-set', 'transform.batch', { baseRevision: 4, action: 'set', transforms: ids.map((entityId, index) => ({ entityId, transform: transform(index * 4 + 0.2, index * 2 + 1, index + 0.4) })) }));
+    assert.equal(set.afterRevision, 5); assert.equal(set.historyLabel, 'Batch Transform'); assert.equal(set.value.entities.length, 3);
+    const align = await approveAndExecute(value.runtime, call('call:g08-transform-align', 'transform.batch', { baseRevision: 5, action: 'align', entityIds: ids, axis: 'y', mode: 'min' }));
+    assert.deepEqual(align.value.entities.map((entity) => entity.transform.position.y), [1, 1, 1]);
+    const distribute = await approveAndExecute(value.runtime, call('call:g08-transform-distribute', 'transform.batch', { baseRevision: 6, action: 'distribute', entityIds: ids, axis: 'x', spacing: 3 }));
+    assert.deepEqual(distribute.value.entities.map((entity) => entity.transform.position.x), [0.2, 3.2, 6.2]);
+    const snapped = await approveAndExecute(value.runtime, call('call:g08-transform-snap', 'transform.batch', { baseRevision: 7, action: 'snap', entityIds: ids, grid: 1 }));
+    assert.deepEqual(snapped.value.entities.map((entity) => entity.transform.position), [{ x: 0, y: 1, z: 0 }, { x: 3, y: 1, z: 1 }, { x: 6, y: 1, z: 2 }]);
+    const oriented = await approveAndExecute(value.runtime, call('call:g08-transform-look-at', 'transform.batch', { baseRevision: 8, action: 'look-at', entityIds: ids, target: { x: 0, y: 5, z: 10 } }));
+    assert.ok(oriented.value.entities.every((entity) => Number.isFinite(entity.transform.rotationDegrees.x) && Number.isFinite(entity.transform.rotationDegrees.y)));
+    await value.workspace.undo(9);
+    assert.deepEqual(value.scene.snapshot().entities.map((entity) => entity.transform.rotationDegrees), [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }]);
+  } finally { await dispose(value); }
 });
 
 test('main project camera persists through History and supports a distortion-free top-down board view', async () => {
@@ -64,6 +246,43 @@ test('main project camera persists through History and supports a distortion-fre
     await value.workspace.redo(3);
     const redone = await executeReady(value.runtime, call('call:camera-get-redone', 'camera.get', {}));
     assert.deepEqual(redone.value.camera, topDown);
+  } finally { await dispose(value); }
+});
+
+test('runtime executes a prepared mutation batch through one Scene transaction and one undoable History entry', async () => {
+  const value = await fixture();
+  try {
+    const preparations = await Promise.all([
+      value.runtime.prepare(call('call:g07-batch-a', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Batch A' })),
+      value.runtime.prepare(call('call:g07-batch-b', 'entity.create', { baseRevision: 1, kind: 'sphere', name: 'Batch B' })),
+      value.runtime.prepare(call('call:g07-batch-c', 'entity.create', { baseRevision: 1, kind: 'plane', name: 'Batch C' })),
+    ]);
+    const committed = await value.runtime.executeTransaction({ sessionId: 'session:fixture', turnId: 'turn:fixture', batchId: 'batch:g07-runtime', preparationIds: preparations.map((item) => item.id) });
+    assert.equal(committed.beforeRevision, 1); assert.equal(committed.afterRevision, 2);
+    assert.equal(committed.results.length, 3); assert.equal(new Set(committed.results.map((item) => item.transaction.transactionId)).size, 1);
+    assert.equal(value.workspace.snapshot().history.entries.length, 1);
+    assert.deepEqual(value.scene.snapshot().entities.map((item) => item.name), ['Batch A', 'Batch B', 'Batch C']);
+    await value.workspace.undo(2);
+    assert.equal(value.scene.snapshot().entities.length, 0, 'one undo must reverse every transaction member');
+  } finally { await dispose(value); }
+});
+
+test('scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary', async () => {
+  const value = await fixture();
+  try {
+    const summary = await executeReady(value.runtime, call('call:g05-summary', 'project.snapshot', {}));
+    assert.equal(Object.hasOwn(summary.value, 'camera'), false); assert.deepEqual(summary.value.counts.entities, 0);
+    const baseline = await executeReady(value.runtime, call('call:g05-baseline', 'scene.query', { revision: 1, projection: ['hierarchy', 'scripts'], limit: 1 }));
+    assert.equal(baseline.value.revision, 1); assert.deepEqual(baseline.value.items, []);
+    const created = await executeReady(value.runtime, call('call:g05-create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Delta Cube' }));
+    const first = await executeReady(value.runtime, call('call:g05-diff-1', 'scene.diff', { fromRevision: 1, toRevision: created.afterRevision, limit: 1 }));
+    assert.equal(first.value.diff.fromRevision, 1); assert.equal(first.value.diff.toRevision, 2); assert.equal(first.value.diff.truncated, true); assert.ok(first.value.diff.nextCursor);
+    assert.equal(first.value.diff.transactionIds.length, 1); assert.match(first.value.diff.transactionIds[0], /^command:agent:/u); assert.ok(first.value.diff.provenanceOpIds.some((id) => id.startsWith('event:tools:')));
+    const second = await executeReady(value.runtime, call('call:g05-diff-2', 'scene.diff', { fromRevision: 1, toRevision: 2, limit: 1, cursor: first.value.diff.nextCursor }));
+    assert.equal(second.value.diff.digest, first.value.diff.digest);
+    const current = await executeReady(value.runtime, call('call:g05-current', 'scene.query', { projection: ['hierarchy', 'components'], limit: 100 }));
+    assert.equal(current.value.items.filter((item) => item.kind === 'entity').length, 1); assert.equal(current.value.items.some((item) => Object.hasOwn(item.value, 'source')), false);
+    await assert.rejects(executeReady(value.runtime, call('call:g05-future', 'scene.diff', { fromRevision: 2, toRevision: 99 })), /newer than current revision/u);
   } finally { await dispose(value); }
 });
 
@@ -94,7 +313,7 @@ test('planned entity creation is low risk while later scoped edits retain one-sh
 
     const facts = await value.operationLog.query({ toolCallId: asStableId('call:rename'), limit: 50, traverseCorrelation: false });
     assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/') || item.kind.startsWith('approval/')).map((item) => item.kind), [
-      'tool/call-received', 'tool/pre-policy-passed', 'tool/preview-prepared', 'approval/requested', 'approval/allow-once', 'tool/execution-started', 'tool/execution-completed',
+      'tool/call-received', 'tool/pre-policy-passed', 'tool/preview-prepared', 'approval/requested', 'approval/allow-once', 'tool/effect-lock-acquired', 'tool/execution-started', 'tool/execution-completed', 'tool/effect-lock-released',
     ]);
     assert.doesNotMatch(JSON.stringify(facts.events), /"name":"Hero"/);
   } finally { await dispose(value); }
@@ -205,7 +424,7 @@ test('allow always auto-approves only the same tool, version, target and project
     assert.equal(differentSession.status, 'approval-required');
     const facts = await value.operationLog.query({ toolCallId: asStableId('call:always-second'), limit: 20, traverseCorrelation: false });
     assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/') || item.kind.startsWith('approval/')).map((item) => item.kind), [
-      'tool/call-received', 'tool/pre-policy-passed', 'tool/preview-prepared', 'approval/auto-allowed', 'tool/execution-started', 'tool/execution-completed',
+      'tool/call-received', 'tool/pre-policy-passed', 'tool/preview-prepared', 'approval/auto-allowed', 'tool/effect-lock-acquired', 'tool/execution-started', 'tool/execution-completed', 'tool/effect-lock-released',
     ]);
   } finally { await dispose(value); }
 });
@@ -238,6 +457,8 @@ test('script proposal, trusted apply and runtime start preserve separate approva
     assert.equal(stepped.value.projection.stepped, 3);
     const injected = await executeReady(value.runtime, call('call:play-input', 'play.input', { event: { tick: 13, kind: 'action', action: 'move-left', phase: 'down', source: 'synthetic' } }));
     assert.equal(injected.value.projection.input.action, 'move-left');
+    const physics = await executeReady(value.runtime, call('call:play-physics', 'play.physics-query', { kind: 'raycast', dimension: '3d', origin: { x: 0, y: 2, z: 0 }, direction: { x: 0, y: -1, z: 0 }, maxDistance: 10 }));
+    assert.equal(physics.value.projection.query.kind, 'raycast');
     const inspected = await executeReady(value.runtime, call('call:play-inspect', 'play.inspect', {}));
     assert.match(inspected.value.observation.id, /^artifact:sha256:/);
     const captured = await executeReady(value.runtime, call('call:play-capture', 'play.capture', {}));
@@ -807,7 +1028,7 @@ async function fixture(runtimeOptions = {}, restartState = null) {
     starts: 0, stops: 0, state: { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] },
     async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, scripts: plan.scripts.map((script) => ({ scriptId: script.scriptId, entityId: script.entityId, order: script.order, state: 'playing', position: null, disposableCount: 0, errorCount: 0 })), entityId: plan.scripts[0]?.entityId ?? null }; return this.state; },
     async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; },
-    async step(count) { return this.observation({ stepped: count }); }, async input(event) { return this.observation({ input: event }); }, async inspect() { return this.observation({ score: 4 }); },
+    async step(count) { return this.observation({ stepped: count }); }, async input(event) { return this.observation({ input: event }); }, async physicsQuery(query) { return this.observation({ query: { kind: query.kind, result: query.kind === 'raycast' ? { entityId: 'entity:ground', distance: 2 } : null } }); }, async inspect() { return this.observation({ score: 4 }); },
     async capture() { const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]); return { ...this.observation({}), mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') }; },
     observation(value) { return { playId: 'preview:fixture', documentRevision: 3, scriptDigests: [`sha256:${'a'.repeat(64)}`], tick: 12, frame: 9, viewport: { width: 393, height: 852 }, device: 'fixture', capturedAt: '2026-08-29T00:00:00.000Z', value }; },
     snapshot() { return this.state; },
@@ -827,7 +1048,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 32);
+      assert.equal(input.tools.length, 46);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -852,7 +1073,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 32);
+      assert.equal(input.tools.length, 46);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');

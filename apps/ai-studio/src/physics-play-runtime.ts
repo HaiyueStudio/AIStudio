@@ -238,6 +238,36 @@ export class PhysicsPlayRuntime {
     });
   }
 
+  /** Bounded query seam used by Studio observations; it never exposes backend handles. */
+  query(value: unknown): Readonly<Record<string, unknown>> {
+    this.assertReady();
+    if (!isRecord(value) || typeof value.kind !== 'string') throw new Error('physics.query-invalid: query must be an object with a kind.');
+    const kind = value.kind;
+    const allowed: Readonly<Record<string, readonly string[]>> = Object.freeze({
+      status: ['kind'], events: ['kind', 'sinceTick', 'limit'], body: ['kind', 'entityId'], raycast: ['kind', 'dimension', 'origin', 'direction', 'maxDistance'], overlap: ['kind', 'dimension', 'center', 'size', 'limit'],
+    });
+    if (!Object.hasOwn(allowed, kind)) throw new Error(`physics.query-kind-invalid: ${kind}.`);
+    if (Object.keys(value).some((key) => !allowed[kind]!.includes(key))) throw new Error(`physics.query-fields-invalid: ${kind}.`);
+    if (kind === 'status') return Object.freeze({ kind, result: this.status() });
+    if (kind === 'events') {
+      const sinceTick = value.sinceTick === undefined ? 0 : integer(value.sinceTick, 0, 1_000_000_000, 'sinceTick');
+      const limit = value.limit === undefined ? 128 : integer(value.limit, 1, 256, 'limit');
+      const events = this.eventsValue.filter((event) => event.tick >= sinceTick).slice(-limit);
+      return Object.freeze({ kind, sinceTick, result: Object.freeze(events), truncated: this.eventsValue.filter((event) => event.tick >= sinceTick).length > events.length });
+    }
+    if (kind === 'body') return Object.freeze({ kind, entityId: stringValue(value.entityId, 'entityId'), result: this.bodySnapshot(this.resolveBody(stringValue(value.entityId, 'entityId'))) });
+    const dimension = enumValue(value.dimension, ['2d', '3d'], 'dimension');
+    if (kind === 'raycast') {
+      const origin = vec3(value.origin, 'origin'), direction = vec3(value.direction, 'direction');
+      const maxDistance = value.maxDistance === undefined ? 1_000 : finite(value.maxDistance, 0.000001, 1_000_000, 'maxDistance');
+      return Object.freeze({ kind, dimension, result: this.raycast(dimension, origin, direction, maxDistance) });
+    }
+    const center = vec3(value.center, 'center'), size = vec3(value.size, 'size');
+    if (size.x <= 0 || size.y <= 0 || size.z <= 0) throw new Error('physics.query-invalid: overlap size members must be greater than zero.');
+    const limit = value.limit === undefined ? 128 : integer(value.limit, 1, 256, 'limit');
+    return Object.freeze({ kind, dimension, result: this.overlap(dimension, center, size, limit) });
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;

@@ -269,6 +269,9 @@ interface HaiyueScriptSceneApi {
   /** Create or update responsive text in the Play HUD. Reusing id updates in place. */
   hudText(id: string, text: string, options?: HaiyueStudioHudTextOptions): void;
   removeHudText(id: string): void;
+  /** Publish bounded JSON gameplay state for play.inspect and deterministic acceptance assertions. */
+  observe(id: string, value: unknown): void;
+  removeObservation(id: string): void;
 }
 `;
 }

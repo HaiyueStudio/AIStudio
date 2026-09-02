@@ -6,12 +6,13 @@ import { spawnSync } from 'node:child_process';
 import { EditorDocumentHost, EditorHistoryService, EditorProjectSessionState, EditorTaskCoordinator } from '@haiyue/editor-platform';
 import { asStableId } from '@haiyue/ai-studio-contracts';
 import { CodexAppServerBackend, HarnessApiKeyBackend } from '@haiyue/ai-studio-agent-backends';
-import { AgentBackendRegistry, AgentTurnRuntime, M12_DEFAULT_PRICING_CATALOG, PromptContextRuntime, TaskAccountingRegistry } from '@haiyue/ai-studio-agent-runtime';
+import { AgentBackendRegistry, AgentTurnRuntime, DurableSessionRuntime, M12_DEFAULT_PRICING_CATALOG, ModelContextRuntime, PromptContextRuntime, TaskAccountingRegistry } from '@haiyue/ai-studio-agent-runtime';
 import { ProjectSceneAuthoringService, ProjectWorkspace, RecentProjectStore } from '@haiyue/ai-studio-editor-plugins';
 import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { PreviewAuthorizationService, ProjectScriptService, ScriptValidationWorker } from '@haiyue/ai-studio-script-preview';
 import { AgentGameAuthoringCoordinator, GameAuthoringToolRuntime } from '@haiyue/ai-studio-game-authoring-tools';
+import { projectExecutionGraph } from '@haiyue/ai-studio-shell';
 import { EvidenceCollector, compileG12ReplayProgram, contentDigest, evaluateCase, executeG12ReplayProgram, inspectG12GameplayContract, loadEvaluationAssets } from '../../evals/src/index.mjs';
 import { BrowserWindowPreviewControl } from '../../apps/ai-studio/test/fixtures/g12-browser-window-preview-control.mjs';
 
@@ -74,8 +75,9 @@ async function run() {
   const testCase = assets.suite.cases.find((entry) => entry.genre === genre);
   const oracleCase = assets.oracle.cases.find((entry) => entry.caseId === testCase.id);
   const fixture = await createFixture(projectRoot, userDataRoot);
-  let windowGuard; let backend; let coordinator; let turns; let preview; let account; let taskId; let model; let config; let summary;
-  partialWriter = (cause) => preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets });
+  let windowGuard; let backend; let coordinator; let turns; let preview; let account; let taskId; let model; let config; let summary; let durableSessions; let modelContexts; let contextFrames;
+  const m13Turns = [];
+  partialWriter = (cause) => preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets, m13Turns });
   try {
     windowGuard = await createPreviewWindow();
     preview = new BrowserWindowPreviewControl(windowGuard.window); await windowGuard.race(preview.ready());
@@ -86,6 +88,9 @@ async function run() {
     const registry = new AgentBackendRegistry(); registry.register(backend);
     const context = new PromptContextRuntime(fixture.operationLog); await context.initialize();
     turns = new AgentTurnRuntime(registry, fixture.operationLog, context);
+    durableSessions = new DurableSessionRuntime(fixture.operationLog);
+    modelContexts = new ModelContextRuntime(fixture.operationLog, durableSessions);
+    contextFrames = modelContexts.createPipeline(async ({ messages, targetSummaryTokens }) => ({ summary: formalCompactionSummary(messages, targetSummaryTokens) })).frames;
     const accounting = new TaskAccountingRegistry(turns.usage);
     taskId = asStableId(`task:g12-${backendKind}-${genre}-${randomUUID()}`);
     const budget = taskBudget(testCase);
@@ -105,7 +110,9 @@ async function run() {
     const controller = new AbortController(); const wallTimeError = errorWithCode('g12.case-wall-time-exceeded', 'G12 cold-create case exceeded its wall-time budget.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const timer = setTimeout(() => { controller.abort(wallTimeError); void failAndExit(wallTimeError); }, caseWallTimeMs);
     const boundTurnIds = new Set();
     const liveTurnUsage = new Map();
+    let recordedEvents = [];
     const observeEvent = (event) => {
+      recordedEvents.push(event);
       if (!boundTurnIds.has(event.turnId)) {
         boundTurnIds.add(event.turnId);
         account.bindTurn(event.turnId, billingContext(model.id));
@@ -120,9 +127,24 @@ async function run() {
         if (totals.inputTokens > budget.limits.inputTokens || totals.outputTokens > budget.limits.outputTokens) controller.abort(errorWithCode('budget.hard-stop', 'Agent exceeded the formal token budget.'));
       }
     };
+    const runRecorded = async (turnPrompt, continuationSessionId) => {
+      recordedEvents = [];
+      try {
+        const turnSummary = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: turnPrompt, ...(continuationSessionId ? { sessionId: continuationSessionId } : {}) }, observeEvent, controller.signal));
+        m13Turns.push(await recordM13Turn({ operationLog: fixture.operationLog, sessions: durableSessions, contextFrames, backend, model, config, taskId, prompt: turnPrompt, summary: turnSummary, events: recordedEvents, projectRevision: fixture.workspace.snapshot().document.revision }));
+        return turnSummary;
+      } catch (cause) {
+        const coordinates = recordedEvents.at(-1);
+        if (coordinates?.sessionId && coordinates?.turnId) {
+          const partialSummary = Object.freeze({ sessionId: coordinates.sessionId, turnId: coordinates.turnId, terminal: 'failed', results: Object.freeze([]), diagnostics: Object.freeze([{ code: typeof cause?.code === 'string' ? cause.code : 'g12.turn-failed', message: cause instanceof Error ? cause.message : String(cause) }]) });
+          m13Turns.push(await recordM13Turn({ operationLog: fixture.operationLog, sessions: durableSessions, contextFrames, backend, model, config, taskId, prompt: turnPrompt, summary: partialSummary, events: recordedEvents, projectRevision: fixture.workspace.snapshot().document.revision, failed: true }).catch((recordCause) => Object.freeze({ status: 'unavailable', diagnostic: recordCause instanceof Error ? recordCause.message : String(recordCause) })));
+        }
+        throw cause;
+      }
+    };
     const summaries = [];
     try {
-      const initial = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt }, observeEvent, controller.signal));
+      const initial = await runRecorded(prompt, null);
       summaries.push(initial); summary = mergeTurnSummaries(summaries); commitToolResults(account, initial.results);
       let current = initial;
       let takeoverAttempts = 0;
@@ -131,13 +153,13 @@ async function run() {
         takeoverAttempts += 1;
         account.repair(); account.beginTurn();
         const takeoverPrompt = 'Studio 检测到上一回合发生可重试的传输或流中断。请从当前已保存的项目状态继续原任务；先读取 project.snapshot，保留已有产物，并完成尚未提交和验证的工作。';
-        current = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: takeoverPrompt, ...(current.sessionId ? { sessionId: current.sessionId } : {}) }, observeEvent, controller.signal));
+        current = await runRecorded(takeoverPrompt, current.sessionId);
         summaries.push(current); summary = mergeTurnSummaries(summaries); commitToolResults(account, current.results);
       }
       if (current.terminal === 'completed' && enabledScriptCount(fixture.projectScripts.snapshot()) === 0 && caseDeadlineMs - Date.now() >= minimumTakeoverWindowMs) {
         account.repair(); account.beginTurn();
         const repairPrompt = 'Studio 自动检查发现当前项目仍没有已提交且启用的脚本。请继续原任务，使用通用 Studio 工具创建并提交至少一个脚本（script.propose 后执行 script.apply），随后运行 preview.validate；不要只描述方案，也不要结束于未提交状态。';
-        const repair = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: repairPrompt, ...(current.sessionId ? { sessionId: current.sessionId } : {}) }, observeEvent, controller.signal));
+        const repair = await runRecorded(repairPrompt, current.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results);
         current = repair;
       }
@@ -145,7 +167,7 @@ async function run() {
       if (current.terminal === 'completed' && !gameplayContract.valid && caseDeadlineMs - Date.now() >= minimumTakeoverWindowMs) {
         account.repair(); account.beginTurn();
         const telemetryPrompt = `Studio 的通用 gameplay telemetry 检查未通过（${gameplayContract.diagnostics.join(', ')}）。请保留现有游戏功能并修复已提交脚本：每个固定步持续通过 api.scene.observe 发布权威 status/state，并用稳定的 lower-kebab-case events 或 triggers 数组发布所有实际发生的交互接受/拒绝、结算、碰撞、得分和终局转换。事件必须来自游戏状态转换，不可从 HUD 文本猜测。修复后重新提交脚本并运行 Play 自检。`;
-        const repair = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: telemetryPrompt, ...(current.sessionId ? { sessionId: current.sessionId } : {}) }, observeEvent, controller.signal));
+        const repair = await runRecorded(telemetryPrompt, current.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results); current = repair;
         gameplayContract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
       }
@@ -171,7 +193,7 @@ async function run() {
         const repairPrompt = cause?.code === 'g12.replay-runtime-error'
           ? `Studio 的实际固定步 Play 检测到生成脚本运行错误：${JSON.stringify(runtimeErrors)}。请读取已提交脚本和 diagnostics，修复根因，重新提交并运行 Play 验证。不要删除现有 gameplay telemetry。`
           : 'Studio 的黑盒固定步 Play 检测到某个实际发生的权威状态转换没有通过通用 gameplay telemetry 发布。请检查所有交互接受/拒绝、动作结算、碰撞/恢复、计分和终局转换，在转换发生的 tick 将稳定 lower-kebab-case 名称加入 events/triggers，并重新提交和运行 Play。隐藏验收名称不可用，请从游戏规则和实际状态机推导。';
-        const repair = await windowGuard.race(coordinator.run(backend, { taskId, config, prompt: repairPrompt, ...(summary.sessionId ? { sessionId: summary.sessionId } : {}) }, observeEvent, controller.signal));
+        const repair = await runRecorded(repairPrompt, summary.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results);
         if (repair.terminal !== 'completed') throw errorWithCode('g12.runtime-repair-not-completed', `Runtime repair turn ended with ${repair.terminal}.`);
         const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
@@ -196,7 +218,7 @@ async function run() {
     ]);
     const evidenceManifest = collector.manifest(); const evaluation = evaluateCase({ testCase, oracleCase, evidenceManifest });
     const usageRecords = turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record);
-    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotDigest: pngDigest }, evidenceManifest, evaluation };
+    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) }, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotDigest: pngDigest }, evidenceManifest, evaluation };
     await atomicJson(path.join(caseRoot, 'task-report.json'), report);
     await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: evaluation.status === 'pass' && summary.terminal === 'completed' ? 'pass' : 'failed-acceptance', reportDigest: contentDigest(report), reportPath: path.relative(root, path.join(caseRoot, 'task-report.json')).replaceAll('\\', '/') });
     console.log(`[g12-real-case] ${JSON.stringify({ runId, backend: backendKind, genre, terminal: summary.terminal, evaluation: evaluation.status, passed: evaluation.passed, required: evaluation.passed + evaluation.failed, caseRoot })}`);
@@ -205,7 +227,7 @@ async function run() {
     throw cause;
   } finally {
     cleanupInProgress = true;
-    coordinator?.dispose(); fixture.runtime?.dispose(); if (turns) await turns.dispose().catch(() => undefined); else if (backend) await backend.dispose().catch(() => undefined); windowGuard?.close(); await disposeFixture(fixture);
+    coordinator?.dispose(); fixture.runtime?.dispose(); await modelContexts?.dispose().catch(() => undefined); await durableSessions?.dispose().catch(() => undefined); if (turns) await turns.dispose().catch(() => undefined); else if (backend) await backend.dispose().catch(() => undefined); windowGuard?.close(); await disposeFixture(fixture);
   }
 }
 
@@ -224,12 +246,106 @@ async function executePreviewReplay({ fixture, preview, windowGuard, testCase })
   return { scene, started, replay, stopped };
 }
 
+async function recordM13Turn({ operationLog, sessions, contextFrames, backend, model, config, taskId, prompt, summary, events, projectRevision, failed = false }) {
+  if (!summary?.sessionId || !summary?.turnId) throw errorWithCode('g11.session-coordinates-missing', 'Backend turn did not expose stable Session coordinates.');
+  let handle;
+  try { handle = await sessions.open(summary.sessionId, { repairOpenOperations: false }); }
+  catch (cause) {
+    if (cause?.code !== 'session.not-found') throw cause;
+    handle = await sessions.create({ id: summary.sessionId, projectId: null, documentId: null, activeGoal: prompt, taskBudgetId: config.taskBudgetId });
+  }
+  let snapshot = await handle.snapshot();
+  const capabilities = await backend.capabilities(model.id);
+  let binding = snapshot.session.backendBindings.find((entry) => entry.backendId === backend.descriptor.id && entry.status === 'active');
+  if (!binding) {
+    const bindingId = asStableId(`binding:g11:${createHash('sha256').update(`${backend.descriptor.id}\0${summary.sessionId}`).digest('hex').slice(0, 24)}`);
+    snapshot = await handle.bindBackend({
+      bindingId,
+      backendId: backend.descriptor.id,
+      provider: backend.provider ?? (backendKind === 'harness' ? 'deepseek' : 'openai'),
+      model: model.id,
+      remoteSessionId: summary.sessionId,
+      generation: 1,
+      status: 'active',
+      capabilities: {
+        maxInputTokens: capabilities.maxInputTokens,
+        nativeCompaction: capabilities.nativeCompaction,
+        parallelToolCalls: capabilities.parallelToolCalls,
+        codeMode: capabilities.codeMode,
+        providerUsage: capabilities.providerUsage,
+        providerCache: capabilities.providerCache,
+      },
+      lastConfirmedOpId: snapshot.ops.at(-1)?.id ?? null,
+    });
+    binding = snapshot.session.backendBindings.find((entry) => entry.bindingId === bindingId);
+  }
+  if (!binding) throw errorWithCode('g11.backend-binding-missing', 'Could not persist the Backend Session binding.');
+
+  snapshot = await handle.append({ kind: 'turn.started', turnId: summary.turnId, projectRevision, payload: { status: 'running', taskId, title: `${backendKind}/${genre} authoring turn` } });
+  snapshot = await handle.appendMessage({ role: 'user', content: prompt, turnId: summary.turnId, projectRevision });
+  const requests = events.filter((event) => event.kind === 'tool-request' && typeof event.payload.toolCallId === 'string');
+  const resultByCall = new Map((summary.results ?? []).map((entry) => [entry.callId, entry]));
+  let toolBatchEvidence = null;
+  if (requests.length > 0) {
+    const batchId = asStableId(`batch:g11:${createHash('sha256').update(`${summary.sessionId}\0${summary.turnId}`).digest('hex').slice(0, 24)}`);
+    const limits = { maxNodes: 128, maxConcurrency: 4, maxWallTimeMs: caseWallTimeMs, maxOutputBytes: 1024 * 1024, maxRepairRounds: 4 };
+    snapshot = await handle.append({ kind: 'tool-batch.planned', turnId: summary.turnId, batchId, projectRevision, payload: { limits, source: 'formal-cold-runner' } });
+    snapshot = await handle.append({ kind: 'tool-batch.started', turnId: summary.turnId, batchId, projectRevision, payload: { limits } });
+    const outcomes = [];
+    for (const request of requests) {
+      const toolCallId = asStableId(request.payload.toolCallId);
+      const nodeId = asStableId(`node:g11:${createHash('sha256').update(toolCallId).digest('hex').slice(0, 24)}`);
+      const toolId = typeof request.payload.toolId === 'string' ? request.payload.toolId : 'unknown.tool';
+      snapshot = await handle.append({ kind: 'tool.started', turnId: summary.turnId, batchId, nodeId, projectRevision, payload: { toolCallId, toolId, effect: 'unknown', status: 'running' } });
+      const result = resultByCall.get(toolCallId);
+      if (result) snapshot = await handle.append({ kind: 'tool.completed', turnId: summary.turnId, batchId, nodeId, projectRevision: result.afterRevision ?? projectRevision, payload: { toolCallId, toolId: result.toolId, status: result.status, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, summary: `${result.toolId} ${result.status}.` } });
+      else snapshot = await handle.append({ kind: 'tool.outcome-unknown', turnId: summary.turnId, batchId, nodeId, projectRevision, payload: { toolCallId, toolId, effect: 'unknown', reason: 'Formal runner lost the terminal tool result before case failure.', retryAllowed: false } });
+      outcomes.push({ toolCallId, toolId, status: result?.status ?? 'outcome-unknown', beforeRevision: result?.beforeRevision ?? null, afterRevision: result?.afterRevision ?? null });
+    }
+    const batchStatus = failed || outcomes.some((entry) => entry.status === 'failed' || entry.status === 'outcome-unknown') ? 'failed' : outcomes.some((entry) => entry.status === 'cancelled') ? 'cancelled' : 'completed';
+    snapshot = await handle.append({ kind: 'tool-batch.completed', turnId: summary.turnId, batchId, projectRevision, payload: { status: batchStatus, nodeCount: outcomes.length, completed: outcomes.filter((entry) => entry.status === 'completed').length, failed: outcomes.filter((entry) => entry.status === 'failed' || entry.status === 'outcome-unknown').length, cancelled: outcomes.filter((entry) => entry.status === 'cancelled').length } });
+    const artifact = await operationLog.putArtifact({ schemaVersion: 1, kind: 'formal-tool-batch-evidence', batchId, sessionId: summary.sessionId, turnId: summary.turnId, outcomes }, { schemaVersion: 'formal-tool-batch-evidence/1' });
+    toolBatchEvidence = { batchId, artifactId: artifact.id, nodeCount: outcomes.length, status: batchStatus };
+  }
+
+  const assistantText = events.filter((event) => event.kind === 'conversation-node' && typeof event.payload.delta === 'string').map((event) => event.payload.delta).join('').trim();
+  if (assistantText) snapshot = await handle.appendMessage({ role: 'assistant', content: assistantText.slice(0, 16_384), turnId: summary.turnId, projectRevision });
+  const captured = await contextFrames.capture({
+    sessionId: summary.sessionId,
+    turnId: summary.turnId,
+    backendBindingId: binding.bindingId,
+    projectRevision,
+    reservedOutputTokens: Math.min(config.outputTokenLimit, 32_768),
+    reservedSafetyTokens: 4_096,
+  });
+  snapshot = await handle.append({ kind: 'turn.completed', turnId: summary.turnId, projectRevision, payload: { status: failed ? 'failed' : summary.terminal, summary: failed ? 'Turn failed; pre-failure evidence was preserved.' : 'Formal cold-start authoring turn completed.' } });
+  snapshot = await handle.checkpoint();
+  const graph = projectExecutionGraph({ sessionId: summary.sessionId, activeGoal: snapshot.session.activeGoal, status: snapshot.session.status, ops: snapshot.ops, transcript: snapshot.transcript });
+  const sessionArtifact = await operationLog.putArtifact(snapshot, { schemaVersion: 'formal-session-evidence/1' });
+  const graphArtifact = await operationLog.putArtifact(graph, { schemaVersion: 'formal-execution-graph/1' });
+  const replayed = await sessions.replay(summary.sessionId);
+  const replayedGraph = projectExecutionGraph({ sessionId: summary.sessionId, activeGoal: replayed.session.activeGoal, status: replayed.session.status, ops: replayed.ops, transcript: replayed.transcript });
+  return Object.freeze({
+    status: failed ? 'failed-preserved' : 'completed',
+    session: { sessionId: summary.sessionId, turnId: summary.turnId, artifactId: sessionArtifact.id, opCount: snapshot.ops.length, transcriptCount: snapshot.transcript.length, surfaceDigest: snapshot.surface.digest, replayedSurfaceDigest: replayed.surface.digest },
+    contextFrame: { id: captured.frame.id, artifactId: captured.artifactId, surfaceArtifactId: captured.surfaceArtifactId, pressure: captured.frame.pressure },
+    toolBatch: toolBatchEvidence,
+    graph: { artifactId: graphArtifact.id, digest: graph.digest, replayedDigest: replayedGraph.digest, nodeCount: graph.nodes.length, edgeCount: graph.edges.length },
+  });
+}
+
+function formalCompactionSummary(messages, targetSummaryTokens) {
+  const source = messages.map((message) => `[${message.role}] ${message.content.replace(/\s+/gu, ' ').trim()}`).join('\n');
+  const maximumCharacters = Math.max(256, Math.min(source.length, targetSummaryTokens * 3));
+  return `${source.slice(0, maximumCharacters)}\n[formal runner context summary; exact Transcript remains in Session evidence]`;
+}
+
 async function preserveFailure(cause) {
   if (partialWritten) return;
   partialWritten = true;
   if (partialWriter) { try { await partialWriter(cause); return; } catch { /* Fall through to the minimal crash-safe record. */ } }
   const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
-  const partial = { schemaVersion: 1, evidenceClass, runId, backend: backendKind, genre, revisions, terminal: 'failed', error: { code, message: cause instanceof Error ? cause.message : String(cause) }, accounting: null, usageRecords: [], costRecords: [], cache: null, preservedProject: null, preview: null, evaluator: { status: 'not-run', reason: code }, completedAt: new Date().toISOString() };
+  const partial = { schemaVersion: 1, evidenceClass, runId, backend: backendKind, genre, revisions, terminal: 'failed', error: { code, message: cause instanceof Error ? cause.message : String(cause) }, accounting: null, usageRecords: [], costRecords: [], cache: null, m13: { turns: [], sessionIds: [], replayVerified: false, diagnostic: 'Session coordinates were unavailable before infrastructure failure.' }, preservedProject: null, preview: null, evaluator: { status: 'not-run', reason: code }, completedAt: new Date().toISOString() };
   await atomicJson(path.join(caseRoot, 'partial-evidence.json'), partial).catch(() => undefined);
   await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: 'failed-infrastructure', errorCode: code, partialEvidenceDigest: contentDigest(partial), partialEvidencePath: path.relative(root, path.join(caseRoot, 'partial-evidence.json')).replaceAll('\\', '/') }).catch(() => undefined);
 }
@@ -247,7 +363,7 @@ async function createPreviewWindow() {
   return { window, race: (operation) => Promise.race([operation, failure]), close() { intentionalClose = true; if (!window.isDestroyed()) window.destroy(); } };
 }
 
-async function preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets }) {
+async function preservePartialEvidence({ cause, fixture, preview, windowGuard, turns, account, taskId, backend, model, config, summary, testCase, oracleCase, assets, m13Turns }) {
   const code = typeof cause?.code === 'string' ? cause.code : 'g12.real-case-failed';
   await fixture.workspace.save().catch(() => undefined);
   let usageRecords = taskId && turns ? turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record) : [];
@@ -298,6 +414,7 @@ async function preservePartialEvidence({ cause, fixture, preview, windowGuard, t
     conversationId: summary?.sessionId ?? null, toolResults: summary?.results?.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })) ?? [],
     diagnostics: summary?.diagnostics ?? [],
     accounting, usageRecords, costRecords, cache: accounting?.usage?.contextCache ?? null,
+    m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.length > 0 && m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) },
     preservedProject: { saved: true, projectId: safeValue(() => fixture.workspace.snapshot().document.projectId, null), sceneDigest: scene ? contentDigest(scene) : null, scriptSetDigest: scripts ? contentDigest(scripts) : null, scriptCount: enabledScriptCount(scripts) },
     preview: { snapshot: previewSnapshot, observationDigest: observation ? contentDigest(observation) : null, screenshot },
     evidenceManifest, evaluator: evaluation, completedAt: new Date().toISOString(),

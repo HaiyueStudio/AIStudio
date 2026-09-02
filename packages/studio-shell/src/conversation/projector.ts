@@ -1,5 +1,6 @@
 import type { JsonObject, StableId, StudioDisposable } from '@haiyue/ai-studio-contracts';
 import { normalizeBackend, normalizeConversationNode, normalizeTaskAccounting, normalizeTaskRuns, approvalFromNode, validateConversationIntent } from './validation.js';
+import { normalizeExecutionGraphs } from './execution-graph.js';
 import type {
   ConversationBackendReadModel,
   ConversationIntent,
@@ -25,6 +26,7 @@ export class ConversationProjector {
   private backends: readonly ConversationBackendReadModel[] = Object.freeze([]);
   private taskAccounting: ConversationReadModel['taskAccounting'] = null;
   private taskRuns: ConversationReadModel['taskRuns'] = Object.freeze([]);
+  private executionGraphs: ConversationReadModel['executionGraphs'] = Object.freeze([]);
 
   reset(snapshot: ConversationReplaySnapshot): ConversationReadModel {
     this.nodes.clear();
@@ -37,6 +39,7 @@ export class ConversationProjector {
     this.backends = normalizeBackends(snapshot.backends);
     this.taskAccounting = normalizeTaskAccounting(snapshot.taskAccounting);
     this.taskRuns = normalizeTaskRuns(snapshot.taskRuns);
+    this.executionGraphs = normalizeExecutionGraphs(snapshot.executionGraphs);
     for (const event of [...snapshot.events].sort((left, right) => left.sequence - right.sequence)) this.apply(event);
     return this.snapshot();
   }
@@ -64,20 +67,19 @@ export class ConversationProjector {
     this.backends = normalizeBackends(value.backends);
     this.taskAccounting = normalizeTaskAccounting(value.taskAccounting);
     this.taskRuns = normalizeTaskRuns(value.taskRuns);
+    this.executionGraphs = normalizeExecutionGraphs(value.executionGraphs);
     return this.snapshot();
   }
 
   snapshot(now = Date.now()): ConversationReadModel {
     const nodes = Object.freeze([...this.nodes.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)));
     const pendingInteraction = findPendingInteraction(nodes, now);
-    const composerBlockedReason = pendingInteraction
-      ? pendingInteraction.kind === 'approval' ? 'Resolve the pending approval before sending another message.'
-        : pendingInteraction.kind === 'plan' ? 'Review the implementation plan before continuing.' : 'Answer the pending question before sending another message.'
-      : this.connection !== 'connected' ? 'Reconnect before sending a message.'
-        : this.busy ? 'Wait for the active turn or cancel it.' : null;
+    // Human barriers and active turns do not own the composer. The main-process host
+    // durably queues a new prompt and safely supersedes a waiting barrier when needed.
+    const composerBlockedReason = this.connection !== 'connected' ? 'Reconnect before sending a message.' : null;
     return Object.freeze({
       revision: this.revision, lastSequence: this.lastSequence, connection: this.connection, busy: this.busy,
-      backendId: this.backendId, backends: this.backends, taskAccounting: this.taskAccounting, taskRuns: this.taskRuns, nodes, pendingInteraction, composerBlockedReason,
+      backendId: this.backendId, backends: this.backends, taskAccounting: this.taskAccounting, taskRuns: this.taskRuns, executionGraphs: this.executionGraphs, nodes, pendingInteraction, composerBlockedReason,
     });
   }
 }

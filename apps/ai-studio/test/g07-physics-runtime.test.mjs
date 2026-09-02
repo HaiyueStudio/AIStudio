@@ -51,12 +51,19 @@ async function runFixture(fixture) {
   });
   simulation.loadReplay({ schemaVersion: 1, tickRateHz: 60, seed: fixture.seed, events: fixture.replay });
   simulation.step(fixture.ticks);
+  const semanticQueries = fixture.id === 'g07-racing' ? {
+    status: runtime.query({ kind: 'status' }),
+    events: runtime.query({ kind: 'events', sinceTick: 1, limit: 16 }),
+    body: runtime.query({ kind: 'body', entityId: 'entity:car' }),
+    raycast: runtime.query({ kind: 'raycast', dimension: '2d', origin: { x: -2, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 }, maxDistance: 10 }),
+    overlap: runtime.query({ kind: 'overlap', dimension: '2d', center: { x: 4, y: 0, z: 0 }, size: { x: 2, y: 2, z: 1 }, limit: 8 }),
+  } : null;
   const beforeDispose = runtime.status();
   const trace = simulation.snapshot().trace;
   runtime.dispose();
   const afterDispose = runtime.status();
   world.destroy();
-  return { events, y, trace, beforeDispose, afterDispose, initialPhysics, authoringUnchanged: JSON.stringify(fixture) === authoringBefore };
+  return { events, y, trace, beforeDispose, afterDispose, initialPhysics, semanticQueries, authoringUnchanged: JSON.stringify(fixture) === authoringBefore };
 }
 
 test('seeded platformer lands, ground-probes and jumps with repeatable fixed-step hashes', async () => {
@@ -87,6 +94,11 @@ test('seeded racer collides with the track boundary through Box2D', async () => 
   assert.equal(result.initialPhysics.ray.entityId, 'entity:car');
   assert.ok(result.initialPhysics.overlap.includes('entity:track-wall'));
   assert.ok(result.initialPhysics.overlap.every(id => id === 'entity:track-wall' || id === 'entity:car'));
+  assert.equal(result.semanticQueries.status.result.resources.bodies, 2);
+  assert.equal(result.semanticQueries.body.result.entityId, 'entity:car');
+  assert.equal(result.semanticQueries.raycast.result.entityId, 'entity:track-wall');
+  assert.ok(result.semanticQueries.overlap.result.includes('entity:track-wall'));
+  assert.ok(result.semanticQueries.events.result.length <= 16);
   assert.equal(result.trace.length, 90);
   assert.equal(result.afterDispose.resources.bodies, 0);
 });

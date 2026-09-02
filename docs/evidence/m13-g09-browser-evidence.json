@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "binding": "m13-g09-2026-09-02",
+  "status": "browser-candidate",
+  "capturedAt": "2026-09-02T09:06:00+08:00",
+  "runner": {
+    "surface": "Codex in-app Chromium browser",
+    "url": "http://127.0.0.1:4179/host.html",
+    "viewport": { "width": 1280, "height": 802 }
+  },
+  "checks": {
+    "graphVisible": true,
+    "transcriptRoundTrip": true,
+    "keyboardNavigation": true,
+    "idempotentCompactionIntent": true,
+    "accessibleHierarchy": true,
+    "semanticDigest": true,
+    "parallelEdge": true,
+    "largeGraph": true
+  },
+  "performanceMs": {
+    "productRender": 20.8,
+    "tool1000Projection": 274.3,
+    "tool1000OverviewLayout": 2.4
+  },
+  "largeGraph": {
+    "toolNodes": 1000,
+    "overviewVisibleNodesLessThan": 100
+  },
+  "screenshot": {
+    "path": "docs/evidence/m13-g09-execution-graph.jpg",
+    "mediaType": "image/jpeg",
+    "width": 1280,
+    "height": 802,
+    "byteLength": 97525,
+    "sha256": "14eba75dc255ba0b98b328ce7d04b4c62074067ec2087c3b847fb3cd000aabf6"
+  },
+  "electron": {
+    "status": "formal-passed",
+    "capturedAt": "2026-09-02T10:17:50+08:00",
+    "version": "43.5.1",
+    "security": {
+      "rendererSandbox": true,
+      "contextIsolation": true,
+      "nodeIntegration": false,
+      "webSecurity": true
+    },
+    "runner": "Windows host user session",
+    "diagnostic": "The earlier STATUS_DLL_NOT_FOUND was caused by launching Chromium's sandbox from the nested CodexSandboxOffline identity while inheriting Administrator's profile. Running the unchanged secure fixture in the host user session removed that false runner failure.",
+    "screenshot": {
+      "path": "docs/evidence/m13-g09-execution-graph-electron.png",
+      "mediaType": "image/png",
+      "width": 1424,
+      "height": 935,
+      "byteLength": 87431,
+      "sha256": "2f900760c5d49cfad11c3d1def58389229bcfb290e4e874a2cb343e7fe803ffa"
+    }
+  }
+}

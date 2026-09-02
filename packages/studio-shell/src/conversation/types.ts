@@ -1,4 +1,5 @@
 import type { JsonObject, JsonValue, M12ReasoningEffort, StableId, StudioDisposable, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
+import type { ExecutionGraphReadModel } from './execution-graph-types.js';
 
 export const CONVERSATION_NODE_KINDS = Object.freeze([
   'text', 'progress', 'question', 'plan', 'tool-call', 'tool-result', 'approval', 'diagnostic', 'completion',
@@ -146,6 +147,7 @@ export interface ConversationReadModel {
   readonly backends: readonly ConversationBackendReadModel[];
   readonly taskAccounting: ConversationTaskAccountingReadModel | null;
   readonly taskRuns: readonly ConversationTaskRunReadModel[];
+  readonly executionGraphs: readonly ExecutionGraphReadModel[];
   readonly nodes: readonly ConversationNodeReadModel[];
   readonly pendingInteraction: PendingConversationInteraction | null;
   readonly composerBlockedReason: string | null;
@@ -159,6 +161,7 @@ export interface ConversationReplaySnapshot {
   readonly backends: readonly unknown[];
   readonly taskAccounting?: unknown;
   readonly taskRuns?: readonly unknown[];
+  readonly executionGraphs?: readonly unknown[];
   readonly events: readonly ConversationProjectionEvent[];
 }
 
@@ -170,6 +173,7 @@ export type ConversationIntent =
   | Readonly<{ type: 'conversation/answer-question'; nodeId: StableId; answer: JsonObject }>
   | Readonly<{ type: 'conversation/accept-plan'; nodeId: StableId; acceptedItemIds: readonly StableId[]; mode?: 'approve' | 'revise'; note?: string }>
   | Readonly<{ type: 'conversation/resolve-approval'; approvalId: StableId; decision: 'allow-once' | 'allow-always' | 'reject' }>
+  | Readonly<{ type: 'conversation/request-compaction'; sessionId: StableId; requestId: StableId }>
   | Readonly<{ type: 'backend/select'; backendId: StableId }>
   | Readonly<{ type: 'backend/authenticate'; backendId: StableId }>
   | Readonly<{ type: 'backend/logout'; backendId: StableId }>
@@ -184,7 +188,7 @@ export interface ConversationUiPort {
 
 export type ConversationUiEvent =
   | Readonly<{ type: 'conversation/event'; event: ConversationProjectionEvent }>
-  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; taskAccounting?: unknown; taskRuns?: readonly unknown[] }>;
+  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; taskAccounting?: unknown; taskRuns?: readonly unknown[]; executionGraphs?: readonly unknown[] }>;
 
 export interface LogQueryIntent {
   readonly severity?: readonly ('debug' | 'info' | 'warning' | 'error')[];

@@ -73,7 +73,7 @@ export async function projectSession(
       const unresolved = unique([...openTools.keys(), ...openBatches, ...barriers]).sort();
       if (!sameStrings(unresolved, [...value.unresolvedBarrierIds].sort())) throw new AgentSessionError('session.checkpoint-invalid', 'Checkpoint unresolved barriers do not match the Session prefix.');
       const previousThroughSequence = op.sequence - 1;
-      const surfaceBase = { schemaVersion: 1 as const, sessionId, generation, throughSequence: previousThroughSequence, nodes: Object.freeze(nodes), lastOperation };
+      const surfaceBase = { schemaVersion: 1 as const, sessionId, generation, throughSequence: previousThroughSequence, nodes: Object.freeze([...nodes]), lastOperation };
       const surfaceDigest = digestJson(surfaceBase as unknown as JsonValue);
       const expectedDigest = digestJson({ sessionId, throughSequence: value.throughSequence, turnId: value.turnId, batchId: value.batchId, documentRevision: value.documentRevision, surfaceGeneration: value.surfaceGeneration, surfaceDigest, unresolvedBarrierIds: unresolved } as unknown as JsonValue);
       if (value.digest !== expectedDigest) throw new AgentSessionError('session.checkpoint-invalid', 'Checkpoint digest does not match the Session prefix.');
@@ -108,7 +108,7 @@ export async function projectSession(
   }
 
   const throughSequence = ops.at(-1)!.sequence;
-  const surfaceBase = { schemaVersion: 1 as const, sessionId, generation, throughSequence, nodes: Object.freeze(nodes), lastOperation };
+  const surfaceBase = { schemaVersion: 1 as const, sessionId, generation, throughSequence, nodes: Object.freeze([...nodes]), lastOperation };
   const surface = deepFreeze({ ...surfaceBase, digest: digestJson(surfaceBase as unknown as JsonValue) }) as ModelSurfaceV1;
   const session: AgentSessionV1 = deepFreeze({
     schemaVersion: 1 as const,
@@ -181,8 +181,11 @@ function foldRecovery(op: SessionOpV1, turns: Set<M13StableId>, tools: Map<M13St
   if (op.kind === 'turn.completed') { if (!op.turnId || !turns.delete(op.turnId)) throw invalidCoordinate(op); }
   if (op.kind === 'tool.started') { if (!op.nodeId || tools.has(op.nodeId)) throw invalidCoordinate(op); tools.set(op.nodeId, op); }
   if (op.kind === 'tool.completed' || op.kind === 'tool.outcome-unknown') {
-    if (!op.nodeId || !tools.delete(op.nodeId)) throw invalidCoordinate(op);
-    if (op.kind === 'tool.outcome-unknown') outcomeUnknown.add(op.nodeId);
+    if (!op.nodeId) throw invalidCoordinate(op);
+    if (op.kind === 'tool.outcome-unknown') {
+      if (!tools.delete(op.nodeId)) throw invalidCoordinate(op);
+      outcomeUnknown.add(op.nodeId);
+    } else if (!tools.delete(op.nodeId) && !outcomeUnknown.delete(op.nodeId)) throw invalidCoordinate(op);
   }
   if (op.kind === 'tool-batch.started') { if (!op.batchId || batches.has(op.batchId)) throw invalidCoordinate(op); batches.add(op.batchId); }
   if (op.kind === 'tool-batch.completed') { if (!op.batchId || !batches.delete(op.batchId)) throw invalidCoordinate(op); }

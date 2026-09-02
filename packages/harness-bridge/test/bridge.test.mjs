@@ -179,6 +179,15 @@ test('pinned Harness agent composition fails closed without a credential and dis
     ],
   );
   assert.equal(await transport.configured(), false);
+  const capabilities = transport.sessionCapabilities('deepseek-v4-flash');
+  assert.deepEqual({ maxInputTokens: capabilities.maxInputTokens, nativeCompaction: capabilities.nativeCompaction, transport: capabilities.nativeCompactionTransport, mirror: capabilities.nativeCompactionMirror }, { maxInputTokens: null, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
+  const opened = await transport.openSession({ model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8_192, tools: [], lastConfirmedOpId: 'op:harness-root' });
+  assert.equal((await transport.inspectSession(opened.sessionId)).lastConfirmedOpId, 'op:harness-root');
+  await transport.confirmSessionBoundary(opened.sessionId, 'op:harness-next');
+  assert.equal((await transport.inspectSession(opened.sessionId)).lastConfirmedOpId, 'op:harness-next');
+  assert.equal((await transport.compactSession(opened.sessionId)).status, 'unavailable');
+  await transport.closeSession(opened.sessionId);
+  assert.equal((await transport.inspectSession(opened.sessionId)).state, 'missing');
   const events = [];
   for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [] })) events.push(event);
   assert.deepEqual(events.map((event) => event.type), ['turn-start', 'turn-end']);

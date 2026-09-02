@@ -31,6 +31,7 @@ export class ProjectDocument implements EditorDocumentAdapter<ProjectDocumentFil
   scriptsSnapshot(): GameDocumentV2['scripts'] { this.assertOpen(); return this.store.scriptsSnapshot(); }
   query(input: GameDocumentQueryV2): GameDocumentQueryResultV2 { this.assertOpen(); return this.store.query(input); }
   componentOwner(componentId: StableId): StableId | null { this.assertOpen(); return this.store.componentOwner(componentId); }
+  validateOperations(operations: readonly GameDocumentOperationV2[]): void { this.assertOpen(); new GameDocumentStore(this.documentId, this.store.export(), this.registry).apply(asStableId('transaction:validation'), operations); }
   apply(transactionId: StableId, operations: readonly GameDocumentOperationV2[]): GameDocumentDeltaV2 { this.assertOpen(); const delta = this.store.apply(transactionId, operations); this.emit(); return delta; }
   markSaved(revision = this.revision): void { this.assertOpen(); this.store.markSaved(revision); this.emit(); }
   setSetting(key: string, value: JsonValue): Readonly<{ existed: boolean; value?: JsonValue }> { this.assertOpen(); const settings = this.store.settingsSnapshot(); const existed = Object.hasOwn(settings, key); const previous = existed ? cloneJson(settings[key]!) : undefined; this.apply(asStableId(`transaction:legacy-setting:${this.revision + 1}`), [{ op: 'setting.set', key, value }]); return Object.freeze(previous === undefined ? { existed } : { existed, value: previous }); }

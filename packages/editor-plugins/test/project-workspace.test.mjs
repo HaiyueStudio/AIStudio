@@ -10,7 +10,7 @@ import {
   EditorTaskCoordinator,
 } from '@haiyue/editor-platform';
 import { asStableId } from '@haiyue/ai-studio-contracts';
-import { OperationLog } from '@haiyue/ai-studio-operation-log';
+import { canonicalStringify, OperationLog, sha256 } from '@haiyue/ai-studio-operation-log';
 import {
   ProjectDocument,
   ProjectPathError,
@@ -22,7 +22,7 @@ import {
 
 async function temp(name) { return mkdtemp(path.join(tmpdir(), `haiyue-${name}-`)); }
 
-async function fixture() {
+async function fixture(options = {}) {
   const projectRoot = await temp('project');
   const userDataRoot = await temp('userdata');
   const operationLog = await OperationLog.open({
@@ -36,9 +36,130 @@ async function fixture() {
     projectSession: new EditorProjectSessionState(),
     operationLog,
     recentProjects: new RecentProjectStore(userDataRoot),
+    ...(options.transactionFaultInjector ? { transactionFaultInjector: options.transactionFaultInjector } : {}),
   };
   return { projectRoot, userDataRoot, operationLog, resources, workspace: new ProjectWorkspace(resources) };
 }
+
+test('scene transaction commits one revision and History entry and replays the durable receipt idempotently', async () => {
+  const value = await fixture();
+  await value.workspace.newProject(value.projectRoot, 'Transaction fixture');
+  const input = {
+    id: asStableId('command:transaction-fixture'),
+    transactionId: asStableId('transaction:fixture'),
+    idempotencyKey: asStableId('idempotency:fixture'),
+    label: 'Atomic scene edit',
+    baseRevision: 1,
+    memberNodeIds: [asStableId('node:first'), asStableId('node:second')],
+    operations: [
+      { op: 'setting.set', key: 'fixture.first', value: 1 },
+      { op: 'setting.set', key: 'fixture.second', value: 2 },
+    ],
+  };
+  const committed = await value.workspace.executeTransaction(input);
+  assert.equal(committed.replayed, false);
+  assert.equal(committed.snapshot.document.revision, 2);
+  assert.equal(committed.snapshot.history.entries.length, 1);
+  assert.equal(committed.receipt.beforeRevision, 1);
+  assert.equal(committed.receipt.afterRevision, 2);
+  assert.equal(committed.receipt.historyEntryId, committed.snapshot.history.entries[0].id);
+  assert.equal(committed.receipt.sceneDiffTransactionId, input.transactionId);
+  assert.deepEqual(committed.receipt.resultArtifactIds, [committed.receipt.sceneDiffArtifactId]);
+  const storedDiff = await value.operationLog.readArtifact(committed.receipt.sceneDiffArtifactId);
+  assert.equal(storedDiff.value.transactionId, input.transactionId);
+  assert.equal(storedDiff.value.beforeRevision, 1); assert.equal(storedDiff.value.afterRevision, 2);
+  const replayed = await value.workspace.executeTransaction(input);
+  assert.equal(replayed.replayed, true);
+  assert.equal(replayed.snapshot.document.revision, 2);
+  assert.equal(replayed.snapshot.history.entries.length, 1);
+  assert.equal(replayed.receipt.artifactId, committed.receipt.artifactId);
+  assert.deepEqual(replayed.receipt, committed.receipt);
+  assert.equal(sha256(canonicalStringify(replayed.snapshot.document.settings)), sha256(canonicalStringify(committed.snapshot.document.settings)));
+  assert.deepEqual(await value.workspace.reconcileTransaction(input), { status: 'committed', receipt: committed.receipt });
+  assert.deepEqual(await value.workspace.reconcileTransactionMember(asStableId('node:second'), 1), { status: 'committed', receipt: committed.receipt });
+  assert.equal((await value.workspace.reconcileTransactionMember(asStableId('node:missing'), 1)).status, 'ambiguous');
+  await assert.rejects(value.workspace.executeTransaction({ ...input, operations: [{ op: 'setting.set', key: 'fixture.first', value: 9 }] }), (error) => error.code === 'transaction-idempotency-conflict');
+  await assert.rejects(value.workspace.executeTransaction({ ...input, id: asStableId('command:transaction-other'), transactionId: asStableId('transaction:other'), baseRevision: 2, operations: [{ op: 'setting.set', key: 'fixture.other', value: true }] }), (error) => error.code === 'transaction-idempotency-conflict');
+  assert.equal(value.workspace.snapshot().document.revision, 2); assert.equal(value.workspace.snapshot().document.settings['fixture.other'], undefined);
+  const facts = await value.operationLog.query({ transactionId: input.transactionId, limit: 20, traverseCorrelation: false });
+  assert.deepEqual(facts.events.map((event) => event.kind), ['document/transaction-requested', 'document/transaction-receipt-written', 'document/transaction-committed']);
+  await disposeFixture(value);
+});
+
+test('transaction undo and redo retain the authoritative receipt and Scene diff provenance', async () => {
+  const value = await fixture();
+  await value.workspace.newProject(value.projectRoot, 'Transaction provenance fixture');
+  const input = {
+    id: asStableId('command:transaction-provenance'), transactionId: asStableId('transaction:provenance'), idempotencyKey: asStableId('idempotency:provenance'),
+    label: 'Provenance edit', baseRevision: 1, memberNodeIds: [asStableId('node:provenance')], operations: [{ op: 'setting.set', key: 'fixture.provenance', value: 'retained' }],
+  };
+  const committed = await value.workspace.executeTransaction(input);
+  const originalReceiptArtifact = committed.receipt.artifactId; const originalDiffArtifact = committed.receipt.sceneDiffArtifactId;
+  let diff = value.workspace.diffScene({ fromRevision: 1, toRevision: 2 });
+  assert.deepEqual(diff.diff.transactionIds, [input.transactionId]);
+  assert.equal(diff.diff.provenanceOpIds.length, 1);
+  await value.workspace.undo(2, asStableId('command:undo-transaction-provenance'));
+  assert.equal(value.workspace.snapshot().document.settings['fixture.provenance'], undefined);
+  await value.workspace.redo(3, asStableId('command:redo-transaction-provenance'));
+  assert.equal(value.workspace.snapshot().document.settings['fixture.provenance'], 'retained');
+  diff = value.workspace.diffScene({ fromRevision: 1, toRevision: 4 });
+  assert.equal(diff.diff.transactionIds.length, 3); assert.equal(diff.diff.transactionIds.includes(input.transactionId), true);
+  assert.equal(diff.diff.transactionIds.some((id) => /^transaction:undo:/.test(id)), true); assert.equal(diff.diff.transactionIds.some((id) => /^transaction:redo:/.test(id)), true);
+  assert.equal(diff.diff.provenanceOpIds.length, 3);
+  const reconciled = await value.workspace.reconcileTransaction(input);
+  assert.equal(reconciled.status, 'committed'); assert.equal(reconciled.receipt.artifactId, originalReceiptArtifact); assert.equal(reconciled.receipt.sceneDiffArtifactId, originalDiffArtifact);
+  assert.equal((await value.operationLog.readArtifact(originalDiffArtifact)).value.transactionId, input.transactionId);
+  await disposeFixture(value);
+});
+
+test('missing and corrupt transaction receipt artifacts fail closed', async () => {
+  const value = await fixture();
+  await value.workspace.newProject(value.projectRoot, 'Receipt corruption fixture');
+  const document = value.workspace.snapshot().document;
+  const missingInput = { id: asStableId('command:receipt-missing'), transactionId: asStableId('transaction:receipt-missing'), idempotencyKey: asStableId('idempotency:receipt-missing'), label: 'Missing receipt', baseRevision: 1, operations: [{ op: 'setting.set', key: 'fixture.missing', value: true }] };
+  await value.operationLog.append({ kind: 'document/transaction-receipt-written', severity: 'warning', source: asStableId('studio.document'), correlation: { projectId: document.projectId, documentId: document.documentId, transactionId: missingInput.transactionId }, payload: { fixture: 'missing-artifact-reference' } });
+  await assert.rejects(value.workspace.reconcileTransaction(missingInput), (error) => error.code === 'transaction-receipt-duplicate');
+  const corruptInput = { ...missingInput, id: asStableId('command:receipt-corrupt'), transactionId: asStableId('transaction:receipt-corrupt'), idempotencyKey: asStableId('idempotency:receipt-corrupt') };
+  const corrupt = await value.operationLog.putArtifact({ schemaVersion: 1, transactionId: corruptInput.transactionId, receiptDigest: `sha256:${'0'.repeat(64)}` });
+  await value.operationLog.append({ kind: 'document/transaction-receipt-written', severity: 'warning', source: asStableId('studio.document'), correlation: { projectId: document.projectId, documentId: document.documentId, transactionId: corruptInput.transactionId }, artifactRefs: [corrupt.id], payload: { fixture: 'corrupt-receipt' } });
+  await assert.rejects(value.workspace.reconcileTransaction(corruptInput), (error) => error.code === 'transaction-receipt-invalid');
+  assert.equal(value.workspace.snapshot().document.revision, 1); assert.equal(value.workspace.snapshot().history.entries.length, 0);
+  await disposeFixture(value);
+});
+
+test('scene transaction rolls back partial apply and classifies a crash after History write as ambiguous', async () => {
+  let injected = false;
+  const value = await fixture({ transactionFaultInjector: (point) => { if (!injected && point === 'after-history-write') { injected = true; throw new Error('injected crash after history write'); } } });
+  await value.workspace.newProject(value.projectRoot, 'Transaction fault fixture');
+  await assert.rejects(value.workspace.executeTransaction({
+    id: asStableId('command:invalid-transaction'), transactionId: asStableId('transaction:invalid'), idempotencyKey: asStableId('idempotency:invalid'),
+    label: 'Invalid atomic edit', baseRevision: 1,
+    operations: [{ op: 'setting.set', key: 'fixture.valid', value: true }, { op: 'setting.set', key: '../invalid', value: true }],
+  }), /Invalid project setting key/);
+  assert.equal(value.workspace.snapshot().document.revision, 1);
+  assert.equal(value.workspace.snapshot().history.entries.length, 0);
+  const crashInput = {
+    id: asStableId('command:crash-transaction'), transactionId: asStableId('transaction:crash'), idempotencyKey: asStableId('idempotency:crash'),
+    label: 'Crash boundary edit', baseRevision: 1, operations: [{ op: 'setting.set', key: 'fixture.crash', value: true }],
+  };
+  await assert.rejects(value.workspace.executeTransaction(crashInput), /injected crash/);
+  assert.equal(value.workspace.snapshot().document.revision, 2);
+  assert.deepEqual(await value.workspace.reconcileTransaction(crashInput), { status: 'ambiguous', documentId: value.workspace.snapshot().document.documentId, revision: 2, reason: 'Document advanced from base revision 1 without a matching durable transaction receipt.' });
+  await disposeFixture(value);
+});
+
+test('receipt written before acknowledgement proves committed state without a second History write', async () => {
+  let injected = false;
+  const value = await fixture({ transactionFaultInjector: (point) => { if (!injected && point === 'after-receipt-write') { injected = true; throw new Error('injected crash after receipt write'); } } });
+  await value.workspace.newProject(value.projectRoot, 'Receipt recovery fixture');
+  const input = { id: asStableId('command:receipt-crash'), transactionId: asStableId('transaction:receipt-crash'), idempotencyKey: asStableId('idempotency:receipt-crash'), label: 'Receipt crash edit', baseRevision: 1, memberNodeIds: [asStableId('node:receipt-crash')], operations: [{ op: 'setting.set', key: 'fixture.receipt-crash', value: true }] };
+  await assert.rejects(value.workspace.executeTransaction(input), /injected crash/);
+  const reconciled = await value.workspace.reconcileTransaction(input);
+  assert.equal(reconciled.status, 'committed'); assert.equal(reconciled.receipt.afterRevision, 2);
+  const replayed = await value.workspace.executeTransaction(input);
+  assert.equal(replayed.replayed, true); assert.equal(replayed.snapshot.history.entries.length, 1); assert.equal(replayed.snapshot.document.revision, 2);
+  await disposeFixture(value);
+});
 
 test('new, command, stale rejection, undo/redo, save and reopen share one revision/history path', async () => {
   const value = await fixture();

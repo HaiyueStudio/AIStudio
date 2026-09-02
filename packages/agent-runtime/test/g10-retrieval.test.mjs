@@ -1,0 +1,71 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { KnowledgeRetrievalError, KnowledgeRetrievalRuntime, PromptContextRuntime } from '../dist/index.js';
+import { OperationLog } from '@haiyue/ai-studio-operation-log';
+
+const ENGINE = 'knowledge:engine-local';
+const PROJECT = 'knowledge:project:test';
+
+test('local hybrid retrieval returns current cited knowledge and keeps exact context before semantic hits', async () => {
+  const fixture = await openFixture('hybrid');
+  try {
+    const retrieval = new KnowledgeRetrievalRuntime(fixture.log);
+    await retrieval.upsert(source('knowledge-source:camera', 'engine://docs/camera.md', 'engine-doc', 'Camera framing supports orbit, follow, perspective and orthographic projection. Use an orthographic view for flat boards.', { permissionScope: ENGINE, packageVersion: '0.1.0', capabilities: ['haiyue.camera.3d'] }));
+    await retrieval.upsert(source('knowledge-source:physics', 'engine://docs/physics.md', 'engine-doc', 'Physics bodies expose collision events, raycasts and overlap queries.', { permissionScope: ENGINE, packageVersion: '0.1.0', capabilities: ['haiyue.physics.3d'] }));
+    const result = await retrieval.search({ query: 'camera 修改镜头视角并使用正交投影', allowedPermissionScopes: [ENGINE], packageVersions: ['0.1.0'], capabilityIds: ['haiyue.camera.3d'], tokenBudget: 512 });
+    assert.equal(result.hits[0].hit.source, 'engine://docs/camera.md');
+    assert.equal(result.hits[0].hit.retrieval, 'hybrid');
+    assert.match(result.hits[0].hit.reason, /keyword=.*embedding=.*provenance=authorized; verified=false/u);
+    assert.equal(result.hits[0].citation.packageVersion, '0.1.0');
+    assert.ok(result.hits[0].citation.startLine >= 1);
+    await retrieval.assertReadable(result.artifactIds);
+
+    const context = new PromptContextRuntime(fixture.log, undefined, retrieval);
+    const prepared = await context.prepare({ conversationKey: 'conversation:g10', backendId: 'backend:g10', taskId: 'task:g10', request: '修改镜头视角并使用正交投影', tools: [], project: { projectId: 'project:g10', documentId: 'document:g10', revision: 2, manifest: { name: 'Exact project' } } });
+    assert.ok(prepared.contextArtifactIds.includes(result.artifactIds[0]) || prepared.prompt.includes('knowledge-hit'));
+    assert.ok(prepared.prompt.indexOf('project-manifest') < prepared.prompt.indexOf('knowledge-hit'), 'exact project facts must precede semantic knowledge');
+    await context.assertReadable(prepared.contextArtifactIds);
+    retrieval.dispose(); await fixture.log.close();
+  } finally { await fixture.cleanup(); }
+});
+
+test('permission, version, revision, conflict and secret boundaries fail closed', async () => {
+  const fixture = await openFixture('boundaries');
+  try {
+    const retrieval = new KnowledgeRetrievalRuntime(fixture.log);
+    await retrieval.upsert(source('knowledge-source:private', 'project://secret/design.md', 'project-doc', 'Private camera decision says use perspective.', { permissionScope: 'knowledge:private', projectRevision: 9, claims: ['camera.projection'] }));
+    await retrieval.upsert(source('knowledge-source:old', 'project://docs/old.md', 'project-doc', 'Camera projection must be perspective.', { permissionScope: PROJECT, projectRevision: 8, claims: ['camera.projection'] }));
+    await retrieval.upsert(source('knowledge-source:new-a', 'project://docs/new-a.md', 'project-doc', 'Camera projection must be orthographic.', { permissionScope: PROJECT, projectRevision: 9, claims: ['camera.projection'] }));
+    await retrieval.upsert(source('knowledge-source:new-b', 'project://docs/new-b.md', 'project-doc', 'Camera projection must be perspective.', { permissionScope: PROJECT, projectRevision: 9, claims: ['camera.projection'] }));
+    const result = await retrieval.search({ query: 'camera projection', allowedPermissionScopes: [PROJECT], projectRevision: 9, tokenBudget: 512 });
+    assert.equal(result.hits.length, 0);
+    assert.ok(result.diagnostics.some((entry) => entry.code === 'permission-filtered'));
+    assert.ok(result.diagnostics.some((entry) => entry.code === 'stale-filtered'));
+    assert.ok(result.diagnostics.some((entry) => entry.code === 'conflicting-sources'));
+    await assert.rejects(retrieval.upsert(source('knowledge-source:secret', 'project://docs/secret.md', 'project-doc', 'Authorization: Bearer abcdefghijklmnop', { permissionScope: PROJECT, projectRevision: 9 })), (error) => error instanceof KnowledgeRetrievalError && error.code === 'knowledge.secret-rejected');
+    retrieval.dispose(); await fixture.log.close();
+  } finally { await fixture.cleanup(); }
+});
+
+test('content hash updates create tombstones, graph traversal recalls related decisions, and replay rebuilds the same index digest', async () => {
+  const fixture = await openFixture('replay');
+  try {
+    let retrieval = new KnowledgeRetrievalRuntime(fixture.log);
+    await retrieval.upsert(source('knowledge-source:root', 'session://one/root', 'session-decision', '{"decision":"Use fixed-step state."}', { permissionScope: PROJECT, related: ['knowledge-source:child'] }));
+    await retrieval.upsert(source('knowledge-source:child', 'session://one/child', 'session-decision', '{"decision":"Retain screenshot evidence."}', { permissionScope: PROJECT }));
+    const graph = await retrieval.search({ query: 'unrelated-vocabulary', mode: 'exact-only', allowedPermissionScopes: [PROJECT], graphSeedSourceIds: ['knowledge-source:root'], tokenBudget: 512 });
+    assert.ok(graph.hits.some((entry) => entry.hit.source === 'session://one/child' && entry.hit.retrieval === 'graph'));
+    await retrieval.upsert(source('knowledge-source:child', 'session://one/child', 'session-decision', '{"decision":"Retain state and screenshot evidence."}', { permissionScope: PROJECT }));
+    const before = retrieval.snapshot(); assert.equal(before.tombstoneCount, 1);
+    retrieval.dispose(); retrieval = new KnowledgeRetrievalRuntime(fixture.log); await retrieval.initialize();
+    assert.equal(retrieval.snapshot().indexDigest, before.indexDigest);
+    assert.equal(retrieval.snapshot().sourceCount, 2);
+    retrieval.dispose(); await fixture.log.close();
+  } finally { await fixture.cleanup(); }
+});
+
+function source(sourceId, uri, sourceKind, text, options = {}) { return { sourceId, source: uri, sourceKind, text, mediaType: sourceKind === 'session-decision' ? 'application/json' : 'text/markdown', packageVersion: options.packageVersion ?? null, projectRevision: options.projectRevision ?? null, permissionScope: options.permissionScope ?? ENGINE, capabilityIds: options.capabilities ?? [], claimKeys: options.claims ?? [], relatedSourceIds: options.related ?? [], authorized: true, verified: sourceKind === 'verified-example' ? true : undefined }; }
+async function openFixture(name) { const root = await mkdtemp(path.join(tmpdir(), `haiyue-g10-retrieval-${name}-`)); const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g10-test', flushPolicy: 'always' }); return { root, log, cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }) }; }

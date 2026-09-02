@@ -55,6 +55,33 @@ test('both backends advertise model/reasoning capabilities and reject unsupporte
   await harness.dispose(); await codex.dispose();
 });
 
+test('Backend Session adapters expose honest Harness/Codex capacity, boundary and compaction capabilities', async () => {
+  const harnessTransport = fakeHarnessTransport();
+  const harness = new HarnessApiKeyBackend({ transport: harnessTransport, clearApiKey: async () => {} });
+  const harnessCapabilities = await harness.capabilities('deepseek-v4-flash');
+  assert.deepEqual({ maxInputTokens: harnessCapabilities.maxInputTokens, nativeCompaction: harnessCapabilities.nativeCompaction, transport: harnessCapabilities.nativeCompactionTransport, mirror: harnessCapabilities.nativeCompactionMirror }, { maxInputTokens: null, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
+  const harnessOpened = await harness.open({ studioSessionId: 'session:g04-harness', model: 'deepseek-v4-flash', tools: harnessInput.tools, surfaceGeneration: 0, surfaceDigest: `sha256:${'a'.repeat(64)}`, lastConfirmedOpId: 'op:g04-harness-root' });
+  assert.equal((await harness.inspect(harnessOpened.remoteSessionId)).lastConfirmedOpId, 'op:g04-harness-root');
+  await harness.confirmBoundary(harnessOpened.remoteSessionId, 'op:g04-harness-next');
+  assert.equal((await harness.inspect(harnessOpened.remoteSessionId)).lastConfirmedOpId, 'op:g04-harness-next');
+  assert.equal((await harness.compact(harnessOpened.remoteSessionId, {})).status, 'unavailable');
+  await harness.detach(harnessOpened.remoteSessionId); assert.equal((await harness.inspect(harnessOpened.remoteSessionId)).state, 'missing');
+  await harness.dispose();
+
+  const codexTransport = new FakeCodexTransport(); const codex = new CodexAppServerBackend({ transport: codexTransport, isolatedCwd: 'D:\\isolated-ai-studio' });
+  const codexCapabilities = await codex.capabilities('gpt-5.6-sol');
+  assert.deepEqual({ maxInputTokens: codexCapabilities.maxInputTokens, nativeCompaction: codexCapabilities.nativeCompaction, transport: codexCapabilities.nativeCompactionTransport, mirror: codexCapabilities.nativeCompactionMirror }, { maxInputTokens: null, nativeCompaction: false, transport: 'available', mirror: 'fallback-required' });
+  const codexOpened = await codex.open({ studioSessionId: 'session:g04-codex', model: 'gpt-5.6-sol', tools: input.tools, surfaceGeneration: 0, surfaceDigest: `sha256:${'b'.repeat(64)}`, lastConfirmedOpId: 'op:g04-codex-root' });
+  assert.equal((await codex.inspect(codexOpened.remoteSessionId)).lastConfirmedOpId, 'op:g04-codex-root');
+  await codex.confirmBoundary(codexOpened.remoteSessionId, 'op:g04-codex-next');
+  assert.equal((await codex.inspect(codexOpened.remoteSessionId)).lastConfirmedOpId, 'op:g04-codex-next');
+  assert.equal((await codex.compact(codexOpened.remoteSessionId, {})).status, 'unavailable');
+  assert.equal(codexTransport.requests.some((frame) => frame.method === 'thread/compact/start'), false, 'unsafe hidden provider compaction must not run');
+  await codex.detach(codexOpened.remoteSessionId);
+  assert.ok(codexTransport.requests.some((frame) => frame.method === 'thread/unsubscribe'));
+  await codex.dispose();
+});
+
 test('Harness preserves unknown provider cache evidence and Codex reuses a live thread without another thread/start', async () => {
   const transport = fakeHarnessTransport();
   transport.start = async function* () {
@@ -274,8 +301,16 @@ test('the opt-in Codex real smoke covers auth, text, dynamic tool, question and 
 });
 
 function fakeHarnessTransport() {
+  const sessions = new Map();
+  const capabilities = { maxInputTokens: null, nativeCompaction: false, parallelToolCalls: false, codeMode: false, providerUsage: 'reported', providerCache: 'reported', nativeCompactionTransport: 'unavailable', nativeCompactionMirror: 'fallback-required', diagnostic: { code: 'harness.compaction-driver-unavailable', message: 'Studio fallback required.' } };
   return { upstream: { tag: 'dsh-v0.1.0-rc.7', commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' }, configured: async () => true,
     modelCatalog: () => [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', description: 'fixture', maxTokens: 384_000 }],
+    sessionCapabilities: () => capabilities,
+    openSession: async (value) => { const sessionId = value.sessionId ?? `thread:session:${sessions.size + 1}`; sessions.set(sessionId, { model: value.model, boundary: value.lastConfirmedOpId }); return { sessionId, capabilities }; },
+    inspectSession: async (sessionId) => sessions.has(sessionId) ? { state: 'available', sessionId, model: sessions.get(sessionId).model, lastConfirmedOpId: sessions.get(sessionId).boundary } : { state: 'missing', sessionId, diagnostic: { code: 'harness.session-missing', message: 'missing' } },
+    confirmSessionBoundary: async (sessionId, boundary) => { sessions.get(sessionId).boundary = boundary; },
+    compactSession: async () => ({ status: 'unavailable', diagnostic: { code: 'harness.compaction-driver-unavailable', message: 'Studio fallback required.' } }),
+    closeSession: async (sessionId) => { sessions.delete(sessionId); },
     async *start() { yield { type: 'turn-start', sessionId: 'thread:1', turnId: 'turn:1' }; yield { type: 'text-delta', sessionId: 'thread:1', turnId: 'turn:1', text: 'done' }; yield { type: 'tool-request', sessionId: 'thread:1', turnId: 'turn:1', toolCallId: 'call:1', toolId: 'studio.entity.create', arguments: { name: 'Cube' } }; yield { type: 'usage', sessionId: 'thread:1', turnId: 'turn:1', inputTokens: 3, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 }; yield { type: 'turn-end', sessionId: 'thread:1', turnId: 'turn:1', status: 'completed', finishReason: 'stop' }; },
     submitToolResult: async () => {}, cancel: async () => {}, dispose: async () => {}, };
 }
@@ -292,6 +327,8 @@ class FakeCodexTransport {
     else if (frame.method === 'account/logout') this.result(frame.id, {});
     else if (frame.method === 'model/list') this.result(frame.id, this.options.malformedCatalog ? { data: [{ model: 'drifted' }] } : { data: [{ id: 'gpt-5.6-sol', model: 'gpt-5.6-sol', displayName: 'GPT-5.6 Sol', description: 'fixture', hidden: false, isDefault: true, defaultReasoningEffort: 'high', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: 'low' }, { reasoningEffort: 'medium', description: 'medium' }, { reasoningEffort: 'high', description: 'high' }, { reasoningEffort: 'xhigh', description: 'xhigh' }] }], nextCursor: null });
     else if (frame.method === 'thread/start') { if (this.options.threadStartError) this.error(frame.id, this.options.threadStartError, `HTTP ${this.options.threadStartError}`); else if (!this.options.threadStartNoResponse) { if (this.options.dirtyCwd) { const nested = path.join(frame.params.cwd, 'nested'); await mkdir(nested, { recursive: true }); await writeFile(path.join(nested, 'owned.txt'), 'fixture'); } this.toolWireName = frame.params.dynamicTools[0]?.name; this.result(frame.id, { thread: { id: 'thread:1' } }); } }
+    else if (frame.method === 'thread/read') this.result(frame.id, { thread: { id: frame.params.threadId, canAcceptDirectInput: true } });
+    else if (frame.method === 'thread/unsubscribe') this.result(frame.id, { status: 'notLoaded' });
     else if (frame.method === 'turn/start') { this.result(frame.id, { turn: { id: 'turn:1', status: 'inProgress' } }); setImmediate(() => this.started()); }
     else if (frame.method === 'turn/interrupt') { this.result(frame.id, {}); this.notify('turn/completed', { threadId: 'thread:1', turn: { id: 'turn:1', status: 'interrupted', error: null } }); }
   }

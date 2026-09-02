@@ -6,6 +6,8 @@ import { UsageLedgerStore, type NormalizedFinishReason, type UsageLedger } from 
 import { PromptContextRuntime, type ContextCacheMetrics } from './prompt-context.js';
 import { DurableSessionRuntime } from './session/index.js';
 import { ModelContextRuntime } from './context/index.js';
+import { BackendSessionRuntime } from './backends/index.js';
+import { KnowledgeRetrievalRuntime } from './retrieval/index.js';
 
 export { BudgetError, TaskBudgetController, validateTaskBudget } from './budget.js';
 export type { BudgetConsumption, BudgetDecision, BudgetMetric } from './budget.js';
@@ -20,13 +22,17 @@ export type { PricingCatalogV1, PricingEntryV1 } from '@haiyue/ai-studio-contrac
 export { UsageLedger, UsageLedgerError, UsageLedgerStore } from './usage-ledger.js';
 export type { NormalizedFinishReason, UsageLedgerSnapshot, UsageUpdate } from './usage-ledger.js';
 export { GENERAL_GAME_AUTHORING_MODULES, PromptContextError, PromptContextRuntime, PromptModuleRegistry } from './prompt-context.js';
-export type { CommitConversationInput, ContextCacheMetrics, ContextProjectSnapshot, PreparedTurnContext, PromptModuleDefinition, PromptModuleSnapshot, PromptProfileSnapshot, VisibleConversationFacts } from './prompt-context.js';
-export { AgentSessionError, DurableSessionRuntime, sessionPayloadDigest } from './session/index.js';
-export type { AppendSessionMessageInput, AppendSessionOpInput, CreateSessionInput, DurableSessionHandle, ForkSessionInput, OpenSessionOptions, ReplaceModelSurfaceInput, SessionForkSeedV1, SessionMessageArtifactV1, SessionRecoverySnapshotV1, SessionReplaySnapshotV1, SessionRuntimeOptions, TranscriptEntryV1 } from './session/index.js';
-export { ConservativeTokenEstimator, ContextFrameRuntime, ContextPolicyError, ContextPressureCalculator, DEFAULT_CONTEXT_THRESHOLDS, ModelContextRuntime } from './context/index.js';
-export type { CapturedContextFrameV1, CaptureContextFrameInput, ContextFrameInputDraft, ContextFrameRuntimeOptions, ContextMeasurementInput, ContextMeasurementResult, ContextPressureOptions, LatestCompactionRecord, TokenEstimator } from './context/index.js';
+export type { CommitConversationInput, ContextCacheMetrics, ContextProjectSnapshot, ExactProjectContextSource, PreparedTurnContext, PromptModuleDefinition, PromptModuleSnapshot, PromptProfileSnapshot, VisibleConversationFacts } from './prompt-context.js';
+export { AgentSessionError, DurableSessionRecoveryCoordinator, DurableSessionRuntime, sessionPayloadDigest } from './session/index.js';
+export type { AppendSessionMessageInput, AppendSessionOpInput, CreateSessionInput, DurableSessionHandle, ForkSessionInput, MutationRecoveryAuthorityResult, MutationRecoveryIntent, OpenSessionOptions, ReplaceModelSurfaceInput, SessionForkSeedV1, SessionMessageArtifactV1, SessionRecoveryAction, SessionRecoveryAuthorityPort, SessionRecoveryRun, SessionRecoverySnapshotV1, SessionReplaySnapshotV1, SessionRuntimeOptions, TranscriptEntryV1 } from './session/index.js';
+export { ConservativeTokenEstimator, ContextFrameRuntime, ContextPolicyError, ContextPressureCalculator, ContextRouterError, ContextRouterRuntime, DEFAULT_CONTEXT_THRESHOLDS, fullSceneRetransmissionReduction, ModelContextRuntime, operationLogContextDeltaSources, OperationLogCursorDeltaSource } from './context/index.js';
+export type { CapturedContextFrameV1, CaptureContextFrameInput, ContextFrameInputDraft, ContextFrameRuntimeOptions, ContextMeasurementInput, ContextMeasurementResult, ContextPressureOptions, ContextRouteCursors, ContextRouterSources, CursorDeltaPage, CursorDeltaSource, LatestCompactionRecord, OperationLogDeltaSourceOptions, RouteContextInput, RoutedContextInputs, SceneExactContextSource, TokenEstimator } from './context/index.js';
 export { assertCompactionRecordArtifact, ContextCompactionError, ContextCompactionRuntime, latestCompletedCompaction } from './compaction/index.js';
 export type { CompactionHistoryEntryV1, CompactionPreviewDecision, CompactionPreviewV1, CompactionRangePreviewV1, CompactionRunResultV1, CompactionRuntimeOptions, CompactionSourceMessageV1, CompactionSummarizer, CompactionSummaryRequestV1, CompactionSummaryResultV1, PinnedContextFactInput, PinnedContextFactKindV1, PinnedContextFactV1, PreviewCompactionInput, RunCompactionInput } from './compaction/index.js';
+export { BackendSessionError, BackendSessionRuntime, projectBackendCacheEvidence } from './backends/index.js';
+export type { BackendCacheEvidenceV1, BackendNativeCompactionResultV1, BackendRemoteSessionInspectionV1, BackendSessionAdapter, BackendSessionCapabilitySnapshotV1, BackendSessionOpenInputV1, BackendSessionOpenResultV1, BackendSessionToolV1, EnsureBackendSessionInputV1, EnsureBackendSessionResultV1 } from './backends/index.js';
+export { KnowledgeRetrievalError, KnowledgeRetrievalRuntime, LocalHashEmbeddingProvider, tokenize } from './retrieval/index.js';
+export type { KnowledgeCitation, KnowledgeIndexSnapshot, KnowledgeRetrievalOptions, KnowledgeSearchDiagnostic, KnowledgeSearchHit, KnowledgeSearchInput, KnowledgeSearchResult, KnowledgeSourceInput, KnowledgeSourceKind, LocalEmbeddingProvider } from './retrieval/index.js';
 
 export type AgentBackendKind = 'harness-api-key' | 'codex-app-server';
 export type AgentBackendEventKind = 'status' | 'conversation-node' | 'tool-request' | 'question' | 'approval' | 'usage' | 'completed' | 'diagnostic';
@@ -180,7 +186,7 @@ export class AgentTurnRuntime {
   private assertActive(): void { if (this.disposed) throw new AgentBackendProtocolError('agent.runtime-disposed', 'Agent turn runtime is disposed.'); }
 }
 
-export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; readonly usage: UsageLedgerStore; readonly accounting: import('./accounting.js').TaskAccountingRegistry; readonly context: PromptContextRuntime; readonly sessions: DurableSessionRuntime; readonly modelContexts: ModelContextRuntime; }
+export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; readonly turns: AgentTurnRuntime; readonly usage: UsageLedgerStore; readonly accounting: import('./accounting.js').TaskAccountingRegistry; readonly context: PromptContextRuntime; readonly sessions: DurableSessionRuntime; readonly modelContexts: ModelContextRuntime; readonly backendSessions: BackendSessionRuntime; readonly knowledge: KnowledgeRetrievalRuntime; }
 export const agentRuntimeServiceToken = createStudioServiceToken<AgentRuntimeService>('studio.agent-runtime');
 export const agentBackendRegistryToken = createStudioServiceToken<AgentBackendRegistry>('studio.agent-backend-registry');
 
@@ -196,20 +202,28 @@ export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): St
     async activate(context) {
       const log = context.services.get(operationLogServiceToken).log;
       const registry = new AgentBackendRegistry();
+      let backends: readonly AgentBackend[] = [];
       try {
-        for (const backend of await options.createBackends()) registry.register(backend);
+        backends = await options.createBackends();
+        for (const backend of backends) registry.register(backend);
         context.owner.assertActive();
       } catch (cause) { await registry.dispose(); throw cause; }
-      const promptContext = new PromptContextRuntime(log); await promptContext.initialize();
+      const knowledge = new KnowledgeRetrievalRuntime(log); await knowledge.initialize();
+      const promptContext = new PromptContextRuntime(log, undefined, knowledge); await promptContext.initialize();
       const turns = new AgentTurnRuntime(registry, log, promptContext); const { TaskAccountingRegistry } = await import('./accounting.js');
       const sessions = new DurableSessionRuntime(log);
       const modelContexts = new ModelContextRuntime(log, sessions);
-      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage), context: promptContext, sessions, modelContexts });
+      const backendSessions = new BackendSessionRuntime(sessions);
+      try { for (const backend of backends) if (isBackendSessionAdapter(backend)) backendSessions.register(backend); }
+      catch (cause) { await backendSessions.dispose(); await modelContexts.dispose(); await sessions.dispose(); await turns.dispose(); throw cause; }
+      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage), context: promptContext, sessions, modelContexts, backendSessions, knowledge });
       context.services.provide(agentBackendRegistryToken, registry); context.services.provide(agentRuntimeServiceToken, service);
       context.effects.own('agent-runtime.dispose', async () => {
         const errors: unknown[] = [];
         try { await modelContexts.dispose(); } catch (cause) { errors.push(cause); }
+        try { await backendSessions.dispose(); } catch (cause) { errors.push(cause); }
         try { await sessions.dispose(); } catch (cause) { errors.push(cause); }
+        try { knowledge.dispose(); } catch (cause) { errors.push(cause); }
         try { await turns.dispose(); } catch (cause) { errors.push(cause); }
         if (errors.length === 1) throw errors[0];
         if (errors.length > 1) throw new AggregateError(errors, 'Agent runtime resources failed during disposal.');
@@ -251,6 +265,10 @@ function isRecord(value: unknown): value is Record<string, unknown> { return Boo
 function isStableId(value: unknown): value is StableId { return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/u.test(value); }
 function isJsonObject(value: unknown): value is JsonObject { try { return isRecord(value) && JSON.stringify(value) !== undefined && !containsInvalidJson(value); } catch { return false; } }
 function containsInvalidJson(value: unknown): boolean { if (value === undefined || typeof value === 'bigint' || typeof value === 'function' || typeof value === 'symbol' || (typeof value === 'number' && !Number.isFinite(value))) return true; if (Array.isArray(value)) return value.some(containsInvalidJson); if (isRecord(value)) return Object.values(value).some(containsInvalidJson); return false; }
+function isBackendSessionAdapter(value: AgentBackend): value is AgentBackend & import('./backends/index.js').BackendSessionAdapter {
+  const candidate = value as unknown as Record<string, unknown>;
+  return typeof candidate.backendId === 'string' && typeof candidate.provider === 'string' && ['capabilities', 'open', 'inspect', 'confirmBoundary', 'compact', 'detach'].every((key) => typeof candidate[key] === 'function');
+}
 function deepFreeze<T>(value: T): T { if (value && typeof value === 'object' && !Object.isFrozen(value)) { for (const item of Object.values(value as Record<string, unknown>)) deepFreeze(item); Object.freeze(value); } return value; }
 const eventKinds = new Set(['status', 'conversation-node', 'tool-request', 'question', 'approval', 'usage', 'completed', 'diagnostic']);
 const terminalStatuses = new Set<string>(['completed', 'cancelled', 'failed', 'interrupted']);

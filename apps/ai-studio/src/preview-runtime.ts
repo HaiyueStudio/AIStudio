@@ -11,6 +11,7 @@ import { PhysicsPlayRuntime } from './physics-play-runtime.js';
 import { RenderEffectsPlayRuntime } from '@haiyue/ai-studio-script-preview/effects';
 import { createEquirectangularReflectionMap } from '@haiyue/engine/lighting';
 import { GameplayObservationStore } from './gameplay-observation-store.js';
+import { DeclarativePlayRuntime, type DeclarativeHudItem } from './declarative-play-components.js';
 
 interface Vec3 { readonly x: number; readonly y: number; readonly z: number; }
 interface SceneEntity {
@@ -51,13 +52,15 @@ let interactionSystem: InteractionSystem | null = null;
 let physicsRuntime: PhysicsPlayRuntime | null = null;
 let physicsLoadController: AbortController | null = null;
 let renderEffectsRuntime: RenderEffectsPlayRuntime | null = null;
+let declarativePlayRuntime: DeclarativePlayRuntime | null = null;
 let interactionRaycast: InteractionRaycastResult = createInteractionRaycastResult();
 let interactionEvents: readonly StudioInteractionEvent[] = Object.freeze([]);
 let hoveredEntityId: string | null = null;
 const pointerDownTargets = new Map<number, string>();
 const instanceSets = new Map<number, StudioInstanceSet>();
-const hudTexts = new Map<string, Readonly<{ element: HTMLDivElement; text: string; position: HudTextPosition }>>();
+const hudTexts = new Map<string, Readonly<{ element: HTMLElement; text: string; position: HudTextPosition; kind: 'text' | 'image' | 'button' }>>();
 const gameplayObservations = new GameplayObservationStore();
+const configuredDeclarativePools = new Set<string>();
 const entitiesByStableId = new Map<string, Entity>();
 const stableIdByEntityId = new Map<number, string>();
 let disposed = false;
@@ -70,11 +73,11 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
   if (event.source !== parent || !isRecord(event.data) || event.data.protocol !== 'haiyue-preview/1') return;
   if (event.data.type === 'start') {
     const request = parseStartRequest(event.data);
-    if (!request) { fail(new Error('Preview start request failed schema validation.')); return; }
+    if (!request) { startFailed(new Error('Preview start request failed schema validation.')); return; }
     const generation = ++lifecycleGeneration;
     void start(request.scene, request.plan, request.assets, generation).catch((cause) => {
       if (generation !== lifecycleGeneration) return;
-      stop('start-failed'); fail(cause);
+      stop('start-failed'); startFailed(cause);
     });
   } else if (event.data.type === 'hot-reload' && exactKeys(event.data, ['protocol', 'type', 'scriptId', 'emittedText'])
     && typeof event.data.scriptId === 'string' && typeof event.data.emittedText === 'string' && event.data.emittedText.length <= 250_000) {
@@ -91,6 +94,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
   else if (event.data.type === 'input' && exactKeys(event.data, ['protocol', 'type', 'event']) && isRecord(event.data.event)) injectInput(event.data.event as unknown as ReplayInputEventInput);
   else if (event.data.type === 'replay' && exactKeys(event.data, ['protocol', 'type', 'replay']) && isRecord(event.data.replay)) loadReplay(event.data.replay as unknown as InputReplayV1);
   else if (event.data.type === 'inspect' && exactKeys(event.data, ['protocol', 'type', 'requestId']) && typeof event.data.requestId === 'string') publishInspection(event.data.requestId);
+  else if (event.data.type === 'physics-query' && exactKeys(event.data, ['protocol', 'type', 'requestId', 'query']) && typeof event.data.requestId === 'string' && isRecord(event.data.query)) publishPhysicsQuery(event.data.requestId, event.data.query);
   else if (event.data.type === 'capture' && exactKeys(event.data, ['protocol', 'type', 'requestId']) && typeof event.data.requestId === 'string') void capture(event.data.requestId);
   else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
 });
@@ -175,6 +179,8 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
       } finally { bitmap.close(); }
     },
   });
+  declarativePlayRuntime = new DeclarativePlayRuntime(snapshot.entities);
+  applyDeclarativePlaySnapshot(0, assetsById, true);
   target = entities.get(plan.scripts[0]!.entityId) ?? null;
   if (!target) throw new Error(`Preview target ${plan.scripts[0]!.entityId} is missing.`);
   const persistedSettings = readSimulationSettings(snapshot.entities);
@@ -225,6 +231,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
       updateInteractions(input);
       ownedEngine.updateActiveScene(step.timeMs, step.deltaMs);
       physicsRuntime?.afterTick(step.tick);
+      applyDeclarativePlaySnapshot(step.tick, assetsById, true, true);
       publishState();
     },
     readState: readSimulationState,
@@ -307,6 +314,14 @@ function publishInspection(requestId: string): void {
   if (!simulation) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
   const snapshot = simulation.snapshot();
   send('inspection', { requestId, value: { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount } });
+}
+
+function publishPhysicsQuery(requestId: string, query: Readonly<Record<string, unknown>>): void {
+  if (!simulation || !physicsRuntime) { requestFailed(requestId, new Error('Preview physics is not playing.')); return; }
+  try {
+    const snapshot = simulation.snapshot();
+    send('inspection', { requestId, value: { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, query: physicsRuntime.query(query), physics: physicsRuntime.status() } });
+  } catch (cause) { requestFailed(requestId, cause); }
 }
 
 async function capture(requestId: string): Promise<void> {
@@ -578,6 +593,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   resizeObserver?.disconnect(); resizeObserver = null;
   physicsRuntime?.dispose(); physicsRuntime = null;
   renderEffectsRuntime?.dispose(); renderEffectsRuntime = null;
+  declarativePlayRuntime = null;
   for (const owner of scriptOwners.splice(0).reverse()) {
     owner.entity.removeComponent(owner.component);
     owner.component.destroy();
@@ -586,6 +602,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   planByComponent.clear();
   engine?.destroy();
   instanceSets.clear();
+  configuredDeclarativePools.clear();
   clearHudTexts();
   gameplayObservations.clear();
   entitiesByStableId.clear();
@@ -607,6 +624,7 @@ function scriptRuntimeStates(): readonly Readonly<{ scriptId: string; entityId: 
   }));
 }
 function fail(cause: unknown): void { send('runtime-error', { code: 'preview-start-failed', message: cause instanceof Error ? cause.message : String(cause), line: 1, column: 1, disposableCount: totalDisposableCount() }); }
+function startFailed(cause: unknown): void { const message = cause instanceof Error ? cause.message : String(cause); fail(cause); send('failed', { message }); }
 function requestFailed(requestId: string, cause: unknown): void { send('request-failed', { requestId, message: cause instanceof Error ? cause.message : String(cause) }); }
 function bytesToBase64(bytes: Uint8Array): string { let value = ''; for (let index = 0; index < bytes.length; index += 0x8000) value += String.fromCharCode(...bytes.subarray(index, Math.min(bytes.length, index + 0x8000))); return btoa(value); }
 function send(type: string, payload: Record<string, unknown>): void { parent.postMessage({ protocol: 'haiyue-preview/1', type, ...payload }, '*'); }
@@ -743,53 +761,7 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
     scene: Object.freeze({
       ...(base.scene ?? {}),
       instances(target: Entity | number | string, capacity: number): StudioInstanceSet {
-        const entity = target instanceof Entity
-          ? target
-          : typeof target === 'string'
-            ? entitiesByStableId.get(target) ?? context.world?.getEntity(target) ?? null
-            : context.world?.getEntity(target) ?? null;
-        if (!entity) throw new Error(`Instance target ${String(target)} was not found.`);
-        if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > 4_096) throw new RangeError('Instance capacity must be an integer from 1 to 4096.');
-        const cached = instanceSets.get(entity.id);
-        if (cached) {
-          if (cached.capacity !== capacity) throw new Error(`Instance capacity for ${entity.name} is already ${cached.capacity}.`);
-          return cached;
-        }
-        const source = entity.getComponent(Mesh3D);
-        if (!source) throw new Error(`Instance target ${entity.name} must be a geometry entity.`);
-        const stableId = stableIdByEntityId.get(entity.id);
-        const appearance = stableId ? activeSceneEntities?.find((candidate) => candidate.id === stableId)?.appearance : undefined;
-        const templateColor = appearance?.color ?? [1, 1, 1, 1] as const;
-        // Basic authoring materials must remain unlit in Play. Upgrading every
-        // instance template to PBR makes otherwise valid scenes render black
-        // when they intentionally contain no lights (for example, Tetris).
-        const material = appearance?.material === 'pbr'
-          ? new InstancedPbrMaterial(capacity, { metallic: 0.05, roughness: 0.65 })
-          : new InstancedMaterial(capacity);
-        let activeCount = 0;
-        material.setActiveInstanceCount(activeCount);
-        entity.removeComponent(source);
-        entity.addComponent(new InstancedMesh3D(source.geometry, material));
-        const instances: StudioInstanceSet = Object.freeze({
-          capacity,
-          setCount(count: number): void {
-            if (!Number.isSafeInteger(count) || count < 0 || count > capacity) throw new RangeError(`Active instance count must be from 0 to ${capacity}.`);
-            activeCount = count;
-            material.setActiveInstanceCount(activeCount);
-          },
-          set(index: number, transform: InstanceTransformInput): void {
-            if (!Number.isSafeInteger(index) || index < 0 || index >= capacity) throw new RangeError(`Instance index must be from 0 to ${capacity - 1}.`);
-            material.setTransform(index, composeInstanceMatrix(transform));
-            const color = transform.color ?? templateColor;
-            material.setColor(index, color[0], color[1], color[2], color[3] ?? 1);
-            if (index >= activeCount) {
-              activeCount = index + 1;
-              material.setActiveInstanceCount(activeCount);
-            }
-          },
-        });
-        instanceSets.set(entity.id, instances);
-        return instances;
+        return getOrCreateInstanceSet(target, capacity, context.world ?? undefined);
       },
       hudText(id: string, text: string, options: HudTextOptions = {}): void { setHudText(id, text, options); },
       removeHudText(id: string): void { removeHudText(id); },
@@ -802,10 +774,103 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
   return Object.freeze(filtered) as unknown as ScriptRuntimeApi;
 }
 
+function getOrCreateInstanceSet(targetValue: Entity | number | string, capacity: number, world?: Readonly<{ getEntity(id: number | string): Entity | null }>): StudioInstanceSet {
+  const entity = targetValue instanceof Entity ? targetValue : typeof targetValue === 'string' ? entitiesByStableId.get(targetValue) ?? world?.getEntity(targetValue) ?? null : world?.getEntity(targetValue) ?? null;
+  if (!entity) throw new Error(`Instance target ${String(targetValue)} was not found.`);
+  if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > 4_096) throw new RangeError('Instance capacity must be an integer from 1 to 4096.');
+  const cached = instanceSets.get(entity.id);
+  if (cached) { if (cached.capacity !== capacity) throw new Error(`Instance capacity for ${entity.name} is already ${cached.capacity}.`); return cached; }
+  const source = entity.getComponent(Mesh3D);
+  if (!source) throw new Error(`Instance target ${entity.name} must be a geometry entity.`);
+  const stableId = stableIdByEntityId.get(entity.id);
+  const appearance = stableId ? activeSceneEntities?.find((candidate) => candidate.id === stableId)?.appearance : undefined;
+  const templateColor = appearance?.color ?? [1, 1, 1, 1] as const;
+  // Basic authoring materials must remain unlit in Play. Upgrading every
+  // instance template to PBR makes otherwise valid scenes render black.
+  const material = appearance?.material === 'pbr' ? new InstancedPbrMaterial(capacity, { metallic: 0.05, roughness: 0.65 }) : new InstancedMaterial(capacity);
+  let activeCount = 0; material.setActiveInstanceCount(activeCount);
+  entity.removeComponent(source); entity.addComponent(new InstancedMesh3D(source.geometry, material));
+  const instances: StudioInstanceSet = Object.freeze({
+    capacity,
+    setCount(count: number): void { if (!Number.isSafeInteger(count) || count < 0 || count > capacity) throw new RangeError(`Active instance count must be from 0 to ${capacity}.`); activeCount = count; material.setActiveInstanceCount(activeCount); },
+    set(index: number, transform: InstanceTransformInput): void {
+      if (!Number.isSafeInteger(index) || index < 0 || index >= capacity) throw new RangeError(`Instance index must be from 0 to ${capacity - 1}.`);
+      material.setTransform(index, composeInstanceMatrix(transform)); const color = transform.color ?? templateColor; material.setColor(index, color[0], color[1], color[2], color[3] ?? 1);
+      if (index >= activeCount) { activeCount = index + 1; material.setActiveInstanceCount(activeCount); }
+    },
+  });
+  instanceSets.set(entity.id, instances); return instances;
+}
+
 function gameplayObservationOwner(context: ScriptRuntimeContext): Readonly<{ scriptId: string; entityId: string }> {
   const plan = planByComponent.get(context.component);
   if (!plan) throw new Error('Gameplay observation owner is not attached to an active preview plan.');
   return Object.freeze({ scriptId: plan.scriptId, entityId: plan.entityId });
+}
+
+function applyDeclarativePlaySnapshot(tick: number, assets: ReadonlyMap<string, PreviewAsset>, renderHud: boolean, advance = false): void {
+  const runtime = declarativePlayRuntime;
+  if (!runtime) return;
+  const actions = runtime.inputActions();
+  const snapshot = advance ? runtime.advance(tick, {
+    pressedActions: actions.filter((action) => simulation?.input.wasPressed(action) === true),
+    heldActions: actions.filter((action) => simulation?.input.isPressed(action) === true),
+    physicsEvents: (physicsRuntime?.events() ?? []).map((event) => ({ kind: event.kind, phase: event.phase, entityAId: event.entityAId, entityBId: event.entityBId })),
+  }) : runtime.snapshot(tick);
+  if (!snapshot) return;
+  for (const item of snapshot.observations) gameplayObservations.set(item.owner, item.id, item.value);
+  for (const pool of snapshot.pools) {
+    const instances = getOrCreateInstanceSet(pool.templateEntityId, pool.capacity);
+    if (!configuredDeclarativePools.has(pool.componentId)) { pool.spawns.forEach((spawn, index) => instances.set(index, spawn)); configuredDeclarativePools.add(pool.componentId); }
+    instances.setCount(pool.activeCount);
+  }
+  if (renderHud) for (const item of snapshot.hud) setDeclarativeHudItem(item, assets);
+}
+
+function setDeclarativeHudItem(item: DeclarativeHudItem, assets: ReadonlyMap<string, PreviewAsset>): void {
+  const root = document.querySelector<HTMLDivElement>('#preview-hud');
+  if (!root) throw new Error('Preview HUD root is missing.');
+  const existing = hudTexts.get(item.id);
+  if (existing?.kind === item.kind && existing.text === item.text && existing.position === item.position) { existing.element.hidden = !item.visible; return; }
+  existing?.element.remove();
+  let element: HTMLElement;
+  if (item.kind === 'image') {
+    const image = document.createElement('img');
+    image.alt = item.text;
+    if (item.assetId) {
+      const asset = requirePreviewAsset(assets, item.assetId, 'texture');
+      if (!asset.url) throw new Error(`hud.image-asset-payload-invalid: ${item.assetId} has no controlled URL.`);
+      image.src = asset.url;
+    }
+    image.style.objectFit = 'contain';
+    element = image;
+  } else if (item.kind === 'button') {
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = item.text; button.disabled = !item.action;
+    button.style.pointerEvents = 'auto';
+    if (item.action) {
+      button.addEventListener('pointerdown', (event) => { event.stopPropagation(); queueHudAction(item.action, 'down'); });
+      button.addEventListener('pointerup', (event) => { event.stopPropagation(); queueHudAction(item.action, 'up'); });
+      button.addEventListener('pointercancel', (event) => { event.stopPropagation(); queueHudAction(item.action, 'up'); });
+    }
+    element = button;
+  } else {
+    const text = document.createElement('div'); text.textContent = item.text; element = text;
+  }
+  element.className = `preview-hud-text preview-hud-${item.kind}`;
+  element.dataset.hudId = item.id;
+  element.dataset.componentId = item.owner.componentId;
+  element.hidden = !item.visible;
+  element.style.width = `${item.width}px`; element.style.height = `${item.height}px`;
+  element.style.color = item.color; element.style.backgroundColor = item.backgroundColor; element.style.fontSize = `${item.fontSize}px`;
+  applyHudPosition(element, item.position, item.offsetX, item.offsetY);
+  root.append(element);
+  hudTexts.set(item.id, Object.freeze({ element, text: item.text, position: item.position, kind: item.kind }));
+}
+
+function queueHudAction(action: string, phase: 'down' | 'up'): void {
+  try { simulation?.injectNext({ kind: 'action', action, phase, source: 'pointer' }); }
+  catch (cause) { fail(cause); }
 }
 
 function setHudText(id: string, text: string, options: HudTextOptions): void {
@@ -816,6 +881,7 @@ function setHudText(id: string, text: string, options: HudTextOptions): void {
   const position = options.position ?? 'top-left';
   if (!HUD_POSITIONS.has(position)) throw new TypeError(`Unsupported HUD position ${String(position)}.`);
   let record = hudTexts.get(id);
+  if (record && record.kind !== 'text') { record.element.remove(); hudTexts.delete(id); record = undefined; }
   const element = record?.element ?? document.createElement('div');
   if (!record) { element.className = 'preview-hud-text'; element.dataset.hudId = id; root.append(element); }
   element.textContent = text;
@@ -824,13 +890,13 @@ function setHudText(id: string, text: string, options: HudTextOptions): void {
   element.style.color = safeHudColor(options.color, '#ffffff');
   element.style.backgroundColor = safeHudColor(options.backgroundColor, '#111111aa');
   element.style.fontSize = `${finiteNumber(options.fontSize, 8, 96, 22)}px`;
-  hudTexts.set(id, Object.freeze({ element, text, position }));
+  hudTexts.set(id, Object.freeze({ element, text, position, kind: 'text' }));
 }
 
 const HUD_POSITIONS = new Set<HudTextPosition>(['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right']);
 function boundedHudOffset(value: unknown): number { return finiteNumber(value, -2_048, 2_048, 0); }
 function safeHudColor(value: unknown, fallback: string): string { return typeof value === 'string' && /^#[0-9a-f]{3,8}$/iu.test(value) ? value : fallback; }
-function applyHudPosition(element: HTMLDivElement, position: HudTextPosition, offsetX: number, offsetY: number): void {
+function applyHudPosition(element: HTMLElement, position: HudTextPosition, offsetX: number, offsetY: number): void {
   element.style.inset = 'auto'; element.style.transform = '';
   const [vertical, horizontal] = position === 'center' ? ['center', 'center'] : position.split('-') as [string, string];
   if (vertical === 'top') element.style.top = `${12 + offsetY}px`;
@@ -845,7 +911,7 @@ function applyHudPosition(element: HTMLDivElement, position: HudTextPosition, of
 }
 function removeHudText(id: string): void { const record = hudTexts.get(id); record?.element.remove(); hudTexts.delete(id); }
 function clearHudTexts(): void { for (const record of hudTexts.values()) record.element.remove(); hudTexts.clear(); }
-function hudSnapshot(): readonly Readonly<{ id: string; text: string; position: HudTextPosition }>[] { return Object.freeze([...hudTexts].map(([id, value]) => Object.freeze({ id, text: value.text, position: value.position }))); }
+function hudSnapshot(): readonly Readonly<{ id: string; kind: 'text' | 'image' | 'button'; text: string; position: HudTextPosition }>[] { return Object.freeze([...hudTexts].map(([id, value]) => Object.freeze({ id, kind: value.kind, text: value.text, position: value.position }))); }
 function isSceneComponent(value: unknown): boolean {
   return isRecord(value) && typeof value.id === 'string' && typeof value.type === 'string' && typeof value.version === 'string' && typeof value.enabled === 'boolean' && isRecord(value.value);
 }

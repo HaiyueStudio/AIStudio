@@ -62,6 +62,7 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   const host = new StudioConversationHost({
     runtime, tools, operationLog: { async append(value) { logEvents.push(value); } },
     isProjectOpen: () => true, projectContext: projectContextFixture,
+    async prepareKnowledge() { await new Promise(() => {}); }, knowledgeRefreshTimeoutMs: 5,
     async openLoginHandoff(id, handoff) { openedHandoff = { id, handoff }; },
   });
   await host.initialize();
@@ -108,6 +109,7 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   assert.ok(observedBusy.includes(true));
   assert.equal(observedBusy.at(-1), false);
   assert.ok(logEvents.some((item) => item.kind === 'conversation/intent' && item.payload.promptDigest && !JSON.stringify(item).includes('Create a Player cube')));
+  assert.ok(logEvents.some((item) => item.kind === 'knowledge/refresh-degraded' && item.payload.code === 'knowledge.refresh-timeout' && item.payload.fallback === 'exact-context'));
   await assert.rejects(host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-always' }), /stale|already resolved/);
   subscription.dispose();
   await host.dispose();
@@ -254,6 +256,37 @@ test('cancelling while a plan is pending terminalizes the plan so the composer c
   assert.equal(nodes(host).filter((node) => node.id === cancelledPlan.id).at(-1).status, 'cancelled');
   await waitFor(() => host.replay().busy === false);
   await host.dispose();
+});
+
+test('composer queues a new message while a plan barrier waits and supersedes only the live wait', async () => {
+  let starts = 0; let cancels = 0;
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} }, async modelCatalog() { return modelCatalog(); }, async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
+    async authenticate() { return null; }, async logout() {}, async cancelTurn() { cancels += 1; }, async dispose() {}, async submitToolResult() {}, async answerQuestion() {}, async resolveBackendApproval() {},
+  };
+  const runtime = { context: contextFixture(), accounting: accountingFixture(), registry: { descriptors: () => [backend.descriptor], get: () => backend }, turns: {
+    async *start(_backendId, _input, signal) {
+      starts += 1;
+      if (starts === 1) {
+        yield event('tool-request', { toolCallId: planToolCallId, toolId: 'studio.plan.propose', arguments: { title: 'Superseded plan', summary: 'Wait for review.', items: [{ label: 'Old work', details: 'This work will be superseded by a new user message.' }] } });
+        await new Promise((resolve, reject) => { const abort = () => reject(signal.reason); if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true }); });
+        return;
+      }
+      yield eventAt('session:queued-message', 'turn:queued-message', 'completed', { status: 'completed' });
+    },
+    async *resume() {}, async cancel() { cancels += 1; }, async recordToolResult() {},
+  } };
+  const host = new StudioConversationHost({ runtime, tools: { definitions: () => [] }, operationLog: { async append() {} }, isProjectOpen: () => true });
+  try {
+    await host.initialize();
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Prepare the old plan.' });
+    await waitFor(() => nodes(host).some((node) => node.kind === 'plan' && node.status === 'pending'));
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Start a different task instead.' });
+    await waitFor(() => starts === 2 && host.replay().busy === false);
+    assert.equal(nodes(host).some((node) => node.kind === 'plan' && node.status === 'cancelled'), true);
+    assert.equal(nodes(host).some((node) => node.kind === 'text' && node.content.role === 'user' && node.content.text === 'Start a different task instead.'), true);
+    assert.ok(cancels >= 1);
+  } finally { await host.dispose(); }
 });
 
 test('project Run prefers a current controller script over an incidentally selected board script', () => {

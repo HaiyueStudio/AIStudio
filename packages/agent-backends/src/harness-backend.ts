@@ -10,17 +10,26 @@ import {
   type AgentBackendStatus,
   type AgentModelCatalog,
   type AgentTurnInput,
+  type BackendNativeCompactionResultV1,
+  type BackendRemoteSessionInspectionV1,
+  type BackendSessionAdapter,
+  type BackendSessionCapabilitySnapshotV1,
+  type BackendSessionOpenInputV1,
+  type BackendSessionOpenResultV1,
+  type CompactionSummaryRequestV1,
 } from '@haiyue/ai-studio-agent-runtime';
 import { backendEvent, toolSetSignature, TurnChannel } from './shared.js';
 
 export interface HarnessApiKeyBackendOptions { readonly transport: HarnessAgentTransport; readonly clearApiKey: () => Promise<void>; }
-export class HarnessApiKeyBackend implements AgentBackend {
+export class HarnessApiKeyBackend implements AgentBackend, BackendSessionAdapter {
   readonly upstream = Object.freeze({ tag: 'dsh-v0.1.0-rc.7', commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' });
   readonly descriptor: AgentBackendDescriptor = Object.freeze({ schemaVersion: 1, id: asStableId('backend:harness-api-key'), kind: 'harness-api-key', protocolVersion: 'dsh-v0.1.0-rc.7', capabilities: Object.freeze({ resume: true, questions: false, structuredTools: true, backendApprovals: false, usage: true, rateLimits: false }) });
   private readonly turns = new Map<StableId, TurnChannel>();
   private readonly sessionToolSignatures = new Map<StableId, string>();
   private disposed = false;
   constructor(private readonly options: HarnessApiKeyBackendOptions) {}
+  get backendId(): StableId { return this.descriptor.id; }
+  readonly provider = 'deepseek-official';
   async authenticate(): Promise<null> { this.assertActive(); return null; }
   async status(): Promise<AgentBackendStatus> { this.assertActive(); return Object.freeze({ state: await this.options.transport.configured() ? 'ready' : 'auth-required', authMode: 'api-key', rateLimits: Object.freeze([]) }); }
   async logout(): Promise<void> { this.assertActive(); await this.options.clearApiKey(); }
@@ -38,6 +47,40 @@ export class HarnessApiKeyBackend implements AgentBackend {
       supportedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'], effortFallbacks: { medium: 'high' },
     });
   }
+  async capabilities(model: string): Promise<BackendSessionCapabilitySnapshotV1> {
+    this.assertActive();
+    const value = this.options.transport.sessionCapabilities(model);
+    return Object.freeze({ ...value, diagnostic: value.diagnostic ? Object.freeze({ ...value.diagnostic }) : null });
+  }
+  async open(input: BackendSessionOpenInputV1, signal?: AbortSignal): Promise<BackendSessionOpenResultV1> {
+    this.assertActive();
+    const model = this.options.transport.modelCatalog().find((entry) => entry.id === input.model);
+    if (!model) throw new AgentBackendProtocolError('harness.model-unavailable', `Harness model ${input.model} is unavailable.`);
+    const result = await this.options.transport.openSession({
+      model: input.model,
+      reasoningEffort: 'high',
+      maxTokens: model.maxTokens,
+      tools: input.tools,
+      lastConfirmedOpId: input.lastConfirmedOpId,
+    }, signal);
+    this.sessionToolSignatures.set(asStableId(result.sessionId), toolSetSignature(input.tools));
+    return Object.freeze({ remoteSessionId: asStableId(result.sessionId), capabilities: await this.capabilities(input.model) });
+  }
+  async inspect(remoteSessionId: StableId): Promise<BackendRemoteSessionInspectionV1> {
+    this.assertActive();
+    const value = await this.options.transport.inspectSession(remoteSessionId);
+    return value.state === 'available'
+      ? Object.freeze({ state: 'available', remoteSessionId: asStableId(value.sessionId), model: value.model, lastConfirmedOpId: value.lastConfirmedOpId ? asStableId(value.lastConfirmedOpId) : null })
+      : Object.freeze({ state: 'missing', remoteSessionId: asStableId(value.sessionId), diagnostic: Object.freeze({ ...value.diagnostic }) });
+  }
+  async confirmBoundary(remoteSessionId: StableId, lastConfirmedOpId: StableId): Promise<void> {
+    this.assertActive(); await this.options.transport.confirmSessionBoundary(remoteSessionId, lastConfirmedOpId);
+  }
+  async compact(remoteSessionId: StableId, _request: CompactionSummaryRequestV1): Promise<BackendNativeCompactionResultV1> {
+    this.assertActive(); const result = await this.options.transport.compactSession(remoteSessionId);
+    return Object.freeze({ status: 'unavailable', diagnostic: Object.freeze({ ...result.diagnostic }) });
+  }
+  async detach(remoteSessionId: StableId): Promise<void> { this.assertActive(); await this.options.transport.closeSession(remoteSessionId); this.sessionToolSignatures.delete(remoteSessionId); }
   startTurn(input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> { this.assertActive(); const channel = new TurnChannel(); void this.run(input, channel, signal); return channel.stream(); }
   resumeTurn(_sessionId: StableId, turnId: StableId): AsyncIterable<AgentBackendEvent> { this.assertActive(); const channel = this.turns.get(turnId); if (!channel) throw new AgentBackendProtocolError('agent.resume-missing', `Harness turn ${turnId} is unavailable.`); return channel.stream(); }
   async submitToolResult(toolCallId: StableId, result: JsonObject, signal?: AbortSignal): Promise<void> { this.assertActive(); await this.options.transport.submitToolResult(toolCallId, result, signal); }

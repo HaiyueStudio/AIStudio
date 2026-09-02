@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { defineEditorAppDescriptor } from '@haiyue/editor-app-kit';
-import { asStableId, defineStudioPlugin, type JsonObject, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
+import { asStableId, defineStudioPlugin, type JsonObject, type JsonValue, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import {
   createProjectWorkspacePlugin,
   createSceneAuthoringPlugins,
@@ -26,9 +26,11 @@ import {
 } from './ipc.js';
 import { AgentPreviewBroker } from './agent-preview-broker.js';
 import { StudioConversationHost } from './conversation-host.js';
+import { RecoveryClaimStore, StudioSessionOrchestrator } from './session-orchestrator/index.js';
 import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
 import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
 import { installStdioErrorGuards } from './stdio-safety.js';
+import { StudioKnowledgeSourceLoader } from './knowledge-source-loader.js';
 
 const descriptor = defineEditorAppDescriptor({
   schemaVersion: 1,
@@ -106,25 +108,32 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       const scripts = context.services.get(scriptPreviewServiceToken);
       const agentRuntime = context.services.get(agentRuntimeServiceToken);
       const gameTools = context.services.get(gameAuthoringToolServiceToken);
+      const knowledgeSources = new StudioKnowledgeSourceLoader(agentRuntime.knowledge, workspace);
+      await knowledgeSources.initialize().catch(async (cause) => {
+        await operationLog.append({ kind: 'knowledge/initialization-degraded', severity: 'warning', source: asStableId('studio.electron'), correlation: {}, payload: { message: errorMessage(cause), fallback: 'exact-context' } }).catch(() => undefined);
+      });
+      const sessionRecovery = new StudioSessionOrchestrator(workspace, operationLog, new RecoveryClaimStore(path.join(app.getPath('userData'), 'operation-log', 'recovery-claims')));
       const conversation = new StudioConversationHost({
         runtime: agentRuntime,
         tools: gameTools,
         operationLog,
+        sessionRecovery,
         isProjectOpen: () => workspace.snapshot().document !== null,
         projectContext: () => {
           const project = workspace.snapshot().document;
           if (!project) return null;
-          const sceneSnapshot = scene.snapshot();
-          const scriptSnapshot = scripts.snapshot();
           return Object.freeze({
             projectId: project.projectId, documentId: project.documentId, revision: project.revision,
             manifest: Object.freeze({
-              schemaVersion: 1, project: Object.freeze({ id: project.projectId, documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.dirty, settings: project.settings }),
-              scene: Object.freeze({ schemaVersion: sceneSnapshot.schemaVersion, revision: sceneSnapshot.revision, entities: Object.freeze(sceneSnapshot.entities.slice(0, 128).map((entity) => Object.freeze({ ...entity }))), truncated: sceneSnapshot.entities.length > 128 }),
-              scripts: Object.freeze({ schemaVersion: scriptSnapshot.schemaVersion, documentRevision: scriptSnapshot.documentRevision, resources: Object.freeze(scriptSnapshot.resources.slice(0, 16).map((script) => Object.freeze({ id: script.id, entityId: script.entityId, name: script.name, textRevision: script.textRevision, dirty: script.dirty, text: script.text.slice(0, 2_048), truncated: script.text.length > 2_048 }))), truncated: scriptSnapshot.resources.length > 16 }),
+              schemaVersion: 1, project: Object.freeze({ id: project.projectId, documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.dirty, counts: project.counts, registryDigest: project.registryDigest }),
             }) as unknown as JsonObject,
+            exact: Object.freeze({
+              query: ({ revision, request }: { revision: number; request: JsonObject }) => workspace.queryScene({ ...request, revision } as never) as unknown as JsonValue,
+              diff: ({ fromRevision, toRevision, request }: { fromRevision: number; toRevision: number; request: JsonObject }) => workspace.diffScene({ ...request, fromRevision, toRevision } as never) as unknown as JsonValue,
+            }),
           });
         },
+        prepareKnowledge: (project, signal) => knowledgeSources.refresh(project, signal),
         async openLoginHandoff(_backendId, handoff) {
           if (handoff.url) {
             const url = new URL(handoff.url);

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "snake",
+      "toolIds": ["scene.get-many", "history.query", "transform.batch", "camera.author", "component.configure", "play.input", "play.inspect", "play.capture", "task.evaluate"],
+      "componentTypes": ["haiyue.input.action-map", "haiyue.interaction.pointer", "haiyue.camera.3d", "haiyue.gameplay.state", "haiyue.gameplay.timers", "haiyue.gameplay.pool", "haiyue.gameplay.rules", "haiyue.ui.hud"],
+      "capabilities": ["bounded-board-layout", "top-down-camera", "keyboard-touch-input", "fixed-step-movement", "food-trigger", "score-and-length-state", "state-screenshot-evaluation"]
+    },
+    {
+      "id": "match-3",
+      "toolIds": ["scene.get-many", "entity.hierarchy", "prefab.manage", "transform.batch", "component.configure", "asset.dependencies", "play.input", "play.inspect", "play.capture", "task.evaluate"],
+      "componentTypes": ["haiyue.interaction.pointer", "haiyue.animation.state", "haiyue.particles.2d", "haiyue.gameplay.state", "haiyue.gameplay.timers", "haiyue.gameplay.pool", "haiyue.gameplay.rules", "haiyue.ui.hud"],
+      "capabilities": ["grid-layout", "pointer-selection", "swap-and-match-trigger", "pool-refill", "animation-state", "score-hud", "visual-evaluation"]
+    },
+    {
+      "id": "tetris",
+      "toolIds": ["scene.get-many", "history.query", "prefab.manage", "transform.batch", "component.configure", "play.input", "play.inspect", "play.capture", "task.evaluate"],
+      "componentTypes": ["haiyue.input.action-map", "haiyue.simulation.settings", "haiyue.render.profile", "haiyue.gameplay.state", "haiyue.gameplay.timers", "haiyue.gameplay.pool", "haiyue.gameplay.rules", "haiyue.ui.hud"],
+      "capabilities": ["instance-layout", "held-soft-drop", "fixed-step-gravity", "line-clear-trigger", "score-and-speed-state", "restart-reset", "state-screenshot-evaluation"]
+    },
+    {
+      "id": "jigsaw",
+      "toolIds": ["entity.hierarchy", "prefab.manage", "transform.batch", "component.configure", "asset.dependencies", "play.input", "play.inspect", "play.capture", "task.evaluate"],
+      "componentTypes": ["haiyue.interaction.pointer", "haiyue.asset.reference", "haiyue.animation.state", "haiyue.gameplay.state", "haiyue.gameplay.rules", "haiyue.ui.hud"],
+      "capabilities": ["drag-interaction", "snap-layout", "asset-provenance", "piece-placement-trigger", "completion-state", "completion-evaluation"]
+    },
+    {
+      "id": "platformer",
+      "toolIds": ["entity.hierarchy", "prefab.manage", "transform.batch", "camera.author", "component.configure", "play.input", "play.physics-query", "play.inspect", "play.capture", "task.evaluate"],
+      "componentTypes": ["haiyue.physics.world.2d", "haiyue.physics.rigidbody.2d", "haiyue.physics.collider.2d", "haiyue.gameplay.character", "haiyue.gameplay.ground-probe", "haiyue.gameplay.state", "haiyue.gameplay.timers", "haiyue.gameplay.rules", "haiyue.ui.hud", "haiyue.audio.listener"],
+      "capabilities": ["collision", "grounding", "character-control", "camera-follow", "checkpoint-trigger", "health-state", "physics-and-screenshot-evaluation"]
+    },
+    {
+      "id": "racing",
+      "toolIds": ["prefab.manage", "transform.batch", "camera.author", "component.configure", "asset.dependencies", "play.input", "play.physics-query", "play.inspect", "play.capture", "task.evaluate"],
+      "componentTypes": ["haiyue.physics.world.3d", "haiyue.physics.rigidbody.3d", "haiyue.physics.collider.3d", "haiyue.camera.follow", "haiyue.gameplay.state", "haiyue.gameplay.timers", "haiyue.gameplay.rules", "haiyue.ui.hud", "haiyue.audio.source", "haiyue.audio.listener"],
+      "capabilities": ["vehicle-body", "track-layout", "follow-camera", "lap-checkpoint-trigger", "timer-and-score-hud", "audio-feedback", "physics-and-screenshot-evaluation"]
+    },
+    {
+      "id": "shooter",
+      "toolIds": ["scene.get-many", "prefab.manage", "camera.author", "component.configure", "asset.dependencies", "play.input", "play.physics-query", "play.inspect", "play.capture", "task.evaluate"],
+      "componentTypes": ["haiyue.input.action-map", "haiyue.interaction.pointer", "haiyue.physics.collider.3d", "haiyue.particles.3d", "haiyue.gameplay.state", "haiyue.gameplay.pool", "haiyue.gameplay.rules", "haiyue.ui.hud", "haiyue.audio.source", "haiyue.audio.listener"],
+      "capabilities": ["aim-input", "ray-query", "projectile-pool", "hit-trigger", "health-and-score-hud", "combat-feedback", "physics-and-screenshot-evaluation"]
+    }
+  ]
+}

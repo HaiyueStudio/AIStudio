@@ -15,6 +15,9 @@ const array = (length: number, item: JsonObject = number()): JsonObject => ({ ty
 const object = (properties: JsonObject, required: readonly string[]): JsonObject => ({ type: 'object', additionalProperties: false, properties, required: [...required] });
 const vec3 = (): JsonObject => object({ x: number(), y: number(), z: number() }, ['x', 'y', 'z']);
 const transform = (): JsonObject => object({ position: vec3(), rotationDegrees: vec3(), scale: vec3() }, ['position', 'rotationDegrees', 'scale']);
+const stableName = (maximum = 95): JsonObject => ({ type: 'string', pattern: `^[A-Za-z][A-Za-z0-9._:-]{0,${maximum}}$` });
+const boundedText = (maximum: number): JsonObject => ({ type: 'string', pattern: `^[\\s\\S]{0,${maximum}}$` });
+const hexColor = (): JsonObject => ({ type: 'string', pattern: '^#[0-9A-Fa-f]{3,8}$' });
 
 function definition(
   type: string,
@@ -97,4 +100,43 @@ export const G08_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = Objec
   definition('haiyue.asset.reference', 'asset.import', 'data', 'low', 'Asset Reference', 'Assets', null,
     object({ assetId: { type: 'string', pattern: '^asset:[A-Za-z0-9._:-]{3,120}$' }, usage: { enum: ['texture.base-color', 'texture.metallic-roughness', 'texture.normal', 'texture.occlusion', 'texture.emissive', 'texture.environment-diffuse', 'texture.environment-specular', 'model', 'audio', 'animation'] } }, ['assetId', 'usage']),
     { assetId: 'asset:unbound-reference', usage: 'texture.base-color' }),
+  definition('haiyue.gameplay.state', 'play.inspect', 'runtime-owner', 'low', 'Gameplay State', 'Gameplay', 'adapter.gameplay.state-observation',
+    object({
+      observationId: stableName(63), state: stableName(95), score: number(-1_000_000_000, 1_000_000_000), health: number(-1_000_000_000, 1_000_000_000), maxHealth: number(0, 1_000_000_000), checkpoint: boundedText(256),
+      counters: { type: 'array', maxItems: 64, items: object({ id: stableName(63), value: number(-1_000_000_000, 1_000_000_000) }, ['id', 'value']) },
+      flags: { type: 'array', maxItems: 64, items: object({ id: stableName(63), value: { type: 'boolean' } }, ['id', 'value']) },
+      events: { type: 'array', maxItems: 64, items: object({ id: stableName(63), value: boundedText(512) }, ['id', 'value']) },
+    }, ['observationId', 'state', 'score', 'health', 'maxHealth', 'checkpoint', 'counters', 'flags', 'events']),
+    { observationId: 'gameplay', state: 'ready', score: 0, health: 1, maxHealth: 1, checkpoint: '', counters: [], flags: [], events: [] }),
+  definition('haiyue.gameplay.timers', 'simulation.fixed-step', 'runtime-owner', 'low', 'Gameplay Timers', 'Gameplay', 'adapter.gameplay.timers',
+    object({
+      observationId: stableName(63),
+      timers: { type: 'array', minItems: 1, maxItems: 32, items: object({ id: stableName(63), durationTicks: integer(1, 10_000_000), startDelayTicks: integer(0, 10_000_000), repeat: { type: 'boolean' }, running: { type: 'boolean' }, event: stableName(63) }, ['id', 'durationTicks', 'startDelayTicks', 'repeat', 'running', 'event']) },
+    }, ['observationId', 'timers']),
+    { observationId: 'timers', timers: [{ id: 'round', durationTicks: 3_600, startDelayTicks: 0, repeat: false, running: true, event: 'round-ended' }] }),
+  definition('haiyue.gameplay.pool', 'prefab', 'runtime-owner', 'medium', 'Gameplay Spawn Pool', 'Gameplay', 'adapter.gameplay.instance-pool',
+    object({
+      observationId: stableName(63), templateEntityId: { type: 'string', pattern: '^entity:[A-Za-z0-9._:-]{3,120}$' }, capacity: integer(1, 4_096), activeCount: integer(0, 4_096),
+      spawns: { type: 'array', minItems: 1, maxItems: 128, items: object({ position: vec3(), rotationDegrees: vec3(), scale: vec3(), color: array(4, number(0, 1)) }, ['position', 'rotationDegrees', 'scale', 'color']) },
+    }, ['observationId', 'templateEntityId', 'capacity', 'activeCount', 'spawns']),
+    { observationId: 'pool', templateEntityId: 'entity:unbound', capacity: 1, activeCount: 0, spawns: [{ position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, color: [1, 1, 1, 1] }] }),
+  definition('haiyue.gameplay.rules', 'simulation.fixed-step', 'runtime-owner', 'medium', 'Gameplay Rules', 'Gameplay', 'adapter.gameplay.rules',
+    object({ rules: { type: 'array', maxItems: 128, items: object({
+      id: stableName(63), once: { type: 'boolean' },
+      when: object({ source: { enum: ['input-pressed', 'input-held', 'timer-event', 'collision', 'trigger'] }, value: stableName(95), entityAId: { type: 'string', pattern: '^(|entity:[A-Za-z0-9._:-]{3,120})$' }, entityBId: { type: 'string', pattern: '^(|entity:[A-Za-z0-9._:-]{3,120})$' }, phase: { enum: ['enter', 'stay', 'exit'] } }, ['source', 'value', 'entityAId', 'entityBId', 'phase']),
+      actions: { type: 'array', minItems: 1, maxItems: 16, items: object({ kind: { enum: ['set-state', 'add-score', 'set-health', 'add-health', 'set-checkpoint', 'set-counter', 'add-counter', 'set-flag', 'emit-event', 'set-pool-count'] }, targetObservationId: stableName(63), key: { type: 'string', pattern: '^(|[A-Za-z][A-Za-z0-9._:-]{0,95})$' }, numberValue: number(-1_000_000_000, 1_000_000_000), textValue: boundedText(512), booleanValue: { type: 'boolean' } }, ['kind', 'targetObservationId', 'key', 'numberValue', 'textValue', 'booleanValue']) },
+    }, ['id', 'once', 'when', 'actions']) } }, ['rules']),
+    { rules: [] }),
+  definition('haiyue.ui.hud', 'play.capture', 'runtime-owner', 'low', 'HUD Layout', 'UI', 'adapter.ui.hud',
+    object({
+      items: { type: 'array', minItems: 1, maxItems: 32, items: object({
+        id: stableName(63), kind: { enum: ['text', 'image', 'button'] }, text: boundedText(512), assetId: { type: 'string', pattern: '^(|asset:[A-Za-z0-9._:-]{3,120})$' }, action: { type: 'string', pattern: '^(|[A-Za-z][A-Za-z0-9._:-]{0,95})$' },
+        position: { enum: ['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'] }, offsetX: number(-2_048, 2_048), offsetY: number(-2_048, 2_048),
+        color: hexColor(), backgroundColor: hexColor(), fontSize: number(8, 96), width: number(1, 2_048), height: number(1, 2_048), visible: { type: 'boolean' },
+      }, ['id', 'kind', 'text', 'assetId', 'action', 'position', 'offsetX', 'offsetY', 'color', 'backgroundColor', 'fontSize', 'width', 'height', 'visible']) },
+    }, ['items']),
+    { items: [{ id: 'score', kind: 'text', text: 'Score: 0', assetId: '', action: '', position: 'top-left', offsetX: 0, offsetY: 0, color: '#ffffff', backgroundColor: '#111111aa', fontSize: 22, width: 180, height: 44, visible: true }] }),
+  definition('haiyue.audio.listener', 'audio.playback', 'audio-owner', 'medium', 'Audio Listener', 'Audio', 'adapter.audio.listener',
+    object({ active: { type: 'boolean' }, spatial: { type: 'boolean' }, masterGain: number(0, 1), dopplerFactor: number(0, 10), speedOfSound: number(1, 100_000) }, ['active', 'spatial', 'masterGain', 'dopplerFactor', 'speedOfSound']),
+    { active: true, spatial: true, masterGain: 1, dopplerFactor: 1, speedOfSound: 343.3 }),
 ]);

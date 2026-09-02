@@ -75,6 +75,8 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
     assert.match(studioDeclarations, /isDown\(action: string\): boolean/);
     assert.match(studioDeclarations, /pointerEvents\(\): readonly HaiyueStudioPointerEvent\[\]/);
     assert.match(studioDeclarations, /hudText\(id: string, text: string/);
+    assert.match(studioDeclarations, /observe\(id: string, value: unknown\)/);
+    assert.match(studioDeclarations, /removeObservation\(id: string\)/);
     const inferredScene = await worker.validate({
       scriptId, textRevision: 6, sourcePath: 'scripts/test.ts', capabilities: ['read', 'input', 'debug'],
       text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
