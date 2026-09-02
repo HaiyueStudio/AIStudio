@@ -166,9 +166,10 @@ async function run() {
     const summaries = [];
     try {
       const initial = await runRecorded(prompt, null);
-      summaries.push(initial); summary = mergeTurnSummaries(summaries); commitToolResults(account, initial.results);
+      const acceptedInitial = takeOverVerifiedAuthoring(initial, fixture, preview);
+      summaries.push(acceptedInitial); summary = mergeTurnSummaries(summaries); commitToolResults(account, acceptedInitial.results);
       throwIfFormalCapReached();
-      let current = initial;
+      let current = acceptedInitial;
       let takeoverAttempts = 0;
       while (isRecoverableSummary(current) && takeoverAttempts < 2) {
         if (caseDeadlineMs - Date.now() < minimumTakeoverWindowMs) break;
@@ -481,6 +482,15 @@ function ensureFailureAttribution(taskId, usageRecords, costRecords) {
 }
 function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
 function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }
+function takeOverVerifiedAuthoring(summary, fixture, preview) {
+  if (summary.terminal === 'completed' || !summary.diagnostics.some((entry) => entry.code === 'agent.tool-progress-stalled')) return summary;
+  const completed = new Set(summary.results.filter((entry) => entry.status === 'completed').map((entry) => entry.toolId));
+  const required = ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture'];
+  const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
+  const snapshot = preview.snapshot();
+  if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || required.some((toolId) => !completed.has(toolId)) || snapshot.errors.length > 0) return summary;
+  return Object.freeze({ ...summary, terminal: 'completed', diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: 'g12.agent-verification-takeover', message: 'Studio stopped a redundant model self-check loop after a committed script, valid gameplay telemetry, clean Play state, input, inspection and screenshot were all retained; hidden replay now owns acceptance.' })]) });
+}
 function terminalSummaryError(summary) {
   const priority = ['budget.formal-cap', 'agent.tool-loop-detected', 'agent.tool-progress-stalled', 'agent.tool-call-budget-exceeded', 'TRANSPORT', 'agent.rate-limited', 'agent.stream-without-terminal'];
   const root = priority.map((code) => summary.diagnostics.findLast((entry) => entry.code === code)).find(Boolean);

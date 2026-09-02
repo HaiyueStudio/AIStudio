@@ -38,6 +38,10 @@ test('terminal status aliases are normalized but HUD text is never treated as a 
   assert.equal(tracker.tickFor('terminal-state'), 7);
   assert.equal(tracker.tickFor('board-settled'), 7);
   assert.equal(tracker.tickFor('game-over'), null);
+
+  tracker.observe({ tick: 8, value: { gameplay: [{ value: { state: 'gameover' } }] } });
+  assert.equal(tracker.tickFor('game-over'), 8);
+  assert.equal(tracker.tickFor('terminal-state'), 7);
 });
 
 function previewControl(options = {}) {

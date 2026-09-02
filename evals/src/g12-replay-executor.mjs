@@ -130,7 +130,7 @@ function signals(value) {
 }
 
 function aliases(value) {
-  if (['game-over', 'failed', 'failure', 'defeat', 'lost'].includes(value)) return ['game-over', 'terminal-state'];
+  if (['gameover', 'game-over', 'failed', 'failure', 'defeat', 'lost'].includes(value)) return ['game-over', 'terminal-state'];
   if (['complete', 'completed', 'victory', 'won', 'win'].includes(value)) return ['complete', 'terminal-state'];
   if (value === 'respawned') return ['respawn'];
   return [];

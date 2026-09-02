@@ -72,6 +72,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /isRecoverableSummary/u);
   assert.match(source, /上一回合发生可重试的传输或流中断/u);
   assert.match(source, /minimumTakeoverWindowMs/u);
+  assert.match(source, /takeOverVerifiedAuthoring/u);
+  assert.match(source, /g12\.agent-verification-takeover/u);
+  for (const toolId of ['preview.validate', 'play.start', 'play.step', 'play.input', 'play.inspect', 'play.capture']) assert.match(source, new RegExp(`'${toolId.replace('.', '\\.')}'`, 'u'));
   assert.match(source, /caseDeadlineMs - Date\.now\(\) < minimumTakeoverWindowMs/u);
   assert.match(source, /diagnostics: summary\?\.diagnostics/u);
   assert.match(source, /script\.propose.*script\.apply/u);
