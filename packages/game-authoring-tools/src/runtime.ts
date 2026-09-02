@@ -417,6 +417,36 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
       }
       return result(`Create ${transactionEntityLabel(kind)}`, operations, (revision) => Object.freeze({ entity: entitySummary(requireEntity(options.scene.snapshot(), id)), revision }));
     }
+    case 'entity.create-many': {
+      const items = args.entities as readonly JsonObject[];
+      const ids: StableId[] = [];
+      const operations: GameDocumentOperationV2[] = [];
+      for (const [index, item] of items.entries()) {
+        const entry = item as Record<string, JsonValue>;
+        const kind = entry.kind as SceneEntityKind;
+        const parentId = 'parentId' in entry ? entry.parentId as StableId | null : null;
+        if (parentId) requireEntity(scene, parentId);
+        const parentKey = parentId ?? '';
+        const offset = planning.createOffsets.get(parentKey) ?? 0; planning.createOffsets.set(parentKey, offset + 1);
+        const itemCallId = asStableId(`toolcall:create-many:${sha256(`${stored.call.id}:${index}`).slice(0, 24)}`);
+        const id = transactionGeneratedId('entity', itemCallId); ids.push(id);
+        const name = typeof entry.name === 'string' ? entry.name : transactionEntityLabel(kind);
+        const transform = (entry.transform ?? DEFAULT_TRANSACTION_TRANSFORM) as unknown as TransformSnapshot;
+        operations.push(
+          { op: 'entity.add', entity: { id, sceneId: options.workspace.primarySceneId(), name, parentId, order: scene.entities.filter((candidate) => candidate.parentId === parentId).length + offset, componentIds: [] } },
+          { op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-transform', itemCallId), type: asStableId('haiyue.transform.3d'), version: '1.0.0', value: transform as unknown as JsonObject }) },
+        );
+        if (isSceneGeometryKind(kind)) {
+          const appearance = Object.freeze({ material: (entry.material ?? 'basic') as string, color: (entry.color ?? DEFAULT_TRANSACTION_COLOR) as JsonValue }) as unknown as JsonObject;
+          operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', itemCallId), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind } }) });
+          operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-material', itemCallId), type: asStableId('haiyue.render.material'), version: '1.0.0', value: appearance }) });
+        } else if (kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light') {
+          const type = kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient';
+          operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-light', itemCallId), type: asStableId(type), version: '1.0.0', value: transactionDefaultLight(kind) }) });
+        }
+      }
+      return result(`Create ${items.length} Scene Entities`, operations, (revision) => Object.freeze({ entities: Object.freeze(ids.map((id) => entitySummary(requireEntity(options.scene.snapshot(), id)))), count: ids.length, revision }));
+    }
     case 'entity.rename': {
       const entityId = args.entityId as StableId; const name = args.name as string;
       requireEntity(scene, entityId);
@@ -964,7 +994,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const next = await options.scene.renameEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, name: args.name as string }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
-    case 'camera.author': case 'entity.hierarchy': case 'prefab.manage': case 'transform.batch': case 'component.configure': {
+    case 'camera.author': case 'entity.create-many': case 'entity.hierarchy': case 'prefab.manage': case 'transform.batch': case 'component.configure': {
       const planning: TransactionPlanningContext = { createOffsets: new Map<string, number>() };
       const plan = await planReversibleTransactionMember(stored, options, planning, signal);
       const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: plan.label, baseRevision: args.baseRevision as number, operations: plan.operations }, signal);
@@ -1190,6 +1220,19 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       if (raw.material !== undefined && !isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.');
       if ((raw.material !== undefined || raw.color !== undefined) && !isSceneGeometryKind(raw.kind)) throw invalid('Only geometry entities can select a material appearance.');
       return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
+    }
+    case 'entity.create-many': {
+      exact(raw, ['entities'], ['baseRevision'], toolId);
+      if (!Array.isArray(raw.entities) || raw.entities.length < 1 || raw.entities.length > 32) throw invalid('entity.create-many entities must contain 1-32 items.');
+      const entities = raw.entities.map((item, index) => {
+        if (!isRecord(item)) throw invalid(`entity.create-many entities[${index}] must be an object.`);
+        exact(item, ['kind'], ['name', 'parentId', 'material', 'color', 'transform'], `entity.create-many entities[${index}]`);
+        if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(item.kind))) throw invalid(`entity.create-many entities[${index}] kind is invalid.`);
+        if (item.material !== undefined && !isSceneMaterialKind(item.material)) throw invalid(`entity.create-many entities[${index}] material is invalid.`);
+        if ((item.material !== undefined || item.color !== undefined) && !isSceneGeometryKind(item.kind)) throw invalid('Only geometry entities can select a material appearance.');
+        return Object.freeze({ kind: item.kind as JsonValue, ...(item.name === undefined ? {} : { name: boundedString(item.name, `entities[${index}].name`, 80, true) }), ...(item.parentId === undefined ? {} : { parentId: item.parentId === null ? null : stable(item.parentId, `entities[${index}].parentId`) }), ...(item.material === undefined ? {} : { material: item.material as JsonValue }), ...(item.color === undefined ? {} : { color: normalizeMaterialColor(item.color) as unknown as JsonValue }), ...(item.transform === undefined ? {} : { transform: normalizeTransform(item.transform) as unknown as JsonValue }) });
+      });
+      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entities: Object.freeze(entities) });
     }
     case 'entity.rename': exact(raw, ['entityId', 'name'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
     case 'entity.hierarchy': return normalizeEntityHierarchyArguments(raw, currentRevision);
@@ -1484,6 +1527,7 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
     case 'camera.set': return preview('Set camera', snapshot.documentId, 'Replace the main project camera for authoring and game preview.', canonicalStringify(raw.camera as JsonObject));
     case 'camera.author': return preview('Author gameplay camera', String(raw.entityId ?? raw.targetEntityId ?? snapshot.documentId), `${raw.action} gameplay camera state through one recoverable operation.`, `${raw.action}${raw.projection ? ` · ${raw.projection}` : ''}${raw.viewport ? ` · ${canonicalStringify(raw.viewport as JsonObject)}` : ''}`);
     case 'entity.create': return preview('Create entity', snapshot.documentId, `Create ${raw.kind}${raw.name ? ` named ${raw.name}` : ''}.`, `+ ${raw.kind} ${raw.name ?? ''}`.trim());
+    case 'entity.create-many': { const count = Array.isArray(raw.entities) ? raw.entities.length : 0; return preview('Create scene entities', snapshot.documentId, `Create ${count} scene entities atomically in one document revision.`, `+ ${count} scene entities`); }
     case 'entity.rename': { const entity = requireEntity(snapshot, raw.entityId as StableId); return preview('Rename entity', entity.id, `Rename ${entity.name} to ${raw.name}.`, `- ${entity.name}\n+ ${raw.name}`); }
     case 'entity.hierarchy': {
       const entity = requireEntity(snapshot, raw.entityId as StableId); const action = String(raw.action);
@@ -1642,7 +1686,7 @@ function assetBinding(usage: AssetUsage, assetId: StableId): Readonly<{ type: St
 function isPbrTextureUsage(usage: AssetUsage): boolean { return ['texture.base-color', 'texture.metallic-roughness', 'texture.normal', 'texture.occlusion', 'texture.emissive'].includes(usage); }
 function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number], includeComponents = true): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(includeComponents && entity.components ? { components: entity.components as unknown as JsonValue } : {}), ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
-function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;
   return Object.freeze({

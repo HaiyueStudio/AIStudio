@@ -25,8 +25,8 @@ const faultInjection = args['fault-injection'] ? required(args['fault-injection'
 if (faultInjection && evidenceClass !== 'preflight') throw new Error('--fault-injection is restricted to preflight evidence.');
 const caseWallTimeMs = args['case-wall-time-ms'] ? positiveInteger(args['case-wall-time-ms'], 'case-wall-time-ms') : 15 * 60_000;
 const G12_AUTHORING_TOOL_IDS = Object.freeze([
-  'project.snapshot', 'engine.capabilities.describe', 'component.describe', 'component.get', 'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'diagnostics.query',
-  'camera.set', 'entity.create', 'entity.rename', 'transform.set', 'material.set', 'component.add', 'component.set', 'component.remove', 'script.propose', 'script.apply',
+  'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search', 'engine.capabilities.describe', 'component.describe', 'component.get', 'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query',
+  'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set', 'component.add', 'component.set', 'component.remove', 'component.configure', 'script.propose', 'script.patch', 'script.apply',
   'preview.validate', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.inspect', 'play.capture',
 ]);
 const minimumTakeoverWindowMs = 2 * 60_000;

@@ -4,6 +4,10 @@ import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import path from 'node:path';
 import { StudioConversationHost } from '../../dist/conversation-host.js';
 
+// This process exercises durable barrier recovery only and owns no BrowserWindow.
+// Avoid coupling the restart invariant to availability of the host GPU sandbox.
+app.disableHardwareAcceleration();
+
 const root = process.env.HAIYUE_G07_BARRIER_ROOT;
 const phase = process.env.HAIYUE_G07_BARRIER_PHASE;
 if (!root || !['seed', 'recover'].includes(phase)) throw new Error('HAIYUE_G07_BARRIER_ROOT and a valid phase are required.');

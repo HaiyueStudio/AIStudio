@@ -54,13 +54,15 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /account\.bindTurn\(event\.turnId/u);
   assert.match(source, /account\.commitTool\(asStableId\(event\.payload\.toolCallId\)\)/u);
   assert.match(source, /reconcileLiveUsage/u);
-  assert.match(source, /budget\.hard-stop/u);
+  assert.match(source, /budget\.formal-cap/u);
+  assert.match(source, /if \(formalCapError\) throw formalCapError/u);
+  assert.doesNotMatch(source, /controller\.abort\(errorWithCode\('budget\.formal-cap'/u);
   assert.match(source, /g12\.script-not-created/u);
   assert.match(source, /inspectG12GameplayContract/u);
   assert.match(source, /maxModelToolResultBytes/u);
   assert.match(source, /modelToolIds: G12_AUTHORING_TOOL_IDS/u);
   assert.match(source, /backendKind === 'harness' \? 80 : 120/u);
-  assert.match(source, /inputTokens: harness \? 1_000_000 : 2_000_000/u);
+  assert.match(source, /taskBudgetInitialTranche\(\).*inputTokens: 1_000_000.*inputTokens: 2_000_000/u);
   assert.match(source, /g12\.replay-runtime-error.*g12\.replay-trigger-timeout/su);
   assert.match(source, /Generated scripts failed during actual Play startup/u);
   assert.match(source, /capturePage\(\)/u);

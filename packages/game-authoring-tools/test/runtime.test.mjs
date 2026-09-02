@@ -25,7 +25,7 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
     'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search', 'engine.capabilities.describe', 'component.describe', 'component.get',
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
-    'camera.set', 'camera.author', 'entity.create', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
+    'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
     'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
@@ -41,6 +41,25 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
   );
   assert.doesNotMatch(JSON.stringify(GAME_AUTHORING_TOOL_DEFINITIONS), /shell|network|filesystem|package|git/i);
   assert.equal(GAME_AUTHORING_TOOL_DEFINITIONS.some((item) => item.id === 'project.delete'), false);
+});
+
+test('entity.create-many creates mixed scene roles in one revision and rejects material on non-geometry', async () => {
+  const value = await fixture();
+  try {
+    const created = await approveAndExecute(value.runtime, call('call:create-many', 'entity.create-many', {
+      baseRevision: 1,
+      entities: [
+        { kind: 'plane', name: 'Board', material: 'basic', color: [0.08, 0.1, 0.16, 1], transform: { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 20, y: 1, z: 20 } } },
+        { kind: 'ambient-light', name: 'Fill', transform: { position: { x: 0, y: 4, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } } },
+        { kind: 'empty', name: 'Game Logic' },
+      ],
+    }));
+    assert.equal(created.beforeRevision, 1); assert.equal(created.afterRevision, 2);
+    assert.equal(created.value.entities.length, 3);
+    assert.equal(value.workspace.snapshot().history.entries.length, 1);
+    await assert.rejects(value.runtime.prepare(call('call:create-many-invalid', 'entity.create-many', { baseRevision: 2, entities: [{ kind: 'ambient-light', material: 'basic' }] })), /Only geometry entities/);
+    assert.equal(value.workspace.snapshot().document.revision, 2);
+  } finally { await dispose(value); }
 });
 
 test('camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically', async () => {
@@ -1108,7 +1127,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 46);
+      assert.equal(input.tools.length, 47);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -1133,7 +1152,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 46);
+      assert.equal(input.tools.length, 47);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');
