@@ -631,23 +631,26 @@ function takeOverVerifiedAuthoring(summary, fixture, preview) {
   if (summary.terminal === 'completed' || !summary.diagnostics.some((entry) => takeoverCodes.has(entry.code))) return summary;
   const completed = new Set(summary.results.filter((entry) => entry.status === 'completed').map((entry) => entry.toolId));
   const providerUnavailable = summary.diagnostics.some((entry) => entry.code === 'QUOTA');
-  const required = providerUnavailable ? [] : ['preview.validate', 'play.start', 'play.step', 'play.inspect'];
+  const hasPlayProof = providerUnavailable || hasAuthoringPlayProof(completed);
   const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
   const snapshot = preview.snapshot();
-  if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || required.some((toolId) => !completed.has(toolId)) || snapshot.errors.length > 0) return summary;
+  if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || !hasPlayProof || snapshot.errors.length > 0) return summary;
   const message = providerUnavailable
     ? 'Studio retained a committed script with valid gameplay telemetry before provider quota exhaustion; independent hidden Play now owns runtime validation, acceptance input and screenshots without another model request.'
-    : 'Studio stopped redundant model self-checks after retaining a committed script, valid gameplay telemetry, clean Play validation, fixed stepping and inspection; hidden replay now owns acceptance input and screenshots.';
+    : 'Studio stopped redundant model self-checks after retaining a committed script, valid gameplay telemetry, clean Play validation, fixed-step state and either an inspection or screenshot proof; hidden replay now owns acceptance input and screenshots.';
   return Object.freeze({ ...summary, terminal: 'completed', diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: 'g12.agent-verification-takeover', message })]) });
 }
 function readyForVerificationTakeover(events, fixture, preview) {
   const requested = new Set(events.filter((entry) => entry.kind === 'tool-request').map((entry) => entry.payload.toolId));
-  const required = ['preview.validate', 'play.start', 'play.step', 'play.inspect'];
   const snapshot = preview.snapshot();
   return enabledScriptCount(fixture.projectScripts.snapshot()) > 0
     && inspectG12GameplayContract(fixture.projectScripts.snapshot()).valid
-    && required.every((toolId) => requested.has(toolId))
+    && hasAuthoringPlayProof(requested)
     && snapshot.errors.length === 0;
+}
+function hasAuthoringPlayProof(toolIds) {
+  return ['preview.validate', 'play.start', 'play.step'].every((toolId) => toolIds.has(toolId))
+    && (toolIds.has('play.inspect') || toolIds.has('play.capture'));
 }
 function terminalSummaryError(summary) {
   const priority = ['budget.formal-cap', 'g12.agent-authoring-timebox-reached', 'g12.agent-verification-ready', 'agent.tool-loop-detected', 'agent.tool-progress-stalled', 'agent.tool-call-budget-exceeded', 'QUOTA', 'TRANSPORT', 'agent.rate-limited', 'agent.stream-without-terminal'];
