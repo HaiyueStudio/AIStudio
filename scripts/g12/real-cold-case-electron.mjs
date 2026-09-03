@@ -111,7 +111,7 @@ async function run() {
       preserveCompletedResultsOnCallerAbort: true,
       onCompletedToolResult: (result) => retainedToolResults.push(result),
     });
-    const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
+    const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 所有运行时配置值必须有确定的初始化路径；Play 自检必须推进足够的 fixed steps，并确认至少一个核心 gameplay 状态真实变化，不能只检查“无报错”。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
     const controller = new AbortController(); const authoringTimeboxError = errorWithCode('g12.agent-authoring-timebox-reached', 'Studio stopped model authoring at its bounded timebox and retained all completed work.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs; authoringTimer = setTimeout(() => controller.abort(authoringTimeboxError), Math.max(1, authoringDeadlineMs - Date.now()));
     const boundTurnIds = new Set();
     const liveTurnUsage = new Map();
@@ -247,20 +247,24 @@ async function run() {
     for (let repairAttempt = 0; repairAttempt < 2; repairAttempt += 1) {
       try { attempt = await executePreviewReplay({ fixture, preview, windowGuard, testCase, requireUsableVisual: repairAttempt === 0 }); break; }
       catch (cause) {
-        const repairable = cause?.code === 'g12.replay-runtime-error' || cause?.code === 'g12.replay-trigger-timeout' || cause?.code === 'g12.replay-visual-unusable';
+        const repairable = isRepairableReplayFailure(cause);
         if (cause?.replayAttempt) attempt = cause.replayAttempt;
         if (!repairable || repairAttempt > 0 || caseDeadlineMs - Date.now() < minimumTakeoverWindowMs) {
           if (attempt) { summary = withDiagnostic(summary, cause); break; }
           throw cause;
         }
         const runtimeErrors = safeValue(() => preview.snapshot().errors, []).slice(0, 8).map((entry) => ({ code: entry.code, line: entry.line, column: entry.column, message: entry.message }));
+        const replayObservation = await windowGuard.race(preview.inspect()).catch(() => null);
+        const replayDiagnostic = summarizeReplayObservation(replayObservation);
         await preview.stop().catch(() => undefined);
         account.repair(); account.beginTurn();
         const repairPrompt = cause?.code === 'g12.replay-runtime-error'
           ? `Studio 的实际固定步 Play 检测到生成脚本运行错误：${JSON.stringify(runtimeErrors)}。请读取已提交脚本和 diagnostics，修复根因，重新提交并运行 Play 验证。不要删除现有 gameplay telemetry。`
           : cause?.code === 'g12.replay-visual-unusable'
             ? `Studio 的同 tick PNG 像素检查发现游戏画面不可用：${cause.message}。请检查持久化相机、几何体位置/尺寸/朝向、深度遮挡和角色颜色，再修复场景。HaiYue plane 的局部平面是 XY；作为水平 XZ 地面时 rotationDegrees.x 必须为 -90。修复后重新 Play 并截图确认主要玩法角色和 HUD 都实际可见。`
-            : 'Studio 的黑盒固定步 Play 检测到某个实际发生的权威状态转换没有通过通用 gameplay telemetry 发布。请检查所有交互接受/拒绝、动作结算、碰撞/恢复、计分和终局转换，在转换发生的 tick 将稳定 lower-kebab-case 名称加入 events/triggers，并重新提交和运行 Play。隐藏验收名称不可用，请从游戏规则和实际状态机推导。';
+            : cause?.code === 'g12.replay-trigger-timeout'
+              ? 'Studio 的黑盒固定步 Play 检测到某个实际发生的权威状态转换没有通过通用 gameplay telemetry 发布。请检查所有交互接受/拒绝、动作结算、碰撞/恢复、计分和终局转换，在转换发生的 tick 将稳定 lower-kebab-case 名称加入 events/triggers，并重新提交和运行 Play。隐藏验收名称不可用，请从游戏规则和实际状态机推导。'
+              : `Studio 的黑盒 fixed-step Play 发现游戏规则没有按输入推进：${cause instanceof Error ? cause.message : String(cause)}。末次权威状态摘要：${JSON.stringify(replayDiagnostic)}。请读取已提交脚本，重点检查所有更新循环使用的计时/间隔/速度字段是否确实初始化、输入 action 是否驱动 lifecycle，以及足够步进后核心状态是否真实变化；修复根因后重新提交并用 Play 输入、步进、检查验证。不要伪造 telemetry，也不要依赖隐藏验收名称。`;
         let repair;
         try { repair = await runRecorded(repairPrompt, null); }
         catch (repairCause) {
@@ -530,6 +534,23 @@ function taskBudget(testCase) { const harness = backendKind === 'harness'; const
 function taskBudgetInitialTranche() { return backendKind === 'harness' ? Object.freeze({ inputTokens: 1_000_000, outputTokens: 120_000, toolCalls: 80 }) : Object.freeze({ inputTokens: 2_000_000, outputTokens: 250_000, toolCalls: 120 }); }
 function chooseModel(models) { const requested = args.model && models.find((entry) => entry.id === args.model); const priced = models.find((entry) => M12_DEFAULT_PRICING_CATALOG.entries.some((price) => price.model === entry.id)); return requested ?? models.find((entry) => entry.isDefault) ?? priced ?? models[0]; }
 function gameplaySignals(observation) { const output = {}; for (const record of observation.value.gameplay ?? []) flatten(record.value, '', output); return output; }
+function isRepairableReplayFailure(cause) {
+  const code = typeof cause?.code === 'string' ? cause.code : '';
+  if (code === 'g12.replay-runtime-error' || code === 'g12.replay-trigger-timeout' || code === 'g12.replay-visual-unusable') return true;
+  if (!code.startsWith('g12.semantic-')) return false;
+  return !new Set([
+    'g12.semantic-driver-registry-invalid',
+    'g12.semantic-driver-missing',
+    'g12.semantic-driver-control-invalid',
+    'g12.semantic-driver-observation-invalid',
+    'g12.semantic-driver-step-invalid',
+  ]).has(code);
+}
+function summarizeReplayObservation(observation) {
+  if (!observation || typeof observation !== 'object') return null;
+  const gameplay = Object.fromEntries(Object.entries(gameplaySignals(observation)).slice(0, 64).map(([key, value]) => [key, typeof value === 'string' ? value.slice(0, 160) : value]));
+  return Object.freeze({ tick: Number.isSafeInteger(observation.tick) ? observation.tick : null, runtimeErrorCount: nonNegativeInteger(observation.value?.runtimeErrorCount), gameplay });
+}
 function replayAction(scene, control) {
   for (const entity of scene?.entities ?? []) for (const component of entity.components ?? []) {
     if (component.type !== 'haiyue.input.action-map' || component.enabled === false) continue;

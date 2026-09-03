@@ -67,6 +67,12 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /backendKind === 'harness' \? 80 : 120/u);
   assert.match(source, /taskBudgetInitialTranche\(\).*inputTokens: 1_000_000.*inputTokens: 2_000_000/u);
   assert.match(source, /g12\.replay-runtime-error.*g12\.replay-trigger-timeout/su);
+  assert.match(source, /isRepairableReplayFailure\(cause\)/u);
+  assert.match(source, /code\.startsWith\('g12\.semantic-'\)/u);
+  assert.match(source, /g12\.semantic-driver-control-invalid/u);
+  assert.match(source, /summarizeReplayObservation\(replayObservation\)/u);
+  assert.match(source, /所有运行时配置值必须有确定的初始化路径/u);
+  assert.match(source, /游戏规则没有按输入推进/u);
   assert.match(source, /requireUsableVisual: repairAttempt === 0/u);
   assert.match(source, /Object\.values\(analysis\.visualSignals\).*value !== true/u);
   assert.match(source, /repair = await runRecorded\(repairPrompt, null\)/u);
