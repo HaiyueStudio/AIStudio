@@ -51,6 +51,7 @@ function transform(position = { x: 0, y: 0, z: 0 }) {
 test('create/transform use the document command path and survive undo, redo, save and reopen', async () => {
   const value = await fixture();
   await value.workspace.newProject(value.projectRoot, 'Scene fixture');
+  assert.equal(value.scene.snapshot().camera.projection, 'perspective');
 
   let scene = await value.scene.createEntity({
     commandId: asStableId('command:create-root'), baseRevision: 1, kind: 'empty', name: 'Root',
@@ -101,6 +102,26 @@ test('create/transform use the document command path and survive undo, redo, sav
   ]);
   const rejected = await value.operationLog.query({ limit: 100 });
   assert.equal(rejected.events.filter((event) => event.kind === 'scene/command-rejected').length, 2);
+  await disposeFixture(value);
+});
+
+test('scene snapshots retain the persisted project camera across setting changes', async () => {
+  const value = await fixture();
+  await value.workspace.newProject(value.projectRoot, 'Camera snapshot fixture');
+  const camera = {
+    projection: 'orthographic', target: { x: 1, y: 2, z: 3 }, distance: 30,
+    azimuthDegrees: 0, elevationDegrees: 0, fovDegrees: 45, orthographicSize: 28, near: 0.1, far: 1_000,
+  };
+  await value.workspace.executeBatch({
+    id: asStableId('command:set-scene-camera'), label: 'Set Scene Camera', baseRevision: 1,
+    operations: [{ op: 'setting.set', key: 'studio.camera.main', value: camera }],
+  });
+  assert.deepEqual(value.scene.snapshot().camera, camera);
+  assert.equal(Object.isFrozen(value.scene.snapshot().camera), true);
+  await value.workspace.save();
+  await value.workspace.closeProject();
+  await value.workspace.openProject(value.projectRoot);
+  assert.deepEqual(value.scene.snapshot().camera, camera);
   await disposeFixture(value);
 });
 

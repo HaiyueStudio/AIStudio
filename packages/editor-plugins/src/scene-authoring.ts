@@ -29,6 +29,7 @@ import { operationLogServiceToken, type OperationLog } from '@haiyue/ai-studio-o
 import { projectWorkspaceServiceToken } from './project/index.js';
 import type { ProjectDocumentMutation, ProjectWorkspace } from './history/index.js';
 import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, type ControlledAssetManifestEntry } from './assets/catalog.js';
+import { normalizeProjectCamera, projectCameraFromSettings, type ProjectCameraSnapshot } from './camera-authoring.js';
 
 export const SCENE_GEOMETRY_KINDS = Object.freeze(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] as const);
 export const SCENE_LIGHT_KINDS = Object.freeze(['directional-light', 'point-light', 'ambient-light'] as const);
@@ -66,6 +67,7 @@ export interface SceneSnapshot {
   readonly documentId: StableId;
   readonly entities: readonly SceneEntitySnapshot[];
   readonly assets: readonly ControlledAssetManifestEntry[];
+  readonly camera?: ProjectCameraSnapshot;
 }
 export interface CreateSceneEntityIntent {
   readonly commandId: StableId;
@@ -375,7 +377,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
       const before = this.sceneEntities.get(entityId) ?? null; const after = sceneEntityFromWorkspace(this.workspace, entityId);
       this.projection.apply(before, after); if (after) this.sceneEntities.set(entityId, after); else this.sceneEntities.delete(entityId);
     }
-    this.current = freezeScene({ schemaVersion: 1, revision: mutation.delta.afterRevision, documentId: mutation.delta.documentId as StableId, entities: sortSceneEntities([...this.sceneEntities.values()]), assets: controlledAssets(this.workspace) });
+    this.current = freezeScene({ schemaVersion: 1, revision: mutation.delta.afterRevision, documentId: mutation.delta.documentId as StableId, entities: sortSceneEntities([...this.sceneEntities.values()]), assets: controlledAssets(this.workspace), camera: projectCameraFromSettings(this.workspace.gameSnapshot().settings) });
     for (const listener of [...this.listeners]) listener(this.current);
   }
   private entityComponent(entityId: StableId, type: string): GameComponentInstanceV2 {
@@ -607,7 +609,7 @@ function sceneFromWorkspace(workspace: ProjectWorkspace): SceneSnapshot {
   if (!document) return freezeScene({ schemaVersion: 1, revision: 0, documentId: asStableId('document:none'), entities: [], assets: [] });
   const entities: SceneEntitySnapshot[] = []; let cursor: string | undefined;
   do { const result = workspace.queryGameDocument({ limit: 1_000, ...(cursor ? { cursor } : {}) }); for (const entity of result.entities) entities.push(sceneEntity(entity, result.components)); cursor = result.nextCursor ?? undefined; } while (cursor);
-  return freezeScene({ schemaVersion: 1, revision: document.revision, documentId: document.documentId, entities: sortSceneEntities(entities), assets: controlledAssets(workspace) });
+  return freezeScene({ schemaVersion: 1, revision: document.revision, documentId: document.documentId, entities: sortSceneEntities(entities), assets: controlledAssets(workspace), camera: projectCameraFromSettings(workspace.gameSnapshot().settings) });
 }
 
 function controlledAssets(workspace: ProjectWorkspace): readonly ControlledAssetManifestEntry[] { return ControlledAssetCatalog.fromManifest(workspace.gameSnapshot().settings[CONTROLLED_ASSET_CATALOG_SETTING_KEY]).manifest(); }
@@ -647,10 +649,11 @@ export function parseSceneSnapshot(value: JsonValue, documentId: StableId): Scen
   });
   for (const entity of entities) if (entity.parentId && !ids.has(entity.parentId)) throw new TypeError(`Missing scene parent ${entity.parentId}.`);
   const assets = ControlledAssetCatalog.fromManifest(raw.assets).manifest();
-  return freezeScene({ schemaVersion: 1, revision: raw.revision as number, documentId, entities, assets });
+  const camera = raw.camera === undefined ? undefined : normalizeProjectCamera(raw.camera);
+  return freezeScene({ schemaVersion: 1, revision: raw.revision as number, documentId, entities, assets, ...(camera ? { camera } : {}) });
 }
 
-function freezeScene(value: SceneSnapshot): SceneSnapshot { return Object.freeze({ ...value, entities: Object.freeze(value.entities.map(freezeEntity)), assets: Object.freeze([...value.assets]) }); }
+function freezeScene(value: SceneSnapshot): SceneSnapshot { return Object.freeze({ ...value, entities: Object.freeze(value.entities.map(freezeEntity)), assets: Object.freeze([...value.assets]), ...(value.camera ? { camera: normalizeProjectCamera(value.camera) } : {}) }); }
 function freezeEntity(value: SceneEntitySnapshot): SceneEntitySnapshot {
   if (!isSceneEntityKind(value.kind) || !value.name.trim() || !Number.isSafeInteger(value.order) || value.order < 0) throw new TypeError('Scene entity metadata is invalid.');
   return Object.freeze({
