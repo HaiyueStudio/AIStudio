@@ -37,6 +37,8 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /hudText/);
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /schemaVersion 1 payload/);
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /actors and targets/);
+  assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'entity.create').description, /PBR and blinn-phong require/);
+  assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'preview.validate').description, /render black/);
   assert.deepEqual(
     GAME_AUTHORING_TOOL_DEFINITIONS.filter((item) => item.id === 'entity.create').map((item) => ({ risk: item.risk, requiresApproval: item.requiresApproval })),
     [{ risk: 'low', requiresApproval: false }],
@@ -568,6 +570,22 @@ test('preview validation rejects scenes that contain only logic entities', async
     const prepared = await value.runtime.prepare(call('call:validate-empty-scene', 'preview.validate', {}));
     await assert.rejects(value.runtime.execute(prepared.id), /no renderable geometry/);
     assert.equal(value.preview.starts, 0);
+  } finally { await dispose(value); }
+});
+
+test('preview validation rejects lit materials without a light and recovers after lighting is added', async () => {
+  const value = await fixture();
+  try {
+    const geometry = await executeReady(value.runtime, call('call:create-unlit-pbr', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'PBR Player', material: 'pbr', color: [0.2, 0.8, 0.3, 1] }));
+    const proposed = await executeReady(value.runtime, call('call:propose-unlit-pbr', 'script.propose', { baseRevision: geometry.afterRevision, entityId: geometry.value.entity.id, text: movementScript, capabilities: ['read', 'debug'] }));
+    await approveAndExecute(value.runtime, call('call:apply-unlit-pbr', 'script.apply', { baseRevision: geometry.afterRevision, proposalId: proposed.value.proposalId }));
+
+    const unlit = await value.runtime.prepare(call('call:validate-unlit-pbr', 'preview.validate', {}));
+    await assert.rejects(value.runtime.execute(unlit.id), (error) => error.code === 'tool.preview-light-required' && /render black/u.test(error.message));
+
+    await approveAndExecute(value.runtime, call('call:add-pbr-light', 'entity.create', { baseRevision: 3, kind: 'ambient-light', name: 'PBR Fill' }));
+    const validated = await executeReady(value.runtime, call('call:validate-lit-pbr', 'preview.validate', {}));
+    assert.match(validated.value.planId, /^preview-plan:/u);
   } finally { await dispose(value); }
 });
 

@@ -73,6 +73,8 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /summarizeReplayObservation\(replayObservation\)/u);
   assert.match(source, /所有运行时配置值必须有确定的初始化路径/u);
   assert.match(source, /为需要独立辨识的玩法角色使用语义清晰的实体名/u);
+  assert.match(source, /自发光风格的街机玩法优先使用 basic 材质/u);
+  assert.match(source, /version: '3\.1\.0'/u);
   assert.match(source, /目标设备为 393×852 竖屏/u);
   assert.match(source, /不能只用较短轴的半尺寸/u);
   assert.match(source, /游戏规则没有按输入推进/u);

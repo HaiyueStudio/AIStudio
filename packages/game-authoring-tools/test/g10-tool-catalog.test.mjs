@@ -36,3 +36,16 @@ test('task-aware schema expansion keeps stable core tools and materially reduces
   assert.ok(expanded.selectedIds.includes('component.configure'));
   assert.deepEqual(expanded.expandedIds, ['camera.author', 'component.configure']);
 });
+
+test('explicit screenshot intent deterministically retains capture under a tight schema limit', () => {
+  const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => BUILTIN_COMPONENT_DEFINITIONS);
+  const selected = catalog.selectDefinitions('Create Tetris and return screenshot evidence.', [], MODEL_CORE_TOOL_IDS.length + 1);
+  assert.ok(selected.selectedIds.includes('play.capture'));
+});
+
+test('explicit interaction intent deterministically retains Play input', () => {
+  const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => BUILTIN_COMPONENT_DEFINITIONS);
+  const selected = catalog.selectDefinitions('Create a sliding puzzle with pointer input and screenshot evidence.', [], MODEL_CORE_TOOL_IDS.length + 2);
+  assert.ok(selected.selectedIds.includes('play.input'));
+  assert.ok(selected.selectedIds.includes('play.capture'));
+});

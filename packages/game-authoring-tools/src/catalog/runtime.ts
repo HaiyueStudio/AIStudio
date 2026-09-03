@@ -76,12 +76,21 @@ export class ToolCatalogRuntime {
     if (!Number.isSafeInteger(limit) || limit < MODEL_CORE_TOOL_IDS.length || limit > 40) throw new TypeError('Tool schema selection limit is invalid.');
     const selected = new Set<StableId>(MODEL_CORE_TOOL_IDS.filter((id) => this.byId.has(id)));
     for (const id of expandedIds) if (this.byId.has(id)) selected.add(id);
+    for (const id of explicitIntentToolIds(request)) if (this.byId.has(id) && selected.size < limit) selected.add(id);
     for (const match of this.search(request || 'project inspect', { limit: Math.max(limit, 24) })) if (match.kind === 'tool' && selected.size < limit) selected.add(match.id);
     const definitions = Object.freeze(this.tools.filter((definition) => selected.has(definition.id)));
     const fixedSchemaBytes = this.tools.reduce((sum, definition) => sum + schemaBytes(definition), 0);
     const selectedSchemaBytes = definitions.reduce((sum, definition) => sum + schemaBytes(definition), 0);
     return Object.freeze({ definitions, selectedIds: Object.freeze(definitions.map((entry) => entry.id)), coreIds: MODEL_CORE_TOOL_IDS, expandedIds: Object.freeze(expandedIds.filter((id) => selected.has(id))), omittedCount: this.tools.length - definitions.length, fixedSchemaBytes, selectedSchemaBytes });
   }
+}
+
+function explicitIntentToolIds(request: string): readonly StableId[] {
+  const lower = request.toLocaleLowerCase();
+  const ids: StableId[] = [];
+  if (/\b(?:screenshot|screen-shot|capture)\b|截图|截屏/u.test(lower)) ids.push(asStableId('play.capture'));
+  if (/\b(?:input|keyboard|pointer|touch|mouse|gamepad)\b|输入|键盘|触控|鼠标|点击|拖拽/u.test(lower)) ids.push(asStableId('play.input'));
+  return Object.freeze(ids);
 }
 
 function semanticScore(query: string, queryTokens: ReadonlySet<string>, queryVector: readonly number[], candidate: string, embedding: LocalHashEmbeddingProvider): number {

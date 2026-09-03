@@ -1108,6 +1108,13 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'preview.validate': {
       if (!scene.entities.some((item) => isSceneGeometryKind(item.kind))) throw new GameToolProtocolError('tool.preview-no-renderables', 'Preview scene has no renderable geometry. Create at least one primitive before Play.');
+      const litGeometry = scene.entities.filter((item) => item.appearance?.material === 'pbr' || item.appearance?.material === 'blinn-phong');
+      const hasLighting = scene.entities.some((item) => ['directional-light', 'point-light', 'ambient-light'].includes(item.kind)
+        || item.components?.some((component) => component.enabled && component.type === 'haiyue.light.environment'));
+      if (litGeometry.length > 0 && !hasLighting) {
+        const names = litGeometry.slice(0, 5).map((item) => item.name).join(', ');
+        throw new GameToolProtocolError('tool.preview-light-required', `Lit materials would render black without lighting (${names}). Create an ambient/directional/point light or switch these gameplay entities to basic material before Play.`);
+      }
       const scriptIds = args.scriptIds as readonly StableId[] | undefined;
       const plan = await options.scripts.prepare(scriptIds ? { scriptIds } : undefined); plans.set(plan.id, plan);
       return Object.freeze({
