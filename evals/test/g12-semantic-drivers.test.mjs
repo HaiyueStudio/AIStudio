@@ -90,6 +90,12 @@ test('snake verification consumes the shared actors targets metrics telemetry sh
   assert.ok(result.inputs > 0);
 });
 
+test('snake verification consumes nested player head, direction and lifecycle telemetry', async () => {
+  const control = snakePreviewControl('row', 'vector', 'playing', null, 'nested-player');
+  const result = await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.ok(result.inputs > 0);
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -122,6 +128,8 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
       ? { state: terminal ? 'over' : phase, head: { col: head.c, row: head.r }, food: { col: food.c, row: food.r }, dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] }
     : telemetryShape === 'canonical'
       ? { schemaVersion: 1, state: terminal ? 'over' : phase, space: { kind: 'grid', columns: 11, rows: 11 }, metrics: { score, length }, actors: [{ id: 'snake-head', role: 'snake-head', grid: { column: head.c, row: head.r } }], targets: [{ id: 'food', role: 'food', grid: { column: food.c, row: food.r } }], dir: encodedDirection(), events: terminal ? ['gameover'] : [] }
+    : telemetryShape === 'nested-player'
+      ? { schemaVersion: 1, state: { status: terminal ? 'over' : 'playing', phase: terminal ? 'game-over' : phase }, space: { kind: 'grid', columns: 11, rows: 11 }, metrics: { score, length }, actors: [{ id: 'snake', role: 'player', head: { cell: { col: head.c, row: head.r } }, dir: encodedDirection() }], targets: [{ id: 'food', role: 'food', cell: { col: food.c, row: food.r } }], events: terminal ? ['gameover'] : [] }
     : { state: terminal ? 'over' : phase, head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] };
   const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: gameplayValue() }] } });
   const advance = () => {

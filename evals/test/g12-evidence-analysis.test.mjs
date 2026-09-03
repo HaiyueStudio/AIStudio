@@ -50,7 +50,7 @@ test('snake evidence accepts authoritative XZ coordinates', () => {
     observation(0, { head: { x: 2, z: 2 }, food: { x: 3, z: 2 }, direction: { x: 1, z: 0 }, score: 0, length: 3, state: 'playing' }),
     observation(1, { head: { x: 3, z: 2 }, food: { x: 4, z: 2 }, direction: { x: 1, z: 0 }, score: 1, length: 4, state: 'playing' }),
   ];
-  const analysis = analyzeG12ReplayEvidence({ genre: 'snake', replay: { observations }, scene: { entities: [] }, bitmap: Buffer.alloc(4), width: 1, height: 1 });
+  const analysis = analyzeG12ReplayEvidence({ genre: 'snake', replay: { observations, observedSignals: ['game-over'] }, scene: { entities: [] }, bitmap: Buffer.alloc(4), width: 1, height: 1 });
   assert.equal(analysis.traceSignals['score.delta'], 1);
   assert.equal(analysis.traceSignals['snake.lengthDelta'], 1);
 });
@@ -93,6 +93,21 @@ test('snake evidence consumes the shared actors targets metrics telemetry shape'
   const analysis = analyzeG12ReplayEvidence({ genre: 'snake', replay: { observations }, scene: { entities: [] }, bitmap: Buffer.alloc(4), width: 1, height: 1 });
   assert.equal(analysis.traceSignals['score.delta'], 1);
   assert.equal(analysis.traceSignals['snake.lengthDelta'], 1);
+});
+
+test('snake evidence consumes nested player head, direction and lifecycle telemetry', () => {
+  const nested = (headCol, foodCol, score, length, terminal = false) => ({
+    schemaVersion: 1,
+    state: { status: terminal ? 'over' : 'playing', phase: terminal ? 'game-over' : 'running' },
+    space: { kind: 'grid', cols: 10, rows: 18 }, metrics: { score, length },
+    actors: [{ id: 'snake', role: 'player', head: { cell: { col: headCol, row: 9 } }, dir: { dx: 1, dy: 0 } }],
+    targets: [{ id: 'food', role: 'food', cell: { col: foodCol, row: 9 } }],
+  });
+  const observations = [observation(0, nested(2, 3, 0, 3)), observation(1, nested(3, 6, 1, 4)), observation(2, nested(4, 6, 1, 4, true))];
+  const analysis = analyzeG12ReplayEvidence({ genre: 'snake', replay: { observations, observedSignals: ['game-over'] }, scene: { entities: [] }, bitmap: Buffer.alloc(4), width: 1, height: 1 });
+  assert.equal(analysis.traceSignals['score.delta'], 1);
+  assert.equal(analysis.traceSignals['snake.lengthDelta'], 1);
+  assert.equal(analysis.traceSignals['terminal.collisionGameOver'], true);
 });
 
 test('shared trace analyzers derive authoritative signals for every non-snake genre', () => {

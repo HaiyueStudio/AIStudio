@@ -1,5 +1,5 @@
 import {
-  createG12GameplayTrace, gameplayValues, namedTelemetryPoint, roleTelemetryPoint,
+  createG12GameplayTrace, gameplayValues, lifecycleTelemetryState, namedTelemetryPoint, roleTelemetryEntry, roleTelemetryPoint,
   traceBooleans, traceHasEvent, traceNumbers,
 } from './g12-gameplay-telemetry.mjs';
 
@@ -296,9 +296,10 @@ function distinctColors(entries) { return new Set(entries.map((entry) => entry.c
 
 function snakeState(observation) {
   for (const value of gameplayValues(observation)) {
-    const head = namedTelemetryPoint(value, 'head') ?? roleTelemetryPoint(value, ['actors'], [/snake.*head|head.*snake|\bhead\b/iu]);
+    const snakeActor = roleTelemetryEntry(value, ['actors'], [/snake|player|\bhead\b/iu]);
+    const head = namedTelemetryPoint(value, 'head') ?? roleTelemetryPoint(value, ['actors'], [/snake|player|\bhead\b/iu]);
     const food = namedTelemetryPoint(value, 'food') ?? roleTelemetryPoint(value, ['targets'], [/food|collectible|pickup/iu]);
-    const direction = namedVector(value);
+    const direction = namedVector(value) ?? vector(snakeActor?.dir ?? snakeActor?.direction ?? snakeActor?.head?.direction);
     const score = value.score ?? value.metrics?.score;
     const length = value.length ?? value.metrics?.length ?? value.metrics?.snakeLength;
     if (!head || !Number.isFinite(score) || !Number.isFinite(length)) continue;
@@ -309,7 +310,7 @@ function snakeState(observation) {
       direction,
       score,
       length,
-      terminal: ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(String(value.state ?? value.status ?? '').toLowerCase()),
+      terminal: ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(String(lifecycleTelemetryState(value)).toLowerCase()),
     };
   }
   return null;
@@ -336,7 +337,7 @@ function deriveDirections(states) {
 
 function vector(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const dc = value.dc ?? value.x, dr = value.dr ?? value.y ?? value.z;
+  const dc = value.dc ?? value.dx ?? value.x, dr = value.dr ?? value.dy ?? value.y ?? value.dz ?? value.z;
   return Number.isFinite(dc) && Number.isFinite(dr) ? { dc, dr } : null;
 }
 function positiveTransitions(states, key) {

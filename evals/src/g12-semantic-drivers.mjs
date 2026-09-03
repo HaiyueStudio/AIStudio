@@ -1,6 +1,6 @@
 import { deepFreeze } from './canonical.mjs';
 import { G12_SEMANTIC_REPLAY_ACTIONS, G12ReplayProgramError } from './g12-replay-program.mjs';
-import { gameplayValues, namedTelemetryPoint, roleTelemetryPoint } from './g12-gameplay-telemetry.mjs';
+import { gameplayValues, lifecycleTelemetryState, namedTelemetryPoint, roleTelemetryEntry, roleTelemetryPoint } from './g12-gameplay-telemetry.mjs';
 
 const POINTER_ID = 12;
 
@@ -336,13 +336,14 @@ function chooseSnakeDirection(state) {
 
 function snakeState(observation) {
   for (const value of gameplayValues(observation)) {
-    const head = namedTelemetryPoint(value, 'head') ?? roleTelemetryPoint(value, ['actors'], [/snake.*head|head.*snake|\bhead\b/iu]);
+    const snakeActor = roleTelemetryEntry(value, ['actors'], [/snake|player|\bhead\b/iu]);
+    const head = namedTelemetryPoint(value, 'head') ?? roleTelemetryPoint(value, ['actors'], [/snake|player|\bhead\b/iu]);
     const food = namedTelemetryPoint(value, 'food') ?? roleTelemetryPoint(value, ['targets'], [/food|collectible|pickup/iu]);
-    const direction = namedGridDirection(value);
+    const direction = namedGridDirection(value) ?? gridDirection(snakeActor?.dir ?? snakeActor?.direction ?? snakeActor?.head?.direction);
     const score = finite(value.score ?? value.metrics?.score);
     const length = finite(value.length ?? value.metrics?.length ?? value.metrics?.snakeLength);
     if (!head || !food || score === null || length === null) continue;
-    const phase = String(value.state ?? value.status ?? '').toLowerCase();
+    const phase = String(lifecycleTelemetryState(value)).toLowerCase();
     const terminal = ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(phase);
     const axis = head.axis === 'z' || food.axis === 'z' || direction?.axis === 'z' ? 'z' : 'row';
     return { head, food, direction, score, length, terminal, phase, axis };
@@ -368,9 +369,9 @@ function namedGridDirection(value) {
 
 function gridDirection(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const usesZ = value.dr === undefined && value.y === undefined && value.z !== undefined;
-  const usesY = value.dr === undefined && value.y !== undefined;
-  const dc = finite(value.dc ?? value.x), dr = finite(value.dr ?? value.y ?? value.z);
+  const usesZ = value.dr === undefined && value.dy === undefined && value.y === undefined && (value.dz !== undefined || value.z !== undefined);
+  const usesY = value.dr === undefined && (value.dy !== undefined || value.y !== undefined);
+  const dc = finite(value.dc ?? value.dx ?? value.x), dr = finite(value.dr ?? value.dy ?? value.y ?? value.dz ?? value.z);
   return dc === null || dr === null ? null : { dc, dr, axis: usesZ ? 'z' : usesY ? 'y' : 'row' };
 }
 function directionName(dc, dr, axis = 'row') {

@@ -56,6 +56,11 @@ export function namedTelemetryPoint(value, name) {
 }
 
 export function roleTelemetryPoint(value, collections, rolePatterns) {
+  const entry = roleTelemetryEntry(value, collections, rolePatterns);
+  return entry ? nestedTelemetryPoint(entry) : null;
+}
+
+export function roleTelemetryEntry(value, collections, rolePatterns) {
   for (const collectionName of collections) {
     const collection = value?.[collectionName];
     if (!Array.isArray(collection)) continue;
@@ -63,11 +68,15 @@ export function roleTelemetryPoint(value, collections, rolePatterns) {
       if (!isRecord(entry)) continue;
       const identity = [entry.role, entry.type, entry.id, entry.name].filter((item) => typeof item === 'string').join(' ');
       if (!rolePatterns.some((pattern) => pattern.test(identity))) continue;
-      const point = telemetryPoint(entry.grid ?? entry.cell ?? entry.position ?? entry.world ?? entry);
-      if (point) return point;
+      return entry;
     }
   }
   return null;
+}
+
+export function lifecycleTelemetryState(value) {
+  const candidates = [value?.state?.status, value?.state?.phase, value?.lifecycle?.status, value?.lifecycle?.phase, value?.state, value?.status, value?.phase];
+  return candidates.find((entry) => typeof entry === 'string') ?? '';
 }
 
 export function telemetryPoint(value) {
@@ -92,9 +101,21 @@ export function normalizeTelemetryPath(value) {
 function eventNames(value) {
   const result = [];
   for (const key of ['event', 'status', 'state', 'phase']) if (typeof value[key] === 'string') result.push(value[key]);
+  for (const entry of [value?.state?.status, value?.state?.phase, value?.lifecycle?.status, value?.lifecycle?.phase]) if (typeof entry === 'string') result.push(entry);
   for (const key of ['events', 'triggers']) if (Array.isArray(value[key])) result.push(...value[key].filter((entry) => typeof entry === 'string'));
   if (isRecord(value.flags)) for (const [key, enabled] of Object.entries(value.flags)) if (enabled === true) result.push(key);
   return [...new Set(result.map(normalizeTelemetryToken).filter(Boolean))];
+}
+
+function nestedTelemetryPoint(value, depth = 0) {
+  if (!isRecord(value) || depth > 3) return null;
+  const direct = telemetryPoint(value);
+  if (direct) return direct;
+  for (const key of ['grid', 'cell', 'position', 'world', 'head', 'center', 'location', 'anchor', 'transform']) {
+    const point = nestedTelemetryPoint(value[key], depth + 1);
+    if (point) return point;
+  }
+  return null;
 }
 
 function flatten(value, prefix, result, depth) {
