@@ -65,6 +65,16 @@ test('snake evidence derives enum-backed direction changes from consecutive head
   assert.equal(analysis.traceSignals['movement.directionChanged'], true);
 });
 
+test('snake evidence accepts flat XZ telemetry fields', () => {
+  const observations = [
+    observation(0, { headX: 2, headZ: 2, foodX: 3, foodZ: 2, dirX: 1, dirZ: 0, score: 0, length: 3, state: 'playing' }),
+    observation(1, { headX: 3, headZ: 2, foodX: 5, foodZ: 2, dirX: 1, dirZ: 0, score: 1, length: 4, state: 'playing' }),
+  ];
+  const analysis = analyzeG12ReplayEvidence({ genre: 'snake', replay: { observations }, scene: { entities: [] }, bitmap: Buffer.alloc(4), width: 1, height: 1 });
+  assert.equal(analysis.traceSignals['score.delta'], 1);
+  assert.equal(analysis.traceSignals['snake.lengthDelta'], 1);
+});
+
 function observation(tick, value) {
   return { tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ id: 'snake', value }], hud: { score: { text: `SCORE ${value.score}` } } } };
 }

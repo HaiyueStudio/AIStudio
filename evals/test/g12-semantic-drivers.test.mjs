@@ -66,6 +66,12 @@ test('snake verification maps increasing board rows to the down control', async 
   assert.equal(control.events.some((event) => event.action === 'ArrowDown'), true);
 });
 
+test('snake verification accepts flat XZ telemetry fields', async () => {
+  const control = snakePreviewControl('xz', 'vector', 'playing', null, 'flat');
+  const result = await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.ok(result.inputs > 0);
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -78,7 +84,7 @@ function previewControl(replayTargets = []) {
   };
 }
 
-function snakePreviewControl(axis = 'row', directionMode = 'vector', initialState = 'playing', initialFood = null) {
+function snakePreviewControl(axis = 'row', directionMode = 'vector', initialState = 'playing', initialFood = null, telemetryShape = 'nested') {
   let tick = 5;
   let head = { c: 2, r: 1 };
   let food = initialFood ?? (axis === 'xz' ? { c: 2, r: 3 } : { c: 6, r: 1 });
@@ -92,7 +98,10 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
   const encodedDirection = () => directionMode === 'index'
     ? [{ dc: 1, dr: 0 }, { dc: 0, dr: 1 }, { dc: -1, dr: 0 }, { dc: 0, dr: -1 }].findIndex((entry) => entry.dc === direction.dc && entry.dr === direction.dr)
     : external(direction);
-  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: { state: terminal ? 'over' : phase, head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] } }] } });
+  const gameplayValue = () => telemetryShape === 'flat'
+    ? { state: terminal ? 'over' : phase, headX: head.c, headZ: head.r, foodX: food.c, foodZ: food.r, dirX: direction.dc, dirZ: direction.dr, score, length, events: terminal ? ['gameover'] : [] }
+    : { state: terminal ? 'over' : phase, head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] };
+  const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: gameplayValue() }] } });
   const advance = () => {
     tick += 1;
     for (const event of events.filter((entry) => entry.tick === tick && entry.phase === 'down')) {

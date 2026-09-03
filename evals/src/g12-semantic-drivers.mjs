@@ -323,7 +323,7 @@ function snakeState(observation) {
   for (const record of records) {
     const value = record?.value;
     if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-    const head = gridPoint(value.head), food = gridPoint(value.food), direction = gridDirection(value.dir ?? value.direction);
+    const head = namedGridPoint(value, 'head'), food = namedGridPoint(value, 'food'), direction = namedGridDirection(value);
     const score = finite(value.score), length = finite(value.length);
     if (!head || !food || score === null || length === null) continue;
     const phase = String(value.state ?? value.status ?? '').toLowerCase();
@@ -341,6 +341,19 @@ function snakeStateWithPrior(observation, prior) {
     return { ...next, direction: { dc: Math.sign(next.head.c - prior.head.c), dr: Math.sign(next.head.r - prior.head.r), axis: next.axis } };
   }
   return prior?.direction ? { ...next, direction: prior.direction } : next;
+}
+
+function namedGridPoint(value, name) {
+  return gridPoint(value?.[name]) ?? gridPoint({
+    c: value?.[`${name}C`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
+    x: value?.[`${name}X`], y: value?.[`${name}Y`], z: value?.[`${name}Z`],
+  });
+}
+function namedGridDirection(value) {
+  return gridDirection(value?.dir ?? value?.direction) ?? gridDirection({
+    dc: value?.dirC ?? value?.directionC, dr: value?.dirR ?? value?.directionR,
+    x: value?.dirX ?? value?.directionX, y: value?.dirY ?? value?.directionY, z: value?.dirZ ?? value?.directionZ,
+  });
 }
 
 function gridPoint(value) {

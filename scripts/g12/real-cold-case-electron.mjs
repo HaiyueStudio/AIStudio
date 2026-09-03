@@ -176,6 +176,7 @@ async function run() {
             turnSummary = Object.freeze({ ...turnSummary, diagnostics: Object.freeze([...turnSummary.diagnostics, Object.freeze({ code: typeof recoveryCause?.code === 'string' ? recoveryCause.code : 'agent.interrupted-script-proposal-recovery-failed', message: recoveryCause instanceof Error ? recoveryCause.message : String(recoveryCause) })]) });
           }
         }
+        turnSummary = takeOverVerifiedAuthoring(turnSummary, fixture, preview);
         m13Turns.push(await recordM13Turn({ operationLog: fixture.operationLog, sessions: durableSessions, contextFrames, backend, model, config, taskId, prompt: turnPrompt, summary: turnSummary, events: recordedEvents, projectRevision: fixture.workspace.snapshot().document.revision }));
         return turnSummary;
       } catch (cause) {

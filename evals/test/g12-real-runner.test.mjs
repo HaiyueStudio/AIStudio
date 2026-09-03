@@ -92,6 +92,7 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /onCompletedToolResult: \(result\) => retainedToolResults\.push\(result\)/u);
   assert.match(source, /Promise\.race\(\[execution, abortedFallback\]\)/u);
   assert.match(source, /retainedToolResults\.slice\(resultOffset\)/u);
+  assert.match(source, /turnSummary = takeOverVerifiedAuthoring\(turnSummary, fixture, preview\)/u);
   assert.match(source, /authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs/u);
   assert.match(source, /clearTimeout\(authoringTimer\).*coordinator\?\.dispose/su);
   assert.doesNotMatch(source, /finally \{ clearTimeout\(authoringTimer\); \}/u);

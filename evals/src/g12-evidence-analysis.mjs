@@ -103,7 +103,7 @@ function snakeState(observation) {
   for (const record of observation?.value?.gameplay ?? []) {
     const value = record?.value;
     if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-    const head = point(value.head), food = point(value.food), direction = vector(value.dir ?? value.direction);
+    const head = namedPoint(value, 'head'), food = namedPoint(value, 'food'), direction = namedVector(value);
     if (!head || !Number.isFinite(value.score) || !Number.isFinite(value.length)) continue;
     return {
       tick: observation.tick,
@@ -116,6 +116,19 @@ function snakeState(observation) {
     };
   }
   return null;
+}
+
+function namedPoint(value, name) {
+  return point(value?.[name]) ?? point({
+    c: value?.[`${name}C`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
+    x: value?.[`${name}X`], y: value?.[`${name}Y`], z: value?.[`${name}Z`],
+  });
+}
+function namedVector(value) {
+  return vector(value?.dir ?? value?.direction) ?? vector({
+    dc: value?.dirC ?? value?.directionC, dr: value?.dirR ?? value?.directionR,
+    x: value?.dirX ?? value?.directionX, y: value?.dirY ?? value?.directionY, z: value?.dirZ ?? value?.directionZ,
+  });
 }
 
 function deriveDirections(states) {
