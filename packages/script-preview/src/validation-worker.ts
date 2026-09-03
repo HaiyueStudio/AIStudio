@@ -73,6 +73,7 @@ function validate(request: ValidationRequest): Readonly<{ id: string; diagnostic
       });
     });
   diagnostics.push(...capabilityDiagnostics(normalized.text, request.sourcePath));
+  diagnostics.push(...runtimeContractDiagnostics(normalized.text, request.sourcePath));
   const transpiled = ts.transpileModule(normalized.text, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, removeComments: false },
     fileName: request.sourcePath,
@@ -162,6 +163,72 @@ function capabilityDiagnostics(text: string, sourcePath: string): ScriptDiagnost
   };
   visit(source);
   return diagnostics;
+}
+
+function runtimeContractDiagnostics(text: string, sourcePath: string): ScriptDiagnostic[] {
+  const source = ts.createSourceFile(sourcePath, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const diagnostics: ScriptDiagnostic[] = [];
+  const constants = collectConstInitializers(source);
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && isSceneInstancesCall(node.expression)) {
+      const capacity = node.arguments[1];
+      if (capacity && !isCompileTimeNumericExpression(capacity, constants, new Set())) {
+        const position = source.getLineAndCharacterOfPosition(capacity.getStart(source));
+        diagnostics.push(Object.freeze({
+          code: 'script.scene-instance-capacity-dynamic', severity: 'error', path: sourcePath,
+          line: position.line + 1, column: position.character + 1,
+          message: 'api.scene.instances capacity is immutable for one Play run. Allocate a fixed maximum with a numeric literal or const-only numeric expression, then use setCount(activeCount) to change the visible instance count.',
+        }));
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return diagnostics;
+}
+
+function collectConstInitializers(source: ts.SourceFile): ReadonlyMap<string, ts.Expression> {
+  const constants = new Map<string, ts.Expression>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const) !== 0) {
+      for (const declaration of node.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.initializer) constants.set(declaration.name.text, declaration.initializer);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return constants;
+}
+
+function isSceneInstancesCall(expression: ts.LeftHandSideExpression): boolean {
+  return ts.isPropertyAccessExpression(expression)
+    && expression.name.text === 'instances'
+    && ts.isPropertyAccessExpression(expression.expression)
+    && expression.expression.name.text === 'scene'
+    && ts.isIdentifier(expression.expression.expression)
+    && expression.expression.expression.text === 'api';
+}
+
+function isCompileTimeNumericExpression(expression: ts.Expression, constants: ReadonlyMap<string, ts.Expression>, resolving: Set<string>): boolean {
+  if (ts.isNumericLiteral(expression)) return true;
+  if (ts.isParenthesizedExpression(expression)) return isCompileTimeNumericExpression(expression.expression, constants, resolving);
+  if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression) || ts.isSatisfiesExpression(expression)) return isCompileTimeNumericExpression(expression.expression, constants, resolving);
+  if (ts.isPrefixUnaryExpression(expression) && [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(expression.operator)) {
+    return isCompileTimeNumericExpression(expression.operand, constants, resolving);
+  }
+  if (ts.isBinaryExpression(expression) && [
+    ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken, ts.SyntaxKind.SlashToken,
+    ts.SyntaxKind.PercentToken, ts.SyntaxKind.AsteriskAsteriskToken,
+  ].includes(expression.operatorToken.kind)) {
+    return isCompileTimeNumericExpression(expression.left, constants, resolving)
+      && isCompileTimeNumericExpression(expression.right, constants, resolving);
+  }
+  if (!ts.isIdentifier(expression) || resolving.has(expression.text)) return false;
+  const initializer = constants.get(expression.text);
+  if (!initializer) return false;
+  const next = new Set(resolving); next.add(expression.text);
+  return isCompileTimeNumericExpression(initializer, constants, next);
 }
 
 function isModuleSyntax(node: ts.Node): boolean {

@@ -66,6 +66,17 @@ test('worker returns stable syntax, type and forbidden-capability diagnostics an
       text: `const body = api.scene.instances('SnakeBody', 256);\nbody.setCount(3);\nbody.set(0, { position: { x: 0, y: 0, z: 0 } });`,
     });
     assert.deepEqual(instanced.diagnostics, []);
+    const fixedExpressionCapacity = await worker.validate({
+      scriptId, textRevision: 50, sourcePath: 'scripts/fixed-capacity.ts', capabilities: ['read', 'scene'],
+      text: `const COLS = 12; const ROWS = 20; const MAX_SEGMENTS = COLS * ROWS;\nconst body = api.scene.instances('SnakeBody', MAX_SEGMENTS);\nbody.setCount(3);`,
+    });
+    assert.deepEqual(fixedExpressionCapacity.diagnostics, []);
+    const dynamicCapacity = await worker.validate({
+      scriptId, textRevision: 501, sourcePath: 'scripts/dynamic-capacity.ts', capabilities: ['read', 'scene'],
+      text: `const data = component.data as unknown as { cells: readonly unknown[] };\nconst activeCount = data.cells.length;\nconst body = api.scene.instances('SnakeBody', activeCount);\nbody.setCount(activeCount);`,
+    });
+    assert.ok(dynamicCapacity.diagnostics.some((item) => item.code === 'script.scene-instance-capacity-dynamic' && item.line === 3), JSON.stringify(dynamicCapacity.diagnostics));
+    assert.match(dynamicCapacity.diagnostics.find((item) => item.code === 'script.scene-instance-capacity-dynamic').message, /fixed maximum.*setCount/iu);
     const gameplayInputAndHud = await worker.validate({
       scriptId, textRevision: 51, sourcePath: 'scripts/input-hud.ts', capabilities: ['read', 'input', 'scene'],
       text: `if (api.input.isDown('ArrowDown')) api.scene.hudText('score', 'SCORE 10', { position: 'top-right', color: '#ffffff' });\nfor (const event of api.input.pointerEvents()) if (event.type === 'move' && event.x > 0.5) api.scene.removeHudText('hint');`,
