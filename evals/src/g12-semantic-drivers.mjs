@@ -345,7 +345,7 @@ function snakeStateWithPrior(observation, prior) {
 
 function namedGridPoint(value, name) {
   return gridPoint(value?.[name]) ?? gridPoint({
-    c: value?.[`${name}C`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
+    c: value?.[`${name}C`], col: value?.[`${name}Col`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
     x: value?.[`${name}X`], y: value?.[`${name}Y`], z: value?.[`${name}Z`],
   });
 }
@@ -360,7 +360,7 @@ function gridPoint(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const usesZ = value.r === undefined && value.row === undefined && value.y === undefined && value.z !== undefined;
   const usesY = value.r === undefined && value.row === undefined && value.y !== undefined;
-  const c = finite(value.c ?? value.column ?? value.x), r = finite(value.r ?? value.row ?? value.y ?? value.z);
+  const c = finite(value.c ?? value.col ?? value.column ?? value.x), r = finite(value.r ?? value.row ?? value.y ?? value.z);
   return c === null || r === null ? null : { c, r, axis: usesZ ? 'z' : usesY ? 'y' : 'row' };
 }
 function gridDirection(value) {

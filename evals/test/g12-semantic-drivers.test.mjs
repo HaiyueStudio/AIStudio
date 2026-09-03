@@ -72,6 +72,12 @@ test('snake verification accepts flat XZ telemetry fields', async () => {
   assert.ok(result.inputs > 0);
 });
 
+test('snake verification accepts col-row point aliases', async () => {
+  const control = snakePreviewControl('row', 'vector', 'playing', null, 'col-row');
+  const result = await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.ok(result.inputs > 0);
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -100,6 +106,8 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
     : external(direction);
   const gameplayValue = () => telemetryShape === 'flat'
     ? { state: terminal ? 'over' : phase, headX: head.c, headZ: head.r, foodX: food.c, foodZ: food.r, dirX: direction.dc, dirZ: direction.dr, score, length, events: terminal ? ['gameover'] : [] }
+    : telemetryShape === 'col-row'
+      ? { state: terminal ? 'over' : phase, head: { col: head.c, row: head.r }, food: { col: food.c, row: food.r }, dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] }
     : { state: terminal ? 'over' : phase, head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] };
   const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: gameplayValue() }] } });
   const advance = () => {

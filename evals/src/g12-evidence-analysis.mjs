@@ -120,7 +120,7 @@ function snakeState(observation) {
 
 function namedPoint(value, name) {
   return point(value?.[name]) ?? point({
-    c: value?.[`${name}C`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
+    c: value?.[`${name}C`], col: value?.[`${name}Col`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
     x: value?.[`${name}X`], y: value?.[`${name}Y`], z: value?.[`${name}Z`],
   });
 }
@@ -145,7 +145,7 @@ function deriveDirections(states) {
 
 function point(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const c = value.c ?? value.column ?? value.x, r = value.r ?? value.row ?? value.y ?? value.z;
+  const c = value.c ?? value.col ?? value.column ?? value.x, r = value.r ?? value.row ?? value.y ?? value.z;
   return Number.isFinite(c) && Number.isFinite(r) ? { c, r } : null;
 }
 function vector(value) {

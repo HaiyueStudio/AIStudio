@@ -75,6 +75,16 @@ test('snake evidence accepts flat XZ telemetry fields', () => {
   assert.equal(analysis.traceSignals['snake.lengthDelta'], 1);
 });
 
+test('snake evidence accepts col-row point aliases', () => {
+  const observations = [
+    observation(0, { head: { col: 2, row: 2 }, food: { col: 3, row: 2 }, dir: { dc: 1, dr: 0 }, score: 0, length: 3, state: 'playing' }),
+    observation(1, { head: { col: 3, row: 2 }, food: { col: 5, row: 2 }, dir: { dc: 1, dr: 0 }, score: 1, length: 4, state: 'playing' }),
+  ];
+  const analysis = analyzeG12ReplayEvidence({ genre: 'snake', replay: { observations }, scene: { entities: [] }, bitmap: Buffer.alloc(4), width: 1, height: 1 });
+  assert.equal(analysis.traceSignals['score.delta'], 1);
+  assert.equal(analysis.traceSignals['snake.lengthDelta'], 1);
+});
+
 function observation(tick, value) {
   return { tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ id: 'snake', value }], hud: { score: { text: `SCORE ${value.score}` } } } };
 }
