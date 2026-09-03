@@ -135,8 +135,18 @@ function signals(value) {
 function aliases(value) {
   if (['gameover', 'game-over', 'failed', 'failure', 'defeat', 'lost'].includes(value)) return ['game-over', 'terminal-state'];
   if (['complete', 'completed', 'victory', 'won', 'win'].includes(value)) return ['complete', 'terminal-state'];
-  if (value === 'respawned') return ['respawn'];
-  return [];
+  const groups = [
+    [['respawned', 'player-respawned'], ['respawn']],
+    [['invalid-swap', 'swap-rejected', 'invalid-move', 'swap-reverted', 'invalid-swap-restored'], ['invalid-swap-settled']],
+    [['board-stable', 'settled', 'cascade-complete', 'gravity-complete', 'refill-complete', 'board-refilled'], ['board-settled']],
+    [['piece-lock', 'piece-locked', 'locked-piece'], ['piece-locked']],
+    [['wrong-drop', 'invalid-drop', 'drop-rejected', 'wrong-release'], ['wrong-drop']],
+    [['correct-snap', 'piece-snapped', 'piece-locked', 'first-piece-locked'], ['first-piece-locked']],
+    [['collision-recovered', 'offtrack-recovered', 'vehicle-recovered', 'recovered'], ['collision-recovered']],
+    [['first-kill', 'enemy-killed', 'enemy-defeated', 'kill'], ['first-kill']],
+    [['cover-test', 'cover-tested', 'blocked-shot', 'shot-blocked'], ['cover-test']],
+  ];
+  return groups.filter(([members]) => members.includes(value)).flatMap(([, results]) => results);
 }
 
 function normalizeSignal(value) { return typeof value === 'string' ? value.trim().toLowerCase().replace(/[\s_]+/gu, '-').replace(/[^a-z0-9.:-]/gu, '') : ''; }

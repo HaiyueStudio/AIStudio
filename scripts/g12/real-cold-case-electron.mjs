@@ -99,7 +99,7 @@ async function run() {
     account = accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG }); account.beginTurn();
     const catalog = await backend.modelCatalog(); model = chooseModel(catalog.models);
     const reasoningEffort = model.reasoningEfforts.includes(args.reasoning) ? args.reasoning : model.reasoningEfforts.includes('low') ? 'low' : model.defaultReasoningEffort;
-    config = { schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort, outputTokenLimit: Math.min(32_768, model.maxOutputTokens), taskBudgetId: testCase.id.replace('game-eval:', 'budget:g12-'), promptProfile: { id: 'prompt:g12-general-game-authoring', version: '2.0.0', digest: contentDigest({ profile: 'g12-general-game-authoring', version: 2 }) }, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] };
+    config = { schemaVersion: 2, backendId: backend.descriptor.id, model: model.id, reasoningEffort, outputTokenLimit: Math.min(32_768, model.maxOutputTokens), taskBudgetId: testCase.id.replace('game-eval:', 'budget:g12-'), promptProfile: { id: 'prompt:g12-general-game-authoring', version: '3.0.0', digest: contentDigest({ profile: 'g12-general-game-authoring', version: 3 }) }, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] };
     const retainedToolResults = [];
     coordinator = new AgentGameAuthoringCoordinator(fixture.runtime, { async request() { return 'allow-once'; } }, turns, {
       questionTakeover: { async answer(event) { return defaultQuestionAnswer(event); } },
@@ -111,7 +111,7 @@ async function run() {
       preserveCompletedResultsOnCallerAbort: true,
       onCompletedToolResult: (result) => retainedToolResults.push(result),
     });
-    const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态、累计事件和可选 normalized interactionTargets，供 Play 检查；不要猜测隐藏验收条件。\n- 所有运行时配置值必须有确定的初始化路径；Play 自检必须推进足够的 fixed steps，并确认至少一个核心 gameplay 状态真实变化，不能只检查“无报错”。\n- 为需要独立辨识的玩法角色使用语义清晰的实体名和显著不同的材质（例如活动/受控单元、轨迹或已落定单元、目标或收集物、边界或背景）；相机必须按目标设备纵横比容纳完整玩法区域和 HUD。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
+    const prompt = `${testCase.request}\n\n约束：\n${testCase.agentVisibleConstraints.map((value) => `- ${value}`).join('\n')}\n- 使用通用 api.scene.observe(id, value) 持续发布权威 gameplay 状态；payload 固定包含 schemaVersion: 1、state/status/phase、events/triggers、space、metrics、actors、targets。space 描述 grid/world 的尺寸、边界和轴；metrics 放分数、进度和计数；actors/targets 中每项使用稳定 id/role，并发布可驱动重放的 grid/cell 或 world position。normalized interactionTargets 只用于指针定位，不能代替权威 gameplay 坐标。不要猜测隐藏验收条件。\n- events/triggers 使用稳定 lower-kebab-case 名称，来自实际发生的交互接受/拒绝、动作结算、碰撞/恢复、得分和终局状态转换。\n- 所有运行时配置值必须有确定的初始化路径；Play 自检必须推进足够的 fixed steps，并确认至少一个核心 gameplay 状态真实变化，不能只检查“无报错”。\n- 为需要独立辨识的玩法角色使用语义清晰的实体名和显著不同的材质（例如活动/受控单元、轨迹或已落定单元、目标或收集物、边界或背景）；相机必须按目标设备纵横比容纳完整玩法区域和 HUD。\n- 完成后必须自行运行 Play，检查结构化状态和截图；若发现运行错误需修复后再结束。`;
     const controller = new AbortController(); const authoringTimeboxError = errorWithCode('g12.agent-authoring-timebox-reached', 'Studio stopped model authoring at its bounded timebox and retained all completed work.'); const caseDeadlineMs = Date.now() + caseWallTimeMs; const authoringDeadlineMs = caseDeadlineMs - minimumTakeoverWindowMs; authoringTimer = setTimeout(() => controller.abort(authoringTimeboxError), Math.max(1, authoringDeadlineMs - Date.now()));
     const boundTurnIds = new Set();
     const liveTurnUsage = new Map();
@@ -231,7 +231,7 @@ async function run() {
       let gameplayContract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
       if (current.terminal === 'completed' && !gameplayContract.valid && caseDeadlineMs - Date.now() >= minimumTakeoverWindowMs) {
         account.repair(); account.beginTurn();
-        const telemetryPrompt = `Studio 的通用 gameplay telemetry 检查未通过（${gameplayContract.diagnostics.join(', ')}）。请保留现有游戏功能并修复已提交脚本：每个固定步持续通过 api.scene.observe 发布权威 status/state，并用稳定的 lower-kebab-case events 或 triggers 数组发布所有实际发生的交互接受/拒绝、结算、碰撞、得分和终局转换。事件必须来自游戏状态转换，不可从 HUD 文本猜测。修复后重新提交脚本并运行 Play 自检。`;
+        const telemetryPrompt = `Studio 的通用 gameplay telemetry 检查未通过（${gameplayContract.diagnostics.join(', ')}）。请保留现有游戏功能并修复已提交脚本：每个固定步通过 api.scene.observe 发布 schemaVersion: 1、权威 state/status/phase、lower-kebab-case events/triggers、space、metrics、actors、targets。space 描述 grid/world 尺寸、边界和轴；actors/targets 项使用稳定 id/role，并包含可驱动重放的 grid/cell 或 world position；normalized interactionTargets 不能替代权威坐标。事件必须来自实际状态转换，不可从 HUD 文本猜测。修复后重新提交脚本并运行 Play 自检。`;
         const repair = await runRecorded(telemetryPrompt, current.sessionId);
         summaries.push(repair); summary = mergeTurnSummaries(summaries); commitToolResults(account, repair.results); current = repair;
         throwIfFormalCapReached();

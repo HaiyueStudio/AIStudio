@@ -276,7 +276,8 @@
           { "id": "run", "at": "play-ready", "action": "hold", "control": "ArrowRight", "durationTicks": 180 },
           { "id": "jump", "at": "tick:170", "action": "press", "control": "Space", "durationTicks": 8 },
           { "id": "hit-hazard", "at": "tick:300", "action": "scripted-steer", "parameters": { "goal": "touch-hazard-once" } },
-          { "id": "finish", "at": "after:respawn", "action": "scripted-complete-level", "parameters": { "collectAtLeast": 1 } }
+          { "id": "finish", "at": "after:respawn", "action": "scripted-complete-level", "parameters": { "collectAtLeast": 1 } },
+          { "id": "restart", "at": "after:complete", "action": "press", "control": "KeyR", "durationTicks": 1 }
         ]
       },
       "acceptance": {
@@ -331,10 +332,12 @@
       "inputReplay": {
         "driver": "fixed",
         "steps": [
-          { "id": "launch", "at": "play-ready", "action": "hold", "control": "ArrowUp", "durationTicks": 180 },
+          { "id": "launch", "at": "play-ready", "action": "hold", "control": "ArrowUp", "durationTicks": 120 },
+          { "id": "brake", "at": "tick:130", "action": "hold", "control": "ArrowDown", "durationTicks": 12 },
           { "id": "steer", "at": "tick:180", "action": "scripted-follow-centerline", "parameters": { "durationTicks": 300 } },
           { "id": "collision", "at": "tick:480", "action": "scripted-steer", "parameters": { "goal": "touch-barrier-once" } },
-          { "id": "lap", "at": "after:collision-recovered", "action": "scripted-complete-lap", "parameters": { "respectCheckpointOrder": true } }
+          { "id": "lap", "at": "after:collision-recovered", "action": "scripted-complete-lap", "parameters": { "respectCheckpointOrder": true } },
+          { "id": "restart", "at": "after:terminal-state", "action": "press", "control": "KeyR", "durationTicks": 1 }
         ]
       },
       "acceptance": {

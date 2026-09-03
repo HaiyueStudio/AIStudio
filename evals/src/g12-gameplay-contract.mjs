@@ -5,6 +5,7 @@ import ts from 'typescript';
 export function inspectG12GameplayContract(scriptCatalog) {
   const resources = Array.isArray(scriptCatalog?.resources) ? scriptCatalog.resources.filter((entry) => entry?.enabled !== false) : [];
   let observationCallCount = 0; let hasTriggerChannel = false; let hasStateChannel = false;
+  let hasSchemaVersion = false; let hasSpace = false; let hasMetrics = false; let hasActors = false; let hasTargets = false;
   for (const [index, resource] of resources.entries()) {
     const source = ts.createSourceFile(`gameplay-contract-${index}.ts`, typeof resource.text === 'string' ? resource.text : '', ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
     const sceneAliases = collectSceneAliases(source);
@@ -17,6 +18,11 @@ export function inspectG12GameplayContract(scriptCatalog) {
           const keys = new Set(payload.properties.map(propertyName).filter(Boolean));
           hasTriggerChannel ||= keys.has('events') || keys.has('triggers');
           hasStateChannel ||= keys.has('status') || keys.has('state') || keys.has('phase');
+          hasSchemaVersion ||= keys.has('schemaVersion');
+          hasSpace ||= keys.has('space');
+          hasMetrics ||= keys.has('metrics');
+          hasActors ||= keys.has('actors');
+          hasTargets ||= keys.has('targets');
         }
       }
       ts.forEachChild(node, visit);
@@ -27,7 +33,12 @@ export function inspectG12GameplayContract(scriptCatalog) {
   if (observationCallCount === 0) diagnostics.push('g12.gameplay-observation-call-missing');
   if (!hasTriggerChannel) diagnostics.push('g12.gameplay-trigger-channel-missing');
   if (!hasStateChannel) diagnostics.push('g12.gameplay-state-channel-missing');
-  return deepFreeze({ schemaVersion: 1, valid: diagnostics.length === 0, scriptCount: resources.length, observationCallCount, diagnostics });
+  if (!hasSchemaVersion) diagnostics.push('g12.gameplay-schema-version-missing');
+  if (!hasSpace) diagnostics.push('g12.gameplay-space-missing');
+  if (!hasMetrics) diagnostics.push('g12.gameplay-metrics-missing');
+  if (!hasActors) diagnostics.push('g12.gameplay-actors-missing');
+  if (!hasTargets) diagnostics.push('g12.gameplay-targets-missing');
+  return deepFreeze({ schemaVersion: 2, valid: diagnostics.length === 0, scriptCount: resources.length, observationCallCount, diagnostics });
 }
 
 function isSceneObserveCall(expression, sceneAliases) {

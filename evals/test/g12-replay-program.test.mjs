@@ -29,6 +29,14 @@ test('press, hold and sequence expand to deterministic down/up pairs', () => {
   assert.deepEqual(run.map((entry) => [entry.phase, entry.schedule.tick]), [['down', 1], ['up', 181]]);
 });
 
+test('hidden lifecycle replay explicitly exercises platform restart and racing brake plus restart', () => {
+  const platformer = assets.suite.cases.find((entry) => entry.genre === 'platformer');
+  const racing = assets.suite.cases.find((entry) => entry.genre === 'racing');
+  assert.ok(platformer.inputReplay.steps.some((entry) => entry.id === 'restart' && entry.at === 'after:complete'));
+  assert.ok(racing.inputReplay.steps.some((entry) => entry.id === 'brake' && entry.control === 'ArrowDown'));
+  assert.ok(racing.inputReplay.steps.some((entry) => entry.id === 'restart' && entry.at === 'after:terminal-state'));
+});
+
 test('semantic replay is fail-closed when a real adapter omits or invents a driver', () => {
   const programs = assets.suite.cases.map((entry) => compileG12ReplayProgram(entry.inputReplay));
   assert.throws(() => assertG12SemanticDriverCoverage(programs, G12_SEMANTIC_REPLAY_ACTIONS.slice(1)), (error) => error.code === 'g12.semantic-driver-coverage-invalid' && error.details.missing.length === 1);

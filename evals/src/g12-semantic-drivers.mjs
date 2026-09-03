@@ -1,5 +1,6 @@
 import { deepFreeze } from './canonical.mjs';
 import { G12_SEMANTIC_REPLAY_ACTIONS, G12ReplayProgramError } from './g12-replay-program.mjs';
+import { gameplayValues, namedTelemetryPoint, roleTelemetryPoint } from './g12-gameplay-telemetry.mjs';
 
 const POINTER_ID = 12;
 
@@ -103,6 +104,16 @@ class DriverSession {
     return this.step(durationTicks + 2);
   }
 
+  async cancelDrag(from, to, durationTicks = 2) {
+    const current = await this.inspect();
+    const tick = current.tick + 1;
+    await this.inject(pointer(tick, 'move', from));
+    await this.inject(pointer(tick + 1, 'down', from, 0));
+    await this.inject(pointer(tick + durationTicks, 'move', to));
+    await this.inject(pointer(tick + durationTicks + 1, 'cancel', to, 0));
+    return this.step(durationTicks + 2);
+  }
+
   async click(point) {
     const current = await this.inspect();
     const tick = current.tick + 1;
@@ -158,6 +169,11 @@ async function dragPiece(session, parameters) {
   const to = await session.target({ role: 'destination', destination }, fallback);
   await session.drag(from, to, 4);
   await session.step(4);
+  if (destination === 'wrong-slot') {
+    const cancelFrom = await session.target({ role: 'piece', destination: 'cancel-test' }, from);
+    await session.cancelDrag(cancelFrom, point(Math.min(0.95, cancelFrom.x + 0.05), Math.min(0.95, cancelFrom.y + 0.05)), 3);
+    await session.step(3);
+  }
 }
 
 async function completeJigsaw(session) {
@@ -319,12 +335,12 @@ function chooseSnakeDirection(state) {
 }
 
 function snakeState(observation) {
-  const records = Array.isArray(observation?.value?.gameplay) ? observation.value.gameplay : [];
-  for (const record of records) {
-    const value = record?.value;
-    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-    const head = namedGridPoint(value, 'head'), food = namedGridPoint(value, 'food'), direction = namedGridDirection(value);
-    const score = finite(value.score), length = finite(value.length);
+  for (const value of gameplayValues(observation)) {
+    const head = namedTelemetryPoint(value, 'head') ?? roleTelemetryPoint(value, ['actors'], [/snake.*head|head.*snake|\bhead\b/iu]);
+    const food = namedTelemetryPoint(value, 'food') ?? roleTelemetryPoint(value, ['targets'], [/food|collectible|pickup/iu]);
+    const direction = namedGridDirection(value);
+    const score = finite(value.score ?? value.metrics?.score);
+    const length = finite(value.length ?? value.metrics?.length ?? value.metrics?.snakeLength);
     if (!head || !food || score === null || length === null) continue;
     const phase = String(value.state ?? value.status ?? '').toLowerCase();
     const terminal = ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(phase);
@@ -343,12 +359,6 @@ function snakeStateWithPrior(observation, prior) {
   return prior?.direction ? { ...next, direction: prior.direction } : next;
 }
 
-function namedGridPoint(value, name) {
-  return gridPoint(value?.[name]) ?? gridPoint({
-    c: value?.[`${name}C`], col: value?.[`${name}Col`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
-    x: value?.[`${name}X`], y: value?.[`${name}Y`], z: value?.[`${name}Z`],
-  });
-}
 function namedGridDirection(value) {
   return gridDirection(value?.dir ?? value?.direction) ?? gridDirection({
     dc: value?.dirC ?? value?.directionC, dr: value?.dirR ?? value?.directionR,
@@ -356,13 +366,6 @@ function namedGridDirection(value) {
   });
 }
 
-function gridPoint(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const usesZ = value.r === undefined && value.row === undefined && value.y === undefined && value.z !== undefined;
-  const usesY = value.r === undefined && value.row === undefined && value.y !== undefined;
-  const c = finite(value.c ?? value.col ?? value.column ?? value.x), r = finite(value.r ?? value.row ?? value.y ?? value.z);
-  return c === null || r === null ? null : { c, r, axis: usesZ ? 'z' : usesY ? 'y' : 'row' };
-}
 function gridDirection(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const usesZ = value.dr === undefined && value.y === undefined && value.z !== undefined;

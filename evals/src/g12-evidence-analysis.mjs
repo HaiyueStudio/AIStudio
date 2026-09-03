@@ -1,9 +1,26 @@
-const ANALYZER_VERSION = 'g12-trace-pixel-correlator-1.0.0';
+import {
+  createG12GameplayTrace, gameplayValues, namedTelemetryPoint, roleTelemetryPoint,
+  traceBooleans, traceHasEvent, traceNumbers,
+} from './g12-gameplay-telemetry.mjs';
+
+const ANALYZER_VERSION = 'g12-trace-pixel-correlator-2.0.0';
 
 export function analyzeG12ReplayEvidence({ genre, replay, scene, bitmap, width, height, tickRateHz = 60 }) {
-  const traceSignals = genre === 'snake' ? analyzeSnake(replay, tickRateHz) : {};
+  const trace = createG12GameplayTrace(replay);
+  const traceSignals = analyzeTrace(genre, replay, trace, tickRateHz);
   const visual = analyzeVisual({ genre, replay, scene, bitmap, width, height });
   return Object.freeze({ version: ANALYZER_VERSION, traceSignals: Object.freeze(traceSignals), visualSignals: Object.freeze(visual.signals), visualMetrics: Object.freeze(visual.metrics) });
+}
+
+function analyzeTrace(genre, replay, trace, tickRateHz) {
+  if (genre === 'snake') return analyzeSnake(replay, tickRateHz);
+  if (genre === 'match-3') return analyzeMatch3(replay, trace);
+  if (genre === 'falling-blocks') return analyzeFallingBlocks(replay, trace);
+  if (genre === 'jigsaw') return analyzeJigsaw(replay, trace);
+  if (genre === 'platformer') return analyzePlatformer(replay, trace);
+  if (genre === 'racing') return analyzeRacing(replay, trace);
+  if (genre === 'shooter') return analyzeShooter(replay, trace);
+  return {};
 }
 
 function analyzeSnake(replay, tickRateHz) {
@@ -37,6 +54,121 @@ function analyzeSnake(replay, tickRateHz) {
   };
 }
 
+function analyzeMatch3(replay, trace) {
+  const invalidAttempted = bool(trace, ['swap.invalidAttempted', 'invalidSwapAttempted'])
+    ?? event(trace, ['invalid-swap', 'swap-rejected', 'invalid-move', 'swap-reverted']);
+  const invalidRestored = bool(trace, ['swap.invalidRestored', 'invalidSwapRestored', 'board.invalidSwapRestored'])
+    ?? event(trace, ['invalid-swap-restored', 'swap-reverted', 'board-restored']);
+  const scoreDelta = delta(trace, ['score', 'metrics.score']);
+  return compact({
+    'swap.invalidRestored': invalidRestored,
+    'swap.invalidAttempted': invalidAttempted,
+    'swap.invalidScoreDelta': number(trace, ['swap.invalidScoreDelta', 'metrics.invalidSwapScoreDelta']) ?? (invalidRestored && invalidAttempted ? 0 : null),
+    'board.emptyCells': number(trace, ['board.emptyCells', 'metrics.emptyCells', 'emptyCells']),
+    'match.clearedCount': maximum(trace, ['match.clearedCount', 'metrics.clearedCount', 'clearedCount', 'tilesCleared']),
+    'board.gravityAndRefillCompleted': bool(trace, ['board.gravityAndRefillCompleted', 'gravityAndRefillCompleted', 'refillCompleted'])
+      ?? event(trace, ['gravity-complete', 'refill-complete', 'board-refilled', 'board-settled']),
+    'score.delta': scoreDelta,
+    'terminal.reached': terminal(trace),
+    'restart.initialStateRestored': restartRestored(replay, trace),
+    'hud.scoreAndMovesPresent': hudContains(replay, /score|分数/iu) && hudContains(replay, /moves?|步数|剩余/iu),
+    'board.interactableAfterSettling': bool(trace, ['board.interactableAfterSettling', 'interactable', 'inputEnabled', 'canInteract']),
+    'board.maxSettleTicks': maximum(trace, ['board.maxSettleTicks', 'metrics.maxSettleTicks', 'settleTicks']),
+  });
+}
+
+function analyzeFallingBlocks(replay, trace) {
+  const levels = numbers(trace, ['level', 'metrics.level']);
+  const intervals = numbers(trace, ['dropInterval', 'fallInterval', 'metrics.dropInterval']);
+  return compact({
+    'piece.transformsWithinBoard': bool(trace, ['piece.transformsWithinBoard', 'transformsWithinBoard', 'activePieceWithinBoard'])
+      ?? zero(trace, ['board.outOfBoundsCellCount', 'outOfBoundsCells']),
+    'board.overlapCellCount': number(trace, ['board.overlapCellCount', 'overlapCellCount', 'overlapCells']),
+    'controls.moveRotateObserved': bool(trace, ['controls.moveRotateObserved', 'moveRotateObserved'])
+      ?? (inputs(replay, ['move-rotate']) && event(trace, ['piece-moved', 'piece-rotated', 'move-accepted', 'rotate-accepted'])),
+    'piece.lockedCount': maximum(trace, ['piece.lockedCount', 'metrics.lockedCount', 'lockedCount', 'piecesLocked']),
+    'line.clearedCount': maximum(trace, ['line.clearedCount', 'metrics.linesCleared', 'linesCleared', 'clearedLines']),
+    'board.compactedAfterClear': bool(trace, ['board.compactedAfterClear', 'compactedAfterClear']) ?? event(trace, ['line-cleared', 'board-compacted']),
+    'progression.speedIncreased': bool(trace, ['progression.speedIncreased', 'speedIncreased'])
+      ?? (levels.length > 1 ? levels.at(-1) > levels[0] : intervals.length > 1 ? intervals.at(-1) < intervals[0] : null),
+    'terminal.topOutGameOver': bool(trace, ['terminal.topOutGameOver', 'topOutGameOver']) ?? event(trace, ['top-out', 'game-over']),
+    'restart.initialStateRestored': restartRestored(replay, trace),
+    'hud.scoreLevelPreviewPresent': hudContains(replay, /score|分数/iu) && hudContains(replay, /level|等级/iu) && hudContains(replay, /next|preview|下一/iu),
+    'board.duplicateActivePieces': number(trace, ['board.duplicateActivePieces', 'duplicateActivePieces']),
+  });
+}
+
+function analyzeJigsaw(replay, trace) {
+  const locked = maximum(trace, ['puzzle.lockedCount', 'metrics.lockedCount', 'lockedCount', 'piecesLocked']);
+  const cancelInjected = inputs(replay, ['wrong-drop']);
+  const laterInteractionWorked = event(trace, ['correct-snap', 'piece-snapped', 'piece-locked', 'first-piece-locked']);
+  return compact({
+    'drag.followsPointer': bool(trace, ['drag.followsPointer', 'dragFollowsPointer']) ?? event(trace, ['drag-move', 'piece-dragged']),
+    'drag.activePieceOnTop': bool(trace, ['drag.activePieceOnTop', 'activePieceOnTop']),
+    'drag.releaseObserved': inputs(replay, ['wrong-drop', 'near-correct']) || event(trace, ['drag-release', 'piece-released']),
+    'snap.correctLockedCount': maximum(trace, ['snap.correctLockedCount', 'correctLockedCount', 'metrics.lockedCount', 'lockedCount']),
+    'snap.wrongLockedCount': number(trace, ['snap.wrongLockedCount', 'wrongLockedCount', 'metrics.wrongLockedCount']),
+    'snap.correctMappingOnly': bool(trace, ['snap.correctMappingOnly', 'correctMappingOnly']) ?? event(trace, ['correct-snap', 'piece-locked']),
+    'puzzle.lockedCount': locked,
+    'terminal.completed': event(trace, ['complete', 'completed', 'victory', 'won', 'win']),
+    'reshuffle.draggableCount': number(trace, ['reshuffle.draggableCount', 'draggableCount', 'metrics.draggableCount']),
+    'puzzle.visiblePieceCount': number(trace, ['puzzle.visiblePieceCount', 'visiblePieceCount', 'metrics.visiblePieceCount']),
+    'drag.cancelRecovered': bool(trace, ['drag.cancelRecovered', 'cancelRecovered']) ?? (cancelInjected && laterInteractionWorked),
+    'drag.cancelInjected': bool(trace, ['drag.cancelInjected', 'cancelInjected']) ?? cancelInjected,
+  });
+}
+
+function analyzePlatformer(replay, trace) {
+  return compact({
+    'player.jumpAndLandObserved': bool(trace, ['player.jumpAndLandObserved', 'jumpAndLandObserved'])
+      ?? (event(trace, ['jump', 'jumped']) && event(trace, ['land', 'landed'])),
+    'physics.platformPenetrations': number(trace, ['physics.platformPenetrations', 'metrics.platformPenetrations', 'platformPenetrations']),
+    'controls.runJumpObserved': bool(trace, ['controls.runJumpObserved', 'runJumpObserved'])
+      ?? (inputs(replay, ['run', 'jump']) && event(trace, ['jump', 'jumped'])),
+    'collectible.duplicateCredits': number(trace, ['collectible.duplicateCredits', 'duplicateCollectibleCredits', 'duplicateCredits']),
+    'hazard.contactObserved': event(trace, ['hazard-contact', 'hit-hazard', 'damaged']),
+    'respawn.usedActivatedCheckpoint': bool(trace, ['respawn.usedActivatedCheckpoint', 'usedActivatedCheckpoint'])
+      ?? (event(trace, ['checkpoint-activated']) && event(trace, ['respawn', 'respawned'])),
+    'terminal.victoryReached': bool(trace, ['terminal.victoryReached', 'victoryReached']) ?? event(trace, ['victory', 'complete', 'completed', 'win']),
+    'restart.initialStateRestored': restartRestored(replay, trace),
+    'camera.maxJitterPixels': maximum(trace, ['camera.maxJitterPixels', 'metrics.cameraJitterPixels', 'cameraJitterPixels']),
+    'respawn.duplicatePlayers': number(trace, ['respawn.duplicatePlayers', 'duplicatePlayers']),
+  });
+}
+
+function analyzeRacing(replay, trace) {
+  const speeds = numbers(trace, ['vehicle.speed', 'speed', 'metrics.speed']);
+  return compact({
+    'vehicle.accelerationObserved': bool(trace, ['vehicle.accelerationObserved', 'accelerationObserved']) ?? increased(speeds),
+    'vehicle.brakingObserved': bool(trace, ['vehicle.brakingObserved', 'brakingObserved'])
+      ?? (inputs(replay, ['brake']) && event(trace, ['brake', 'braking', 'vehicle-braked'])),
+    'controls.steeringObserved': bool(trace, ['controls.steeringObserved', 'steeringObserved'])
+      ?? (inputs(replay, ['steer']) && event(trace, ['steer', 'steering', 'vehicle-steered'])),
+    'lap.completed': bool(trace, ['lap.completed', 'lapCompleted']) ?? event(trace, ['lap-complete', 'race-finished', 'complete']),
+    'checkpoint.orderValid': bool(trace, ['checkpoint.orderValid', 'checkpointOrderValid', 'checkpointsInOrder']),
+    'collision.boundaryPenetrations': number(trace, ['collision.boundaryPenetrations', 'boundaryPenetrations']),
+    'restart.initialStateRestored': restartRestored(replay, trace),
+    'vehicle.recoveredFromOfftrack': bool(trace, ['vehicle.recoveredFromOfftrack', 'recoveredFromOfftrack'])
+      ?? event(trace, ['collision-recovered', 'offtrack-recovered', 'vehicle-recovered']),
+    'camera.maxJitterPixels': maximum(trace, ['camera.maxJitterPixels', 'metrics.cameraJitterPixels', 'cameraJitterPixels']),
+  });
+}
+
+function analyzeShooter(replay, trace) {
+  return compact({
+    'player.movementObserved': bool(trace, ['player.movementObserved', 'movementObserved']) ?? event(trace, ['player-moved', 'move']),
+    'aim.maxAngularErrorDegrees': maximum(trace, ['aim.maxAngularErrorDegrees', 'metrics.aimErrorDegrees', 'aimErrorDegrees']),
+    'fire.inputObserved': bool(trace, ['fire.inputObserved', 'fireInputObserved'])
+      ?? (inputs(replay, ['aim-fire']) && event(trace, ['fire', 'shot-fired'])),
+    'combat.validHitDamageObserved': bool(trace, ['combat.validHitDamageObserved', 'validHitDamageObserved']) ?? event(trace, ['enemy-hit', 'damage-applied', 'hit']),
+    'cover.blockedShots': maximum(trace, ['cover.blockedShots', 'metrics.blockedShots', 'blockedShots']),
+    'combat.duplicateHitSettlements': number(trace, ['combat.duplicateHitSettlements', 'duplicateHitSettlements']),
+    'terminal.reached': terminal(trace),
+    'restart.staleProjectileCount': number(trace, ['restart.staleProjectileCount', 'staleProjectileCount']),
+    'combat.hitFeedbackObserved': bool(trace, ['combat.hitFeedbackObserved', 'hitFeedbackObserved']) ?? event(trace, ['hit-feedback', 'enemy-hit']),
+  });
+}
+
 function analyzeVisual({ genre, replay, scene, bitmap, width, height }) {
   const pixels = bitmap instanceof Uint8Array || Buffer.isBuffer(bitmap) ? bitmap : new Uint8Array();
   const pixelCount = Math.floor(pixels.byteLength / 4);
@@ -58,6 +190,57 @@ function analyzeVisual({ genre, replay, scene, bitmap, width, height }) {
   const hudText = (replay?.observations ?? []).flatMap((entry) => hudStrings(entry.value?.hud));
   const hudReadable = hudText.length > 0 && brightTopPixels >= Math.max(8, width * 0.04);
   const metrics = { validBitmap: true, clusters, brightTopPixels, visibleMaterialCount: visibleMaterials.size };
+  const trace = createG12GameplayTrace(replay);
+  if (genre === 'match-3') {
+    const tiles = matchingMaterials(scene, /tile|gem|candy|jewel|piece/iu).filter((entry) => visibleMaterials.has(entry.entityId));
+    return { signals: {
+      'visual.pngCaptured': true,
+      'visual.boardRolesDistinct': distinctColors(tiles) >= 3 && clusters >= 5,
+      'visual.hudReadable': hudReadable,
+    }, metrics };
+  }
+  if (genre === 'falling-blocks') {
+    return { signals: {
+      'visual.pngCaptured': true,
+      'visual.activeAndLockedDistinct': distinctVisibleRoles(scene, visibleMaterials, [/active|falling|current/iu, /locked|settled|stack/iu]),
+      'visual.hudAndPreviewReadable': hudReadable && hudText.some((entry) => /next|preview|下一/iu.test(entry)),
+    }, metrics };
+  }
+  if (genre === 'jigsaw') {
+    const pieceVisible = matchingMaterials(scene, /puzzle.*piece|jigsaw.*piece|piece/iu).some((entry) => visibleMaterials.has(entry.entityId));
+    const visibleCount = number(trace, ['puzzle.visiblePieceCount', 'visiblePieceCount', 'metrics.visiblePieceCount']);
+    return { signals: {
+      'visual.pngCaptured': true,
+      'visual.pieceBoundariesReadable': pieceVisible && clusters >= 5,
+      'visual.allPiecesInViewport': pieceVisible && visibleCount === 12,
+    }, metrics };
+  }
+  if (genre === 'platformer') {
+    const composition = distinctVisibleRoles(scene, visibleMaterials, [/player|hero|character/iu, /platform|ground|path/iu]);
+    return { signals: {
+      'visual.pngCaptured': true,
+      'visual.playerAndForwardPathVisible': composition,
+      'visual.cameraWithinLevelBounds': bool(trace, ['visual.cameraWithinLevelBounds', 'cameraWithinLevelBounds']) ?? false,
+    }, metrics };
+  }
+  if (genre === 'racing') {
+    const vehicleAndRoad = distinctVisibleRoles(scene, visibleMaterials, [/vehicle|car|racer/iu, /road|track|course/iu]);
+    const collisionFeedback = matchingMaterials(scene, /collision|impact|feedback|spark|effect/iu).some((entry) => visibleMaterials.has(entry.entityId));
+    return { signals: {
+      'visual.pngCaptured': true,
+      'visual.collisionFeedbackVisible': (bool(trace, ['visual.collisionFeedbackVisible', 'collisionFeedbackVisible']) ?? collisionFeedback)
+        && event(trace, ['collision', 'hit-boundary', 'collision-recovered']),
+      'visual.vehicleAndRoadVisible': vehicleAndRoad,
+      'visual.hudReadable': hudReadable,
+    }, metrics };
+  }
+  if (genre === 'shooter') {
+    return { signals: {
+      'visual.pngCaptured': true,
+      'visual.combatRolesDistinct': distinctVisibleRoles(scene, visibleMaterials, [/player|hero/iu, /enemy|foe/iu, /projectile|bullet|shot|cover|obstacle/iu]),
+      'visual.hudReadable': hudReadable,
+    }, metrics };
+  }
   if (genre !== 'snake') return { signals: { 'visual.pngCaptured': true }, metrics };
   const head = roleMaterial(scene, /snake.*head|head.*snake|snakehead/iu);
   const body = roleMaterial(scene, /snake.*body|body.*snake|snakebody/iu);
@@ -99,31 +282,39 @@ function roleMaterial(scene, pattern) {
   return entity ? { entityId: entity.id, color: entity.appearance.color.slice(0, 3) } : null;
 }
 
+function matchingMaterials(scene, pattern) {
+  return (scene?.entities ?? []).filter((entry) => pattern.test(String(entry?.name ?? '')) && Array.isArray(entry?.appearance?.color))
+    .map((entry) => ({ entityId: entry.id, color: entry.appearance.color.slice(0, 3) }));
+}
+
+function distinctVisibleRoles(scene, visibleMaterials, patterns) {
+  const roles = patterns.map((pattern) => roleMaterial(scene, pattern));
+  return roles.every(Boolean) && roles.every((entry) => visibleMaterials.has(entry.entityId)) && distinctColors(roles) === roles.length;
+}
+
+function distinctColors(entries) { return new Set(entries.map((entry) => entry.color.map((value) => Math.round(value * 255)).join(','))).size; }
+
 function snakeState(observation) {
-  for (const record of observation?.value?.gameplay ?? []) {
-    const value = record?.value;
-    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-    const head = namedPoint(value, 'head'), food = namedPoint(value, 'food'), direction = namedVector(value);
-    if (!head || !Number.isFinite(value.score) || !Number.isFinite(value.length)) continue;
+  for (const value of gameplayValues(observation)) {
+    const head = namedTelemetryPoint(value, 'head') ?? roleTelemetryPoint(value, ['actors'], [/snake.*head|head.*snake|\bhead\b/iu]);
+    const food = namedTelemetryPoint(value, 'food') ?? roleTelemetryPoint(value, ['targets'], [/food|collectible|pickup/iu]);
+    const direction = namedVector(value);
+    const score = value.score ?? value.metrics?.score;
+    const length = value.length ?? value.metrics?.length ?? value.metrics?.snakeLength;
+    if (!head || !Number.isFinite(score) || !Number.isFinite(length)) continue;
     return {
       tick: observation.tick,
       head,
       food,
       direction,
-      score: value.score,
-      length: value.length,
+      score,
+      length,
       terminal: ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(String(value.state ?? value.status ?? '').toLowerCase()),
     };
   }
   return null;
 }
 
-function namedPoint(value, name) {
-  return point(value?.[name]) ?? point({
-    c: value?.[`${name}C`], col: value?.[`${name}Col`], column: value?.[`${name}Column`], r: value?.[`${name}R`], row: value?.[`${name}Row`],
-    x: value?.[`${name}X`], y: value?.[`${name}Y`], z: value?.[`${name}Z`],
-  });
-}
 function namedVector(value) {
   return vector(value?.dir ?? value?.direction) ?? vector({
     dc: value?.dirC ?? value?.directionC, dr: value?.dirR ?? value?.directionR,
@@ -143,11 +334,6 @@ function deriveDirections(states) {
   });
 }
 
-function point(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const c = value.c ?? value.col ?? value.column ?? value.x, r = value.r ?? value.row ?? value.y ?? value.z;
-  return Number.isFinite(c) && Number.isFinite(r) ? { c, r } : null;
-}
 function vector(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const dc = value.dc ?? value.x, dr = value.dr ?? value.y ?? value.z;
@@ -180,6 +366,33 @@ function speedDrift(observations, tickRateHz) {
   }
   return samples > 0 ? maximum : 1;
 }
+
+function values(trace, aliases) { return traceValuesSafe(traceNumbers(trace, aliases)); }
+function numbers(trace, aliases) { return values(trace, aliases); }
+function number(trace, aliases) { const result = numbers(trace, aliases); return result.length > 0 ? result.at(-1) : null; }
+function maximum(trace, aliases) { const result = numbers(trace, aliases); return result.length > 0 ? Math.max(...result) : null; }
+function delta(trace, aliases) { const result = numbers(trace, aliases); return result.length > 1 ? Math.max(...result) - result[0] : null; }
+function bool(trace, aliases) { const result = traceBooleans(trace, aliases); return result.length > 0 ? result.at(-1).value : null; }
+function zero(trace, aliases) { const result = maximum(trace, aliases); return result === null ? null : result === 0; }
+function event(trace, aliases) { return traceHasEvent(trace, aliases); }
+function increased(result) { return result.length > 1 ? Math.max(...result.slice(1)) > result[0] : null; }
+function terminal(trace) { return event(trace, ['game-over', 'gameover', 'failed', 'failure', 'defeat', 'lost', 'complete', 'completed', 'victory', 'won', 'win']); }
+function inputs(replay, sourceStepIds) {
+  const expected = new Set(sourceStepIds);
+  return Array.isArray(replay?.trace) && replay.trace.some((entry) => expected.has(entry?.sourceStepId)
+    && ['input-queued', 'trigger-input-queued', 'semantic-driver'].includes(entry?.kind));
+}
+function restartRestored(replay, trace) {
+  const explicit = bool(trace, ['restart.initialStateRestored', 'initialStateRestored']);
+  if (explicit !== null) return explicit;
+  const restarted = inputs(replay, ['restart', 'reshuffle']) || event(trace, ['restart', 'restarted', 'reset', 'reshuffle', 'reshuffled']);
+  if (!restarted) return false;
+  const phases = trace.map((entry) => String(entry.value?.state ?? entry.value?.status ?? entry.value?.phase ?? '').toLowerCase());
+  return phases.length > 0 && !['gameover', 'game-over', 'failed', 'lost', 'complete', 'completed', 'victory', 'won', 'win'].includes(phases.at(-1));
+}
+function hudContains(replay, pattern) { return (replay?.observations ?? []).flatMap((entry) => hudStrings(entry.value?.hud)).some((entry) => pattern.test(entry)); }
+function compact(value) { return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== null && entry !== undefined)); }
+function traceValuesSafe(entries) { return entries.map((entry) => entry.value); }
 function hudStrings(value) {
   if (!value) return [];
   if (typeof value === 'string') return [value];

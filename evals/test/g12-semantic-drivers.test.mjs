@@ -29,6 +29,12 @@ test('semantic pointer drivers consume only normalized, exact-role replay target
   assert.deepEqual([pointers[0].x, pointers[0].y, pointers.at(-1).x, pointers.at(-1).y], [0.11, 0.22, 0.33, 0.44]);
 });
 
+test('wrong jigsaw drop injects a bounded pointer cancel before later recovery checks', async () => {
+  const control = previewControl();
+  await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-drag-piece', control, { destination: 'wrong-slot' });
+  assert.equal(control.events.some((event) => event.kind === 'pointer' && event.phase === 'cancel'), true);
+});
+
 test('semantic drivers fail closed for missing registration and tick-budget overflow', async () => {
   await assert.rejects(() => executeG12SemanticDriver({}, 'scripted-swap', previewControl(), {}), (error) => error.code === 'g12.semantic-driver-missing');
   const registry = { 'scripted-swap': { id: 'scripted-swap', maxTicks: 1, async run(session) { await session.action('Space', 2); } } };
@@ -78,6 +84,12 @@ test('snake verification accepts col-row point aliases', async () => {
   assert.ok(result.inputs > 0);
 });
 
+test('snake verification consumes the shared actors targets metrics telemetry shape', async () => {
+  const control = snakePreviewControl('row', 'vector', 'playing', null, 'canonical');
+  const result = await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.ok(result.inputs > 0);
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -108,6 +120,8 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
     ? { state: terminal ? 'over' : phase, headX: head.c, headZ: head.r, foodX: food.c, foodZ: food.r, dirX: direction.dc, dirZ: direction.dr, score, length, events: terminal ? ['gameover'] : [] }
     : telemetryShape === 'col-row'
       ? { state: terminal ? 'over' : phase, head: { col: head.c, row: head.r }, food: { col: food.c, row: food.r }, dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] }
+    : telemetryShape === 'canonical'
+      ? { schemaVersion: 1, state: terminal ? 'over' : phase, space: { kind: 'grid', columns: 11, rows: 11 }, metrics: { score, length }, actors: [{ id: 'snake-head', role: 'snake-head', grid: { column: head.c, row: head.r } }], targets: [{ id: 'food', role: 'food', grid: { column: food.c, row: food.r } }], dir: encodedDirection(), events: terminal ? ['gameover'] : [] }
     : { state: terminal ? 'over' : phase, head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] };
   const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: gameplayValue() }] } });
   const advance = () => {
