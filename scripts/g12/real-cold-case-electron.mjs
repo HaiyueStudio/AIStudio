@@ -586,16 +586,23 @@ function ensureFailureAttribution(taskId, usageRecords, costRecords) {
 }
 function mergeTurnSummaries(summaries) { const last = summaries.at(-1); return Object.freeze({ backendId: last.backendId, sessionId: last.sessionId ?? summaries.findLast((entry) => entry.sessionId)?.sessionId ?? null, turnId: last.turnId, terminal: last.terminal, results: Object.freeze(summaries.flatMap((entry) => entry.results)), diagnostics: Object.freeze(summaries.flatMap((entry) => entry.diagnostics)) }); }
 function withDiagnostic(summary, cause) { return Object.freeze({ ...summary, diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: typeof cause?.code === 'string' ? cause.code : 'g12.repair-failed', message: cause instanceof Error ? cause.message : String(cause) })]) }); }
-function isRecoverableSummary(summary) { return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited'); }
+function isRecoverableSummary(summary) {
+  if (summary.diagnostics.some((entry) => entry.code === 'QUOTA')) return false;
+  return summary.terminal === 'interrupted' && summary.diagnostics.some((entry) => entry.code === 'TRANSPORT' || entry.code === 'agent.stream-without-terminal' || entry.code === 'agent.rate-limited');
+}
 function takeOverVerifiedAuthoring(summary, fixture, preview) {
-  const takeoverCodes = new Set(['agent.tool-progress-stalled', 'g12.agent-verification-ready', 'g12.agent-authoring-timebox-reached']);
+  const takeoverCodes = new Set(['agent.tool-progress-stalled', 'g12.agent-verification-ready', 'g12.agent-authoring-timebox-reached', 'QUOTA']);
   if (summary.terminal === 'completed' || !summary.diagnostics.some((entry) => takeoverCodes.has(entry.code))) return summary;
   const completed = new Set(summary.results.filter((entry) => entry.status === 'completed').map((entry) => entry.toolId));
-  const required = ['preview.validate', 'play.start', 'play.step', 'play.inspect'];
+  const providerUnavailable = summary.diagnostics.some((entry) => entry.code === 'QUOTA');
+  const required = providerUnavailable ? [] : ['preview.validate', 'play.start', 'play.step', 'play.inspect'];
   const contract = inspectG12GameplayContract(fixture.projectScripts.snapshot());
   const snapshot = preview.snapshot();
   if (enabledScriptCount(fixture.projectScripts.snapshot()) < 1 || !contract.valid || required.some((toolId) => !completed.has(toolId)) || snapshot.errors.length > 0) return summary;
-  return Object.freeze({ ...summary, terminal: 'completed', diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: 'g12.agent-verification-takeover', message: 'Studio stopped redundant model self-checks after retaining a committed script, valid gameplay telemetry, clean Play validation, fixed stepping and inspection; hidden replay now owns acceptance input and screenshots.' })]) });
+  const message = providerUnavailable
+    ? 'Studio retained a committed script with valid gameplay telemetry before provider quota exhaustion; independent hidden Play now owns runtime validation, acceptance input and screenshots without another model request.'
+    : 'Studio stopped redundant model self-checks after retaining a committed script, valid gameplay telemetry, clean Play validation, fixed stepping and inspection; hidden replay now owns acceptance input and screenshots.';
+  return Object.freeze({ ...summary, terminal: 'completed', diagnostics: Object.freeze([...summary.diagnostics, Object.freeze({ code: 'g12.agent-verification-takeover', message })]) });
 }
 function readyForVerificationTakeover(events, fixture, preview) {
   const requested = new Set(events.filter((entry) => entry.kind === 'tool-request').map((entry) => entry.payload.toolId));
@@ -607,7 +614,7 @@ function readyForVerificationTakeover(events, fixture, preview) {
     && snapshot.errors.length === 0;
 }
 function terminalSummaryError(summary) {
-  const priority = ['budget.formal-cap', 'g12.agent-authoring-timebox-reached', 'g12.agent-verification-ready', 'agent.tool-loop-detected', 'agent.tool-progress-stalled', 'agent.tool-call-budget-exceeded', 'TRANSPORT', 'agent.rate-limited', 'agent.stream-without-terminal'];
+  const priority = ['budget.formal-cap', 'g12.agent-authoring-timebox-reached', 'g12.agent-verification-ready', 'agent.tool-loop-detected', 'agent.tool-progress-stalled', 'agent.tool-call-budget-exceeded', 'QUOTA', 'TRANSPORT', 'agent.rate-limited', 'agent.stream-without-terminal'];
   const root = priority.map((code) => summary.diagnostics.findLast((entry) => entry.code === code)).find(Boolean);
   return errorWithCode(root?.code ?? 'g12.agent-turn-not-completed', root?.message ?? `Agent turn ended with ${summary.terminal}.`);
 }

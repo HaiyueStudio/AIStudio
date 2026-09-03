@@ -88,6 +88,10 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /capturePage\(\)/u);
   assert.match(source, /evidenceManifest, evaluator: evaluation/u);
   assert.match(source, /isRecoverableSummary/u);
+  assert.match(source, /if \(summary\.diagnostics\.some\(\(entry\) => entry\.code === 'QUOTA'\)\) return false/u);
+  assert.match(source, /providerUnavailable \? \[\] : \['preview\.validate', 'play\.start', 'play\.step', 'play\.inspect'\]/u);
+  assert.match(source, /valid gameplay telemetry before provider quota exhaustion/u);
+  assert.match(source, /'QUOTA', 'TRANSPORT'/u);
   assert.match(source, /上一回合发生可重试的传输或流中断/u);
   assert.match(source, /minimumTakeoverWindowMs/u);
   assert.match(source, /takeOverVerifiedAuthoring/u);
