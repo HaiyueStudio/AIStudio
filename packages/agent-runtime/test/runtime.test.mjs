@@ -108,6 +108,27 @@ test('cancellation suppresses later effects but still drains terminal and late u
   await runtime.dispose(); await log.close();
 });
 
+test('consumer-owned early handoff finalizes partial provider usage as cancelled', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-agent-consumer-handoff-')); const log = await OperationLog.open({ rootDirectory: root, appVersion: 'test' });
+  const registry = new AgentBackendRegistry(); registry.register(fakeBackend([
+    event('status', { status: 'running' }),
+    event('usage', { eventId: 'handoff:usage', sequence: 1, mode: 'cumulative', inputTokens: 11, cachedInputTokens: 7, outputTokens: 3, reasoningTokens: 2 }),
+    event('conversation-node', { delta: 'redundant verification', status: 'streaming' }),
+    event('completed', { status: 'completed', finishReason: 'stop' }),
+  ]));
+  const runtime = new AgentTurnRuntime(registry, log);
+  for await (const value of runtime.start(backendId, { ...turnInput('consumer-handoff'), contextArtifactIds: [] })) if (value.kind === 'usage') break;
+  const snapshot = runtime.usage.get(turnId).snapshot();
+  assert.equal(snapshot.executionState, 'terminal');
+  assert.equal(snapshot.finishReason, 'cancelled');
+  assert.equal(snapshot.record.final, true);
+  assert.equal(snapshot.record.inputTokens, 11);
+  const query = await log.query({ limit: 50, traverseCorrelation: false });
+  const finalUsage = query.events.filter((item) => item.kind === 'agent/usage-recorded').at(-1);
+  assert.equal(finalUsage.payload.final, true);
+  await runtime.dispose(); await log.close();
+});
+
 test('registry rejects duplicate ids and missing providers deterministically', async () => {
   const registry = new AgentBackendRegistry(); const first = fakeBackend([event('completed', { status: 'completed' })]); registry.register(first);
   assert.throws(() => registry.register(fakeBackend([])), (error) => error.code === 'agent.backend-duplicate');

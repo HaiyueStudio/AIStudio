@@ -145,6 +145,7 @@ export class AgentTurnRuntime {
     const controller = new AbortController(); const unlink = fuseAbort(signal, controller);
     let terminal = false; let coordinates: Readonly<{ sessionId: StableId; turnId: StableId }> | null = null;
     let ledger: UsageLedger | undefined; const startedAtMs = Date.now();
+    let unfinishedFinishReason: NormalizedFinishReason = 'cancelled';
     try {
       if (input) await this.log.append({ kind: 'agent/context-prepared', severity: 'info', source: asStableId('studio.agent-runtime'), payload: {
         backendId: backend.descriptor.id, taskId: input.taskId, promptDigest: sha256(input.prompt), promptBytes: Buffer.byteLength(input.prompt), contextArtifactIds: input.contextArtifactIds, toolIds: input.tools.map((tool) => tool.id),
@@ -174,8 +175,17 @@ export class AgentTurnRuntime {
         if (ledger && (event.kind === 'tool-request' || event.kind === 'usage' || event.kind === 'completed')) await this.appendUsageRecord(ledger.snapshot().record, controller.signal.aborted ? undefined : controller.signal);
         yield event;
       }
-      if (!terminal) throw new AgentBackendProtocolError('agent.stream-without-terminal', 'Backend stream closed without a terminal event.');
-    } finally { if (coordinates) this.active.delete(coordinates.turnId); unlink(); }
+      if (!terminal) { unfinishedFinishReason = 'error'; throw new AgentBackendProtocolError('agent.stream-without-terminal', 'Backend stream closed without a terminal event.'); }
+    } catch (cause) {
+      if (!controller.signal.aborted) unfinishedFinishReason = 'error';
+      throw cause;
+    } finally {
+      if (ledger?.snapshot().executionState === 'running') {
+        const finalized = ledger.markTerminal(unfinishedFinishReason, Date.now());
+        await this.appendUsageRecord(finalized.record);
+      }
+      if (coordinates) this.active.delete(coordinates.turnId); unlink();
+    }
   }
   private async appendUsageRecord(record: import('@haiyue/ai-studio-contracts').UsageRecordV2, signal?: AbortSignal): Promise<void> {
     await this.log.append({ kind: 'agent/usage-recorded', severity: 'info', source: asStableId('studio.agent-runtime'), correlation: { sessionId: record.sessionId as StableId, turnId: record.turnId as StableId, ...(record.toolCallId ? { toolCallId: record.toolCallId as StableId } : {}) }, payload: {
