@@ -132,6 +132,12 @@ function signals(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
   const result = [];
   for (const key of ['event', 'status', 'state', 'phase']) if (typeof value[key] === 'string') result.push(value[key]);
+  for (const containerKey of ['state', 'lifecycle']) {
+    const container = value[containerKey];
+    if (!container || typeof container !== 'object' || Array.isArray(container)) continue;
+    for (const key of ['event', 'status', 'state', 'phase']) if (typeof container[key] === 'string') result.push(container[key]);
+    for (const key of ['events', 'triggers']) if (Array.isArray(container[key])) result.push(...container[key].filter((entry) => typeof entry === 'string'));
+  }
   for (const key of ['events', 'triggers']) if (Array.isArray(value[key])) result.push(...value[key].filter((entry) => typeof entry === 'string'));
   if (value.flags && typeof value.flags === 'object' && !Array.isArray(value.flags)) for (const [key, enabled] of Object.entries(value.flags)) if (enabled === true) result.push(key);
   return result;

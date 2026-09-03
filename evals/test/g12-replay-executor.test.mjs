@@ -47,6 +47,12 @@ test('terminal status aliases are normalized but HUD text is never treated as a 
   overTracker.observe({ tick: 9, value: { gameplay: [{ value: { phase: 'over' } }] } });
   assert.equal(overTracker.tickFor('game-over'), 9);
   assert.equal(overTracker.tickFor('terminal-state'), 9);
+
+  const nestedTracker = new GameplaySignalTracker();
+  nestedTracker.observe({ tick: 10, value: { gameplay: [{ value: { state: { status: 'over', phase: 'over' }, lifecycle: { events: ['round-ended'] } } }] } });
+  assert.equal(nestedTracker.tickFor('game-over'), 10);
+  assert.equal(nestedTracker.tickFor('terminal-state'), 10);
+  assert.equal(nestedTracker.tickFor('round-ended'), 10);
 });
 
 test('physical replay controls resolve through the project action map for direct and semantic input', async () => {
