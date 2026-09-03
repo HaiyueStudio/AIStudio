@@ -64,6 +64,7 @@ test('failed semantic replay retains bounded observations and injected inputs fo
   await assert.rejects(() => executeG12ReplayProgram(control, program, { drivers }), (error) => {
     assert.equal(error.code, 'g12.semantic-test-failure');
     assert.ok(error.replayProgress.observations.length >= 2);
+    assert.ok(Array.isArray(error.replayProgress.observedSignals));
     assert.deepEqual(error.replayProgress.inputs.map((entry) => [entry.action, entry.phase]), [['ArrowUp', 'down'], ['ArrowUp', 'up']]);
     return true;
   });

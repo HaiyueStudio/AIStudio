@@ -60,7 +60,7 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
   if (capture && capture.tick !== finalObservation.tick) throw new G12ReplayProgramError('g12.replay-capture-tick-mismatch', 'Replay screenshot and final state were not captured at the same fixed tick.');
   return deepFreeze({ schemaVersion: 1, replayProgramVersion: '1.0.0', baseTick: program.baseTick, finalTick: finalObservation.tick, semanticDriverIds: [...new Set(trace.filter((entry) => entry.kind === 'semantic-driver').map((entry) => entry.driverId))].sort(), observedSignals: tracker.signals(), observations: tracker.observations(), trace, finalObservation, capture });
   } catch (cause) {
-    if (cause && typeof cause === 'object') cause.replayProgress = deepFreeze({ observations: tracker.observations(), trace: trace.slice(), inputs: Array.isArray(cause.driverProgress?.inputs) ? cause.driverProgress.inputs : [] });
+    if (cause && typeof cause === 'object') cause.replayProgress = deepFreeze({ observedSignals: tracker.signals(), observations: tracker.observations(), trace: trace.slice(), inputs: Array.isArray(cause.driverProgress?.inputs) ? cause.driverProgress.inputs : [] });
     throw cause;
   }
 }

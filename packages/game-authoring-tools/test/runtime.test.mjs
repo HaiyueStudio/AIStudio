@@ -88,10 +88,10 @@ test('camera.author creates, switches, frames, orbits, follows and configures ga
     assert.equal(followed.value.component.value.targetEntityId, target.value.entity.id); assert.equal(followed.value.component.value.smoothing, 0.25);
     const framed = await approveAndExecute(value.runtime, call('call:g08-camera-frame', 'camera.author', { baseRevision: 8, action: 'frame', targetEntityId: target.value.entity.id, padding: 2 }));
     assert.deepEqual(framed.value.camera.target, { x: 5, y: 2, z: -3 }); assert.equal(framed.value.camera.orthographicSize, 24);
-    const fitted = await approveAndExecute(value.runtime, call('call:g08-camera-fit-bounds', 'camera.author', { baseRevision: 9, action: 'frame-bounds', bounds: { minimum: { x: -10, y: 0, z: -7 }, maximum: { x: 10, y: 1, z: 7 } }, plane: 'xz', viewportAspect: 393 / 852, padding: 1.1 }));
+    const fitted = await approveAndExecute(value.runtime, call('call:g08-camera-fit-bounds', 'camera.author', { baseRevision: 9, action: 'frame-bounds', bounds: { minimum: { x: -10, y: 0, z: -7 }, maximum: { x: 10, y: 1, z: 7 } }, plane: 'xz', targetSize: { width: 393, height: 852 }, padding: 1.1 }));
     assert.equal(fitted.value.camera.projection, 'orthographic'); assert.equal(fitted.value.camera.elevationDegrees, 89.5);
     assert.deepEqual(fitted.value.camera.target, { x: 0, y: 0.5, z: 0 }); assert.ok(fitted.value.camera.orthographicSize > 47);
-    await assert.rejects(value.runtime.prepare(call('call:g08-camera-fit-invalid', 'camera.author', { baseRevision: 10, action: 'frame-bounds', bounds: { minimum: { x: 1, y: 0, z: -1 }, maximum: { x: -1, y: 1, z: 1 } }, plane: 'xz', viewportAspect: 1 })), /bounds\.maximum\.x/);
+    await assert.rejects(value.runtime.prepare(call('call:g08-camera-fit-invalid', 'camera.author', { baseRevision: 10, action: 'frame-bounds', bounds: { minimum: { x: 1, y: 0, z: -1 }, maximum: { x: -1, y: 1, z: 1 } }, plane: 'xz', targetSize: { width: 393, height: 852 } })), /bounds\.maximum\.x/);
     const orbited = await approveAndExecute(value.runtime, call('call:g08-camera-orbit', 'camera.author', { baseRevision: 10, action: 'orbit', azimuthDelta: 45, elevationDelta: 20, distance: 30 }));
     assert.equal(orbited.value.camera.azimuthDegrees, fitted.value.camera.azimuthDegrees + 45); assert.equal(orbited.value.camera.elevationDegrees, 90); assert.equal(orbited.value.camera.distance, 30);
     await value.workspace.undo(11);

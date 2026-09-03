@@ -16,7 +16,7 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   const second = new PromptModuleRegistry().profile;
   assert.deepEqual(first, second);
   assert.equal(first.id, 'prompt:game-authoring-general');
-  assert.equal(first.version, '3.3.0');
+  assert.equal(first.version, '3.4.0');
   assert.deepEqual(first.modules.map(({ id, version, layer }) => ({ id, version, layer })), [
     { id: 'prompt.policy.safe-authoring', version: '1.0.0', layer: 'policy' },
     { id: 'prompt.tools.structured-effects', version: '1.0.0', layer: 'tool-contract' },
@@ -25,7 +25,7 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   ]);
   const production = first.modules.map((entry) => entry.content).join('\n').toLowerCase();
   for (const genrePatch of ['snake', 'snakebody', 'tetris', 'match-3', 'platformer', 'racing', 'shooter', '贪吃蛇', '俄罗斯方块', '消消乐']) assert.doesNotMatch(production, new RegExp(escapeRegExp(genrePatch), 'iu'));
-  assert.equal(first.digest, 'sha256:d2aece582d4a90cfae9065dd8ddf57466bd0205c398b020b5eee69d832182fa9');
+  assert.equal(first.digest, 'sha256:c3384de7b03c84d277a63c0ddcdcc1d92d8b1c6ac0cd1bce077ba6a1a5e9cffd');
 });
 
 test('same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest', async () => {
