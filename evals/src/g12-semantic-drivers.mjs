@@ -39,7 +39,11 @@ export async function executeG12SemanticDriver(registry, driverId, control, para
   if (!definition || typeof definition.run !== 'function') throw new G12ReplayProgramError('g12.semantic-driver-missing', `Semantic driver ${driverId} is not registered.`);
   const session = new DriverSession(control, definition.maxTicks, options.signal, options.onObservation, options.resolveControl);
   const before = await session.inspect();
-  await definition.run(session, deepCloneRecord(parameters));
+  try { await definition.run(session, deepCloneRecord(parameters)); }
+  catch (cause) {
+    if (cause && typeof cause === 'object') cause.driverProgress = deepFreeze({ inputs: session.inputEvents.slice(-24), ticksConsumed: Math.max(0, (session.latestTick ?? before.tick) - before.tick) });
+    throw cause;
+  }
   const after = await session.inspect();
   return deepFreeze({ driverId, maxTicks: definition.maxTicks, ticksConsumed: after.tick - before.tick, beforeTick: before.tick, afterTick: after.tick, inputs: session.inputs, observations: session.observations });
 }
@@ -57,6 +61,8 @@ class DriverSession {
     this.startTick = null;
     this.inputs = 0;
     this.observations = 0;
+    this.latestTick = null;
+    this.inputEvents = [];
   }
 
   async inspect() {
@@ -65,6 +71,7 @@ class DriverSession {
     this.onObservation?.(value);
     if (!Number.isSafeInteger(value?.tick) || value.tick < 0) throw new G12ReplayProgramError('g12.semantic-driver-observation-invalid', 'Preview inspection has no valid fixed tick.');
     if (this.startTick === null) this.startTick = value.tick;
+    this.latestTick = value.tick;
     return value;
   }
 
@@ -75,6 +82,7 @@ class DriverSession {
     const value = await this.control.step(count, this.signal);
     this.observations += 1;
     this.onObservation?.(value);
+    this.latestTick = value?.tick ?? this.latestTick;
     return value;
   }
 
@@ -128,7 +136,13 @@ class DriverSession {
     return findTarget(observation, criteria) ?? fallback;
   }
 
-  async inject(event) { const observation = await this.control.input(event, this.signal); this.inputs += 1; this.onObservation?.(observation); }
+  async inject(event) {
+    const observation = await this.control.input(event, this.signal);
+    this.inputs += 1;
+    this.latestTick = observation?.tick ?? this.latestTick;
+    this.inputEvents.push(deepFreeze({ tick: Number.isSafeInteger(observation?.tick) ? observation.tick : null, ...event }));
+    this.onObservation?.(observation);
+  }
 }
 
 async function swap(session, parameters) {
@@ -251,8 +265,9 @@ async function verifySnake(session, parameters) {
     if (!state?.direction) throw new G12ReplayProgramError('g12.semantic-snake-direction-unobservable', 'Snake direction was neither published as a vector nor observable from consecutive head positions.');
   }
   const initialScore = state.score;
+  state = await calibrateSnakeTurn(session, state);
   const initialDirection = state.direction;
-  const opposite = directionName(-initialDirection.dc, -initialDirection.dr, state.axis);
+  const opposite = snakeControlForDirection(state, -initialDirection.dc, -initialDirection.dr);
   if (opposite) {
     const afterReverse = await moveSnakeWithAction(session, state, opposite);
     if (!afterReverse || afterReverse.direction.dc !== initialDirection.dc || afterReverse.direction.dr !== initialDirection.dr) {
@@ -274,6 +289,16 @@ async function verifySnake(session, parameters) {
     state = snakeStateWithPrior(observation, state) ?? state;
   }
   if (!state.terminal) throw new G12ReplayProgramError('g12.semantic-snake-terminal-missing', 'Snake did not reach a collision terminal state within the bounded verification run.');
+}
+
+async function calibrateSnakeTurn(session, state) {
+  const probe = state.direction.dc !== 0
+    ? (state.head.r <= 2 ? 'ArrowDown' : 'ArrowUp')
+    : (state.head.c <= 2 ? 'ArrowRight' : 'ArrowLeft');
+  const next = await moveSnakeWithAction(session, state, probe);
+  if (!next || next.terminal) throw new G12ReplayProgramError('g12.semantic-snake-calibration-failed', 'Snake could not complete one safe perpendicular turn for black-box control calibration.');
+  if (next.direction.dc === state.direction.dc && next.direction.dr === state.direction.dr) throw new G12ReplayProgramError('g12.semantic-snake-calibration-rejected', 'Snake rejected a safe perpendicular direction input during black-box control calibration.');
+  return next;
 }
 
 async function normalizeSnakeRunState(session, state) {
@@ -307,9 +332,10 @@ function directionTowardFood(state) {
 async function moveSnakeWithAction(session, state, control) {
   let observation = await session.action(control, 1);
   let next = snakeStateWithPrior(observation, state);
-  if (next && (next.terminal || next.head.c !== state.head.c || next.head.r !== state.head.r)) return next;
+  if (next && (next.terminal || next.head.c !== state.head.c || next.head.r !== state.head.r)) return learnSnakeControl(next, state, control);
   observation = await waitForSnakeMovement(session, state.head, 40);
-  return snakeStateWithPrior(observation, state);
+  next = snakeStateWithPrior(observation, state);
+  return next ? learnSnakeControl(next, state, control) : next;
 }
 
 async function waitForSnakeMovement(session, before, maxTicks) {
@@ -325,13 +351,15 @@ function chooseSnakeDirection(state) {
   const dx = state.food.c - state.head.c;
   const dr = state.food.r - state.head.r;
   const candidates = [];
-  if (dx !== 0) candidates.push(directionName(Math.sign(dx), 0, state.axis));
-  if (dr !== 0) candidates.push(directionName(0, Math.sign(dr), state.axis));
-  const opposite = directionName(-state.direction.dc, -state.direction.dr, state.axis);
+  if (dx !== 0) candidates.push(snakeControlForDirection(state, Math.sign(dx), 0));
+  if (dr !== 0) candidates.push(snakeControlForDirection(state, 0, Math.sign(dr)));
+  const opposite = snakeControlForDirection(state, -state.direction.dc, -state.direction.dr);
   const direct = candidates.find((entry) => entry && entry !== opposite);
   if (direct) return direct;
-  const detour = state.head.r > 0 ? 'ArrowDown' : 'ArrowUp';
-  return detour === opposite ? (state.head.c > 0 ? 'ArrowLeft' : 'ArrowRight') : detour;
+  const detours = state.direction.dc !== 0
+    ? [[0, state.head.r > 0 ? -1 : 1], [0, state.head.r > 0 ? 1 : -1]]
+    : [[state.head.c > 0 ? -1 : 1, 0], [state.head.c > 0 ? 1 : -1, 0]];
+  return detours.map(([dc, row]) => snakeControlForDirection(state, dc, row)).find((entry) => entry && entry !== opposite) ?? null;
 }
 
 function snakeState(observation) {
@@ -346,18 +374,39 @@ function snakeState(observation) {
     const phase = String(lifecycleTelemetryState(value)).toLowerCase();
     const terminal = ['over', 'gameover', 'game-over', 'failed', 'lost'].includes(phase);
     const axis = head.axis === 'z' || food.axis === 'z' || direction?.axis === 'z' ? 'z' : 'row';
-    return { head, food, direction, score, length, terminal, phase, axis };
+    return { head, food, direction, score, length, terminal, phase, axis, controlMap: Object.freeze({}) };
   }
   return null;
 }
 
 function snakeStateWithPrior(observation, prior) {
   const next = snakeState(observation);
-  if (!next || next.direction) return next;
+  if (!next) return next;
+  const controlMap = prior?.controlMap ?? next.controlMap;
+  if (next.direction) return { ...next, controlMap };
   if (prior && (next.head.c !== prior.head.c || next.head.r !== prior.head.r)) {
-    return { ...next, direction: { dc: Math.sign(next.head.c - prior.head.c), dr: Math.sign(next.head.r - prior.head.r), axis: next.axis } };
+    return { ...next, controlMap, direction: { dc: Math.sign(next.head.c - prior.head.c), dr: Math.sign(next.head.r - prior.head.r), axis: next.axis } };
   }
-  return prior?.direction ? { ...next, direction: prior.direction } : next;
+  return prior?.direction ? { ...next, controlMap, direction: prior.direction } : { ...next, controlMap };
+}
+
+function learnSnakeControl(next, prior, control) {
+  const controlMap = { ...(prior.controlMap ?? {}) };
+  if (next.direction && prior.direction && (next.direction.dc !== prior.direction.dc || next.direction.dr !== prior.direction.dr)) {
+    controlMap[snakeVectorKey(next.direction.dc, next.direction.dr)] = control;
+    const opposite = oppositeArrowControl(control);
+    if (opposite) controlMap[snakeVectorKey(-next.direction.dc, -next.direction.dr)] = opposite;
+  }
+  return { ...next, controlMap: Object.freeze(controlMap) };
+}
+
+function snakeControlForDirection(state, dc, dr) {
+  return state.controlMap?.[snakeVectorKey(dc, dr)] ?? directionName(dc, dr, state.axis);
+}
+
+function snakeVectorKey(dc, dr) { return `${Math.sign(dc)},${Math.sign(dr)}`; }
+function oppositeArrowControl(control) {
+  return ({ ArrowUp: 'ArrowDown', ArrowDown: 'ArrowUp', ArrowLeft: 'ArrowRight', ArrowRight: 'ArrowLeft' })[control] ?? null;
 }
 
 function namedGridDirection(value) {

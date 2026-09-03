@@ -12,9 +12,10 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
   const signal = options.signal;
   const resolveControl = typeof options.resolveControl === 'function' ? options.resolveControl : (value) => value;
   const maxTriggerWaitTicks = integer(options.maxTriggerWaitTicks, 1, 100_000, 3_600);
+  const trace = [];
+  try {
   const initial = await observe(control.inspect(signal), tracker);
   if (initial.tick !== program.baseTick) throw new G12ReplayProgramError('g12.replay-base-tick-stale', `Compiled replay base tick ${program.baseTick} does not match paused preview tick ${initial.tick}.`);
-  const trace = [];
 
   const tickInputs = program.commands.filter((entry) => entry.kind === 'input' && entry.schedule.kind === 'tick').sort(compareTickCommand);
   for (const command of tickInputs) {
@@ -58,6 +59,10 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
   const capture = options.capture === true ? await control.capture(signal) : null;
   if (capture && capture.tick !== finalObservation.tick) throw new G12ReplayProgramError('g12.replay-capture-tick-mismatch', 'Replay screenshot and final state were not captured at the same fixed tick.');
   return deepFreeze({ schemaVersion: 1, replayProgramVersion: '1.0.0', baseTick: program.baseTick, finalTick: finalObservation.tick, semanticDriverIds: [...new Set(trace.filter((entry) => entry.kind === 'semantic-driver').map((entry) => entry.driverId))].sort(), observedSignals: tracker.signals(), observations: tracker.observations(), trace, finalObservation, capture });
+  } catch (cause) {
+    if (cause && typeof cause === 'object') cause.replayProgress = deepFreeze({ observations: tracker.observations(), trace: trace.slice(), inputs: Array.isArray(cause.driverProgress?.inputs) ? cause.driverProgress.inputs : [] });
+    throw cause;
+  }
 }
 
 export async function awaitG12GameplayTrigger(control, trigger, tracker = new GameplaySignalTracker(), options = {}) {

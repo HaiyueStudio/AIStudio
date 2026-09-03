@@ -57,6 +57,18 @@ test('physical replay controls resolve through the project action map for direct
   assert.equal(control.events.some((entry) => entry.action === 'ArrowRight' || entry.action === 'KeyX'), false);
 });
 
+test('failed semantic replay retains bounded observations and injected inputs for repair', async () => {
+  const control = previewControl();
+  const program = compileG12ReplayProgram({ driver: 'fixed', steps: [{ id: 'semantic', at: 'tick:1', action: 'scripted-swap', parameters: {} }] });
+  const drivers = { 'scripted-swap': { id: 'scripted-swap', version: '1.0.0', maxTicks: 8, async run(session) { await session.action('ArrowUp', 1); throw Object.assign(new Error('semantic defect'), { code: 'g12.semantic-test-failure' }); } } };
+  await assert.rejects(() => executeG12ReplayProgram(control, program, { drivers }), (error) => {
+    assert.equal(error.code, 'g12.semantic-test-failure');
+    assert.ok(error.replayProgress.observations.length >= 2);
+    assert.deepEqual(error.replayProgress.inputs.map((entry) => [entry.action, entry.phase]), [['ArrowUp', 'down'], ['ArrowUp', 'up']]);
+    return true;
+  });
+});
+
 function previewControl(options = {}) {
   let tick = options.startTick ?? 0;
   const events = [];

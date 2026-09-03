@@ -96,6 +96,13 @@ test('snake verification consumes nested player head, direction and lifecycle te
   assert.ok(result.inputs > 0);
 });
 
+test('snake verification calibrates cell XY controls instead of assuming row sign', async () => {
+  const control = snakePreviewControl('row', 'omitted', 'playing', null, 'cell-xy-inverted');
+  const result = await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-verify-snake', control, { collections: 2 });
+  assert.ok(result.inputs > 0);
+  assert.equal(control.events.some((event) => event.action === 'ArrowUp'), true);
+});
+
 function previewControl(replayTargets = []) {
   let tick = 5;
   const events = [];
@@ -110,8 +117,8 @@ function previewControl(replayTargets = []) {
 
 function snakePreviewControl(axis = 'row', directionMode = 'vector', initialState = 'playing', initialFood = null, telemetryShape = 'nested') {
   let tick = 5;
-  let head = { c: 2, r: 1 };
-  let food = initialFood ?? (axis === 'xz' ? { c: 2, r: 3 } : { c: 6, r: 1 });
+  let head = telemetryShape === 'cell-xy-inverted' ? { c: 2, r: 5 } : { c: 2, r: 1 };
+  let food = initialFood ?? (telemetryShape === 'cell-xy-inverted' ? { c: 6, r: 5 } : axis === 'xz' ? { c: 2, r: 3 } : { c: 6, r: 1 });
   let direction = { dc: 1, dr: 0 };
   let score = 0;
   let length = 3;
@@ -119,7 +126,7 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
   let terminal = phase === 'over';
   const events = [];
   const external = (value) => axis === 'xz' ? { x: value.c ?? value.dc, z: value.r ?? value.dr } : value;
-  const encodedDirection = () => directionMode === 'index'
+  const encodedDirection = () => directionMode === 'omitted' ? undefined : directionMode === 'index'
     ? [{ dc: 1, dr: 0 }, { dc: 0, dr: 1 }, { dc: -1, dr: 0 }, { dc: 0, dr: -1 }].findIndex((entry) => entry.dc === direction.dc && entry.dr === direction.dr)
     : external(direction);
   const gameplayValue = () => telemetryShape === 'flat'
@@ -130,6 +137,8 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
       ? { schemaVersion: 1, state: terminal ? 'over' : phase, space: { kind: 'grid', columns: 11, rows: 11 }, metrics: { score, length }, actors: [{ id: 'snake-head', role: 'snake-head', grid: { column: head.c, row: head.r } }], targets: [{ id: 'food', role: 'food', grid: { column: food.c, row: food.r } }], dir: encodedDirection(), events: terminal ? ['gameover'] : [] }
     : telemetryShape === 'nested-player'
       ? { schemaVersion: 1, state: { status: terminal ? 'over' : 'playing', phase: terminal ? 'game-over' : phase }, space: { kind: 'grid', columns: 11, rows: 11 }, metrics: { score, length }, actors: [{ id: 'snake', role: 'player', head: { cell: { col: head.c, row: head.r } }, dir: encodedDirection() }], targets: [{ id: 'food', role: 'food', cell: { col: food.c, row: food.r } }], events: terminal ? ['gameover'] : [] }
+    : telemetryShape === 'cell-xy-inverted'
+      ? { schemaVersion: 1, state: { status: terminal ? 'over' : 'playing', phase: terminal ? 'game-over' : phase }, space: { grid: { cols: 11, rows: 11 }, axes: ['x', 'z'] }, metrics: { score, length }, actors: [{ id: 'snake-head', role: 'head', cell: { x: head.c, y: head.r }, world: { x: head.c, z: head.r } }], targets: [{ id: 'food', role: 'food', cell: { x: food.c, y: food.r }, world: { x: food.c, z: food.r } }], events: terminal ? ['gameover'] : [] }
     : { state: terminal ? 'over' : phase, head: external(head), food: external(food), dir: encodedDirection(), score, length, events: terminal ? ['gameover'] : [] };
   const observation = () => ({ tick, value: { timeMs: tick * (1_000 / 60), gameplay: [{ scriptId: 'script:test', entityId: 'entity:test', id: 'snake', value: gameplayValue() }] } });
   const advance = () => {
@@ -140,7 +149,8 @@ function snakePreviewControl(axis = 'row', directionMode = 'vector', initialStat
         head = { c: 2, r: 1 }; direction = { dc: 1, dr: 0 }; score = 0; length = 3; terminal = false; phase = 'ready';
         continue;
       }
-      const requested = action === 'ArrowRight' ? { dc: 1, dr: 0 } : action === 'ArrowLeft' ? { dc: -1, dr: 0 } : action === 'ArrowUp' ? { dc: 0, dr: -1 } : action === 'ArrowDown' ? { dc: 0, dr: 1 } : direction;
+      const invertedVertical = telemetryShape === 'cell-xy-inverted';
+      const requested = action === 'ArrowRight' ? { dc: 1, dr: 0 } : action === 'ArrowLeft' ? { dc: -1, dr: 0 } : action === 'ArrowUp' ? { dc: 0, dr: invertedVertical ? 1 : -1 } : action === 'ArrowDown' ? { dc: 0, dr: invertedVertical ? -1 : 1 } : direction;
       if (requested.dc !== -direction.dc || requested.dr !== -direction.dr) { direction = requested; phase = 'playing'; }
     }
     if (terminal || phase !== 'playing') return;

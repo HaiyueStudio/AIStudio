@@ -256,7 +256,7 @@ async function run() {
         }
         const runtimeErrors = safeValue(() => preview.snapshot().errors, []).slice(0, 8).map((entry) => ({ code: entry.code, line: entry.line, column: entry.column, message: entry.message }));
         const replayObservation = await windowGuard.race(preview.inspect()).catch(() => null);
-        const replayDiagnostic = summarizeReplayObservation(replayObservation);
+        const replayDiagnostic = summarizeReplayProgress(cause?.replayProgress, replayObservation);
         await preview.stop().catch(() => undefined);
         account.repair(); account.beginTurn();
         const repairPrompt = cause?.code === 'g12.replay-runtime-error'
@@ -551,6 +551,18 @@ function summarizeReplayObservation(observation) {
   if (!observation || typeof observation !== 'object') return null;
   const gameplay = Object.fromEntries(Object.entries(gameplaySignals(observation)).slice(0, 64).map(([key, value]) => [key, typeof value === 'string' ? value.slice(0, 160) : value]));
   return Object.freeze({ tick: Number.isSafeInteger(observation.tick) ? observation.tick : null, runtimeErrorCount: nonNegativeInteger(observation.value?.runtimeErrorCount), gameplay });
+}
+function summarizeReplayProgress(progress, fallbackObservation) {
+  const observations = Array.isArray(progress?.observations) ? progress.observations : [];
+  const selected = observations.length <= 8 ? observations : [observations[0], ...observations.slice(-7)];
+  const states = selected.map((observation) => summarizeReplayObservation(observation)).filter(Boolean);
+  const inputs = (Array.isArray(progress?.inputs) ? progress.inputs : []).slice(-16).map((entry) => ({
+    tick: Number.isSafeInteger(entry?.tick) ? entry.tick : null,
+    kind: typeof entry?.kind === 'string' ? entry.kind : null,
+    phase: typeof entry?.phase === 'string' ? entry.phase : null,
+    action: typeof entry?.action === 'string' ? entry.action.slice(0, 80) : null,
+  }));
+  return Object.freeze({ final: summarizeReplayObservation(fallbackObservation), states, inputs });
 }
 function replayAction(scene, control) {
   for (const entity of scene?.entities ?? []) for (const component of entity.components ?? []) {

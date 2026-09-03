@@ -70,7 +70,9 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /isRepairableReplayFailure\(cause\)/u);
   assert.match(source, /code\.startsWith\('g12\.semantic-'\)/u);
   assert.match(source, /g12\.semantic-driver-control-invalid/u);
-  assert.match(source, /summarizeReplayObservation\(replayObservation\)/u);
+  assert.match(source, /summarizeReplayProgress\(cause\?\.replayProgress, replayObservation\)/u);
+  assert.match(source, /observations\.length <= 8/u);
+  assert.match(source, /progress\?\.inputs.*slice\(-16\)/su);
   assert.match(source, /所有运行时配置值必须有确定的初始化路径/u);
   assert.match(source, /为需要独立辨识的玩法角色使用语义清晰的实体名/u);
   assert.match(source, /自发光风格的街机玩法优先使用 basic 材质/u);
