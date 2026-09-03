@@ -77,9 +77,11 @@ test('real case runner separates model-visible request from hidden replay and pe
   assert.match(source, /为需要独立辨识的玩法角色使用语义清晰的实体名/u);
   assert.match(source, /自发光风格的街机玩法优先使用 basic 材质/u);
   assert.match(source, /api\.scene\.instances 的 capacity 在一次 Play 中不可改变/u);
-  assert.match(source, /version: '3\.2\.0'/u);
+  assert.match(source, /version: '3\.3\.0'/u);
   assert.match(source, /目标设备为 393×852 竖屏/u);
-  assert.match(source, /不能只用较短轴的半尺寸/u);
+  assert.match(source, /camera\.author 的 frame-bounds/u);
+  assert.match(source, /camera\.author frame-bounds/u);
+  assert.match(source, /不能只用较短轴或半尺寸/u);
   assert.match(source, /游戏规则没有按输入推进/u);
   assert.match(source, /requireUsableVisual: repairAttempt === 0/u);
   assert.match(source, /Object\.values\(analysis\.visualSignals\).*value !== true/u);

@@ -533,7 +533,7 @@ function ownedComponent(workspace: ProjectWorkspace, entityId: StableId, type: s
 }
 
 function planCameraAuthorMember(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, args: Readonly<Record<string, JsonValue>>): ReversibleTransactionMemberPlan {
-  const action = args.action as 'create' | 'activate' | 'frame' | 'orbit' | 'follow' | 'projection' | 'viewport';
+  const action = args.action as 'create' | 'activate' | 'frame' | 'frame-bounds' | 'orbit' | 'follow' | 'projection' | 'viewport';
   const document = options.workspace.gameSnapshot(); const scene = options.scene.snapshot();
   const member = (label: string, operations: readonly GameDocumentOperationV2[], result: (revision: number) => JsonObject): ReversibleTransactionMemberPlan => Object.freeze({ stored, label, operations: Object.freeze([...operations]), result });
   if (action === 'create') {
@@ -548,15 +548,28 @@ function planCameraAuthorMember(stored: StoredPreparation, options: GameAuthorin
     ]);
     return member('Create Gameplay Camera', operations, (revision) => Object.freeze({ revision, action, entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)), cameraComponent: component as unknown as JsonValue }));
   }
-  if (action === 'frame' || action === 'orbit') {
+  if (action === 'frame' || action === 'frame-bounds' || action === 'orbit') {
     const current = projectCameraFromSettings(requireDocument(options.workspace).settings);
     let camera;
     if (action === 'frame') {
       const target = requireEntity(scene, args.targetEntityId as StableId); const padding = (args.padding as number | undefined) ?? 2;
       const extent = Math.max(target.transform.scale.x, target.transform.scale.y, target.transform.scale.z, 0.5) * padding;
       camera = normalizeProjectCamera({ ...current, target: target.transform.position, distance: Math.max(1, extent * 2), orthographicSize: Math.max(1, extent * 2) });
+    } else if (action === 'frame-bounds') {
+      const bounds = args.bounds as unknown as { readonly minimum: TransformSnapshot['position']; readonly maximum: TransformSnapshot['position'] };
+      const plane = args.plane as 'xy' | 'xz' | 'yz'; const aspect = args.viewportAspect as number; const padding = (args.padding as number | undefined) ?? 1.1;
+      const spans = { x: bounds.maximum.x - bounds.minimum.x, y: bounds.maximum.y - bounds.minimum.y, z: bounds.maximum.z - bounds.minimum.z };
+      const [horizontal, vertical] = plane === 'xz' ? [spans.x, spans.z] : plane === 'xy' ? [spans.x, spans.y] : [spans.z, spans.y];
+      const orientation = plane === 'xz' ? { azimuthDegrees: 0, elevationDegrees: 89.5 } : plane === 'xy' ? { azimuthDegrees: 0, elevationDegrees: 0 } : { azimuthDegrees: 90, elevationDegrees: 0 };
+      camera = normalizeProjectCamera({
+        ...current, ...orientation, projection: 'orthographic',
+        target: { x: (bounds.minimum.x + bounds.maximum.x) / 2, y: (bounds.minimum.y + bounds.maximum.y) / 2, z: (bounds.minimum.z + bounds.maximum.z) / 2 },
+        distance: Math.max(current.distance, Math.min(500, Math.max(spans.x, spans.y, spans.z, 0.5) * 2)),
+        orthographicSize: Math.max(vertical, horizontal / aspect, 0.5) * padding,
+      });
     } else camera = normalizeProjectCamera({ ...current, azimuthDegrees: current.azimuthDegrees + ((args.azimuthDelta as number | undefined) ?? 0), elevationDegrees: Math.max(-89.9, Math.min(90, current.elevationDegrees + ((args.elevationDelta as number | undefined) ?? 0))), distance: (args.distance as number | undefined) ?? current.distance });
-    return member(action === 'frame' ? 'Frame Entity with Camera' : 'Orbit Camera', [{ op: 'setting.set', key: PROJECT_CAMERA_SETTING_KEY, value: camera as unknown as JsonValue }], (revision) => Object.freeze({ revision, action, camera: projectCameraFromSettings(requireDocument(options.workspace).settings) as unknown as JsonValue }));
+    const label = action === 'frame' ? 'Frame Entity with Camera' : action === 'frame-bounds' ? 'Frame World Bounds with Camera' : 'Orbit Camera';
+    return member(label, [{ op: 'setting.set', key: PROJECT_CAMERA_SETTING_KEY, value: camera as unknown as JsonValue }], (revision) => Object.freeze({ revision, action, camera: projectCameraFromSettings(requireDocument(options.workspace).settings) as unknown as JsonValue }));
   }
 
   const entityId = args.entityId as StableId; requireEntity(scene, entityId);
@@ -1309,21 +1322,33 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
 }
 
 function normalizeCameraAuthorArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
-  exact(raw, ['action'], ['baseRevision', 'entityId', 'targetEntityId', 'name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport', 'mode', 'offset', 'lookAtOffset', 'smoothing', 'padding', 'azimuthDelta', 'elevationDelta', 'distance'], 'camera.author');
-  const action = String(raw.action); if (!['create', 'activate', 'frame', 'orbit', 'follow', 'projection', 'viewport'].includes(action)) throw invalid('camera.author action is invalid.');
+  exact(raw, ['action'], ['baseRevision', 'entityId', 'targetEntityId', 'name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport', 'mode', 'offset', 'lookAtOffset', 'smoothing', 'padding', 'bounds', 'plane', 'viewportAspect', 'azimuthDelta', 'elevationDelta', 'distance'], 'camera.author');
+  const action = String(raw.action); if (!['create', 'activate', 'frame', 'frame-bounds', 'orbit', 'follow', 'projection', 'viewport'].includes(action)) throw invalid('camera.author action is invalid.');
   const actionFields: Record<string, readonly string[]> = {
-    create: ['name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport'], activate: ['entityId'], frame: ['targetEntityId', 'padding'], orbit: ['azimuthDelta', 'elevationDelta', 'distance'],
+    create: ['name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport'], activate: ['entityId'], frame: ['targetEntityId', 'padding'], 'frame-bounds': ['bounds', 'plane', 'viewportAspect', 'padding'], orbit: ['azimuthDelta', 'elevationDelta', 'distance'],
     follow: ['entityId', 'targetEntityId', 'mode', 'offset', 'lookAtOffset', 'smoothing'], projection: ['entityId', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far'], viewport: ['entityId', 'viewport'],
   };
   const allowed = new Set(['action', 'baseRevision', ...actionFields[action]!]);
   const unexpected = Object.keys(raw).filter((key) => !allowed.has(key)); if (unexpected.length) throw invalid(`camera.author ${action} does not accept: ${unexpected.join(', ')}.`);
   if (['activate', 'projection', 'viewport', 'follow'].includes(action) && raw.entityId === undefined) throw invalid(`camera.author ${action} requires entityId.`);
   if (['frame', 'follow'].includes(action) && raw.targetEntityId === undefined) throw invalid(`camera.author ${action} requires targetEntityId.`);
+  if (action === 'frame-bounds' && (raw.bounds === undefined || raw.plane === undefined || raw.viewportAspect === undefined)) throw invalid('camera.author frame-bounds requires bounds, plane, and viewportAspect.');
   if (action === 'projection' && raw.projection === undefined) throw invalid('camera.author projection requires projection.');
   if (action === 'viewport' && raw.viewport === undefined) throw invalid('camera.author viewport requires viewport.');
   if (action === 'orbit' && raw.azimuthDelta === undefined && raw.elevationDelta === undefined && raw.distance === undefined) throw invalid('camera.author orbit requires azimuthDelta, elevationDelta, or distance.');
   const projection = raw.projection === undefined ? undefined : String(raw.projection); if (projection && !['perspective', 'orthographic'].includes(projection)) throw invalid('camera projection is invalid.');
   const mode = raw.mode === undefined ? undefined : String(raw.mode); if (mode && !['position', 'look-at', 'position-and-look-at'].includes(mode)) throw invalid('camera follow mode is invalid.');
+  const plane = raw.plane === undefined ? undefined : String(raw.plane); if (plane && !['xy', 'xz', 'yz'].includes(plane)) throw invalid('camera frame plane is invalid.');
+  let bounds: Readonly<{ minimum: ReturnType<typeof vec>; maximum: ReturnType<typeof vec> }> | undefined;
+  if (raw.bounds !== undefined) {
+    if (!isRecord(raw.bounds)) throw invalid('bounds must be an object.'); exact(raw.bounds, ['minimum', 'maximum'], [], 'bounds');
+    bounds = Object.freeze({ minimum: vec(raw.bounds.minimum, 'bounds.minimum'), maximum: vec(raw.bounds.maximum, 'bounds.maximum') });
+    for (const axis of ['x', 'y', 'z'] as const) if (bounds.maximum[axis] < bounds.minimum[axis]) throw invalid(`bounds.maximum.${axis} must be greater than or equal to bounds.minimum.${axis}.`);
+    if (plane) {
+      const axes: readonly ('x' | 'y' | 'z')[] = plane === 'xz' ? ['x', 'z'] : plane === 'xy' ? ['x', 'y'] : ['z', 'y'];
+      if (axes.some((axis) => bounds!.maximum[axis] === bounds!.minimum[axis])) throw invalid(`bounds must have non-zero ${plane} width and height.`);
+    }
+  }
   return Object.freeze({
     baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action,
     ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.targetEntityId === undefined ? {} : { targetEntityId: stable(raw.targetEntityId, 'target entity id') }),
@@ -1334,6 +1359,7 @@ function normalizeCameraAuthorArguments(raw: Record<string, unknown>, currentRev
     ...(raw.viewport === undefined ? {} : { viewport: normalizeViewport(raw.viewport) as unknown as JsonValue }), ...(mode === undefined ? {} : { mode }),
     ...(raw.offset === undefined ? {} : { offset: vec(raw.offset, 'offset') as unknown as JsonValue }), ...(raw.lookAtOffset === undefined ? {} : { lookAtOffset: vec(raw.lookAtOffset, 'lookAtOffset') as unknown as JsonValue }),
     ...(raw.smoothing === undefined ? {} : { smoothing: boundedNumber(raw.smoothing, 'smoothing', 0, 1) }), ...(raw.padding === undefined ? {} : { padding: boundedNumber(raw.padding, 'padding', 1, 100) }),
+    ...(bounds === undefined ? {} : { bounds: bounds as unknown as JsonValue }), ...(plane === undefined ? {} : { plane }), ...(raw.viewportAspect === undefined ? {} : { viewportAspect: boundedNumber(raw.viewportAspect, 'viewportAspect', 0.1, 10) }),
     ...(raw.azimuthDelta === undefined ? {} : { azimuthDelta: boundedNumber(raw.azimuthDelta, 'azimuthDelta', -360, 360) }), ...(raw.elevationDelta === undefined ? {} : { elevationDelta: boundedNumber(raw.elevationDelta, 'elevationDelta', -180, 180) }),
     ...(raw.distance === undefined ? {} : { distance: boundedNumber(raw.distance, 'distance', 0.5, 500) }),
   });

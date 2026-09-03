@@ -93,7 +93,7 @@ interface TaskSummaryProjection {
   readonly blockers: readonly string[];
 }
 
-const PROFILE_VERSION = '3.2.0';
+const PROFILE_VERSION = '3.3.0';
 const MAX_MODEL_CONTEXT_BYTES = 96 * 1024;
 const MAX_SUMMARY_ITEMS = 12;
 const MAX_SUMMARY_ITEM_BYTES = 512;
@@ -114,6 +114,7 @@ export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] =
     'Derive entities, state, input, simulation, presentation, audio and verification from the current request and project facts. Keep authored responsibilities explicit and composable.',
     'After changes, run the strongest available repeatable and visual checks, diagnose failures from new evidence, and stop unchanged retries when the repair budget is exhausted.',
     'For api.scene.instances, allocate a fixed maximum capacity from literals or const-only numeric expressions; change only the active setCount during Play because pool capacity is immutable.',
+    'When world gameplay bounds and a target viewport aspect are known, use camera.author frame-bounds so Studio deterministically fits both axes with padding instead of estimating an orthographic size.',
   ]),
   module('prompt.workflow.bounded-tool-batch', '1.0.0', 'workflow', [
     'Use Plan → Tool batch → Check. In one assistant step, group independent observations into one bounded tool batch and declare dependencies where a later call consumes an earlier result. Do not invent effects, risk, concurrency safety or approval state; Studio derives them from the tool registry.',
