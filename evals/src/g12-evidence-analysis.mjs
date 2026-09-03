@@ -79,22 +79,23 @@ function analyzeMatch3(replay, trace) {
 
 function analyzeFallingBlocks(replay, trace) {
   const levels = numbers(trace, ['level', 'metrics.level']);
-  const intervals = numbers(trace, ['dropInterval', 'fallInterval', 'metrics.dropInterval']);
+  const intervals = numbers(trace, ['dropInterval', 'fallInterval', 'metrics.dropInterval', 'gravityIntervalTicks', 'metrics.gravityIntervalTicks']);
+  const geometry = fallingBlockGeometry(trace);
   return compact({
     'piece.transformsWithinBoard': bool(trace, ['piece.transformsWithinBoard', 'transformsWithinBoard', 'activePieceWithinBoard'])
-      ?? zero(trace, ['board.outOfBoundsCellCount', 'outOfBoundsCells']),
-    'board.overlapCellCount': number(trace, ['board.overlapCellCount', 'overlapCellCount', 'overlapCells']),
+      ?? zero(trace, ['board.outOfBoundsCellCount', 'outOfBoundsCells']) ?? geometry.transformsWithinBoard,
+    'board.overlapCellCount': number(trace, ['board.overlapCellCount', 'overlapCellCount', 'overlapCells']) ?? geometry.overlapCellCount,
     'controls.moveRotateObserved': bool(trace, ['controls.moveRotateObserved', 'moveRotateObserved'])
-      ?? (inputs(replay, ['move-rotate']) && event(trace, ['piece-moved', 'piece-rotated', 'move-accepted', 'rotate-accepted'])),
-    'piece.lockedCount': maximum(trace, ['piece.lockedCount', 'metrics.lockedCount', 'lockedCount', 'piecesLocked']),
-    'line.clearedCount': maximum(trace, ['line.clearedCount', 'metrics.linesCleared', 'linesCleared', 'clearedLines']),
-    'board.compactedAfterClear': bool(trace, ['board.compactedAfterClear', 'compactedAfterClear']) ?? event(trace, ['line-cleared', 'board-compacted']),
+      ?? (inputs(replay, ['move-rotate']) && event(trace, ['piece-moved', 'piece-rotated', 'move-accepted', 'rotate-accepted', 'moved-left', 'moved-right', 'rotated'])),
+    'piece.lockedCount': maximum(trace, ['piece.lockedCount', 'metrics.lockedCount', 'lockedCount', 'piecesLocked', 'metrics.piecesLocked']),
+    'line.clearedCount': maximum(trace, ['line.clearedCount', 'metrics.linesCleared', 'linesCleared', 'clearedLines', 'lines', 'metrics.lines']),
+    'board.compactedAfterClear': bool(trace, ['board.compactedAfterClear', 'compactedAfterClear']) ?? event(trace, ['line-cleared', 'row-cleared', 'board-compacted']),
     'progression.speedIncreased': bool(trace, ['progression.speedIncreased', 'speedIncreased'])
-      ?? (levels.length > 1 ? levels.at(-1) > levels[0] : intervals.length > 1 ? intervals.at(-1) < intervals[0] : null),
+      ?? (levels.length > 1 ? Math.max(...levels) > levels[0] : intervals.length > 1 ? Math.min(...intervals) < intervals[0] : null),
     'terminal.topOutGameOver': bool(trace, ['terminal.topOutGameOver', 'topOutGameOver']) ?? event(trace, ['top-out', 'game-over']),
     'restart.initialStateRestored': restartRestored(replay, trace),
     'hud.scoreLevelPreviewPresent': hudContains(replay, /score|分数/iu) && hudContains(replay, /level|等级/iu) && hudContains(replay, /next|preview|下一/iu),
-    'board.duplicateActivePieces': number(trace, ['board.duplicateActivePieces', 'duplicateActivePieces']),
+    'board.duplicateActivePieces': number(trace, ['board.duplicateActivePieces', 'duplicateActivePieces']) ?? geometry.duplicateActivePieces,
   });
 }
 
@@ -200,9 +201,15 @@ function analyzeVisual({ genre, replay, scene, bitmap, width, height }) {
     }, metrics };
   }
   if (genre === 'falling-blocks') {
+    const pieceMaterials = matchingMaterials(scene, /tetromino|piece|block|cell/iu).filter((entry) => visibleMaterials.has(entry.entityId));
+    const activeAndLockedState = trace.some((frame) => {
+      const geometry = fallingFrameGeometry(frame.value);
+      return geometry.activeCells.length > 0 && geometry.lockedCells.length > 0;
+    });
     return { signals: {
       'visual.pngCaptured': true,
-      'visual.activeAndLockedDistinct': distinctVisibleRoles(scene, visibleMaterials, [/active|falling|current/iu, /locked|settled|stack/iu]),
+      'visual.activeAndLockedDistinct': distinctVisibleRoles(scene, visibleMaterials, [/active|falling|current/iu, /locked|settled|stack/iu])
+        || (activeAndLockedState && distinctColors(pieceMaterials) >= 2 && clusters >= 5),
       'visual.hudAndPreviewReadable': hudReadable && hudText.some((entry) => /next|preview|下一/iu.test(entry)),
     }, metrics };
   }
@@ -259,6 +266,66 @@ function analyzeVisual({ genre, replay, scene, bitmap, width, height }) {
     metrics,
   };
 }
+
+function fallingBlockGeometry(trace) {
+  let sawActive = false;
+  let transformsWithinBoard = true;
+  let overlapCellCount = 0;
+  let duplicateActivePieces = 0;
+  for (const frame of trace) {
+    const geometry = fallingFrameGeometry(frame.value);
+    duplicateActivePieces = Math.max(duplicateActivePieces, Math.max(0, geometry.activeActorCount - 1));
+    if (geometry.activeCells.length === 0) continue;
+    sawActive = true;
+    const bounds = fallingBounds(frame.value);
+    if (!bounds || geometry.activeCells.some((cell) => cell.c < bounds.minCol || cell.c > bounds.maxCol || cell.r < bounds.minRow || cell.r > bounds.maxRow)) transformsWithinBoard = false;
+    const locked = new Set(geometry.lockedCells.map(cellKey));
+    overlapCellCount = Math.max(overlapCellCount, geometry.activeCells.filter((cell) => locked.has(cellKey(cell))).length);
+  }
+  return { transformsWithinBoard: sawActive ? transformsWithinBoard : null, overlapCellCount: sawActive ? overlapCellCount : null, duplicateActivePieces };
+}
+
+function fallingFrameGeometry(value) {
+  const actors = Array.isArray(value?.actors) ? value.actors : [];
+  const activeActors = actors.filter((entry) => /active|current|falling/iu.test([entry?.role, entry?.id, entry?.name].filter(Boolean).join(' ')));
+  const lockedActors = actors.filter((entry) => /locked|settled|stack/iu.test([entry?.role, entry?.id, entry?.name].filter(Boolean).join(' ')));
+  return {
+    activeActorCount: activeActors.length,
+    activeCells: activeActors.flatMap((entry) => telemetryCells(entry?.cells ?? entry?.grid?.cells)),
+    lockedCells: lockedActors.flatMap((entry) => telemetryCells(entry?.cells ?? entry?.grid?.cells)),
+  };
+}
+
+function fallingBounds(value) {
+  const bounds = value?.space?.bounds ?? {};
+  const dimensions = value?.space?.dimensions ?? value?.space ?? {};
+  const cols = dimensions.cols ?? dimensions.columns;
+  const rows = dimensions.rows;
+  const minCol = bounds.minCol ?? bounds.minColumn ?? 0;
+  const minRow = bounds.minRow ?? 0;
+  const maxCol = bounds.maxCol ?? bounds.maxColumn ?? (Number.isFinite(cols) ? minCol + cols - 1 : null);
+  const maxRow = bounds.maxRow ?? (Number.isFinite(rows) ? minRow + rows - 1 : null);
+  return [minCol, minRow, maxCol, maxRow].every(Number.isFinite) ? { minCol, minRow, maxCol, maxRow } : null;
+}
+
+function telemetryCells(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (Array.isArray(entry) && Number.isFinite(entry[0]) && Number.isFinite(entry[1])) return [{ c: entry[0], r: entry[1] }];
+    const point = telemetryCell(entry);
+    return point ? [point] : [];
+  });
+}
+
+function telemetryCell(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const nested = value.cell ?? value.grid ?? value.position ?? value;
+  const c = nested.c ?? nested.col ?? nested.column ?? nested.x;
+  const r = nested.r ?? nested.row ?? nested.y ?? nested.z;
+  return Number.isFinite(c) && Number.isFinite(r) ? { c, r } : null;
+}
+
+function cellKey(cell) { return `${cell.c},${cell.r}`; }
 
 function materialVisibility(scene, pixels, width, height) {
   const result = new Set();

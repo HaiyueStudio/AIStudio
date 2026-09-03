@@ -142,6 +142,47 @@ test('shared trace analyzers derive authoritative signals for every non-snake ge
   }
 });
 
+test('falling-block evidence retains cumulative nested metrics and derives board safety across restart', () => {
+  const state = (status, phase, metrics, actors, events = []) => ({
+    schemaVersion: 1,
+    state: { status, phase },
+    events,
+    space: { type: 'grid', dimensions: { cols: 10, rows: 20 }, bounds: { minCol: 0, maxCol: 9, minRow: 0, maxRow: 19 } },
+    metrics,
+    actors,
+    targets: [],
+  });
+  const active = (cells) => ({ id: 'active-piece', role: 'active-piece', cells });
+  const locked = (cells) => ({ id: 'locked-stack', role: 'locked-stack', cells });
+  const observations = [
+    observation(0, state('playing', 'falling', { piecesLocked: 0, lines: 0, level: 1, gravityIntervalTicks: 26 }, [active([[4, 18], [5, 18]]), locked([])])),
+    observation(1, state('playing', 'falling', { piecesLocked: 1, lines: 0, level: 1, gravityIntervalTicks: 26 }, [active([[3, 18], [4, 18]]), locked([[4, 0, 3], [5, 0, 3]])], ['moved-left', 'rotated', 'piece-locked'])),
+    observation(2, state('playing', 'falling', { piecesLocked: 26, lines: 10, level: 2, gravityIntervalTicks: 24 }, [active([[4, 17], [5, 17]]), locked([[0, 0, 1], [1, 0, 1]])], ['row-cleared'])),
+    observation(3, state('game-over', 'over', { piecesLocked: 40, lines: 10, level: 2, gravityIntervalTicks: 24 }, [], ['game-over'])),
+    observation(4, state('playing', 'falling', { piecesLocked: 0, lines: 0, level: 1, gravityIntervalTicks: 26 }, [active([[4, 18], [5, 18]]), locked([])], ['restarted'])),
+  ];
+  const colors = [[50, 230, 90], [240, 160, 40], [30, 35, 45], [100, 110, 125], [255, 255, 255]];
+  const analysis = analyzeG12ReplayEvidence({
+    genre: 'falling-blocks', observations, bitmap: coloredBitmap(20, 20, colors), width: 20, height: 20,
+    replay: { observations, trace: [{ kind: 'input-queued', sourceStepId: 'move-rotate' }, { kind: 'trigger-input-queued', sourceStepId: 'restart' }] },
+    scene: { entities: [entity('i', 'Tetromino I Cell', rgba(colors[0])), entity('o', 'Tetromino O Cell', rgba(colors[1]))] },
+  });
+  assert.deepEqual(analysis.traceSignals, {
+    'piece.transformsWithinBoard': true,
+    'board.overlapCellCount': 0,
+    'controls.moveRotateObserved': true,
+    'piece.lockedCount': 40,
+    'line.clearedCount': 10,
+    'board.compactedAfterClear': true,
+    'progression.speedIncreased': true,
+    'terminal.topOutGameOver': true,
+    'restart.initialStateRestored': true,
+    'hud.scoreLevelPreviewPresent': false,
+    'board.duplicateActivePieces': 0,
+  });
+  assert.equal(analysis.visualSignals['visual.activeAndLockedDistinct'], true);
+});
+
 test('non-snake visual analyzers correlate named scene roles with real bitmap colors', () => {
   const colors = [[230, 40, 40], [40, 220, 80], [40, 100, 230], [35, 40, 50], [255, 255, 255]];
   const bitmap = coloredBitmap(20, 20, colors);

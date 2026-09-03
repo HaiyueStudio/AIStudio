@@ -291,10 +291,10 @@ async function run() {
       }
     }
     if (!attempt) throw errorWithCode('g12.replay-attempt-missing', 'Preview replay did not produce a terminal attempt.');
-    const { scene, started, replay, stopped, analysis } = attempt;
+    const { scene, started, replay, stopped, analysis, screenshot } = attempt;
     await fixture.workspace.save();
     const accountingSnapshot = account.reconcile();
-    const png = Buffer.from(replay.capture.base64, 'base64'); const pngDigest = sha256(png); await writeFile(path.join(caseRoot, 'screenshot.png'), png);
+    const png = Buffer.from(screenshot.capture.base64, 'base64'); const pngDigest = sha256(png); await writeFile(path.join(caseRoot, 'screenshot.png'), png);
     const signals = gameplaySignals(replay.finalObservation);
     const image = nativeImage.createFromBuffer(png);
     const bitmapSize = image.getSize();
@@ -304,14 +304,14 @@ async function run() {
     collector.collectAll([
       { type: 'state', tick: replay.finalTick, signals: traceSignals }, { type: 'event-trace', tick: replay.finalTick, signals: traceSignals },
       { type: 'input-replay', tick: replay.finalTick, signals: { ...traceSignals, 'replay.deterministic': true } },
-      { type: 'screenshot', tick: replay.finalTick, signals: analysis.visualSignals, media: { mediaType: 'image/png', digest: pngDigest, width: bitmapSize.width, height: bitmapSize.height, semanticAnalyzerVersion: analysis.version } },
+      { type: 'screenshot', tick: screenshot.tick, signals: analysis.visualSignals, media: { mediaType: 'image/png', digest: pngDigest, width: bitmapSize.width, height: bitmapSize.height, semanticAnalyzerVersion: analysis.version } },
       { type: 'performance', tick: replay.finalTick, signals: { ...traceSignals, 'simulation.finite': Number.isFinite(replay.finalTick) } },
       { type: 'lifecycle', tick: replay.finalTick, signals: { ...traceSignals, 'residue.count': stopped.disposableCount } },
       { type: 'log', tick: replay.finalTick, signals: { 'runtime.unhandledErrors': replay.finalObservation.value.runtimeErrorCount ?? 0 } },
     ]);
     const evidenceManifest = collector.manifest(); const evaluation = evaluateCase({ testCase, oracleCase, evidenceManifest });
     const usageRecords = turns.usage.snapshots().filter((entry) => entry.taskId === taskId).map((entry) => entry.record);
-    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, budgetContinuations, m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) }, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotDigest: pngDigest, evidenceAnalysis: { version: analysis.version, visualMetrics: analysis.visualMetrics } }, evidenceManifest, evaluation };
+    const report = { schemaVersion: 1, evidenceClass, runId, taskId, backend: { kind: backendKind, instanceId: backend.descriptor.id, protocolVersion: backend.descriptor.protocolVersion }, projectId: fixture.workspace.snapshot().document.projectId, conversationId: summary.sessionId, genre, caseId: testCase.id, revisions, model: { id: model.id, reasoningEffort, configDigest: contentDigest(config) }, prompt: { digest: contentDigest(prompt), profile: config.promptProfile }, terminal: summary.terminal, toolResults: summary.results.map((entry) => ({ callId: entry.callId, toolId: entry.toolId, status: entry.status, beforeRevision: entry.beforeRevision, afterRevision: entry.afterRevision })), diagnostics: summary.diagnostics, accounting: accountingSnapshot, usageRecords, costRecords: account.costRecords(), cache: accountingSnapshot.usage.contextCache ?? null, budgetContinuations, m13: { turns: m13Turns, sessionIds: [...new Set(m13Turns.map((entry) => entry.session?.sessionId).filter(Boolean))], replayVerified: m13Turns.every((entry) => entry.session?.surfaceDigest === entry.session?.replayedSurfaceDigest && entry.graph?.digest === entry.graph?.replayedDigest) }, preview: { started, stopped, replayProgramVersion: replay.replayProgramVersion, semanticDriverIds: replay.semanticDriverIds, finalTick: replay.finalTick, stateDigest: contentDigest(replay.finalObservation), screenshotTick: screenshot.tick, screenshotStateDigest: contentDigest(screenshot.observation), screenshotDigest: pngDigest, evidenceAnalysis: { version: analysis.version, visualMetrics: analysis.visualMetrics } }, evidenceManifest, evaluation };
     await atomicJson(path.join(caseRoot, 'task-report.json'), report);
     await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: evaluation.status === 'pass' && summary.terminal === 'completed' ? 'pass' : 'failed-acceptance', reportDigest: contentDigest(report), reportPath: path.relative(root, path.join(caseRoot, 'task-report.json')).replaceAll('\\', '/') });
     console.log(`[g12-real-case] ${JSON.stringify({ runId, backend: backendKind, genre, terminal: summary.terminal, evaluation: evaluation.status, passed: evaluation.passed, required: evaluation.passed + evaluation.failed, caseRoot })}`);
@@ -342,7 +342,8 @@ async function executePreviewReplay({ fixture, preview, windowGuard, testCase, r
     if (retained && cause && typeof cause === 'object') cause.replayAttempt = retained;
     throw cause;
   }
-  const png = Buffer.from(replay.capture.base64, 'base64');
+  const screenshot = replay.visualCheckpoint ?? Object.freeze({ label: 'final', tick: replay.finalTick, observation: replay.finalObservation, capture: replay.capture });
+  const png = Buffer.from(screenshot.capture.base64, 'base64');
   const image = nativeImage.createFromBuffer(png);
   const bitmapSize = image.getSize();
   const analysis = analyzeG12ReplayEvidence({ genre, replay, scene, bitmap: image.toBitmap(), width: bitmapSize.width, height: bitmapSize.height, tickRateHz: 60 });
@@ -350,10 +351,10 @@ async function executePreviewReplay({ fixture, preview, windowGuard, testCase, r
   const failedVisualSignals = Object.values(analysis.visualSignals).filter((value) => value !== true).length;
   if (requireUsableVisual && (analysis.visualMetrics.clusters < 4 || analysis.visualMetrics.visibleMaterialCount < 2 || failedVisualSignals > 0)) {
     const issue = errorWithCode('g12.replay-visual-unusable', `the screenshot had ${analysis.visualMetrics.clusters} significant color clusters, ${analysis.visualMetrics.visibleMaterialCount} visible scene materials and ${failedVisualSignals} failed state-correlated visibility checks`);
-    issue.replayAttempt = Object.freeze({ scene, started, replay, stopped, analysis });
+    issue.replayAttempt = Object.freeze({ scene, started, replay, stopped, analysis, screenshot });
     throw issue;
   }
-  return { scene, started, replay, stopped, analysis };
+  return { scene, started, replay, stopped, analysis, screenshot };
 }
 
 async function retainFailedReplayAttempt({ cause, preview, windowGuard, scene, started, replayProgram }) {
@@ -371,7 +372,7 @@ async function retainFailedReplayAttempt({ cause, preview, windowGuard, scene, s
   const png = Buffer.from(capture.base64, 'base64'); const image = nativeImage.createFromBuffer(png); const size = image.getSize();
   const analysis = analyzeG12ReplayEvidence({ genre, replay, scene, bitmap: image.toBitmap(), width: size.width, height: size.height, tickRateHz: 60 });
   const stopped = await windowGuard.race(preview.stop());
-  return Object.freeze({ scene, started, replay, stopped, analysis });
+  return Object.freeze({ scene, started, replay, stopped, analysis, screenshot: Object.freeze({ label: 'retained-failure', tick: finalObservation.tick, observation: finalObservation, capture }) });
 }
 
 async function recordM13Turn({ operationLog, sessions, contextFrames, backend, model, config, taskId, prompt, summary, events, projectRevision, failed = false }) {

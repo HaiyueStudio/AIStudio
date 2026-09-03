@@ -35,6 +35,14 @@ test('wrong jigsaw drop injects a bounded pointer cancel before later recovery c
   assert.equal(control.events.some((event) => event.kind === 'pointer' && event.phase === 'cancel'), true);
 });
 
+test('falling-block driver retains a same-tick active-and-locked visual checkpoint', async () => {
+  const control = previewControl();
+  const result = await executeG12SemanticDriver(createG12SemanticDriverRegistry(), 'scripted-place-pieces', control, {});
+  assert.equal(result.checkpoints.length, 1);
+  assert.equal(result.checkpoints[0].label, 'active-and-locked');
+  assert.equal(result.checkpoints[0].tick, result.checkpoints[0].capture.tick);
+});
+
 test('semantic drivers fail closed for missing registration and tick-budget overflow', async () => {
   await assert.rejects(() => executeG12SemanticDriver({}, 'scripted-swap', previewControl(), {}), (error) => error.code === 'g12.semantic-driver-missing');
   const registry = { 'scripted-swap': { id: 'scripted-swap', maxTicks: 1, async run(session) { await session.action('Space', 2); } } };
@@ -112,6 +120,7 @@ function previewControl(replayTargets = []) {
     async inspect() { return observation(); },
     async input(event) { events.push(event); return observation(); },
     async step(count) { tick += count; return observation(); },
+    async capture() { return { tick, base64: '' }; },
   };
 }
 

@@ -45,7 +45,7 @@ export async function executeG12SemanticDriver(registry, driverId, control, para
     throw cause;
   }
   const after = await session.inspect();
-  return deepFreeze({ driverId, maxTicks: definition.maxTicks, ticksConsumed: after.tick - before.tick, beforeTick: before.tick, afterTick: after.tick, inputs: session.inputs, observations: session.observations });
+  return deepFreeze({ driverId, maxTicks: definition.maxTicks, ticksConsumed: after.tick - before.tick, beforeTick: before.tick, afterTick: after.tick, inputs: session.inputs, observations: session.observations, checkpoints: session.checkpoints });
 }
 
 function driver(id, maxTicks, run) { return Object.freeze({ id, version: '1.0.0', maxTicks, run }); }
@@ -63,6 +63,7 @@ class DriverSession {
     this.observations = 0;
     this.latestTick = null;
     this.inputEvents = [];
+    this.checkpoints = [];
   }
 
   async inspect() {
@@ -143,6 +144,16 @@ class DriverSession {
     this.inputEvents.push(deepFreeze({ tick: Number.isSafeInteger(observation?.tick) ? observation.tick : null, ...event }));
     this.onObservation?.(observation);
   }
+
+  async captureCheckpoint(label) {
+    if (typeof this.control.capture !== 'function') return null;
+    const observation = await this.inspect();
+    const capture = await this.control.capture(this.signal);
+    if (capture?.tick !== observation.tick) throw new G12ReplayProgramError('g12.semantic-driver-capture-tick-mismatch', 'Semantic driver checkpoint screenshot does not match its authoritative state tick.');
+    const checkpoint = deepFreeze({ label, tick: observation.tick, observation, capture });
+    this.checkpoints.push(checkpoint);
+    return checkpoint;
+  }
 }
 
 async function swap(session, parameters) {
@@ -173,6 +184,7 @@ async function placePieces(session) {
     for (const control of placements[index % placements.length]) await session.action(control, 1);
     await session.action('Space', 1);
     await session.step(3);
+    if (index === 0) await session.captureCheckpoint('active-and-locked');
   }
 }
 
