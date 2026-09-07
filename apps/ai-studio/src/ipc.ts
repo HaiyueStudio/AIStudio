@@ -12,7 +12,7 @@ import type {
   TransformSnapshot,
 } from '@haiyue/ai-studio-editor-plugins';
 import type { AgentPreviewBroker } from './agent-preview-broker.js';
-import type { StudioConversationHost } from './conversation-host.js';
+import type { ProjectConversationController, StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 export const STUDIO_IPC_CHANNEL = 'studio:request' as const;
 export const STUDIO_IPC_CANCEL_CHANNEL = 'studio:cancel' as const;
@@ -48,6 +48,8 @@ export type StudioIpcMethod =
   | 'preview/agent-result'
   | 'conversation/replay'
   | 'conversation/intent'
+  | 'conversation/history'
+  | 'conversation/history-detail'
   | 'logs/query'
   | 'logs/export';
 
@@ -73,7 +75,7 @@ export interface StudioIpcRouterOptions {
   readonly selection: SceneSelectionService;
   readonly scripts: ScriptPreviewStudioService;
   readonly operationLog: OperationLog;
-  readonly conversation: StudioConversationHost;
+  readonly conversation: Pick<StudioConversationHost, 'dispatch' | 'replay' | 'cancelPending'> & Partial<Pick<ProjectConversationController, 'prepareProjectChange' | 'syncProject' | 'queryHistory' | 'readHistory'>>;
   readonly agentPreview: AgentPreviewBroker;
   readonly bugBundleRoot: string;
   readonly versions: Readonly<{ app: string; schema: string; upstream: Readonly<Record<string, string>> }>;
@@ -148,20 +150,20 @@ export class StudioIpcRouter {
         return toJson({ ...this.options.workspace.snapshot(), smoke: this.options.smoke === true });
       case 'project/snapshot': return toJson(this.options.workspace.snapshot());
       case 'project/new': {
-        this.cancelProjectAgentState('Project replaced by a new project.');
-        return toJson(await this.options.workspace.newProject(null, request.payload.name as string));
+        return toJson(await this.replaceProject('Project replaced by a new project.', () => this.options.workspace.newProject(null, request.payload.name as string)));
       }
       case 'project/open': {
         const root = await this.options.selectProjectRoot('open');
         if (!root) throw new IpcDiagnosticError('project-selection-cancelled', 'Project open was cancelled.');
-        this.cancelProjectAgentState('Project replaced by an opened project.');
-        return toJson(await this.options.workspace.openProject(root));
+        return toJson(await this.replaceProject('Project replaced by an opened project.', () => this.options.workspace.openProject(root)));
       }
       case 'project/save': {
         if (this.options.workspace.snapshot().projectRoot) return toJson(await this.options.workspace.save());
         const root = await this.options.selectProjectRoot('save');
         if (!root) throw new IpcDiagnosticError('project-selection-cancelled', 'Project save was cancelled.');
-        return toJson(await this.options.workspace.saveAs(root));
+        const saved = await this.options.workspace.saveAs(root);
+        await this.options.conversation.syncProject?.();
+        return toJson(saved);
       }
       case 'project/command': return toJson(await this.options.workspace.execute({
         id: request.payload.commandId as StableId,
@@ -172,8 +174,8 @@ export class StudioIpcRouter {
       }, signal));
       case 'history/undo': return toJson(await this.options.workspace.undo(request.payload.baseRevision as number));
       case 'history/redo': return toJson(await this.options.workspace.redo(request.payload.baseRevision as number));
-      case 'project/close': this.cancelProjectAgentState('Project closed.'); await this.options.workspace.closeProject(); return Object.freeze({ closed: true });
-      case 'project/reopen': this.cancelProjectAgentState('Project reopened.'); return toJson(await this.options.workspace.reopen());
+      case 'project/close': await this.replaceProject('Project closed.', () => this.options.workspace.closeProject()); return Object.freeze({ closed: true });
+      case 'project/reopen': return toJson(await this.replaceProject('Project reopened.', () => this.options.workspace.reopen()));
       case 'scene/snapshot': return toJson(this.options.scene.snapshot());
       case 'asset/read': {
         const assetId = request.payload.assetId as StableId;
@@ -267,6 +269,14 @@ export class StudioIpcRouter {
       }
       case 'conversation/replay': return toJson(this.options.conversation.replay());
       case 'conversation/intent': await this.options.conversation.dispatch(request.payload.intent, signal); return Object.freeze({ accepted: true });
+      case 'conversation/history': {
+        if (!this.options.conversation.queryHistory) throw new Error('项目执行记录不可用。');
+        return toJson(await this.options.conversation.queryHistory(request.payload.projectId as StableId | null, { ...(typeof request.payload.cursor === 'string' ? { cursor: request.payload.cursor } : {}), ...(typeof request.payload.limit === 'number' ? { limit: request.payload.limit } : {}) }));
+      }
+      case 'conversation/history-detail': {
+        if (!this.options.conversation.readHistory) throw new Error('项目执行记录不可用。');
+        return toJson(await this.options.conversation.readHistory(request.payload.projectId as StableId, request.payload.id as StableId));
+      }
       case 'logs/query': return toJson(await this.options.operationLog.logViewer(logQuery(request.payload.query)));
       case 'logs/export': return toJson(await this.options.operationLog.exportBugBundle({
         destinationRoot: this.options.bugBundleRoot,
@@ -274,6 +284,13 @@ export class StudioIpcRouter {
         versions: this.options.versions,
       }));
     }
+  }
+
+  private async replaceProject<T>(reason: string, action: () => Promise<T>): Promise<T> {
+    this.cancelProjectAgentState(reason);
+    await this.options.conversation.prepareProjectChange?.();
+    try { return await action(); }
+    finally { await this.options.conversation.syncProject?.(); }
   }
 
   private cancelProjectAgentState(reason: string): void {
@@ -376,6 +393,16 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     requireShape(payload, keys, ['intent'], { intent: 'json' });
     validateConversationIntent(payload.intent);
   }
+  else if (channel === 'conversation/history') {
+    requireAllowedShape(payload, keys, ['projectId'], ['cursor', 'limit']);
+    if (payload.projectId !== null) { if (typeof payload.projectId !== 'string') throw new IpcDiagnosticError('ipc-payload-rejected', 'History project id is invalid.'); asStableId(payload.projectId, 'history project id'); }
+    if (payload.cursor !== undefined && (typeof payload.cursor !== 'string' || payload.cursor.length > 1024)) throw new IpcDiagnosticError('ipc-payload-rejected', 'History cursor is invalid.');
+    if (payload.limit !== undefined && (!Number.isSafeInteger(payload.limit) || Number(payload.limit) < 1 || Number(payload.limit) > 100)) throw new IpcDiagnosticError('ipc-payload-rejected', 'History page size is invalid.');
+  }
+  else if (channel === 'conversation/history-detail') {
+    requireShape(payload, keys, ['projectId', 'id'], { projectId: 'string', id: 'string' });
+    asStableId(payload.projectId as string, 'history project id'); asStableId(payload.id as string, 'history record id');
+  }
   else if (channel === 'logs/query' || channel === 'logs/export') {
     requireShape(payload, keys, ['query'], { query: 'json' });
     logQuery(payload.query);
@@ -399,7 +426,7 @@ const allowedChannels = new Set<StudioIpcMethod>([
   'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',
   'scene/snapshot', 'asset/read', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',
   'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
-  'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'logs/query', 'logs/export',
+  'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'conversation/history', 'conversation/history-detail', 'logs/query', 'logs/export',
 ]);
 
 type ViewportReportEvent = 'ready' | 'rendered' | 'device-lost' | 'failed' | 'picking-failed';

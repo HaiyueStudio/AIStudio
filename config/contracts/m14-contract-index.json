@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "bindingId": "m14-g02-v1",
+  "typescriptOwner": "packages/studio-contracts/src/m14.ts",
+  "status": "frozen",
+  "contracts": [
+    {
+      "name": "BehaviorSourceBindingV1",
+      "schemaId": "haiyue://contracts/behavior-source-binding/v1",
+      "schemaPath": "config/contracts/schemas/m14-behavior-source-binding.schema.json",
+      "owner": "g02-behavior-graph-contract-provenance",
+      "consumers": [
+        "g03-ai-native-workspace-information-architecture",
+        "g04-agent-semantic-authoring-tools",
+        "g05-entity-logic-explorer-runtime-trace",
+        "g06-resource-catalog-intent-workflows"
+      ]
+    },
+    {
+      "name": "BehaviorManifestV1",
+      "schemaId": "haiyue://contracts/behavior-manifest/v1",
+      "schemaPath": "config/contracts/schemas/m14-behavior-manifest.schema.json",
+      "owner": "g02-behavior-graph-contract-provenance",
+      "consumers": [
+        "g03-ai-native-workspace-information-architecture",
+        "g04-agent-semantic-authoring-tools",
+        "g05-entity-logic-explorer-runtime-trace",
+        "g06-resource-catalog-intent-workflows"
+      ]
+    },
+    {
+      "name": "BehaviorExplanationV1",
+      "schemaId": "haiyue://contracts/behavior-explanation/v1",
+      "schemaPath": "config/contracts/schemas/m14-behavior-explanation.schema.json",
+      "owner": "g02-behavior-graph-contract-provenance",
+      "consumers": [
+        "g03-ai-native-workspace-information-architecture",
+        "g04-agent-semantic-authoring-tools",
+        "g05-entity-logic-explorer-runtime-trace",
+        "g06-resource-catalog-intent-workflows"
+      ]
+    },
+    {
+      "name": "BehaviorTraceV1",
+      "schemaId": "haiyue://contracts/behavior-trace/v1",
+      "schemaPath": "config/contracts/schemas/m14-behavior-trace.schema.json",
+      "owner": "g02-behavior-graph-contract-provenance",
+      "consumers": [
+        "g03-ai-native-workspace-information-architecture",
+        "g04-agent-semantic-authoring-tools",
+        "g05-entity-logic-explorer-runtime-trace",
+        "g06-resource-catalog-intent-workflows"
+      ]
+    },
+    {
+      "name": "ResourceCatalogEntryV1",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "schemaPath": "config/contracts/schemas/m14-resource-catalog-entry.schema.json",
+      "owner": "g02-behavior-graph-contract-provenance",
+      "consumers": [
+        "g03-ai-native-workspace-information-architecture",
+        "g04-agent-semantic-authoring-tools",
+        "g05-entity-logic-explorer-runtime-trace",
+        "g06-resource-catalog-intent-workflows"
+      ]
+    },
+    {
+      "name": "EditorLocationV1",
+      "schemaId": "haiyue://contracts/editor-location/v1",
+      "schemaPath": "config/contracts/schemas/m14-editor-location.schema.json",
+      "owner": "g02-behavior-graph-contract-provenance",
+      "consumers": [
+        "g03-ai-native-workspace-information-architecture",
+        "g04-agent-semantic-authoring-tools",
+        "g05-entity-logic-explorer-runtime-trace",
+        "g06-resource-catalog-intent-workflows"
+      ]
+    },
+    {
+      "name": "BehaviorAnalysisInputV1",
+      "schemaId": "haiyue://contracts/behavior-analysis-input/v1",
+      "schemaPath": "config/contracts/schemas/m14-behavior-analysis-input.schema.json",
+      "owner": "g02-behavior-graph-contract-provenance",
+      "consumers": [
+        "g03-ai-native-workspace-information-architecture",
+        "g04-agent-semantic-authoring-tools",
+        "g05-entity-logic-explorer-runtime-trace",
+        "g06-resource-catalog-intent-workflows"
+      ]
+    }
+  ],
+  "frozenOn": "2026-09-07"
+}

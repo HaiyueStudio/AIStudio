@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { StudioConversationHost } from '../dist/conversation-host.js';
+import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 import { TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
 
 const backendId = 'backend:tool-batch';

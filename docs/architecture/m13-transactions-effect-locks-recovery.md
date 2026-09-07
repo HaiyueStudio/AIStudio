@@ -9,6 +9,10 @@ G07 adds one mutation commit owner beneath the G06 rolling batch scheduler. The 
 
 `prepare` validates member count, stable identities, tool versions, effect keys, operation bounds, document identity and exact base revision. It computes deterministic transaction, idempotency, command, member and operation identities without mutating the document.
 
+Every document edit, script proposal/patch/apply and preview/play start requires an explicit `baseRevision` in both its published tool schema and runtime validation. The caller obtains it from an exact read or prior tool result; Studio never substitutes the current revision when it is omitted. Missing or invalid revisions fail before preparation or approval, and stale revisions return `tool.stale-revision` without changing Document or History. A caller must read again and reconsider the edit before retrying. The same requirement applies to tools reached through `tool.search` and `studio.tool.invoke`.
+
+`preview.validate` may omit `baseRevision` because it creates a validation plan for the current snapshot. An explicit revision is still checked, and starting the resulting plan requires the caller to supply its exact version. Every prepared operation remains bound to its document identity and base revision, which are checked again after approval and when a queued mutation commits.
+
 `commit` acquires the union of registry-derived effect keys plus the document revision gate, then calls `ProjectWorkspace.executeTransaction` once. Workspace applies the ordered operations through one History command. A successful transaction therefore creates one document revision and one undoable History entry, regardless of whether it contains 2, 7 or 100 tool members.
 
 The durable receipt is written as a content-addressed artifact immediately after the History write and before the acknowledgement event. The same boundary stores the exact `GameDocumentDeltaV2` as a content-addressed Scene diff result. The receipt binds:

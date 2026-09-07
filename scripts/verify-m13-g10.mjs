@@ -24,7 +24,7 @@ const router = await read('packages/agent-runtime/src/context/router.ts');
 for (const phrase of ['context.knowledge-hit-stale', 'context.knowledge-hit-permission', 'context.knowledge-hit-version', 'context.knowledge-hit-citation']) assert.match(router, new RegExp(phrase.replaceAll('.', '\\.'), 'u'));
 const loader = await read('apps/ai-studio/src/knowledge-source-loader.ts');
 for (const phrase of ['CONTROLLED_ASSET_CATALOG_SETTING_KEY', 'Script text and binary asset bodies are never indexed', 'project-closed', 'content-hash index']) assert.match(loader, new RegExp(phrase, 'u'));
-const host = await read('apps/ai-studio/src/conversation-host.ts');
+const host = await read('packages/agent-orchestration/src/conversation-host.ts');
 assert.match(host, /fallback: 'exact-context'/u);
 assert.match(host, /selectDefinitions\?\.\(request\)/u);
 const corpus = JSON.parse(await read('evals/suites/m13-g10-seven-game-retrieval.json'));

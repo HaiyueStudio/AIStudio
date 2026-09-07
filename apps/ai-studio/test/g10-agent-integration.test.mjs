@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AgentPreviewBroker } from '../dist/agent-preview-broker.js';
-import { StudioConversationHost } from '../dist/conversation-host.js';
+import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 import { selectProjectRunScript } from '../dist/run-script-selection.js';
 import { TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
 

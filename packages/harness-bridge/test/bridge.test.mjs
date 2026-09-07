@@ -167,10 +167,14 @@ test('fixed Cordis compatibility and lazy closure remain explicit', async () => 
   assert.doesNotMatch(source, /dsh-agent|dsh-llm|dsh-tools|agent-backends/);
   const declarations = await readFile(new URL('../dist/index.d.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(declarations, /@deepseek-ai\/cordis|\bContext\b|\bFiber(?:State)?\b/);
+  const agentDeclarations = await readFile(new URL('../dist/harness-agent.d.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(agentDeclarations, /@deepseek-ai\/|\bContext\b|\bFiber(?:State)?\b/);
 });
 
-test('pinned Harness agent composition fails closed without a credential and disposes idempotently', async () => {
-  const transport = await createPinnedHarnessAgentTransport({ resolveApiKey: async () => null });
+test('pinned Harness agent composition fails closed without a credential and disposes idempotently', async (t) => {
+  const owner = createHarnessStudioRoot();
+  t.after(() => owner.dispose());
+  const transport = await createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => null });
   assert.deepEqual(
     transport.modelCatalog().map(({ id, maxTokens }) => ({ id, maxTokens })),
     [
@@ -201,6 +205,111 @@ test('Harness maps dotted Studio tool ids to provider-safe deterministic names',
   assert.equal(harnessToolName('entity.create', 0), 'studio_0_entity_create');
   assert.equal(harnessToolName('preview.start', 12), 'studio_12_preview_start');
   assert.match(harnessToolName('studio.tool/unsafe value', 1), /^[a-zA-Z0-9_-]+$/);
+});
+
+test('Harness requires an existing owner and one live transport is attached to its root', async (t) => {
+  await assert.rejects(createPinnedHarnessAgentTransport({ resolveApiKey: async () => null }), /live owner/);
+  const owner = createHarnessStudioRoot();
+  t.after(() => owner.dispose());
+  const first = await createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => null });
+  const firstFibers = owner.snapshot().resources.fibers;
+  assert.ok(firstFibers > 1, 'Harness plugins must be visible in the Studio root registry');
+  await assert.rejects(createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => null }), /already has a live Harness transport/);
+  assert.equal(owner.snapshot().resources.fibers, firstFibers);
+  const input = { sessionId: 'session:shared-name', model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8192, tools: [], lastConfirmedOpId: 'op:first' };
+  await first.openSession(input);
+  await first.dispose();
+  assert.equal(owner.snapshot().resources.fibers, 0);
+  const second = await createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => null });
+  await second.openSession({ ...input, lastConfirmedOpId: 'op:second' });
+  assert.equal((await second.inspectSession(input.sessionId)).lastConfirmedOpId, 'op:second');
+  await owner.dispose();
+  await assert.rejects(second.inspectSession(input.sessionId), /disposed/);
+  assert.equal(owner.snapshot().resources.fibers, 0);
+  await Promise.all([first.dispose(), second.dispose(), owner.dispose()]);
+  await assert.rejects(createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => null }), /live owner/);
+});
+
+test('failed Harness composition rolls back already loaded plugins without disposing its owner', async (t) => {
+  const owner = createHarnessStudioRoot();
+  t.after(() => owner.dispose());
+  await assert.rejects(createPinnedHarnessAgentTransport({
+    owner, resolveApiKey: async () => null,
+    get baseURL() {
+      assert.ok(owner.snapshot().resources.fibers > 1, 'fault occurs after upstream plugins load');
+      throw new Error('adapter-options-fault');
+    },
+  }), /adapter-options-fault/);
+  assert.equal(owner.snapshot().resources.fibers, 0);
+  const transport = await createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => null });
+  await transport.dispose();
+  assert.equal(owner.snapshot().resources.fibers, 0);
+});
+
+test('root shutdown during Harness initialization drains every partially loaded child', async () => {
+  const owner = createHarnessStudioRoot();
+  let shutdown;
+  const creation = createPinnedHarnessAgentTransport({
+    owner, resolveApiKey: async () => null,
+    get baseURL() {
+      assert.ok(owner.snapshot().resources.fibers > 1);
+      shutdown = owner.dispose();
+      return undefined;
+    },
+  });
+  await assert.rejects(creation);
+  await shutdown;
+  assert.equal(owner.snapshot().resources.fibers, 0);
+  assert.equal(owner.snapshot().state, 'disposed');
+});
+
+for (const action of ['disable', 'replace', 'rollback']) {
+  test(`Studio ${action} owns all Harness descendants`, async (t) => {
+    const owner = createHarnessStudioRoot();
+    t.after(() => owner.dispose());
+    let transport;
+    let pluginContext;
+    const plugin = definition('fixture.harness-owner', { async activate(context) {
+      pluginContext = context;
+      transport = await createPinnedHarnessAgentTransport({ owner: context, resolveApiKey: async () => null });
+      if (action === 'rollback') throw new Error('after-transport-fault');
+    } });
+    const activation = owner.activate(profile(['fixture.harness-owner']), [plugin]);
+    if (action === 'rollback') await assert.rejects(activation, /after-transport-fault/);
+    else {
+      await activation;
+      assert.ok(owner.snapshot().resources.fibers > 1);
+      if (action === 'disable') await owner.disable(plugin.manifest.id);
+      else await owner.replace(profile([]), []);
+    }
+    await assert.rejects(transport.inspectSession('session:missing'), /disposed/);
+    await assert.rejects(createPinnedHarnessAgentTransport({ owner: pluginContext, resolveApiKey: async () => null }), /live owner/);
+    assert.deepEqual(owner.snapshot().resources, { services: 0, contributions: 0, listeners: 0, effects: 0, fibers: 0 });
+  });
+}
+
+test('root disposal joins concurrent callers and reclaims late activation results', async () => {
+  const owner = createHarnessStudioRoot();
+  const gate = Promise.withResolvers();
+  const entered = Promise.withResolvers();
+  let disposed = 0;
+  const plugin = definition('fixture.late-result', { async activate() {
+    entered.resolve();
+    await gate.promise;
+    return () => { disposed += 1; };
+  } });
+  const activation = owner.activate(profile(['fixture.late-result']), [plugin]);
+  const rejected = assert.rejects(activation);
+  await entered.promise;
+  let closed = false;
+  const first = owner.dispose();
+  const second = owner.dispose().then(() => { closed = true; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(closed, false);
+  gate.resolve();
+  await Promise.all([first, second, rejected]);
+  assert.equal(disposed, 1);
+  assert.equal(owner.snapshot().state, 'disposed');
 });
 
 test('Harness request recovery executes the upstream retry contract with a Studio hard bound', () => {

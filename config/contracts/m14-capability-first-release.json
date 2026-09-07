@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "owner": "g01-capability-surface-census",
+  "capabilityIds": [
+    "agent.cache",
+    "agent.context",
+    "agent.model-config",
+    "agent.usage",
+    "animation.2d",
+    "animation.3d",
+    "asset.import",
+    "audio.playback",
+    "camera.2d",
+    "camera.3d",
+    "camera.follow",
+    "component.registry",
+    "diagnostics.query",
+    "document.v2",
+    "input.inject",
+    "input.keyboard",
+    "input.pointer",
+    "interaction.pointer",
+    "lighting",
+    "material.pbr",
+    "particles.2d",
+    "particles.3d",
+    "physics.2d",
+    "physics.3d",
+    "physics.raycast",
+    "play.capture",
+    "play.inspect",
+    "play.multi-script",
+    "postprocess",
+    "prefab",
+    "scene.transaction",
+    "shadow.directional",
+    "simulation.fixed-step",
+    "simulation.replay",
+    "task.evaluate"
+  ],
+  "strategy": "Reuse existing capabilities for source-bound behavior inspection. Inclusion is first-release analysis scope, never product acceptance.",
+  "g08": {
+    "maxBlockers": 2,
+    "selected": [],
+    "reason": "No demonstrated existing runtime-adapter blocker is selected for new implementation. Existing script/declarative/mixed sources suffice for the first behavior workflow; missing behavior projection, catalog identity and UI belong to G02/G05/G06/G07. Zero selection does not certify every adapter. G08 must recheck this frozen scope and hand off adapter-ready evidence.",
+    "changeControl": "A newly discovered blocker must be reviewed by the serial integration owner, name an existing M12 capability and adapter, and replace this frozen selection before G08 implementation; never auto-admit deferred waves."
+  },
+  "corpus": [
+    {
+      "kind": "pure-script",
+      "owner": "g05-entity-logic-explorer-runtime-trace",
+      "existingEvidence": [
+        "packages/script-preview/test/script-preview.test.mjs",
+        "apps/ai-studio/test/g09-multi-script-electron.test.mjs"
+      ],
+      "componentTypes": [],
+      "maxEntities": 100,
+      "maxScripts": 2,
+      "maxTicks": 600,
+      "requiredAssertions": [
+        "Both scripts have exact entity/script/revision/digest source locations.",
+        "Serial, branch, loop, await/Promise concurrency, timer, keyboard, pointer, custom event and cross-entity cases are classified or explicitly unknown.",
+        "Real Play preserves order, isolates one script fault, and Stop/restart/cancel leaves zero owners."
+      ],
+      "deviceEntry": "node --test apps/ai-studio/test/g09-multi-script-electron.test.mjs",
+      "newVerification": "Extend G05 logic fixtures with source-bound manifest/explanation/trace assertions; current test has no BehaviorManifest contract."
+    },
+    {
+      "kind": "pure-declarative",
+      "owner": "g05-entity-logic-explorer-runtime-trace",
+      "existingEvidence": [
+        "apps/ai-studio/test/declarative-play-components.test.mjs"
+      ],
+      "componentTypes": [
+        "haiyue.gameplay.state",
+        "haiyue.gameplay.rules",
+        "haiyue.gameplay.timers",
+        "haiyue.ui.hud",
+        "haiyue.audio.listener"
+      ],
+      "maxEntities": 100,
+      "maxScripts": 0,
+      "maxTicks": 600,
+      "requiredAssertions": [
+        "Project and Play plan contain zero scripts; nonempty component-sourced behavior is still visible.",
+        "Input/timer -> rule -> state -> HUD path resolves to component field/schema locations.",
+        "Disabled rules, duplicate HUD/listener ownership and once-only actions retain existing rejection/semantics."
+      ],
+      "deviceEntry": "G05 adds a zero-script Electron Play fixture to its owned apps/ai-studio/test/*logic* scope.",
+      "newVerification": "Current pure-declarative evidence is a local runtime unit test; no current zero-script browser acceptance is claimed."
+    },
+    {
+      "kind": "mixed",
+      "owner": "g05-entity-logic-explorer-runtime-trace",
+      "existingEvidence": [
+        "apps/ai-studio/test/g08-declarative-play-electron.test.mjs",
+        "apps/ai-studio/test/g08-declarative-play-main.mjs"
+      ],
+      "componentTypes": [
+        "haiyue.gameplay.state",
+        "haiyue.gameplay.rules",
+        "haiyue.ui.hud",
+        "haiyue.physics.collider.2d",
+        "haiyue.animation.transform-clips"
+      ],
+      "maxEntities": 100,
+      "maxScripts": 2,
+      "maxTicks": 600,
+      "requiredAssertions": [
+        "Existing fixture includes api.scene.observe script: classify it as mixed, not pure declarative.",
+        "Add collision/trigger and animation adapter cases; ambiguous runtime links remain unknown.",
+        "Changing only a component/adapter invalidates old structure and trace; changing language or runtime path does not alter structural digest.",
+        "Cross-project and cross-Play results cannot overlay current nodes; trace truncation is visible."
+      ],
+      "deviceEntry": "node --test apps/ai-studio/test/g08-declarative-play-electron.test.mjs",
+      "newVerification": "Extend existing mixed fixture to G05 source/adapter bindings and stale-data checks; current screenshot/state assertion is not behavior acceptance."
+    }
+  ],
+  "executionBudget": {
+    "platform": "win32",
+    "nodeMinimum": "22.19.0",
+    "deviceOwner": "g05-entity-logic-explorer-runtime-trace",
+    "integrationOwner": "g09-ai-native-editor-integration-acceptance",
+    "seed": "haiyue-play",
+    "tickRateHz": 60,
+    "maxCaseWallMs": 100000,
+    "maxTraceEvents": 10000,
+    "maxTraceBytes": 4194304,
+    "deviceIdentityPolicy": "Record actual OS/Electron/adapter/driver, package/content digests and source binding on every device run. No timing result from G01 local tests substitutes for device acceptance."
+  },
+  "deferred": [
+    {
+      "wave": "A",
+      "reason": "New geometry/material domains exceed existing adapter scope."
+    },
+    {
+      "wave": "B",
+      "reason": "Full GUI/text differs from existing declarative HUD."
+    },
+    {
+      "wave": "C",
+      "reason": "New file formats need their own import/validation/runtime admission."
+    },
+    {
+      "wave": "D",
+      "reason": "Navigation has no first-release integrated path demonstrated here."
+    },
+    {
+      "wave": "E",
+      "reason": "Game saves are not editor project persistence."
+    },
+    {
+      "wave": "F",
+      "reason": "RTT/Compute requires reviewed high-level use cases."
+    }
+  ],
+  "handoff": {
+    "g02": "Freeze behavior/resource/location contracts using these actual script/component/adapter sources; reuse M12 capability ids.",
+    "g05": "Implement the three source classes and all listed assertions; explicitly add missing zero-script device fixture.",
+    "g08": "Zero new blockers frozen; produce bounded adapter review, and escalate discovered blockers before widening scope.",
+    "g09": "Only current six-layer evidence plus explicit adapter and formal product acceptance can promote records."
+  }
+}

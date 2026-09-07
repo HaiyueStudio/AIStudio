@@ -30,12 +30,13 @@ assert.ok(report.runs.every((run) => run.accounting.turns.every((turn) => turn.u
 const harness = await text('packages/agent-backends/src/harness-backend.ts');
 const codex = await text('packages/agent-backends/src/codex-backend.ts');
 const runtime = await text('packages/agent-runtime/src/index.ts');
-const host = await text('apps/ai-studio/src/conversation-host.ts');
+const host = await text('packages/agent-orchestration/src/conversation-host.ts');
+const budget = await text('packages/agent-orchestration/src/budget-policy.ts');
 const chat = await text('packages/studio-shell/src/panels/chat/index.ts');
 assert.match(harness, /reasoningEffort: harnessEffort/); assert.match(harness, /cacheWriteTokens/); assert.match(harness, /finishReason/);
 assert.match(codex, /allowProviderModelFallback: false/); assert.match(codex, /codex\.model-catalog-schema-drift/); assert.match(codex, /reasoningOutputTokens/);
 assert.match(runtime, /agent\/config-negotiated/); assert.match(runtime, /agent\/usage-recorded/); assert.match(runtime, /event\.kind !== 'usage'/);
-assert.match(host, /preflightTool/); assert.match(host, /budget\.hard-stop/); assert.match(host, /billingMode: backend\.descriptor\.kind === 'harness-api-key' \? 'api' : 'subscription'/);
+assert.match(host, /preflightTool/); assert.match(budget, /budget\.hard-stop/); assert.match(host, /billingMode: backend\.descriptor\.kind === 'harness-api-key' \? 'api' : 'subscription'/);
 for (const marker of ['Reasoning effort', 'Task usage and cost', 'cache saved', 'Cost unknown']) assert.match(chat, new RegExp(marker));
 
 console.log(`[m12:g03] pricing=${catalog.id}@${catalog.version} models=${catalog.entries.length} evalRuns=${report.runs.length} accountingLinks=ok`);

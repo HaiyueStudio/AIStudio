@@ -40,6 +40,18 @@ Component Registry + reviewed engine guides + project/asset metadata
 
 模型始终得到十个稳定 core tools。`ToolCatalogRuntime` 使用与知识检索相同的本地语义匹配对精确工具和组件注册表分组、排序；每个任务最多扩展 18 个完整工具 schema。`tool.search(includeSchemas)` 可显式展开后续需要的少量合同，所有 mutation 仍由原工具注册表的 effect、risk、approval 与 validation 执行。
 
+### 2026-09-06：搜索结果的可执行入口
+
+固定版本的 Harness/Codex 在创建会话时绑定 native 工具列表，搜索返回 schema 本身不会注册新的 native tool。因此，桌面 Conversation Host 在提供 `tool.search` 时，同时注册一个稳定的 `studio.tool.invoke` 传输入口。十个 core tools、最多十八个按任务选择的工具以及计划工具保留；这个入口额外占用一个小 schema，不把全部编辑器 schema 常驻到模型上下文，也不重建正在执行的 provider 会话。
+
+`tool.search(includeSchemas=true)` 的工具命中同时返回精确 `version`、`inputSchema` 和 `invocation: { tool, toolId, toolVersion }`。模型把 `toolId`、`toolVersion` 和符合目标 schema 的 `arguments` 传给已注册的 `studio.tool.invoke`。完整目录消费者仍可使用原来的 `nextTool` 直接调用。
+
+Host 在批处理分类前用当前工具注册表解析目标，再把原始 call id 与目标 id/version/arguments 交给原有调度、预算、计划审批、prepare、精确授权和执行链。该入口不是编辑器 effect，也不另建 registry；未知目标、递归调用、版本漂移和额外 policy 字段返回结构化工具失败。目标参数仍由原工具验证。Session 的 `tool.started` 记录目标工具和 `invokedVia`，后续审批、结果和恢复均使用目标工具身份。
+
+搜索是能力发现，不代表授权；可调用范围始终是该 Host 当前注册的工具集合。入口不需要依赖不可恢复的“已搜索工具”内存授权表。
+
+`AgentGameAuthoringCoordinator` 的 `modelToolIds` 若包含搜索并省略部分工具，也注册同一入口并在原 prepare/approval/execute 链前解析。未裁剪的完整目录保持原样。协调器回归测试使用真实 Document/History 验证发现后的编辑及撤销。
+
 ## 默认开启门禁
 
 七类独立需求以全部固定 schema + exact-only retrieval 为控制组，以按需 schema + hybrid retrieval 为实验组。默认开启要求：工具覆盖率不下降、Recall@8 不下降、引用完整率 100%、schema 字节下降至少 25%、总估算输入 Token 下降至少 20%。任一条件不满足即保持 opt-in。

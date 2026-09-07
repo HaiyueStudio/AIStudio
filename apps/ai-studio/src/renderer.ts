@@ -11,6 +11,9 @@ import { createInteractionRaycastResult, InteractionSystem } from '@haiyue/engin
 import type { ScriptCapabilityName } from '@haiyue/engine/components';
 import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
 import {
+  AgentHistoryViewer,
+  IntentWorkspace,
+  workspaceSplitPreferenceKey,
   ConversationProjector,
   LogViewerController,
   presentChatPanel,
@@ -51,6 +54,10 @@ import { defineDialogComponents, type HYDialog } from '@haiyue/ui/dialog';
 import { defineSelectComponents, type HYSelect } from '@haiyue/ui/select';
 import { defineSplitComponents, type HYSplit, type HYSplitRatioChangeDetail } from '@haiyue/ui/split';
 import { defineTabsComponents, type HYTabs } from '@haiyue/ui/tabs';
+
+let agentHistoryViewer: AgentHistoryViewer | null = null;
+let intentWorkspace: IntentWorkspace | null = null;
+let agentHistoryWasBusy = false;
 
 declare global {
   interface Window {
@@ -145,8 +152,9 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     scene: '场景', createEmpty: '+ 空物体', createCube: '+ 立方体', inspector: '检查器', noSelection: '未选择物体',
     transformHistory: 'Transform 修改会通过历史记录提交。', position: '位置', rotation: '旋转', scale: '缩放', applyTransform: '应用 Transform',
     noRenderables: '没有可渲染物体', noRenderablesHint: '创建一个基础几何体即可显示。', authoring: '编辑', assets: '资源库',
+    scriptEditHint: '编辑脚本后先验证修改，再提交。', scriptSelectHint: '请选择一个对象来编写脚本。', scriptCommitted: '脚本修改已提交到文档历史记录。', scriptProposalReady: '修改已验证：增加 {added} 行，删除 {removed} 行。请检查后提交。', scriptDisclosure: '风险：{risk}。共 {count} 个脚本。能力：{capabilities}。', scriptSource: '对象脚本源码', validateProposal: '验证修改', commitScript: '提交修改', preparePlay: '准备运行', approvePlay: '批准并运行', stopScript: '停止',
     cube: '立方体', sphere: '球体', cone: '锥体', cylinder: '圆柱体', plane: '平面', torus: '圆环', icosahedron: '二十面体', lights: '光源', directionalLight: '方向光', pointLight: '点光源', ambientLight: '环境光', builtinGeometry: '点击创建', defaultMaterial: '默认材质', builtinMaterial: '应用到选中几何体', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: '项目中暂无纹理', noModels: '项目中暂无模型', noScripts: '项目中暂无脚本',
-    geometry: '几何体', materials: '材质', textures: '纹理', models: '模型', scripts: '脚本', scriptRevision: '脚本 r{revision}', scriptUnvalidated: '尚未验证', scriptValid: '验证通过', scriptErrors: '{count} 个错误', agent: 'AI 助手', logs: '日志', agentConversation: 'AI 助手对话',
+    geometry: '几何体', materials: '材质', textures: '纹理', models: '模型', scripts: '脚本', scriptRevision: '脚本 r{revision}', scriptUnvalidated: '尚未验证', scriptValid: '验证通过', scriptErrors: '{count} 个错误', agent: 'AI 助手', history: '执行记录', logs: '日志', agentConversation: 'AI 助手对话',
     refresh: '刷新', exportLogs: '导出安全问题包', downloadLogs: '下载安全日志包', loading: '加载中…', starting: '正在启动 AIStudio…', startingWeb: '正在启动 AIStudio Web…',
     language: '语言', themeColor: '主题色', settingsSaved: '偏好会保存在当前设备中。', done: '完成', browserLocal: '浏览器本地', cancel: '取消', approveRun: '批准并运行', fixWithAgent: '让 AI 自动修复', runApprovalHeading: '运行项目', runApprovalIntro: '项目脚本将在隔离预览环境中运行。请确认本次能力授权。', runValidationFailed: '脚本验证失败，暂时无法运行。', runValidationHint: '请让 AI 修复这些脚本错误，然后重新点击运行。', runMissingScriptHeading: '没有已提交的控制脚本，项目无法运行。', runMissingScriptDetail: '当前场景只有静态实体。脚本可能曾经生成，但尚未获得批准并写入项目。', runMissingScriptHint: '请让 AI 重新生成、验证并提交控制脚本，再批准执行。', agentFixUnavailable: 'AI 助手当前不可发送消息，请先连接后端或等待当前任务完成。', fixRequestSent: '已向 AI 助手发送脚本修复任务',
     webCapability: 'Web 模式将项目和结构化日志保存在当前浏览器中。本地 Codex、API Key、任意目录和原生问题包需要 Electron 应用。',
@@ -163,8 +171,9 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     scene: 'Scene', createEmpty: '+ Empty', createCube: '+ Cube', inspector: 'Inspector', noSelection: 'No entity selected',
     transformHistory: 'Transform values are committed through History.', position: 'Position', rotation: 'Rotation', scale: 'Scale', applyTransform: 'Apply Transform',
     noRenderables: 'No renderable entities', noRenderablesHint: 'Create a primitive geometry to render the scene.', authoring: 'Authoring', assets: 'Assets',
+    scriptEditHint: 'Edit the script, then validate the changes before committing.', scriptSelectHint: 'Select an entity to author a script.', scriptCommitted: 'Script committed through Document History.', scriptProposalReady: 'Changes validated: +{added} / -{removed} lines. Review and commit.', scriptDisclosure: 'Risk: {risk}. {count} scripts. Capabilities: {capabilities}.', scriptSource: 'Entity script source', validateProposal: 'Validate changes', commitScript: 'Commit changes', preparePlay: 'Prepare Play', approvePlay: 'Approve & Play', stopScript: 'Stop',
     cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', lights: 'Lights', directionalLight: 'Directional Light', pointLight: 'Point Light', ambientLight: 'Ambient Light', builtinGeometry: 'Click to create', defaultMaterial: 'Default Material', builtinMaterial: 'Apply to selected geometry', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: 'No textures in this project', noModels: 'No models in this project', noScripts: 'No scripts in this project',
-    geometry: 'Geometry', materials: 'Materials', textures: 'Textures', models: 'Models', scripts: 'Scripts', scriptRevision: 'Script r{revision}', scriptUnvalidated: 'Not validated', scriptValid: 'Valid', scriptErrors: '{count} error(s)', agent: 'AI Agent', logs: 'Logs', agentConversation: 'Agent conversation',
+    geometry: 'Geometry', materials: 'Materials', textures: 'Textures', models: 'Models', scripts: 'Scripts', scriptRevision: 'Script r{revision}', scriptUnvalidated: 'Not validated', scriptValid: 'Valid', scriptErrors: '{count} error(s)', agent: 'AI Agent', history: 'Execution history', logs: 'Logs', agentConversation: 'Agent conversation',
     refresh: 'Refresh', exportLogs: 'Export safe bug bundle', downloadLogs: 'Download safe log bundle', loading: 'Loading…', starting: 'Starting AIStudio…', startingWeb: 'Starting AIStudio Web…',
     language: 'Language', themeColor: 'Theme color', settingsSaved: 'Preferences are stored on this device.', done: 'Done', browserLocal: 'Browser-local', cancel: 'Cancel', approveRun: 'Approve and run', fixWithAgent: 'Ask Agent to fix', runApprovalHeading: 'Run project', runApprovalIntro: 'Project scripts run in an isolated preview environment. Confirm this capability grant.', runValidationFailed: 'Script validation failed; the project cannot run yet.', runValidationHint: 'Ask the Agent to fix these script errors, then run again.', runMissingScriptHeading: 'No committed controller script; the project cannot run.', runMissingScriptDetail: 'The current scene contains static entities only. A script may have been generated but has not yet been approved and written to the project.', runMissingScriptHint: 'Ask the Agent to regenerate, validate, and commit the controller script, then approve it.', agentFixUnavailable: 'The Agent cannot send right now. Connect a backend or wait for the active turn to finish.', fixRequestSent: 'Script repair task sent to the Agent',
     webCapability: 'Web mode stores projects and structured logs in this browser. Local Codex, API keys, arbitrary folders, and native bug bundles require the Electron app.',
@@ -599,6 +608,20 @@ async function boot(): Promise<void> {
   setStatus('Starting typed editor services…');
   setupUiPreferences();
   setupSplitLayout();
+  let preferenceStorage: Storage | undefined;
+  try { preferenceStorage = localStorage; } catch { /* The workspace remains usable without storage. */ }
+  intentWorkspace = new IntentWorkspace(document, {
+    dispatch: async (intent) => {
+      if (intent.type === 'workspace/select-entity') {
+        const entity = scene?.entities.find(entity => entity.id === intent.entityId);
+        if (intent.entityId && !entity) throw new Error('The selected entity is no longer in this project.');
+        await action(() => selectEntity(entity?.id ?? null, 'hierarchy'));
+      } else {
+        setStatus(language === 'zh-CN' ? '此来源的项目定位服务尚未接入。' : 'The project location service is not connected yet.');
+      }
+    },
+  }, preferenceStorage);
+  intentWorkspace.setLanguage(language);
   document.body.dataset.startupStage = 'services';
   const status = await invoke<ProjectSnapshot & JsonObject>('app/status');
   project = status;
@@ -672,15 +695,16 @@ function setupUiPreferences(): void {
 function applyLocale(): void {
   document.documentElement.lang = language;
   document.body.dataset.language = language;
+  intentWorkspace?.setLanguage(language);
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n]')) node.textContent = t(node.dataset.i18n ?? '');
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-aria]')) node.setAttribute('aria-label', t(node.dataset.i18nAria ?? ''));
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) node.title = t(node.dataset.i18nTitle ?? '');
 
   const rightTabs = element<HYTabs>('right-tabs');
-  rightTabs.options = [{ label: t('agent'), value: 'agent' }, { label: t('logs'), value: 'logs' }];
+  rightTabs.options = [{ label: t('agent'), value: 'agent' }, { label: t('history'), value: 'history' }, { label: t('logs'), value: 'logs' }];
   const resourceTabs = element<HYTabs>('resource-tabs');
   resourceTabs.options = [
-    { label: t('geometry'), value: 'geometry' }, { label: t('materials'), value: 'materials' },
+    { label: t('geometry'), value: 'geometry' }, { label: t('lights'), value: 'lights' }, { label: t('materials'), value: 'materials' },
     { label: t('textures'), value: 'textures' }, { label: t('models'), value: 'models' }, { label: t('scripts'), value: 'scripts' },
   ];
   const languageSelect = element<HYSelect>('language-select');
@@ -749,7 +773,7 @@ function readStoredSplitRatio(key: string): number | null {
 }
 
 function writeStoredSplitRatio(key: string, ratio: number): void {
-  try { localStorage.setItem(`${SPLIT_LAYOUT_STORAGE_PREFIX}${key}`, String(ratio)); }
+  try { localStorage.setItem(workspaceSplitPreferenceKey(document.body.dataset.workspaceMode === 'intent' ? 'intent' : 'classic', key), String(ratio)); }
   catch { /* Layout persistence is optional when storage is unavailable. */ }
 }
 
@@ -844,6 +868,7 @@ function updatePlayViewportScale(): void {
 }
 
 function showPlayPage(): void {
+  intentWorkspace?.closeAdvanced();
   const page = element('play-page');
   page.hidden = false;
   document.body.dataset.page = 'play';
@@ -937,6 +962,8 @@ function bindUi(): void {
   element('run-approve').addEventListener('click', () => void approveProjectRun());
   element('run-fix-agent').addEventListener('click', () => void requestAgentScriptFix());
   window.addEventListener('beforeunload', () => {
+    intentWorkspace?.dispose(); intentWorkspace = null;
+    agentHistoryViewer?.dispose(); agentHistoryViewer = null;
     agentPoll?.stop(); agentPoll = null;
     disposeConversationChanged?.(); disposeConversationChanged = null;
     logViewerSubscription?.dispose(); logViewerSubscription = null;
@@ -953,10 +980,13 @@ async function pollAgent(): Promise<void> {
 }
 
 async function refreshConversation(force: boolean): Promise<boolean> {
-  const replay = await invoke<ConversationReplaySnapshot & JsonObject>('conversation/replay');
+  const replay = await invoke<ConversationReplaySnapshot & JsonObject & { projectId?: StableId | null; historyStorage?: string }>('conversation/replay');
+  agentHistoryViewer?.setProject(replay.projectId ?? null, replay.historyStorage);
   if (!force && replay.revision === conversationRevision) return false;
   conversationRevision = replay.revision;
   const snapshot = conversationProjector.reset(replay);
+  if (agentHistoryWasBusy && !snapshot.busy) agentHistoryViewer?.refresh();
+  agentHistoryWasBusy = snapshot.busy;
   conversationBackendId = snapshot.backendId;
   conversationCanSend = snapshot.connection === 'connected' && !snapshot.busy && snapshot.backendId !== null;
   let editorChanged = false;
@@ -985,6 +1015,11 @@ async function dispatchConversation(intent: ConversationIntent): Promise<boolean
 }
 
 function setupLogViewer(): void {
+  agentHistoryViewer = new AgentHistoryViewer(element('agent-history-viewer'), {
+    query: (projectId, cursor, signal) => invoke('conversation/history', { projectId, ...(cursor ? { cursor } : {}), limit: 50 }, signal),
+    detail: (projectId, id, signal) => invoke('conversation/history-detail', { projectId, id }, signal),
+  });
+  agentHistoryViewer.setProject(null);
   const viewer = new LogViewerController({
     async query(query, signal) {
       return await invoke<SafeLogPage & JsonObject>('logs/query', { query: query as unknown as JsonObject }, signal);
@@ -1249,8 +1284,8 @@ function renderBuiltinResources(selected: SceneEntitySnapshot | null): void {
   const geometryRoot = element('geometry-resources');
   geometryRoot.replaceChildren();
   for (const resource of BUILTIN_GEOMETRIES) geometryRoot.append(resourceButton(resource.icon, t(resource.label), t('builtinGeometry'), () => void createEntity(resource.kind)));
-  const lightLabel = document.createElement('strong'); lightLabel.className = 'resource-group-label'; lightLabel.textContent = t('lights'); geometryRoot.append(lightLabel);
-  for (const resource of BUILTIN_LIGHTS) geometryRoot.append(resourceButton(resource.icon, t(resource.label), t('builtinGeometry'), () => void createEntity(resource.kind)));
+  const lightRoot = element('light-resources'); lightRoot.replaceChildren();
+  for (const resource of BUILTIN_LIGHTS) lightRoot.append(resourceButton(resource.icon, t(resource.label), t('lights'), () => void createEntity(resource.kind)));
 
   const materialRoot = element('material-resources');
   materialRoot.replaceChildren();
@@ -1316,6 +1351,7 @@ function renderScriptResources(): void {
     meta.append(name, revision, validation); card.append(icon, meta);
     card.addEventListener('click', () => void action(async () => {
       await selectEntity(script.entityId, 'system');
+      intentWorkspace?.openAdvanced('script');
     }));
     root.append(card);
   }
@@ -1355,7 +1391,18 @@ async function requestAgentScriptFix(): Promise<void> {
   if (await dispatchConversation(Object.freeze({ type: 'conversation/send', backendId, prompt }))) setStatus('Script repair task sent to the Agent');
 }
 
+function renderIntentWorkspace(): void {
+  intentWorkspace?.update({
+    documentId: scene?.documentId ?? null, documentRevision: documentRevision(), selectedEntityId: selection.activeEntityId,
+    entities: (scene?.entities ?? []).map(entity => ({ id: entity.id, name: entity.name,
+      sources: [...(scripts.resources.some(script => script.entityId === entity.id) ? ['script' as const] : []), ...((entity.components?.length ?? 0) > 0 ? ['declarative-component' as const] : [])],
+    })),
+    sourceBinding: null, behavior: null, catalog: null,
+  });
+}
+
 function render(): void {
+  renderIntentWorkspace();
   const hierarchy = element('hierarchy-items');
   hierarchy.replaceChildren();
   for (const entity of scene?.entities ?? []) {
@@ -1415,6 +1462,7 @@ async function selectEntity(entityId: StableId | null, source: SelectionIntentSo
 }
 
 function renderSelection(): void {
+  renderIntentWorkspace();
   const selected = scene?.entities.find((entity) => entity.id === selection.activeEntityId) ?? null;
   const hierarchy = element('hierarchy-items');
   for (const button of hierarchy.querySelectorAll<HTMLButtonElement>('button.entity')) {
@@ -1439,7 +1487,7 @@ function renderScriptPanel(
     element<HTMLTextAreaElement>('script-source').value = selected ? script?.text ?? DEMO_SCRIPT : '';
     pendingScriptProposal = null;
     if (!options.preservePreviewDisclosure) previewDisclosure = null;
-    element('script-diagnostics').textContent = selected ? 'Edit the script, then create a validated proposal.' : 'Select an entity to author a script.';
+    element('script-diagnostics').textContent = t(selected ? 'scriptEditHint' : 'scriptSelectHint');
   }
   element<HTMLButtonElement>('propose-script').disabled = !selected || playing;
   element<HTMLButtonElement>('commit-script').disabled = !pendingScriptProposal || playing;
@@ -1457,7 +1505,7 @@ async function proposeScriptEdit(): Promise<void> {
   const diagnostics = pendingScriptProposal.diagnostics;
   element('script-diagnostics').textContent = diagnostics.length
     ? diagnostics.map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join('\n')
-    : `Proposal ready: +${pendingScriptProposal.addedLines} / -${pendingScriptProposal.removedLines} lines. Review and commit.`;
+    : t('scriptProposalReady', { added: pendingScriptProposal.addedLines, removed: pendingScriptProposal.removedLines });
   renderScriptPanel(scene?.entities.find((entity) => entity.id === entityId) ?? null);
 }
 
@@ -1467,7 +1515,7 @@ async function commitScriptEdit(): Promise<void> {
   await invoke('script/commit', { proposalId: pendingScriptProposal.id, commandId: `command:script:${requestSequence + 1}` });
   pendingScriptProposal = null;
   await refresh();
-  element('script-diagnostics').textContent = 'Script committed through Document History.';
+  element('script-diagnostics').textContent = t('scriptCommitted');
 }
 
 async function preparePreview(): Promise<void> {
@@ -1477,7 +1525,7 @@ async function preparePreview(): Promise<void> {
     throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
   }
   previewDisclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', {});
-  element('preview-disclosure').textContent = `Risk: ${previewDisclosure.risk}. ${previewDisclosure.scripts.length} scripts. Capabilities: ${previewDisclosure.capabilities.join(', ')}.`;
+  element('preview-disclosure').textContent = t('scriptDisclosure', { risk: previewDisclosure.risk, count: previewDisclosure.scripts.length, capabilities: previewDisclosure.capabilities.join(', ') });
   renderScriptPanel(scene?.entities.find((entity) => entity.id === previewDisclosure!.scripts[0]?.entityId) ?? null, { preservePreviewDisclosure: true });
 }
 
@@ -1567,7 +1615,9 @@ async function stopPreview(): Promise<void> {
 }
 
 async function runSmokeWorkflow(): Promise<void> {
-  document.body.dataset.smokeStage = 'g05-start';
+  const smokeStarted = performance.now();
+  const smokeStage = (stage: string): void => { document.body.dataset.smokeStage = stage; console.info(`[workspace-smoke] ${Math.round(performance.now() - smokeStarted)}ms ${stage}`); };
+  smokeStage('g05-start');
   if (!scene || !project) throw new Error('Smoke workflow has no project scene.');
   if (scene.entities.length === 0) {
     scene = await invoke<SceneSnapshot & JsonObject>('scene/create', {
@@ -1575,18 +1625,24 @@ async function runSmokeWorkflow(): Promise<void> {
     });
     await refresh();
   }
-  document.body.dataset.smokeStage = 'cube-created';
+  smokeStage('cube-created');
   await nextFrames(3);
   const center = viewport!.canvasCenter();
   const picked = viewport!.pick(center.x, center.y);
   if (!picked) throw new Error('Real viewport picking did not hit the visible Cube.');
-  document.body.dataset.smokeStage = 'cube-picked';
+  smokeStage('cube-picked');
   await selectEntity(picked, 'viewport');
   await refresh();
-  scene = await invoke<SceneSnapshot & JsonObject>('scene/transform', {
-    commandId: 'command:smoke-transform-cube', baseRevision: documentRevision(), entityId: picked,
-    transform: { position: { x: 0.4, y: 0.2, z: 0 }, rotationDegrees: { x: 0, y: 30, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
-  });
+  if (element<HTMLSelectElement>('workspace-entity').value !== picked) throw new Error('Viewport selection did not reach the logic workspace.');
+  intentWorkspace?.openAdvanced('inspect');
+  const panelDeadline = Date.now() + 4000;
+  while (element('inspector-panel').getBoundingClientRect().height < 100 && Date.now() < panelDeadline) await new Promise(resolve => setTimeout(resolve, 20));
+  if (element('inspector-panel').getBoundingClientRect().height < 100) throw new Error('Advanced manual inspector is not visible.');
+  element<HTMLInputElement>('position-x').value = '0.4'; element<HTMLInputElement>('position-y').value = '0.2';
+  element<HTMLInputElement>('rotation-y').value = '30';
+  await applyTransform();
+  if (scene?.entities.find(entity => entity.id === picked)?.transform.position.x !== 0.4) throw new Error('Advanced manual edit did not reach Document.');
+  intentWorkspace?.closeAdvanced();
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
   await invoke('history/undo', { baseRevision: documentRevision() });
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
@@ -1601,13 +1657,13 @@ async function runSmokeWorkflow(): Promise<void> {
   if (!scene.entities.some((entity) => entity.id === picked && entity.transform.position.x === 0.4)) throw new Error('Saved scene did not survive reopen.');
   if (!scene.entities.some((entity) => entity.id === picked && entity.appearance?.material === 'blinn-phong')) throw new Error('Blinn-Phong material did not survive reopen.');
   await viewport!.exerciseDeviceLoss();
-  document.body.dataset.smokeStage = 'device-recovered';
+  smokeStage('device-recovered');
   render();
   const smokePreviewSource = `${DEMO_SCRIPT}\nconst smokeInstances = api.scene.instances('${picked}', 4);\nsmokeInstances.setCount(1);\nsmokeInstances.set(0, { position: { x: 0, y: 0, z: 0 } });`;
   const scriptProposal = await invoke<ScriptProposal & JsonObject>('script/propose', {
     entityId: picked, text: smokePreviewSource, baseRevision: documentRevision(), capabilities: ['read', 'input', 'debug', 'scene'],
   });
-  document.body.dataset.smokeStage = 'script-proposed';
+  smokeStage('script-proposed');
   if (scriptProposal.diagnostics.some((item) => item.severity === 'error')) throw new Error(`Smoke script validation failed: ${JSON.stringify(scriptProposal.diagnostics)}`);
   await invoke('script/commit', { proposalId: scriptProposal.id, commandId: 'command:smoke-script-edit' });
   await refresh();
@@ -1616,8 +1672,11 @@ async function runSmokeWorkflow(): Promise<void> {
   const disclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', {});
   const grant = await invoke<PreviewGrant & JsonObject>('preview/authorize', { planId: disclosure.id, approved: true });
   const previewPlan = await invoke<ConsumedPreviewPlan & JsonObject>('preview/consume', { grantId: grant.id });
+  intentWorkspace?.openAdvanced('script');
+  if (element<HTMLTextAreaElement>('script-source').value !== smokeScript.text || element('script-panel').hidden || element('script-source').getBoundingClientRect().height < 200) throw new Error('Committed script is not accessible in the advanced workspace.');
   await startPreview(previewPlan);
-  document.body.dataset.smokeStage = 'preview-playing';
+  if (element<HTMLDialogElement>('workspace-advanced').open) throw new Error('Advanced drawer blocks the Play page.');
+  smokeStage('preview-playing');
   if (element('play-page').hidden || !document.querySelector('#play-device-screen > #preview-frame')) throw new Error('Preview did not switch to the standalone play page.');
   applyPlayDevicePreset('iphone-15-pro');
   if (element('play-device-shell').style.width !== '393px' || element('play-device-shell').style.height !== '852px') throw new Error('Phone viewport simulation did not apply logical dimensions.');
@@ -1631,10 +1690,15 @@ async function runSmokeWorkflow(): Promise<void> {
   }
   if (!moved) throw new Error('Trusted preview script did not visibly move the Cube.');
   await togglePreviewPause();
+  smokeStage('preview-paused');
   const pausedPosition = previewFrame!.latestPosition();
-  await nextFrames(3);
+  // A paused hidden test window may stop producing display frames. Verify that
+  // simulation state stays stable over elapsed time, independently of repaint.
+  await new Promise(resolve => setTimeout(resolve, 100));
+  smokeStage('preview-resume-requested');
   if (!previewPaused || previewFrame!.latestPosition()?.x !== pausedPosition?.x) throw new Error('Standalone preview did not remain stable while paused.');
   await togglePreviewPause();
+  smokeStage('preview-resumed');
   let resumed = false;
   for (let frame = 0; frame < 30 && !resumed; frame += 1) {
     await nextFrames(1);
@@ -1643,14 +1707,14 @@ async function runSmokeWorkflow(): Promise<void> {
   if (!resumed) throw new Error('Standalone preview did not resume.');
   previewFrame!.hotReload(smokeScript.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   await nextFrames(2);
-  document.body.dataset.smokeStage = 'preview-hot-reloaded';
+  smokeStage('preview-hot-reloaded');
   if (previewFrame!.ownedDisposableCount() !== 1) throw new Error('Preview timer was not owned by ScriptExecutionScope.');
   previewFrame!.hotReload(smokeScript.id, `throw new Error('injected preview fault');`);
   await nextFrames(2);
-  document.body.dataset.smokeStage = 'preview-fault-observed';
+  smokeStage('preview-fault-observed');
   if (previewFrame!.runtimeErrorCount() === 0 || previewFrame!.ownedDisposableCount() !== 0) throw new Error('Preview fault/cleanup evidence is missing.');
   await stopPreview();
-  document.body.dataset.smokeStage = 'preview-stopped';
+  smokeStage('preview-stopped');
   if (scene.entities.find((entity) => entity.id === picked)?.transform.position.x !== 0.4) throw new Error('Preview mutation leaked into the edit document.');
   document.body.dataset.workflow = 'create-pick-transform-undo-redo-save-reopen';
   document.body.dataset.webgpu = 'ready';

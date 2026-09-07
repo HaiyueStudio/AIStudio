@@ -78,6 +78,14 @@ export class OperationLogError extends Error {
 }
 
 export class OperationLog {
+  private readonly appendObservers = new Set<(event: DurableOperationEvent) => Promise<void>>();
+
+  /** Observers persist project replicas before the append is acknowledged. They must not append to this log. */
+  subscribeAppends(observer: (event: DurableOperationEvent) => Promise<void>): Readonly<{ dispose(): void }> {
+    this.assertOpen();
+    this.appendObservers.add(observer);
+    return Object.freeze({ dispose: () => { this.appendObservers.delete(observer); } });
+  }
   private readonly journalDirectory: string;
   private readonly indexDirectory: string;
   private readonly artifactDirectory: string;
@@ -154,7 +162,11 @@ export class OperationLog {
       rejectResult = reject;
     });
     this.appendTail = this.appendTail.then(async () => {
-      try { resolveResult(await this.appendInternal(input, options)); }
+      try {
+        const event = await this.appendInternal(input, options);
+        for (const observer of this.appendObservers) await observer(event);
+        resolveResult(event);
+      }
       catch (cause) { rejectResult(cause); }
     });
     return result;
@@ -176,6 +188,7 @@ export class OperationLog {
     if (this.flushPolicy === 'manual' && this.segments.length > 0) await this.flush();
     else await this.checkpointIndex('index-close-failed', 'Derived index close checkpoint failed');
     this.closed = true;
+    this.appendObservers.clear();
     this.health = 'closed';
   }
 

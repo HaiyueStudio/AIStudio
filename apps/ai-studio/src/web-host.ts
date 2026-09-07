@@ -167,6 +167,8 @@ export class WebStudioHost {
         backends: [{ id: 'backend:web-unavailable', label: 'Desktop Agent required', kind: 'codex-app-server', state: 'unavailable', authMode: 'none', rateLimits: [], diagnostic: { code: 'web-agent-unavailable', message: 'Local Codex and API-key backends require Electron.' } }],
       });
       case 'conversation/intent': throw new WebHostError('web-agent-unavailable', 'AI Agent backends require the Electron desktop app.');
+      case 'conversation/history': return json({ schemaVersion: 1, projectId: null, records: [], total: 0, nextCursor: null, storage: 'none' });
+      case 'conversation/history-detail': throw new WebHostError('web-agent-unavailable', 'Project execution records require the Electron desktop app.');
       case 'logs/query': {
         const query = payload.query as Record<string, unknown>; const limit = Math.min(200, Math.max(1, Number(query.limit) || 80));
         const cursorSequence = typeof query.cursor === 'string' && /^web:\d+$/u.test(query.cursor) ? Number(query.cursor.slice(4)) : undefined;

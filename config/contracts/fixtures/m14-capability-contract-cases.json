@@ -1,0 +1,984 @@
+{
+  "valid": [
+    {
+      "name": "implementation-with-source-evidence",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown-version",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 2,
+        "capabilityId": "document.v2",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "unknown-capability",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "navigation.pathfinding",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "missing-runtime-layer",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "product-without-current-six-layers",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "product-integrated",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "missing",
+            "references": [],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [
+            "fixture-adapter"
+          ],
+          "productCheckIds": [
+            "fixture-product"
+          ]
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "adapter-without-acceptance",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "adapter-ready",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "history-cannot-be-current-evidence",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "historical",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "project-external-reference",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "../outside",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "secret-bearing-envelope",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument",
+                "authorization": "REDACTED_FIXTURE"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    },
+    {
+      "name": "current-without-evidence",
+      "schemaId": "haiyue://contracts/m14-capability-surface-record/v1",
+      "value": {
+        "schemaVersion": 1,
+        "capabilityId": "document.v2",
+        "stage": "implementation-present",
+        "componentTypes": [],
+        "toolIds": [
+          "project.snapshot"
+        ],
+        "layers": {
+          "upstream": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "document": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "runtime": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "tool": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "ui": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          },
+          "verification": {
+            "owner": "g01-capability-surface-census",
+            "state": "current",
+            "references": [
+              {
+                "path": "packages/editor-plugins/src/project/game-document.ts",
+                "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "kind": "source",
+                "locator": "GameDocument"
+              }
+            ],
+            "explanation": "Synthetic contract fixture; not real execution evidence."
+          }
+        },
+        "acceptance": {
+          "adapterCheckIds": [],
+          "productCheckIds": []
+        },
+        "limitations": [
+          "Fixture only; not accepted."
+        ]
+      }
+    }
+  ]
+}

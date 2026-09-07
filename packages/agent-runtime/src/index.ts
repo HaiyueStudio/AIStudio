@@ -1,4 +1,4 @@
-import { asStableId, createStudioServiceToken, defineStudioPlugin, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12Digest, type StableId, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
+import { asStableId, createStudioServiceToken, defineStudioPlugin, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12Digest, type StableId, type StudioPluginActivationContext, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, operationLogServiceToken, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import type { AgentModelCatalog } from './model-controls.js';
 import { validateAgentTurnConfig } from './model-controls.js';
@@ -200,7 +200,7 @@ export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; 
 export const agentRuntimeServiceToken = createStudioServiceToken<AgentRuntimeService>('studio.agent-runtime');
 export const agentBackendRegistryToken = createStudioServiceToken<AgentBackendRegistry>('studio.agent-backend-registry');
 
-export interface AgentRuntimePluginOptions { readonly createBackends: () => readonly AgentBackend[] | Promise<readonly AgentBackend[]>; }
+export interface AgentRuntimePluginOptions { readonly createBackends: (context: StudioPluginActivationContext) => readonly AgentBackend[] | Promise<readonly AgentBackend[]>; }
 export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): StudioPluginDefinition<JsonObject> {
   return defineStudioPlugin({
     manifest: {
@@ -212,34 +212,65 @@ export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): St
     async activate(context) {
       const log = context.services.get(operationLogServiceToken).log;
       const registry = new AgentBackendRegistry();
-      let backends: readonly AgentBackend[] = [];
-      try {
-        backends = await options.createBackends();
-        for (const backend of backends) registry.register(backend);
+      const resources: (() => void | Promise<void>)[] = [() => registry.dispose()];
+      const initialize = async (): Promise<AgentRuntimeService> => {
+        const backends = await options.createBackends(context);
+        // The factory transfers every returned backend, including ones that cannot register.
+        const unregistered = new Set(backends);
+        resources.push(() => disposeAgentResources([...unregistered].map((backend) => () => backend.dispose())));
         context.owner.assertActive();
-      } catch (cause) { await registry.dispose(); throw cause; }
-      const knowledge = new KnowledgeRetrievalRuntime(log); await knowledge.initialize();
-      const promptContext = new PromptContextRuntime(log, undefined, knowledge); await promptContext.initialize();
-      const turns = new AgentTurnRuntime(registry, log, promptContext); const { TaskAccountingRegistry } = await import('./accounting.js');
-      const sessions = new DurableSessionRuntime(log);
-      const modelContexts = new ModelContextRuntime(log, sessions);
-      const backendSessions = new BackendSessionRuntime(sessions);
-      try { for (const backend of backends) if (isBackendSessionAdapter(backend)) backendSessions.register(backend); }
-      catch (cause) { await backendSessions.dispose(); await modelContexts.dispose(); await sessions.dispose(); await turns.dispose(); throw cause; }
-      const service = Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage), context: promptContext, sessions, modelContexts, backendSessions, knowledge });
-      context.services.provide(agentBackendRegistryToken, registry); context.services.provide(agentRuntimeServiceToken, service);
-      context.effects.own('agent-runtime.dispose', async () => {
-        const errors: unknown[] = [];
-        try { await modelContexts.dispose(); } catch (cause) { errors.push(cause); }
-        try { await backendSessions.dispose(); } catch (cause) { errors.push(cause); }
-        try { await sessions.dispose(); } catch (cause) { errors.push(cause); }
-        try { knowledge.dispose(); } catch (cause) { errors.push(cause); }
-        try { await turns.dispose(); } catch (cause) { errors.push(cause); }
-        if (errors.length === 1) throw errors[0];
-        if (errors.length > 1) throw new AggregateError(errors, 'Agent runtime resources failed during disposal.');
-      });
+        for (const backend of backends) { registry.register(backend); unregistered.delete(backend); }
+        const knowledge = new KnowledgeRetrievalRuntime(log);
+        resources.push(() => knowledge.dispose());
+        await knowledge.initialize(); context.owner.assertActive();
+        const promptContext = new PromptContextRuntime(log, undefined, knowledge);
+        await promptContext.initialize(); context.owner.assertActive();
+        const turns = new AgentTurnRuntime(registry, log, promptContext);
+        resources.push(() => turns.dispose());
+        const { TaskAccountingRegistry } = await import('./accounting.js');
+        context.owner.assertActive();
+        const sessions = new DurableSessionRuntime(log);
+        resources.push(() => sessions.dispose());
+        const modelContexts = new ModelContextRuntime(log, sessions);
+        resources.push(() => modelContexts.dispose());
+        const backendSessions = new BackendSessionRuntime(sessions);
+        resources.push(() => backendSessions.dispose());
+        for (const backend of backends) if (isBackendSessionAdapter(backend)) backendSessions.register(backend);
+        return Object.freeze({ registry, turns, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage), context: promptContext, sessions, modelContexts, backendSessions, knowledge });
+      };
+      // Register before starting initialization. Teardown joins in-flight setup so
+      // late factory results are reclaimed before the owner finishes disposing.
+      let initializing: Promise<AgentRuntimeService>;
+      let disposal: Promise<void> | undefined;
+      const dispose = (): Promise<void> => disposal ??= (async () => {
+        try { await initializing; } catch { /* Activation reports the setup error. */ }
+        await disposeAgentResources(resources);
+      })();
+      context.effects.own('agent-runtime.dispose', dispose);
+      initializing = initialize();
+      try {
+        const service = await initializing;
+        context.owner.assertActive();
+        // On normal shutdown drain sessions before Cordis tears down child transports.
+        context.effects.own('agent-runtime.ready.dispose', dispose);
+        context.services.provide(agentBackendRegistryToken, registry);
+        context.services.provide(agentRuntimeServiceToken, service);
+      } catch (cause) {
+        try { await dispose(); }
+        catch (cleanupCause) { throw new AggregateError([cause, cleanupCause], 'Agent runtime initialization and rollback failed.'); }
+        throw cause;
+      }
     },
   });
+}
+
+async function disposeAgentResources(resources: (() => void | Promise<void>)[]): Promise<void> {
+  const errors: unknown[] = [];
+  for (const dispose of resources.splice(0).reverse()) {
+    try { await dispose(); } catch (cause) { errors.push(cause); }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, 'Agent runtime resources failed during disposal.');
 }
 
 export function validateAgentBackendDescriptor(value: unknown): AgentBackendDescriptor {

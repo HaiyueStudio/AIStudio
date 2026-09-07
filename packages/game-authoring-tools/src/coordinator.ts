@@ -2,6 +2,7 @@ import { asStableId, type AgentTurnConfigV2, type JsonObject, type StableId } fr
 import type { AgentBackend, AgentBackendEvent, AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
 import { canonicalStringify, sha256 } from '@haiyue/ai-studio-operation-log';
 import type { GameAuthoringToolRuntime } from './runtime.js';
+import { MODEL_TOOL_INVOKE_DEFINITION, resolveModelToolInvocation } from './catalog/invocation.js';
 import { GameToolProtocolError, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult } from './types.js';
 
 export interface GameToolApprovalPort {
@@ -99,7 +100,8 @@ export class AgentGameAuthoringCoordinator {
     let noProgressToolRequests = 0;
     let highestDocumentRevision = 0;
     const visible = this.options.modelToolIds ? new Set(this.options.modelToolIds) : null;
-    const tools = this.runtime.definitions().filter((definition) => !visible || visible.has(definition.id)).map((definition) => Object.freeze({ id: definition.id, description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`, inputSchema: definition.inputSchema }));
+    const tools: AgentTurnInput['tools'][number][] = this.runtime.definitions().filter((definition) => !visible || visible.has(definition.id)).map((definition) => Object.freeze({ id: definition.id, description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.`, inputSchema: definition.inputSchema }));
+    if (visible?.has(asStableId('tool.search')) && tools.length < this.runtime.definitions().length) tools.push(MODEL_TOOL_INVOKE_DEFINITION);
     const turnInput = Object.freeze({ taskId: input.taskId, config: input.config, sessionId: input.sessionId, prompt: input.prompt, contextArtifactIds: input.contextArtifactIds ?? [], tools });
     const events = this.turns ? this.turns.start(backend.descriptor.id, turnInput, controller.signal) : backend.startTurn(turnInput, controller.signal);
     try { for await (const event of events) {
@@ -134,8 +136,10 @@ export class AgentGameAuthoringCoordinator {
         }
         try {
           if (!isRecord(event.payload.arguments)) throw new GameToolProtocolError('tool.arguments-invalid', 'Backend tool arguments must be a JSON object.');
-          const args = event.payload.arguments as JsonObject;
-          const preparation = await this.runtime.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, taskId: input.taskId, toolId, toolVersion: '1.0.0', arguments: args }, controller.signal);
+          const target = toolId === MODEL_TOOL_INVOKE_DEFINITION.id
+            ? resolveModelToolInvocation(event.payload.arguments, this.runtime.definitions())
+            : { toolId, toolVersion: '1.0.0', arguments: event.payload.arguments as JsonObject };
+          const preparation = await this.runtime.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, taskId: input.taskId, ...target }, controller.signal);
           if (preparation.approvalId) {
             const approval = this.runtime.approval(preparation.approvalId);
             if (!approval) throw new Error('Prepared approval is unavailable.');

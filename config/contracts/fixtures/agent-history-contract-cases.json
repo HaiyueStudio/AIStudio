@@ -1,0 +1,98 @@
+{
+  "valid": [
+    {
+      "name": "complete execution record",
+      "schemaId": "haiyue://studio/agent-history-record/1",
+      "value": {
+        "schemaVersion": 1,
+        "id": "record:fixture",
+        "projectId": "project:fixture",
+        "kind": "tool-result",
+        "status": "completed",
+        "sessionId": "session:fixture",
+        "turnId": "turn:fixture",
+        "toolId": "entity.create",
+        "startedAt": "2026-09-06T12:00:00.000Z",
+        "finishedAt": "2026-09-06T12:00:00.025Z",
+        "durationMs": 25,
+        "dataArtifactId": "artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "negative execution duration",
+      "schemaId": "haiyue://studio/agent-history-record/1",
+      "value": {
+        "schemaVersion": 1,
+        "id": "record:fixture",
+        "projectId": "project:fixture",
+        "kind": "tool-result",
+        "status": "completed",
+        "sessionId": "session:fixture",
+        "turnId": "turn:fixture",
+        "toolId": "entity.create",
+        "startedAt": "2026-09-06T12:00:00.000Z",
+        "finishedAt": "2026-09-06T12:00:00.025Z",
+        "durationMs": -1,
+        "dataArtifactId": "artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "unknown execution record version",
+      "schemaId": "haiyue://studio/agent-history-record/1",
+      "value": {
+        "schemaVersion": 99,
+        "id": "record:fixture",
+        "projectId": "project:fixture",
+        "kind": "tool-result",
+        "status": "completed",
+        "sessionId": "session:fixture",
+        "turnId": "turn:fixture",
+        "toolId": "entity.create",
+        "startedAt": "2026-09-06T12:00:00.000Z",
+        "finishedAt": "2026-09-06T12:00:00.025Z",
+        "durationMs": 25,
+        "dataArtifactId": "artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "secret-bearing execution record",
+      "schemaId": "haiyue://studio/agent-history-record/1",
+      "invalidReason": "forbidden-secret-key",
+      "value": {
+        "schemaVersion": 1,
+        "id": "record:fixture",
+        "projectId": "project:fixture",
+        "kind": "tool-result",
+        "status": "completed",
+        "sessionId": "session:fixture",
+        "turnId": "turn:fixture",
+        "toolId": "entity.create",
+        "startedAt": "2026-09-06T12:00:00.000Z",
+        "finishedAt": "2026-09-06T12:00:00.025Z",
+        "durationMs": 25,
+        "dataArtifactId": "artifact:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "apiKey": "fixture-secret"
+      }
+    },
+    {
+      "name": "record is not an arbitrary file reference",
+      "schemaId": "haiyue://studio/agent-history-record/1",
+      "value": {
+        "schemaVersion": 1,
+        "id": "record:fixture",
+        "projectId": "project:fixture",
+        "kind": "tool-result",
+        "status": "completed",
+        "sessionId": "session:fixture",
+        "turnId": "turn:fixture",
+        "toolId": "entity.create",
+        "startedAt": "2026-09-06T12:00:00.000Z",
+        "finishedAt": "2026-09-06T12:00:00.025Z",
+        "durationMs": 25,
+        "dataArtifactId": "../private/file"
+      }
+    }
+  ]
+}

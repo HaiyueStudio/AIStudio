@@ -9,7 +9,7 @@ import {
   ModelContextRuntime,
 } from '@haiyue/ai-studio-agent-runtime';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
-import { StudioConversationHost } from '../dist/conversation-host.js';
+import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 const backendId = 'backend:g09-context';
 const sessionId = 'session:g09-context';

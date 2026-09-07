@@ -109,7 +109,7 @@ export async function buildBaseline() {
       unknownValuesRemainNull: true
     },
     architecture: {
-      conversationHost: await sourceMetric('apps/ai-studio/src/conversation-host.ts'),
+      conversationHost: await sourceMetric('packages/agent-orchestration/src/conversation-host.ts'),
       promptContext: await sourceMetric('packages/agent-runtime/src/prompt-context.ts'),
       toolDefinitions: await sourceMetric('packages/game-authoring-tools/src/definitions.ts'),
       contextByteLimit: 98304,

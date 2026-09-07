@@ -6,7 +6,7 @@ import path from 'node:path';
 import { DurableSessionRuntime } from '@haiyue/ai-studio-agent-runtime';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { projectExecutionGraph } from '@haiyue/ai-studio-shell';
-import { migrateLegacySessions } from '../dist/legacy-session-migration.js';
+import { migrateLegacySessions } from '@haiyue/ai-studio-agent-orchestration';
 
 const sessionId = 'session:g11-legacy';
 const turnId = 'turn:g11-legacy';

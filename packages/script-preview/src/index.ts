@@ -1,3 +1,4 @@
+export * from './behavior/index.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {

@@ -1231,21 +1231,21 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     }
     case 'asset.dependencies': exact(raw, [], ['assetId', 'entityId'], toolId); return Object.freeze({ ...(raw.assetId === undefined ? {} : { assetId: assetIdValue(raw.assetId) }), ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }) });
     case 'camera.set': {
-      exact(raw, ['camera'], ['baseRevision'], toolId);
+      exact(raw, ['baseRevision', 'camera'], [], toolId);
       try {
-        return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), camera: normalizeProjectCamera(raw.camera) as unknown as JsonValue });
+        return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), camera: normalizeProjectCamera(raw.camera) as unknown as JsonValue });
       } catch (cause) { throw invalid(cause instanceof Error ? cause.message : 'Camera is invalid.'); }
     }
-    case 'camera.author': return normalizeCameraAuthorArguments(raw, currentRevision);
+    case 'camera.author': return normalizeCameraAuthorArguments(raw);
     case 'entity.create': {
-      exact(raw, ['kind'], ['baseRevision', 'name', 'parentId', 'material', 'color', 'transform'], toolId);
+      exact(raw, ['baseRevision', 'kind'], ['name', 'parentId', 'material', 'color', 'transform'], toolId);
       if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
       if (raw.material !== undefined && !isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.');
       if ((raw.material !== undefined || raw.color !== undefined) && !isSceneGeometryKind(raw.kind)) throw invalid('Only geometry entities can select a material appearance.');
-      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
+      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
     }
     case 'entity.create-many': {
-      exact(raw, ['entities'], ['baseRevision'], toolId);
+      exact(raw, ['baseRevision', 'entities'], [], toolId);
       if (!Array.isArray(raw.entities) || raw.entities.length < 1 || raw.entities.length > 32) throw invalid('entity.create-many entities must contain 1-32 items.');
       const entities = raw.entities.map((item, index) => {
         if (!isRecord(item)) throw invalid(`entity.create-many entities[${index}] must be an object.`);
@@ -1255,40 +1255,40 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
         if ((item.material !== undefined || item.color !== undefined) && !isSceneGeometryKind(item.kind)) throw invalid('Only geometry entities can select a material appearance.');
         return Object.freeze({ kind: item.kind as JsonValue, ...(item.name === undefined ? {} : { name: boundedString(item.name, `entities[${index}].name`, 80, true) }), ...(item.parentId === undefined ? {} : { parentId: item.parentId === null ? null : stable(item.parentId, `entities[${index}].parentId`) }), ...(item.material === undefined ? {} : { material: item.material as JsonValue }), ...(item.color === undefined ? {} : { color: normalizeMaterialColor(item.color) as unknown as JsonValue }), ...(item.transform === undefined ? {} : { transform: normalizeTransform(item.transform) as unknown as JsonValue }) });
       });
-      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entities: Object.freeze(entities) });
+      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entities: Object.freeze(entities) });
     }
-    case 'entity.rename': exact(raw, ['entityId', 'name'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
-    case 'entity.hierarchy': return normalizeEntityHierarchyArguments(raw, currentRevision);
-    case 'prefab.manage': return normalizePrefabArguments(raw, currentRevision);
-    case 'transform.set': exact(raw, ['entityId', 'transform'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
-    case 'transform.batch': return normalizeTransformBatchArguments(raw, currentRevision);
-    case 'material.set': exact(raw, ['entityId', 'material'], ['baseRevision', 'color'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), material: raw.material, ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }) });
-    case 'component.add': exact(raw, ['entityId', 'type'], ['baseRevision', 'version', 'enabled', 'value'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), enabled: raw.enabled === undefined ? true : booleanValue(raw.enabled, 'enabled'), value: jsonObjectValue(raw.value ?? {}, 'component value') as JsonValue });
-    case 'component.set': exact(raw, ['componentId', 'value'], ['baseRevision', 'enabled'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), value: jsonObjectValue(raw.value, 'component value') as JsonValue });
-    case 'component.remove': exact(raw, ['componentId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), componentId: stable(raw.componentId, 'component id') });
+    case 'entity.rename': exact(raw, ['baseRevision', 'entityId', 'name'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), name: boundedString(raw.name, 'name', 80, true) });
+    case 'entity.hierarchy': return normalizeEntityHierarchyArguments(raw);
+    case 'prefab.manage': return normalizePrefabArguments(raw);
+    case 'transform.set': exact(raw, ['baseRevision', 'entityId', 'transform'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
+    case 'transform.batch': return normalizeTransformBatchArguments(raw);
+    case 'material.set': exact(raw, ['baseRevision', 'entityId', 'material'], ['color'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), material: raw.material, ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }) });
+    case 'component.add': exact(raw, ['baseRevision', 'entityId', 'type'], ['version', 'enabled', 'value'], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), enabled: raw.enabled === undefined ? true : booleanValue(raw.enabled, 'enabled'), value: jsonObjectValue(raw.value ?? {}, 'component value') as JsonValue });
+    case 'component.set': exact(raw, ['baseRevision', 'componentId', 'value'], ['enabled'], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), componentId: stable(raw.componentId, 'component id'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), value: jsonObjectValue(raw.value, 'component value') as JsonValue });
+    case 'component.remove': exact(raw, ['baseRevision', 'componentId'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), componentId: stable(raw.componentId, 'component id') });
     case 'component.configure': {
-      exact(raw, ['action', 'entityId', 'type'], ['baseRevision', 'version', 'enabled', 'patch'], toolId);
+      exact(raw, ['baseRevision', 'action', 'entityId', 'type'], ['version', 'enabled', 'patch'], toolId);
       const action = String(raw.action); if (!['upsert', 'remove'].includes(action)) throw invalid('component.configure action is invalid.');
       if (action === 'remove' && (raw.enabled !== undefined || raw.patch !== undefined)) throw invalid('component.configure remove does not accept enabled or patch.');
-      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action, entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), ...(raw.patch === undefined ? {} : { patch: jsonObjectValue(raw.patch, 'component patch') as JsonValue }) });
+      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), action, entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), ...(raw.patch === undefined ? {} : { patch: jsonObjectValue(raw.patch, 'component patch') as JsonValue }) });
     }
     case 'asset.import': {
-      exact(raw, ['projectPath', 'kind', 'mimeType', 'license', 'provenance', 'decodedBytes'], ['baseRevision', 'width', 'height'], toolId);
+      exact(raw, ['baseRevision', 'projectPath', 'kind', 'mimeType', 'license', 'provenance', 'decodedBytes'], ['width', 'height'], toolId);
       if ((raw.width === undefined) !== (raw.height === undefined)) throw invalid('Asset width and height must be supplied together.');
       const projectPath = boundedString(raw.projectPath, 'projectPath', 512, true).replaceAll('\\', '/');
       if (projectPath.startsWith('/') || /^[A-Za-z]:/u.test(projectPath) || projectPath.split('/').includes('..') || !projectPath.startsWith('assets/')) throw invalid('projectPath must stay under the project assets directory.');
       return Object.freeze({
-        baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), projectPath,
+        baseRevision: integer(raw.baseRevision, 'baseRevision'), projectPath,
         kind: assetKindValue(raw.kind), mimeType: boundedString(raw.mimeType, 'mimeType', 128, true),
         license: assetLicenseValue(raw.license), provenance: boundedString(raw.provenance, 'provenance', 512, true),
         decodedBytes: boundedInteger(raw.decodedBytes, 'decodedBytes', 1, 128 * 1024 * 1024),
         ...(raw.width === undefined ? {} : { width: boundedInteger(raw.width, 'width', 1, 8192), height: boundedInteger(raw.height, 'height', 1, 8192) }),
       });
     }
-    case 'asset.assign': exact(raw, ['entityId', 'assetId', 'usage'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), assetId: assetIdValue(raw.assetId), usage: assetUsageValue(raw.usage) });
-    case 'script.propose': exact(raw, ['entityId', 'text'], ['baseRevision', 'capabilities'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+    case 'asset.assign': exact(raw, ['baseRevision', 'entityId', 'assetId', 'usage'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), assetId: assetIdValue(raw.assetId), usage: assetUsageValue(raw.usage) });
+    case 'script.propose': exact(raw, ['baseRevision', 'entityId', 'text'], ['capabilities'], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), text: boundedString(raw.text, 'text', 65_536, true), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
     case 'script.patch': {
-      exact(raw, ['expectedDigest', 'edits'], ['baseRevision', 'entityId', 'scriptId', 'capabilities'], toolId);
+      exact(raw, ['baseRevision', 'expectedDigest', 'edits'], ['entityId', 'scriptId', 'capabilities'], toolId);
       if (raw.entityId === undefined && raw.scriptId === undefined) throw invalid('script.patch requires entityId, scriptId, or both.');
       if (typeof raw.expectedDigest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(raw.expectedDigest)) throw invalid('script.patch expectedDigest is invalid.');
       if (!Array.isArray(raw.edits) || raw.edits.length < 1 || raw.edits.length > 64) throw invalid('script.patch edits must contain 1-64 edits.');
@@ -1300,19 +1300,19 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
         return Object.freeze({ startLine, endLine, text: boundedString(edit.text, 'edit text', 32_768) });
       }).sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
       if (edits.some((edit, index) => index > 0 && edits[index - 1]!.endLine >= edit.startLine)) throw invalid('script.patch edits must not overlap.');
-      return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), expectedDigest: raw.expectedDigest, edits: Object.freeze(edits) as unknown as JsonValue, ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.scriptId === undefined ? {} : { scriptId: stable(raw.scriptId, 'script id') }), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
+      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), expectedDigest: raw.expectedDigest, edits: Object.freeze(edits) as unknown as JsonValue, ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.scriptId === undefined ? {} : { scriptId: stable(raw.scriptId, 'script id') }), ...(raw.capabilities ? { capabilities: normalizeCapabilities(raw.capabilities) } : {}) });
     }
-    case 'script.apply': exact(raw, ['proposalId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), proposalId: stable(raw.proposalId, 'proposal id') });
+    case 'script.apply': exact(raw, ['baseRevision', 'proposalId'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), proposalId: stable(raw.proposalId, 'proposal id') });
     case 'preview.validate': {
       exact(raw, [], ['baseRevision', 'scriptIds'], toolId);
-      const baseRevision = revisionOrCurrent(raw.baseRevision, currentRevision);
+      const baseRevision = raw.baseRevision === undefined ? currentRevision : integer(raw.baseRevision, 'baseRevision');
       if (raw.scriptIds === undefined) return Object.freeze({ baseRevision });
       if (!Array.isArray(raw.scriptIds) || raw.scriptIds.length < 1 || raw.scriptIds.length > 128) throw invalid('scriptIds must contain 1-128 script ids.');
       const scriptIds = raw.scriptIds.map((item) => stable(item, 'script id'));
       if (new Set(scriptIds).size !== scriptIds.length) throw invalid('scriptIds must be unique.');
       return Object.freeze({ baseRevision, scriptIds });
     }
-    case 'preview.start': case 'play.start': exact(raw, ['planId'], ['baseRevision'], toolId); return Object.freeze({ baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), planId: stable(raw.planId, 'plan id') });
+    case 'preview.start': case 'play.start': exact(raw, ['baseRevision', 'planId'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), planId: stable(raw.planId, 'plan id') });
     case 'play.step': exact(raw, ['count'], [], toolId); return Object.freeze({ count: boundedInteger(raw.count, 'count', 1, 10_000) });
     case 'play.input': exact(raw, ['event'], [], toolId); return Object.freeze({ event: normalizePlayInput(raw.event) as unknown as JsonValue });
     case 'play.physics-query': return normalizePhysicsQuery(raw);
@@ -1321,8 +1321,8 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
   }
 }
 
-function normalizeCameraAuthorArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
-  exact(raw, ['action'], ['baseRevision', 'entityId', 'targetEntityId', 'name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport', 'mode', 'offset', 'lookAtOffset', 'smoothing', 'padding', 'bounds', 'plane', 'targetSize', 'azimuthDelta', 'elevationDelta', 'distance'], 'camera.author');
+function normalizeCameraAuthorArguments(raw: Record<string, unknown>): JsonObject {
+  exact(raw, ['baseRevision', 'action'], ['entityId', 'targetEntityId', 'name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport', 'mode', 'offset', 'lookAtOffset', 'smoothing', 'padding', 'bounds', 'plane', 'targetSize', 'azimuthDelta', 'elevationDelta', 'distance'], 'camera.author');
   const action = String(raw.action); if (!['create', 'activate', 'frame', 'frame-bounds', 'orbit', 'follow', 'projection', 'viewport'].includes(action)) throw invalid('camera.author action is invalid.');
   const actionFields: Record<string, readonly string[]> = {
     create: ['name', 'transform', 'projection', 'fovDegrees', 'orthographicHeight', 'near', 'far', 'viewport'], activate: ['entityId'], frame: ['targetEntityId', 'padding'], 'frame-bounds': ['bounds', 'plane', 'targetSize', 'padding'], orbit: ['azimuthDelta', 'elevationDelta', 'distance'],
@@ -1355,7 +1355,7 @@ function normalizeCameraAuthorArguments(raw: Record<string, unknown>, currentRev
     targetSize = Object.freeze({ width: boundedInteger(raw.targetSize.width, 'targetSize.width', 1, 16_384), height: boundedInteger(raw.targetSize.height, 'targetSize.height', 1, 16_384) });
   }
   return Object.freeze({
-    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action,
+    baseRevision: integer(raw.baseRevision, 'baseRevision'), action,
     ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }), ...(raw.targetEntityId === undefined ? {} : { targetEntityId: stable(raw.targetEntityId, 'target entity id') }),
     ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }),
     ...(projection === undefined ? {} : { projection }), ...(raw.fovDegrees === undefined ? {} : { fovDegrees: boundedNumber(raw.fovDegrees, 'fovDegrees', 1, 179) }),
@@ -1372,15 +1372,15 @@ function normalizeCameraAuthorArguments(raw: Record<string, unknown>, currentRev
 
 function normalizeViewport(value: unknown): JsonObject { if (!isRecord(value)) throw invalid('viewport must be an object.'); exact(value, ['x', 'y', 'width', 'height'], [], 'viewport'); const result = { x: boundedNumber(value.x, 'viewport.x', 0, 1), y: boundedNumber(value.y, 'viewport.y', 0, 1), width: boundedNumber(value.width, 'viewport.width', Number.EPSILON, 1), height: boundedNumber(value.height, 'viewport.height', Number.EPSILON, 1) }; if (result.x + result.width > 1 || result.y + result.height > 1) throw invalid('viewport must remain inside normalized bounds.'); return Object.freeze(result); }
 
-function normalizeEntityHierarchyArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
-  exact(raw, ['action', 'entityId'], ['baseRevision', 'parentId', 'name', 'order', 'includeDescendants'], 'entity.hierarchy');
+function normalizeEntityHierarchyArguments(raw: Record<string, unknown>): JsonObject {
+  exact(raw, ['baseRevision', 'action', 'entityId'], ['parentId', 'name', 'order', 'includeDescendants'], 'entity.hierarchy');
   const action = String(raw.action);
   if (!['clone', 'reparent', 'delete'].includes(action)) throw invalid('entity.hierarchy action is invalid.');
   if (action === 'reparent' && !Object.hasOwn(raw, 'parentId')) throw invalid('entity.hierarchy reparent requires parentId, which may be null.');
   if (action === 'delete' && (raw.parentId !== undefined || raw.name !== undefined || raw.order !== undefined)) throw invalid('entity.hierarchy delete only accepts includeDescendants.');
   if (action === 'reparent' && (raw.name !== undefined || raw.includeDescendants !== undefined)) throw invalid('entity.hierarchy reparent only accepts parentId and optional order.');
   return Object.freeze({
-    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action, entityId: stable(raw.entityId, 'entity id'),
+    baseRevision: integer(raw.baseRevision, 'baseRevision'), action, entityId: stable(raw.entityId, 'entity id'),
     ...(Object.hasOwn(raw, 'parentId') ? { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') } : {}),
     ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }),
     ...(raw.order === undefined ? {} : { order: boundedInteger(raw.order, 'order', 0, 1_000_000) }),
@@ -1388,8 +1388,8 @@ function normalizeEntityHierarchyArguments(raw: Record<string, unknown>, current
   });
 }
 
-function normalizePrefabArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
-  exact(raw, ['action', 'prefabId'], ['baseRevision', 'entityId', 'parentId', 'name'], 'prefab.manage');
+function normalizePrefabArguments(raw: Record<string, unknown>): JsonObject {
+  exact(raw, ['baseRevision', 'action', 'prefabId'], ['entityId', 'parentId', 'name'], 'prefab.manage');
   const action = String(raw.action);
   if (!['capture', 'instantiate', 'remove'].includes(action)) throw invalid('prefab.manage action is invalid.');
   if (typeof raw.prefabId !== 'string' || !/^prefab:[A-Za-z0-9._:-]{3,120}$/u.test(raw.prefabId)) throw invalid('prefab.manage prefabId is invalid.');
@@ -1398,15 +1398,15 @@ function normalizePrefabArguments(raw: Record<string, unknown>, currentRevision:
   if (action === 'instantiate' && raw.entityId !== undefined) throw invalid('prefab.manage instantiate does not accept entityId.');
   if (action === 'remove' && (raw.entityId !== undefined || raw.parentId !== undefined || raw.name !== undefined)) throw invalid('prefab.manage remove only accepts prefabId and baseRevision.');
   return Object.freeze({
-    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action, prefabId: asStableId(raw.prefabId),
+    baseRevision: integer(raw.baseRevision, 'baseRevision'), action, prefabId: asStableId(raw.prefabId),
     ...(raw.entityId === undefined ? {} : { entityId: stable(raw.entityId, 'entity id') }),
     ...(Object.hasOwn(raw, 'parentId') ? { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') } : {}),
     ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }),
   });
 }
 
-function normalizeTransformBatchArguments(raw: Record<string, unknown>, currentRevision: number): JsonObject {
-  exact(raw, ['action'], ['baseRevision', 'entityIds', 'transforms', 'axis', 'mode', 'spacing', 'grid', 'target'], 'transform.batch');
+function normalizeTransformBatchArguments(raw: Record<string, unknown>): JsonObject {
+  exact(raw, ['baseRevision', 'action'], ['entityIds', 'transforms', 'axis', 'mode', 'spacing', 'grid', 'target'], 'transform.batch');
   const action = String(raw.action);
   if (!['set', 'align', 'distribute', 'snap', 'look-at'].includes(action)) throw invalid('transform.batch action is invalid.');
   const entityIds = raw.entityIds === undefined ? undefined : stableIdArray(raw.entityIds, 'entityIds', 128);
@@ -1438,7 +1438,7 @@ function normalizeTransformBatchArguments(raw: Record<string, unknown>, currentR
   const grid = raw.grid === undefined ? undefined : number(raw.grid, 'grid');
   if (grid !== undefined && grid <= 0) throw invalid('transform.batch grid must be positive.');
   return Object.freeze({
-    baseRevision: revisionOrCurrent(raw.baseRevision, currentRevision), action,
+    baseRevision: integer(raw.baseRevision, 'baseRevision'), action,
     ...(entityIds ? { entityIds } : {}), ...(transforms ? { transforms: transforms as unknown as JsonValue } : {}),
     ...(axis === undefined ? {} : { axis }), ...(mode === undefined ? {} : { mode }),
     ...(raw.spacing === undefined ? {} : { spacing: number(raw.spacing, 'spacing') }),
@@ -1781,7 +1781,6 @@ function cloneJsonObject(value: Readonly<Record<string, unknown>>): JsonObject {
 function cloneJsonValue(value: unknown): JsonValue { if (Array.isArray(value)) return Object.freeze(value.map(cloneJsonValue)) as unknown as JsonValue; if (isRecord(value)) return cloneJsonObject(value); if (value === null || typeof value === 'boolean' || typeof value === 'string') return value; if (typeof value === 'number' && Number.isFinite(value)) return value; throw invalid('component value must contain JSON values only.'); }
 function integer(value: unknown, label: string): number { if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalid(`${label} is invalid.`); return value as number; }
 function boundedInteger(value: unknown, label: string, minimum: number, maximum: number): number { const result = integer(value, label); if (result < minimum || result > maximum) throw invalid(`${label} must be between ${minimum} and ${maximum}.`); return result; }
-function revisionOrCurrent(value: unknown, currentRevision: number): number { return value === undefined ? currentRevision : integer(value, 'baseRevision'); }
 function number(value: unknown, label: string): number { if (typeof value !== 'number' || !Number.isFinite(value)) throw invalid(`${label} is invalid.`); return value; }
 function boundedNumber(value: unknown, label: string, minimum: number, maximum: number): number { const result = number(value, label); if (result < minimum || result > maximum) throw invalid(`${label} must be between ${minimum} and ${maximum}.`); return result; }
 function invalid(message: string): GameToolProtocolError { return new GameToolProtocolError('tool.arguments-invalid', message); }

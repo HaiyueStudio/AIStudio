@@ -9,6 +9,7 @@ import { CodexAppServerBackend, HarnessApiKeyBackend } from '@haiyue/ai-studio-a
 import { AgentBackendRegistry, AgentTurnRuntime, DurableSessionRuntime, M12_DEFAULT_PRICING_CATALOG, ModelContextRuntime, PromptContextRuntime, TaskAccountingRegistry } from '@haiyue/ai-studio-agent-runtime';
 import { ProjectSceneAuthoringService, ProjectWorkspace, RecentProjectStore } from '@haiyue/ai-studio-editor-plugins';
 import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
+import { createHarnessStudioRoot } from '@haiyue/ai-studio-harness-bridge';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { PreviewAuthorizationService, ProjectScriptService, ScriptValidationWorker } from '@haiyue/ai-studio-script-preview';
 import { AgentGameAuthoringCoordinator, GameAuthoringToolRuntime } from '@haiyue/ai-studio-game-authoring-tools';
@@ -75,6 +76,7 @@ async function run() {
   const testCase = assets.suite.cases.find((entry) => entry.genre === genre);
   const oracleCase = assets.oracle.cases.find((entry) => entry.caseId === testCase.id);
   const fixture = await createFixture(projectRoot, userDataRoot);
+  const studioRoot = createHarnessStudioRoot();
   let windowGuard; let backend; let coordinator; let turns; let preview; let account; let taskId; let model; let config; let summary; let durableSessions; let modelContexts; let contextFrames; let authoringTimer;
   const m13Turns = [];
   const budgetContinuations = [];
@@ -85,7 +87,7 @@ async function run() {
     if (faultInjection === 'preview-window-close') { windowGuard.window.destroy(); await windowGuard.race(new Promise((resolve) => setTimeout(resolve, 1_000))); }
     if (faultInjection === 'run-error-after-ready') throw errorWithCode('g12.injected-run-failure', 'Injected preflight failure after preview readiness.');
     fixture.runtime = new GameAuthoringToolRuntime({ workspace: fixture.workspace, scene: fixture.scene, scripts: fixture.scriptPort, diagnostics: fixture.operationLog.diagnosticsService(), operationLog: fixture.operationLog, preview });
-    backend = await createBackend();
+    backend = await createBackend(studioRoot);
     const registry = new AgentBackendRegistry(); registry.register(backend);
     const context = new PromptContextRuntime(fixture.operationLog); await context.initialize();
     turns = new AgentTurnRuntime(registry, fixture.operationLog, context);
@@ -321,7 +323,7 @@ async function run() {
   } finally {
     cleanupInProgress = true;
     clearTimeout(authoringTimer);
-    coordinator?.dispose(); fixture.runtime?.dispose(); await modelContexts?.dispose().catch(() => undefined); await durableSessions?.dispose().catch(() => undefined); if (turns) await turns.dispose().catch(() => undefined); else if (backend) await backend.dispose().catch(() => undefined); windowGuard?.close(); await disposeFixture(fixture);
+    coordinator?.dispose(); fixture.runtime?.dispose(); await modelContexts?.dispose().catch(() => undefined); await durableSessions?.dispose().catch(() => undefined); if (turns) await turns.dispose().catch(() => undefined); else if (backend) await backend.dispose().catch(() => undefined); await studioRoot.dispose(); windowGuard?.close(); await disposeFixture(fixture);
   }
 }
 
@@ -553,7 +555,7 @@ async function preservePartialEvidence({ cause, fixture, preview, windowGuard, t
   await atomicJson(path.join(caseRoot, 'checkpoint.json'), { schemaVersion: 1, runId, backend: backendKind, genre, status: 'failed-infrastructure', errorCode: code, partialEvidenceDigest: contentDigest(partial), partialEvidencePath: path.relative(root, partialPath).replaceAll('\\', '/') });
 }
 
-async function createBackend() { return backendKind === 'harness' ? new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }) : new CodexAppServerBackend(); }
+async function createBackend(owner) { return backendKind === 'harness' ? new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }) : new CodexAppServerBackend(); }
 async function createFixture(projectRoot, userDataRoot) { const operationLog = await OperationLog.open({ rootDirectory: path.join(userDataRoot, 'log'), appVersion: 'g12-real-cold-case' }); const resources = { documents: new EditorDocumentHost(), history: new EditorHistoryService(), tasks: new EditorTaskCoordinator(), projectSession: new EditorProjectSessionState(), operationLog, recentProjects: new RecentProjectStore(userDataRoot) }; const workspace = new ProjectWorkspace(resources); await workspace.newProject(projectRoot, `G12 ${backendKind} ${genre}`); const scene = new ProjectSceneAuthoringService(workspace, operationLog); const validator = new ScriptValidationWorker(); const projectScripts = new ProjectScriptService(workspace, validator, operationLog); const authorization = new PreviewAuthorizationService(projectScripts, validator, operationLog); const scriptPort = { snapshot: () => projectScripts.snapshot(), proposeEdit: (input) => projectScripts.proposeEdit(input), commitProposal: (proposalId, commandId, signal) => projectScripts.commitProposal(proposalId, commandId, signal), prepare: (input) => authorization.prepare(input), decide: (planId, approved, ttl) => authorization.decide(planId, approved, ttl), consume: (grantId) => authorization.consume(grantId) }; return { operationLog, resources, workspace, scene, validator, projectScripts, authorization, scriptPort, runtime: null }; }
 async function disposeFixture(value) { value.authorization.dispose(); value.scene.dispose(); value.projectScripts.dispose(); await value.validator.dispose(); await value.workspace.dispose(); value.resources.tasks.dispose(); await value.resources.documents.dispose(); value.resources.history.dispose(); value.resources.projectSession.dispose(); await value.operationLog.close(); }
 function taskBudget(testCase) { const harness = backendKind === 'harness'; const shared = { inputTokens: harness ? 1_500_000 : 3_000_000, outputTokens: harness ? 180_000 : 375_000, estimatedCostMicros: harness ? 25_000_000 : 50_000_000, wallTimeMs: 900_000, turns: 8, toolCalls: harness ? 100 : 150, repairIterations: 4, observationBytes: 16_777_216 }; return { schemaVersion: 2, id: testCase.id.replace('game-eval:', 'budget:g12-'), enforcement: 'hard', limits: shared }; }

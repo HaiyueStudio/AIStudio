@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { orchestrationBoundaryViolations } from './orchestration-boundaries.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ignored = new Set(['.git', 'node_modules', 'dist', 'coverage']);
@@ -22,6 +23,7 @@ async function walk(directory) {
 async function inspect(file) {
   const relative = path.relative(root, file).replaceAll('\\', '/');
   const text = await readFile(file, 'utf8');
+  violations.push(...orchestrationBoundaryViolations(relative, text));
   const deepseekImport = /(?:from\s+|import\s*\(|require\s*\()\s*['"](@deepseek-ai\/(?:dsh[^'"]*|cordis[^'"]*))['"]/g;
   for (const match of text.matchAll(deepseekImport)) {
     if (!relative.startsWith('packages/harness-bridge/')) violations.push(`${relative}: DeepSeek import ${match[1]} outside harness-bridge`);
@@ -52,4 +54,4 @@ async function inspect(file) {
 
 await walk(root);
 assert.deepEqual(violations, [], violations.join('\n'));
-console.log('[boundaries] single Harness bridge, Codex adapter, M12 contract ownership, private workspace, and cross-repository rules passed');
+console.log('[boundaries] headless orchestration, single Harness bridge, Codex adapter, M12 contract ownership, private workspace, and cross-repository rules passed');

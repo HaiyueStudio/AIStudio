@@ -1,0 +1,575 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Reviewed offline associations only. Tool requiredCapabilities may be service tokens or M12 ids; only exact M12 matches are derived automatically. No runtime code may consume this file.",
+  "componentToolIds": [
+    "component.describe",
+    "component.get",
+    "component.add",
+    "component.set",
+    "component.remove",
+    "component.configure",
+    "engine.capabilities.describe",
+    "tool.search"
+  ],
+  "checks": [
+    {
+      "id": "documents",
+      "files": [
+        "packages/editor-plugins/test/g05-document-v2.test.mjs",
+        "packages/editor-plugins/test/g08-render-asset-components.test.mjs"
+      ]
+    },
+    {
+      "id": "tools",
+      "files": [
+        "packages/game-authoring-tools/test/tool-invocation.test.mjs",
+        "packages/game-authoring-tools/test/g08-semantic-tools.test.mjs",
+        "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+      ]
+    },
+    {
+      "id": "camera",
+      "files": [
+        "packages/editor-plugins/test/camera-authoring.test.mjs",
+        "apps/ai-studio/test/camera-authoring.test.mjs"
+      ]
+    },
+    {
+      "id": "simulation",
+      "files": [
+        "apps/ai-studio/test/play-simulation.test.mjs",
+        "apps/ai-studio/test/declarative-play-components.test.mjs"
+      ]
+    },
+    {
+      "id": "physics",
+      "files": [
+        "packages/editor-plugins/test/g07-physics-components.test.mjs",
+        "apps/ai-studio/test/g07-physics-runtime.test.mjs"
+      ]
+    },
+    {
+      "id": "render",
+      "files": [
+        "apps/ai-studio/test/g08-render-effects-runtime.test.mjs",
+        "apps/ai-studio/test/preview-asset-transfer.test.mjs"
+      ]
+    },
+    {
+      "id": "scripts",
+      "files": [
+        "packages/script-preview/test/script-preview.test.mjs"
+      ]
+    },
+    {
+      "id": "observations",
+      "files": [
+        "packages/game-authoring-tools/test/g10-observations.test.mjs",
+        "apps/ai-studio/test/gameplay-observation-store.test.mjs"
+      ]
+    },
+    {
+      "id": "census-guards",
+      "files": [
+        "scripts/m14-capability-census.test.mjs"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "agent",
+      "capabilityIds": [
+        "agent.model-config",
+        "agent.usage",
+        "agent.cache",
+        "agent.context"
+      ],
+      "toolIds": [],
+      "document": [],
+      "runtime": [
+        "packages/agent-runtime/src/model-controls.ts",
+        "packages/agent-runtime/src/usage-ledger.ts",
+        "packages/agent-runtime/src/backends/cache.ts",
+        "packages/agent-runtime/src/context/runtime.ts"
+      ],
+      "upstream": [],
+      "checkIds": [],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Agent service implementation exists. This census does not certify provider package exports, settings round-trip, or real-backend acceptance. M13 G11 remains a separate gate."
+      ]
+    },
+    {
+      "id": "document",
+      "capabilityIds": [
+        "document.v2",
+        "component.registry",
+        "scene.transaction"
+      ],
+      "toolIds": [
+        "project.snapshot",
+        "scene.query",
+        "scene.diff",
+        "scene.get-many",
+        "scene.list-entities",
+        "entity.get",
+        "history.query",
+        "entity.create",
+        "entity.create-many",
+        "entity.rename",
+        "entity.hierarchy",
+        "transform.set",
+        "transform.batch"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/scene-authoring.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/editor-platform",
+          "subpath": "."
+        }
+      ],
+      "checkIds": [
+        "documents",
+        "tools"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Serialization/migration and transaction regression are local evidence; no M14 behavior UI or formal product admission."
+      ]
+    },
+    {
+      "id": "camera",
+      "capabilityIds": [
+        "camera.2d",
+        "camera.3d",
+        "camera.follow"
+      ],
+      "toolIds": [
+        "camera.get",
+        "camera.set",
+        "camera.author"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "apps/ai-studio/src/preview-runtime.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./components"
+        },
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./systems"
+        }
+      ],
+      "checkIds": [
+        "camera"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Existing camera adapters only. Follow/input causal edges need G02/G05 provenance."
+      ]
+    },
+    {
+      "id": "input-simulation",
+      "capabilityIds": [
+        "input.keyboard",
+        "input.pointer",
+        "input.inject",
+        "simulation.fixed-step",
+        "simulation.replay",
+        "interaction.pointer"
+      ],
+      "toolIds": [
+        "play.input",
+        "play.step"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "apps/ai-studio/src/preview-runtime.ts",
+        "apps/ai-studio/src/declarative-play-components.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./components"
+        },
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./experimental/simulation"
+        }
+      ],
+      "checkIds": [
+        "simulation"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Component capability association is exact, not inferred from similar names. Shared tool applicability is a reviewed census association. Pure declarative browser execution without any script remains a G05 verification requirement."
+      ]
+    },
+    {
+      "id": "physics",
+      "capabilityIds": [
+        "physics.2d",
+        "physics.3d",
+        "physics.raycast"
+      ],
+      "toolIds": [
+        "play.physics-query"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "apps/ai-studio/src/physics-play-runtime.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./physics"
+        },
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./physics/backend"
+        }
+      ],
+      "checkIds": [
+        "physics"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Only existing physics adapters and budgets. No navigation capability is admitted. Runtime contact edges must have adapter provenance."
+      ]
+    },
+    {
+      "id": "render",
+      "capabilityIds": [
+        "lighting",
+        "shadow.directional",
+        "material.pbr",
+        "postprocess",
+        "particles.2d",
+        "particles.3d"
+      ],
+      "toolIds": [
+        "material.set"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "packages/script-preview/src/effects/render-effects-runtime.ts",
+        "apps/ai-studio/src/scene-entity-rendering.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./lighting"
+        },
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./material"
+        },
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./postprocess"
+        }
+      ],
+      "checkIds": [
+        "render",
+        "documents"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Registry defaults and local adapters are not proof of every public Engine rendering API. Device coverage and UI integration remain separate."
+      ]
+    },
+    {
+      "id": "animation-audio",
+      "capabilityIds": [
+        "animation.2d",
+        "animation.3d",
+        "audio.playback"
+      ],
+      "toolIds": [],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "packages/script-preview/src/effects/render-effects-runtime.ts",
+        "apps/ai-studio/src/declarative-play-components.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/extensions",
+          "subpath": "./animation"
+        },
+        {
+          "package": "@haiyue/extensions",
+          "subpath": "./animation3d"
+        },
+        {
+          "package": "@haiyue/animation-spec",
+          "subpath": "."
+        }
+      ],
+      "checkIds": [
+        "render",
+        "simulation"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Data-only animation.state is not a runtime adapter. Existing animation/audio mapping is bounded; new formats and full GUI remain deferred."
+      ]
+    },
+    {
+      "id": "resources",
+      "capabilityIds": [
+        "asset.import",
+        "prefab"
+      ],
+      "toolIds": [
+        "asset.search",
+        "asset.dependencies",
+        "asset.import",
+        "asset.assign",
+        "prefab.manage"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "packages/editor-plugins/src/assets/catalog.ts",
+        "apps/ai-studio/src/declarative-play-components.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./assets"
+        },
+        {
+          "package": "@haiyue/extensions",
+          "subpath": "./gltf"
+        }
+      ],
+      "checkIds": [
+        "documents",
+        "tools"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Controlled file assets and existing instance pools do not provide the four-kind resource catalog planned in G02/G06."
+      ]
+    },
+    {
+      "id": "play",
+      "capabilityIds": [
+        "play.multi-script"
+      ],
+      "toolIds": [
+        "script.get",
+        "script.symbols",
+        "script.propose",
+        "script.patch",
+        "script.apply",
+        "preview.validate",
+        "preview.start",
+        "preview.stop",
+        "play.start",
+        "play.stop"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "packages/script-preview/src/validation-worker.ts",
+        "apps/ai-studio/src/preview-runtime.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./components"
+        },
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./systems"
+        }
+      ],
+      "checkIds": [
+        "scripts",
+        "tools"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Current multi-script implementation exists. Electron stable-order/fault-isolation replay is a G05/G09 required entry; source presence is not a current device run."
+      ]
+    },
+    {
+      "id": "observation",
+      "capabilityIds": [
+        "play.capture",
+        "play.inspect",
+        "diagnostics.query",
+        "task.evaluate"
+      ],
+      "toolIds": [
+        "play.capture",
+        "play.inspect",
+        "diagnostics.query",
+        "task.evaluate"
+      ],
+      "document": [
+        "packages/editor-plugins/src/project/game-document.ts",
+        "packages/editor-plugins/src/project/repository.ts"
+      ],
+      "runtime": [
+        "apps/ai-studio/src/preview-runtime.ts",
+        "packages/game-authoring-tools/src/runtime.ts",
+        "packages/operation-log/src/project-agent-history.ts"
+      ],
+      "upstream": [
+        {
+          "package": "@haiyue/engine",
+          "subpath": "./components"
+        }
+      ],
+      "checkIds": [
+        "observations",
+        "simulation"
+      ],
+      "ui": [
+        "apps/ai-studio/src/renderer.ts",
+        "packages/studio-shell/src/index.ts"
+      ],
+      "owners": {
+        "upstream": "reviewed-installed-package-owner",
+        "document": "studio.project-workspace",
+        "runtime": "studio.preview-control",
+        "tool": "studio.game-authoring-tools",
+        "ui": "studio.shell",
+        "verification": "g01-capability-surface-census"
+      },
+      "limitations": [
+        "Current local observation checks do not certify real-backend seven-game acceptance. Structured Agent history and BehaviorTrace are different records."
+      ]
+    }
+  ]
+}

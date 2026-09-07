@@ -1,25 +1,14 @@
-import { asStableId, type AgentTurnConfigV2, type EvaluationResultV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type ObservationArtifactV2, type StableId, type TaskBudgetV2, type TaskSpecV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
-import { ConservativeTokenEstimator, M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type BackendSessionAdapter, type BudgetDecision, type CompactionSummaryRequestV1, type ContextCompactionRuntime, type ContextProjectSnapshot, type DurableSessionHandle, type PromptProfileSnapshot, type SessionReplaySnapshotV1, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
-import { BoundedPlaytestTask, PlaytestLoopError, RollingToolBatchScheduler, normalizeToolBatchRequest, type GameAuthoringToolService, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult, type LegacyToolRequest, type RollingToolWorkResult, type ToolBatchDiagnostic, type ToolBatchNodeStatus } from '@haiyue/ai-studio-game-authoring-tools';
-import { canonicalStringify, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
-import {
-  normalizeConversationNode,
-  normalizeTaskAccounting,
-  normalizeTaskRun,
-  projectExecutionGraph,
-  validateConversationIntent,
-  type ConversationBackendReadModel,
-  type ConversationIntent,
-  type ConversationNodeReadModel,
-  type ConversationProjectionEvent,
-  type ConversationReplaySnapshot,
-  type ConversationTaskAcceptanceReadModel,
-  type ConversationTaskAccountingReadModel,
-  type ConversationTaskEvidenceReadModel,
-  type ConversationTaskPhase,
-  type ConversationTaskRunReadModel,
-  type ExecutionGraphReadModel,
-} from '@haiyue/ai-studio-shell';
+import { stringField, isRecord, errorCode, errorMessage } from './value-utils.js';
+import { budgetMetricLabel, budgetContinuationRequest, DEFAULT_TASK_BUDGET, assertBudgetAllowed, armWallTimeBudget, type WallTimeBudget } from './budget-policy.js';
+import { approvedPlanRequest, PLAN_TOOL_ID, PLAN_TOOL_DEFINITION, validatePlanProposal, PlanProtocolError, type ApprovedPlanExecution, type PlanAcceptanceProposal } from './plan-policy.js';
+import { taskTimeline, taskTitle, acceptanceReadModel, acceptanceLabel, taskSpecFromPlan, taskSpecFromRun, productPhaseForTool, productToolTitle, advancePlaytest, observationArtifacts, evaluationResult, repairRequest, taskAccountingProjection } from './task-acceptance.js';
+import { queryRetainedOperationEvents } from './retained-events.js';
+import { approvalContent, presentationDigest, intentLogPayload, localCompactionSummary, questionOptions, terminalStatus, completionSummary, boundedJson, projectToolModelResult, toolArgumentSummary, toolResultSummary } from './conversation-presentation.js';
+import { asStableId, type AgentTurnConfigV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type ObservationArtifactV2, type StableId, type TaskBudgetV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
+import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type BackendSessionAdapter, type BudgetDecision, type CompactionSummaryRequestV1, type ContextCompactionRuntime, type ContextProjectSnapshot, type DurableSessionHandle, type PromptProfileSnapshot, type SessionReplaySnapshotV1, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
+import { BoundedPlaytestTask, GameToolProtocolError, MODEL_TOOL_INVOKE_DEFINITION, PlaytestLoopError, RollingToolBatchScheduler, normalizeToolBatchRequest, resolveModelToolInvocation, type GameAuthoringToolService, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult, type LegacyToolRequest, type RollingToolWorkResult, type ToolBatchDiagnostic, type ToolBatchNodeStatus } from '@haiyue/ai-studio-game-authoring-tools';
+import { canonicalStringify, redactObject, sha256, type ConversationOperationLog } from '@haiyue/ai-studio-operation-log';
+import { normalizeConversationNode, normalizeTaskAccounting, normalizeTaskRun, projectExecutionGraph, validateConversationIntent, type ConversationBackendReadModel, type ConversationNodeReadModel, type ConversationProjectionEvent, type ConversationReplaySnapshot, type ConversationTaskAcceptanceReadModel, type ConversationTaskAccountingReadModel, type ConversationTaskEvidenceReadModel, type ConversationTaskPhase, type ConversationTaskRunReadModel, type ExecutionGraphReadModel } from '@haiyue/ai-studio-shell/conversation';
 import { migrateLegacySessions } from './legacy-session-migration.js';
 
 interface ActiveTurn {
@@ -64,15 +53,6 @@ interface PendingPlan {
   readonly resolve: (result: JsonObject) => void;
   readonly reject: (cause: unknown) => void;
 }
-interface ApprovedPlanExecution {
-  readonly title: string;
-  readonly summary: string;
-  readonly items: readonly Readonly<{ id: StableId; label: string; details?: string }>[];
-  readonly note?: string;
-  attempts: number;
-  mutationCount: number;
-}
-interface PlanAcceptanceProposal { readonly label: string; readonly required: boolean; readonly category: TaskSpecV2['acceptance'][number]['category']; readonly assertion: string; }
 interface ToolExecutionContext {
   readonly backend: AgentBackend;
   readonly event: AgentBackendEvent;
@@ -82,6 +62,7 @@ interface ToolExecutionContext {
   readonly provenance: ConversationNodeReadModel['provenance'];
   readonly toolNodeId: StableId;
   readonly node: ToolBatchNodeV1;
+  readonly invocationError?: Readonly<{ code: string; message: string }>;
 }
 interface HostToolBody {
   readonly status: ToolBatchNodeStatus;
@@ -96,6 +77,7 @@ interface HostToolBody {
   readonly mutation: boolean;
   readonly cancelTurnAfterCommit: boolean;
   readonly latencyMs: number;
+  readonly finishedAt: string;
 }
 interface PreparedMutationWork {
   readonly kind: 'prepared-mutation';
@@ -138,7 +120,10 @@ type BarrierWaitResult = 'suspended';
 export interface ConversationHostOptions {
   readonly runtime: AgentRuntimeService;
   readonly tools: GameAuthoringToolService;
-  readonly operationLog: OperationLog;
+  readonly operationLog: ConversationOperationLog;
+  readonly recordProjectId?: StableId;
+  readonly idPrefix?: string;
+  readonly initialSettings?: ConversationHostSettings;
   readonly isProjectOpen?: () => boolean;
   readonly projectContext?: () => ContextProjectSnapshot | null;
   /** Best-effort local retrieval refresh. Failure degrades to exact context and must never block a turn. */
@@ -148,10 +133,17 @@ export interface ConversationHostOptions {
   readonly openLoginHandoff?: (backendId: StableId, handoff: AgentLoginHandoff) => Promise<void>;
 }
 
-/** Main-process owner for backend streams, tool execution, approvals and replayable UI read models. */
+export interface ConversationHostSettings {
+  readonly backendId: StableId | null;
+  readonly selections: readonly (BackendSelection & Readonly<{ backendId: StableId }>)[];
+  readonly budget: TaskBudgetV2;
+}
+
+/** Headless workflow owner for backend streams, tool execution, approvals and replayable read models. The composition root owns initialization and disposal. */
 export class StudioConversationHost {
   private readonly events: ConversationProjectionEvent[] = [];
   private readonly nodes = new Map<StableId, ConversationNodeReadModel>();
+  private readonly pendingRecordContents = new Map<StableId, JsonObject>();
   private readonly approvals = new Map<StableId, PendingApproval>();
   private readonly questions = new Map<StableId, PendingQuestion>();
   private readonly plans = new Map<StableId, PendingPlan>();
@@ -168,6 +160,9 @@ export class StudioConversationHost {
   private nodeSequence = 0;
   private stateRevision = 0;
   private disposed = false;
+  private stopping = false;
+  private disposeResult: Promise<void> | null = null;
+  private readonly pendingWork = new Set<Promise<unknown>>();
   private latestTaskId: StableId | null = null;
   private budgetTemplate: TaskBudgetV2 = DEFAULT_TASK_BUDGET;
   private projectionWriteTail: Promise<void> = Promise.resolve();
@@ -185,7 +180,21 @@ export class StudioConversationHost {
   private readonly queuedPrompts: QueuedConversationPrompt[] = [];
   private queuedPromptDrainActive = false;
 
-  constructor(private readonly options: ConversationHostOptions) {}
+  constructor(private readonly options: ConversationHostOptions) {
+    if (options.initialSettings) {
+      this.backendId = options.initialSettings.backendId; this.budgetTemplate = options.initialSettings.budget;
+      for (const { backendId, ...selection } of options.initialSettings.selections) this.backendSelections.set(backendId, selection);
+    }
+  }
+
+  settings(): ConversationHostSettings {
+    return Object.freeze({ backendId: this.backendId, budget: this.budgetTemplate, selections: Object.freeze([...this.backendSelections].map(([backendId, selection]) => Object.freeze({ backendId, ...selection }))) });
+  }
+
+  async flushRecords(): Promise<void> {
+    await this.projectionWriteTail;
+    if (this.projectionPersistenceFailure) throw new AggregateError([this.projectionPersistenceFailure], 'Conversation record persistence failed.');
+  }
 
   async initialize(): Promise<void> { await this.restoreProjection(); await this.restoreTaskRuns(); await this.migrateLegacySessions(); await this.restoreTaskAccounting(); await this.hydrateTaskPreviews(); await this.restoreExecutionGraphs(); await this.refreshBackends(); }
 
@@ -241,13 +250,13 @@ export class StudioConversationHost {
         // second send to race a turn whose Session has not been created yet.
         this.queuedPromptDrainActive = true;
         this.changed();
-        void this.start(intent.backendId, intent.prompt)
+        this.track(this.start(intent.backendId, intent.prompt)
           .catch((cause) => this.captureFailure(intent.backendId, cause))
           .finally(() => {
             this.queuedPromptDrainActive = false;
             this.changed();
             this.drainQueuedPrompts();
-          });
+          }));
         return;
       case 'conversation/cancel': {
         const active = this.active;
@@ -260,7 +269,7 @@ export class StudioConversationHost {
       }
       case 'conversation/retry':
         if (this.active) throw new Error('An Agent turn is already active.');
-        void this.resume(intent.backendId, intent.sessionId, intent.turnId).catch((cause) => this.captureFailure(intent.backendId, cause, intent.sessionId, intent.turnId));
+        this.track(this.resume(intent.backendId, intent.sessionId, intent.turnId).catch((cause) => this.captureFailure(intent.backendId, cause, intent.sessionId, intent.turnId)));
         return;
       case 'conversation/reconnect': await this.refreshBackends(); return;
       case 'conversation/answer-question': {
@@ -317,11 +326,19 @@ export class StudioConversationHost {
     }
   }
 
-  async dispose(): Promise<void> {
+  dispose(): Promise<void> {
+    return this.disposeResult ??= this.stopAndDispose();
+  }
+
+  private async stopAndDispose(): Promise<void> {
     if (this.disposed) return;
+    this.stopping = true;
+    this.queuedPrompts.length = 0;
+    this.cancelPending('Conversation host disposed.');
+    await Promise.allSettled([...this.pendingWork, ...this.manualCompactionRequests.values()]);
     if (this.graphProjectionTimer) { clearTimeout(this.graphProjectionTimer); this.graphProjectionTimer = null; }
     this.pendingGraphSnapshots.clear();
-    this.cancelPending('Conversation host disposed.');
+    this.pendingRecordContents.clear();
     this.questions.clear();
     this.plans.clear();
     this.approvedPlanTurns.clear();
@@ -366,17 +383,18 @@ export class StudioConversationHost {
 
   private async start(backendId: StableId, prompt: string): Promise<void> {
     const controller = new AbortController();
-    const localSessionId = asStableId(`session:pending:${this.nodeSequence + 1}`);
-    const localTurnId = asStableId(`turn:pending:${this.nodeSequence + 1}`);
+    const localSessionId = this.localId(`session:pending:${this.nodeSequence + 1}`);
+    const localTurnId = this.localId(`turn:pending:${this.nodeSequence + 1}`);
     const userNodeId = this.nextNodeId('00-user');
     const initialProgressNodeId = this.nextNodeId('01-progress');
     const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
-    const taskId = asStableId(`task:conversation:${this.nodeSequence + 1}`);
+    const taskId = this.localId(`task:conversation:${this.nodeSequence + 1}`);
     const tools = this.modelTools(prompt);
     const project = this.options.projectContext?.() ?? null;
     await this.prepareKnowledge(project, controller.signal);
     const conversationKey = conversationKeyFor(project);
     const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request: prompt, tools, project });
+    if (this.stopping) return;
     const config = this.turnConfig(backendId, taskId, context.promptProfile);
     const budget = Object.freeze({ ...this.budgetTemplate, id: config.taskBudgetId, limits: Object.freeze({ ...this.budgetTemplate.limits }) });
     const account = this.options.runtime.accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
@@ -415,8 +433,8 @@ export class StudioConversationHost {
 
   private async continueTask(backendId: StableId, plan: ApprovedPlanExecution | null, taskId: StableId, config: AgentTurnConfigV2, account: TaskAccount, conversationKey: StableId, goal: string, continuationInstruction: string | null): Promise<void> {
     const controller = new AbortController();
-    const localSessionId = asStableId(`session:approved-plan:${this.nodeSequence + 1}`);
-    const localTurnId = asStableId(`turn:approved-plan:${this.nodeSequence + 1}`);
+    const localSessionId = this.localId(`session:approved-plan:${this.nodeSequence + 1}`);
+    const localTurnId = this.localId(`turn:approved-plan:${this.nodeSequence + 1}`);
     const initialProgressNodeId = this.nextNodeId('approved-plan-progress');
     let beginDecision = account.beginTurn();
     if (!beginDecision.allowed && beginDecision.status === 'hard-exceeded') {
@@ -441,6 +459,7 @@ export class StudioConversationHost {
     const tools = this.modelTools(request);
     await this.prepareKnowledge(project, controller.signal);
     const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project });
+    if (this.stopping) { wallTimeBudget.dispose(); return; }
     const playtest = this.playtestTasks.get(taskId);
     if (playtest?.snapshot().phase === 'repairing') playtest.advance('editing');
     this.updateTaskRun(taskId, { status: 'running', phase: playtest?.snapshot().phase ?? (plan ? 'editing' : 'planning'), terminalDiagnostic: null, resumable: false }, { phase: playtest?.snapshot().phase ?? 'editing', status: 'active', title: plan ? '继续执行已批准方案' : '继续预算分段', detail: continuationInstruction ?? '从权威项目状态恢复。' });
@@ -559,7 +578,7 @@ export class StudioConversationHost {
     if (event.kind === 'conversation-node') {
       const id = this.internalNodeId('text', event.turnId);
       const previous = this.nodes.get(id);
-      const text = `${typeof previous?.content.text === 'string' ? previous.content.text : ''}${typeof event.payload.delta === 'string' ? event.payload.delta : ''}`.slice(0, 16_384);
+      const text = `${typeof previous?.content.text === 'string' ? previous.content.text : ''}${typeof event.payload.delta === 'string' ? event.payload.delta : ''}`;
       this.project(id, 'text', event.payload.status === 'completed' ? 'completed' : 'streaming', provenance, Object.freeze({ text, role: 'assistant' }));
       return;
     }
@@ -663,9 +682,20 @@ export class StudioConversationHost {
 
   private enqueueTool(batch: ActiveToolBatch, event: AgentBackendEvent, signal: AbortSignal): void {
     const toolCallId = stablePayloadId(event.payload.toolCallId, 'tool call');
-    const toolId = stablePayloadId(event.payload.toolId, 'tool');
-    const args = isRecord(event.payload.arguments) ? event.payload.arguments as JsonObject : Object.freeze({});
-    const call: LegacyToolRequest = Object.freeze({ toolCallId, toolId, toolVersion: typeof event.payload.toolVersion === 'string' ? event.payload.toolVersion : '1.0.0', arguments: args,
+    let toolId = stablePayloadId(event.payload.toolId, 'tool');
+    let args = isRecord(event.payload.arguments) ? event.payload.arguments as JsonObject : Object.freeze({});
+    let toolVersion = typeof event.payload.toolVersion === 'string' ? event.payload.toolVersion : '1.0.0';
+    const invokedVia = toolId === MODEL_TOOL_INVOKE_DEFINITION.id ? toolId : null;
+    let invocationError: ToolExecutionContext['invocationError'];
+    if (invokedVia) {
+      // Classify the target, so deferred edits keep their own effect locks and approval barriers.
+      try {
+        const target = resolveModelToolInvocation(event.payload.arguments, this.options.tools.definitions());
+        toolId = target.toolId; toolVersion = target.toolVersion; args = target.arguments;
+      }
+      catch (cause) { invocationError = Object.freeze({ code: errorCode(cause), message: errorMessage(cause) }); args = Object.freeze({}); }
+    }
+    const call: LegacyToolRequest = Object.freeze({ toolCallId, toolId, toolVersion, arguments: args,
       ...(Array.isArray(event.payload.dependsOn) ? { dependsOn: Object.freeze(event.payload.dependsOn.filter((item): item is string => typeof item === 'string')) } : {}),
       ...(event.payload.outputProjection === 'summary' || event.payload.outputProjection === 'digest-only' ? { outputProjection: event.payload.outputProjection } : {}),
       ...(event.payload.onFailure === 'stop-batch' ? { onFailure: 'stop-batch' as const } : {}),
@@ -675,15 +705,15 @@ export class StudioConversationHost {
     const node = request.nodes.at(-1)!;
     const provenance = Object.freeze({ backendId: event.backendId, sessionId: event.sessionId, turnId: event.turnId, stepId: toolCallId });
     const toolNodeId = this.nextNodeId('tool-call');
-    const context: ToolExecutionContext = Object.freeze({ backend: batch.backend, event, toolCallId, toolId, args, provenance, toolNodeId, node });
+    const context: ToolExecutionContext = Object.freeze({ backend: batch.backend, event, toolCallId, toolId, args, provenance, toolNodeId, node, ...(invocationError ? { invocationError } : {}) });
     batch.contexts.set(asStableId(node.id), context);
-    this.project(toolNodeId, 'tool-call', 'pending', provenance, Object.freeze({ toolCallId, toolId, executionClass: node.executionClass, argumentsSummary: toolArgumentSummary(toolId, args) }));
+    this.project(toolNodeId, 'tool-call', 'pending', provenance, Object.freeze({ toolCallId, toolId, executionClass: node.executionClass, argumentsSummary: toolArgumentSummary(toolId, args), ...(this.options.recordProjectId ? { parameters: args } : {}) }));
     if (this.active) this.beforeProductTool(this.active.taskId, toolId, args, event.turnId, toolCallId);
     const dispatched = batch.startTail.then(async () => {
       const handle = await this.ensureDurableSession(batch.sessionId);
       await handle.append({ kind: 'tool-batch.planned', turnId: batch.turnId, batchId: batch.id, nodeId: node.id, dependsOn: node.dependsOn, projectRevision: this.options.projectContext?.()?.revision ?? null,
         payload: Object.freeze({ profile: 'tool-node-plan/1', toolCallId, toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, effects: node.effects, effectKeys: node.effectKeys, expectedRevision: node.expectedRevision }) });
-      await this.appendToolSessionOp(batch, context, 'tool.started', Object.freeze({ toolCallId, toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, effects: node.effects, effectKeys: node.effectKeys, expectedRevision: node.expectedRevision }));
+      await this.appendToolSessionOp(batch, context, 'tool.started', Object.freeze({ toolCallId, toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, effects: node.effects, effectKeys: node.effectKeys, expectedRevision: node.expectedRevision, ...(invokedVia ? { invokedVia } : {}) }));
     });
     batch.startTail = dispatched;
     const transactionEligible = node.executionClass === 'exclusive-mutation' && typeof this.options.tools.executeTransaction === 'function';
@@ -1111,6 +1141,7 @@ export class StudioConversationHost {
       if (preflight.status === 'soft-exceeded') this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'completed', provenance, Object.freeze({ code: 'budget.soft-warning', message: preflight.warning ?? 'Soft task budget is exceeded; execution is continuing.', severity: 'warning', retryable: false }));
       assertBudgetAllowed(preflight); assertBudgetAllowed(account.commitTool(toolCallId));
       stage = 'prepare';
+      if (context.invocationError) throw new GameToolProtocolError(context.invocationError.code, context.invocationError.message);
       if (toolId === PLAN_TOOL_ID) {
         const result = await this.awaitPlan(toolCallId, event.sessionId, event.turnId, args, provenance, signal);
         if (result === 'suspended') return this.suspendedToolBody(context, 'plan-review', Date.now() - startedAtMs);
@@ -1163,12 +1194,12 @@ export class StudioConversationHost {
       const diagnostic = Object.freeze({ code: 'tool.outcome-unknown', message: `Tool body finished but Backend result delivery was not confirmed: ${errorMessage(deliveryFailure)}`, retryable: true });
       body = Object.freeze({ ...body, status: 'failed' as const, resultStatus: 'failed' as const, resultContent: Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, resultStatus: 'failed', summary: diagnostic.message }), blocker: `${context.toolId}: ${diagnostic.code}` });
       if (this.active) this.active.blockers.push(body.blocker!);
-      this.project(context.toolNodeId, 'tool-call', body.toolCallStatus, context.provenance, body.toolCallContent);
-      this.project(this.nextNodeId('tool-result'), 'tool-result', 'failed', context.provenance, body.resultContent);
+      this.project(context.toolNodeId, 'tool-call', body.toolCallStatus, context.provenance, this.executionContent(context, original, body.toolCallContent));
+      this.project(this.nextNodeId('tool-result'), 'tool-result', 'failed', context.provenance, this.executionContent(context, original, body.resultContent));
       this.changed(); return body;
     }
-    this.project(context.toolNodeId, 'tool-call', body.toolCallStatus, context.provenance, body.toolCallContent);
-    this.project(this.nextNodeId('tool-result'), 'tool-result', body.resultStatus, context.provenance, body.resultContent);
+    this.project(context.toolNodeId, 'tool-call', body.toolCallStatus, context.provenance, this.executionContent(context, original, body.toolCallContent));
+    this.project(this.nextNodeId('tool-result'), 'tool-result', body.resultStatus, context.provenance, this.executionContent(context, original, body.resultContent));
     await this.options.runtime.turns.recordToolResult(context.event.turnId, context.toolCallId, body.backendResult);
     const account = this.active?.account;
     if (account) await this.recordTaskAccounting(account, context.event.sessionId, context.event.turnId);
@@ -1181,13 +1212,13 @@ export class StudioConversationHost {
   }
 
   private makeToolBody(_context: ToolExecutionContext, status: ToolBatchNodeStatus, backendResult: JsonObject, toolCallStatus: HostToolBody['toolCallStatus'], toolCallContent: JsonObject, resultStatus: HostToolBody['resultStatus'], resultContent: JsonObject, resultValue: JsonObject | null, fact: string | null, blocker: string | null, mutation: boolean, cancelTurnAfterCommit: boolean, latencyMs: number): HostToolBody {
-    return Object.freeze({ status, backendResult, toolCallStatus, toolCallContent, resultStatus, resultContent, resultValue, fact, blocker, mutation, cancelTurnAfterCommit, latencyMs: Math.max(0, Math.floor(latencyMs)) });
+    return Object.freeze({ status, backendResult, toolCallStatus, toolCallContent, resultStatus, resultContent, resultValue, fact, blocker, mutation, cancelTurnAfterCommit, latencyMs: Math.max(0, Math.floor(latencyMs)), finishedAt: new Date().toISOString() });
   }
 
   private cancelledToolBody(context: ToolExecutionContext | undefined, diagnostic: ToolBatchDiagnostic, latencyMs = 0, status: ToolBatchNodeStatus = 'cancelled'): HostToolBody {
     const toolCallId = context?.toolCallId ?? asStableId('tool-call:unknown'); const toolId = context?.toolId ?? asStableId('tool:unknown');
     const backendResult = Object.freeze({ status: status === 'failed' ? 'failed' : 'cancelled', error: Object.freeze({ code: diagnostic.code, message: diagnostic.message, retryable: diagnostic.retryable }) });
-    return Object.freeze({ status, backendResult, toolCallStatus: status === 'failed' ? 'failed' : 'cancelled', toolCallContent: Object.freeze({ toolCallId, toolId, target: 'Current project', effect: context?.node.executionClass ?? 'unknown-exclusive', argumentsSummary: context ? toolArgumentSummary(toolId, context.args) : '工具调用未执行。' }), resultStatus: status === 'failed' ? 'failed' : 'cancelled', resultContent: Object.freeze({ toolCallId, toolId, resultStatus: status, summary: diagnostic.message }), resultValue: null, fact: null, blocker: `${toolId}: ${diagnostic.code}`, mutation: false, cancelTurnAfterCommit: false, latencyMs: Math.max(0, Math.floor(latencyMs)) });
+    return Object.freeze({ status, backendResult, toolCallStatus: status === 'failed' ? 'failed' : 'cancelled', toolCallContent: Object.freeze({ toolCallId, toolId, target: 'Current project', effect: context?.node.executionClass ?? 'unknown-exclusive', argumentsSummary: context ? toolArgumentSummary(toolId, context.args) : '工具调用未执行。' }), resultStatus: status === 'failed' ? 'failed' : 'cancelled', resultContent: Object.freeze({ toolCallId, toolId, resultStatus: status, summary: diagnostic.message }), resultValue: null, fact: null, blocker: `${toolId}: ${diagnostic.code}`, mutation: false, cancelTurnAfterCommit: false, latencyMs: Math.max(0, Math.floor(latencyMs)), finishedAt: new Date().toISOString() });
   }
 
   private suspendedToolBody(context: ToolExecutionContext, barrierKind: string, latencyMs: number): HostToolBody {
@@ -1395,7 +1426,7 @@ export class StudioConversationHost {
 
   private scheduleRecoveredResume(provenance: ConversationNodeReadModel['provenance']): void {
     if (this.active) return;
-    void this.resume(provenance.backendId, provenance.sessionId, provenance.turnId).catch((cause) => this.captureFailure(provenance.backendId, cause, provenance.sessionId, provenance.turnId));
+    this.track(this.resume(provenance.backendId, provenance.sessionId, provenance.turnId).catch((cause) => this.captureFailure(provenance.backendId, cause, provenance.sessionId, provenance.turnId)));
   }
 
   private scheduleRecoveredContinuation(node: ConversationNodeReadModel, instruction: string, plan: ApprovedPlanExecution | null, budgetGranted: boolean): void {
@@ -1541,13 +1572,19 @@ export class StudioConversationHost {
   }
 
   private project(id: StableId, kind: string, status: ConversationNodeReadModel['status'], provenance: ConversationNodeReadModel['provenance'], content: JsonObject): void {
+    if (this.disposed) return;
+    const rawContent = Object.freeze({ ...this.pendingRecordContents.get(id), ...redactObject(content).value });
+    if (this.options.recordProjectId && (status === 'pending' || status === 'streaming')) this.pendingRecordContents.set(id, rawContent);
+    else this.pendingRecordContents.delete(id);
+    const { parameters: _parameters, result: _result, ...displayContent } = rawContent;
+    content = displayContent;
     const previous = this.nodes.get(id);
     const node = Object.freeze({ schemaVersion: 1 as const, id, kind, knownKind: null, status, createdAt: previous?.createdAt ?? new Date().toISOString(), provenance, content, payloadTruncated: false });
     this.nodes.set(id, node);
     this.eventSequence += 1;
     this.events.push(Object.freeze({ schemaVersion: 1, sequence: this.eventSequence, source: 'live', node }));
     if (this.events.length > 2_000) this.events.splice(0, this.events.length - 2_000);
-    this.persistProjection(node);
+    this.persistProjection(node, rawContent);
     this.changed();
   }
 
@@ -1556,16 +1593,16 @@ export class StudioConversationHost {
   private durableBarrierMode(): boolean { return Boolean(this.options.sessionRecovery && this.options.runtime.sessions && this.projectionPersistenceAvailable()); }
 
   private drainQueuedPrompts(): void {
-    if (this.disposed || this.active || this.queuedPromptDrainActive || this.queuedPrompts.length === 0) return;
+    if (this.disposed || this.stopping || this.active || this.queuedPromptDrainActive || this.queuedPrompts.length === 0) return;
     const next = this.queuedPrompts.shift()!;
     this.queuedPromptDrainActive = true;
     this.changed();
     const work = next.recovered ? this.startRecoveredContinuation(next.backendId, next.recovered) : this.start(next.backendId, next.prompt);
-    void work.catch((cause) => this.captureFailure(next.backendId, cause)).finally(() => {
+    this.track(work.catch((cause) => this.captureFailure(next.backendId, cause)).finally(() => {
       this.queuedPromptDrainActive = false;
       this.changed();
       this.drainQueuedPrompts();
-    });
+    }));
   }
 
   private async startRecoveredContinuation(backendId: StableId, seed: RecoveredContinuationSeed): Promise<void> {
@@ -1582,9 +1619,21 @@ export class StudioConversationHost {
     await this.continueTask(backendId, seed.plan, run.taskId, config, account, conversationKeyFor(this.options.projectContext?.() ?? null), run.requestSummary, seed.instruction);
   }
 
-  private persistProjection(node: ConversationNodeReadModel): void {
+  private persistProjection(node: ConversationNodeReadModel, rawContent: JsonObject = node.content): void {
     if (!this.projectionPersistenceAvailable()) return;
+    const projectedAt = new Date().toISOString();
     const write = async (): Promise<void> => {
+      let executionDataArtifactId: StableId | undefined;
+      if (this.options.recordProjectId) {
+        const data = await this.options.operationLog.putArtifact(rawContent, { schemaVersion: 'agent-execution-data/1', backendId: node.provenance.backendId });
+        executionDataArtifactId = data.id;
+        const finishedAt = typeof node.content.executionFinishedAt === 'string' ? node.content.executionFinishedAt : node.status === 'pending' || node.status === 'streaming' ? null : projectedAt;
+        const durationMs = typeof node.content.durationMs === 'number' ? node.content.durationMs : finishedAt ? Math.max(0, Date.parse(finishedAt) - Date.parse(node.createdAt)) : null;
+        const startedAt = typeof node.content.executionStartedAt === 'string' ? node.content.executionStartedAt : node.createdAt;
+        await this.options.operationLog.append({ kind: 'agent/execution-record', severity: node.status === 'failed' ? 'error' : 'info', source: asStableId('studio.conversation-host'),
+          correlation: { projectId: this.options.recordProjectId, sessionId: node.provenance.sessionId, turnId: node.provenance.turnId },
+          payload: { record: { schemaVersion: 1, id: node.id, projectId: this.options.recordProjectId, kind: node.kind, status: node.status, sessionId: node.provenance.sessionId, turnId: node.provenance.turnId, toolId: typeof node.content.toolId === 'string' ? node.content.toolId : null, startedAt, finishedAt, durationMs, dataArtifactId: data.id } }, artifactRefs: [data.id] });
+      }
       const artifact = await this.options.operationLog.putArtifact(node as unknown as JsonObject, { schemaVersion: 'conversation-node/1', backendId: node.provenance.backendId });
       await this.options.operationLog.append({
         kind: 'conversation/node-projected', severity: node.status === 'failed' ? 'error' : node.status === 'cancelled' ? 'warning' : 'info', source: asStableId('studio.conversation-host'),
@@ -1593,7 +1642,7 @@ export class StudioConversationHost {
           ...(typeof node.content.toolCallId === 'string' ? { toolCallId: asStableId(node.content.toolCallId) } : {}),
           ...(typeof node.content.approvalId === 'string' ? { approvalId: asStableId(node.content.approvalId) } : {}),
         },
-        payload: { nodeId: node.id, nodeKind: node.kind, nodeStatus: node.status, artifactId: artifact.id, artifactDigest: artifact.digest },
+        payload: { nodeId: node.id, nodeKind: node.kind, nodeStatus: node.status, artifactId: artifact.id, artifactDigest: artifact.digest, ...(executionDataArtifactId ? { executionDataArtifactId } : {}) },
         artifactRefs: [artifact.id],
       });
     };
@@ -1610,7 +1659,14 @@ export class StudioConversationHost {
       const page = await this.options.operationLog.query({ kinds: ['conversation/node-projected'], limit: 200, traverseCorrelation: false, ...(afterSequence === undefined ? {} : { afterSequence }), ...(cursor ? { cursor } : {}) });
       for (const event of page.events) {
         const artifactId = event.artifactRefs[0]; if (!artifactId) continue;
-        try { restored.push(normalizeConversationNode((await this.options.operationLog.readArtifact(artifactId)).value)); }
+        try {
+          const node = normalizeConversationNode((await this.options.operationLog.readArtifact(artifactId)).value);
+          if (this.options.recordProjectId && (node.status === 'pending' || node.status === 'streaming') && typeof event.payload.executionDataArtifactId === 'string') {
+            const data = (await this.options.operationLog.readArtifact(asStableId(event.payload.executionDataArtifactId))).value;
+            if (isRecord(data)) this.pendingRecordContents.set(node.id, data as JsonObject);
+          } else this.pendingRecordContents.delete(node.id);
+          restored.push(node);
+        }
         catch { /* A missing/corrupt artifact is already surfaced by Operation Log health and stays hidden from the renderer. */ }
       }
       cursor = page.nextCursor;
@@ -1783,19 +1839,14 @@ export class StudioConversationHost {
 
   private async restoreTaskRuns(): Promise<void> {
     if (!this.projectionPersistenceAvailable()) return;
-    let cursor: string | undefined; let count = 0;
-    do {
-      const page = await this.options.operationLog.query({ kinds: ['conversation/task-projected'], limit: 200, traverseCorrelation: false, ...(cursor ? { cursor } : {}) });
-      for (const event of page.events) {
-        const id = event.artifactRefs[0]; if (!id) continue;
-        try {
-          const run = normalizeTaskRun((await this.options.operationLog.readArtifact(id)).value); const prior = this.taskRuns.get(run.taskId);
-          if (!prior || run.revision > prior.revision) this.taskRuns.set(run.taskId, run);
-        } catch { /* corrupt/future projections stay hidden */ }
-        count += 1;
-      }
-      cursor = page.nextCursor;
-    } while (cursor && count < 5_000);
+    const events = await queryRetainedOperationEvents(this.options.operationLog, ['conversation/task-projected'], 5_000);
+    for (const event of events) {
+      const id = event.artifactRefs[0]; if (!id) continue;
+      try {
+        const run = normalizeTaskRun((await this.options.operationLog.readArtifact(id)).value); const prior = this.taskRuns.get(run.taskId);
+        if (!prior || run.revision > prior.revision) this.taskRuns.set(run.taskId, run);
+      } catch { /* corrupt/future projections stay hidden */ }
+    }
     this.latestTaskId = [...this.taskRuns.values()].sort((left, right) => left.startedAt.localeCompare(right.startedAt) || left.taskId.localeCompare(right.taskId)).at(-1)?.taskId ?? null;
     for (const run of [...this.taskRuns.values()]) {
       if (run.acceptance.length && !this.playtestTasks.has(run.taskId) && run.status !== 'completed') {
@@ -1841,28 +1892,25 @@ export class StudioConversationHost {
 
   private async restoreTaskAccounting(): Promise<void> {
     if (!this.projectionPersistenceAvailable()) return;
-    let cursor: string | undefined; let count = 0;
-    do {
-      const page = await this.options.operationLog.query({ kinds: ['agent/task-accounting'], limit: 200, traverseCorrelation: false, ...(cursor ? { cursor } : {}) });
-      for (const event of page.events) {
-        const artifactId = event.artifactRefs[0]; if (!artifactId) continue;
-        try {
-          const readModel = normalizeTaskAccounting((await this.options.operationLog.readArtifact(artifactId)).value);
-          if (readModel) this.restoredTaskAccounting.set(readModel.taskId, readModel);
-        } catch { /* Missing/corrupt accounting remains unknown instead of being fabricated. */ }
-        count += 1;
-      }
-      cursor = page.nextCursor;
-    } while (cursor && count < 5_000);
+    const events = await queryRetainedOperationEvents(this.options.operationLog, ['agent/task-accounting'], 5_000);
+    for (const event of events) {
+      const artifactId = event.artifactRefs[0]; if (!artifactId) continue;
+      try {
+        const readModel = normalizeTaskAccounting((await this.options.operationLog.readArtifact(artifactId)).value);
+        if (readModel) this.restoredTaskAccounting.set(readModel.taskId, readModel);
+      } catch { /* Missing/corrupt accounting remains unknown instead of being fabricated. */ }
+    }
   }
 
   private modelTools(request: string): readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] {
     const definitions = this.options.tools.selectDefinitions?.(request).definitions ?? this.options.tools.definitions();
-    return Object.freeze([PLAN_TOOL_DEFINITION, ...definitions].map((definition) => Object.freeze({
+    const tools: Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] = [PLAN_TOOL_DEFINITION, ...definitions].map((definition) => Object.freeze({
       id: definition.id,
       description: `${definition.description} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Inspect this before planning or using a document revision.' : ''}`,
       inputSchema: definition.inputSchema,
-    })));
+    }));
+    if (definitions.some((definition) => definition.id === 'tool.search')) tools.push(MODEL_TOOL_INVOKE_DEFINITION);
+    return Object.freeze(tools);
   }
 
   private async prepareKnowledge(project: ContextProjectSnapshot | null, signal: AbortSignal): Promise<void> {
@@ -1905,29 +1953,17 @@ export class StudioConversationHost {
   }
 
   private internalNodeId(kind: string, turnId: StableId): StableId { return asStableId(`node:${kind}:${sha256(turnId).slice(7, 23)}`); }
-  private nextNodeId(kind: string): StableId { this.nodeSequence += 1; return asStableId(`node:${kind}:${this.nodeSequence}`); }
+  private nextNodeId(kind: string): StableId { this.nodeSequence += 1; return this.localId(`node:${kind}:${this.nodeSequence}`); }
+  private localId(value: string): StableId { return asStableId(this.options.idPrefix ? `${this.options.idPrefix}:${value}` : value); }
+  private track(work: Promise<unknown>): void {
+    this.pendingWork.add(work);
+    void work.finally(() => this.pendingWork.delete(work)).catch(() => undefined);
+  }
+  private executionContent(context: ToolExecutionContext, body: HostToolBody, content: JsonObject): JsonObject {
+    if (!this.options.recordProjectId) return content;
+    return Object.freeze({ ...content, parameters: context.args, result: body.backendResult, executionStartedAt: new Date(Date.parse(body.finishedAt) - body.latencyMs).toISOString(), executionFinishedAt: body.finishedAt, durationMs: body.latencyMs });
+  }
   private assertActive(): void { if (this.disposed) throw new Error('Conversation host is disposed.'); }
-}
-
-function approvalContent(preparation: GameToolPreparation, approval: GameToolApproval): JsonObject {
-  return Object.freeze({
-    approvalId: approval.approvalId, toolCallId: approval.toolCallId, toolId: approval.toolId, toolVersion: approval.toolVersion,
-    target: approval.target, effect: approval.effect, risk: approval.risk, argumentsSummary: preparation.preview.summary,
-    previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: presentationDigest(approval.argumentsDigest),
-    previewDigest: presentationDigest(approval.previewDigest), ...(approval.expiresAt ? { expiresAt: approval.expiresAt } : {}),
-    scope: approval.decision === 'allow-always' ? 'project-session' : 'operation', decision: approval.decision,
-  });
-}
-function presentationDigest(value: string): string { return value.startsWith('sha256:') ? value : `sha256:${value}`; }
-function intentLogPayload(intent: ConversationIntent): JsonObject {
-  if (intent.type === 'conversation/send') return Object.freeze({ type: intent.type, backendId: intent.backendId, promptDigest: sha256(intent.prompt), promptBytes: Buffer.byteLength(intent.prompt) });
-  return Object.freeze({
-    type: intent.type,
-    ...('backendId' in intent ? { backendId: intent.backendId } : {}),
-    ...('approvalId' in intent ? { approvalId: intent.approvalId, decision: intent.decision } : {}),
-    ...('sessionId' in intent ? { sessionId: intent.sessionId } : {}),
-    ...('requestId' in intent ? { requestId: intent.requestId } : {}),
-  });
 }
 function isBackendSessionAdapter(backend: AgentBackend): backend is AgentBackend & BackendSessionAdapter {
   const candidate = backend as unknown as Record<string, unknown>;
@@ -1940,314 +1976,16 @@ function isBackendSessionAdapter(backend: AgentBackend): backend is AgentBackend
     && typeof candidate.compact === 'function'
     && typeof candidate.detach === 'function';
 }
-function localCompactionSummary(request: CompactionSummaryRequestV1): string {
-  const estimator = new ConservativeTokenEstimator();
-  const source = [
-    'Session summary (local extractive fallback; consult retained evidence for exact values).',
-    ...request.messages.map((message) => `[${message.role}] ${message.content.replace(/\s+/gu, ' ').trim()}`),
-  ].join('\n');
-  if (source.length === 0) return 'No compactable session content.';
-
-  const targetTokens = Math.max(1, Math.min(request.targetSummaryTokens, request.maximumSummaryTokens));
-  if (estimator.estimate(source, request.model) <= targetTokens) return source;
-
-  const characters = [...source];
-  let low = 1;
-  let high = characters.length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    const candidate = `${characters.slice(0, middle).join('').trimEnd()}\n[summary truncated at a stable local boundary]`;
-    if (estimator.estimate(candidate, request.model) <= targetTokens) low = middle;
-    else high = middle - 1;
-  }
-  return `${characters.slice(0, low).join('').trimEnd()}\n[summary truncated at a stable local boundary]`;
-}
-function questionOptions(value: unknown): readonly JsonObject[] {
-  if (!Array.isArray(value)) return Object.freeze([Object.freeze({ id: asStableId('option:continue'), label: 'Continue' })]);
-  return Object.freeze(value.slice(0, 8).map((_, index) => Object.freeze({ id: asStableId(`option:${index + 1}`), label: `Option ${index + 1}` })));
-}
 function stablePayloadId(value: unknown, label: string): StableId { if (typeof value !== 'string') throw new TypeError(`${label} is invalid.`); return asStableId(value, label); }
-function terminalStatus(value: unknown): 'completed' | 'cancelled' | 'failed' | 'interrupted' { return value === 'completed' || value === 'cancelled' || value === 'failed' || value === 'interrupted' ? value : 'failed'; }
-function completionSummary(status: 'completed' | 'cancelled' | 'failed' | 'interrupted', toolFacts: readonly string[], blockers: readonly string[]): string {
-  const completed = toolFacts.length ? `Completed: ${toolFacts.join(' | ')}` : 'Completed: no Studio tool changes.';
-  const incomplete = blockers.length ? ` Incomplete or blocked: ${blockers.join(' | ')}` : ' Incomplete or blocked: none.';
-  return `${status}. ${completed}${incomplete}`.slice(0, 4_096);
-}
-function stringField(value: unknown, fallback: string): string { return typeof value === 'string' ? value.slice(0, 2_000) : fallback; }
-function boundedJson(value: JsonObject): string { const text = JSON.stringify(value); return text.length > 2_000 ? `${text.slice(0, 1_997)}...` : text; }
-function projectToolModelResult(value: JsonObject, projection: 'summary' | 'digest-only'): JsonObject {
-  const serialized = canonicalStringify(value); const digest = sha256(serialized); const byteLength = Buffer.byteLength(serialized);
-  if (projection === 'digest-only') return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength });
-  const resultValue = isRecord(value.value) ? value.value : value;
-  return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength, keys: Object.freeze(Object.keys(resultValue).sort().slice(0, 32)) });
-}
-function toolArgumentSummary(toolId: StableId, args: JsonObject): string {
-  const raw = args as Record<string, unknown>;
-  if (toolId === PLAN_TOOL_ID) return `准备提交“${typeof raw.title === 'string' ? raw.title : '总体实现方案'}”供用户确认。`;
-  if (toolId === 'entity.create') {
-    const kind = String(raw.kind ?? 'entity');
-    const category = ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind) ? `几何体 ${kind}` : kind.endsWith('-light') ? `光源 ${kind}` : '逻辑节点';
-    return `准备创建${category}${typeof raw.name === 'string' ? `“${raw.name}”` : ''}。`;
-  }
-  if (toolId === 'transform.set') return '准备更新物体的位置、旋转和缩放。';
-  if (toolId === 'material.set') return '准备为选中的几何体应用引擎材质。';
-  if (toolId === 'script.propose') return '准备校验一份新的控制脚本提案。';
-  if (toolId === 'script.apply') return '准备提交已经通过校验的脚本。';
-  if (toolId === 'preview.validate') return '准备校验项目运行计划。';
-  if (toolId === 'preview.start') return '准备启动隔离预览。';
-  if (toolId === 'preview.stop') return '准备停止隔离预览。';
-  return `准备调用 ${toolId}。`;
-}
-function toolResultSummary(toolId: StableId, status: 'completed' | 'rejected' | 'cancelled' | 'failed', value: JsonObject, fallback: string): string {
-  const raw = value as Record<string, unknown>;
-  if (status !== 'completed') {
-    if (raw.decision === 'expired') return '授权已过期，操作未执行。请重新批准重新校验后的操作。';
-    if (status === 'cancelled' || raw.decision === 'cancel') return '操作已取消，没有修改项目。';
-    if (raw.decision === 'reject') return '操作已被拒绝，没有修改项目。';
-    return `操作未执行：${fallback}`;
-  }
-
-  const entity = isRecord(raw.entity) ? raw.entity : null;
-  const entityName = entity && typeof entity.name === 'string' ? `“${entity.name}”` : '物体';
-  const revision = typeof raw.revision === 'number' ? ` · 项目 r${raw.revision}` : '';
-  if (toolId === 'project.snapshot') return `已读取项目“${typeof raw.name === 'string' ? raw.name : '未命名'}” · r${typeof raw.revision === 'number' ? raw.revision : '?'}${raw.dirty === true ? ' · 有未保存修改' : ''}`;
-  if (toolId === 'scene.list-entities') return `已读取场景 · ${Array.isArray(raw.entities) ? raw.entities.length : 0} 个物体${raw.truncated === true ? '（结果已截断）' : ''}`;
-  if (toolId === 'entity.get') return `已读取${entityName}${revision}`;
-  if (toolId === 'entity.create') return `已创建${entityName}${revision}`;
-  if (toolId === 'entity.rename') return `已重命名为${entityName}${revision}`;
-  if (toolId === 'transform.set') return `已更新${entityName}的 Transform${revision}`;
-  if (toolId === 'material.set') return `已更新${entityName}的材质${revision}`;
-  if (toolId === 'script.get') {
-    const script = isRecord(raw.script) ? raw.script : null;
-    return `已读取脚本${script && typeof script.name === 'string' ? `“${script.name}”` : ''}${script && typeof script.textRevision === 'number' ? ` · 文本 r${script.textRevision}` : ''}`;
-  }
-  if (toolId === 'diagnostics.query') return `已读取 ${typeof raw.count === 'number' ? raw.count : 0} 条诊断记录。`;
-  if (toolId === 'script.propose') {
-    const diagnostics = Array.isArray(raw.diagnostics) ? raw.diagnostics : [];
-    const errors = diagnostics.filter((item) => isRecord(item) && item.severity === 'error').length;
-    const proposal = typeof raw.proposalId === 'string' ? ` ${raw.proposalId}` : '';
-    return errors > 0 ? `脚本提案${proposal}有 ${errors} 个错误，提案已保留，需要修改后重新校验。` : `脚本提案${proposal}校验通过并已保留 · +${numberField(raw.addedLines)}/-${numberField(raw.removedLines)} 行`;
-  }
-  if (toolId === 'script.apply') return `脚本已提交${typeof raw.textRevision === 'number' ? ` · 文本 r${raw.textRevision}` : ''}${revision}`;
-  if (toolId === 'preview.validate') {
-    const diagnostics = Array.isArray(raw.diagnostics) ? raw.diagnostics : [];
-    const errors = diagnostics.filter((item) => isRecord(item) && item.severity === 'error').length;
-    return errors > 0 ? `运行计划校验失败 · ${errors} 个错误` : '运行计划校验通过。';
-  }
-  if (toolId === 'preview.start') return '隔离预览已启动。';
-  if (toolId === 'preview.stop') return '隔离预览已停止并完成资源清理。';
-  return fallback;
-}
-function numberField(value: unknown): number { return typeof value === 'number' && Number.isFinite(value) ? value : 0; }
-function budgetMetricLabel(metric: BudgetDecision['violations'][number]['metric']): string {
-  return ({ inputTokens: '输入 token', outputTokens: '输出 token', estimatedCostMicros: '预计成本', wallTimeMs: '执行时间', turns: '回合数', toolCalls: '工具调用数', repairIterations: '修复次数', observationBytes: '工具结果字节数' } as const)[metric];
-}
-function approvedPlanRequest(plan: ApprovedPlanExecution, projectOpen: boolean): string {
-  return [
-    projectOpen ? 'Execute the already approved plan against the current project.' : 'The project closed after approval; report that execution cannot continue.',
-    canonicalPlan(plan),
-    'Do not request the same plan approval again. Re-inspect the current revision, execute accepted reversible steps, and report any scoped approval or capability that still blocks execution.',
-  ].join('\n\n');
-}
-function budgetContinuationRequest(goal: string, projectOpen: boolean): string {
-  return [
-    projectOpen ? 'Continue the visible task against the current project after a user-approved budget checkpoint.' : 'The project closed while waiting at a budget checkpoint; report that the task cannot safely continue.',
-    `Visible goal: ${goal.slice(0, 2_048)}`,
-    'Inspect authoritative project state before acting. Preserve and reuse completed work, do not recreate working scene content, and retry only the interrupted step. If project mutations are not covered by an already approved plan, propose a plan before editing.',
-  ].join('\n\n');
-}
-function canonicalPlan(plan: ApprovedPlanExecution): string {
-  return JSON.stringify({ title: plan.title, summary: plan.summary, items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
-}
 function conversationKeyFor(project: ContextProjectSnapshot | null): StableId { return project ? asStableId(`conversation:${project.projectId}`) : asStableId('conversation:workspace-empty'); }
-let taskTimelineSequence = 0;
-function taskTimeline(phase: ConversationTaskPhase, status: 'active' | 'complete' | 'warning' | 'error', title: string, detail: string, coordinates: Readonly<{ turnId?: StableId | null; toolCallId?: StableId | null; playId?: StableId | null; tick?: number | null }> = {}): ConversationTaskRunReadModel['timeline'][number] {
-  taskTimelineSequence += 1; const at = new Date().toISOString();
-  return Object.freeze({ id: asStableId(`timeline:${sha256(`${at}:${taskTimelineSequence}:${title}`).slice(7, 31)}`), at, phase, status, title: title.slice(0, 160), detail: detail.slice(0, 1_024), turnId: coordinates.turnId ?? null, toolCallId: coordinates.toolCallId ?? null, playId: coordinates.playId ?? null, tick: coordinates.tick ?? null });
-}
-function taskTitle(prompt: string): string { const first = prompt.trim().split(/\r?\n/u)[0] ?? 'Agent task'; return first.length > 80 ? `${first.slice(0, 77)}…` : first || 'Agent task'; }
-function acceptanceReadModel(value: PlanAcceptanceProposal, id: StableId): ConversationTaskAcceptanceReadModel { return Object.freeze({ id, label: value.label, assertion: value.assertion, category: value.category, required: value.required, visibility: 'agent', status: 'pending', evidenceIds: Object.freeze([]), diagnostic: null }); }
-function acceptanceLabel(assertion: string): string {
-  const match = /^evidence ([a-z-]+)/u.exec(assertion); return match ? `${match[1]} 验收` : '验收标准';
-}
-function taskSpecFromPlan(active: ActiveTurn, acceptance: readonly PlanAcceptanceProposal[]): TaskSpecV2 {
-  const criteria = acceptance.map((item, index) => Object.freeze({ id: asStableId(`acceptance:${active.taskId}:${index + 1}`), required: item.required, visibility: 'agent' as const, category: item.category, assertion: item.assertion }));
-  const requiredCapabilities = new Set<TaskSpecV2['requiredCapabilities'][number]>(['task.evaluate']);
-  for (const item of acceptance) {
-    if (/^evidence screenshot/u.test(item.assertion)) requiredCapabilities.add('play.capture');
-    if (/^evidence (?:state|event-trace|runtime-errors|performance|visual-analysis|lifecycle)/u.test(item.assertion)) requiredCapabilities.add('play.inspect');
-  }
-  return Object.freeze({ schemaVersion: 2, id: active.taskId, request: active.goal.slice(0, 20_000), visibleConstraints: Object.freeze([]), budgetId: active.account.options.budget.id, requiredCapabilities: Object.freeze([...requiredCapabilities]), acceptance: Object.freeze(criteria) });
-}
-function taskSpecFromRun(run: ConversationTaskRunReadModel): TaskSpecV2 {
-  const requiredCapabilities = new Set<TaskSpecV2['requiredCapabilities'][number]>(['task.evaluate']);
-  for (const item of run.acceptance) { if (item.category === 'visual') requiredCapabilities.add('play.capture'); else requiredCapabilities.add('play.inspect'); }
-  return Object.freeze({ schemaVersion: 2, id: run.taskId, request: run.requestSummary, visibleConstraints: Object.freeze([]), budgetId: asStableId(`budget:${run.taskId}`), requiredCapabilities: Object.freeze([...requiredCapabilities]), acceptance: Object.freeze(run.acceptance.map((item) => Object.freeze({ id: item.id, required: item.required, visibility: item.visibility, category: item.category, assertion: item.assertion }))) });
-}
-function productPhaseForTool(toolId: StableId): Extract<ConversationTaskPhase, 'editing' | 'validating' | 'playing' | 'evaluating'> | null {
-  if (toolId === 'preview.validate') return 'validating';
-  if (toolId === 'preview.start' || toolId === 'play.start' || toolId === 'play.step' || toolId === 'play.input' || toolId === 'play.inspect' || toolId === 'play.capture' || toolId === 'play.stop' || toolId === 'preview.stop') return 'playing';
-  if (toolId === 'task.evaluate') return 'evaluating';
-  if (['entity.create', 'entity.rename', 'transform.set', 'material.set', 'component.add', 'component.update', 'component.remove', 'script.apply', 'script.propose', 'camera.set'].includes(toolId)) return 'editing';
-  return null;
-}
-function productToolTitle(toolId: StableId): string {
-  if (toolId === 'task.evaluate') return '正在逐项验收';
-  if (toolId.startsWith('play.') || toolId.startsWith('preview.')) return '正在运行与采集证据';
-  return '正在编辑项目';
-}
-function advancePlaytest(playtest: BoundedPlaytestTask, target: Extract<ConversationTaskPhase, 'editing' | 'validating' | 'playing' | 'evaluating'>): void {
-  for (let guard = 0; guard < 5 && playtest.snapshot().phase !== target; guard += 1) {
-    const phase = playtest.snapshot().phase;
-    if (phase === 'planning' || phase === 'repairing' || phase === 'evaluating' && target === 'editing') playtest.advance('editing');
-    else if (phase === 'editing' && target !== 'editing') playtest.advance('validating');
-    else if (phase === 'validating' && (target === 'playing' || target === 'evaluating')) playtest.advance('playing');
-    else if (phase === 'playing' && target === 'evaluating') playtest.advance('evaluating');
-    else break;
-  }
-  if (playtest.snapshot().phase !== target) throw new PlaytestLoopError('task.transition-invalid', `Cannot enter ${target} from ${playtest.snapshot().phase}.`);
-}
-function observationArtifacts(value: JsonObject): readonly ObservationArtifactV2[] {
-  const candidates: unknown[] = [];
-  if (isRecord(value.observation)) candidates.push(value.observation);
-  if (Array.isArray(value.observations)) candidates.push(...value.observations);
-  const values: ObservationArtifactV2[] = [];
-  for (const item of candidates) {
-    if (!isRecord(item) || item.schemaVersion !== 2 || !['state', 'event-trace', 'runtime-errors', 'performance', 'screenshot', 'visual-analysis', 'lifecycle'].includes(String(item.type))
-      || typeof item.id !== 'string' || typeof item.taskId !== 'string' || typeof item.turnId !== 'string' || typeof item.playId !== 'string' || !Number.isSafeInteger(item.documentRevision)
-      || !Number.isSafeInteger(item.tick) || !Number.isSafeInteger(item.frame) || typeof item.capturedAt !== 'string' || !Number.isSafeInteger(item.byteLength) || typeof item.producerVersion !== 'string') continue;
-    values.push(item as unknown as ObservationArtifactV2);
-  }
-  return Object.freeze(values);
-}
-function evaluationResult(value: JsonObject, taskId: StableId): EvaluationResultV2 {
-  if (value.schemaVersion !== 2 || value.taskId !== taskId || typeof value.id !== 'string' || !['pass', 'fail', 'blocked'].includes(String(value.status)) || !Array.isArray(value.acceptanceResults)
-    || !Array.isArray(value.usageRecordIds) || !Array.isArray(value.costRecordIds) || typeof value.completedAt !== 'string' || typeof value.evaluatorVersion !== 'string') throw new PlaytestLoopError('task.evaluation-invalid', 'Evaluator returned an invalid task result.');
-  const results = value.acceptanceResults.map((item) => {
-    if (!isRecord(item) || typeof item.acceptanceId !== 'string' || !['pass', 'fail', 'blocked'].includes(String(item.status)) || !Array.isArray(item.evidenceIds) || !item.evidenceIds.every((id) => typeof id === 'string')) throw new PlaytestLoopError('task.evaluation-invalid', 'Evaluator returned an invalid acceptance result.');
-    return Object.freeze({ acceptanceId: asStableId(item.acceptanceId), status: item.status as 'pass' | 'fail' | 'blocked', evidenceIds: Object.freeze(item.evidenceIds.map((id) => asStableId(id as string))), diagnostic: typeof item.diagnostic === 'string' ? item.diagnostic.slice(0, 512) : null });
-  });
-  return Object.freeze({ schemaVersion: 2, id: asStableId(value.id), taskId, evaluatorVersion: value.evaluatorVersion.slice(0, 96), status: value.status as EvaluationResultV2['status'], acceptanceResults: Object.freeze(results), budgetStatus: ['within', 'soft-exceeded', 'hard-exceeded'].includes(String(value.budgetStatus)) ? value.budgetStatus as EvaluationResultV2['budgetStatus'] : 'within', usageRecordIds: Object.freeze((value.usageRecordIds as unknown[]).filter((id): id is string => typeof id === 'string').map((id) => asStableId(id))), costRecordIds: Object.freeze((value.costRecordIds as unknown[]).filter((id): id is string => typeof id === 'string').map((id) => asStableId(id))), turns: Object.freeze([]), tools: Object.freeze([]), completedAt: value.completedAt });
-}
-function repairRequest(task: TaskSpecV2, evaluation: EvaluationResultV2, iteration: number): string {
-  const failed = evaluation.acceptanceResults.filter((item) => item.status === 'fail');
-  return ['Continue the same visible task with a bounded evidence-led repair.', `Repair iteration: ${iteration}.`, `Failed acceptance: ${JSON.stringify(failed.map((item) => ({ acceptanceId: item.acceptanceId, evidenceIds: item.evidenceIds, diagnostic: item.diagnostic })))}`, 'Re-inspect the authoritative revision, change only causes supported by the cited evidence, run Play again, collect fresh same-revision evidence, and call task.evaluate with the approved criteria. Do not repeat an unchanged repair.'].join('\n');
-}
-function taskAccountingProjection(snapshot: ReturnType<TaskAccount['reconcile']>): ConversationTaskAccountingReadModel {
-  const value = normalizeTaskAccounting({ taskId: snapshot.taskId, budget: snapshot.budget, budgetStatus: snapshot.budgetDecision.status, usage: snapshot.usage, cost: snapshot.cost });
-  if (!value) throw new Error('Task accounting projection is invalid.');
-  return value;
-}
-const DEFAULT_TASK_BUDGET: TaskBudgetV2 = Object.freeze({ schemaVersion: 2, id: asStableId('budget:conversation-default'), enforcement: 'hard', limits: Object.freeze({
-  inputTokens: 200_000, outputTokens: 50_000, estimatedCostMicros: 2_000_000, wallTimeMs: 10 * 60_000, turns: 12, toolCalls: 100, repairIterations: 5, observationBytes: 5_000_000,
-}) });
-function assertBudgetAllowed(decision: Readonly<{ allowed: boolean; warning: string | null }>): void { if (!decision.allowed) throw new BudgetStopError(decision.warning ?? 'Task budget is exhausted.'); }
-class BudgetStopError extends Error { readonly code = 'budget.hard-stop'; constructor(message: string) { super(message); this.name = 'BudgetStopError'; } }
-interface WallTimeBudget { pause(): void; resume(): void; resetAfterContinuation(): void; dispose(): void; }
-function armWallTimeBudget(controller: AbortController, account: TaskAccount): WallTimeBudget {
-  if (account.options.budget.enforcement !== 'hard') return Object.freeze({ pause() {}, resume() {}, resetAfterContinuation() {}, dispose() {} });
-  let remaining = (account.snapshot().budget.limits.wallTimeMs ?? Number.MAX_SAFE_INTEGER) - account.snapshot().consumption.wallTimeMs;
-  let armedAt = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let pauseDepth = 0;
-  let disposed = false;
-  const expire = (): void => {
-    timer = null; remaining = 0;
-    account.expireWallTime();
-  };
-  const arm = (): void => {
-    if (disposed || pauseDepth > 0 || controller.signal.aborted) return;
-    if (remaining <= 0) { expire(); return; }
-    armedAt = Date.now(); timer = setTimeout(expire, remaining);
-  };
-  arm();
-  return Object.freeze({
-    pause(): void {
-      if (disposed) return;
-      pauseDepth += 1;
-      if (pauseDepth !== 1 || timer === null) return;
-      clearTimeout(timer); timer = null;
-      remaining = Math.max(0, remaining - (Date.now() - armedAt));
-    },
-    resume(): void {
-      if (disposed || pauseDepth === 0) return;
-      pauseDepth -= 1;
-      if (pauseDepth === 0) arm();
-    },
-    resetAfterContinuation(): void {
-      if (disposed) return;
-      if (timer !== null) { clearTimeout(timer); timer = null; }
-      const snapshot = account.snapshot();
-      remaining = Math.max(1, (snapshot.budget.limits.wallTimeMs ?? Number.MAX_SAFE_INTEGER) - snapshot.consumption.wallTimeMs);
-      if (pauseDepth === 0) arm();
-    },
-    dispose(): void { if (disposed) return; disposed = true; if (timer !== null) clearTimeout(timer); timer = null; },
-  });
-}
-const PLAN_TOOL_ID = asStableId('studio.plan.propose');
-const PLAN_TOOL_DEFINITION = Object.freeze({
-  id: PLAN_TOOL_ID,
-  description: 'Submit the complete implementation plan and machine-checkable acceptance criteria for user review before any project mutation. Include authored entities, responsibilities, scripts, dynamic state ownership, rendering strategy, and fixed evidence assertions. The result blocks until the user approves or requests a revision.',
-  effect: 'observe' as const,
-  risk: 'low' as const,
-  inputSchema: Object.freeze({
-    type: 'object', additionalProperties: false, required: Object.freeze(['title', 'summary', 'items']), properties: Object.freeze({
-      title: Object.freeze({ type: 'string', minLength: 1, maxLength: 160 }),
-      summary: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_200 }),
-      items: Object.freeze({ type: 'array', minItems: 1, maxItems: 20, items: Object.freeze({
-        type: 'object', additionalProperties: false, required: Object.freeze(['label', 'details']), properties: Object.freeze({
-          label: Object.freeze({ type: 'string', minLength: 1, maxLength: 240 }),
-          details: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024 }),
-        }),
-      }) }),
-      acceptance: Object.freeze({ type: 'array', minItems: 1, maxItems: 50, items: Object.freeze({
-        type: 'object', additionalProperties: false, required: Object.freeze(['label', 'required', 'category', 'assertion']), properties: Object.freeze({
-          label: Object.freeze({ type: 'string', minLength: 1, maxLength: 240 }), required: Object.freeze({ type: 'boolean' }),
-          category: Object.freeze({ enum: Object.freeze(['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security']) }),
-          assertion: Object.freeze({ type: 'string', minLength: 1, maxLength: 2_000, pattern: '^evidence (state|event-trace|runtime-errors|performance|screenshot|visual-analysis|lifecycle)(?: signal [A-Za-z0-9_.-]+ (?:equals|gte|lte) .+)?$' }),
-        }),
-      }) }),
-    }),
-  }) as JsonObject,
-});
-
-function validatePlanProposal(value: JsonObject): Readonly<{ title: string; summary: string; items: readonly Readonly<{ label: string; details?: string }>[]; acceptance: readonly PlanAcceptanceProposal[] }> {
-  const raw = value as Record<string, unknown>;
-  if (Object.keys(raw).some((key) => !['title', 'summary', 'items', 'acceptance'].includes(key)) || typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 160
-    || typeof raw.summary !== 'string' || !raw.summary.trim() || raw.summary.length > 1_200 || !Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 20) {
-    throw new PlanProtocolError('plan.payload-invalid', 'Plan requires a title, summary and 1-20 detailed items.');
-  }
-  const items = raw.items.map((value, index) => {
-    if (!isRecord(value) || Object.keys(value).some((key) => !['label', 'details'].includes(key)) || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 240
-      || typeof value.details !== 'string' || !value.details.trim() || value.details.length > 1_024) {
-      throw new PlanProtocolError('plan.payload-invalid', `Plan item ${index + 1} requires bounded label and details fields.`);
-    }
-    return Object.freeze({ label: value.label.trim(), details: value.details.trim() });
-  });
-  const acceptance = raw.acceptance === undefined ? [] : !Array.isArray(raw.acceptance) || raw.acceptance.length < 1 || raw.acceptance.length > 50
-    ? (() => { throw new PlanProtocolError('plan.payload-invalid', 'Plan acceptance requires 1-50 criteria.'); })()
-    : raw.acceptance.map((entry, index) => {
-      if (!isRecord(entry) || Object.keys(entry).some((key) => !['label', 'required', 'category', 'assertion'].includes(key)) || typeof entry.label !== 'string' || !entry.label.trim() || entry.label.length > 240
-        || typeof entry.required !== 'boolean' || !['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security'].includes(String(entry.category))
-        || typeof entry.assertion !== 'string' || entry.assertion.length > 2_000 || !/^evidence (?:state|event-trace|runtime-errors|performance|screenshot|visual-analysis|lifecycle)(?: signal [A-Za-z0-9_.-]+ (?:equals|gte|lte) .+)?$/u.test(entry.assertion)) {
-        throw new PlanProtocolError('plan.payload-invalid', `Acceptance criterion ${index + 1} is invalid or not machine-checkable.`);
-      }
-      return Object.freeze({ label: entry.label.trim(), required: entry.required, category: entry.category as PlanAcceptanceProposal['category'], assertion: entry.assertion.trim() });
-    });
-  return Object.freeze({ title: raw.title.trim(), summary: raw.summary.trim(), items: Object.freeze(items), acceptance: Object.freeze(acceptance) });
-}
 function turnKey(sessionId: StableId, turnId: StableId): string { return `${sessionId}\u0000${turnId}`; }
 function isCompleteDurableSessionHandle(value: DurableSessionHandle): boolean {
   const candidate = value as unknown as Record<string, unknown>;
   return ['snapshot', 'append', 'appendMessage', 'replaceSurface', 'bindBackend', 'checkpoint', 'fork', 'flush', 'dispose'].every((key) => typeof candidate[key] === 'function');
 }
-class PlanProtocolError extends Error { constructor(readonly code: string, message: string) { super(message); this.name = 'PlanProtocolError'; } }
 function isPreparedMutationWork(value: HostToolWork): value is PreparedMutationWork { return isRecord(value) && value.kind === 'prepared-mutation'; }
 function transactionResultIdentity(value: JsonObject): JsonObject | null {
   const transaction = value.transaction;
   if (!isRecord(transaction) || typeof transaction.transactionId !== 'string' || typeof transaction.idempotencyKey !== 'string' || typeof transaction.receiptDigest !== 'string' || typeof transaction.receiptArtifactId !== 'string') return null;
   return Object.freeze({ transactionId: transaction.transactionId, idempotencyKey: transaction.idempotencyKey, receiptDigest: transaction.receiptDigest, receiptArtifactId: transaction.receiptArtifactId, memberCount: Number.isSafeInteger(transaction.memberCount) ? transaction.memberCount : 1 });
 }
-function errorCode(value: unknown): string { return value && typeof value === 'object' && 'code' in value ? String((value as { code: unknown }).code).slice(0, 96) : 'conversation.operation-failed'; }
-function errorMessage(value: unknown): string { return (value instanceof Error ? value.message : String(value)).slice(0, 2_000); }
-function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }

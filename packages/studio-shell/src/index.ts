@@ -1,4 +1,5 @@
 import type { EditorContributionKind } from '@haiyue/editor-plugin-sdk';
+export * from './workspace/index.js';
 import type { EditorShellLayoutSnapshot } from '@haiyue/editor-shell';
 import {
   asStableId,
@@ -144,3 +145,6 @@ class WorkspaceLayoutService implements StudioWorkspaceLayoutService {
 function panel(id: StableId, title: string, region: StudioPanelDescriptor['region'], order: number, placeholder = true): StudioPanelDescriptor {
   return Object.freeze({ id: id as StudioPanelId, editorKind: 'panel', title, region, order, placeholder });
 }
+
+export { AgentHistoryViewer, normalizeHistoryPage } from './panels/history/index.js';
+export type { AgentHistoryViewerPort } from './panels/history/index.js';

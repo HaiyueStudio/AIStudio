@@ -616,7 +616,7 @@ test('Agent tools create Engine primitives and lights and can change built-in ma
 test('registry-driven component tools preserve schema, risk, Scene projection and History', async () => {
   const value = await fixture();
   try {
-    const created = await executeReady(value.runtime, call('call:create-camera-owner', 'entity.create', { kind: 'empty', name: 'Gameplay Camera' }));
+    const created = await executeReady(value.runtime, call('call:create-camera-owner', 'entity.create', { baseRevision: 1, kind: 'empty', name: 'Gameplay Camera' }));
     const entityId = created.value.entity.id;
     const capabilities = await executeReady(value.runtime, call('call:capabilities', 'engine.capabilities.describe', {}));
     assert.ok(capabilities.value.componentCount >= 13);
@@ -662,23 +662,26 @@ test('registry-driven component tools preserve schema, risk, Scene projection an
 test('Agent can author distinct material colors for snake, food and board entities', async () => {
   const value = await fixture();
   try {
-    const snake = await executeReady(value.runtime, call('call:create-snake-material', 'entity.create', { kind: 'cube', name: 'SnakeBody', material: 'pbr', color: [0.12, 0.82, 0.28, 1] }));
-    const food = await executeReady(value.runtime, call('call:create-food-material', 'entity.create', { kind: 'sphere', name: 'Food', material: 'pbr', color: [1, 0.18, 0.12, 1] }));
-    const board = await executeReady(value.runtime, call('call:create-board-material', 'entity.create', { kind: 'plane', name: 'Board', material: 'basic', color: [0.06, 0.09, 0.14, 1] }));
+    const snake = await executeReady(value.runtime, call('call:create-snake-material', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'SnakeBody', material: 'pbr', color: [0.12, 0.82, 0.28, 1] }));
+    const food = await executeReady(value.runtime, call('call:create-food-material', 'entity.create', { baseRevision: snake.afterRevision, kind: 'sphere', name: 'Food', material: 'pbr', color: [1, 0.18, 0.12, 1] }));
+    const board = await executeReady(value.runtime, call('call:create-board-material', 'entity.create', { baseRevision: food.afterRevision, kind: 'plane', name: 'Board', material: 'basic', color: [0.06, 0.09, 0.14, 1] }));
     assert.equal(new Set([snake.value.entity.appearance.color.join(','), food.value.entity.appearance.color.join(','), board.value.entity.appearance.color.join(',')]).size, 3);
   } finally { await dispose(value); }
 });
 
-test('model-facing mutations bind the current revision and create with an initial Transform', async () => {
+test('model-facing mutations require the observed revision and create with an initial Transform', async () => {
   const value = await fixture();
   try {
     const initialTransform = (position) => ({ position, rotationDegrees: { x: 0, y: 45, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
     const definition = GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'entity.create');
-    assert.deepEqual(definition.inputSchema.required, ['kind']);
+    assert.deepEqual(definition.inputSchema.required, ['baseRevision', 'kind']);
     assert.ok(definition.inputSchema.properties.transform);
 
+    await assert.rejects(value.runtime.prepare(call('call:create-without-revision', 'entity.create', { kind: 'sphere' })), /missing required fields: baseRevision/);
+    assert.equal(value.workspace.snapshot().document.revision, 1);
+
     const create = await value.runtime.prepare(call('call:create-positioned', 'entity.create', {
-      kind: 'sphere', name: 'Positioned Ball', material: 'pbr', transform: initialTransform({ x: 3, y: 2, z: 1 }),
+      baseRevision: 1, kind: 'sphere', name: 'Positioned Ball', material: 'pbr', transform: initialTransform({ x: 3, y: 2, z: 1 }),
     }));
     assert.equal(create.baseRevision, 1);
     assert.equal(create.status, 'ready');
@@ -687,9 +690,53 @@ test('model-facing mutations bind the current revision and create with an initia
     assert.deepEqual(created.value.entity.transform.position, { x: 3, y: 2, z: 1 });
 
     await assert.rejects(
-      value.runtime.prepare(call('call:transform-without-target', 'transform.set', { transform: initialTransform({ x: 4, y: 0, z: 0 }) })),
+      value.runtime.prepare(call('call:transform-without-target', 'transform.set', { baseRevision: created.afterRevision, transform: initialTransform({ x: 4, y: 0, z: 0 }) })),
       /transform\.set arguments invalid; missing required fields: entityId; unknown fields: none/,
     );
+  } finally { await dispose(value); }
+});
+
+test('every revision-bound mutation publishes a required version and rejects omission at its input boundary', async () => {
+  const value = await fixture();
+  try {
+    const definitions = GAME_AUTHORING_TOOL_DEFINITIONS.filter((tool) => tool.inputSchema.properties.baseRevision && tool.id !== 'preview.validate');
+    assert.equal(definitions.length, 21);
+    for (const definition of definitions) {
+      assert.ok(definition.inputSchema.required.includes('baseRevision'), `${definition.id} must tell both providers that the version is required`);
+      await assert.rejects(value.runtime.prepare(call(`call:missing-revision:${definition.id}`, definition.id, {})), (error) => {
+        assert.equal(error.code, 'tool.arguments-invalid');
+        assert.match(error.message, /missing required fields: baseRevision/);
+        return true;
+      });
+    }
+    assert.equal(value.workspace.snapshot().document.revision, 1);
+    assert.equal(value.resources.history.snapshot().entries.length, 0);
+    assert.equal(value.preview.starts, 0);
+    const facts = await value.operationLog.query({ kinds: ['approval/requested', 'tool/preview-prepared', 'document/command-requested'], limit: 100, traverseCorrelation: false });
+    assert.equal(facts.events.length, 0);
+    assert.ok(!GAME_AUTHORING_TOOL_DEFINITIONS.find((tool) => tool.id === 'preview.validate').inputSchema.required.includes('baseRevision'));
+  } finally { await dispose(value); }
+});
+
+test('missing, invalid and stale revisions never adopt a newer manual edit', async () => {
+  const value = await fixture();
+  try {
+    const observed = await executeReady(value.runtime, call('call:revision-baseline', 'project.snapshot', {}));
+    await value.scene.createEntity({ commandId: asStableId('command:manual-before-agent'), baseRevision: observed.afterRevision, kind: 'cube', name: 'Manual edit' });
+    const before = value.workspace.gameSnapshot();
+    const history = value.resources.history.snapshot();
+    await assert.rejects(value.runtime.prepare(call('call:missing-after-manual', 'entity.create', { kind: 'sphere' })), /missing required fields: baseRevision/);
+    for (const [index, baseRevision] of [null, '2', true, -1, 1.5, Number.MAX_SAFE_INTEGER + 1].entries()) {
+      await assert.rejects(value.runtime.prepare(call(`call:invalid-revision:${index}`, 'entity.create', { baseRevision, kind: 'sphere' })), { code: 'tool.arguments-invalid' });
+    }
+    await assert.rejects(value.runtime.prepare(call('call:stale-after-manual', 'entity.create', { baseRevision: observed.afterRevision, kind: 'sphere' })), { code: 'tool.stale-revision', retryable: true });
+    assert.deepEqual(value.workspace.gameSnapshot(), before);
+    assert.deepEqual(value.resources.history.snapshot(), history);
+    const reread = await executeReady(value.runtime, call('call:revision-refresh', 'project.snapshot', {}));
+    const created = await executeReady(value.runtime, call('call:explicit-after-refresh', 'entity.create', { baseRevision: reread.afterRevision, kind: 'sphere', name: 'Agent edit' }));
+    assert.equal(created.beforeRevision, reread.afterRevision);
+    assert.equal(created.afterRevision, reread.afterRevision + 1);
+    assert.deepEqual(value.scene.snapshot().entities.map((entity) => entity.name), ['Manual edit', 'Agent edit']);
   } finally { await dispose(value); }
 });
 
@@ -743,9 +790,9 @@ test('schema fuzz rejects duplicate, nested unknown, non-finite and malformed st
   try {
     const transform = { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
     const cases = [
-      call('call:fuzz-nested', 'entity.create', { kind: 'cube', transform: { ...transform, position: { ...transform.position, w: 1 } } }),
-      call('call:fuzz-infinite', 'entity.create', { kind: 'cube', transform: { ...transform, position: { x: Number.POSITIVE_INFINITY, y: 0, z: 0 } } }),
-      call('call:fuzz-capability-duplicate', 'script.propose', { entityId: 'entity:fixture', text: 'return;', capabilities: ['read', 'read'] }),
+      call('call:fuzz-nested', 'entity.create', { baseRevision: 1, kind: 'cube', transform: { ...transform, position: { ...transform.position, w: 1 } } }),
+      call('call:fuzz-infinite', 'entity.create', { baseRevision: 1, kind: 'cube', transform: { ...transform, position: { x: Number.POSITIVE_INFINITY, y: 0, z: 0 } } }),
+      call('call:fuzz-capability-duplicate', 'script.propose', { baseRevision: 1, entityId: 'entity:fixture', text: 'return;', capabilities: ['read', 'read'] }),
       call('call:fuzz-kind-format', 'diagnostics.query', { limit: 10, traverseCorrelation: false, kinds: ['INVALID KIND'] }),
       { ...call('call:fuzz-envelope', 'project.snapshot', {}), effect: 'trusted-code' },
     ];
@@ -759,7 +806,7 @@ test('schema fuzz rejects duplicate, nested unknown, non-finite and malformed st
 test('same-document mutations serialize and a queued stale preparation never enters the editor service', async () => {
   const value = await fixture();
   try {
-    const created = await executeReady(value.runtime, call('call:create-serialized', 'entity.create', { kind: 'cube', name: 'Before' }));
+    const created = await executeReady(value.runtime, call('call:create-serialized', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before' }));
     const entityId = created.value.entity.id;
     const first = await value.runtime.prepare(call('call:serialize-first', 'entity.rename', { baseRevision: 2, entityId, name: 'First' }));
     const second = await value.runtime.prepare(call('call:serialize-second', 'entity.rename', { baseRevision: 2, entityId, name: 'Second' }));
@@ -783,7 +830,7 @@ test('same-document mutations serialize and a queued stale preparation never ent
 test('tool, approval, Document and History correlation remains traversable after the journal restarts', async () => {
   const value = await fixture(); let disposed = false; let reopened;
   try {
-    const created = await executeReady(value.runtime, call('call:restart-create', 'entity.create', { kind: 'cube', name: 'Before Restart' }));
+    const created = await executeReady(value.runtime, call('call:restart-create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Before Restart' }));
     const rename = await value.runtime.prepare(call('call:restart-rename', 'entity.rename', { baseRevision: 2, entityId: created.value.entity.id, name: 'After Restart' }));
     await value.runtime.decide(rename.approvalId, 'allow-once');
     await value.runtime.execute(rename.id);
@@ -1029,6 +1076,41 @@ test('coordinator can expose a bounded tool profile and compact only the provide
     assert.equal(submitted.value.truncated, true);
     assert.match(submitted.value.originalDigest, /^sha256:/u);
     assert.ok(summary.results[0].value.components.length > 1, 'full evidence remains available to Studio');
+  } finally { coordinator.dispose(); await dispose(value); }
+});
+
+test('a search-only coordinator invokes a discovered edit through real Document History without exposing all schemas', async () => {
+  const value = await fixture(); let submitted;
+  const before = value.workspace.snapshot().document.revision;
+  const backend = minimalBackend(async function* (input) {
+    assert.deepEqual(input.tools.map(tool => tool.id), ['tool.search', 'studio.tool.invoke']);
+    yield event('tool-request', { toolCallId: 'toolcall:discover-create', toolId: 'tool.search', arguments: { text: 'entity.create', includeSchemas: true, limit: 5 } });
+    const match = submitted.value.matches.find(item => item.id === 'entity.create');
+    assert.equal(match.id, 'entity.create');
+    const args = { toolId: match.invocation.toolId, toolVersion: match.invocation.toolVersion, arguments: { baseRevision: before, kind: 'cube', name: 'Discovered Cube' } };
+    yield event('tool-request', { toolCallId: 'toolcall:invoke-stale-version', toolId: match.invocation.tool, arguments: { ...args, toolVersion: '99.0.0' } });
+    assert.equal(submitted.error.code, 'tool.version-mismatch');
+    assert.equal(value.workspace.snapshot().document.revision, before);
+    assert.ok(match.inputSchema.required.includes('baseRevision'));
+    yield event('tool-request', { toolCallId: 'toolcall:invoke-missing-revision', toolId: match.invocation.tool, arguments: { ...args, arguments: { kind: 'cube', name: 'Missing revision' } } });
+    assert.equal(submitted.error.code, 'tool.arguments-invalid');
+    yield event('tool-request', { toolCallId: 'toolcall:invoke-stale-revision', toolId: match.invocation.tool, arguments: { ...args, arguments: { ...args.arguments, baseRevision: before - 1 } } });
+    assert.equal(submitted.error.code, 'tool.stale-revision');
+    assert.equal(value.workspace.snapshot().document.revision, before);
+    yield event('tool-request', { toolCallId: 'toolcall:invoke-create', toolId: match.invocation.tool, arguments: args });
+    assert.equal(submitted.status, 'completed');
+    assert.equal(submitted.value.entity.name, 'Discovered Cube');
+    yield event('completed', { status: 'completed' });
+  }, async (_id, result) => { submitted = result; });
+  const coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } }, undefined, { modelToolIds: ['tool.search'] });
+  try {
+    const summary = await coordinator.run(backend, { prompt: 'Create a cube using a discovered tool.' });
+    assert.equal(summary.terminal, 'completed');
+    assert.deepEqual(summary.results.map(result => result.toolId), ['tool.search', 'entity.create']);
+    assert.equal(summary.results[1].callId, 'toolcall:invoke-create');
+    assert.equal(value.workspace.snapshot().document.revision, before + 1);
+    await value.workspace.undo(before + 1, 'command:undo-discovered-edit');
+    assert.ok(!value.scene.snapshot().entities.some(entity => entity.name === 'Discovered Cube'));
   } finally { coordinator.dispose(); await dispose(value); }
 });
 

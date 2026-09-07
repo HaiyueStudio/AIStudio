@@ -20,9 +20,9 @@ assert.ok(evidence.toolBatch.modelTurnReduction >= 0.3);
 assert.ok(evidence.context.inputTokenReduction >= 0.25);
 assert.ok(evidence.memory.totalHeapDeltaBytes < 256 * 1024 * 1024);
 
-const migration = await read('apps/ai-studio/src/legacy-session-migration.ts');
+const migration = await read('packages/agent-orchestration/src/legacy-session-migration.ts');
 for (const phrase of ['legacy-migration-started', 'legacy-migration-completed', 'mutationReplayCount: 0', 'already-durable']) assert.match(migration, new RegExp(phrase, 'u'));
-const host = await read('apps/ai-studio/src/conversation-host.ts');
+const host = await read('packages/agent-orchestration/src/conversation-host.ts');
 assert.match(host, /restoreTaskRuns\(\); await this\.migrateLegacySessions\(\);/u);
 assert.match(host, /Claim the launch slot before the first asynchronous context read/u);
 const runner = await read('scripts/g12/real-cold-case-electron.mjs');

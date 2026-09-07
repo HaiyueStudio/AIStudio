@@ -1,0 +1,3237 @@
+{
+  "pureScript": {
+    "schemaVersion": 1,
+    "projectId": "project:test",
+    "document": {
+      "schemaVersion": 2,
+      "id": "document:test",
+      "revision": 1,
+      "savedRevision": 0,
+      "scenes": [
+        {
+          "id": "scene:main",
+          "name": "Main",
+          "rootEntityIds": [
+            "entity:main"
+          ]
+        }
+      ],
+      "entities": [
+        {
+          "id": "entity:main",
+          "sceneId": "scene:main",
+          "name": "Main",
+          "parentId": null,
+          "order": 0,
+          "componentIds": []
+        }
+      ],
+      "components": [],
+      "scripts": [
+        {
+          "id": "script:main",
+          "entityId": "entity:main",
+          "name": "Main",
+          "sourcePath": "scripts/main.ts",
+          "source": "async function run() {\n  first(); second();\n  if (api.input.isDown('ArrowDown')) yes(); else no();\n  for (let i = 0; i < 3; i++) { if (stop()) break; step(); }\n  await Promise.all([loadA(), loadB()]);\n  try { await risky(); throw new Error('fixture'); } catch (error) { recover(); } finally { cleanup(); }\n  unknown[method]();\n  return;\n  unreachable();\n}",
+          "textRevision": 1,
+          "enabled": true,
+          "order": 0,
+          "capabilities": [
+            "read",
+            "input",
+            "debug"
+          ],
+          "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d"
+        }
+      ],
+      "assets": [],
+      "settings": {},
+      "migration": {
+        "fromVersion": null,
+        "migratedAt": null,
+        "sourceDigest": null
+      }
+    },
+    "registry": {
+      "version": "1.0.0",
+      "definitions": []
+    },
+    "adapters": [],
+    "config": {
+      "schemaVersion": 1,
+      "maxNodes": 2000,
+      "maxEdges": 4000,
+      "maxAstNodes": 100000,
+      "maxAstDepth": 128
+    }
+  },
+  "declarative": {
+    "schemaVersion": 1,
+    "projectId": "project:test",
+    "document": {
+      "schemaVersion": 2,
+      "id": "document:test",
+      "revision": 1,
+      "savedRevision": 0,
+      "scenes": [
+        {
+          "id": "scene:main",
+          "name": "Main",
+          "rootEntityIds": [
+            "entity:main"
+          ]
+        }
+      ],
+      "entities": [
+        {
+          "id": "entity:main",
+          "sceneId": "scene:main",
+          "name": "Main",
+          "parentId": null,
+          "order": 0,
+          "componentIds": [
+            "component:0",
+            "component:1",
+            "component:2",
+            "component:3",
+            "component:4",
+            "component:5"
+          ]
+        }
+      ],
+      "components": [
+        {
+          "id": "component:0",
+          "type": "haiyue.animation.transform-clips",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "initialClip": "Idle",
+            "playing": true,
+            "speed": 1,
+            "clips": [
+              {
+                "name": "Idle",
+                "durationTicks": 60,
+                "loop": true,
+                "from": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                },
+                "to": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 360,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "component:1",
+          "type": "haiyue.gameplay.rules",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "rules": [
+              {
+                "id": "timer-rule",
+                "once": false,
+                "when": {
+                  "source": "timer-event",
+                  "value": "elapsed",
+                  "entityAId": "",
+                  "entityBId": "",
+                  "phase": "enter"
+                },
+                "actions": [
+                  {
+                    "kind": "add-score",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  },
+                  {
+                    "kind": "add-health",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  }
+                ]
+              },
+              {
+                "id": "input-rule",
+                "once": false,
+                "when": {
+                  "source": "input-pressed",
+                  "value": "jump",
+                  "entityAId": "",
+                  "entityBId": "",
+                  "phase": "enter"
+                },
+                "actions": [
+                  {
+                    "kind": "add-score",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  }
+                ]
+              },
+              {
+                "id": "collision-rule",
+                "once": false,
+                "when": {
+                  "source": "collision",
+                  "value": "contact",
+                  "entityAId": "entity:main",
+                  "entityBId": "",
+                  "phase": "enter"
+                },
+                "actions": [
+                  {
+                    "kind": "add-score",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "component:2",
+          "type": "haiyue.gameplay.state",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "observationId": "game-state",
+            "state": "ready",
+            "score": 0,
+            "health": 1,
+            "maxHealth": 1,
+            "checkpoint": "",
+            "counters": [],
+            "flags": [],
+            "events": []
+          }
+        },
+        {
+          "id": "component:3",
+          "type": "haiyue.gameplay.timers",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "observationId": "timers",
+            "timers": [
+              {
+                "id": "clock",
+                "durationTicks": 10,
+                "startDelayTicks": 0,
+                "repeat": true,
+                "running": true,
+                "event": "elapsed"
+              }
+            ]
+          }
+        },
+        {
+          "id": "component:4",
+          "type": "haiyue.physics.rigidbody.3d",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "type": "dynamic",
+            "linearDamping": 0,
+            "angularDamping": 0,
+            "gravityScale": 1,
+            "ccd": false,
+            "allowSleep": true,
+            "lockTranslations": [
+              false,
+              false,
+              false
+            ],
+            "lockRotations": [
+              false,
+              false,
+              false
+            ],
+            "syncTransform": true,
+            "initialVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "initialAngularVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "id": "component:5",
+          "type": "haiyue.physics.world.3d",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "backend": "rapier3d",
+            "gravity": {
+              "x": 0,
+              "y": -9.81,
+              "z": 0
+            },
+            "solverIterations": 6,
+            "loadTimeoutMs": 10000,
+            "maxEventsPerTick": 256
+          }
+        }
+      ],
+      "scripts": [],
+      "assets": [],
+      "settings": {},
+      "migration": {
+        "fromVersion": null,
+        "migratedAt": null,
+        "sourceDigest": null
+      }
+    },
+    "registry": {
+      "version": "1.0.0",
+      "definitions": [
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.animation.transform-clips",
+          "version": "1.0.0",
+          "capability": "animation.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "initialClip": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+              },
+              "playing": {
+                "type": "boolean"
+              },
+              "speed": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "clips": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+                    },
+                    "durationTicks": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000000
+                    },
+                    "loop": {
+                      "type": "boolean"
+                    },
+                    "from": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "position": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "rotationDegrees": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "scale": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "rotationDegrees",
+                        "scale"
+                      ]
+                    },
+                    "to": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "position": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "rotationDegrees": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "scale": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "rotationDegrees",
+                        "scale"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "durationTicks",
+                    "loop",
+                    "from",
+                    "to"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "initialClip",
+              "playing",
+              "speed",
+              "clips"
+            ]
+          },
+          "defaults": {
+            "initialClip": "Idle",
+            "playing": true,
+            "speed": 1,
+            "clips": [
+              {
+                "name": "Idle",
+                "durationTicks": 60,
+                "loop": true,
+                "from": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                },
+                "to": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 360,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                }
+              }
+            ]
+          },
+          "editor": {
+            "label": "3D Transform Clips",
+            "category": "Animation",
+            "inspector": "inspector.animation.transform-clips"
+          },
+          "runtimeAdapter": "adapter.animation.3d-mixer"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.gameplay.rules",
+          "version": "1.0.0",
+          "capability": "simulation.fixed-step",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rules": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "once": {
+                      "type": "boolean"
+                    },
+                    "when": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "input-pressed",
+                            "input-held",
+                            "timer-event",
+                            "collision",
+                            "trigger"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+                        },
+                        "entityAId": {
+                          "type": "string",
+                          "pattern": "^(|entity:[A-Za-z0-9._:-]{3,120})$"
+                        },
+                        "entityBId": {
+                          "type": "string",
+                          "pattern": "^(|entity:[A-Za-z0-9._:-]{3,120})$"
+                        },
+                        "phase": {
+                          "enum": [
+                            "enter",
+                            "stay",
+                            "exit"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "value",
+                        "entityAId",
+                        "entityBId",
+                        "phase"
+                      ]
+                    },
+                    "actions": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "set-state",
+                              "add-score",
+                              "set-health",
+                              "add-health",
+                              "set-checkpoint",
+                              "set-counter",
+                              "add-counter",
+                              "set-flag",
+                              "emit-event",
+                              "set-pool-count"
+                            ]
+                          },
+                          "targetObservationId": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                          },
+                          "key": {
+                            "type": "string",
+                            "pattern": "^(|[A-Za-z][A-Za-z0-9._:-]{0,95})$"
+                          },
+                          "numberValue": {
+                            "type": "number",
+                            "minimum": -1000000000,
+                            "maximum": 1000000000
+                          },
+                          "textValue": {
+                            "type": "string",
+                            "pattern": "^[\\s\\S]{0,512}$"
+                          },
+                          "booleanValue": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "targetObservationId",
+                          "key",
+                          "numberValue",
+                          "textValue",
+                          "booleanValue"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "once",
+                    "when",
+                    "actions"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "rules"
+            ]
+          },
+          "defaults": {
+            "rules": []
+          },
+          "editor": {
+            "label": "Gameplay Rules",
+            "category": "Gameplay",
+            "inspector": "inspector.gameplay.rules"
+          },
+          "runtimeAdapter": "adapter.gameplay.rules"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.gameplay.state",
+          "version": "1.0.0",
+          "capability": "play.inspect",
+          "effect": "runtime-owner",
+          "risk": "low",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "observationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+              },
+              "state": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+              },
+              "score": {
+                "type": "number",
+                "minimum": -1000000000,
+                "maximum": 1000000000
+              },
+              "health": {
+                "type": "number",
+                "minimum": -1000000000,
+                "maximum": 1000000000
+              },
+              "maxHealth": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000000
+              },
+              "checkpoint": {
+                "type": "string",
+                "pattern": "^[\\s\\S]{0,256}$"
+              },
+              "counters": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "value": {
+                      "type": "number",
+                      "minimum": -1000000000,
+                      "maximum": 1000000000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value"
+                  ]
+                }
+              },
+              "flags": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "value": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value"
+                  ]
+                }
+              },
+              "events": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "value": {
+                      "type": "string",
+                      "pattern": "^[\\s\\S]{0,512}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "observationId",
+              "state",
+              "score",
+              "health",
+              "maxHealth",
+              "checkpoint",
+              "counters",
+              "flags",
+              "events"
+            ]
+          },
+          "defaults": {
+            "observationId": "gameplay",
+            "state": "ready",
+            "score": 0,
+            "health": 1,
+            "maxHealth": 1,
+            "checkpoint": "",
+            "counters": [],
+            "flags": [],
+            "events": []
+          },
+          "editor": {
+            "label": "Gameplay State",
+            "category": "Gameplay",
+            "inspector": "inspector.gameplay.state"
+          },
+          "runtimeAdapter": "adapter.gameplay.state-observation"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.gameplay.timers",
+          "version": "1.0.0",
+          "capability": "simulation.fixed-step",
+          "effect": "runtime-owner",
+          "risk": "low",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "observationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+              },
+              "timers": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "durationTicks": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000000
+                    },
+                    "startDelayTicks": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000
+                    },
+                    "repeat": {
+                      "type": "boolean"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "event": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "durationTicks",
+                    "startDelayTicks",
+                    "repeat",
+                    "running",
+                    "event"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "observationId",
+              "timers"
+            ]
+          },
+          "defaults": {
+            "observationId": "timers",
+            "timers": [
+              {
+                "id": "round",
+                "durationTicks": 3600,
+                "startDelayTicks": 0,
+                "repeat": false,
+                "running": true,
+                "event": "round-ended"
+              }
+            ]
+          },
+          "editor": {
+            "label": "Gameplay Timers",
+            "category": "Gameplay",
+            "inspector": "inspector.gameplay.timers"
+          },
+          "runtimeAdapter": "adapter.gameplay.timers"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "studio.component-registry",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "test.component-registry",
+          "type": "haiyue.physics.rigidbody.3d",
+          "version": "1.0.0",
+          "capability": "physics.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "enum": [
+                  "static",
+                  "dynamic",
+                  "kinematic"
+                ]
+              },
+              "linearDamping": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "angularDamping": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gravityScale": {
+                "type": "number",
+                "minimum": -100,
+                "maximum": 100
+              },
+              "ccd": {
+                "type": "boolean"
+              },
+              "allowSleep": {
+                "type": "boolean"
+              },
+              "lockTranslations": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              "lockRotations": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              "syncTransform": {
+                "type": "boolean"
+              },
+              "initialVelocity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "initialAngularVelocity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "linearDamping",
+              "angularDamping",
+              "gravityScale",
+              "ccd",
+              "allowSleep",
+              "lockTranslations",
+              "lockRotations",
+              "syncTransform",
+              "initialVelocity",
+              "initialAngularVelocity"
+            ]
+          },
+          "defaults": {
+            "type": "dynamic",
+            "linearDamping": 0,
+            "angularDamping": 0,
+            "gravityScale": 1,
+            "ccd": false,
+            "allowSleep": true,
+            "lockTranslations": [
+              false,
+              false,
+              false
+            ],
+            "lockRotations": [
+              false,
+              false,
+              false
+            ],
+            "syncTransform": true,
+            "initialVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "initialAngularVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          "editor": {
+            "label": "Rigid Body 3D",
+            "category": "Physics",
+            "inspector": "inspector.rigidbody-3d"
+          },
+          "runtimeAdapter": "adapter.physics.rigidbody-3d"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "studio.component-registry",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "test.component-registry",
+          "type": "haiyue.physics.world.3d",
+          "version": "1.0.0",
+          "capability": "physics.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "backend": {
+                "enum": [
+                  "rapier3d"
+                ]
+              },
+              "gravity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "solverIterations": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              "loadTimeoutMs": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 60000
+              },
+              "maxEventsPerTick": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1024
+              }
+            },
+            "required": [
+              "backend",
+              "gravity",
+              "solverIterations",
+              "loadTimeoutMs",
+              "maxEventsPerTick"
+            ]
+          },
+          "defaults": {
+            "backend": "rapier3d",
+            "gravity": {
+              "x": 0,
+              "y": -9.81,
+              "z": 0
+            },
+            "solverIterations": 6,
+            "loadTimeoutMs": 10000,
+            "maxEventsPerTick": 256
+          },
+          "editor": {
+            "label": "Physics World 3D",
+            "category": "Physics",
+            "inspector": "inspector.physics-world-3d"
+          },
+          "runtimeAdapter": "adapter.physics.world-3d"
+        }
+      ]
+    },
+    "adapters": [
+      {
+        "id": "adapter.animation.3d-mixer",
+        "version": "1.0.0",
+        "digest": "sha256:3923ffa379151f24c06182706ffdb55ab1fb63168e2b729d509cba322a83cc0d"
+      },
+      {
+        "id": "adapter.gameplay.rules",
+        "version": "1.0.0",
+        "digest": "sha256:0206a982396be46945071a27bc59c48c7e4adab97e97822617ffa63d84883104"
+      },
+      {
+        "id": "adapter.gameplay.state-observation",
+        "version": "1.0.0",
+        "digest": "sha256:dde414cf2e193faab1889774c816262ee9814f8bd302541beb9a3900ec8685b5"
+      },
+      {
+        "id": "adapter.gameplay.timers",
+        "version": "1.0.0",
+        "digest": "sha256:d0fc77ce23f7128f8d96bd640bfaaa92667de3a6ec6b8632c9d3d3bae501ab89"
+      },
+      {
+        "id": "adapter.physics.rigidbody-3d",
+        "version": "1.0.0",
+        "digest": "sha256:683cc731649971499f2335100246412fb122866812ca9fe0b44cce7c87b9de40"
+      },
+      {
+        "id": "adapter.physics.world-3d",
+        "version": "1.0.0",
+        "digest": "sha256:d39688de09fe76b3e9ca9f425ced6bf99d8048ba4f92e3a7dbc5cfcae1ae94a4"
+      }
+    ],
+    "config": {
+      "schemaVersion": 1,
+      "maxNodes": 2000,
+      "maxEdges": 4000,
+      "maxAstNodes": 100000,
+      "maxAstDepth": 128
+    }
+  },
+  "adapters": {
+    "schemaVersion": 1,
+    "projectId": "project:test",
+    "document": {
+      "schemaVersion": 2,
+      "id": "document:test",
+      "revision": 1,
+      "savedRevision": 0,
+      "scenes": [
+        {
+          "id": "scene:main",
+          "name": "Main",
+          "rootEntityIds": [
+            "entity:main"
+          ]
+        }
+      ],
+      "entities": [
+        {
+          "id": "entity:main",
+          "sceneId": "scene:main",
+          "name": "Main",
+          "parentId": null,
+          "order": 0,
+          "componentIds": [
+            "component:0",
+            "component:1",
+            "component:2"
+          ]
+        }
+      ],
+      "components": [
+        {
+          "id": "component:0",
+          "type": "haiyue.animation.transform-clips",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "initialClip": "Idle",
+            "playing": true,
+            "speed": 1,
+            "clips": [
+              {
+                "name": "Idle",
+                "durationTicks": 60,
+                "loop": true,
+                "from": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                },
+                "to": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 360,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "component:1",
+          "type": "haiyue.physics.rigidbody.3d",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "type": "dynamic",
+            "linearDamping": 0,
+            "angularDamping": 0,
+            "gravityScale": 1,
+            "ccd": false,
+            "allowSleep": true,
+            "lockTranslations": [
+              false,
+              false,
+              false
+            ],
+            "lockRotations": [
+              false,
+              false,
+              false
+            ],
+            "syncTransform": true,
+            "initialVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "initialAngularVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "id": "component:2",
+          "type": "haiyue.physics.world.3d",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "backend": "rapier3d",
+            "gravity": {
+              "x": 0,
+              "y": -9.81,
+              "z": 0
+            },
+            "solverIterations": 6,
+            "loadTimeoutMs": 10000,
+            "maxEventsPerTick": 256
+          }
+        }
+      ],
+      "scripts": [],
+      "assets": [],
+      "settings": {},
+      "migration": {
+        "fromVersion": null,
+        "migratedAt": null,
+        "sourceDigest": null
+      }
+    },
+    "registry": {
+      "version": "1.0.0",
+      "definitions": [
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.animation.transform-clips",
+          "version": "1.0.0",
+          "capability": "animation.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "initialClip": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+              },
+              "playing": {
+                "type": "boolean"
+              },
+              "speed": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "clips": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+                    },
+                    "durationTicks": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000000
+                    },
+                    "loop": {
+                      "type": "boolean"
+                    },
+                    "from": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "position": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "rotationDegrees": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "scale": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "rotationDegrees",
+                        "scale"
+                      ]
+                    },
+                    "to": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "position": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "rotationDegrees": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "scale": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "rotationDegrees",
+                        "scale"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "durationTicks",
+                    "loop",
+                    "from",
+                    "to"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "initialClip",
+              "playing",
+              "speed",
+              "clips"
+            ]
+          },
+          "defaults": {
+            "initialClip": "Idle",
+            "playing": true,
+            "speed": 1,
+            "clips": [
+              {
+                "name": "Idle",
+                "durationTicks": 60,
+                "loop": true,
+                "from": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                },
+                "to": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 360,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                }
+              }
+            ]
+          },
+          "editor": {
+            "label": "3D Transform Clips",
+            "category": "Animation",
+            "inspector": "inspector.animation.transform-clips"
+          },
+          "runtimeAdapter": "adapter.animation.3d-mixer"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "studio.component-registry",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "test.component-registry",
+          "type": "haiyue.physics.rigidbody.3d",
+          "version": "1.0.0",
+          "capability": "physics.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "enum": [
+                  "static",
+                  "dynamic",
+                  "kinematic"
+                ]
+              },
+              "linearDamping": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "angularDamping": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gravityScale": {
+                "type": "number",
+                "minimum": -100,
+                "maximum": 100
+              },
+              "ccd": {
+                "type": "boolean"
+              },
+              "allowSleep": {
+                "type": "boolean"
+              },
+              "lockTranslations": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              "lockRotations": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              "syncTransform": {
+                "type": "boolean"
+              },
+              "initialVelocity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "initialAngularVelocity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "linearDamping",
+              "angularDamping",
+              "gravityScale",
+              "ccd",
+              "allowSleep",
+              "lockTranslations",
+              "lockRotations",
+              "syncTransform",
+              "initialVelocity",
+              "initialAngularVelocity"
+            ]
+          },
+          "defaults": {
+            "type": "dynamic",
+            "linearDamping": 0,
+            "angularDamping": 0,
+            "gravityScale": 1,
+            "ccd": false,
+            "allowSleep": true,
+            "lockTranslations": [
+              false,
+              false,
+              false
+            ],
+            "lockRotations": [
+              false,
+              false,
+              false
+            ],
+            "syncTransform": true,
+            "initialVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "initialAngularVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          "editor": {
+            "label": "Rigid Body 3D",
+            "category": "Physics",
+            "inspector": "inspector.rigidbody-3d"
+          },
+          "runtimeAdapter": "adapter.physics.rigidbody-3d"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "studio.component-registry",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "test.component-registry",
+          "type": "haiyue.physics.world.3d",
+          "version": "1.0.0",
+          "capability": "physics.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "backend": {
+                "enum": [
+                  "rapier3d"
+                ]
+              },
+              "gravity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "solverIterations": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              "loadTimeoutMs": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 60000
+              },
+              "maxEventsPerTick": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1024
+              }
+            },
+            "required": [
+              "backend",
+              "gravity",
+              "solverIterations",
+              "loadTimeoutMs",
+              "maxEventsPerTick"
+            ]
+          },
+          "defaults": {
+            "backend": "rapier3d",
+            "gravity": {
+              "x": 0,
+              "y": -9.81,
+              "z": 0
+            },
+            "solverIterations": 6,
+            "loadTimeoutMs": 10000,
+            "maxEventsPerTick": 256
+          },
+          "editor": {
+            "label": "Physics World 3D",
+            "category": "Physics",
+            "inspector": "inspector.physics-world-3d"
+          },
+          "runtimeAdapter": "adapter.physics.world-3d"
+        }
+      ]
+    },
+    "adapters": [
+      {
+        "id": "adapter.animation.3d-mixer",
+        "version": "1.0.0",
+        "digest": "sha256:3923ffa379151f24c06182706ffdb55ab1fb63168e2b729d509cba322a83cc0d"
+      },
+      {
+        "id": "adapter.physics.rigidbody-3d",
+        "version": "1.0.0",
+        "digest": "sha256:683cc731649971499f2335100246412fb122866812ca9fe0b44cce7c87b9de40"
+      },
+      {
+        "id": "adapter.physics.world-3d",
+        "version": "1.0.0",
+        "digest": "sha256:d39688de09fe76b3e9ca9f425ced6bf99d8048ba4f92e3a7dbc5cfcae1ae94a4"
+      }
+    ],
+    "config": {
+      "schemaVersion": 1,
+      "maxNodes": 2000,
+      "maxEdges": 4000,
+      "maxAstNodes": 100000,
+      "maxAstDepth": 128
+    }
+  },
+  "mixed": {
+    "schemaVersion": 1,
+    "projectId": "project:test",
+    "document": {
+      "schemaVersion": 2,
+      "id": "document:test",
+      "revision": 1,
+      "savedRevision": 0,
+      "scenes": [
+        {
+          "id": "scene:main",
+          "name": "Main",
+          "rootEntityIds": [
+            "entity:main"
+          ]
+        }
+      ],
+      "entities": [
+        {
+          "id": "entity:main",
+          "sceneId": "scene:main",
+          "name": "Main",
+          "parentId": null,
+          "order": 0,
+          "componentIds": [
+            "component:0",
+            "component:1",
+            "component:2",
+            "component:3",
+            "component:4",
+            "component:5"
+          ]
+        }
+      ],
+      "components": [
+        {
+          "id": "component:0",
+          "type": "haiyue.animation.transform-clips",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "initialClip": "Idle",
+            "playing": true,
+            "speed": 1,
+            "clips": [
+              {
+                "name": "Idle",
+                "durationTicks": 60,
+                "loop": true,
+                "from": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                },
+                "to": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 360,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "component:1",
+          "type": "haiyue.gameplay.rules",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "rules": [
+              {
+                "id": "timer-rule",
+                "once": false,
+                "when": {
+                  "source": "timer-event",
+                  "value": "elapsed",
+                  "entityAId": "",
+                  "entityBId": "",
+                  "phase": "enter"
+                },
+                "actions": [
+                  {
+                    "kind": "add-score",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  },
+                  {
+                    "kind": "add-health",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  }
+                ]
+              },
+              {
+                "id": "input-rule",
+                "once": false,
+                "when": {
+                  "source": "input-pressed",
+                  "value": "jump",
+                  "entityAId": "",
+                  "entityBId": "",
+                  "phase": "enter"
+                },
+                "actions": [
+                  {
+                    "kind": "add-score",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  }
+                ]
+              },
+              {
+                "id": "collision-rule",
+                "once": false,
+                "when": {
+                  "source": "collision",
+                  "value": "contact",
+                  "entityAId": "entity:main",
+                  "entityBId": "",
+                  "phase": "enter"
+                },
+                "actions": [
+                  {
+                    "kind": "add-score",
+                    "targetObservationId": "game-state",
+                    "key": "",
+                    "numberValue": 1,
+                    "textValue": "",
+                    "booleanValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "component:2",
+          "type": "haiyue.gameplay.state",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "observationId": "game-state",
+            "state": "ready",
+            "score": 0,
+            "health": 1,
+            "maxHealth": 1,
+            "checkpoint": "",
+            "counters": [],
+            "flags": [],
+            "events": []
+          }
+        },
+        {
+          "id": "component:3",
+          "type": "haiyue.gameplay.timers",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "observationId": "timers",
+            "timers": [
+              {
+                "id": "clock",
+                "durationTicks": 10,
+                "startDelayTicks": 0,
+                "repeat": true,
+                "running": true,
+                "event": "elapsed"
+              }
+            ]
+          }
+        },
+        {
+          "id": "component:4",
+          "type": "haiyue.physics.rigidbody.3d",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "type": "dynamic",
+            "linearDamping": 0,
+            "angularDamping": 0,
+            "gravityScale": 1,
+            "ccd": false,
+            "allowSleep": true,
+            "lockTranslations": [
+              false,
+              false,
+              false
+            ],
+            "lockRotations": [
+              false,
+              false,
+              false
+            ],
+            "syncTransform": true,
+            "initialVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "initialAngularVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "id": "component:5",
+          "type": "haiyue.physics.world.3d",
+          "version": "1.0.0",
+          "enabled": true,
+          "value": {
+            "backend": "rapier3d",
+            "gravity": {
+              "x": 0,
+              "y": -9.81,
+              "z": 0
+            },
+            "solverIterations": 6,
+            "loadTimeoutMs": 10000,
+            "maxEventsPerTick": 256
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "id": "script:main",
+          "entityId": "entity:main",
+          "name": "Main",
+          "sourcePath": "scripts/main.ts",
+          "source": "async function run() {\n  first(); second();\n  if (api.input.isDown('ArrowDown')) yes(); else no();\n  for (let i = 0; i < 3; i++) { if (stop()) break; step(); }\n  await Promise.all([loadA(), loadB()]);\n  try { await risky(); throw new Error('fixture'); } catch (error) { recover(); } finally { cleanup(); }\n  unknown[method]();\n  return;\n  unreachable();\n}",
+          "textRevision": 1,
+          "enabled": true,
+          "order": 0,
+          "capabilities": [
+            "read",
+            "input",
+            "debug"
+          ],
+          "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d"
+        }
+      ],
+      "assets": [],
+      "settings": {},
+      "migration": {
+        "fromVersion": null,
+        "migratedAt": null,
+        "sourceDigest": null
+      }
+    },
+    "registry": {
+      "version": "1.0.0",
+      "definitions": [
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.animation.transform-clips",
+          "version": "1.0.0",
+          "capability": "animation.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "initialClip": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+              },
+              "playing": {
+                "type": "boolean"
+              },
+              "speed": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "clips": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+                    },
+                    "durationTicks": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000000
+                    },
+                    "loop": {
+                      "type": "boolean"
+                    },
+                    "from": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "position": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "rotationDegrees": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "scale": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "rotationDegrees",
+                        "scale"
+                      ]
+                    },
+                    "to": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "position": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "rotationDegrees": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "scale": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "z": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "rotationDegrees",
+                        "scale"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "durationTicks",
+                    "loop",
+                    "from",
+                    "to"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "initialClip",
+              "playing",
+              "speed",
+              "clips"
+            ]
+          },
+          "defaults": {
+            "initialClip": "Idle",
+            "playing": true,
+            "speed": 1,
+            "clips": [
+              {
+                "name": "Idle",
+                "durationTicks": 60,
+                "loop": true,
+                "from": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                },
+                "to": {
+                  "position": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                  },
+                  "rotationDegrees": {
+                    "x": 0,
+                    "y": 360,
+                    "z": 0
+                  },
+                  "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                  }
+                }
+              }
+            ]
+          },
+          "editor": {
+            "label": "3D Transform Clips",
+            "category": "Animation",
+            "inspector": "inspector.animation.transform-clips"
+          },
+          "runtimeAdapter": "adapter.animation.3d-mixer"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.gameplay.rules",
+          "version": "1.0.0",
+          "capability": "simulation.fixed-step",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rules": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "once": {
+                      "type": "boolean"
+                    },
+                    "when": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "source": {
+                          "enum": [
+                            "input-pressed",
+                            "input-held",
+                            "timer-event",
+                            "collision",
+                            "trigger"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+                        },
+                        "entityAId": {
+                          "type": "string",
+                          "pattern": "^(|entity:[A-Za-z0-9._:-]{3,120})$"
+                        },
+                        "entityBId": {
+                          "type": "string",
+                          "pattern": "^(|entity:[A-Za-z0-9._:-]{3,120})$"
+                        },
+                        "phase": {
+                          "enum": [
+                            "enter",
+                            "stay",
+                            "exit"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "value",
+                        "entityAId",
+                        "entityBId",
+                        "phase"
+                      ]
+                    },
+                    "actions": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "set-state",
+                              "add-score",
+                              "set-health",
+                              "add-health",
+                              "set-checkpoint",
+                              "set-counter",
+                              "add-counter",
+                              "set-flag",
+                              "emit-event",
+                              "set-pool-count"
+                            ]
+                          },
+                          "targetObservationId": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                          },
+                          "key": {
+                            "type": "string",
+                            "pattern": "^(|[A-Za-z][A-Za-z0-9._:-]{0,95})$"
+                          },
+                          "numberValue": {
+                            "type": "number",
+                            "minimum": -1000000000,
+                            "maximum": 1000000000
+                          },
+                          "textValue": {
+                            "type": "string",
+                            "pattern": "^[\\s\\S]{0,512}$"
+                          },
+                          "booleanValue": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "targetObservationId",
+                          "key",
+                          "numberValue",
+                          "textValue",
+                          "booleanValue"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "once",
+                    "when",
+                    "actions"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "rules"
+            ]
+          },
+          "defaults": {
+            "rules": []
+          },
+          "editor": {
+            "label": "Gameplay Rules",
+            "category": "Gameplay",
+            "inspector": "inspector.gameplay.rules"
+          },
+          "runtimeAdapter": "adapter.gameplay.rules"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.gameplay.state",
+          "version": "1.0.0",
+          "capability": "play.inspect",
+          "effect": "runtime-owner",
+          "risk": "low",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "observationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+              },
+              "state": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,95}$"
+              },
+              "score": {
+                "type": "number",
+                "minimum": -1000000000,
+                "maximum": 1000000000
+              },
+              "health": {
+                "type": "number",
+                "minimum": -1000000000,
+                "maximum": 1000000000
+              },
+              "maxHealth": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000000
+              },
+              "checkpoint": {
+                "type": "string",
+                "pattern": "^[\\s\\S]{0,256}$"
+              },
+              "counters": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "value": {
+                      "type": "number",
+                      "minimum": -1000000000,
+                      "maximum": 1000000000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value"
+                  ]
+                }
+              },
+              "flags": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "value": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value"
+                  ]
+                }
+              },
+              "events": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "value": {
+                      "type": "string",
+                      "pattern": "^[\\s\\S]{0,512}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "observationId",
+              "state",
+              "score",
+              "health",
+              "maxHealth",
+              "checkpoint",
+              "counters",
+              "flags",
+              "events"
+            ]
+          },
+          "defaults": {
+            "observationId": "gameplay",
+            "state": "ready",
+            "score": 0,
+            "health": 1,
+            "maxHealth": 1,
+            "checkpoint": "",
+            "counters": [],
+            "flags": [],
+            "events": []
+          },
+          "editor": {
+            "label": "Gameplay State",
+            "category": "Gameplay",
+            "inspector": "inspector.gameplay.state"
+          },
+          "runtimeAdapter": "adapter.gameplay.state-observation"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "g08-render-assets-effects-adapters",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "g08-render-assets-effects-adapters",
+          "type": "haiyue.gameplay.timers",
+          "version": "1.0.0",
+          "capability": "simulation.fixed-step",
+          "effect": "runtime-owner",
+          "risk": "low",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "observationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+              },
+              "timers": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    },
+                    "durationTicks": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000000
+                    },
+                    "startDelayTicks": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000
+                    },
+                    "repeat": {
+                      "type": "boolean"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "event": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,63}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "durationTicks",
+                    "startDelayTicks",
+                    "repeat",
+                    "running",
+                    "event"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "observationId",
+              "timers"
+            ]
+          },
+          "defaults": {
+            "observationId": "timers",
+            "timers": [
+              {
+                "id": "round",
+                "durationTicks": 3600,
+                "startDelayTicks": 0,
+                "repeat": false,
+                "running": true,
+                "event": "round-ended"
+              }
+            ]
+          },
+          "editor": {
+            "label": "Gameplay Timers",
+            "category": "Gameplay",
+            "inspector": "inspector.gameplay.timers"
+          },
+          "runtimeAdapter": "adapter.gameplay.timers"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "studio.component-registry",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "test.component-registry",
+          "type": "haiyue.physics.rigidbody.3d",
+          "version": "1.0.0",
+          "capability": "physics.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "enum": [
+                  "static",
+                  "dynamic",
+                  "kinematic"
+                ]
+              },
+              "linearDamping": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "angularDamping": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "gravityScale": {
+                "type": "number",
+                "minimum": -100,
+                "maximum": 100
+              },
+              "ccd": {
+                "type": "boolean"
+              },
+              "allowSleep": {
+                "type": "boolean"
+              },
+              "lockTranslations": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              "lockRotations": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              "syncTransform": {
+                "type": "boolean"
+              },
+              "initialVelocity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "initialAngularVelocity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "linearDamping",
+              "angularDamping",
+              "gravityScale",
+              "ccd",
+              "allowSleep",
+              "lockTranslations",
+              "lockRotations",
+              "syncTransform",
+              "initialVelocity",
+              "initialAngularVelocity"
+            ]
+          },
+          "defaults": {
+            "type": "dynamic",
+            "linearDamping": 0,
+            "angularDamping": 0,
+            "gravityScale": 1,
+            "ccd": false,
+            "allowSleep": true,
+            "lockTranslations": [
+              false,
+              false,
+              false
+            ],
+            "lockRotations": [
+              false,
+              false,
+              false
+            ],
+            "syncTransform": true,
+            "initialVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "initialAngularVelocity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          "editor": {
+            "label": "Rigid Body 3D",
+            "category": "Physics",
+            "inspector": "inspector.rigidbody-3d"
+          },
+          "runtimeAdapter": "adapter.physics.rigidbody-3d"
+        },
+        {
+          "schemaVersion": 2,
+          "owner": "studio.component-registry",
+          "validation": {
+            "mode": "json-schema",
+            "unknownProperties": "reject",
+            "maxSerializedBytes": 65536
+          },
+          "serializable": true,
+          "serialization": {
+            "format": "json",
+            "persistDisabled": true
+          },
+          "testOwner": "test.component-registry",
+          "type": "haiyue.physics.world.3d",
+          "version": "1.0.0",
+          "capability": "physics.3d",
+          "effect": "runtime-owner",
+          "risk": "medium",
+          "valueSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "backend": {
+                "enum": [
+                  "rapier3d"
+                ]
+              },
+              "gravity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "solverIterations": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              "loadTimeoutMs": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 60000
+              },
+              "maxEventsPerTick": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1024
+              }
+            },
+            "required": [
+              "backend",
+              "gravity",
+              "solverIterations",
+              "loadTimeoutMs",
+              "maxEventsPerTick"
+            ]
+          },
+          "defaults": {
+            "backend": "rapier3d",
+            "gravity": {
+              "x": 0,
+              "y": -9.81,
+              "z": 0
+            },
+            "solverIterations": 6,
+            "loadTimeoutMs": 10000,
+            "maxEventsPerTick": 256
+          },
+          "editor": {
+            "label": "Physics World 3D",
+            "category": "Physics",
+            "inspector": "inspector.physics-world-3d"
+          },
+          "runtimeAdapter": "adapter.physics.world-3d"
+        }
+      ]
+    },
+    "adapters": [
+      {
+        "id": "adapter.animation.3d-mixer",
+        "version": "1.0.0",
+        "digest": "sha256:3923ffa379151f24c06182706ffdb55ab1fb63168e2b729d509cba322a83cc0d"
+      },
+      {
+        "id": "adapter.gameplay.rules",
+        "version": "1.0.0",
+        "digest": "sha256:0206a982396be46945071a27bc59c48c7e4adab97e97822617ffa63d84883104"
+      },
+      {
+        "id": "adapter.gameplay.state-observation",
+        "version": "1.0.0",
+        "digest": "sha256:dde414cf2e193faab1889774c816262ee9814f8bd302541beb9a3900ec8685b5"
+      },
+      {
+        "id": "adapter.gameplay.timers",
+        "version": "1.0.0",
+        "digest": "sha256:d0fc77ce23f7128f8d96bd640bfaaa92667de3a6ec6b8632c9d3d3bae501ab89"
+      },
+      {
+        "id": "adapter.physics.rigidbody-3d",
+        "version": "1.0.0",
+        "digest": "sha256:683cc731649971499f2335100246412fb122866812ca9fe0b44cce7c87b9de40"
+      },
+      {
+        "id": "adapter.physics.world-3d",
+        "version": "1.0.0",
+        "digest": "sha256:d39688de09fe76b3e9ca9f425ced6bf99d8048ba4f92e3a7dbc5cfcae1ae94a4"
+      }
+    ],
+    "config": {
+      "schemaVersion": 1,
+      "maxNodes": 2000,
+      "maxEdges": 4000,
+      "maxAstNodes": 100000,
+      "maxAstDepth": 128
+    }
+  }
+}

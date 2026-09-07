@@ -1,13 +1,13 @@
-import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import type { DurableSessionHandle, DurableSessionRuntime, SessionReplaySnapshotV1 } from '@haiyue/ai-studio-agent-runtime';
-import { canonicalStringify, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
-import type { ConversationNodeReadModel, ConversationTaskRunReadModel } from '@haiyue/ai-studio-shell';
+import { asStableId, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
+import type { DurableSessionHandle, DurableSessionRuntime } from '@haiyue/ai-studio-agent-runtime';
+import { canonicalStringify, sha256, type ConversationOperationLog } from '@haiyue/ai-studio-operation-log';
+import type { ConversationNodeReadModel, ConversationTaskRunReadModel } from '@haiyue/ai-studio-shell/conversation';
 
 const MIGRATION_VERSION = 1;
 
 export interface LegacySessionMigrationInput {
   readonly sessions: DurableSessionRuntime;
-  readonly operationLog: OperationLog;
+  readonly operationLog: ConversationOperationLog;
   readonly nodes: readonly ConversationNodeReadModel[];
   readonly taskRuns: readonly ConversationTaskRunReadModel[];
   readonly project: Readonly<{ projectId?: StableId | null; documentId?: StableId | null }> | null;

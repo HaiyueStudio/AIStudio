@@ -1,3 +1,4 @@
+import { ProjectAgentHistory, sha256 } from '@haiyue/ai-studio-operation-log';
 import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -25,8 +26,9 @@ import {
   StudioIpcRouter,
 } from './ipc.js';
 import { AgentPreviewBroker } from './agent-preview-broker.js';
-import { StudioConversationHost } from './conversation-host.js';
-import { RecoveryClaimStore, StudioSessionOrchestrator } from './session-orchestrator/index.js';
+import { ProjectConversationController, StudioSessionOrchestrator } from '@haiyue/ai-studio-agent-orchestration';
+import { RecoveryClaimStore } from './session-orchestrator/index.js';
+import { createWorkspaceRecoveryAuthority } from './session-orchestrator/workspace-recovery.js';
 import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
 import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
 import { installStdioErrorGuards } from './stdio-safety.js';
@@ -112,43 +114,60 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       await knowledgeSources.initialize().catch(async (cause) => {
         await operationLog.append({ kind: 'knowledge/initialization-degraded', severity: 'warning', source: asStableId('studio.electron'), correlation: {}, payload: { message: errorMessage(cause), fallback: 'exact-context' } }).catch(() => undefined);
       });
-      const sessionRecovery = new StudioSessionOrchestrator(workspace, operationLog, new RecoveryClaimStore(path.join(app.getPath('userData'), 'operation-log', 'recovery-claims')));
-      const conversation = new StudioConversationHost({
-        runtime: agentRuntime,
-        tools: gameTools,
-        operationLog,
-        sessionRecovery,
-        isProjectOpen: () => workspace.snapshot().document !== null,
-        projectContext: () => {
-          const project = workspace.snapshot().document;
-          if (!project) return null;
-          return Object.freeze({
-            projectId: project.projectId, documentId: project.documentId, revision: project.revision,
-            manifest: Object.freeze({
-              schemaVersion: 1, project: Object.freeze({ id: project.projectId, documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.dirty, counts: project.counts, registryDigest: project.registryDigest }),
-            }) as unknown as JsonObject,
-            exact: Object.freeze({
-              query: ({ revision, request }: { revision: number; request: JsonObject }) => workspace.queryScene({ ...request, revision } as never) as unknown as JsonValue,
-              diff: ({ fromRevision, toRevision, request }: { fromRevision: number; toRevision: number; request: JsonObject }) => workspace.diffScene({ ...request, fromRevision, toRevision } as never) as unknown as JsonValue,
-            }),
-          });
+      const historyDirectory = (binding: Readonly<{ projectId: string | null; storageKey: string | null }>) => binding.storageKey
+        ? path.join(binding.storageKey, '.aistudio', 'agent')
+        : path.join(app.getPath('userData'), 'project-agent-history', sha256(binding.projectId ?? 'workspace-empty').slice(0, 32));
+      const conversation = new ProjectConversationController({
+        resolveProject: () => {
+          const snapshot = workspace.snapshot();
+          return { projectId: snapshot.document?.projectId ?? null, documentId: snapshot.document?.documentId ?? null, storageKey: snapshot.projectRoot };
         },
-        prepareKnowledge: (project, signal) => knowledgeSources.refresh(project, signal),
-        async openLoginHandoff(_backendId, handoff) {
-          if (handoff.url) {
-            const url = new URL(handoff.url);
-            if (url.protocol !== 'https:') throw new Error('Backend login handoff URL must use HTTPS.');
-            await shell.openExternal(url.href);
-          }
-          if (handoff.kind === 'device-code' && handoff.userCode) {
-            const options: Electron.MessageBoxOptions = {
-              type: 'info', title: 'Sign in to Codex', message: 'Enter this one-time code in the browser:', detail: handoff.userCode,
-            };
-            if (mainWindow) await dialog.showMessageBox(mainWindow, options); else await dialog.showMessageBox(options);
-          }
+        async openHistory(binding) {
+          const history = await ProjectAgentHistory.open({ projectId: binding.projectId ?? asStableId('project:workspace-empty'), directory: historyDirectory(binding), source: operationLog, storage: binding.storageKey ? 'project' : 'unsaved' });
+          return { log: history.log, query: input => history.query(input), detail: id => history.detail(id), flush: () => history.flush(), dispose: () => history.dispose(), relocate: next => history.relocate(historyDirectory(next)) };
         },
+        hostOptions: (binding, scopedLog) => ({
+          runtime: agentRuntime,
+          tools: gameTools,
+          operationLog: scopedLog,
+          sessionRecovery: new StudioSessionOrchestrator(createWorkspaceRecoveryAuthority(workspace), scopedLog, new RecoveryClaimStore(path.join(app.getPath('userData'), 'operation-log', 'recovery-claims'))),
+          isProjectOpen: () => workspace.snapshot().document !== null,
+          projectContext: () => {
+            const project = workspace.snapshot().document;
+            if (!project || project.projectId !== binding.projectId || project.documentId !== binding.documentId) return null;
+            return Object.freeze({
+              projectId: project.projectId, documentId: project.documentId, revision: project.revision,
+              manifest: Object.freeze({
+                schemaVersion: 1, project: Object.freeze({ id: project.projectId, documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.dirty, counts: project.counts, registryDigest: project.registryDigest }),
+              }) as unknown as JsonObject,
+              exact: Object.freeze({
+                query: ({ revision, request }: { revision: number; request: JsonObject }) => workspace.queryScene({ ...request, revision } as never) as unknown as JsonValue,
+                diff: ({ fromRevision, toRevision, request }: { fromRevision: number; toRevision: number; request: JsonObject }) => workspace.diffScene({ ...request, fromRevision, toRevision } as never) as unknown as JsonValue,
+              }),
+            });
+          },
+          prepareKnowledge: (project, signal) => knowledgeSources.refresh(project, signal),
+          async openLoginHandoff(_backendId, handoff) {
+            if (handoff.url) {
+              const url = new URL(handoff.url);
+              if (url.protocol !== 'https:') throw new Error('Backend login handoff URL must use HTTPS.');
+              await shell.openExternal(url.href);
+            }
+            if (handoff.kind === 'device-code' && handoff.userCode) {
+              const options: Electron.MessageBoxOptions = {
+                type: 'info', title: 'Sign in to Codex', message: 'Enter this one-time code in the browser:', detail: handoff.userCode,
+              };
+              if (mainWindow) await dialog.showMessageBox(mainWindow, options); else await dialog.showMessageBox(options);
+            }
+          },
+        }),
       });
+      context.effects.own('conversation.dispose', () => conversation.dispose());
       await conversation.initialize();
+      const projectHistoryChanges = workspace.subscribe(() => { void conversation.syncProject().catch(cause => {
+        void operationLog.append({ kind: 'project/history-failed', severity: 'error', source: asStableId('studio.electron'), payload: { message: errorMessage(cause) } }).catch(() => undefined);
+      }); });
+      context.effects.own('project-history-subscription.dispose', () => projectHistoryChanges.dispose());
       let conversationNotification: ReturnType<typeof setTimeout> | null = null;
       const conversationChanges = conversation.subscribe(() => {
         if (conversationNotification !== null) return;
@@ -319,7 +338,7 @@ function createWindow(): void {
   if (smoke) {
     smokeDeadline = setTimeout(async () => {
       try {
-        const state = await window.webContents.executeJavaScript(`({status:document.body.dataset.status,stage:document.body.dataset.smokeStage,message:document.querySelector('#status')?.textContent})`);
+        const state = await window.webContents.executeJavaScript(`({status:document.body.dataset.status,stage:document.body.dataset.smokeStage,message:document.querySelector('#status')?.textContent,visibility:document.visibilityState,modal:document.querySelector('#workspace-advanced')?.open,play:document.querySelector('#play-page')?.getBoundingClientRect().toJSON()})`);
         finishSmoke(1, `workflow deadline exceeded: ${JSON.stringify(state)}`);
       } catch (cause) { finishSmoke(1, `workflow deadline inspection failed: ${errorMessage(cause)}`); }
     }, 65_000);
@@ -327,7 +346,7 @@ function createWindow(): void {
     window.webContents.once('did-fail-load', (_event, code, description) => finishSmoke(1, `renderer load failed ${code}: ${description}`));
     window.webContents.on('did-finish-load', async () => {
       try {
-        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => { if (document.body.dataset.status === 'loading') return setTimeout(check, 10); const split = document.querySelector('hy-split'); const bar = split?.shadowRoot?.querySelector('[role="separator"]'); const before = Number(split?.getAttribute('ratio')); bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); const after = Number(split?.getAttribute('ratio')); const rect = (id) => { const value = document.querySelector(id)?.getBoundingClientRect(); return value && {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; }; const hierarchy = rect('#hierarchy-panel'); const inspector = rect('#inspector-panel'); const viewport = rect('#viewport-panel'); const assets = rect('#assets-panel'); const chat = rect('#chat-panel'); const splitGeometry = hierarchy && inspector && viewport && assets && chat && hierarchy.right <= viewport.left && inspector.right <= viewport.left && hierarchy.bottom <= inspector.top && viewport.bottom <= assets.top && viewport.right <= chat.left && assets.right <= chat.left; resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState,agentSync:document.body.dataset.agentSync,splitLayout:document.body.dataset.splitLayout,splitCount:document.querySelectorAll('hy-split').length,tabCount:document.querySelectorAll('hy-tabs').length,language:document.body.dataset.language,theme:document.body.dataset.theme,settings:Boolean(document.querySelector('#settings-button')),scriptHidden:document.querySelector('#script-panel')?.hidden,splitKeyboard:after > before,splitGeometry,rects:{hierarchy,inspector,viewport,assets,chat}}); }; check(); })`);
+        const result = await window.webContents.executeJavaScript(`new Promise((resolve) => { const check = () => { if (document.body.dataset.status === 'loading') return setTimeout(check, 10); const split = document.querySelector('hy-split'); const bar = split?.shadowRoot?.querySelector('[role="separator"]'); const before = Number(split?.getAttribute('ratio')); bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); const after = Number(split?.getAttribute('ratio')); const rect = (id) => { const value = document.querySelector(id)?.getBoundingClientRect(); return value && {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; }; const hierarchy = rect('#hierarchy-panel'); const inspector = rect('#inspector-panel'); const viewport = rect('#viewport-panel'); const assets = rect('#assets-panel'); const chat = rect('#chat-panel'); const logic = rect('#intent-workspace'); const splitGeometry = document.body.dataset.workspaceMode === 'intent' && logic && viewport && chat && logic.width > 150 && viewport.height > 300 && logic.right <= viewport.left && viewport.right <= chat.left && Math.abs(viewport.height - logic.height) < 2 && document.querySelector('#workspace-existing-resources')?.contains(document.querySelector('#assets-panel')) && document.querySelector('#workspace-manual-inspect')?.contains(document.querySelector('#left-sidebar-split')) && !!document.querySelector('#workspace-advanced-button'); resolve({status:document.body.dataset.status,node:typeof process,api:typeof window.haiyueStudio,message:document.querySelector('#status')?.textContent,webgpu:document.body.dataset.webgpu,workflow:document.body.dataset.workflow,deviceRecovery:document.body.dataset.deviceRecovery,scriptWorkflow:document.body.dataset.scriptWorkflow,agentUi:document.body.dataset.agentUi,agentBackend:document.body.dataset.agentBackend,agentBackendState:document.body.dataset.agentBackendState,agentSync:document.body.dataset.agentSync,splitLayout:document.body.dataset.splitLayout,splitCount:document.querySelectorAll('hy-split').length,tabCount:document.querySelectorAll('hy-tabs').length,language:document.body.dataset.language,theme:document.body.dataset.theme,settings:Boolean(document.querySelector('#settings-button')),scriptHidden:document.querySelector('#script-panel')?.hidden,splitKeyboard:after > before,splitGeometry,rects:{hierarchy,inspector,viewport,assets,chat}}); }; check(); })`);
         if (result.status !== 'ready' || result.node !== 'undefined' || result.api !== 'object' || result.webgpu !== 'ready'
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-standalone-play-pause-resume-device-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'

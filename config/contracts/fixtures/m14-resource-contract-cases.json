@@ -1,0 +1,755 @@
+{
+  "valid": [
+    {
+      "name": "asset-valid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:asset",
+        "kind": "asset",
+        "category": "Lighting",
+        "label": "Fixture asset",
+        "status": "available",
+        "artifactId": null,
+        "source": "controlled-manifest",
+        "ref": {
+          "kind": "asset",
+          "assetId": "asset:light",
+          "digest": "sha256:9d9381a7bcafb9a1a679ad224011965c68a2584c4a4828ec8eea0bd67e619be0",
+          "source": "project"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "asset.inspect",
+          "asset.assign"
+        ],
+        "unused": "unknown"
+      }
+    },
+    {
+      "name": "template-valid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:template",
+        "kind": "template",
+        "category": "Lighting",
+        "label": "Fixture template",
+        "status": "available",
+        "artifactId": null,
+        "source": "registry",
+        "ref": {
+          "kind": "template",
+          "templateId": "template:light",
+          "registryVersion": "1.0.0",
+          "defaultsDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "template.create"
+        ],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "preset-valid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:preset",
+        "kind": "preset",
+        "category": "Lighting",
+        "label": "Fixture preset",
+        "status": "unavailable",
+        "artifactId": null,
+        "source": "unsupported",
+        "ref": {
+          "kind": "preset",
+          "presetId": "preset:light",
+          "schemaId": "haiyue.light.point",
+          "schemaVersion": "1.0.0",
+          "valueDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "instance-valid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:instance",
+        "kind": "instance",
+        "category": "Lighting",
+        "label": "Fixture instance",
+        "status": "available",
+        "artifactId": null,
+        "source": "document",
+        "ref": {
+          "kind": "instance",
+          "projectId": "project:test",
+          "entityId": "entity:main",
+          "documentRevision": 1,
+          "componentId": null
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "inapplicable",
+          "reason": "Scene instance"
+        },
+        "intents": [
+          "instance.inspect"
+        ],
+        "unused": "inapplicable"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "asset-unknown-version",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 99,
+        "catalogEntryId": "catalog:asset",
+        "kind": "asset",
+        "category": "Lighting",
+        "label": "Fixture asset",
+        "status": "available",
+        "artifactId": null,
+        "source": "controlled-manifest",
+        "ref": {
+          "kind": "asset",
+          "assetId": "asset:light",
+          "digest": "sha256:9d9381a7bcafb9a1a679ad224011965c68a2584c4a4828ec8eea0bd67e619be0",
+          "source": "project"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "asset.inspect",
+          "asset.assign"
+        ],
+        "unused": "unknown"
+      }
+    },
+    {
+      "name": "asset-invalid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:asset",
+        "kind": "asset",
+        "category": "Lighting",
+        "label": "Fixture asset",
+        "status": "available",
+        "artifactId": null,
+        "source": "controlled-manifest",
+        "ref": {
+          "kind": "asset",
+          "assetId": "asset:light",
+          "digest": "sha256:9d9381a7bcafb9a1a679ad224011965c68a2584c4a4828ec8eea0bd67e619be0",
+          "source": "project"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "asset.inspect",
+          "asset.assign"
+        ],
+        "unused": "unknown",
+        "unexpected": true
+      }
+    },
+    {
+      "name": "asset-secret-bearing",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:asset",
+        "kind": "asset",
+        "category": "Lighting",
+        "label": "Fixture asset",
+        "status": "available",
+        "artifactId": null,
+        "source": "controlled-manifest",
+        "ref": {
+          "kind": "asset",
+          "assetId": "asset:light",
+          "digest": "sha256:9d9381a7bcafb9a1a679ad224011965c68a2584c4a4828ec8eea0bd67e619be0",
+          "source": "project"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "asset.inspect",
+          "asset.assign"
+        ],
+        "unused": "unknown",
+        "apiKey": "redacted-fixture"
+      }
+    },
+    {
+      "name": "asset-mixed-reference",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:asset",
+        "kind": "asset",
+        "category": "Lighting",
+        "label": "Fixture asset",
+        "status": "available",
+        "artifactId": null,
+        "source": "controlled-manifest",
+        "ref": {
+          "kind": "template",
+          "templateId": "template:light",
+          "registryVersion": "1.0.0",
+          "defaultsDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "asset.inspect",
+          "asset.assign"
+        ],
+        "unused": "unknown"
+      }
+    },
+    {
+      "name": "template-unknown-version",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 99,
+        "catalogEntryId": "catalog:template",
+        "kind": "template",
+        "category": "Lighting",
+        "label": "Fixture template",
+        "status": "available",
+        "artifactId": null,
+        "source": "registry",
+        "ref": {
+          "kind": "template",
+          "templateId": "template:light",
+          "registryVersion": "1.0.0",
+          "defaultsDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "template.create"
+        ],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "template-invalid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:template",
+        "kind": "template",
+        "category": "Lighting",
+        "label": "Fixture template",
+        "status": "available",
+        "artifactId": null,
+        "source": "registry",
+        "ref": {
+          "kind": "template",
+          "templateId": "template:light",
+          "registryVersion": "1.0.0",
+          "defaultsDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "template.create"
+        ],
+        "unused": "inapplicable",
+        "unexpected": true
+      }
+    },
+    {
+      "name": "template-secret-bearing",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:template",
+        "kind": "template",
+        "category": "Lighting",
+        "label": "Fixture template",
+        "status": "available",
+        "artifactId": null,
+        "source": "registry",
+        "ref": {
+          "kind": "template",
+          "templateId": "template:light",
+          "registryVersion": "1.0.0",
+          "defaultsDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "template.create"
+        ],
+        "unused": "inapplicable",
+        "apiKey": "redacted-fixture"
+      }
+    },
+    {
+      "name": "template-mixed-reference",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:template",
+        "kind": "template",
+        "category": "Lighting",
+        "label": "Fixture template",
+        "status": "available",
+        "artifactId": null,
+        "source": "registry",
+        "ref": {
+          "kind": "preset",
+          "presetId": "preset:light",
+          "schemaId": "haiyue.light.point",
+          "schemaVersion": "1.0.0",
+          "valueDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "template.create"
+        ],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "template-inappropriate-unused",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:template",
+        "kind": "template",
+        "category": "Lighting",
+        "label": "Fixture template",
+        "status": "available",
+        "artifactId": null,
+        "source": "registry",
+        "ref": {
+          "kind": "template",
+          "templateId": "template:light",
+          "registryVersion": "1.0.0",
+          "defaultsDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [
+          "template.create"
+        ],
+        "unused": "yes"
+      }
+    },
+    {
+      "name": "preset-unknown-version",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 99,
+        "catalogEntryId": "catalog:preset",
+        "kind": "preset",
+        "category": "Lighting",
+        "label": "Fixture preset",
+        "status": "unavailable",
+        "artifactId": null,
+        "source": "unsupported",
+        "ref": {
+          "kind": "preset",
+          "presetId": "preset:light",
+          "schemaId": "haiyue.light.point",
+          "schemaVersion": "1.0.0",
+          "valueDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "preset-invalid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:preset",
+        "kind": "preset",
+        "category": "Lighting",
+        "label": "Fixture preset",
+        "status": "unavailable",
+        "artifactId": null,
+        "source": "unsupported",
+        "ref": {
+          "kind": "preset",
+          "presetId": "preset:light",
+          "schemaId": "haiyue.light.point",
+          "schemaVersion": "1.0.0",
+          "valueDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [],
+        "unused": "inapplicable",
+        "unexpected": true
+      }
+    },
+    {
+      "name": "preset-secret-bearing",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:preset",
+        "kind": "preset",
+        "category": "Lighting",
+        "label": "Fixture preset",
+        "status": "unavailable",
+        "artifactId": null,
+        "source": "unsupported",
+        "ref": {
+          "kind": "preset",
+          "presetId": "preset:light",
+          "schemaId": "haiyue.light.point",
+          "schemaVersion": "1.0.0",
+          "valueDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [],
+        "unused": "inapplicable",
+        "apiKey": "redacted-fixture"
+      }
+    },
+    {
+      "name": "preset-mixed-reference",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:preset",
+        "kind": "preset",
+        "category": "Lighting",
+        "label": "Fixture preset",
+        "status": "unavailable",
+        "artifactId": null,
+        "source": "unsupported",
+        "ref": {
+          "kind": "instance",
+          "projectId": "project:test",
+          "entityId": "entity:main",
+          "documentRevision": 1,
+          "componentId": null
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "preset-inappropriate-unused",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:preset",
+        "kind": "preset",
+        "category": "Lighting",
+        "label": "Fixture preset",
+        "status": "unavailable",
+        "artifactId": null,
+        "source": "unsupported",
+        "ref": {
+          "kind": "preset",
+          "presetId": "preset:light",
+          "schemaId": "haiyue.light.point",
+          "schemaVersion": "1.0.0",
+          "valueDigest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "unknown",
+          "reason": "No complete usage provenance"
+        },
+        "intents": [],
+        "unused": "yes"
+      }
+    },
+    {
+      "name": "instance-unknown-version",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 99,
+        "catalogEntryId": "catalog:instance",
+        "kind": "instance",
+        "category": "Lighting",
+        "label": "Fixture instance",
+        "status": "available",
+        "artifactId": null,
+        "source": "document",
+        "ref": {
+          "kind": "instance",
+          "projectId": "project:test",
+          "entityId": "entity:main",
+          "documentRevision": 1,
+          "componentId": null
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "inapplicable",
+          "reason": "Scene instance"
+        },
+        "intents": [
+          "instance.inspect"
+        ],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "instance-invalid",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:instance",
+        "kind": "instance",
+        "category": "Lighting",
+        "label": "Fixture instance",
+        "status": "available",
+        "artifactId": null,
+        "source": "document",
+        "ref": {
+          "kind": "instance",
+          "projectId": "project:test",
+          "entityId": "entity:main",
+          "documentRevision": 1,
+          "componentId": null
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "inapplicable",
+          "reason": "Scene instance"
+        },
+        "intents": [
+          "instance.inspect"
+        ],
+        "unused": "inapplicable",
+        "unexpected": true
+      }
+    },
+    {
+      "name": "instance-secret-bearing",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:instance",
+        "kind": "instance",
+        "category": "Lighting",
+        "label": "Fixture instance",
+        "status": "available",
+        "artifactId": null,
+        "source": "document",
+        "ref": {
+          "kind": "instance",
+          "projectId": "project:test",
+          "entityId": "entity:main",
+          "documentRevision": 1,
+          "componentId": null
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "inapplicable",
+          "reason": "Scene instance"
+        },
+        "intents": [
+          "instance.inspect"
+        ],
+        "unused": "inapplicable",
+        "apiKey": "redacted-fixture"
+      }
+    },
+    {
+      "name": "instance-mixed-reference",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:instance",
+        "kind": "instance",
+        "category": "Lighting",
+        "label": "Fixture instance",
+        "status": "available",
+        "artifactId": null,
+        "source": "document",
+        "ref": {
+          "kind": "asset",
+          "assetId": "asset:light",
+          "digest": "sha256:9d9381a7bcafb9a1a679ad224011965c68a2584c4a4828ec8eea0bd67e619be0",
+          "source": "project"
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "inapplicable",
+          "reason": "Scene instance"
+        },
+        "intents": [
+          "instance.inspect"
+        ],
+        "unused": "inapplicable"
+      }
+    },
+    {
+      "name": "instance-inappropriate-unused",
+      "schemaId": "haiyue://contracts/resource-catalog-entry/v1",
+      "value": {
+        "schemaVersion": 1,
+        "catalogEntryId": "catalog:instance",
+        "kind": "instance",
+        "category": "Lighting",
+        "label": "Fixture instance",
+        "status": "available",
+        "artifactId": null,
+        "source": "document",
+        "ref": {
+          "kind": "instance",
+          "projectId": "project:test",
+          "entityId": "entity:main",
+          "documentRevision": 1,
+          "componentId": null
+        },
+        "dependencies": {
+          "status": "unknown",
+          "reason": "Not yet analyzed"
+        },
+        "usage": {
+          "status": "inapplicable",
+          "reason": "Scene instance"
+        },
+        "intents": [
+          "instance.inspect"
+        ],
+        "unused": "yes"
+      }
+    }
+  ]
+}

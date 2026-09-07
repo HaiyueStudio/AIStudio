@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PromptContextRuntime, PromptModuleRegistry } from '../packages/agent-runtime/dist/index.js';
@@ -13,7 +13,8 @@ const hiddenOracleStrings = oracle.cases.flatMap((item) => item.rules.flatMap((r
 assert.equal(suite.cases.length, 7, 'G04 cross-genre gate requires exactly seven canonical cases');
 
 const productionFiles = [
-  'packages/agent-runtime/src/prompt-context.ts', 'apps/ai-studio/src/conversation-host.ts',
+  'packages/agent-runtime/src/prompt-context.ts',
+  ...(await readdir(path.join(root, 'packages/agent-orchestration/src'))).filter((name) => name.endsWith('.ts')).map((name) => `packages/agent-orchestration/src/${name}`),
   'packages/agent-backends/src/codex-backend.ts', 'packages/harness-bridge/src/harness-agent.ts',
 ];
 const forbiddenBias = /snake|snakebody|tetris|match.?3|platformer|racing|shooter|贪吃蛇|俄罗斯方块|消消乐/iu;

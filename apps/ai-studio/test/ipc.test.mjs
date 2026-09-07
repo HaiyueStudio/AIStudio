@@ -167,6 +167,49 @@ test('project replacement clears project-scoped Agent work without cancelling a 
   router.dispose();
 });
 
+test('history IPC is project-bound, paged and preserves complete structured details', async () => {
+  const calls = [];
+  const data = { parameters: { query: '目标'.repeat(3000) }, result: { text: 'result'.repeat(4000) } };
+  const conversation = {
+    ...agentOwners.conversation,
+    async queryHistory(projectId, input) { calls.push([projectId, input]); return { schemaVersion: 1, projectId, records: [], total: 0, nextCursor: null, storage: 'project' }; },
+    async readHistory(projectId, id) { if (projectId !== 'project:a') throw new Error('项目已切换'); return { schemaVersion: 1, projectId, record: { id }, data }; },
+  };
+  const router = new StudioIpcRouter({ workspace: { cancelAll() {} }, operationLog: { append: async () => ({}) }, ...agentOwners, conversation, selectProjectRoot: async () => null });
+  assert.equal((await router.handle(request('conversation/history', { projectId: 'project:a', limit: 25, cursor: 'cursor:a' }))).ok, true);
+  assert.deepEqual(calls, [['project:a', { limit: 25, cursor: 'cursor:a' }]]);
+  assert.deepEqual((await router.handle(request('conversation/history-detail', { projectId: 'project:a', id: 'record:1' }))).payload.data, data);
+  assert.equal((await router.handle(request('conversation/history-detail', { projectId: 'project:b', id: 'record:1' }))).ok, false);
+  for (const payload of [{ projectId: 'project:a', path: 'C:\\private' }, { projectId: 'project:a', limit: 101 }, { projectId: 'project:a', limit: 0 }, { projectId: 'project:a', cursor: 'x'.repeat(1025) }, {}]) {
+    assert.throws(() => validateStudioIpcRequest(request('conversation/history', payload)));
+  }
+  assert.throws(() => validateStudioIpcRequest(request('conversation/history-detail', { projectId: 'project:a', id: 'record:1', artifactPath: 'C:\\private' })));
+  router.dispose();
+});
+
+test('project IPC drains the old conversation before Document replacement and relocates on first save', async () => {
+  const calls = [];
+  let finishDrain;
+  const conversation = { ...agentOwners.conversation,
+    async prepareProjectChange() { calls.push('drain'); await new Promise(resolve => { finishDrain = resolve; }); calls.push('drained'); },
+    async syncProject() { calls.push('sync'); },
+  };
+  const workspace = { cancelAll() {}, snapshot: () => ({ projectRoot: null }),
+    async openProject() { calls.push('open'); return {}; },
+    async saveAs() { calls.push('save'); return {}; },
+  };
+  const router = new StudioIpcRouter({ workspace, operationLog: { append: async () => ({}) }, ...agentOwners, conversation, selectProjectRoot: async () => 'D:\\fixture' });
+  const opened = router.handle(request('project/open'));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, ['drain']);
+  finishDrain(); assert.equal((await opened).ok, true);
+  assert.deepEqual(calls, ['drain', 'drained', 'open', 'sync']);
+  calls.length = 0;
+  assert.equal((await router.handle(request('project/save'))).ok, true);
+  assert.deepEqual(calls, ['save', 'sync']);
+  router.dispose();
+});
+
 test('script preview IPC discloses risk before one-shot code delivery and logs no source text', async () => {
   const events = [];
   const emittedText = 'compiled-secret-script();';

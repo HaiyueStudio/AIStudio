@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { ConversationProjector } from '@haiyue/ai-studio-shell';
-import { StudioConversationHost } from '../dist/conversation-host.js';
+import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 const backendId = 'backend:g08-restart';
 const sessionId = 'session:g08-restart';

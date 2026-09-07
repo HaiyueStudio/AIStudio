@@ -2,7 +2,7 @@ import { app } from 'electron';
 import { DurableSessionRuntime, TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import path from 'node:path';
-import { StudioConversationHost } from '../../dist/conversation-host.js';
+import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 // This process exercises durable barrier recovery only and owns no BrowserWindow.
 // Avoid coupling the restart invariant to availability of the host GPU sandbox.

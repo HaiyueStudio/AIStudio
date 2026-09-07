@@ -5,7 +5,10 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./conversation": { "types": "./dist/conversation/index.d.ts", "import": "./dist/conversation/index.js" }
+  },
   "engines": { "node": ">=22.19.0" },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts",

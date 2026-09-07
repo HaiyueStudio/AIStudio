@@ -1,6 +1,12 @@
 export type JsonPrimitive = null | boolean | number | string;
+export type * from './m14.js';
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 export type JsonObject = Readonly<Record<string, JsonValue>>;
+export type { AgentHistoryRecordV1, AgentHistoryPageV1, AgentHistoryDetailV1 } from './agent-history.js';
+export type {
+  CapabilitySurfaceLayerV1, CapabilityEvidenceStateV1, CapabilityIntegrationStageV1,
+  CapabilityEvidenceReferenceV1, CapabilityLayerEvidenceV1, CapabilitySurfaceRecordV1,
+} from './m14-capability.js';
 
 export type {
   AgentTurnConfigV2,

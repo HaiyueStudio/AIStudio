@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHarnessStudioRoot } from '@haiyue/ai-studio-harness-bridge';
 import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
 import { HarnessApiKeyBackend } from '../dist/index.js';
 
@@ -9,7 +10,8 @@ const secret = process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET;
 delete process.env.HAIYUE_STUDIO_DEEPSEEK_SECRET;
 if (!secret) throw new Error('The declared HAIYUE_STUDIO_DEEPSEEK_SECRET test credential is unavailable.');
 
-const transport = await createPinnedHarnessAgentTransport({ resolveApiKey: async () => secret });
+const studioRoot = createHarnessStudioRoot();
+const transport = await createPinnedHarnessAgentTransport({ owner: studioRoot, resolveApiKey: async () => secret }).catch(async (cause) => { await studioRoot.dispose(); throw cause; });
 const backend = new HarnessApiKeyBackend({ transport, clearApiKey: async () => {} });
 const config = Object.freeze({
   schemaVersion: 2,
@@ -35,5 +37,5 @@ try {
   assert.equal(terminal, 'completed');
   console.log(JSON.stringify({ backend: 'harness-api-key', configured: true, kinds, terminal, credentialPersisted: false }));
 } finally {
-  await backend.dispose();
+  try { await backend.dispose(); } finally { await studioRoot.dispose(); }
 }

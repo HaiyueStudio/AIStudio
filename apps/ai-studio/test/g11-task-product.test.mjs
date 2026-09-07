@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
-import { StudioConversationHost } from '../dist/conversation-host.js';
+import { StudioConversationHost, queryRetainedOperationEvents } from '@haiyue/ai-studio-agent-orchestration';
 
 const backendId = 'backend:g11-product';
 const sessionId = 'session:g11-product';
@@ -64,6 +64,25 @@ test('G11 converts a crash-interrupted task into an explicit resumable checkpoin
     assert.ok(nodes(host).some((node) => node.kind === 'completion'));
     assert.equal(host.replay().taskRuns.at(-1).status, 'blocked');
     await host.dispose(); await log.close();
+  } finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); }
+});
+
+test('G11 restores retained projections through bounded sequence windows when the journal exceeds the scan budget', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-windowed-restore-'));
+  try {
+    const log = await openLog(root, { maxQueryScan: 3 });
+    for (let index = 0; index < 13; index += 1) {
+      await log.append({
+        kind: index === 0 || index === 5 || index === 12 ? 'conversation/task-projected' : 'test/filler',
+        severity: 'info',
+        source: 'studio.g11-windowed-test',
+        correlation: {},
+        payload: { index },
+      });
+    }
+    const restored = await queryRetainedOperationEvents(log, ['conversation/task-projected'], 2);
+    assert.deepEqual(restored.map((item) => item.sequence), [5, 12]);
+    await log.close();
   } finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); }
 });
 
@@ -132,5 +151,5 @@ function event(kind, payload) { return { schemaVersion: 1, backendId, sessionId,
 function digest(value) { return `sha256:${value.repeat(64)}`; }
 function projectContext() { return { projectId: 'project:g11', documentId: 'document:g11', revision: 7, manifest: {} }; }
 function nodes(host) { return host.replay().events.map((item) => item.node); }
-function openLog(root) { return OperationLog.open({ rootDirectory: root, appVersion: 'g11-test', flushPolicy: 'always' }); }
+function openLog(root, options = {}) { return OperationLog.open({ rootDirectory: root, appVersion: 'g11-test', flushPolicy: 'always', ...options }); }
 async function waitFor(predicate) { for (let index = 0; index < 400; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for G11 task state.'); }

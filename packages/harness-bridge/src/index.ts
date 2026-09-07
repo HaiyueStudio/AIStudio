@@ -18,6 +18,7 @@ import {
   type StudioServiceToken,
 } from '@haiyue/ai-studio-contracts';
 import { optionalCapabilityState, resolveStudioProfile, satisfiesVersion } from '@haiyue/ai-studio-kernel';
+import { bindHarnessOwner } from './ownership.js';
 
 export interface HarnessStudioRootOptions {
   readonly diagnostic?: (diagnostic: StudioDiagnostic) => void;
@@ -68,8 +69,10 @@ class HarnessStudioRoot implements StudioKernelHost {
   private generation = 0;
   private state: StudioKernelSnapshot['state'] = 'idle';
   private disposed = false;
+  private disposal?: Promise<void>;
 
   constructor(private readonly options: HarnessStudioRootOptions) {
+    bindHarnessOwner(this, this.context, () => this.assertUsable());
     const events = studioEvents(this.context);
     if (options.durableEvent) events.on('studio/durable', options.durableEvent, { global: true });
     if (options.liveEvent) events.on('studio/live', options.liveEvent, { global: true });
@@ -120,22 +123,29 @@ class HarnessStudioRoot implements StudioKernelHost {
         contributions: plugins.reduce((sum, plugin) => sum + plugin.contributionCount, 0),
         listeners: [...this.active.values()].reduce((sum, plugin) => sum + plugin.listeners.size, 0),
         effects: plugins.reduce((sum, plugin) => sum + plugin.effectCount, 0),
-        fibers: [...this.active.values()].filter((plugin) => plugin.fiber?.uid != null).length,
+        fibers: [...this.context.registry.values()].reduce((sum, runtime) => sum + [...runtime.fibers].filter((fiber) => fiber.uid != null).length, 0),
       }),
     });
   }
 
   dumpResolvedProfile(): string | null { return this.resolvedDump; }
 
-  async dispose(): Promise<void> {
-    if (this.disposed) return;
+  dispose(): Promise<void> {
+    if (this.disposal) return this.disposal;
     this.disposed = true;
     this.state = 'disposing';
-    await this.disposeActivePlugins();
-    await this.context.fiber.dispose();
-    this.profileId = null;
-    this.resolvedDump = null;
-    this.state = 'disposed';
+    this.disposal = (async () => {
+      try { await this.disposeActivePlugins(); }
+      finally {
+        try { await this.context.fiber.dispose(); }
+        finally {
+          this.profileId = null;
+          this.resolvedDump = null;
+          this.state = 'disposed';
+        }
+      }
+    })();
+    return this.disposal;
   }
 
   private async activateInternal(profile: StudioProfileDefinition, catalog: readonly StudioPluginDefinition[]): Promise<void> {
@@ -173,7 +183,7 @@ class HarnessStudioRoot implements StudioKernelHost {
       }
       this.state = 'active';
     } catch (cause) {
-      this.state = 'failed';
+      if (!this.disposed) this.state = 'failed';
       await this.disposeActivePlugins();
       this.profileId = null;
       this.resolvedDump = null;
@@ -228,6 +238,7 @@ class HarnessStudioRoot implements StudioKernelHost {
       }
       const activationContext = bridge.activationContext(ctx, tracker, generation, abort);
       const result = await definition.activate(activationContext, config);
+      if (result && !activationContext.owner.active) await disposeValue(result);
       activationContext.owner.assertActive();
       if (result) activationContext.effects.own(`studio.plugin-result(${definition.manifest.id})`, result);
     };
@@ -250,7 +261,7 @@ class HarnessStudioRoot implements StudioKernelHost {
         if (!this.active) throw new Error(`Owner ${this.id} is inactive.`);
       },
     });
-    return Object.freeze({
+    const activationContext: StudioPluginActivationContext = Object.freeze({
       pluginId: tracker.definition.manifest.id,
       rowId: tracker.row.id,
       owner,
@@ -329,6 +340,8 @@ class HarnessStudioRoot implements StudioKernelHost {
       optionalCapabilities: tracker.optionalCapabilities,
       report(diagnostic: StudioDiagnostic): void { bridge.reportFor(tracker, diagnostic); },
     });
+    bindHarnessOwner(activationContext, ctx, () => owner.assertActive());
+    return activationContext;
   }
 
   private provideTracked(ctx: Context, tracker: PluginTracker, name: string, value: unknown): StudioDisposable {
@@ -397,15 +410,17 @@ class HarnessStudioRoot implements StudioKernelHost {
     tracker.state = 'disposing';
     tracker.ownerActive = false;
     tracker.abort?.abort(new Error(`Plugin ${tracker.definition.manifest.id} disposed.`));
-    await tracker.fiber?.dispose();
-    tracker.services.clear();
-    for (const key of tracker.contributions) {
-      if (this.contributions.get(key)?.owner === tracker) this.contributions.delete(key);
+    try { await tracker.fiber?.dispose(); }
+    finally {
+      tracker.services.clear();
+      for (const key of tracker.contributions) {
+        if (this.contributions.get(key)?.owner === tracker) this.contributions.delete(key);
+      }
+      tracker.contributions.clear();
+      tracker.listeners.clear();
+      tracker.effects.clear();
+      tracker.state = 'disposed';
     }
-    tracker.contributions.clear();
-    tracker.listeners.clear();
-    tracker.effects.clear();
-    tracker.state = 'disposed';
   }
 
   private async disposeActivePlugins(): Promise<void> {

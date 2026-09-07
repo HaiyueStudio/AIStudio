@@ -1,0 +1,366 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/m14-capability-surface-record/v1",
+  "title": "CapabilitySurfaceRecordV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "capabilityId",
+    "stage",
+    "componentTypes",
+    "toolIds",
+    "layers",
+    "acceptance",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "capabilityId": {
+      "$ref": "haiyue://contracts/m12-capability-id/v2"
+    },
+    "stage": {
+      "enum": [
+        "implementation-present",
+        "adapter-ready",
+        "product-integrated"
+      ]
+    },
+    "componentTypes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096
+      },
+      "maxItems": 256
+    },
+    "toolIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096
+      },
+      "maxItems": 256
+    },
+    "layers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstream",
+        "document",
+        "runtime",
+        "tool",
+        "ui",
+        "verification"
+      ],
+      "properties": {
+        "upstream": {
+          "$ref": "#/definitions/layer"
+        },
+        "document": {
+          "$ref": "#/definitions/layer"
+        },
+        "runtime": {
+          "$ref": "#/definitions/layer"
+        },
+        "tool": {
+          "$ref": "#/definitions/layer"
+        },
+        "ui": {
+          "$ref": "#/definitions/layer"
+        },
+        "verification": {
+          "$ref": "#/definitions/layer"
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapterCheckIds",
+        "productCheckIds"
+      ],
+      "properties": {
+        "adapterCheckIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "maxItems": 256
+        },
+        "productCheckIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "maxItems": 256
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096
+      },
+      "maxItems": 256,
+      "minItems": 1
+    }
+  },
+  "definitions": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "kind",
+        "locator"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!/|[A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "kind": {
+          "enum": [
+            "source",
+            "public-export",
+            "local-check",
+            "adapter-acceptance",
+            "product-acceptance",
+            "historical"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "maxLength": 8192
+        }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "state",
+        "references",
+        "explanation"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "state": {
+          "enum": [
+            "current",
+            "stale",
+            "missing"
+          ]
+        },
+        "references": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/definitions/reference"
+          }
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "missing"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "references": {
+                "maxItems": 0,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "else": {
+            "properties": {
+              "references": {
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "current"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "references": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "kind"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "not": {
+                        "const": "historical"
+                      }
+                    }
+                  }
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "stage": {
+            "enum": [
+              "adapter-ready",
+              "product-integrated"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "acceptance": {
+            "properties": {
+              "adapterCheckIds": {
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "stage": {
+            "const": "product-integrated"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "acceptance": {
+            "properties": {
+              "productCheckIds": {
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "layers": {
+            "properties": {
+              "upstream": {
+                "properties": {
+                  "state": {
+                    "const": "current"
+                  }
+                },
+                "type": "object"
+              },
+              "document": {
+                "properties": {
+                  "state": {
+                    "const": "current"
+                  }
+                },
+                "type": "object"
+              },
+              "runtime": {
+                "properties": {
+                  "state": {
+                    "const": "current"
+                  }
+                },
+                "type": "object"
+              },
+              "tool": {
+                "properties": {
+                  "state": {
+                    "const": "current"
+                  }
+                },
+                "type": "object"
+              },
+              "ui": {
+                "properties": {
+                  "state": {
+                    "const": "current"
+                  }
+                },
+                "type": "object"
+              },
+              "verification": {
+                "properties": {
+                  "state": {
+                    "const": "current"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
+}

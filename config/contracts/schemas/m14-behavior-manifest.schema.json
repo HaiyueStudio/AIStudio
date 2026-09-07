@@ -1,0 +1,533 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/behavior-manifest/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "binding",
+    "analyzerVersion",
+    "analysisConfigDigest",
+    "nodes",
+    "edges",
+    "triggers",
+    "truncation",
+    "digest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "binding": {
+      "$ref": "haiyue://contracts/behavior-source-binding/v1"
+    },
+    "analyzerVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "analysisConfigDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "source",
+          "unknown"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+          },
+          "kind": {
+            "enum": [
+              "entry",
+              "statement",
+              "condition",
+              "loop",
+              "call",
+              "await",
+              "fork",
+              "join",
+              "return",
+              "throw",
+              "try",
+              "catch",
+              "finally",
+              "trigger",
+              "action",
+              "driver",
+              "unknown"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "entityId",
+                  "scriptId",
+                  "digest",
+                  "path",
+                  "range"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "script"
+                  },
+                  "entityId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "scriptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*[\\\\:])[A-Za-z0-9._ /-]+\\.tsx?$"
+                  },
+                  "range": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "start",
+                      "end",
+                      "startLine",
+                      "startColumn",
+                      "endLine",
+                      "endColumn"
+                    ],
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "startLine": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "startColumn": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "endLine": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "endColumn": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "entityId",
+                  "componentId",
+                  "componentType",
+                  "componentVersion",
+                  "field"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "declarative-component"
+                  },
+                  "entityId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentType": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentVersion": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                  },
+                  "field": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "entityId",
+                  "componentId",
+                  "adapter",
+                  "field"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "runtime-adapter"
+                  },
+                  "entityId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "adapter": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "id",
+                      "version",
+                      "digest"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                      },
+                      "version": {
+                        "type": "string",
+                        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^sha256:[a-f0-9]{64}$"
+                      }
+                    }
+                  },
+                  "field": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                  }
+                }
+              }
+            ]
+          },
+          "unknown": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "enum": [
+                  "dynamic-call",
+                  "unsupported-syntax",
+                  "syntax-error",
+                  "unresolved-reference",
+                  "unregistered-adapter",
+                  "adapter-internals",
+                  "budget"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "maxItems": 2000
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "from",
+          "to",
+          "kind",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+          },
+          "kind": {
+            "enum": [
+              "sequence",
+              "true",
+              "false",
+              "loop-body",
+              "loop-back",
+              "await",
+              "concurrent",
+              "join",
+              "exception",
+              "finally",
+              "trigger",
+              "drives"
+            ]
+          },
+          "evidence": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "entityId",
+                  "scriptId",
+                  "digest",
+                  "path",
+                  "range"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "script"
+                  },
+                  "entityId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "scriptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*[\\\\:])[A-Za-z0-9._ /-]+\\.tsx?$"
+                  },
+                  "range": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "start",
+                      "end",
+                      "startLine",
+                      "startColumn",
+                      "endLine",
+                      "endColumn"
+                    ],
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "startLine": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "startColumn": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "endLine": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "endColumn": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "entityId",
+                  "componentId",
+                  "componentType",
+                  "componentVersion",
+                  "field"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "declarative-component"
+                  },
+                  "entityId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentType": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentVersion": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                  },
+                  "field": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "entityId",
+                  "componentId",
+                  "adapter",
+                  "field"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "runtime-adapter"
+                  },
+                  "entityId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "componentId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                  },
+                  "adapter": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "id",
+                      "version",
+                      "digest"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+                      },
+                      "version": {
+                        "type": "string",
+                        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^sha256:[a-f0-9]{64}$"
+                      }
+                    }
+                  },
+                  "field": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "maxItems": 4000
+    },
+    "triggers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+      },
+      "maxItems": 2000,
+      "uniqueItems": true
+    },
+    "truncation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "truncated",
+        "reasons",
+        "omittedAtLeast"
+      ],
+      "properties": {
+        "truncated": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "nodes",
+              "edges",
+              "ast",
+              "bytes",
+              "events"
+            ]
+          },
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "omittedAtLeast": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

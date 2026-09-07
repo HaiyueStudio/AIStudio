@@ -1,0 +1,34 @@
+{
+  "name": "@haiyue/ai-studio-agent-orchestration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "prebuild": "npm run build -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio-shell",
+    "build": "tsc -p tsconfig.json",
+    "pretypecheck": "npm run build -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio-shell",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test --test-concurrency=1 test/*.test.mjs"
+  },
+  "dependencies": {
+    "@haiyue/ai-studio-agent-runtime": "0.0.0",
+    "@haiyue/ai-studio-contracts": "0.0.0",
+    "@haiyue/ai-studio-game-authoring-tools": "0.0.0",
+    "@haiyue/ai-studio-operation-log": "0.0.0",
+    "@haiyue/ai-studio-shell": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.13"
+  }
+}

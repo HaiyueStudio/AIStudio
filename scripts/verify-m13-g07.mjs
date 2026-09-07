@@ -50,7 +50,7 @@ const coordinator = await read('packages/game-authoring-tools/src/transactions.t
 for (const phrase of ['SceneTransactionCoordinator', 'idempotencyKey', 'operationDigest', 'outcome-unknown', 'prepareLatencyMs', 'reconcileLatencyMs', 'duplicatesPrevented']) assert.match(coordinator, new RegExp(phrase, 'u'));
 const recovery = await read('packages/agent-runtime/src/session/recovery.ts');
 for (const phrase of ['recoveryTails', 'retry-not-started', 'hasCommittedProjection', 'synthesized-completion', 'manual-barrier', 'discoverMutation']) assert.match(recovery, new RegExp(phrase, 'u'));
-const host = await read('apps/ai-studio/src/conversation-host.ts');
+const host = await read('packages/agent-orchestration/src/conversation-host.ts');
 for (const phrase of ['executeTransaction', 'approval.requested', 'question.requested', 'recoverableBarrierNode', 'queuedPrompts']) assert.match(host, new RegExp(phrase, 'u'));
 
 for (const document of ['docs/architecture/m13-transactions-effect-locks-recovery.md', 'docs/evidence/m13-g07-verification.md']) {

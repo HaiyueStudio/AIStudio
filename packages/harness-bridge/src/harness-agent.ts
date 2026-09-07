@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Context } from '@deepseek-ai/cordis';
+import type { Context, Fiber } from '@deepseek-ai/cordis';
+import type { StudioKernelHost, StudioPluginActivationContext } from '@haiyue/ai-studio-contracts';
+import { harnessOwnerContext } from './ownership.js';
 import AgentRegistry, { installModelSelection, type Agent, type AgentHandle, type ModelSelectionRef } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id';
@@ -61,6 +63,7 @@ export interface HarnessAgentTransport {
 }
 
 export interface PinnedHarnessAgentTransportOptions {
+  readonly owner: StudioKernelHost | StudioPluginActivationContext;
   readonly resolveApiKey: () => Promise<string | null>;
   readonly model?: string;
   readonly baseURL?: string;
@@ -76,6 +79,9 @@ interface HarnessRequestRetryPolicy {
 }
 
 const STUDIO_MAX_HARNESS_REQUEST_RETRIES = 2;
+// Pinned AgentRegistry declares a root-wide `agent` accessor. A profile selects
+// one backend; reject a second live Harness runtime before loading any plugins.
+const transportRoots = new WeakSet<Context>();
 
 /** Resolve one bounded, deterministic retry delay from the provider-owned Harness policy. */
 export function harnessRequestRetryDelayMs(failure: HarnessRequestFailure, policy: HarnessRequestRetryPolicy | undefined, failedAttempts: number): number | null {
@@ -88,30 +94,58 @@ export function harnessRequestRetryDelayMs(failure: HarnessRequestFailure, polic
 }
 
 export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAgentTransportOptions): Promise<HarnessAgentTransport> {
-  const context = new Context();
-  const fibers = [
-    context.plugin(AgentRegistry), context.plugin(SessionStore), context.plugin(LlmRuntime), context.plugin(SystemPrompt, { includeRuntimeContext: false }),
-  ];
-  for (const fiber of fibers) await fiber;
-  await context.plugin(ToolRuntime, { mode: 'native', maxParallelSubCalls: 1 });
-  const selectedModel = options.model ?? 'deepseek-v4-flash';
-  const resolved = resolveAdapterOptions({
-    apiKeyEnv: 'HAIYUE_STUDIO_DEEPSEEK_SECRET', baseURL: options.baseURL, thinking: 'enabled', reasoningEffort: 'high',
-    maxTokens: 384_000,
-  });
-  const adapter = new DeepSeekAdapter({
-    options: () => resolved,
-    resolveApiKey: async () => {
-      const value = await options.resolveApiKey();
-      if (!value) throw Object.assign(new Error('DeepSeek API key is not configured.'), { code: 'MISSING_CREDENTIAL', status: 401 });
-      if (/\r|\n/u.test(value)) throw Object.assign(new Error('DeepSeek API key is invalid.'), { code: 'INVALID_CREDENTIAL' });
-      return value;
-    },
-    resolveUserId: () => randomUUID() as AnonymousUserId,
-  });
-  context.llm.registerAdapter(['deepseek-official'], adapter);
-  await context.plugin(AgentLoop, { maxParallelToolCalls: 1, agents: [] });
-  return new PinnedHarnessTransport(context, selectedModel, resolved.models, options.resolveApiKey);
+  const parent = harnessOwnerContext(options.owner);
+  const root = parent.root;
+  if (transportRoots.has(root)) throw new Error('Studio root already has a live Harness transport.');
+  const scope = parent.plugin({ name: 'studio:harness-agent-transport', apply() {} });
+  transportRoots.add(root);
+  const context = scope.ctx;
+  try {
+    await scope;
+    context.effect(() => () => { transportRoots.delete(root); }, 'studio.harness-transport-owner');
+    await context.plugin(AgentRegistry);
+    await context.plugin(SessionStore);
+    await context.plugin(LlmRuntime);
+    await context.plugin(SystemPrompt, { includeRuntimeContext: false });
+    await context.plugin(ToolRuntime, { mode: 'native', maxParallelSubCalls: 1 });
+    const selectedModel = options.model ?? 'deepseek-v4-flash';
+    const resolved = resolveAdapterOptions({
+      apiKeyEnv: 'HAIYUE_STUDIO_DEEPSEEK_SECRET', baseURL: options.baseURL, thinking: 'enabled', reasoningEffort: 'high',
+      maxTokens: 384_000,
+    });
+    const adapter = new DeepSeekAdapter({
+      options: () => resolved,
+      resolveApiKey: async () => {
+        const value = await options.resolveApiKey();
+        if (!value) throw Object.assign(new Error('DeepSeek API key is not configured.'), { code: 'MISSING_CREDENTIAL', status: 401 });
+        if (/\r|\n/u.test(value)) throw Object.assign(new Error('DeepSeek API key is invalid.'), { code: 'INVALID_CREDENTIAL' });
+        return value;
+      },
+      resolveUserId: () => randomUUID() as AnonymousUserId,
+    });
+    await context.plugin({
+      name: 'studio:harness-agent-adapter', inject: ['llm'],
+      apply(ctx) { ctx.llm.registerAdapter(['deepseek-official'], adapter); },
+    });
+    await context.plugin(AgentLoop, { maxParallelToolCalls: 1, agents: [] });
+    let transport: PinnedHarnessTransport | undefined;
+    await context.plugin({
+      name: 'studio:harness-agent-client', inject: ['agents', 'sessions', 'llm', 'systemPrompt', 'tools', 'agentLoop'],
+      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, options.resolveApiKey, () => disposeHarnessScope(scope)); },
+    });
+    harnessOwnerContext(options.owner);
+    if (!transport) throw new Error('Harness transport did not activate.');
+    return transport;
+  } catch (cause) {
+    try { await disposeHarnessScope(scope); } finally { transportRoots.delete(root); }
+    throw cause;
+  }
+}
+
+async function disposeHarnessScope(scope: Fiber): Promise<void> {
+  await scope.dispose();
+  // Cordis' public disposer is single-shot; an ancestor may already own the drain.
+  while (scope.inertia) await scope.inertia;
 }
 
 class PinnedHarnessTransport implements HarnessAgentTransport {
@@ -124,7 +158,9 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   private readonly streams = new Map<string, AsyncEventQueue<HarnessBridgeEvent>>();
   private readonly results = new Map<string, Deferred<Readonly<Record<string, unknown>>>>();
   private disposed = false;
-  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number }>[], private readonly resolveApiKey: () => Promise<string | null>) {
+  private disposal?: Promise<void>;
+  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number }>[], private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>) {
+    context.effect(() => () => this.release(), 'studio.harness-transport.dispose');
     context.on('session/event', (session, event) => this.onSessionEvent(String(session.id), event));
   }
   modelCatalog(): readonly Readonly<{ id: string; name: string; description: string; maxTokens: number }>[] {
@@ -150,6 +186,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     this.assertActive();
     const sessionId = input.sessionId ?? `harness-session-${randomUUID()}`;
     await this.ensureHandle(sessionId, input, signal);
+    this.assertActive();
     this.sessionBoundaries.set(sessionId, input.lastConfirmedOpId);
     return Object.freeze({ sessionId, capabilities: this.sessionCapabilities(input.model) });
   }
@@ -182,6 +219,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     if (typeof input.prompt !== 'string' || input.prompt.length === 0 || input.prompt.length > 200_000) throw new TypeError('Harness prompt is invalid.');
     const sessionId = input.sessionId ?? `harness-session-${randomUUID()}`;
     const handle = await this.ensureHandle(sessionId, input, signal);
+    this.assertActive();
     if (this.streams.has(sessionId)) throw new Error(`Harness session ${sessionId} already has an active turn.`);
     const selection = this.selections.get(sessionId); if (selection) selection.current = { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) };
     handle.agent.options.maxTokens = input.maxTokens;
@@ -196,7 +234,18 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     if (signal?.aborted) throw signal.reason; const pending = this.results.get(toolCallId); if (!pending) throw new Error(`Harness tool call ${toolCallId} is not pending.`); this.results.delete(toolCallId); pending.resolve(Object.freeze({ ...result }));
   }
   async cancel(sessionId: string): Promise<void> { this.handles.get(sessionId)?.agent.cancel({ kind: 'user' }); }
-  async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.')); this.results.clear(); this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.'))); this.streams.clear(); await this.context.fiber.dispose(); this.handles.clear(); this.selections.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear(); }
+  dispose(): Promise<void> {
+    this.release();
+    return this.disposal ??= this.disposeScope();
+  }
+  private release(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.'));
+    this.results.clear();
+    this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.')));
+    this.streams.clear(); this.handles.clear(); this.selections.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear();
+  }
   private async ensureHandle(sessionId: string, input: Pick<HarnessBridgeSessionOpenInput, 'model' | 'reasoningEffort' | 'maxTokens' | 'tools'>, signal?: AbortSignal): Promise<AgentHandle> {
     let handle = this.handles.get(sessionId);
     if (handle) {
@@ -222,6 +271,8 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
         input.tools.forEach((tool, index) => agentContext.tools.register(this.toolDefinition(tool, index)));
       },
     });
+    try { this.assertActive(); }
+    catch (cause) { await handle.dispose(); throw cause; }
     this.handles.set(sessionId, handle); this.selections.set(sessionId, selection); this.sessionModels.set(sessionId, input.model); this.sessionToolSignatures.set(sessionId, harnessToolSetSignature(input.tools));
     return handle;
   }
@@ -250,7 +301,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
       queue.push(Object.freeze({ type: 'turn-end', sessionId, turnId: turnId(sessionId, event.data.turn), status, finishReason, ...(diagnostic ? { diagnostic } : {}) })); queue.close();
     }
   }
-  private assertActive(): void { if (this.disposed) throw new Error('Harness transport is disposed.'); }
+  private assertActive(): void { if (this.disposed || this.context.fiber.uid === null) throw new Error('Harness transport is disposed.'); }
 }
 
 export function harnessToolName(toolId: string, index: number): string {

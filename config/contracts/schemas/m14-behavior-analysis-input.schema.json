@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "haiyue://contracts/behavior-analysis-input/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "document",
+    "registry",
+    "adapters",
+    "config"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "document": {
+      "$ref": "haiyue://contracts/game-document/v2"
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "definitions"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "definitions": {
+          "type": "array",
+          "items": {
+            "$ref": "haiyue://contracts/component-definition/v2"
+          },
+          "maxItems": 256
+        }
+      }
+    },
+    "adapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version",
+          "digest"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        }
+      },
+      "maxItems": 256
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "maxNodes",
+        "maxEdges",
+        "maxAstNodes",
+        "maxAstDepth"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "maxNodes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000
+        },
+        "maxEdges": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4000
+        },
+        "maxAstNodes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "maxAstDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        }
+      }
+    }
+  }
+}

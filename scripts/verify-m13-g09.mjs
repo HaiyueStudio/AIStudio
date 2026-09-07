@@ -40,7 +40,7 @@ const layout = await read('packages/studio-shell/src/conversation/execution-layo
 for (const phrase of ['costUnknown', 'maxCompletedToolsPerBatch', 'preserveConnectingNodes', 'calculateLayers']) assert.match(layout, new RegExp(phrase, 'u'));
 const panel = await read('packages/studio-shell/src/panels/chat/index.ts');
 for (const phrase of ['conversation/request-compaction', '完整记录', '成本未知', '使用层级列表浏览全部执行步骤', 'prefers-reduced-motion']) assert.match(`${panel}\n${await read('apps/ai-studio/renderer/styles.css')}`, new RegExp(phrase.replaceAll('/', '\\/'), 'u'));
-const host = await read('apps/ai-studio/src/conversation-host.ts');
+const host = await read('packages/agent-orchestration/src/conversation-host.ts');
 for (const phrase of ['captureSessionContextFrame', 'resumeOrRunManualCompaction', 'manual-compaction-finished', 'projectExecutionGraph']) assert.match(host, new RegExp(phrase, 'u'));
 
 const graphTests = await read('packages/studio-shell/test/execution-graph.test.mjs');

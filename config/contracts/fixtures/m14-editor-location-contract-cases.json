@@ -1,0 +1,132 @@
+{
+  "valid": [
+    {
+      "name": "editor-location-valid",
+      "schemaId": "haiyue://contracts/editor-location/v1",
+      "value": {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:26483d82d9758f44449c90052fa8657f",
+          "source": {
+            "kind": "script",
+            "entityId": "entity:main",
+            "scriptId": "script:main",
+            "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d",
+            "path": "scripts/main.ts",
+            "range": {
+              "start": 25,
+              "end": 32,
+              "startLine": 2,
+              "startColumn": 3,
+              "endLine": 2,
+              "endColumn": 10
+            }
+          }
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "editor-location-unknown-version",
+      "schemaId": "haiyue://contracts/editor-location/v1",
+      "value": {
+        "schemaVersion": 99,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:26483d82d9758f44449c90052fa8657f",
+          "source": {
+            "kind": "script",
+            "entityId": "entity:main",
+            "scriptId": "script:main",
+            "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d",
+            "path": "scripts/main.ts",
+            "range": {
+              "start": 25,
+              "end": 32,
+              "startLine": 2,
+              "startColumn": 3,
+              "endLine": 2,
+              "endColumn": 10
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "editor-location-invalid",
+      "schemaId": "haiyue://contracts/editor-location/v1",
+      "value": {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:26483d82d9758f44449c90052fa8657f",
+          "source": {
+            "kind": "script",
+            "entityId": "entity:main",
+            "scriptId": "script:main",
+            "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d",
+            "path": "scripts/main.ts",
+            "range": {
+              "start": 25,
+              "end": 32,
+              "startLine": 2,
+              "startColumn": 3,
+              "endLine": 2,
+              "endColumn": 10
+            }
+          }
+        },
+        "unexpected": true
+      }
+    },
+    {
+      "name": "editor-location-secret-bearing",
+      "schemaId": "haiyue://contracts/editor-location/v1",
+      "value": {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:26483d82d9758f44449c90052fa8657f",
+          "source": {
+            "kind": "script",
+            "entityId": "entity:main",
+            "scriptId": "script:main",
+            "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d",
+            "path": "scripts/main.ts",
+            "range": {
+              "start": 25,
+              "end": 32,
+              "startLine": 2,
+              "startColumn": 3,
+              "endLine": 2,
+              "endColumn": 10
+            }
+          }
+        },
+        "apiKey": "redacted-fixture"
+      }
+    }
+  ]
+}

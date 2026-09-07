@@ -7,6 +7,7 @@ import { asStableId } from '@haiyue/ai-studio-contracts';
 import { CodexAppServerBackend, HarnessApiKeyBackend } from '@haiyue/ai-studio-agent-backends';
 import { ProjectSceneAuthoringService, ProjectWorkspace, RecentProjectStore } from '@haiyue/ai-studio-editor-plugins';
 import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
+import { createHarnessStudioRoot } from '@haiyue/ai-studio-harness-bridge';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { PreviewAuthorizationService, ProjectScriptService, ScriptValidationWorker } from '@haiyue/ai-studio-script-preview';
 import { AgentGameAuthoringCoordinator, GameAuthoringToolRuntime } from '../dist/index.js';
@@ -21,16 +22,17 @@ if (requestedBackend !== 'codex' && !deepSeekSecret) throw new Error('DeepSeek s
 const summaries = [];
 const failures = [];
 const backends = [
-  { kind: 'harness', create: async () => new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }) },
+  { kind: 'harness', create: async (owner) => new HarnessApiKeyBackend({ transport: await createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => deepSeekSecret }), clearApiKey: async () => {} }) },
   { kind: 'codex', create: async () => new CodexAppServerBackend() },
 ].filter((entry) => requestedBackend === 'all' || entry.kind === requestedBackend);
 try {
   for (const entry of backends) {
     const value = await fixture();
+    const studioRoot = createHarnessStudioRoot();
     let backend;
     let coordinator;
     try {
-      backend = await entry.create();
+      backend = await entry.create(studioRoot);
       coordinator = new AgentGameAuthoringCoordinator(value.runtime, { async request() { return 'allow-once'; } });
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(new Error(`G09 ${backend.descriptor.kind} smoke exceeded five minutes.`)), 5 * 60_000);
@@ -63,7 +65,7 @@ try {
       } finally { clearTimeout(timer); }
     } catch (cause) {
       failures.push({ backend: entry.kind, code: typeof cause?.code === 'string' ? cause.code.slice(0, 96) : 'real-backend-smoke-failed', message: (cause instanceof Error ? cause.message : String(cause)).slice(0, 2_000) });
-    } finally { coordinator?.dispose(); await backend?.dispose(); await dispose(value); }
+    } finally { coordinator?.dispose(); try { await backend?.dispose(); } finally { await studioRoot.dispose(); await dispose(value); } }
   }
   console.log(JSON.stringify({ summaries, failures }));
   if (failures.length > 0) throw new Error(`Real backend smoke failed for ${failures.map((entry) => entry.backend).join(', ')}.`);

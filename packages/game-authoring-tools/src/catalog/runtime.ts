@@ -1,6 +1,7 @@
 import { asStableId, type ComponentDefinitionV2, type JsonObject, type M13StableId, type StableId } from '@haiyue/ai-studio-contracts';
 import { LocalHashEmbeddingProvider, tokenize } from '@haiyue/ai-studio-agent-runtime';
 import type { GameToolDefinition } from '../types.js';
+import { MODEL_TOOL_INVOKE_DEFINITION } from './invocation.js';
 
 export const MODEL_CORE_TOOL_IDS: readonly StableId[] = Object.freeze([
   'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search',
@@ -20,6 +21,7 @@ export interface ToolCatalogMatch {
   readonly version?: string;
   readonly requiresApproval?: boolean;
   readonly inputSchema?: JsonObject;
+  readonly invocation?: Readonly<{ tool: StableId; toolId: StableId; toolVersion: string }>;
 }
 
 export interface ToolSchemaSelection {
@@ -61,7 +63,7 @@ export class ToolCatalogRuntime {
       const group = capabilityGroup(`${definition.id} ${definition.requiredCapabilities.join(' ')}`);
       const candidate = `${definition.id} ${definition.title} ${definition.description} ${definition.requiredCapabilities.join(' ')} ${group.aliases.join(' ')}`;
       const score = semanticScore(query.toLocaleLowerCase(), queryTokens, queryVector, candidate, this.embedding);
-      return Object.freeze({ kind: 'tool' as const, id: definition.id, title: definition.title, capabilityGroup: group.id, score, reason: reason(score, group.id), nextTool: definition.id, effect: definition.effect, risk: definition.risk, requiresApproval: definition.requiresApproval, ...(options.includeSchemas ? { inputSchema: definition.inputSchema } : {}) });
+      return Object.freeze({ kind: 'tool' as const, id: definition.id, title: definition.title, capabilityGroup: group.id, score, reason: reason(score, group.id), nextTool: definition.id, effect: definition.effect, risk: definition.risk, version: definition.version, requiresApproval: definition.requiresApproval, ...(options.includeSchemas ? { inputSchema: definition.inputSchema, invocation: Object.freeze({ tool: MODEL_TOOL_INVOKE_DEFINITION.id, toolId: definition.id, toolVersion: definition.version }) } : {}) });
     });
     const componentMatches = this.components().map((definition) => {
       const group = capabilityGroup(`${definition.type} ${definition.capability} ${definition.editor.category}`);

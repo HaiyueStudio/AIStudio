@@ -9,7 +9,7 @@ const types = await text('packages/studio-shell/src/conversation/types.ts');
 for (const marker of ['ConversationTaskRunReadModel', 'ConversationTaskEvidenceReadModel', 'ConversationTaskAcceptanceReadModel', "'waiting-user'", 'previewDataUrl']) assert.ok(types.includes(marker), `Task read-model marker missing: ${marker}`);
 const validation = await text('packages/studio-shell/src/conversation/validation.ts');
 for (const marker of ['conversation.task-version-unsupported', 'provenanceStatus', 'MAX_SCREENSHOT_DATA_URL_BYTES', 'normalizeTaskRuns', "status === 'pass' && referenced.length === 0"]) assert.ok(validation.includes(marker), `Projection validation marker missing: ${marker}`);
-const host = await text('apps/ai-studio/src/conversation-host.ts');
+const host = await text('packages/agent-orchestration/src/conversation-host.ts');
 for (const marker of ['BoundedPlaytestTask', 'task.interrupted-by-restart', 'task.evaluation-evidence-not-retained', 'conversation/task-projected', 'approvedScreenshotDataUrl', 'account.repair()', 'authorizeContinuation']) assert.ok(host.includes(marker), `Task host marker missing: ${marker}`);
 const panel = await text('packages/studio-shell/src/panels/chat/index.ts');
 for (const marker of ['任务状态与验收证据', 'Backend capabilities', 'Prompt profile', 'renderTaskWorkspace', 'slice(-100)', "removeAttribute('src')", "aria-current"]) assert.ok(panel.includes(marker), `Product UI marker missing: ${marker}`);

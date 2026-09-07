@@ -36,11 +36,11 @@ export interface PocAgentGameAuthoringProfileOptions {
 export function createPocAgentGameAuthoringPlugins(options: PocAgentGameAuthoringProfileOptions): readonly StudioPluginDefinition<any>[] {
   const tools = createGameAuthoringToolsPlugin({ preview: options.preview });
   const agent = createAgentRuntimePlugin({
-    createBackends: async () => {
+    createBackends: async (context) => {
       if (options.backend === 'codex-app-server') {
         return Object.freeze([new CodexAppServerBackend({ loginMode: options.codexLoginMode ?? 'browser' })]);
       }
-      const transport = await createPinnedHarnessAgentTransport({ resolveApiKey: options.resolveDeepSeekApiKey });
+      const transport = await createPinnedHarnessAgentTransport({ owner: context, resolveApiKey: options.resolveDeepSeekApiKey });
       return Object.freeze([new HarnessApiKeyBackend({ transport, clearApiKey: options.clearDeepSeekApiKey })]);
     },
   });
