@@ -10,6 +10,7 @@ import { classifyToolConcurrency } from './scheduler/classify.js';
 import { EffectLockManager, effectLockKeys } from './scheduler/effect-locks.js';
 import { SceneTransactionCoordinator } from './transactions.js';
 import { ToolCatalogRuntime, type ToolSchemaSelection } from './catalog/index.js';
+import { BehaviorToolReader, isBehaviorTool, normalizeBehaviorArguments, type GameBehaviorSource } from './behavior.js';
 import {
   GameToolProtocolError,
   type GamePreviewControl,
@@ -35,6 +36,7 @@ export interface GameAuthoringToolRuntimeOptions {
   readonly timeoutCeilingMs?: number;
   readonly observationByteLimit?: number;
   readonly effectLocks?: EffectLockManager;
+  readonly behaviorSource?: GameBehaviorSource;
 }
 
 interface StoredPreparation {
@@ -91,6 +93,8 @@ export class GameAuthoringToolRuntime {
   private readonly effectLocks: EffectLockManager;
   private readonly transactions: SceneTransactionCoordinator;
   private readonly catalog: ToolCatalogRuntime;
+  private readonly behavior: BehaviorToolReader;
+  private disposal: Promise<void> | undefined;
 
   constructor(private readonly options: GameAuthoringToolRuntimeOptions) {
     if (options.timeoutCeilingMs !== undefined && (!Number.isSafeInteger(options.timeoutCeilingMs) || options.timeoutCeilingMs < 1 || options.timeoutCeilingMs > 20_000)) throw new TypeError('Tool timeout ceiling must be between one millisecond and twenty seconds.');
@@ -99,6 +103,7 @@ export class GameAuthoringToolRuntime {
     this.effectLocks = options.effectLocks ?? new EffectLockManager();
     this.transactions = new SceneTransactionCoordinator(options.workspace, options.operationLog, this.effectLocks);
     this.catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => options.workspace.componentRegistry.snapshot().definitions);
+    this.behavior = new BehaviorToolReader(options.behaviorSource, () => requireDocument(options.workspace));
   }
 
   definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
@@ -299,11 +304,12 @@ export class GameAuthoringToolRuntime {
     await Promise.all(facts);
   }
 
-  dispose(): void {
-    if (this.disposed) return;
+  dispose(): Promise<void> {
+    if (this.disposal) return this.disposal;
     this.disposed = true;
     for (const controller of this.active.values()) controller.abort(new GameToolProtocolError('tool.runtime-disposed', 'Game tool runtime disposed.'));
     this.active.clear(); this.preparations.clear(); this.proposals.clear(); this.previewPlans.clear(); this.approvalGrants.clear();
+    return this.disposal = this.behavior.dispose();
   }
 
   private async executeStored(stored: StoredPreparation, signal?: AbortSignal): Promise<GameToolResult> {
@@ -325,10 +331,11 @@ export class GameAuthoringToolRuntime {
     const timer = setTimeout(() => controller.abort(new GameToolProtocolError('tool.timeout', `Tool ${stored.definition.id} exceeded ${timeoutMs} ms.`, true)), timeoutMs);
     try {
       await this.appendFact(stored.definition, { kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest } }, controller.signal);
-      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, this.catalog, controller.signal);
+      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, this.catalog, this.behavior, controller.signal);
       if (controller.signal.aborted) throw controller.signal.reason ?? new GameToolProtocolError('tool.cancelled', 'Tool call was cancelled.');
       assertResultBudget(value, stored.definition.maxResultBytes);
       const after = requireDocument(this.options.workspace);
+      if (isBehaviorTool(stored.definition.id) && (after.documentId !== stored.view.documentId || after.revision !== stored.view.baseRevision)) throw new GameToolProtocolError('behavior.stale', 'Project changed during the behavior read.', true);
       const result: GameToolResult = Object.freeze({
         schemaVersion: 1, callId: stored.call.id, toolId: stored.definition.id, status: 'completed', value,
         documentId: after.documentId, beforeRevision: stored.view.baseRevision, afterRevision: after.revision,
@@ -909,7 +916,8 @@ function collectAssetReferences(value: JsonValue, path: string, output: { assetI
   if (isRecord(value)) for (const [key, child] of Object.entries(value)) collectAssetReferences(child as JsonValue, `${path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`, output);
 }
 
-async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, observations: PlayObservationRepository, evaluator: DeterministicTaskEvaluator, catalog: ToolCatalogRuntime, signal: AbortSignal): Promise<JsonObject> {
+async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, observations: PlayObservationRepository, evaluator: DeterministicTaskEvaluator, catalog: ToolCatalogRuntime, behavior: BehaviorToolReader, signal: AbortSignal): Promise<JsonObject> {
+  if (isBehaviorTool(stored.definition.id)) return behavior.execute(stored.definition.id, stored.arguments, signal);
   const args = stored.arguments as Record<string, JsonValue>;
   const scene = options.scene.snapshot();
   switch (stored.definition.id) {
@@ -1194,6 +1202,7 @@ function validateToolCall(value: unknown): GameToolCall {
 }
 
 function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision: number): JsonObject {
+  if (isBehaviorTool(toolId)) return normalizeBehaviorArguments(toolId, value);
   const raw = value as Record<string, unknown>;
   switch (toolId) {
     case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': case 'play.stop': case 'play.inspect': case 'play.capture': exact(raw, [], [], toolId); return Object.freeze({});

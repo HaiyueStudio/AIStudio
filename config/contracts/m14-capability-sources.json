@@ -9,7 +9,10 @@
     "component.remove",
     "component.configure",
     "engine.capabilities.describe",
-    "tool.search"
+    "tool.search",
+    "behavior.query",
+    "behavior.locate",
+    "behavior.explain"
   ],
   "checks": [
     {
@@ -24,7 +27,10 @@
       "files": [
         "packages/game-authoring-tools/test/tool-invocation.test.mjs",
         "packages/game-authoring-tools/test/g08-semantic-tools.test.mjs",
-        "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+        "apps/ai-studio/test/tool-discovery-invocation.test.mjs",
+        "packages/game-authoring-tools/test/behavior-tools.test.mjs",
+        "packages/game-authoring-tools/test/behavior-resource-tool-invocation.test.mjs",
+        "apps/ai-studio/test/agent-tools/behavior-tool-invocation.test.mjs"
       ]
     },
     {
@@ -464,7 +470,7 @@
         "verification": "g01-capability-surface-census"
       },
       "limitations": [
-        "Controlled file assets and existing instance pools do not provide the four-kind resource catalog planned in G02/G06."
+        "Four-kind resource contracts exist; persistent templates/presets and the catalog UI remain pending G06."
       ]
     },
     {
@@ -482,7 +488,10 @@
         "preview.start",
         "preview.stop",
         "play.start",
-        "play.stop"
+        "play.stop",
+        "behavior.query",
+        "behavior.locate",
+        "behavior.explain"
       ],
       "document": [
         "packages/editor-plugins/src/project/game-document.ts",

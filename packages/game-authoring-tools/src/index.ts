@@ -1,4 +1,5 @@
 export * from './types.js';
+export type { GameBehaviorSource } from './behavior.js';
 export * from './definitions.js';
 export * from './runtime.js';
 export * from './coordinator.js';

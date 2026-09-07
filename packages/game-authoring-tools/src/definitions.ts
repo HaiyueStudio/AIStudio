@@ -1,5 +1,6 @@
 import { asStableId, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
 import type { GameToolDefinition, GameToolEffect, GameToolRisk } from './types.js';
+import { BEHAVIOR_TOOL_SCHEMAS } from './behavior.js';
 
 const empty = schema({}, []);
 const entityId = Object.freeze({ type: 'string', pattern: '^entity:[A-Za-z0-9._:-]{3,120}$' });
@@ -78,6 +79,9 @@ const PARALLEL_SAFE_TOOL_IDS = new Set([
 ]);
 
 export const GAME_AUTHORING_TOOL_DEFINITIONS: readonly GameToolDefinition[] = Object.freeze([
+  definition('behavior.query', 'Query entity behavior', 'Read a bounded page of script and declarative behavior structure from the current project. First call uses baseRevision; reuse returned manifestDigest and binding.digest as sourceBindingDigest for page continuations. Unknown relationships and truncated analysis are explicit. This does not establish runtime execution.', 'observe', 'low', BEHAVIOR_TOOL_SCHEMAS['behavior.query'], ['studio.script-preview'], 20_000, 64 * 1024),
+  definition('behavior.locate', 'Locate behavior source', 'Resolve a node from behavior.query to a version-bound script range, component field or admitted adapter reference. Supply the exact manifest and source binding digests. A stale reference is rejected; this reads a location and does not edit or execute it.', 'observe', 'low', BEHAVIOR_TOOL_SCHEMAS['behavior.locate'], ['studio.script-preview'], 20_000, 64 * 1024),
+  definition('behavior.explain', 'Explain behavior structure', 'Return a separate, source-backed explanation of selected nodes in en or zh-CN using the verified structure template. Requires current manifest and source binding digests. Explanations are not observed runtime facts and do not change the graph.', 'observe', 'low', BEHAVIOR_TOOL_SCHEMAS['behavior.explain'], ['studio.script-preview'], 20_000, 64 * 1024),
   definition('project.snapshot', 'Project snapshot', 'Read the current project identity, revision and log health.', 'observe', 'low', empty, ['studio.project-workspace']),
   definition('scene.query', 'Query scene context', 'Read a paged immutable Scene projection at a retained revision. Scripts return metadata and digests, never source text. Use projection and scope to request only the exact hierarchy, components, scripts, assets, camera, render settings or project settings needed.', 'observe', 'low', schema({ revision, scope: sceneScope, projection: sceneProjection, cursor: sceneCursor, limit: sceneLimit }, [], ['revision', 'scope', 'projection', 'cursor', 'limit']), ['studio.project-workspace'], 10_000, 64 * 1024),
   definition('scene.diff', 'Diff scene revisions', 'Read a paged, provenance-carrying SceneDiffV1 between retained revisions. A stale cursor, future revision, revision gap or pruned history returns a recoverable diagnostic so the caller can request a new bounded scene.query baseline.', 'observe', 'low', schema({ fromRevision: revision, toRevision: revision, scope: sceneScope, projection: sceneProjection, cursor: sceneCursor, limit: sceneLimit }, ['fromRevision'], ['toRevision', 'scope', 'projection', 'cursor', 'limit']), ['studio.project-workspace'], 10_000, 64 * 1024),

@@ -29,7 +29,7 @@
     "render:candidate:check": "node scripts/verify-render-extension-candidates.mjs",
     "spike:check": "node scripts/verify-protocol-spikes.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "npm run contracts:check && npm run typecheck && npm run typecheck -w @haiyue/ai-studio-agent-orchestration && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run render:candidate:check && npm run spike:check && npm run m12:g12:quick && npm run m14:capability:check && npm run build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts && npm run build -w @haiyue/ai-studio --ignore-scripts && npm run m14:behavior:test && npm run m14:workspace:test",
+    "check": "npm run contracts:check && npm run typecheck && npm run typecheck -w @haiyue/ai-studio-agent-orchestration && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run render:candidate:check && npm run spike:check && npm run m12:g12:quick && npm run m14:capability:check && npm run build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts && npm run build -w @haiyue/ai-studio --ignore-scripts && npm run m14:behavior:test && npm run m14:workspace:test && npm run m14:agent-tools:test",
     "g01:check": "npm run check && npm run editor:candidate:check",
     "m12:g01:check": "npm run contracts:check && npm run typecheck -w @haiyue/ai-studio-contracts && npm run boundaries:check && node scripts/verify-m12-g01.mjs",
     "m12:g02:check": "node --test evals/test/*.test.mjs && node scripts/verify-m12-g02.mjs",
@@ -66,7 +66,9 @@
     "m14:behavior:test": "node --test packages/script-preview/test/behavior-*.test.mjs apps/ai-studio/test/m14-behavior-contract.test.mjs",
     "m14:behavior:check": "npm run build -w @haiyue/ai-studio && npm run m14:behavior:test",
     "m14:workspace:test": "node --test --test-concurrency=1 apps/ai-studio/test/layout/*.test.mjs apps/ai-studio/test/split-layout.test.mjs apps/ai-studio/test/electron-smoke.test.mjs",
-    "m14:workspace:check": "npm run build -w @haiyue/ai-studio && npm run m14:workspace:test"
+    "m14:workspace:check": "npm run build -w @haiyue/ai-studio && npm run m14:workspace:test",
+    "m14:agent-tools:test": "node --test packages/game-authoring-tools/test/*.test.mjs apps/ai-studio/test/agent-tools/*.test.mjs apps/ai-studio/test/tool-discovery-invocation.test.mjs",
+    "m14:agent-tools:check": "npm run build -w @haiyue/ai-studio && npm run m14:agent-tools:test"
   },
   "devDependencies": {
     "@openai/codex": "0.148.0",

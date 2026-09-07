@@ -6,6 +6,7 @@ import { GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import { GameAuthoringToolRuntime } from './runtime.js';
 import type { GamePreviewControl, GameToolApproval, GameToolApprovalResolution, GameToolCall, GameToolPreparation, GameToolResult, GameToolRuntimeSnapshot, GameToolTransactionInput, GameToolTransactionResult } from './types.js';
 import type { ToolSchemaSelection } from './catalog/index.js';
+import type { GameBehaviorSource } from './behavior.js';
 
 export interface GameAuthoringToolService {
   definitions(): ReturnType<GameAuthoringToolRuntime['definitions']>;
@@ -19,7 +20,7 @@ export interface GameAuthoringToolService {
   cancel(callId: StableId): Promise<void>;
 }
 
-export interface GameAuthoringToolsPluginOptions { readonly preview: GamePreviewControl; }
+export interface GameAuthoringToolsPluginOptions { readonly preview: GamePreviewControl; readonly behaviorSource?: GameBehaviorSource; }
 
 export const gameAuthoringToolServiceToken = createStudioServiceToken<GameAuthoringToolService>('studio.game-authoring-tools');
 export const gameAuthoringToolContributionKind = asStableId('studio.contribution.agent-tool');
@@ -45,6 +46,7 @@ export function createGameAuthoringToolsPlugin(options: GameAuthoringToolsPlugin
         workspace: context.services.get(projectWorkspaceServiceToken), scene: context.services.get(sceneAuthoringToken),
         scripts: context.services.get(scriptPreviewServiceToken), diagnostics: context.services.get(diagnosticsQueryServiceToken),
         operationLog: context.services.get(operationLogServiceToken).log, preview: options.preview,
+        ...(options.behaviorSource ? { behaviorSource: options.behaviorSource } : {}),
       });
       const service: GameAuthoringToolService = Object.freeze({
         definitions: runtime.definitions.bind(runtime), selectDefinitions: runtime.selectDefinitions.bind(runtime), snapshot: runtime.snapshot.bind(runtime), prepare: runtime.prepare.bind(runtime),

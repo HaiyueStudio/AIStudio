@@ -37,6 +37,7 @@ export interface ToolSchemaSelection {
 interface CapabilityGroup { readonly id: string; readonly aliases: readonly string[]; readonly toolPrefixes: readonly string[]; readonly capabilities: readonly string[]; }
 
 const GROUPS: readonly CapabilityGroup[] = Object.freeze([
+  group('behavior', ['behavior', 'logic', 'provenance', 'event', 'explain', '行为', '逻辑', '来源', '事件', '解释'], ['behavior.'], ['behavior']),
   group('scene', ['scene', 'entity', 'hierarchy', 'prefab', '场景', '实体', '层级', '预制体'], ['scene.', 'entity.', 'prefab.'], ['scene', 'hierarchy']),
   group('spatial', ['transform', 'position', 'rotation', 'scale', 'align', 'layout', '变换', '位置', '旋转', '缩放', '对齐', '布局'], ['transform.'], ['transform']),
   group('camera', ['camera', 'view', 'framing', 'orbit', 'follow', 'viewport', '相机', '视角', '镜头', '取景'], ['camera.'], ['camera']),

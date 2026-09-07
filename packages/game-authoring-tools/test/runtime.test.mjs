@@ -23,6 +23,7 @@ transform?.setPosition(0, 1, 0);
 
 test('bounded tool catalog exposes registry-driven component authoring', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
+    'behavior.query', 'behavior.locate', 'behavior.explain',
     'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search', 'engine.capabilities.describe', 'component.describe', 'component.get',
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
     'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
@@ -696,11 +697,11 @@ test('model-facing mutations require the observed revision and create with an in
   } finally { await dispose(value); }
 });
 
-test('every revision-bound mutation publishes a required version and rejects omission at its input boundary', async () => {
+test('every revision-bound tool publishes a required version and rejects omission at its input boundary', async () => {
   const value = await fixture();
   try {
     const definitions = GAME_AUTHORING_TOOL_DEFINITIONS.filter((tool) => tool.inputSchema.properties.baseRevision && tool.id !== 'preview.validate');
-    assert.equal(definitions.length, 21);
+    assert.equal(definitions.length, 24);
     for (const definition of definitions) {
       assert.ok(definition.inputSchema.required.includes('baseRevision'), `${definition.id} must tell both providers that the version is required`);
       await assert.rejects(value.runtime.prepare(call(`call:missing-revision:${definition.id}`, definition.id, {})), (error) => {
@@ -1262,7 +1263,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 47);
+      assert.equal(input.tools.length, 50);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -1287,7 +1288,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 47);
+      assert.equal(input.tools.length, 50);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');
