@@ -1,0 +1,412 @@
+TAP version 13
+# Subtest: script: real behavior tools preserve source binding and read-only History
+ok 1 - script: real behavior tools preserve source binding and read-only History
+  ---
+  duration_ms: 4207.65
+  type: 'test'
+  ...
+# Subtest: declarative: real behavior tools preserve source binding and read-only History
+ok 2 - declarative: real behavior tools preserve source binding and read-only History
+  ---
+  duration_ms: 4494.6857
+  type: 'test'
+  ...
+# Subtest: mixed: real behavior tools preserve source binding and read-only History
+ok 3 - mixed: real behavior tools preserve source binding and read-only History
+  ---
+  duration_ms: 7014.5273
+  type: 'test'
+  ...
+# Subtest: schema fuzz, exact invocation versions and registry-owned risk reject unsupported behavior requests
+ok 4 - schema fuzz, exact invocation versions and registry-owned risk reject unsupported behavior requests
+  ---
+  duration_ms: 330.6969
+  type: 'test'
+  ...
+# Subtest: component edits, project identity, registry/config changes and in-flight drift invalidate behavior results
+ok 5 - component edits, project identity, registry/config changes and in-flight drift invalidate behavior results
+  ---
+  duration_ms: 2500.614
+  type: 'test'
+  ...
+# Subtest: result pages adapt to byte budget without dropping provenance or skipping nodes
+ok 6 - result pages adapt to byte budget without dropping provenance or skipping nodes
+  ---
+  duration_ms: 2653.7328
+  type: 'test'
+  ...
+# Subtest: missing source, secret-bearing inputs and provider errors are explicit and redacted
+ok 7 - missing source, secret-bearing inputs and provider errors are explicit and redacted
+  ---
+  duration_ms: 277.4041
+  type: 'test'
+  ...
+# Subtest: timeout, cancellation and disposal terminate behavior work without late results or document writes
+ok 8 - timeout, cancellation and disposal terminate behavior work without late results or document writes
+  ---
+  duration_ms: 358.8378
+  type: 'test'
+  ...
+# Subtest: seven game cases consume only registered genre-neutral tools and component capabilities
+ok 9 - seven game cases consume only registered genre-neutral tools and component capabilities
+  ---
+  duration_ms: 2.0179
+  type: 'test'
+  ...
+# Subtest: high-value semantic tools retain bounded schemas, explicit effects and safe result budgets
+ok 10 - high-value semantic tools retain bounded schemas, explicit effects and safe result budgets
+  ---
+  duration_ms: 0.235
+  type: 'test'
+  ...
+# Subtest: bounded tool catalog exposes registry-driven component authoring
+ok 11 - bounded tool catalog exposes registry-driven component authoring
+  ---
+  duration_ms: 2.7995
+  type: 'test'
+  ...
+# Subtest: entity.create-many creates mixed scene roles in one revision and rejects material on non-geometry
+ok 12 - entity.create-many creates mixed scene roles in one revision and rejects material on non-geometry
+  ---
+  duration_ms: 238.1386
+  type: 'test'
+  ...
+# Subtest: camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically
+ok 13 - camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically
+  ---
+  duration_ms: 364.35
+  type: 'test'
+  ...
+# Subtest: tool.search and component.configure expose registry defaults as partial semantic upserts
+ok 14 - tool.search and component.configure expose registry defaults as partial semantic upserts
+  ---
+  duration_ms: 264.1981
+  type: 'test'
+  ...
+# Subtest: asset.dependencies and script symbols/patch provide exact incremental context without whole-script retransmission
+ok 15 - asset.dependencies and script symbols/patch provide exact incremental context without whole-script retransmission
+  ---
+  duration_ms: 2332.1099
+  type: 'test'
+  ...
+# Subtest: scene.get-many and recoverable hierarchy operations clone, reparent and restore complete subtrees
+ok 16 - scene.get-many and recoverable hierarchy operations clone, reparent and restore complete subtrees
+  ---
+  duration_ms: 258.2593
+  type: 'test'
+  ...
+# Subtest: prefab.manage captures, instantiates and removes reusable subtrees while history.query stays bounded and source-redacted
+ok 17 - prefab.manage captures, instantiates and removes reusable subtrees while history.query stays bounded and source-redacted
+  ---
+  duration_ms: 1318.2913
+  type: 'test'
+  ...
+# Subtest: transform.batch applies set, align, distribute, snap and look-at as bounded single-revision edits
+ok 18 - transform.batch applies set, align, distribute, snap and look-at as bounded single-revision edits
+  ---
+  duration_ms: 260.7968
+  type: 'test'
+  ...
+# Subtest: main project camera persists through History and supports a distortion-free top-down board view
+ok 19 - main project camera persists through History and supports a distortion-free top-down board view
+  ---
+  duration_ms: 210.4459
+  type: 'test'
+  ...
+# Subtest: runtime executes a prepared mutation batch through one Scene transaction and one undoable History entry
+ok 20 - runtime executes a prepared mutation batch through one Scene transaction and one undoable History entry
+  ---
+  duration_ms: 216.136
+  type: 'test'
+  ...
+# Subtest: scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary
+ok 21 - scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary
+  ---
+  duration_ms: 202.7206
+  type: 'test'
+  ...
+# Subtest: planned entity creation is low risk while later scoped edits retain one-shot approval and History
+ok 22 - planned entity creation is low risk while later scoped edits retain one-shot approval and History
+  ---
+  duration_ms: 220.1171
+  type: 'test'
+  ...
+# Subtest: controlled project assets import, search, assign, undo and survive project reopen
+ok 23 - controlled project assets import, search, assign, undo and survive project reopen
+  ---
+  duration_ms: 210.63
+  type: 'test'
+  ...
+# Subtest: controlled asset import rejects decode-budget and kind/format violations without mutation
+ok 24 - controlled asset import rejects decode-budget and kind/format violations without mutation
+  ---
+  duration_ms: 204.2406
+  type: 'test'
+  ...
+# Subtest: diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload
+ok 25 - diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload
+  ---
+  duration_ms: 202.7029
+  type: 'test'
+  ...
+# Subtest: allow always auto-approves only the same tool, version, target and project session scope
+ok 26 - allow always auto-approves only the same tool, version, target and project session scope
+  ---
+  duration_ms: 200.1613
+  type: 'test'
+  ...
+# Subtest: script proposal, trusted apply and runtime start preserve separate approvals
+ok 27 - script proposal, trusted apply and runtime start preserve separate approvals
+  ---
+  duration_ms: 2015.1437
+  type: 'test'
+  ...
+# Subtest: AI-generated engine imports and update wrappers are normalized before apply
+ok 28 - AI-generated engine imports and update wrappers are normalized before apply
+  ---
+  duration_ms: 1456.2064
+  type: 'test'
+  ...
+# Subtest: unsupported module entry points remain fail closed
+ok 29 - unsupported module entry points remain fail closed
+  ---
+  duration_ms: 2233.7638
+  type: 'test'
+  ...
+# Subtest: scene capability is inferred from api.scene source and survives proposal and preview validation
+ok 30 - scene capability is inferred from api.scene source and survives proposal and preview validation
+  ---
+  duration_ms: 1917.7587
+  type: 'test'
+  ...
+# Subtest: preview validation rejects scenes that contain only logic entities
+ok 31 - preview validation rejects scenes that contain only logic entities
+  ---
+  duration_ms: 1238.0199
+  type: 'test'
+  ...
+# Subtest: preview validation rejects lit materials without a light and recovers after lighting is added
+ok 32 - preview validation rejects lit materials without a light and recovers after lighting is added
+  ---
+  duration_ms: 1805.6103
+  type: 'test'
+  ...
+# Subtest: Agent tools create Engine primitives and lights and can change built-in materials
+ok 33 - Agent tools create Engine primitives and lights and can change built-in materials
+  ---
+  duration_ms: 208.9245
+  type: 'test'
+  ...
+# Subtest: registry-driven component tools preserve schema, risk, Scene projection and History
+ok 34 - registry-driven component tools preserve schema, risk, Scene projection and History
+  ---
+  duration_ms: 259.5173
+  type: 'test'
+  ...
+# Subtest: Agent can author distinct material colors for snake, food and board entities
+ok 35 - Agent can author distinct material colors for snake, food and board entities
+  ---
+  duration_ms: 220.4669
+  type: 'test'
+  ...
+# Subtest: model-facing mutations require the observed revision and create with an initial Transform
+ok 36 - model-facing mutations require the observed revision and create with an initial Transform
+  ---
+  duration_ms: 65.1397
+  type: 'test'
+  ...
+# Subtest: every revision-bound tool publishes a required version and rejects omission at its input boundary
+ok 37 - every revision-bound tool publishes a required version and rejects omission at its input boundary
+  ---
+  duration_ms: 210.5286
+  type: 'test'
+  ...
+# Subtest: missing, invalid and stale revisions never adopt a newer manual edit
+ok 38 - missing, invalid and stale revisions never adopt a newer manual edit
+  ---
+  duration_ms: 211.9977
+  type: 'test'
+  ...
+# Subtest: manual UI service and Agent tool serialize the same entity, revision and undoable History state
+ok 39 - manual UI service and Agent tool serialize the same entity, revision and undoable History state
+  ---
+  duration_ms: 249.6233
+  type: 'test'
+  ...
+# Subtest: schema spoof, rejection and revision drift fail closed without mutation
+ok 40 - schema spoof, rejection and revision drift fail closed without mutation
+  ---
+  duration_ms: 214.8412
+  type: 'test'
+  ...
+# Subtest: schema fuzz rejects duplicate, nested unknown, non-finite and malformed structured fields before mutation
+ok 41 - schema fuzz rejects duplicate, nested unknown, non-finite and malformed structured fields before mutation
+  ---
+  duration_ms: 45.4549
+  type: 'test'
+  ...
+# Subtest: same-document mutations serialize and a queued stale preparation never enters the editor service
+ok 42 - same-document mutations serialize and a queued stale preparation never enters the editor service
+  ---
+  duration_ms: 210.4354
+  type: 'test'
+  ...
+# Subtest: tool, approval, Document and History correlation remains traversable after the journal restarts
+ok 43 - tool, approval, Document and History correlation remains traversable after the journal restarts
+  ---
+  duration_ms: 204.9104
+  type: 'test'
+  ...
+# Subtest: cancelled calls reject a late result even when the injected runtime ignores AbortSignal
+ok 44 - cancelled calls reject a late result even when the injected runtime ignores AbortSignal
+  ---
+  duration_ms: 42.8791
+  type: 'test'
+  ...
+# Subtest: tool timeout aborts execution, emits a terminal failure and cannot produce a late completion
+ok 45 - tool timeout aborts execution, emits a terminal failure and cannot produce a late completion
+  ---
+  duration_ms: 188.4089
+  type: 'test'
+  ...
+# Subtest: observe tools degrade when journal append fails while every mutation remains fail closed
+ok 46 - observe tools degrade when journal append fails while every mutation remains fail closed
+  ---
+  duration_ms: 42.3468
+  type: 'test'
+  ...
+# Subtest: pending approvals have no wall-clock expiry while revision drift still invalidates them
+ok 47 - pending approvals have no wall-clock expiry while revision drift still invalidates them
+  ---
+  duration_ms: 182.0911
+  type: 'test'
+  ...
+# Subtest: fake backend deterministic E2E creates, transforms, scripts and starts preview through one tool seam
+ok 48 - fake backend deterministic E2E creates, transforms, scripts and starts preview through one tool seam
+  ---
+  duration_ms: 1786.9315
+  type: 'test'
+  ...
+# Subtest: coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval
+ok 49 - coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval
+  ---
+  duration_ms: 1108.2361
+  type: 'test'
+  ...
+# Subtest: agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam
+ok 50 - agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam
+  ---
+  duration_ms: 2243.0885
+  type: 'test'
+  ...
+# Subtest: coordinator rejects malformed provider arguments instead of coercing them to an empty observe call
+ok 51 - coordinator rejects malformed provider arguments instead of coercing them to an empty observe call
+  ---
+  duration_ms: 29.2922
+  type: 'test'
+  ...
+# Subtest: coordinator can route backend turns and tool output accounting through AgentTurnRuntime
+ok 52 - coordinator can route backend turns and tool output accounting through AgentTurnRuntime
+  ---
+  duration_ms: 48.0142
+  type: 'test'
+  ...
+# Subtest: coordinator can expose a bounded tool profile and compact only the provider-facing result
+ok 53 - coordinator can expose a bounded tool profile and compact only the provider-facing result
+  ---
+  duration_ms: 47.3557
+  type: 'test'
+  ...
+# Subtest: a search-only coordinator invokes a discovered edit through real Document History without exposing all schemas
+ok 54 - a search-only coordinator invokes a discovered edit through real Document History without exposing all schemas
+  ---
+  duration_ms: 213.3729
+  type: 'test'
+  ...
+# Subtest: coordinator automatically takes over backend questions through an explicit policy
+ok 55 - coordinator automatically takes over backend questions through an explicit policy
+  ---
+  duration_ms: 29.0942
+  type: 'test'
+  ...
+# Subtest: coordinator cancels a non-converging turn at its tool request boundary
+ok 56 - coordinator cancels a non-converging turn at its tool request boundary
+  ---
+  duration_ms: 56.3192
+  type: 'test'
+  ...
+# Subtest: coordinator preserves completed tool results when the host budget observer blocks the next request
+ok 57 - coordinator preserves completed tool results when the host budget observer blocks the next request
+  ---
+  duration_ms: 46.3099
+  type: 'test'
+  ...
+# Subtest: coordinator can preserve completed tool results when a bounded host timebox aborts the caller
+ok 58 - coordinator can preserve completed tool results when a bounded host timebox aborts the caller
+  ---
+  duration_ms: 45.8873
+  type: 'test'
+  ...
+# Subtest: disposing the coordinator aborts an active backend turn and is idempotent
+ok 59 - disposing the coordinator aborts an active backend turn and is idempotent
+  ---
+  duration_ms: 28.9806
+  type: 'test'
+  ...
+# Subtest: coordinator prepares without mutation and commits 7 members as one idempotent History transaction
+ok 60 - coordinator prepares without mutation and commits 7 members as one idempotent History transaction
+  ---
+  duration_ms: 93.1927
+  type: 'test'
+  ...
+# Subtest: coordinator commits the 100-member boundary as one revision and one History entry
+ok 61 - coordinator commits the 100-member boundary as one revision and one History entry
+  ---
+  duration_ms: 52.0485
+  type: 'test'
+  ...
+# Subtest: disjoint entity transactions prepare concurrently from one frozen revision without acquiring commit locks
+ok 62 - disjoint entity transactions prepare concurrently from one frozen revision without acquiring commit locks
+  ---
+  duration_ms: 30.8191
+  type: 'test'
+  ...
+# Subtest: stale revision introduced between prepare and commit rejects without a partial transaction
+ok 63 - stale revision introduced between prepare and commit rejects without a partial transaction
+  ---
+  duration_ms: 34.5
+  type: 'test'
+  ...
+# Subtest: stale base is rejected during prepare before any plan, mutation or History entry exists
+ok 64 - stale base is rejected during prepare before any plan, mutation or History entry exists
+  ---
+  duration_ms: 26.3904
+  type: 'test'
+  ...
+# Subtest: coordinator synthesizes committed-no-ack and never submits the transaction twice
+ok 65 - coordinator synthesizes committed-no-ack and never submits the transaction twice
+  ---
+  duration_ms: 44.7252
+  type: 'test'
+  ...
+# Subtest: failure before History write preserves prepared artifacts and leaves the document untouched
+ok 66 - failure before History write preserves prepared artifacts and leaves the document untouched
+  ---
+  duration_ms: 35.4663
+  type: 'test'
+  ...
+# Subtest: invalid member operations fail during prepare and leave no partial Scene state or History entry
+ok 67 - invalid member operations fail during prepare and leave no partial Scene state or History entry
+  ---
+  duration_ms: 25.1303
+  type: 'test'
+  ...
+1..67
+# tests 67
+# suites 0
+# pass 67
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 51708.9669

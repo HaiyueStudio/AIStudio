@@ -36,6 +36,7 @@ interface PreviewAsset { readonly id: string; readonly kind: 'texture' | 'model'
 
 let engine: HaiyueEngine | null = null;
 let scene: Scene | null = null;
+let capturedFrame: HTMLCanvasElement | null = null;
 const scriptOwners: ScriptOwner[] = [];
 const planByComponent = new Map<ScriptComponent, PreviewScriptPlan>();
 let target: Entity | null = null;
@@ -297,7 +298,7 @@ function displayFrame(timestamp: number): void {
   previousFrameTime = timestamp;
   try {
     beginManualRenderFrame(engine);
-    simulation.advanceDisplayFrame(deltaMs);
+    if (simulation.advanceDisplayFrame(deltaMs) > 0) retainRenderedFrame();
     renderedFrame += 1;
   }
   catch (cause) { behaviorRecorder?.recordError(null); stop('simulation-failed'); fail(cause); return; }
@@ -307,7 +308,7 @@ function displayFrame(timestamp: number): void {
 function step(requestId: string, count: number): void {
   if (!simulation || !engine) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
   if (!paused) { requestFailed(requestId, new Error('Preview must be paused before stepping.')); return; }
-  try { beginManualRenderFrame(engine); simulation.step(count); renderedFrame += 1; send('stepped', { requestId, count, tick: simulation.clock.tick, frame: renderedFrame, disposableCount: totalDisposableCount() }); }
+  try { beginManualRenderFrame(engine); simulation.step(count); retainRenderedFrame(); renderedFrame += 1; send('stepped', { requestId, count, tick: simulation.clock.tick, frame: renderedFrame, disposableCount: totalDisposableCount() }); }
   catch (cause) { behaviorRecorder?.recordError(null); requestFailed(requestId, cause); }
 }
 
@@ -343,13 +344,29 @@ function publishPhysicsQuery(requestId: string, query: Readonly<Record<string, u
 async function capture(requestId: string): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas');
   if (!simulation || !engine || !canvas) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
+  const generation = lifecycleGeneration, ownedEngine = engine, tick = simulation.clock.tick, frame = renderedFrame;
   try {
-    await engine.device.queue.onSubmittedWorkDone();
+    if (!capturedFrame) throw new Error('No rendered Play frame is available yet.');
     const blob = await captureCompositePng(canvas);
     if (blob.size < 8 || blob.size > 376 * 1024) throw new Error('Screenshot exceeds the 376 KiB observation limit.');
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    send('capture', { requestId, base64: bytesToBase64(bytes), byteLength: bytes.byteLength, tick: simulation.clock.tick, frame: renderedFrame });
+    if (generation !== lifecycleGeneration || ownedEngine !== engine) throw new Error('Play stopped or restarted during screenshot capture.');
+    send('capture', { requestId, base64: bytesToBase64(bytes), byteLength: bytes.byteLength, tick, frame });
   } catch (cause) { requestFailed(requestId, cause); }
+}
+
+function retainRenderedFrame(): void {
+  const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas');
+  if (!canvas) return;
+  capturedFrame ??= document.createElement('canvas');
+  if (capturedFrame.width !== canvas.width) capturedFrame.width = canvas.width;
+  if (capturedFrame.height !== canvas.height) capturedFrame.height = canvas.height;
+  const context = capturedFrame.getContext('2d', { willReadFrequently: true });
+  if (!context) throw new Error('Rendered frame storage is unavailable.');
+  // Snapshot in the rendering task. A presented WebGPU swap-chain texture may
+  // already be expired when a later paused/async screenshot request arrives.
+  context.globalCompositeOperation = 'copy';
+  context.drawImage(canvas, 0, 0);
 }
 
 async function captureCompositePng(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -357,7 +374,7 @@ async function captureCompositePng(canvas: HTMLCanvasElement): Promise<Blob> {
   output.width = canvas.width; output.height = canvas.height;
   const context = output.getContext('2d');
   if (!context) throw new Error('Screenshot composition context is unavailable.');
-  context.drawImage(canvas, 0, 0, output.width, output.height);
+  context.drawImage(capturedFrame!, 0, 0, output.width, output.height);
   const canvasRect = canvas.getBoundingClientRect();
   const scaleX = output.width / Math.max(1, canvasRect.width), scaleY = output.height / Math.max(1, canvasRect.height);
   for (const record of hudTexts.values()) {
@@ -650,6 +667,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   const disposableCount = totalDisposableCount();
   if (animationFrame !== null) cancelAnimationFrame(animationFrame);
   animationFrame = null; previousFrameTime = null;
+  if (capturedFrame) { capturedFrame.width = 0; capturedFrame.height = 0; capturedFrame = null; }
   removeInputListeners?.(); removeInputListeners = null;
   physicsLoadController?.abort(new Error(`physics.runtime-stopped:${reason}`)); physicsLoadController = null;
   simulation?.reset(); simulation = null; activeInput = null;

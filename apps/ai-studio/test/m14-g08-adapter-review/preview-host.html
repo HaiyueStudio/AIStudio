@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src haiyue-preview:; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<style>html,body{margin:0;background:#080b12}iframe{display:block;width:640px;height:480px;border:0}</style>
+</head><body><script>
+(() => {
+  const protocol = 'haiyue-preview/1', frame = document.createElement('iframe');
+  frame.sandbox = 'allow-scripts'; frame.src = 'haiyue-preview://app/preview.html'; document.body.append(frame);
+  let active = null, sequence = 0;
+  const errors = [], lifecycle = [];
+  const post = value => frame.contentWindow.postMessage({ protocol, ...value }, '*');
+  const settle = (error, value) => {
+    const pending = active; active = null;
+    if (!pending) return; clearTimeout(pending.timer);
+    if (error) pending.reject(error); else pending.resolve(value);
+  };
+  window.reviewCommand = (kind, payload = {}) => {
+    if (active) throw Error('A review command is already pending.');
+    return new Promise((resolve, reject) => {
+      const id = `review:${++sequence}`;
+      active = { id, kind, resolve, reject, timer: setTimeout(() => settle(Error(`Timeout: ${kind}; ${JSON.stringify(errors)}`)), 25000) };
+      if (kind === 'start' || kind === 'cancel-start') {
+        post({ type: 'start', ...payload });
+        if (kind === 'cancel-start') post({ type: 'stop' });
+      } else if (kind === 'input') {
+        post({ type: 'input', event: payload }); post({ type: 'inspect', requestId: id });
+      } else if (kind === 'resize') {
+        frame.style.width = `${payload.width}px`; frame.style.height = `${payload.height}px`;
+        requestAnimationFrame(() => requestAnimationFrame(() => post({ type: 'inspect', requestId: id })));
+      } else if (kind === 'stop') post({ type: 'stop' });
+      else if (kind === 'capture-stop') { post({ type: 'capture', requestId: id }); post({ type: 'stop' }); }
+      else post({ type: kind, requestId: id, ...payload });
+    });
+  };
+  window.reviewEvidence = () => ({ errors, lifecycle });
+  window.addEventListener('message', event => {
+    if (event.source !== frame.contentWindow || event.data?.protocol !== protocol) return;
+    const data = event.data;
+    if (data.type === 'ready') document.body.dataset.ready = 'true';
+    if (['started','cleanup-complete'].includes(data.type) && lifecycle.length < 100) lifecycle.push(data);
+    if (data.type === 'runtime-error' && errors.length < 100) errors.push(data);
+    if (!active) return;
+    if (active.kind === 'capture-stop') {
+      if (data.type === 'cleanup-complete') active.cleanup = data;
+      if (data.requestId === active.id && data.type === 'request-failed') active.rejected = data;
+      if (data.requestId === active.id && data.type === 'capture') return settle(Error('A stopped capture produced a late image.'));
+      if (active.cleanup && active.rejected) settle(null, { cleanup: active.cleanup, rejected: active.rejected });
+      return;
+    }
+    if (data.type === 'failed' || data.type === 'request-failed' && data.requestId === active.id) return settle(Error(data.message));
+    if (active.kind === 'start' && data.type === 'started') { active.started = data; post({ type: 'pause' }); return; }
+    if (active.kind === 'start' && data.type === 'paused') return settle(null, { started: active.started, paused: data });
+    if (['stop','cancel-start'].includes(active.kind) && data.type === 'cleanup-complete') return settle(null, data);
+    if (data.requestId !== active.id) return;
+    if (active.kind === 'step' && data.type === 'stepped') { post({ type: 'inspect', requestId: active.id }); return; }
+    if (['inspection','capture','behavior-capture'].includes(data.type)) settle(null, data);
+  });
+})();
+</script></body></html>

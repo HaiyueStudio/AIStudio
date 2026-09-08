@@ -1,0 +1,1433 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "goal": "g08-advanced-engine-runtime-adapters",
+  "verifiedAt": "2026-09-08T06:10:40.819Z",
+  "inputDigest": "sha256:e620f5348e2afb978313b68bfab4ca892d839f7aff560b3af0ed8a16c0b90fc4",
+  "productIntegrated": false,
+  "newAdapters": 0,
+  "repairedExistingBlockers": [
+    {
+      "capabilityId": "play.capture",
+      "adapterId": "adapter.ui.hud",
+      "source": "packages/editor-plugins/src/render/components.ts",
+      "gap": "Paused/delayed screenshot reads can return a transparent PNG despite visible scene and HUD. Preserve a bounded rendered frame and reject late capture results after Stop/restart.",
+      "owner": "g08-advanced-engine-runtime-adapters",
+      "verificationEntry": "node --test apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs",
+      "deferredReason": "Only the existing screenshot adapter is admitted; all other advanced adapter waves remain deferred.",
+      "maxInstances": 1,
+      "maxRuntimeMs": 100000
+    }
+  ],
+  "reviewed": [
+    {
+      "type": "haiyue.animation.transform-clips",
+      "version": "1.0.0",
+      "adapterId": "adapter.animation.3d-mixer",
+      "capabilityId": "animation.3d",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:a8b916faa1e2a9a9b4a33644ee2fe241cf76e569936a827f2b9081b8b82ef34d"
+    },
+    {
+      "type": "haiyue.audio.listener",
+      "version": "1.0.0",
+      "adapterId": "adapter.audio.listener",
+      "capabilityId": "audio.playback",
+      "effect": "audio-owner",
+      "schemaDigest": "sha256:197850362032be51aa3edfd320bdf7d498b6f0c4fea20b573bbad697e7962216"
+    },
+    {
+      "type": "haiyue.gameplay.rules",
+      "version": "1.0.0",
+      "adapterId": "adapter.gameplay.rules",
+      "capabilityId": "simulation.fixed-step",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:ba4bdeae262eaf8b86c518762b51d590b493ceaa6c4b43ecf3760349457801cf"
+    },
+    {
+      "type": "haiyue.gameplay.state",
+      "version": "1.0.0",
+      "adapterId": "adapter.gameplay.state-observation",
+      "capabilityId": "play.inspect",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:2cbe6686d857d72437800c983c96dc829036e545de462f55ef0f8a494c2fd5a2"
+    },
+    {
+      "type": "haiyue.gameplay.timers",
+      "version": "1.0.0",
+      "adapterId": "adapter.gameplay.timers",
+      "capabilityId": "simulation.fixed-step",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:80ccdf9ee748587c7320f621e7cbbd393e5cab3c7ecfea0f8d434d64e48e5cb8"
+    },
+    {
+      "type": "haiyue.physics.collider.2d",
+      "version": "1.0.0",
+      "adapterId": "adapter.physics.collider-2d",
+      "capabilityId": "physics.2d",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:ed011abda88a13742f924523023230744c0a4b962102cc69b4a2b2bdf97d25cd"
+    },
+    {
+      "type": "haiyue.physics.rigidbody.2d",
+      "version": "1.0.0",
+      "adapterId": "adapter.physics.rigidbody-2d",
+      "capabilityId": "physics.2d",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:5fad5f8c11f62de2eda185a1f9d2675a19f8174fd7165426923413c6d8eee90b"
+    },
+    {
+      "type": "haiyue.physics.world.2d",
+      "version": "1.0.0",
+      "adapterId": "adapter.physics.world-2d",
+      "capabilityId": "physics.2d",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:11a486b58ca27a1926158baf1ddbdf85b34df4cb4c1912f2a04afdcfe6f1b5b0"
+    },
+    {
+      "type": "haiyue.script.binding",
+      "version": "1.0.0",
+      "adapterId": "adapter.script.binding",
+      "capabilityId": "play.multi-script",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:94ed5c5ff8cd3855838621777bb5aaab8a563486a64db88daee39ae180a1f5fe"
+    },
+    {
+      "type": "haiyue.ui.hud",
+      "version": "1.0.0",
+      "adapterId": "adapter.ui.hud",
+      "capabilityId": "play.capture",
+      "effect": "runtime-owner",
+      "schemaDigest": "sha256:afd26ce9d6e14208cdc49659c754a898de0be2141ff8e77398a1a1fcf18f8762"
+    }
+  ],
+  "packages": [
+    {
+      "name": "@haiyue/animation-spec",
+      "version": "0.1.0",
+      "integrity": "sha512-4RuqxC8fVGxQSviit53DgCY70ffbTkqC0ocFqRu2UzS1bT7H4ioCRVTmuR29wv13JVUcqHIjPVlKCAQi7x9+7w==",
+      "manifestDigest": "sha256:b07d901e0c1f8b361c5e5124ef50b531865df0f2c8f1e6a355b5025a7e258290",
+      "contentDigest": "sha256:e089011eb4e77661a625af623b0139ceb00e9494184acfb434535637e5acd641",
+      "installedFileCount": 61,
+      "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
+      "candidate": "vendor/haiyue-animation-spec-0.1.0.tgz",
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:3ccea8dac4042fe3f4e66543855a4e21bf495b0eb6248dbb1886b198537936f9"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:6e5e8853126de6c2d00133e919e8aeec93bc2644a92d39e9a2bab08870f05d1c"
+            }
+          ]
+        },
+        {
+          "subpath": "./conversion",
+          "targets": [
+            {
+              "path": "./dist/conversion.d.ts",
+              "sha256": "sha256:d94936a8d86ccec977e36071370b08f7bc08fd9bb72d133a027bc63f990a06dc"
+            },
+            {
+              "path": "./dist/conversion.js",
+              "sha256": "sha256:b90989a5bcc5ef3bcd38eab7df491f4d8f20fa50888cc3d60ac8b651aa177e49"
+            }
+          ]
+        },
+        {
+          "subpath": "./cubism",
+          "targets": [
+            {
+              "path": "./dist/cubism.d.ts",
+              "sha256": "sha256:e26114954556dbbc8e2004caacdc7c232b1ab74b1cd8978c481fa355100549f3"
+            },
+            {
+              "path": "./dist/cubism.js",
+              "sha256": "sha256:b682b0a055e792536eb91fb5a4664bb38f0f2e511af30131f3baf36467318f8d"
+            }
+          ]
+        },
+        {
+          "subpath": "./deformable2d",
+          "targets": [
+            {
+              "path": "./dist/deformable2d.d.ts",
+              "sha256": "sha256:c4be5ba49f48612dd055879f1512312302726ea554a05dc99ce6cfa169efcea6"
+            },
+            {
+              "path": "./dist/deformable2d.js",
+              "sha256": "sha256:1d03fa9652106384348e945bbbe29a80f05e12c9e6068303f9a425344da9924c"
+            }
+          ]
+        },
+        {
+          "subpath": "./live2d",
+          "targets": [
+            {
+              "path": "./dist/live2d.d.ts",
+              "sha256": "sha256:e26114954556dbbc8e2004caacdc7c232b1ab74b1cd8978c481fa355100549f3"
+            },
+            {
+              "path": "./dist/live2d.js",
+              "sha256": "sha256:4ec0d6162c4d4a30bb265e65562064a2ed180ea4ed2c943c30576b580db9bc14"
+            }
+          ]
+        },
+        {
+          "subpath": "./live2d/clip-baked",
+          "targets": [
+            {
+              "path": "./dist/live2d/clip-baked.d.ts",
+              "sha256": "sha256:9712cc352cac7b777edcadbbdbde20ea010edf54f5110f00faccfe9cbd058550"
+            },
+            {
+              "path": "./dist/live2d/clip-baked.js",
+              "sha256": "sha256:795392d9cb32d73fc5ecff93c37656f002c65fb4c9ce0d5fee6c7c96135ddd7f"
+            }
+          ]
+        },
+        {
+          "subpath": "./lottie",
+          "targets": [
+            {
+              "path": "./dist/lottie.d.ts",
+              "sha256": "sha256:5dc030e6f661d94685d90f537f74ac9b6cc1955b3f6caf6869f1555e17b775e4"
+            },
+            {
+              "path": "./dist/lottie.js",
+              "sha256": "sha256:d43c5e6289c8b732e97ff03d852d936775654a735064520cf2f54ce130609d04"
+            }
+          ]
+        },
+        {
+          "subpath": "./native3d",
+          "targets": [
+            {
+              "path": "./dist/native3d.d.ts",
+              "sha256": "sha256:e0a23b472acbe874b790c3c31f4f7f77e5b3026d8eecb7fbdb79d4f5644260a7"
+            },
+            {
+              "path": "./dist/native3d.js",
+              "sha256": "sha256:95799d131c0288a23d4f6834cf4c97f60ed336cfe3aae0fba99ad986c3fb0917"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "@haiyue/editor-app-kit",
+      "version": "0.1.0",
+      "integrity": "sha512-Ng19nu1aftNGG+154RHL0BwruXj74PTG5Fk99pdAjNA0K9aiy0DgwPz41coNI2XrdveRBEZHI0PCOhQRHJVMUw==",
+      "manifestDigest": "sha256:4a6602b440dfb40c9631dd673b3ae727f634a45fad30af6c36373bbba881df07",
+      "contentDigest": "sha256:950e7020bdee42d435e1e7011bb4e79f14bc739b4f45c6cdcced19c22aee05ef",
+      "installedFileCount": 7,
+      "sourceRevision": null,
+      "candidate": "vendor/haiyue-editor-app-kit-0.1.0.tgz",
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:081c62f89b1befd3ba0b1e8225a64dd0a213d6a95aba8232630f32307405ab35"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:ead6e6b40a933c1a9c5726fd8a9063afe2422667e4f12da787a7d335a33d9d43"
+            }
+          ]
+        },
+        {
+          "subpath": "./node",
+          "targets": [
+            {
+              "path": "./node.mjs",
+              "sha256": "sha256:8c2a48758c36758d88992298de2bd43348b44eb7d99c5fbdbbaa3be70311db72"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "@haiyue/editor-platform",
+      "version": "0.1.0",
+      "integrity": "sha512-LXHtWGYIbOz/ju9ZUzFcD5bZnGbqazJspU7e8rfTt0vbQjZwwdD6gqsD6N0iBw4mPaiuEg0P6yNdHj6UCywbyg==",
+      "manifestDigest": "sha256:e345d2b665120dc1ab29c9f24fda4768bc841f74e977518cf1aba1068c7c2575",
+      "contentDigest": "sha256:44a5030ed8e26ae38ed681f82a6487e54e2bfb00001a43ca51a7d6629bd99d7e",
+      "installedFileCount": 46,
+      "sourceRevision": null,
+      "candidate": "vendor/haiyue-editor-platform-0.1.0.tgz",
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:c132d08a54f735cba121f88f80e46474d4cfdd3dde8570a08b1288f84e2f310a"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:bb7f2d80394c6cf3b21a23c8f24afdbb9ebf6db44c496de7a5341687fe14f506"
+            }
+          ]
+        },
+        {
+          "subpath": "./conformance",
+          "targets": [
+            {
+              "path": "./dist/conformance.d.ts",
+              "sha256": "sha256:5f972f36b8c0c9cd554d159f9e8e606a83657db0a9f1c961afe98c8b78f31bf3"
+            },
+            {
+              "path": "./dist/conformance.js",
+              "sha256": "sha256:e490f8d4a02dc9546bde488f0321829bfa44487225531a55aaca721de57459df"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "@haiyue/editor-plugin-sdk",
+      "version": "0.1.0",
+      "integrity": "sha512-ZT43u4tgcda4SdKaRZhxxm4HsusEyvjn43uItj/HaeWcujOgRpgTdtWBYZP7Y2Ee6lBH1k4mI0DMZ4kH51kLxA==",
+      "manifestDigest": "sha256:fb5d25dcac0e917c0bceced9db8e609c1d26df0d17b5b0b74af0b253d84954fe",
+      "contentDigest": "sha256:4cfde4fb376d99276d4cc72ba78daa89c61b7b98829c3474fa2299d2e3af96b8",
+      "installedFileCount": 6,
+      "sourceRevision": null,
+      "candidate": "vendor/haiyue-editor-plugin-sdk-0.1.0.tgz",
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:a6fe6755b792f063a32d6fdf1422d5b6f6b54682ca10b9b99bc2bc5e3c9a0e98"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:8e6547af90cc4099986cec6cde777099d6fd5531e0fdd301908dcf535332b6c1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "@haiyue/editor-shell",
+      "version": "0.1.0",
+      "integrity": "sha512-vuP8CNiAAVN1V+l8K3KOTKvX/Ky+zRjOyqWG5WCDhCX5+S5D1y3d2ZT5QuLsS4BqAwWfuNpTi2PbGJ8YXb0MNg==",
+      "manifestDigest": "sha256:868b0607f0bb3fed57d8f203a543ca2b124d480c0869aa315fe168b2440bb1e8",
+      "contentDigest": "sha256:74934dbf889ca9ee67a29b83e12274beb74dd6c41e4962af0a86fb520b87637f",
+      "installedFileCount": 6,
+      "sourceRevision": null,
+      "candidate": "vendor/haiyue-editor-shell-0.1.0.tgz",
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:d6df935c35e1278d0b8cb2c12d8c4924ba89d498cd62eed47031291ab9f11f5b"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:641998dc9eb80b2f265a721dfb60d678f286069b79a1e6d750ec0ae2413274aa"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "@haiyue/engine",
+      "version": "0.1.0",
+      "integrity": "sha512-dIHSWJVPygbgEL7QyDuVfO7J+3MISvPfG44T5ZBvzuPdGMI5XbDIXREWgUpHrJCYEKKCEnTk2qJajElutJvSRg==",
+      "manifestDigest": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+      "contentDigest": "sha256:d7c5e5914f786d4c49acdf59110a0fd3c196866e1fa2a7d563f7cb3d559c8ae7",
+      "installedFileCount": 569,
+      "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
+      "candidate": "vendor/haiyue-engine-0.1.0.tgz",
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:7f436ac97572b0f642f38d5691dc0cb583078b5cceecd76ff2234e455105a4f7"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:936c75fd9fb0b30f61bd241a8cc0a15055e0ca360a4ffb4ae1162eed10b1ec8c"
+            }
+          ]
+        },
+        {
+          "subpath": "./assets",
+          "targets": [
+            {
+              "path": "./dist/assets.d.ts",
+              "sha256": "sha256:14b8010708e77cec56c9e4434d01e5f0cf8fc09e20d283fa5b384f91eed853c8"
+            },
+            {
+              "path": "./dist/assets.js",
+              "sha256": "sha256:9d16467f1ecf0923b0594dad8f68a0983a621e2bbd5aa06c8041924999b86803"
+            }
+          ]
+        },
+        {
+          "subpath": "./color",
+          "targets": [
+            {
+              "path": "./dist/color.d.ts",
+              "sha256": "sha256:f7f24f9ec597df102c4205ca52456d8a91e3a13ba9a7b3e69f380fee218be02a"
+            },
+            {
+              "path": "./dist/color.js",
+              "sha256": "sha256:332d043fe4bad5a9de29162bbd977be746dd8ebdc57b12d253858928d550dd22"
+            }
+          ]
+        },
+        {
+          "subpath": "./components",
+          "targets": [
+            {
+              "path": "./dist/components.d.ts",
+              "sha256": "sha256:861797ebd2b2439bdcddfad80d0a3e6bd471c156ba191f9c447954db2dac2a98"
+            },
+            {
+              "path": "./dist/components.js",
+              "sha256": "sha256:2bb77abed71fe234190afc241fc4cd5f369776e2f14573fad8101a783b549df8"
+            }
+          ]
+        },
+        {
+          "subpath": "./compute",
+          "targets": [
+            {
+              "path": "./dist/compute.d.ts",
+              "sha256": "sha256:e4909a719075c379260bbe143def212ba708178c3176acc8c0c6242a1be955cc"
+            },
+            {
+              "path": "./dist/compute.js",
+              "sha256": "sha256:85e980ea546b397d92dcddada8e54acbba6d69f3aec358920a439247384ab9b7"
+            }
+          ]
+        },
+        {
+          "subpath": "./controls",
+          "targets": [
+            {
+              "path": "./dist/controls.d.ts",
+              "sha256": "sha256:8bb1cb5749826f1cbf375830e06026ab0e84f5e7dd310b268a7c49621292c10d"
+            },
+            {
+              "path": "./dist/controls.js",
+              "sha256": "sha256:c0c35a0554f8d07432705c4e911e0e15b19d2584ad21e9a24ccb680cb6caf72c"
+            }
+          ]
+        },
+        {
+          "subpath": "./core",
+          "targets": [
+            {
+              "path": "./dist/core.d.ts",
+              "sha256": "sha256:0eaf9aeaf7965f350268d650b9e9dd309be59176d07e654180bdc567741ae158"
+            },
+            {
+              "path": "./dist/core.js",
+              "sha256": "sha256:58d9b43da6729ba17f35484dce4055df6161cf127ae3bfc051d550dd7eb16c9f"
+            }
+          ]
+        },
+        {
+          "subpath": "./diagnostics",
+          "targets": [
+            {
+              "path": "./dist/diagnostics.d.ts",
+              "sha256": "sha256:98205f476334427b84a5a495168ee67bc066f15225beda3d0870d98dd326f864"
+            },
+            {
+              "path": "./dist/diagnostics.js",
+              "sha256": "sha256:4584d6d67b97235f40b72c4ef30b63d3a13b55d174ab452fa5cfb14677e2eef8"
+            }
+          ]
+        },
+        {
+          "subpath": "./ecs",
+          "targets": [
+            {
+              "path": "./dist/ecs.d.ts",
+              "sha256": "sha256:8736ae3cbe56e18deb2cb72bd4e1414b51d585488f215c9370d23afe25e082c1"
+            },
+            {
+              "path": "./dist/ecs.js",
+              "sha256": "sha256:2c4329e5a75fa2b7dc607804d8fe34265140376b25b95db542a909943bb256e7"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental",
+          "targets": [
+            {
+              "path": "./dist/experimental.d.ts",
+              "sha256": "sha256:4a65cc70960221fb838c4e708eb53b64a3e029b093a2fe5e6f15c0f568f0de96"
+            },
+            {
+              "path": "./dist/experimental.js",
+              "sha256": "sha256:f525bab9e6e672cc00093679890f4f0d386031197516d0a6395b101f5d10c83c"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/assets",
+          "targets": [
+            {
+              "path": "./dist/experimental/assets.d.ts",
+              "sha256": "sha256:238527e8a0cd901b5a3b418aaf0793c6e6625686ca56467623d05fe3b90665af"
+            },
+            {
+              "path": "./dist/experimental/assets.js",
+              "sha256": "sha256:49204e6d517657803c567d8921f8a1619e25675827369b799fa242f443a417a7"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/async",
+          "targets": [
+            {
+              "path": "./dist/experimental/async.d.ts",
+              "sha256": "sha256:9d6fae8a10d64f5c0ae00eb3d91bcc9b8b9e12a973e882c14a97be2bb17ebd82"
+            },
+            {
+              "path": "./dist/experimental/async.js",
+              "sha256": "sha256:a9ee561a00a54a8fbe1a3e4b8dd46d93826b95fb9deed0af075d4f35d4c14a38"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/diagnostics",
+          "targets": [
+            {
+              "path": "./dist/experimental/diagnostics.d.ts",
+              "sha256": "sha256:78e2540744869e0e7a1f359ca9095868d1dc91d2150d5ca01c66bed2dd9fc8e1"
+            },
+            {
+              "path": "./dist/experimental/diagnostics.js",
+              "sha256": "sha256:371e96e91d7bb2428e7bf706a9f391b857a331365e4131c1fa0ef2eabc8ab9e1"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/gpu-driven",
+          "targets": [
+            {
+              "path": "./dist/experimental/gpu-driven.d.ts",
+              "sha256": "sha256:3b535ea530b33615e94ce71057cbde42c182fe3844dd89edc6617df38fe56aea"
+            },
+            {
+              "path": "./dist/experimental/gpu-driven.js",
+              "sha256": "sha256:5861a5d4b0f8375f1498bb3b2d06521df95f44184e965a04aeed1784858b0b93"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/ktx2-worker-runtime",
+          "targets": [
+            {
+              "path": "./dist/experimental/ktx2-worker-runtime.d.ts",
+              "sha256": "sha256:8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
+            },
+            {
+              "path": "./dist/experimental/ktx2-worker-runtime.js",
+              "sha256": "sha256:e5a49d4d1be5b128ebb07e8b7df85e6b9924521a42cc475973df65287fce08bd"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/renderer",
+          "targets": [
+            {
+              "path": "./dist/experimental/renderer.d.ts",
+              "sha256": "sha256:cca45c3f426b9c6a07f34e4b899e29eaa5ef5e6526d24e8be212f435c553a2df"
+            },
+            {
+              "path": "./dist/experimental/renderer.js",
+              "sha256": "sha256:8b637ee3c57b8b087e07c76d4451e12441fe10a8c778df369d1a65749435f579"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/simulation",
+          "targets": [
+            {
+              "path": "./dist/experimental/simulation.d.ts",
+              "sha256": "sha256:20b3b0afc3d916fab09f9268f6efba2c242920ecbced71389bea46e6d0fa5eba"
+            },
+            {
+              "path": "./dist/experimental/simulation.js",
+              "sha256": "sha256:aadf7e8bf2657aeee9c33eaddce0e29b637b38ebc8f85764e820eafe759a44bc"
+            }
+          ]
+        },
+        {
+          "subpath": "./extension-authoring",
+          "targets": [
+            {
+              "path": "./dist/extension-authoring.d.ts",
+              "sha256": "sha256:ff13c2f8a58f056700e9752498e340096aacb79dc9901498d354772ef52319ae"
+            },
+            {
+              "path": "./dist/extension-authoring.js",
+              "sha256": "sha256:15759fd56cd90edf4f93b5c4fc5d13960f513aaca8de316ceb70ee91b931b424"
+            }
+          ]
+        },
+        {
+          "subpath": "./font",
+          "targets": [
+            {
+              "path": "./dist/font.d.ts",
+              "sha256": "sha256:4d286a006e3b344a28076fd1cfbf58d2b4f05e5d5644db2377848ac528272210"
+            },
+            {
+              "path": "./dist/font.js",
+              "sha256": "sha256:0e90e32bf292db977a5682b20e4699973eb1538f86414bab1f3a7b2aa2a655ca"
+            }
+          ]
+        },
+        {
+          "subpath": "./geometry",
+          "targets": [
+            {
+              "path": "./dist/geometry.d.ts",
+              "sha256": "sha256:0f197f89e6682bc4c851d9d3fc7076478205d24d9f6df75d3492cdbf4a887c27"
+            },
+            {
+              "path": "./dist/geometry.js",
+              "sha256": "sha256:2c51847470b4a8b615ae561250acaf8265831114e80137c6080ccc03a3aae7e7"
+            }
+          ]
+        },
+        {
+          "subpath": "./gui",
+          "targets": [
+            {
+              "path": "./dist/gui.d.ts",
+              "sha256": "sha256:b4150eb7490c74a6a59d9b0a1464fcf4d064952933703ecd752a7619342cbfce"
+            },
+            {
+              "path": "./dist/gui.js",
+              "sha256": "sha256:3b927155c636612ef2a2abe7223900ef6117711045d655b35244af2282595900"
+            }
+          ]
+        },
+        {
+          "subpath": "./input",
+          "targets": [
+            {
+              "path": "./dist/input.d.ts",
+              "sha256": "sha256:867f50d688c3fbba7b66f64887c75eed704fe5b2525db9961cd5d7c16d3d731b"
+            },
+            {
+              "path": "./dist/input.js",
+              "sha256": "sha256:fe114fc7ac9e07841d8f7ca830160df4b0ab620a256463a7099bed70544f5781"
+            }
+          ]
+        },
+        {
+          "subpath": "./lighting",
+          "targets": [
+            {
+              "path": "./dist/lighting.d.ts",
+              "sha256": "sha256:094fba36372b6ed4e07fd755b2aa12880474cfd433547531d5e0e33fd5f99462"
+            },
+            {
+              "path": "./dist/lighting.js",
+              "sha256": "sha256:263f431cc5152b8ce2f1b4c8ca61f85e95a5558f68cff7a9549d1481ecaf58cf"
+            }
+          ]
+        },
+        {
+          "subpath": "./material",
+          "targets": [
+            {
+              "path": "./dist/material.d.ts",
+              "sha256": "sha256:544211b6c7aa0d9ba805c1e4edffc18b2496a64da35168d4ab5acd7cedeb2b45"
+            },
+            {
+              "path": "./dist/material.js",
+              "sha256": "sha256:230fa9c6b9cede41ebd636ac2d179062e109254d170608d3edd053d5a8cd3670"
+            }
+          ]
+        },
+        {
+          "subpath": "./math",
+          "targets": [
+            {
+              "path": "./dist/math.d.ts",
+              "sha256": "sha256:0985f9ff67735b509bdfd8b78bc983033f418fc375e3161e5c3ddb264ca3b45f"
+            },
+            {
+              "path": "./dist/math.js",
+              "sha256": "sha256:e97384eab758f5aebd2531c671496f36ea95769ba5078dd5c40380f1d315ed6a"
+            }
+          ]
+        },
+        {
+          "subpath": "./navigation",
+          "targets": [
+            {
+              "path": "./dist/navigation.d.ts",
+              "sha256": "sha256:4ca11ea3f921ecdc5841cea0e21284f3136f86a4ae791e7ef5e442593d8757f5"
+            },
+            {
+              "path": "./dist/navigation.js",
+              "sha256": "sha256:4d8235ef4980ffda4f037618a82c587f1d165862710b17b1f977725f8722a6de"
+            }
+          ]
+        },
+        {
+          "subpath": "./physics",
+          "targets": [
+            {
+              "path": "./dist/physics.d.ts",
+              "sha256": "sha256:736cd0025b9fe0ab080fed9ed86e8dc80d65ef784a8fa8c38c22fdcca6e1ffe0"
+            },
+            {
+              "path": "./dist/physics.js",
+              "sha256": "sha256:3c01338073b640792286e9811167126c97caf25ab75f87700920d613eef6e9d3"
+            }
+          ]
+        },
+        {
+          "subpath": "./physics/backend",
+          "targets": [
+            {
+              "path": "./dist/physics/backend.d.ts",
+              "sha256": "sha256:beb5d9c3de27103259fe09887bbf186371da71b8945e8ea14653fc2fcd0b0271"
+            },
+            {
+              "path": "./dist/physics/backend.js",
+              "sha256": "sha256:e72063a50239aa3de4413e66e77f767d1d03c5508583d6fe8235be064b94eba9"
+            }
+          ]
+        },
+        {
+          "subpath": "./physics/components",
+          "targets": [
+            {
+              "path": "./dist/physics-components.d.ts",
+              "sha256": "sha256:681093f78ebfcd44dcbe1796fb43dd47fa97e7d1b3445bac6808676d32b4d66b"
+            },
+            {
+              "path": "./dist/physics-components.js",
+              "sha256": "sha256:bcd209b46b3c26e714db1c0d30f0f461af4a09b3e2cf207f86eb1946ff305d62"
+            }
+          ]
+        },
+        {
+          "subpath": "./postprocess",
+          "targets": [
+            {
+              "path": "./dist/postprocess.d.ts",
+              "sha256": "sha256:6ca4ece2d9acbd3599c813b5d86b8d82a6ddd5321bf443629017af5663ec1468"
+            },
+            {
+              "path": "./dist/postprocess.js",
+              "sha256": "sha256:2ea93fa8d4f93ddad649e02305951beed881d5d6c038261840984db32fd3e4e7"
+            }
+          ]
+        },
+        {
+          "subpath": "./rtt",
+          "targets": [
+            {
+              "path": "./dist/rtt.d.ts",
+              "sha256": "sha256:62acdc4b41fae1caa4e6026cddcd9e5b47982b5a627c96e737c81b88d8d26950"
+            },
+            {
+              "path": "./dist/rtt.js",
+              "sha256": "sha256:f845c7d82854e3672a38820359c00aaa48467f91a02cd69b78430bcd94826ff0"
+            }
+          ]
+        },
+        {
+          "subpath": "./save",
+          "targets": [
+            {
+              "path": "./dist/save.d.ts",
+              "sha256": "sha256:55cb1c1cef65699ba4726f5a131768701117a4e600c43c18cdab7b6a5cede7ee"
+            },
+            {
+              "path": "./dist/save.js",
+              "sha256": "sha256:e94fa578618f9f519bdf7c4a226017b921c79228074ca8146c8355a0fd06e8c7"
+            }
+          ]
+        },
+        {
+          "subpath": "./scene",
+          "targets": [
+            {
+              "path": "./dist/scene.d.ts",
+              "sha256": "sha256:a7923d671adc44a457b082e8ed3fcaaf67e20aeda949e85e47d20b2be6f9262b"
+            },
+            {
+              "path": "./dist/scene.js",
+              "sha256": "sha256:1ea313d2f2afe22b92b8d4128a162d700901d02e921e47d1a739f542ddd9433d"
+            }
+          ]
+        },
+        {
+          "subpath": "./serialization",
+          "targets": [
+            {
+              "path": "./dist/serialization.d.ts",
+              "sha256": "sha256:8a1139c0239c39b0f76626654b9f98ef55f56813fbe10e8eb05adaebf33caaf0"
+            },
+            {
+              "path": "./dist/serialization.js",
+              "sha256": "sha256:565c0a3233d0d6a1b92a870cb2ddf24ff06954fff8dcd340c946a69f990afdc4"
+            }
+          ]
+        },
+        {
+          "subpath": "./systems",
+          "targets": [
+            {
+              "path": "./dist/systems.d.ts",
+              "sha256": "sha256:1464f086a87038a8d2ef2b2eecef7ebbfa0160fef62070c6d1a71724e895893d"
+            },
+            {
+              "path": "./dist/systems.js",
+              "sha256": "sha256:acb3951b3e1cd3a5ab15ae2911a62c4213b67f34eace2d34eee53e6a791c4337"
+            }
+          ]
+        },
+        {
+          "subpath": "./tween",
+          "targets": [
+            {
+              "path": "./dist/tween.d.ts",
+              "sha256": "sha256:35bf07d7a0790599c953fab3a23f8bd20f0ccaafd767977dc7949ace9d1cbd57"
+            },
+            {
+              "path": "./dist/tween.js",
+              "sha256": "sha256:bd42a0cbac0d7bf9936e4583363dc87c05f27242b164ad1da0a6e147ab0e2ffa"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "@haiyue/extensions",
+      "version": "0.1.0",
+      "integrity": "sha512-dbtWJtq3kUzGCyO8Z/o19JMwTlYP7XhhVrUI6zMiexARuBMzqX9mOp4rBb5bUXQxKKnOfhih52H9TIQl2N3AaQ==",
+      "manifestDigest": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+      "contentDigest": "sha256:27e8e92e732e03f5df31721368cdd3fa33b75bc73527e9bc55f59e28ac310b5d",
+      "installedFileCount": 176,
+      "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
+      "candidate": "vendor/haiyue-extensions-0.1.0.tgz",
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:4c895aaf399edef96f68b14d5037aaddce6b88853914dbf81543c4d458a2131d"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:a13214afa3ece95bfa0afa5f8c99fd5b265bb430407130573d729cad930fde44"
+            }
+          ]
+        },
+        {
+          "subpath": "./animation",
+          "targets": [
+            {
+              "path": "./dist/animation.d.ts",
+              "sha256": "sha256:3c449296bf4c4e9e374b4468f1a68b49b1ce041cdcf30c0747d60a69296b5edf"
+            },
+            {
+              "path": "./dist/animation.js",
+              "sha256": "sha256:5a4c22168a11c4d2d60657b49dbd8913826d71eca03ab625162bef0fd13a1e04"
+            }
+          ]
+        },
+        {
+          "subpath": "./animation3d",
+          "targets": [
+            {
+              "path": "./dist/animation3d.d.ts",
+              "sha256": "sha256:5b7dca2e4e4ecdbeb34ec80045307455ace736ba9ca6395eb5014ca44e46e635"
+            },
+            {
+              "path": "./dist/animation3d.js",
+              "sha256": "sha256:3e87a5c7bfb53b0f9202be51413f29a09db18bc6916ce002ba627a08677c7f20"
+            }
+          ]
+        },
+        {
+          "subpath": "./canvas-text",
+          "targets": [
+            {
+              "path": "./dist/canvas-text.d.ts",
+              "sha256": "sha256:f5aef1ff34266a05fe37a9f0e4a64e5c8e9cd9f3263e1477a438cb340e488e9b"
+            },
+            {
+              "path": "./dist/canvas-text.js",
+              "sha256": "sha256:3d73a2ed60e5ae125f3bed5042756af09166359e84ffefa572f8b277855cb382"
+            }
+          ]
+        },
+        {
+          "subpath": "./deformable-animation",
+          "targets": [
+            {
+              "path": "./dist/deformable-animation.d.ts",
+              "sha256": "sha256:06b74a6f8be1e4132b50aa9ef2ba550b84742dab3639d0a616825958d6bef9ad"
+            },
+            {
+              "path": "./dist/deformable-animation.js",
+              "sha256": "sha256:aeb27981bf50797972f0145ae55667f831a50102b33e3f423023d9a67298097d"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/gltf-worker",
+          "targets": [
+            {
+              "path": "./dist/experimental-gltf-worker.d.ts",
+              "sha256": "sha256:0427151b7d4fd34a759c0aaa9c910f85afab9ff60037e6c941c39c4ad9a94782"
+            },
+            {
+              "path": "./dist/experimental-gltf-worker.js",
+              "sha256": "sha256:71d8c476e0de65001dfd4d33c48223e8a038e5bb1bbf2e15f927813df8b9eda5"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/spine-worker",
+          "targets": [
+            {
+              "path": "./dist/experimental-spine-worker.d.ts",
+              "sha256": "sha256:192ee0633badfee247aae854307656761cbbbd1c49e4049cd71e50bc457d37c6"
+            },
+            {
+              "path": "./dist/experimental-spine-worker.js",
+              "sha256": "sha256:cd8fc0e317cdb35d204b8f55ddeaea9ce685af107615ee91fd475313c411277c"
+            }
+          ]
+        },
+        {
+          "subpath": "./gltf",
+          "targets": [
+            {
+              "path": "./dist/gltf.d.ts",
+              "sha256": "sha256:49527dff29170a3c023883c486ac0b36e6d03761d5c905ce5e9f0244b866574e"
+            },
+            {
+              "path": "./dist/gltf.js",
+              "sha256": "sha256:292e89ed9feea786c25b941a73e4a5617141e3fa7e282031a88db242a2071d08"
+            }
+          ]
+        },
+        {
+          "subpath": "./gltf-animation3d",
+          "targets": [
+            {
+              "path": "./dist/gltf-animation3d.d.ts",
+              "sha256": "sha256:adb1800aa376b0d9c09a70f92726f8ec5d5e60aef922b96ea3fbbc2dc7f55b6b"
+            },
+            {
+              "path": "./dist/gltf-animation3d.js",
+              "sha256": "sha256:24113ea745684802d61e651b4fc95759143e6f0b7a9622b4d3347f67464a96e2"
+            }
+          ]
+        },
+        {
+          "subpath": "./grid",
+          "targets": [
+            {
+              "path": "./dist/grid.d.ts",
+              "sha256": "sha256:ba54a6b4f284c2bd1f10c176a0f6ae14eff0c5847eb8be345b06c15eccd30caf"
+            },
+            {
+              "path": "./dist/grid.js",
+              "sha256": "sha256:541fd484fb6feb87329935e510ac2375f5b323d856002e6e31ceb569312d9dcd"
+            }
+          ]
+        },
+        {
+          "subpath": "./hya-state-machine",
+          "targets": [
+            {
+              "path": "./dist/hya-state-machine.d.ts",
+              "sha256": "sha256:f2b54fa875d7be3aa9f38b9420c3429862527a3277359b70c93a3e804d658374"
+            },
+            {
+              "path": "./dist/hya-state-machine.js",
+              "sha256": "sha256:5bd8335545930b2a80d5cbc1148555373ba650617933fbc8be091fdfe88a580d"
+            }
+          ]
+        },
+        {
+          "subpath": "./ray-tracing",
+          "targets": [
+            {
+              "path": "./dist/ray-tracing.d.ts",
+              "sha256": "sha256:7d3ba20045086cb41645f47ca087caee7935df2938464cb4d634c690f98050a4"
+            },
+            {
+              "path": "./dist/ray-tracing.js",
+              "sha256": "sha256:ec9640d186090d30964fd28d3262caf52aead48a875f082bd1b7910986b15e8a"
+            }
+          ]
+        },
+        {
+          "subpath": "./spine",
+          "targets": [
+            {
+              "path": "./dist/spine.d.ts",
+              "sha256": "sha256:951f139f955836f81cb8775e91e5b1844266f89257fba77da47c6824cbfa3d81"
+            },
+            {
+              "path": "./dist/spine.js",
+              "sha256": "sha256:b95d80168c10b774996649c4c5852f74d841fbf57295e2787649e560cdbaed70"
+            }
+          ]
+        },
+        {
+          "subpath": "./tilemap",
+          "targets": [
+            {
+              "path": "./dist/tilemap.d.ts",
+              "sha256": "sha256:c7839aa39807fd4d3ea3f13e2d1e11cc3f068d7e58830b949041b6fde60d1a79"
+            },
+            {
+              "path": "./dist/tilemap.js",
+              "sha256": "sha256:e9708afffa76ada418c6940c872e4b6f60e0eaac233682f7fb0fb9e156e2e600"
+            }
+          ]
+        },
+        {
+          "subpath": "./tween",
+          "targets": [
+            {
+              "path": "./dist/tween.d.ts",
+              "sha256": "sha256:7e8aad10ce9557c53a4f7b2e0a9e4290de5d035fdead8bf02e3ff41f77a30a94"
+            },
+            {
+              "path": "./dist/tween.js",
+              "sha256": "sha256:2b6aa19cf97d9712ec2f6cdc9935f08e466257f8fac05db8b3df343ff5685bc9"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "@haiyue/ui",
+      "version": "0.1.1",
+      "integrity": "sha512-wuqIi/BOLyJYYIj9yV9hUTbbRhGwkpghsgrw0MSIVkiluyNKhrPm5I6RuqMI+4a3fbFeGBhloO6tLU9gdy7K+g==",
+      "manifestDigest": "sha256:4796b2041cf108df0c0ad0d13e7b6342e1433b730f8868e6b4abf908a806a8e3",
+      "contentDigest": "sha256:4ec5b2d384351000b37ac678350ee28619f1055e0d75cf413d4f2c79f5e01ca8",
+      "installedFileCount": 51,
+      "sourceRevision": null,
+      "candidate": null,
+      "exports": [
+        {
+          "subpath": ".",
+          "targets": [
+            {
+              "path": "./dist/index.d.ts",
+              "sha256": "sha256:105773a5e84809bacf7acf7513391fca67e2df1851b735a156339ec9c864127d"
+            },
+            {
+              "path": "./dist/index.js",
+              "sha256": "sha256:ffca62761c41ad9365da97fcda8d2c36a12e8c0deaba1e5794ebab918a04344b"
+            }
+          ]
+        },
+        {
+          "subpath": "./border-beam",
+          "targets": [
+            {
+              "path": "./dist/border-beam.d.ts",
+              "sha256": "sha256:cf4dded154f727b6fb8836d048f6955d77ddf2a7faee07f66d7e52247b139332"
+            },
+            {
+              "path": "./dist/border-beam.js",
+              "sha256": "sha256:3882241302ec2bd1197cc46c82de410c0778421d8675b7a935b4ee745a274e92"
+            }
+          ]
+        },
+        {
+          "subpath": "./button",
+          "targets": [
+            {
+              "path": "./dist/button.d.ts",
+              "sha256": "sha256:e798bfe1e56ba3e4a58c98d6c084aa54c882f16485097b35d37d19300114e8a5"
+            },
+            {
+              "path": "./dist/button.js",
+              "sha256": "sha256:16c9094577da5dcb1df269f21c36c6143e8fa1a83009ee4f033b4d784b469e34"
+            }
+          ]
+        },
+        {
+          "subpath": "./checkbox",
+          "targets": [
+            {
+              "path": "./dist/checkbox.d.ts",
+              "sha256": "sha256:4e6761742748b11dbdf70a38e3c1652a86ef6d5ae0d17e99137ca4197eb9f78d"
+            },
+            {
+              "path": "./dist/checkbox.js",
+              "sha256": "sha256:0c409d19bad437ff7c87042b6edc455bf0f2e132ca058e90cda25cebe8ef8631"
+            }
+          ]
+        },
+        {
+          "subpath": "./context-menu",
+          "targets": [
+            {
+              "path": "./dist/context-menu.d.ts",
+              "sha256": "sha256:8b4cb915023c06fc4e35bd86be2624742f36d8a0e114015359c2d78153cd93de"
+            },
+            {
+              "path": "./dist/context-menu.js",
+              "sha256": "sha256:34611bc1a77a2437ca718ad7364d51238ea982acf9491670df45e0ac178e3174"
+            }
+          ]
+        },
+        {
+          "subpath": "./dialog",
+          "targets": [
+            {
+              "path": "./dist/dialog.d.ts",
+              "sha256": "sha256:633c0bf58452f495a4e72eaaaa619ebc3335cc038cce57506d4ffc1b9e3e018a"
+            },
+            {
+              "path": "./dist/dialog.js",
+              "sha256": "sha256:072fde541638300f0b966b36fa8a968d22405cb49122f0af4a9632666bf15384"
+            }
+          ]
+        },
+        {
+          "subpath": "./drawer",
+          "targets": [
+            {
+              "path": "./dist/drawer.d.ts",
+              "sha256": "sha256:6cff1b6d8696798a729193c3aa536723c48bac7cec117eafce32bd87e8b1c24b"
+            },
+            {
+              "path": "./dist/drawer.js",
+              "sha256": "sha256:8a8bc8ae0f982c45d6af55271abdff0d07a57438b90f84264f9afa1fc5dec71f"
+            }
+          ]
+        },
+        {
+          "subpath": "./dropdown",
+          "targets": [
+            {
+              "path": "./dist/dropdown.d.ts",
+              "sha256": "sha256:e12e1ca8518aa75092a8ed8f6789db5a49f00acf54b029d3e3490b64a18b9608"
+            },
+            {
+              "path": "./dist/dropdown.js",
+              "sha256": "sha256:212cf8befd58e4b5383f162ec173e41887108df1572a497c29e5f58bbaf9b7fe"
+            }
+          ]
+        },
+        {
+          "subpath": "./history-controls",
+          "targets": [
+            {
+              "path": "./dist/history-controls.d.ts",
+              "sha256": "sha256:51a9850b394766cdfb55fe965a444f4f75b84f8fe8d9f07bb92a044932f2ac8f"
+            },
+            {
+              "path": "./dist/history-controls.js",
+              "sha256": "sha256:ed4677a8d68861328e23ec7fe4605b6a5252719b34d8f26b414230d48184ac98"
+            }
+          ]
+        },
+        {
+          "subpath": "./input",
+          "targets": [
+            {
+              "path": "./dist/input.d.ts",
+              "sha256": "sha256:7ffa352bcd1312805a6f6b24ec5ffb98be4d650b537b0654f597c42b83227600"
+            },
+            {
+              "path": "./dist/input.js",
+              "sha256": "sha256:5a2e81821af8a366c72c651c9437c1fbda83de3d00e6f440260dfc33d595a7eb"
+            }
+          ]
+        },
+        {
+          "subpath": "./notification",
+          "targets": [
+            {
+              "path": "./dist/notification.d.ts",
+              "sha256": "sha256:46bd1e5b1532f549abe3b34248c8c03c37d4d1faea1d89bd1f9f7bfe70512c54"
+            },
+            {
+              "path": "./dist/notification.js",
+              "sha256": "sha256:5e527b43ae522e3a810c9efdd3932199d6b563e565df96a2e633cf23b53687ae"
+            }
+          ]
+        },
+        {
+          "subpath": "./package.json",
+          "targets": [
+            {
+              "path": "./package.json",
+              "sha256": "sha256:4796b2041cf108df0c0ad0d13e7b6342e1433b730f8868e6b4abf908a806a8e3"
+            }
+          ]
+        },
+        {
+          "subpath": "./radio",
+          "targets": [
+            {
+              "path": "./dist/radio.d.ts",
+              "sha256": "sha256:522942c8f7d422db09a3f3b63857bf56a883ff868f15f3099c97ee18778f26b6"
+            },
+            {
+              "path": "./dist/radio.js",
+              "sha256": "sha256:2fbf59e81548689d825d718ef8bb714202a72b1656fd0bd7f8a310b9074c8277"
+            }
+          ]
+        },
+        {
+          "subpath": "./range",
+          "targets": [
+            {
+              "path": "./dist/range.d.ts",
+              "sha256": "sha256:7272ba51522ae490052bc8b8cbd7d5e7f7efe96b4636eba1062f6b43bb83373c"
+            },
+            {
+              "path": "./dist/range.js",
+              "sha256": "sha256:e6f71a2f10a548e3c592d1e536a7e8d93e3ca703aa5929aa893af650c13f39d0"
+            }
+          ]
+        },
+        {
+          "subpath": "./select",
+          "targets": [
+            {
+              "path": "./dist/select.d.ts",
+              "sha256": "sha256:1b2e166cf5f77ba00aabacf15d1499af6308e9345005b4b9bdc69b8b392f3dc3"
+            },
+            {
+              "path": "./dist/select.js",
+              "sha256": "sha256:97c43335fd0f2abc653687c1ebfe712284ae15de4b71f236f86655d10541ad81"
+            }
+          ]
+        },
+        {
+          "subpath": "./split",
+          "targets": [
+            {
+              "path": "./dist/split.d.ts",
+              "sha256": "sha256:0d611c0c0e6c62408c88e56363e50eb642e801fdc6db18e191fa9578f55f8072"
+            },
+            {
+              "path": "./dist/split.js",
+              "sha256": "sha256:27fe71a67557619b5dc4059cad95f4f01adc0b6c404d2a7e2ef6c87c734c9f0c"
+            }
+          ]
+        },
+        {
+          "subpath": "./tabs",
+          "targets": [
+            {
+              "path": "./dist/tabs.d.ts",
+              "sha256": "sha256:482af82031ba64d39cf8b12c1faa29af43bf5eede9a9075eb215f78db4ef8e87"
+            },
+            {
+              "path": "./dist/tabs.js",
+              "sha256": "sha256:43f558bbc3a7a6e18b5ff22f950af89a5918f3a218649233ded7b484288f2c28"
+            }
+          ]
+        },
+        {
+          "subpath": "./themes/dark.css",
+          "targets": [
+            {
+              "path": "./themes/haiyue-dark.css",
+              "sha256": "sha256:cfe4977d9885298935a49fb614c7b0ddfa47e6d50563b00ebc108ef061552db9"
+            }
+          ]
+        },
+        {
+          "subpath": "./themes/light.css",
+          "targets": [
+            {
+              "path": "./themes/haiyue-light.css",
+              "sha256": "sha256:1ddae18ce350636a6c0784a3752b4bb5a05d052b38a6b840b2c930048ed33dbe"
+            }
+          ]
+        },
+        {
+          "subpath": "./tooltip",
+          "targets": [
+            {
+              "path": "./dist/tooltip.d.ts",
+              "sha256": "sha256:6b04c39b9fdaa5dccba2169680ff102a2fc7235dcb6e65a3cf452638fcb35fb0"
+            },
+            {
+              "path": "./dist/tooltip.js",
+              "sha256": "sha256:749389cefbac4875895eba567d83b67d89e293ce96b184e339458d077576d2a4"
+            }
+          ]
+        },
+        {
+          "subpath": "./tree",
+          "targets": [
+            {
+              "path": "./dist/tree.d.ts",
+              "sha256": "sha256:f49415ded30ab8a4f12f5215ae9b617f6b4b1c1f3f872781c3b630f0a81061cb"
+            },
+            {
+              "path": "./dist/tree.js",
+              "sha256": "sha256:eb195a957ae20bba6d1c54f866cedb165d0e216b9e81017b9615b6be2085d9ca"
+            }
+          ]
+        },
+        {
+          "subpath": "./virtual-list",
+          "targets": [
+            {
+              "path": "./dist/virtual-list.d.ts",
+              "sha256": "sha256:98eab68b673271f1f2713758f84c7f30a0883728c0ed0b9dbb1cf2bf8bbd3b9f"
+            },
+            {
+              "path": "./dist/virtual-list.js",
+              "sha256": "sha256:029eda9e7336adab141b26a180c878c74feef2b39aa495df4733e4bc95bbf704"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "document",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "packages/editor-plugins/test/g05-document-v2.test.mjs",
+        "packages/editor-plugins/test/g08-render-asset-components.test.mjs"
+      ],
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 1057,
+      "outputDigest": "sha256:21c02d5b637755ca562c37be257f51903d76dbdf9813ab91f9886615f4997e5e"
+    },
+    {
+      "id": "runtime",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "packages/script-preview/test/script-preview.test.mjs",
+        "packages/script-preview/test/behavior-runtime.test.mjs",
+        "apps/ai-studio/test/declarative-play-components.test.mjs",
+        "apps/ai-studio/test/logic-declarative-play.test.mjs",
+        "apps/ai-studio/test/logic-behavior-ipc.test.mjs",
+        "apps/ai-studio/test/play-simulation.test.mjs",
+        "apps/ai-studio/test/g07-physics-runtime.test.mjs",
+        "apps/ai-studio/test/g08-render-effects-runtime.test.mjs",
+        "apps/ai-studio/test/preview-asset-transfer.test.mjs"
+      ],
+      "passed": 44,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 28108,
+      "outputDigest": "sha256:039e734506fca8efa01bfa7b3f4e53cdcd372fa90a54922994ca926be5d2c1c6"
+    },
+    {
+      "id": "tools",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "packages/game-authoring-tools/test/runtime.test.mjs",
+        "packages/game-authoring-tools/test/transactions.test.mjs",
+        "packages/game-authoring-tools/test/behavior-tools.test.mjs",
+        "packages/game-authoring-tools/test/g08-semantic-tools.test.mjs"
+      ],
+      "passed": 67,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 51862,
+      "outputDigest": "sha256:0e673d71a791e2e91d19b47e593c74d274ff9436f96079fa9126f6ed5597c3c7"
+    },
+    {
+      "id": "device",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs",
+        "apps/ai-studio/test/g09-multi-script-electron.test.mjs",
+        "apps/ai-studio/test/g08-preview-asset-electron.test.mjs",
+        "apps/ai-studio/test/g10-observation-electron.test.mjs"
+      ],
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 18328,
+      "outputDigest": "sha256:ab8d7bc7a355d3a97ee4698633072d3127079f185f591ffb9ac220e44b589171"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "mixed-0.png",
+      "digest": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146"
+    },
+    {
+      "path": "mixed-1.png",
+      "digest": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146"
+    },
+    {
+      "path": "mixed-window.png",
+      "digest": "sha256:1ff1de06760f6692336b44f660b7d7149429e0941fa4628cc2bc37f57d083e1a"
+    },
+    {
+      "path": "mixed.json",
+      "digest": "sha256:c7fe280c9e80d8a6b274236666457a8e743104b6e7817814f2da6a1ffc97d6cc"
+    },
+    {
+      "path": "zero-script-0.png",
+      "digest": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc"
+    },
+    {
+      "path": "zero-script-1.png",
+      "digest": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc"
+    },
+    {
+      "path": "zero-script-window.png",
+      "digest": "sha256:ffebac61b068a157292384352c57d49f3ec093144d02df2cc7319efaa55080de"
+    },
+    {
+      "path": "zero-script.json",
+      "digest": "sha256:4f6d42a3a3b4f5853c7815fdf250ba559de5a1d2abef073cdfc5aaf4c63ecfca"
+    }
+  ],
+  "limits": {
+    "hardwareDeviceLossTested": false,
+    "lossEventInjectionIsRegressionOnly": true,
+    "audioSourcePlaybackIsNotAdmitted": true
+  }
+}

@@ -1,0 +1,346 @@
+TAP version 13
+# Subtest: declarative gameplay, timer, HUD and listener project deterministically without script source
+ok 1 - declarative gameplay, timer, HUD and listener project deterministically without script source
+  ---
+  duration_ms: 15.6456
+  type: 'test'
+  ...
+# Subtest: declarative projection fails closed on ambiguous HUD and audio ownership
+ok 2 - declarative projection fails closed on ambiguous HUD and audio ownership
+  ---
+  duration_ms: 0.6692
+  type: 'test'
+  ...
+# Subtest: disabled declarative components have no runtime projection
+ok 3 - disabled declarative components have no runtime projection
+  ---
+  duration_ms: 0.2756
+  type: 'test'
+  ...
+# Subtest: seeded platformer lands, ground-probes and jumps with repeatable fixed-step hashes
+ok 4 - seeded platformer lands, ground-probes and jumps with repeatable fixed-step hashes
+  ---
+  duration_ms: 200.2676
+  type: 'test'
+  ...
+# Subtest: seeded racer collides with the track boundary through Box2D
+ok 5 - seeded racer collides with the track boundary through Box2D
+  ---
+  duration_ms: 40.1804
+  type: 'test'
+  ...
+# Subtest: seeded shooter reports a bullet trigger hit through Rapier CCD
+ok 6 - seeded shooter reports a bullet trigger hit through Rapier CCD
+  ---
+  duration_ms: 8.9342
+  type: 'test'
+  ...
+# Subtest: stable joint references create one backend joint and release it on stop
+ok 7 - stable joint references create one backend joint and release it on stop
+  ---
+  duration_ms: 10.2538
+  type: 'test'
+  ...
+# Subtest: Play physics can stop and restart without mutating authoring data or retaining resources
+ok 8 - Play physics can stop and restart without mutating authoring data or retaining resources
+  ---
+  duration_ms: 31.2646
+  type: 'test'
+  ...
+# Subtest: stale joint targets fail closed and release installed systems
+ok 9 - stale joint targets fail closed and release installed systems
+  ---
+  duration_ms: 2.6269
+  type: 'test'
+  ...
+# Subtest: backend load failure and cancellation never install a late physics world
+ok 10 - backend load failure and cancellation never install a late physics world
+  ---
+  duration_ms: 0.8731
+  type: 'test'
+  ...
+# Subtest: render profile is deterministic and bounded for screenshot reconstruction
+ok 11 - render profile is deterministic and bounded for screenshot reconstruction
+  ---
+  duration_ms: 2.2041
+  type: 'test'
+  ...
+# Subtest: post-process ordering, enable state, device loss and teardown remain observable
+ok 12 - post-process ordering, enable state, device loss and teardown remain observable
+  ---
+  duration_ms: 4.5982
+  type: 'test'
+  ...
+# Subtest: public Animation3DMixer and controlled audio owners run and release without mutating descriptors
+ok 13 - public Animation3DMixer and controlled audio owners run and release without mutating descriptors
+  ---
+  duration_ms: 4.8104
+  type: 'test'
+  ...
+# Subtest: audio unlock listeners are installed only while the Play owner is live
+ok 14 - audio unlock listeners are installed only while the Play owner is live
+  ---
+  duration_ms: 5.1481
+  type: 'test'
+  ...
+# Subtest: 2D and 3D particle owners install bounded systems and tear down to zero
+ok 15 - 2D and 3D particle owners install bounded systems and tear down to zero
+  ---
+  duration_ms: 4.004
+  type: 'test'
+  ...
+# Subtest: audio fails closed without a controlled asset resolver and late start is cancelled
+ok 16 - audio fails closed without a controlled asset resolver and late start is cancelled
+  ---
+  duration_ms: 2.0478
+  type: 'test'
+  ...
+# Subtest: controlled texture and glTF assets install through public adapters and release on teardown
+ok 17 - controlled texture and glTF assets install through public adapters and release on teardown
+  ---
+  duration_ms: 3.848
+  type: 'test'
+  ...
+# Subtest: scene-owned material and directional shadow state are restored on teardown
+ok 18 - scene-owned material and directional shadow state are restored on teardown
+  ---
+  duration_ms: 1.1867
+  type: 'test'
+  ...
+# Subtest: controlled HaiYue 2D animation installs public simulation/render owners and tears down
+ok 19 - controlled HaiYue 2D animation installs public simulation/render owners and tears down
+  ---
+  duration_ms: 1.9096
+  type: 'test'
+  ...
+# Subtest: seven genres share one component registry and explicit visual oracles
+ok 20 - seven genres share one component registry and explicit visual oracles
+  ---
+  duration_ms: 0.922
+  type: 'test'
+  ...
+# Subtest: production source/IPC/approved Play/portable artifacts: zero-script
+ok 21 - production source/IPC/approved Play/portable artifacts: zero-script
+  ---
+  duration_ms: 2182.9543
+  type: 'test'
+  ...
+# Subtest: production source/IPC/approved Play/portable artifacts: mixed
+ok 22 - production source/IPC/approved Play/portable artifacts: mixed
+  ---
+  duration_ms: 3638.1874
+  type: 'test'
+  ...
+# Subtest: behavior IPC cannot select filesystem paths or inject additional authority
+ok 23 - behavior IPC cannot select filesystem paths or inject additional authority
+  ---
+  duration_ms: 0.6238
+  type: 'test'
+  ...
+# Subtest: scriptless timer/rule gameplay retains authorization, exact revision and an unchanged project
+ok 24 - scriptless timer/rule gameplay retains authorization, exact revision and an unchanged project
+  ---
+  duration_ms: 383.7194
+  type: 'test'
+  ...
+# Subtest: 30/60/120 Hz and variable display cadence produce the same tick trace and state hashes
+ok 25 - 30/60/120 Hz and variable display cadence produce the same tick trace and state hashes
+  ---
+  duration_ms: 45.7343
+  type: 'test'
+  ...
+# Subtest: pause, exact step, reset, and restart do not retain held input
+ok 26 - pause, exact step, reset, and restart do not retain held input
+  ---
+  duration_ms: 0.6108
+  type: 'test'
+  ...
+# Subtest: replay envelope restores puzzle drag, platform jump, racing steer and shooter fire input
+ok 27 - replay envelope restores puzzle drag, platform jump, racing steer and shooter fire input
+  ---
+  duration_ms: 1.1045
+  type: 'test'
+  ...
+# Subtest: preview transfer reads only enabled referenced assets and releases owned URLs
+ok 28 - preview transfer reads only enabled referenced assets and releases owned URLs
+  ---
+  duration_ms: 1.8559
+  type: 'test'
+  ...
+# Subtest: preview transfer fails closed on descriptor drift, encoded length and aggregate budgets
+ok 29 - preview transfer fails closed on descriptor drift, encoded length and aggregate budgets
+  ---
+  duration_ms: 0.7006
+  type: 'test'
+  ...
+# Subtest: preview transfer releases owned URLs when disposal aborts a pending read
+ok 30 - preview transfer releases owned URLs when disposal aborts a pending read
+  ---
+  duration_ms: 3.8767
+  type: 'test'
+  ...
+# Subtest: instrumented execution preserves receivers, assignments, short circuit, directives, arguments and actual branches
+ok 31 - instrumented execution preserves receivers, assignments, short circuit, directives, arguments and actual branches
+  ---
+  duration_ms: 306.2561
+  type: 'test'
+  ...
+# Subtest: real asynchronous resumes, thrown expressions and late callbacks retain execution semantics and Play ownership
+ok 32 - real asynchronous resumes, thrown expressions and late callbacks retain execution semantics and Play ownership
+  ---
+  duration_ms: 42.0222
+  type: 'test'
+  ...
+# Subtest: ambiguous static finally copies do not select an invented completion path
+ok 33 - ambiguous static finally copies do not select an invented completion path
+  ---
+  duration_ms: 32.5553
+  type: 'test'
+  ...
+# Subtest: overlapping async calls do not invent per-invocation durations when completion order differs
+ok 34 - overlapping async calls do not invent per-invocation durations when completion order differs
+  ---
+  duration_ms: 23.9483
+  type: 'test'
+  ...
+# Subtest: reached call expressions do not claim completion when an argument throws; Engine failures retain a redacted owner
+ok 35 - reached call expressions do not claim completion when an argument throws; Engine failures retain a redacted owner
+  ---
+  duration_ms: 15.0436
+  type: 'test'
+  ...
+# Subtest: actual declarative result snapshots map timers, rules and state to config fields without script or adapter inventions
+ok 36 - actual declarative result snapshots map timers, rules and state to config fields without script or adapter inventions
+  ---
+  duration_ms: 70.8611
+  type: 'test'
+  ...
+# Subtest: bounded captures, rejected values, exact approved text and clock reset are explicit
+ok 37 - bounded captures, rejected values, exact approved text and clock reset are explicit
+  ---
+  duration_ms: 158.0238
+  type: 'test'
+  ...
+# Subtest: trusted ingress seals actual captures into the existing observation contract and rejects rewritten or foreign ownership
+ok 38 - trusted ingress seals actual captures into the existing observation contract and rejects rewritten or foreign ownership
+  ---
+  duration_ms: 54.999
+  type: 'test'
+  ...
+# Subtest: worker returns stable syntax, type and forbidden-capability diagnostics and invalidates late revisions
+ok 39 - worker returns stable syntax, type and forbidden-capability diagnostics and invalidates late revisions
+  ---
+  duration_ms: 6648.2348
+  type: 'test'
+  ...
+# Subtest: worker resolves injected Engine declarations independently of the launch directory
+ok 40 - worker resolves injected Engine declarations independently of the launch directory
+  ---
+  duration_ms: 1025.8054
+  type: 'test'
+  ...
+# Subtest: script proposal commits through History and survives undo, redo, save and reopen
+ok 41 - script proposal commits through History and survives undo, redo, save and reopen
+  ---
+  duration_ms: 1544.7014
+  type: 'test'
+  ...
+# [ScriptComponent entity=3:Cube script=6 lifecycle=onUpdate] EngineError: runtime boom
+#     at ScriptComponent._handleError (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:788:23)
+#     at ScriptComponent._run (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:743:18)
+#     at ScriptComponent.onUpdate (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:671:49)
+#     ... 5 lines matching cause stack trace ...
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+#   cause: Error: runtime boom
+#       at eval (haiyue-script://scripts/script:fb4cc1ca-0734-4d10-b7b2-582aefa38673.ts?resource=3&lifecycle=onUpdate:3:7)
+#       at Object.defaultScriptExecutor [as executor] (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:879:12)
+#       at ScriptComponent._run (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:740:21)
+#       at ScriptComponent.onUpdate (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:671:49)
+#       at World._updateComponents (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/World-NSjwM1ON.js:1147:27)
+#       at World.update (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/World-NSjwM1ON.js:1084:14)
+#       at IsolatedTrustedPreviewRuntime.tick (file:///D:/HaiyueStudio/AIStudio/packages/script-preview/dist/index.js:528:20)
+#       at TestContext.<anonymous> (file:///D:/HaiyueStudio/AIStudio/packages/script-preview/test/script-preview.test.mjs:198:27)
+#       at async Test.run (node:internal/test_runner/test:1389:7)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:960:7),
+#   domain: 'script',
+#   code: 'E_COMPONENT_SCRIPT_FAILED',
+#   recoverable: true,
+#   recovery: 'ignore',
+#   context: {
+#     scriptResourceId: 3,
+#     scriptResourceName: 'script:fb4cc1ca-0734-4d10-b7b2-582aefa38673',
+#     entityId: 3,
+#     entityName: 'Cube',
+#     componentId: 6,
+#     lifecycle: 'onUpdate',
+#     source: 'haiyue-script://scripts/script:fb4cc1ca-0734-4d10-b7b2-582aefa38673.ts?resource=3&lifecycle=onUpdate',
+#     line: 1,
+#     column: 7
+#   },
+#   path: 'scripts[3].onUpdate',
+#   hint: undefined,
+#   docsPath: 'errors/E_COMPONENT_SCRIPT_FAILED'
+# }
+# Subtest: authorization is explicit, one-shot and stale-safe; runtime is isolated and cleans hot-reload disposers
+ok 42 - authorization is explicit, one-shot and stale-safe; runtime is isolated and cleans hot-reload disposers
+  ---
+  duration_ms: 3062.8759
+  type: 'test'
+  ...
+# [ScriptComponent entity=4:Cube script=9 lifecycle=onUpdate] EngineError: leader failed
+#     at ScriptComponent._handleError (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:788:23)
+#     at ScriptComponent._run (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:743:18)
+#     at ScriptComponent.onUpdate (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:671:49)
+#     ... 5 lines matching cause stack trace ...
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+#   cause: Error: leader failed
+#       at eval (haiyue-script://scripts/script:26853712-0829-41d6-a1b7-ed0060b71de3.ts?resource=4&lifecycle=onUpdate:3:7)
+#       at Object.defaultScriptExecutor [as executor] (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:879:12)
+#       at ScriptComponent._run (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:740:21)
+#       at ScriptComponent.onUpdate (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:671:49)
+#       at World._updateComponents (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/World-NSjwM1ON.js:1147:27)
+#       at World.update (file:///D:/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/World-NSjwM1ON.js:1084:14)
+#       at IsolatedTrustedPreviewRuntime.tick (file:///D:/HaiyueStudio/AIStudio/packages/script-preview/dist/index.js:528:20)
+#       at TestContext.<anonymous> (file:///D:/HaiyueStudio/AIStudio/packages/script-preview/test/script-preview.test.mjs:275:30)
+#       at async Test.run (node:internal/test_runner/test:1389:7)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:960:7),
+#   domain: 'script',
+#   code: 'E_COMPONENT_SCRIPT_FAILED',
+#   recoverable: true,
+#   recovery: 'ignore',
+#   context: {
+#     scriptResourceId: 4,
+#     scriptResourceName: 'script:26853712-0829-41d6-a1b7-ed0060b71de3',
+#     entityId: 4,
+#     entityName: 'Cube',
+#     componentId: 9,
+#     lifecycle: 'onUpdate',
+#     source: 'haiyue-script://scripts/script:26853712-0829-41d6-a1b7-ed0060b71de3.ts?resource=4&lifecycle=onUpdate',
+#     line: 1,
+#     column: 7
+#   },
+#   path: 'scripts[4].onUpdate',
+#   hint: undefined,
+#   docsPath: 'errors/E_COMPONENT_SCRIPT_FAILED'
+# }
+# Subtest: one Play owner runs the exact enabled script set in stable order and isolates per-script faults and scopes
+ok 43 - one Play owner runs the exact enabled script set in stable order and isolates per-script faults and scopes
+  ---
+  duration_ms: 3161.9032
+  type: 'test'
+  ...
+# Subtest: preview start fails closed and releases the isolated world when durable logging fails
+ok 44 - preview start fails closed and releases the isolated world when durable logging fails
+  ---
+  duration_ms: 0.7639
+  type: 'test'
+  ...
+1..44
+# tests 44
+# suites 0
+# pass 44
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 27956.3687

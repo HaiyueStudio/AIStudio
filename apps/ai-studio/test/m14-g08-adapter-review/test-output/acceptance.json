@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "mode": "user-directed-independent-g08-acceptance",
+  "acceptedOn": "2026-09-08",
+  "verifiedAt": "2026-09-08T06:23:43.426Z",
+  "inputDigest": "sha256:e620f5348e2afb978313b68bfab4ca892d839f7aff560b3af0ed8a16c0b90fc4",
+  "productIntegrated": false,
+  "newAdapters": 0,
+  "repairedExistingBlockers": [
+    {
+      "capabilityId": "play.capture",
+      "adapterId": "adapter.ui.hud",
+      "source": "packages/editor-plugins/src/render/components.ts",
+      "gap": "Paused/delayed screenshot reads can return a transparent PNG despite visible scene and HUD. Preserve a bounded rendered frame and reject late capture results after Stop/restart.",
+      "owner": "g08-advanced-engine-runtime-adapters",
+      "verificationEntry": "node --test apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs",
+      "deferredReason": "Only the existing screenshot adapter is admitted; all other advanced adapter waves remain deferred.",
+      "maxInstances": 1,
+      "maxRuntimeMs": 100000
+    }
+  ],
+  "reviewedComponentCount": 10,
+  "checks": {
+    "focused": {
+      "passed": 126,
+      "path": "apps/ai-studio/test/m14-g08-adapter-review/test-output/checks.json",
+      "digest": "sha256:654bb339a90c5c00e2d311f3ef96978aa325e79033624c0af1b11efe380c7e3f"
+    },
+    "currentCapability": {
+      "passed": 120,
+      "path": "config/contracts/m14-capability-verification.json",
+      "digest": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694"
+    },
+    "commands": [
+      {
+        "id": "focused",
+        "command": "node apps/ai-studio/test/m14-g08-adapter-review/verify.mjs",
+        "exitCode": 0,
+        "path": "apps/ai-studio/test/m14-g08-adapter-review/test-output/focused-check.txt",
+        "digest": "sha256:c5a8c778c407456cbd38c8f8029b97a373168cb22bab2d465bbd89e07e50ff5e"
+      },
+      {
+        "id": "capability",
+        "command": "npm run m14:capability:capture",
+        "exitCode": 0,
+        "path": "apps/ai-studio/test/m14-g08-adapter-review/test-output/capability-capture.txt",
+        "digest": "sha256:edcdaa53432e14eb55198f669a5de6a274aa66dcf43f56fd7d13074c21ad73a0"
+      },
+      {
+        "id": "repository",
+        "command": "npm run check",
+        "exitCode": 0,
+        "path": "apps/ai-studio/test/m14-g08-adapter-review/test-output/repository-check.txt",
+        "digest": "sha256:8480c6a0a30a0356223306cad5e512dc69bd3e8111db795ce6c0e1c8b4ad3847"
+      },
+      {
+        "id": "milestones",
+        "command": "npm run check (milestones)",
+        "exitCode": 0,
+        "path": "apps/ai-studio/test/m14-g08-adapter-review/test-output/milestones-check.txt",
+        "digest": "sha256:6546a2142b3e3180e09a1c90694ba319087db133d1b7856fd0531fc9782a9bc2"
+      }
+    ]
+  },
+  "repeatPngIdentical": {
+    "zero-script": true,
+    "mixed": true
+  },
+  "limits": {
+    "hardwareDeviceLossTested": false,
+    "lossEventInjectionIsRegressionOnly": true,
+    "audioSourcePlaybackIsNotAdmitted": true
+  },
+  "handoffOwner": "g09-ai-native-editor-integration-acceptance",
+  "handoff": [
+    "Wire the G08 leaf verifier into the formal check entry alongside the G06/G07 leaf directories.",
+    "Revalidate package/tool/UI/runtime six-layer combination and the named formal device verification; do not promote product-integrated from local counts."
+  ],
+  "discardedAttempts": [
+    {
+      "path": "apps/ai-studio/test/m14-g08-adapter-review/test-output/capability-capture-before-counter-fix.txt",
+      "reason": "The first capability capture detected changed semantics of the existing script-side-effect count. Restored the existing meaning; production recheck and accepted full run passed.",
+      "recheck": "apps/ai-studio/test/m14-g08-adapter-review/test-output/product-recheck.txt"
+    }
+  ],
+  "preservedPrerequisites": [
+    {
+      "milestone": "m13-agent-session-execution-graph",
+      "goal": "g11-migration-cross-backend-acceptance",
+      "observedStatus": "active"
+    },
+    {
+      "milestone": "m12-ai-native-game-studio-general-authoring",
+      "goal": "g12-cross-genre-integration-acceptance",
+      "observedStatus": "blocked"
+    }
+  ]
+}

@@ -41,9 +41,28 @@
   "strategy": "Reuse existing capabilities for source-bound behavior inspection. Inclusion is first-release analysis scope, never product acceptance.",
   "g08": {
     "maxBlockers": 2,
-    "selected": [],
-    "reason": "No demonstrated existing runtime-adapter blocker is selected for new implementation. Existing script/declarative/mixed sources suffice for the first behavior workflow; missing behavior projection, catalog identity and UI belong to G02/G05/G06/G07. Zero selection does not certify every adapter. G08 must recheck this frozen scope and hand off adapter-ready evidence.",
-    "changeControl": "A newly discovered blocker must be reviewed by the serial integration owner, name an existing M12 capability and adapter, and replace this frozen selection before G08 implementation; never auto-admit deferred waves."
+    "selected": [
+      {
+        "capabilityId": "play.capture",
+        "adapterId": "adapter.ui.hud",
+        "source": "packages/editor-plugins/src/render/components.ts",
+        "gap": "Paused/delayed screenshot reads can return a transparent PNG despite visible scene and HUD. Preserve a bounded rendered frame and reject late capture results after Stop/restart.",
+        "owner": "g08-advanced-engine-runtime-adapters",
+        "verificationEntry": "node --test apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs",
+        "deferredReason": "Only the existing screenshot adapter is admitted; all other advanced adapter waves remain deferred.",
+        "maxInstances": 1,
+        "maxRuntimeMs": 100000
+      }
+    ],
+    "reason": "The initial G01 selection was empty. A serial G08 review admitted one reproduced existing screenshot blocker; this does not admit any new Engine capability or certify other adapters.",
+    "changeControl": "A newly discovered blocker must be reviewed by the serial integration owner, name an existing M12 capability and adapter, and replace this frozen selection before G08 implementation; never auto-admit deferred waves.",
+    "review": {
+      "reviewedOn": "2026-09-08",
+      "owner": "serial-milestone-integration-owner",
+      "previousSelection": [],
+      "reason": "Real zero-script and mixed preview runs render visible geometry/HUD, but capture after paused stepping and resize returns an all-transparent PNG. Reproduced with current production preview bundle; copying an expired WebGPU canvas invalidates the composed image. Admit exactly this existing play.capture / adapter.ui.hud screenshot path for repair before implementation.",
+      "evidence": "apps/ai-studio/test/m14-g08-adapter-review/README.md"
+    }
   },
   "corpus": [
     {
@@ -157,7 +176,7 @@
   "handoff": {
     "g02": "Freeze behavior/resource/location contracts using these actual script/component/adapter sources; reuse M12 capability ids.",
     "g05": "Implement the three source classes and all listed assertions; explicitly add missing zero-script device fixture.",
-    "g08": "Zero new blockers frozen; produce bounded adapter review, and escalate discovered blockers before widening scope.",
+    "g08": "Initial selection was empty; the serial 2026-09-08 review admits exactly one existing play.capture / adapter.ui.hud screenshot blocker. Deliver the bounded repair and adapter review; no new adapter or deferred wave is admitted.",
     "g09": "Only current six-layer evidence plus explicit adapter and formal product acceptance can promote records."
   }
 }
