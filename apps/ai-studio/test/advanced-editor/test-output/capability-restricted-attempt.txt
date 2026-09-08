@@ -1,0 +1,429 @@
+
+> @haiyue/ai-studio-repository@0.0.0 m14:capability:capture
+> node scripts/verify-m14-capability-census.mjs --capture
+
+[m14-capability] Building current public workspace exports before collecting evidence.
+
+> @haiyue/ai-studio@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-agent-backends && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio-shell && npm run build -w @haiyue/ai-studio-script-preview && npm run build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts
+
+
+> @haiyue/ai-studio-agent-backends@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-harness-bridge
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-harness-bridge@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-harness-bridge@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-backends@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-game-authoring-tools@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log && npm run build -w @haiyue/ai-studio-script-preview
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-script-preview@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-script-preview@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-game-authoring-tools@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-shell@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-shell@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-script-preview@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-script-preview@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-orchestration@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio@0.0.0 build
+> node scripts/promote-tsc-output.mjs --clean && tsc -p tsconfig.json --outDir dist/.tsc && node scripts/promote-tsc-output.mjs && node scripts/copy-assets.mjs && node scripts/build-renderer.mjs && node scripts/verify-renderer-bundle.mjs
+
+[m14-capability] documents: 10 passed, 1456 ms
+[m14-capability] tools: 18 passed, 33913 ms
+[m14-capability] camera: 3 passed, 855 ms
+[m14-capability] simulation: 6 passed, 646 ms
+[m14-capability] physics: 10 passed, 1475 ms
+[m14-capability] render: 13 passed, 1501 ms
+[m14-capability] scripts: 6 passed, 21213 ms
+[m14-capability] observations: 8 passed, 1756 ms
+[m14-capability] census-guards: 15 passed, 2781 ms
+[m14-capability] behavior-project-flow: 29 passed, 25724 ms
+TAP version 13
+# Subtest: logic panel operates on real G02 structure, explanation and executed trace in a sandboxed window
+not ok 1 - logic panel operates on real G02 structure, explanation and executed trace in a sandboxed window
+  ---
+  duration_ms: 6224.5473
+  type: 'test'
+  location: 'D:\\HaiyueStudio\\AIStudio\\apps\\ai-studio\\test\\logic-panel-electron.test.mjs:13:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    
+    [15156:0908/123450.432:ERROR:components\os_crypt\sync\os_crypt_win.cc:78] Failed to encrypt: 系统找不到指定的文件。 (0x2)
+    [15156:0908/123452.182:ERROR:content\browser\gpu\gpu_process_host.cc:1108] GPU process exited unexpectedly: exit_code=-1073741515
+    Error: ERR_FAILED (-2) loading 'file:///C:\Users\ADMINI~1\AppData\Local\Temp\haiyue-m14-logic-panel-MBjL5p\host.html'
+        at rejectAndCleanup (node:electron/js2c/browser_init:2:94962)
+        at finishListener (node:electron/js2c/browser_init:2:95124)
+        at WebContents.stopLoadingListener (node:electron/js2c/browser_init:2:95511)
+        at WebContents.emit (node:events:509:28)
+    [15156:0908/123452.324:ERROR:content\browser\gpu\gpu_process_host.cc:1108] GPU process exited unexpectedly: exit_code=-1073741515
+    
+    Artifacts: C:\Users\ADMINI~1\AppData\Local\Temp\haiyue-m14-logic-panel-MBjL5p
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    rejectAndCleanup (node:electron/js2c/browser_init:2:94962)
+    finishListener (node:electron/js2c/browser_init:2:95124)
+    WebContents.stopLoadingListener (node:electron/js2c/browser_init:2:95511)
+    WebContents.emit (node:events:509:28)
+    TestContext.<anonymous> (file:///D:/HaiyueStudio/AIStudio/apps/ai-studio/test/logic-panel-electron.test.mjs:35:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7641.6289
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: behavior-panel-window failed; previous evidence preserved.
+
+1 !== 0
+
+    at file:///D:/HaiyueStudio/AIStudio/scripts/verify-m14-capability-census.mjs:35:12
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.19.0

@@ -1,0 +1,513 @@
+
+> @haiyue/ai-studio-repository@0.0.0 check
+> npm run contracts:check && npm run typecheck && npm run typecheck -w @haiyue/ai-studio-agent-orchestration && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run render:candidate:check && npm run spike:check && npm run m12:g12:quick && npm run m14:capability:check && npm run build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts && npm run build -w @haiyue/ai-studio --ignore-scripts && npm run m14:behavior:test && npm run m14:workspace:test && npm run m14:agent-tools:test && npm run m14:logic:test
+
+
+> @haiyue/ai-studio-repository@0.0.0 contracts:check
+> node scripts/verify-contracts.mjs
+
+[contracts] schemas=53 fixtureFiles=8 valid=53 invalid=82
+
+> @haiyue/ai-studio-repository@0.0.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-orchestration@0.0.0 pretypecheck
+> npm run build -w @haiyue/ai-studio-game-authoring-tools && npm run build -w @haiyue/ai-studio-shell
+
+
+> @haiyue/ai-studio-game-authoring-tools@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log && npm run build -w @haiyue/ai-studio-script-preview
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-runtime@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-script-preview@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-kernel@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-editor-plugins@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-operation-log@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-script-preview@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-game-authoring-tools@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-shell@0.0.0 prebuild
+> npm run build -w @haiyue/ai-studio-contracts
+
+
+> @haiyue/ai-studio-contracts@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-shell@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-orchestration@0.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+> @haiyue/ai-studio-repository@0.0.0 boundaries:check
+> node --test scripts/test/orchestration-boundaries.test.mjs && node scripts/check-boundaries.mjs
+
+✔ orchestration allows public service ports and local policies, but rejects platform and implementation imports (10.9802ms)
+✔ reverse imports and production dependencies cannot recreate the application layer cycle (0.737ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 436.0694
+[boundaries] headless orchestration, single Harness bridge, Codex adapter, M12 contract ownership, private workspace, and cross-repository rules passed
+
+> @haiyue/ai-studio-repository@0.0.0 upstream:check
+> node scripts/verify-upstream-pins.mjs
+
+[upstream] DSH dsh-v0.1.0-rc.7@99f6f02fecdb, Codex 0.148.0, schemas=380, types=752
+
+> @haiyue/ai-studio-repository@0.0.0 engine:candidate:check
+> node scripts/verify-engine-candidate.mjs
+
+[engine-candidate] @haiyue/engine@0.1.0 sha256=ac46cb07eb24fbb6 source=10a21e64b323
+
+> @haiyue/ai-studio-repository@0.0.0 render:candidate:check
+> node scripts/verify-render-extension-candidates.mjs
+
+[render-candidate] @haiyue/animation-spec@0.1.0 sha256=f2bc618a079bae84 source=10a21e64b323
+[render-candidate] @haiyue/extensions@0.1.0 sha256=112db9547c4f2f66 source=10a21e64b323
+
+> @haiyue/ai-studio-repository@0.0.0 spike:check
+> node scripts/verify-protocol-spikes.mjs
+
+[spike] Harness and Codex fake tool/cancel flows normalize identically; teardown is idempotent; Document writes=0
+
+> @haiyue/ai-studio-repository@0.0.0 m12:g12:quick
+> node --test evals/test/*.test.mjs
+
+✔ suite covers seven genres with variants, budgets, declared capabilities and corroborated screenshots (3.2404ms)
+✔ schema rejects invalid budgets (111.0234ms)
+✔ relationship validator rejects unknown capabilities, duplicate IDs and unordered ticks (2.3155ms)
+✔ formal G12 manifest requires all seven genres, both independent backends, repairs and lifecycle gates (15.6516ms)
+✔ G12 is fail-closed for dirty revisions, shared projects, missing evidence, low first-pass rate and genre prompt patches (2.7083ms)
+✔ test fixtures and cross-revision evidence cannot be promoted into formal acceptance (12.5158ms)
+✔ formal decision cannot hide failed seeded repair or budget-stop semantics (4.408ms)
+✔ snake evidence is derived from the full authoritative trace and correlated screenshot pixels (14.1009ms)
+✔ snake evidence accepts authoritative XZ coordinates (1.27ms)
+✔ snake evidence derives enum-backed direction changes from consecutive head positions (1.0326ms)
+✔ snake evidence accepts flat XZ telemetry fields (0.8438ms)
+✔ snake evidence accepts col-row point aliases (0.7079ms)
+✔ snake evidence consumes the shared actors targets metrics telemetry shape (1.6678ms)
+✔ snake evidence consumes nested player head, direction and lifecycle telemetry (1.3099ms)
+✔ shared trace analyzers derive authoritative signals for every non-snake genre (8.0773ms)
+✔ falling-block evidence retains cumulative nested metrics and derives board safety across restart (6.2251ms)
+✔ non-snake visual analyzers correlate named scene roles with real bitmap colors (10.4394ms)
+✔ gameplay contract requires state plus an authoritative event channel without genre knowledge (27.4061ms)
+✔ gameplay contract recognizes typed scene receivers and named payloads without weakening exact channel keys (4.4542ms)
+✔ gameplay contract rejects incomplete canonical state even when legacy lifecycle channels exist (2.4034ms)
+✔ real cold matrix runner enumerates independent backend/genre cases and checkpoints each result (1575.777ms)
+✔ real case runner separates model-visible request from hidden replay and persists all evidence classes (7.8776ms)
+✔ parent timeout fallback preserves fail-closed state, PNG, evaluator, usage and cost evidence (126.6832ms)
+✔ replay executor prequeues fixed input, runs semantic drivers and resolves observed triggers (9.8272ms)
+✔ trigger wait consumes fixed ticks and fails closed without an authoritative event (1.8039ms)
+✔ replay execution rejects stale base ticks and runtime errors (1.1849ms)
+✔ terminal status aliases are normalized but HUD text is never treated as a trigger (0.6839ms)
+✔ physical replay controls resolve through the project action map for direct and semantic input (1.4616ms)
+✔ failed semantic replay retains bounded observations and injected inputs for repair (1.5793ms)
+✔ all seven hidden replays compile and declare every semantic driver explicitly (6.3295ms)
+✔ real iframe startup ticks rebase absolute suite ticks and play-ready input (0.4793ms)
+✔ press, hold and sequence expand to deterministic down/up pairs (0.6012ms)
+✔ hidden lifecycle replay explicitly exercises platform restart and racing brake plus restart (0.4009ms)
+✔ semantic replay is fail-closed when a real adapter omits or invents a driver (1.4169ms)
+✔ unknown semantic actions cannot silently pass through the runner (0.3781ms)
+✔ reviewed semantic registry exactly covers every hidden replay action (2.6241ms)
+✔ every semantic driver executes bounded real preview-control operations (29.9687ms)
+✔ semantic pointer drivers consume only normalized, exact-role replay targets (0.7387ms)
+✔ wrong jigsaw drop injects a bounded pointer cancel before later recovery checks (0.6631ms)
+✔ falling-block driver retains a same-tick active-and-locked visual checkpoint (2.8184ms)
+✔ semantic drivers fail closed for missing registration and tick-budget overflow (1.3399ms)
+✔ snake verification accepts XZ gameplay state and maps vertical direction semantics (2.3172ms)
+✔ snake verification starts a ready game before testing reverse input (0.993ms)
+✔ snake verification restarts a terminal handoff before replay (2.4435ms)
+✔ snake verification maps increasing board rows to the down control (1.4835ms)
+✔ snake verification accepts flat XZ telemetry fields (1.2766ms)
+✔ snake verification accepts col-row point aliases (0.9849ms)
+✔ snake verification consumes the shared actors targets metrics telemetry shape (1.5235ms)
+✔ snake verification consumes nested player head, direction and lifecycle telemetry (1.1537ms)
+✔ snake verification calibrates cell XY controls instead of assuming row sign (1.6233ms)
+✔ agent projection contains only request fields and production prompts do not leak hidden oracle data (497.4107ms)
+✔ isolation guard rejects a hidden replay or acceptance string in production model text (0.7262ms)
+✔ seven-game exact-only A/B keeps success while hybrid retrieval cuts schema and input tokens (1299.962ms)
+✔ enumeration is stable across three modes and all request variants (4.0344ms)
+✔ reference fixture passes all cases and blank implementation fails all cases (41.4543ms)
+✔ every seeded defect fails exactly its declared stable acceptance IDs (16.1437ms)
+✔ runner resets to a deterministic blank document and emits canonical deterministic reports (11.8674ms)
+✔ replay schedules use fixed ticks or named triggers without wall-clock sleeps (0.6282ms)
+ℹ tests 58
+ℹ suites 0
+ℹ pass 58
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3907.1341
+
+> @haiyue/ai-studio-repository@0.0.0 m14:capability:check
+> node scripts/verify-m14-capability-census.mjs --check
+
+[m14-capability] verified: packages=8, capabilities=35, components=44, tools=50, product-integrated=0
+
+> @haiyue/ai-studio-agent-orchestration@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio@0.0.0 build
+> node scripts/promote-tsc-output.mjs --clean && tsc -p tsconfig.json --outDir dist/.tsc && node scripts/promote-tsc-output.mjs && node scripts/copy-assets.mjs && node scripts/build-renderer.mjs && node scripts/verify-renderer-bundle.mjs
+
+
+> @haiyue/ai-studio-repository@0.0.0 m14:behavior:test
+> node --test packages/script-preview/test/behavior-*.test.mjs apps/ai-studio/test/m14-behavior-contract.test.mjs
+
+✔ G03/G04 consume public private-package exports and the provider-neutral read port (2201.7117ms)
+✔ all six envelopes and the input reject each checked-in invalid, unknown-version and secret-bearing fixture (249.8805ms)
+✔ checked-in pure script, declarative, physics/animation and mixed inputs reproduce valid manifests (152.8271ms)
+✔ declarative field relationships agree with the existing real headless Play adapter (36.072ms)
+✔ script control flow preserves branches, loops, awaiting, explicit aggregate lanes and dynamic gaps (356.7323ms)
+✔ serial calls do not become concurrent and return/throw do not fall through (21.6695ms)
+✔ Promise shadowing disables intrinsic concurrency recognition (51.2517ms)
+✔ finally preserves return and normal completion paths without false fall-through (22.0705ms)
+✔ pointer/custom callbacks preserve source entries and cross-entity declarative targets (37.7066ms)
+✔ declarative timers and rules retain component fields without script generation (28.5975ms)
+✔ disabled components and missing/changed adapter semantics stay honest (22.8952ms)
+✔ canonical full input is deterministic; components, dependencies, registry, adapter and config invalidate it (481.495ms)
+✔ source ranges refer to original UTF-16 text including CRLF and Unicode (15.9496ms)
+✔ AST and output budgets yield explicit truncation with no dangling edges (44.3107ms)
+✔ input rejects unknown versions, secrets, accessors, live objects and malformed authority (53.8693ms)
+✔ four resource identities reject mixed references, illegal operations and inappropriate unused semantics (308.7909ms)
+✔ resource projection keeps existing asset identity/license/budgets and distinguishes missing knowledge (127.5863ms)
+✔ trace association reuses ObservationArtifactV2 and checks source, play, generation and exact bytes (184.1648ms)
+✔ trace bounds retain omission metadata, exceptions and cancellation; malformed or secret rows cannot hide in the tail (3124.8656ms)
+✔ trace byte budget truncates large state/error rows independently of the event-count limit (775.8887ms)
+✔ observation script selection reuses explicit Play subsets and excludes disabled resources (8.8253ms)
+✔ instrumented execution preserves receivers, assignments, short circuit, directives, arguments and actual branches (718.6535ms)
+✔ real asynchronous resumes, thrown expressions and late callbacks retain execution semantics and Play ownership (90.5948ms)
+✔ ambiguous static finally copies do not select an invented completion path (50.4062ms)
+✔ overlapping async calls do not invent per-invocation durations when completion order differs (49.8258ms)
+✔ reached call expressions do not claim completion when an argument throws; Engine failures retain a redacted owner (30.2573ms)
+✔ actual declarative result snapshots map timers, rules and state to config fields without script or adapter inventions (116.869ms)
+✔ bounded captures, rejected values, exact approved text and clock reset are explicit (303.0117ms)
+✔ trusted ingress seals actual captures into the existing observation contract and rejects rewritten or foreign ownership (98.3158ms)
+✔ worker analysis, bounded queries, independent explanations and source locations use the same contracts (2451.6431ms)
+✔ original script locations cannot reuse stale or forged ranges (1433.057ms)
+✔ abort, replacement, invalidate and repeated disposal terminate workers and prevent late publication (658.726ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5975.9486
+
+> @haiyue/ai-studio-repository@0.0.0 m14:workspace:test
+> node --test --test-concurrency=1 apps/ai-studio/test/layout/*.test.mjs apps/ai-studio/test/split-layout.test.mjs apps/ai-studio/test/electron-smoke.test.mjs
+
+✔ real Electron loads a sandboxed renderer through the typed preload and closes cleanly (87014.0527ms)
+✔ workspace migration preserves classic split settings and keeps new ratios separate (1.4021ms)
+✔ unknown versions, corrupt, oversized and unavailable storage retain a usable workspace (0.7516ms)
+M14 workspace artifacts: C:\Users\ADMINI~1\AppData\Local\Temp\haiyue-m14-workspace-Asq0nz
+✔ real sandboxed workspace consumes G02 projections and preserves editor controls at desktop and narrow sizes (12542.3449ms)
+✔ editor panels use public HaiYue UI layout, tabs, dialog, select, and theme seams (9.4056ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 101376.7902
+
+> @haiyue/ai-studio-repository@0.0.0 m14:agent-tools:test
+> node --test packages/game-authoring-tools/test/*.test.mjs apps/ai-studio/test/agent-tools/*.test.mjs apps/ai-studio/test/tool-discovery-invocation.test.mjs
+
+✔ harness: discovered behavior tools execute real analysis with approval, provenance and replay (9980.1172ms)
+✔ codex: discovered behavior tools execute real analysis with approval, provenance and replay (5970.9329ms)
+✔ harness: omitted tools execute after search through the real backend adapter and retain policy/replay (3362.0467ms)
+✔ codex: omitted tools execute after search through the real backend adapter and retain policy/replay (1722.5762ms)
+✔ resource kinds keep their legal creation/component/location paths without a catalog UI or behavior source (1055.2313ms)
+✔ script: real behavior tools preserve source binding and read-only History (8761.1061ms)
+✔ declarative: real behavior tools preserve source binding and read-only History (7661.6284ms)
+✔ mixed: real behavior tools preserve source binding and read-only History (11158.4887ms)
+✔ schema fuzz, exact invocation versions and registry-owned risk reject unsupported behavior requests (451.3158ms)
+✔ component edits, project identity, registry/config changes and in-flight drift invalidate behavior results (3510.1689ms)
+✔ result pages adapt to byte budget without dropping provenance or skipping nodes (4012.7083ms)
+✔ missing source, secret-bearing inputs and provider errors are explicit and redacted (374.236ms)
+✔ timeout, cancellation and disposal terminate behavior work without late results or document writes (489.871ms)
+✔ effect locks allow disjoint owners, serialize conflicts fairly and release idempotently (4.0707ms)
+✔ global lock conflicts with every key and cancelled wait leaves no lease (1.5102ms)
+✔ execution classes expand to safe canonical lock sets (0.442ms)
+✔ cross-batch and cross-turn owners share exact component, script, runtime and global barriers (1.3993ms)
+✔ seven game cases consume only registered genre-neutral tools and component capabilities (5.1879ms)
+✔ high-value semantic tools retain bounded schemas, explicit effects and safe result budgets (0.802ms)
+✔ G10 persists bounded state and PNG observations before returning references (141.9469ms)
+✔ G10 rejects oversized, missing, stale and mixed-provenance evidence fail closed (167.9311ms)
+✔ G10 deterministic evaluator fails seeded compile/runtime/physics/interaction/visual defects then passes fresh evidence (117.3981ms)
+✔ G10 screenshot presence cannot satisfy a semantic visual assertion without verifier analysis (52.1971ms)
+✔ G10 screenshot projection hides secret bytes, CAS tamper fails closed and quota isolates tasks (127.7494ms)
+✔ G10 repair state machine requires failed evidence, stops no-change repeats and completes only with cited evidence (2.2365ms)
+✔ registry-owned hybrid catalog finds semantic capabilities across Chinese and English queries (322.2374ms)
+✔ task-aware schema expansion keeps stable core tools and materially reduces fixed schema bytes (771.8867ms)
+✔ explicit screenshot intent deterministically retains capture under a tight schema limit (94.7394ms)
+✔ explicit interaction intent deterministically retains Play input (100.7308ms)
+✔ bounded tool catalog exposes registry-driven component authoring (9.4156ms)
+✔ entity.create-many creates mixed scene roles in one revision and rejects material on non-geometry (716.7293ms)
+✔ camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically (976.2118ms)
+✔ tool.search and component.configure expose registry defaults as partial semantic upserts (446.8457ms)
+✔ asset.dependencies and script symbols/patch provide exact incremental context without whole-script retransmission (3777.4463ms)
+✔ scene.get-many and recoverable hierarchy operations clone, reparent and restore complete subtrees (318.2997ms)
+✔ prefab.manage captures, instantiates and removes reusable subtrees while history.query stays bounded and source-redacted (1897.2979ms)
+✔ transform.batch applies set, align, distribute, snap and look-at as bounded single-revision edits (344.3525ms)
+✔ main project camera persists through History and supports a distortion-free top-down board view (303.1975ms)
+✔ runtime executes a prepared mutation batch through one Scene transaction and one undoable History entry (268.2668ms)
+✔ scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary (284.3818ms)
+✔ planned entity creation is low risk while later scoped edits retain one-shot approval and History (300.0078ms)
+✔ controlled project assets import, search, assign, undo and survive project reopen (302.1248ms)
+✔ controlled asset import rejects decode-budget and kind/format violations without mutation (340.7467ms)
+✔ diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload (359.1419ms)
+✔ allow always auto-approves only the same tool, version, target and project session scope (355.4778ms)
+✔ script proposal, trusted apply and runtime start preserve separate approvals (3412.0045ms)
+✔ AI-generated engine imports and update wrappers are normalized before apply (1687.8146ms)
+✔ unsupported module entry points remain fail closed (2849.1474ms)
+✔ scene capability is inferred from api.scene source and survives proposal and preview validation (2390.9882ms)
+✔ preview validation rejects scenes that contain only logic entities (1430.8748ms)
+✔ preview validation rejects lit materials without a light and recovers after lighting is added (2257.709ms)
+✔ Agent tools create Engine primitives and lights and can change built-in materials (296.4864ms)
+✔ registry-driven component tools preserve schema, risk, Scene projection and History (312.7738ms)
+✔ Agent can author distinct material colors for snake, food and board entities (279.5798ms)
+✔ model-facing mutations require the observed revision and create with an initial Transform (66.9492ms)
+✔ every revision-bound tool publishes a required version and rejects omission at its input boundary (277.4108ms)
+✔ missing, invalid and stale revisions never adopt a newer manual edit (241.8969ms)
+✔ manual UI service and Agent tool serialize the same entity, revision and undoable History state (312.5894ms)
+✔ schema spoof, rejection and revision drift fail closed without mutation (242.6552ms)
+✔ schema fuzz rejects duplicate, nested unknown, non-finite and malformed structured fields before mutation (56.5628ms)
+✔ same-document mutations serialize and a queued stale preparation never enters the editor service (254.7109ms)
+✔ tool, approval, Document and History correlation remains traversable after the journal restarts (266.5994ms)
+✔ cancelled calls reject a late result even when the injected runtime ignores AbortSignal (57.0856ms)
+✔ tool timeout aborts execution, emits a terminal failure and cannot produce a late completion (73.7634ms)
+✔ observe tools degrade when journal append fails while every mutation remains fail closed (53.5006ms)
+✔ pending approvals have no wall-clock expiry while revision drift still invalidates them (235.1628ms)
+✔ fake backend deterministic E2E creates, transforms, scripts and starts preview through one tool seam (2359.067ms)
+✔ coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval (1708.1915ms)
+✔ agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam (2950.2827ms)
+✔ coordinator rejects malformed provider arguments instead of coercing them to an empty observe call (32.6591ms)
+✔ coordinator can route backend turns and tool output accounting through AgentTurnRuntime (52.4562ms)
+✔ coordinator can expose a bounded tool profile and compact only the provider-facing result (51.2341ms)
+✔ a search-only coordinator invokes a discovered edit through real Document History without exposing all schemas (231.8502ms)
+✔ coordinator automatically takes over backend questions through an explicit policy (29.5994ms)
+✔ coordinator cancels a non-converging turn at its tool request boundary (56.5883ms)
+✔ coordinator preserves completed tool results when the host budget observer blocks the next request (64.7558ms)
+✔ coordinator can preserve completed tool results when a bounded host timebox aborts the caller (59.0202ms)
+✔ disposing the coordinator aborts an active backend turn and is idempotent (37.7284ms)
+✔ registry classification only parallelizes explicitly safe observations and fails closed (6.8597ms)
+✔ normalization ignores spoofed scheduling metadata and keeps contract ids bounded (12.6391ms)
+✔ parallel reads use a rolling pool and wall time follows the slowest body (97.1339ms)
+✔ exclusive barriers do not overlap reads and later reads wait for the barrier (71.2791ms)
+✔ cycle validation includes model dependencies and implicit barrier ordering (2.3545ms)
+✔ body completion may be out of order while committed outcomes and digest remain deterministic (110.5752ms)
+✔ failure cancels transitive dependents but independent work continues (14.3209ms)
+✔ stop-batch failure aborts active peers and cancels pending nodes (1.9245ms)
+✔ external cancellation and node timeout settle with bounded outcomes (28.8696ms)
+✔ batch output limit is enforced and digest-only projection remains bounded (2.0685ms)
+✔ search returns an exact executable route for tools omitted from the initial native surface (359.9574ms)
+✔ invocation rejects unregistered, recursive, stale, malformed and policy-forging targets (1.7372ms)
+✔ resolved calls retain target revision, trusted-code/runtime barriers and immutable arguments (6.3357ms)
+✔ coordinator prepares without mutation and commits 7 members as one idempotent History transaction (137.0467ms)
+✔ coordinator commits the 100-member boundary as one revision and one History entry (70.8583ms)
+✔ disjoint entity transactions prepare concurrently from one frozen revision without acquiring commit locks (76.064ms)
+✔ stale revision introduced between prepare and commit rejects without a partial transaction (58.1755ms)
+✔ stale base is rejected during prepare before any plan, mutation or History entry exists (38.1523ms)
+✔ coordinator synthesizes committed-no-ack and never submits the transaction twice (92.2679ms)
+✔ failure before History write preserves prepared artifacts and leaves the document untouched (49.1277ms)
+✔ invalid member operations fail during prepare and leave no partial Scene state or History entry (63.0146ms)
+ℹ tests 99
+ℹ suites 0
+ℹ pass 99
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 40216.7188
+
+> @haiyue/ai-studio-repository@0.0.0 m14:logic:test
+> node --test --test-concurrency=1 packages/operation-log/test/behavior-history.test.mjs packages/agent-orchestration/test/behavior-project.test.mjs packages/studio-shell/test/logic-model.test.mjs apps/ai-studio/test/logic-*.test.mjs
+
+✔ production source/IPC/approved Play/portable artifacts: zero-script (2939.8712ms)
+✔ production source/IPC/approved Play/portable artifacts: mixed (4929.158ms)
+✔ behavior IPC cannot select filesystem paths or inject additional authority (0.7087ms)
+✔ scriptless timer/rule gameplay retains authorization, exact revision and an unchanged project (326.5233ms)
+{"genre":"snake","source":"76f3dabbaeca3dff9e974e455c1cb6e78451bca768e3edacf51183cfb6961807","nodes":364,"edges":392,"instrumented":176,"mainSource":"scripts/8263ebb3-a9b8-4863-9db6-94ba05fdb2ed.ts"}
+✔ preserved M12 snake: main gameplay structure, source ranges and executable observation plan (1348.1945ms)
+{"genre":"match-3","source":"87ad0126ff04986763870bb61021cea56c999659431e96ecc4c7951d402491c3","nodes":560,"edges":599,"instrumented":317,"mainSource":"scripts/737cfa1b-8107-44ab-898e-bf54bbb9b663.ts"}
+✔ preserved M12 match-3: main gameplay structure, source ranges and executable observation plan (1289.6021ms)
+{"genre":"falling-blocks","source":"f37e41781101da160322ea29b612b0a64871eb192974b8e57accc0ed38ad769a","nodes":673,"edges":696,"instrumented":303,"mainSource":"scripts/92c95cf1-4d2d-4085-b511-f55bd089887d.ts"}
+✔ preserved M12 falling-blocks: main gameplay structure, source ranges and executable observation plan (1572.6609ms)
+{"genre":"jigsaw","source":"e9f427e53c121bc26fd040d55f4dafa2b202605e714a34bcea98a1accc206120","nodes":319,"edges":266,"instrumented":130,"mainSource":"scripts/4b016102-8657-4969-b328-b98d34245e81.ts"}
+✔ preserved M12 jigsaw: main gameplay structure, source ranges and executable observation plan (1083.0585ms)
+{"genre":"platformer","source":"2390a58d9a64207df5c367968ce7d4be3be8006915968b70f2fa2af9f3931cff","nodes":350,"edges":386,"instrumented":183,"mainSource":"scripts/a4509b4a-4b5d-4054-90b9-2bd29def9d1f.ts"}
+✔ preserved M12 platformer: main gameplay structure, source ranges and executable observation plan (1150.6493ms)
+{"genre":"racing","source":"3f6212d797e56bbad0d9d02566204189308b7d4d9c8bfae9e9fbd86ae689f2e5","nodes":452,"edges":437,"instrumented":195,"mainSource":"scripts/ba315bf4-143b-487d-8bb4-7a983d5f33c7.ts"}
+✔ preserved M12 racing: main gameplay structure, source ranges and executable observation plan (1324.6121ms)
+{"genre":"shooter","source":"d3041e8d918fbe40ab464888ae3a155e81d690f003c2c5a1ccfca9251668ab2d","nodes":474,"edges":465,"instrumented":213,"mainSource":"scripts/a6fc3823-a338-4079-b201-286896422f7d.ts"}
+✔ preserved M12 shooter: main gameplay structure, source ranges and executable observation plan (1414.5174ms)
+M14 logic panel evidence: C:\Users\ADMINI~1\AppData\Local\Temp\haiyue-m14-logic-panel-BTdnyL
+✔ logic panel operates on real G02 structure, explanation and executed trace in a sandboxed window (3504.0478ms)
+M14 logic product evidence: C:\Users\ADMINI~1\AppData\Local\Temp\haiyue-m14-logic-product-wTaw9v
+✔ real product selects structure, explains, locates the exact source, observes Play and rereads project history (91563.4512ms)
+✔ actual fixed-step replay aligns branch events and invalidates clock reversal before another Play generation (331.8522ms)
+✔ real project analysis, language changes, locations and artifacts keep one structure and unchanged Document/History (2601.7622ms)
+✔ actual Play captures persist independently, restart keeps prior evidence separate and Stop closes only its own overlay (2587.509ms)
+✔ saving nonstructural metadata preserves analysis while late captures and accessors cannot cross project lifetime (2067.3799ms)
+✔ revision, configuration, project switch and cancellation reject late results and old ranges (5199.85ms)
+✔ source failures are redacted and closed owners do not publish a late structure (1332.6373ms)
+✔ large behavior artifacts reuse project journal replication and survive a fresh local journal (1168.6696ms)
+✔ independent explanation records reject wrong binding, invalid data and cancelled publication (627.8738ms)
+✔ logic graph keeps explicit relations, filtering, bounds, unknown sources and historical overlays separate (3.694ms)
+✔ cross-entity rule targets are shown only through actual source-backed edges (14.7457ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 137851.5567

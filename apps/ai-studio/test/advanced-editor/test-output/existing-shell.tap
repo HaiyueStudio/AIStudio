@@ -1,0 +1,196 @@
+TAP version 13
+# Subtest: history projection rejects unknown versions, foreign records, secret metadata and invalid durations
+ok 1 - history projection rejects unknown versions, foreign records, secret metadata and invalid durations
+  ---
+  duration_ms: 2.9445
+  type: 'test'
+  ...
+# Subtest: a delayed response from the previous project cannot repopulate the current history view
+ok 2 - a delayed response from the previous project cannot repopulate the current history view
+  ---
+  duration_ms: 7.6958
+  type: 'test'
+  ...
+# Subtest: history pages and expanded details display types, timing and complete parameters/results as plain text
+ok 3 - history pages and expanded details display types, timing and complete parameters/results as plain text
+  ---
+  duration_ms: 5.1011
+  type: 'test'
+  ...
+# Subtest: live and replay use the same projector and stale read models cannot regress terminal nodes
+ok 4 - live and replay use the same projector and stale read models cannot regress terminal nodes
+  ---
+  duration_ms: 37.4857
+  type: 'test'
+  ...
+# Subtest: unknown, oversized and injection-shaped nodes get bounded safe presentation fallbacks
+ok 5 - unknown, oversized and injection-shaped nodes get bounded safe presentation fallbacks
+  ---
+  duration_ms: 5.193
+  type: 'test'
+  ...
+# Subtest: controller keeps the composer available across durable barriers, keeps plan acceptance separate, and makes approval one-shot
+ok 6 - controller keeps the composer available across durable barriers, keeps plan acceptance separate, and makes approval one-shot
+  ---
+  duration_ms: 4.2571
+  type: 'test'
+  ...
+# Subtest: auth handoff carries backend identity only and IME Enter never sends prematurely
+ok 7 - auth handoff carries backend identity only and IME Enter never sends prematurely
+  ---
+  duration_ms: 0.9097
+  type: 'test'
+  ...
+# Subtest: chat feed follows new content only while the reader is near the latest message
+ok 8 - chat feed follows new content only while the reader is near the latest message
+  ---
+  duration_ms: 0.2241
+  type: 'test'
+  ...
+# Subtest: composer keeps an editable focused draft while sending is temporarily blocked
+ok 9 - composer keeps an editable focused draft while sending is temporarily blocked
+  ---
+  duration_ms: 1.2536
+  type: 'test'
+  ...
+# Subtest: model controls and task cost card expose effective settings, cache savings and unknown explanations safely
+ok 10 - model controls and task cost card expose effective settings, cache savings and unknown explanations safely
+  ---
+  duration_ms: 2.681
+  type: 'test'
+  ...
+# Subtest: task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields
+ok 11 - task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields
+  ---
+  duration_ms: 9.1319
+  type: 'test'
+  ...
+# Subtest: unknown task versions and pass claims without retained evidence fail closed
+ok 12 - unknown task versions and pass claims without retained evidence fail closed
+  ---
+  duration_ms: 0.9205
+  type: 'test'
+  ...
+# Subtest: user messages are projected as conversation input rather than assistant output
+ok 13 - user messages are projected as conversation input rather than assistant output
+  ---
+  duration_ms: 0.5792
+  type: 'test'
+  ...
+# Subtest: pending implementation plans put an explicit approval action before the detailed item list
+ok 14 - pending implementation plans put an explicit approval action before the detailed item list
+  ---
+  duration_ms: 0.8908
+  type: 'test'
+  ...
+# Subtest: tool results show a readable step and keep raw structured output collapsed
+ok 15 - tool results show a readable step and keep raw structured output collapsed
+  ---
+  duration_ms: 0.5547
+  type: 'test'
+  ...
+# Subtest: approval cards expose a validated project-session Allow always action
+ok 16 - approval cards expose a validated project-session Allow always action
+  ---
+  duration_ms: 0.5025
+  type: 'test'
+  ...
+# Subtest: trusted-code and runtime-start approvals expose one-shot decisions only
+ok 17 - trusted-code and runtime-start approvals expose one-shot decisions only
+  ---
+  duration_ms: 0.8711
+  type: 'test'
+  ...
+# Subtest: approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed
+ok 18 - approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed
+  ---
+  duration_ms: 1.0619
+  type: 'test'
+  ...
+# Subtest: expired approval read models are visible but cannot block the composer or dispatch another decision
+ok 19 - expired approval read models are visible but cannot block the composer or dispatch another decision
+  ---
+  duration_ms: 0.8476
+  type: 'test'
+  ...
+# Subtest: a cancelled plan no longer blocks the composer after its turn terminates
+ok 20 - a cancelled plan no longer blocks the composer after its turn terminates
+  ---
+  duration_ms: 0.3757
+  type: 'test'
+  ...
+# Subtest: execution workspace renders a replayed topology and dispatches one durable manual compaction request
+ok 21 - execution workspace renders a replayed topology and dispatches one durable manual compaction request
+  ---
+  duration_ms: 16.2077
+  type: 'test'
+  ...
+# Subtest: projects a deterministic graph, transcript and modification evidence chain
+ok 22 - projects a deterministic graph, transcript and modification evidence chain
+  ---
+  duration_ms: 54.0908
+  type: 'test'
+  ...
+# Subtest: shows actual overlapping tool intervals as parallel and preserves dependency order
+ok 23 - shows actual overlapping tool intervals as parallel and preserves dependency order
+  ---
+  duration_ms: 2.3486
+  type: 'test'
+  ...
+# Subtest: keeps barriers, compaction and outcome-unknown visible in graph and transcript
+ok 24 - keeps barriers, compaction and outcome-unknown visible in graph and transcript
+  ---
+  duration_ms: 4.0472
+  type: 'test'
+  ...
+# Subtest: reports sequence gaps and dangling references without crashing
+ok 25 - reports sequence gaps and dangling references without crashing
+  ---
+  duration_ms: 1.7439
+  type: 'test'
+  ...
+# Subtest: projects a 1000-tool graph within a bounded unit-test budget
+ok 26 - projects a 1000-tool graph within a bounded unit-test budget
+  ---
+  duration_ms: 242.708
+  type: 'test'
+  ...
+# Subtest: workspace layout exposes the asset-centric panel arrangement and hides script by default
+ok 27 - workspace layout exposes the asset-centric panel arrangement and hides script by default
+  ---
+  duration_ms: 4.3063
+  type: 'test'
+  ...
+# Subtest: logic graph keeps explicit relations, filtering, bounds, unknown sources and historical overlays separate
+ok 28 - logic graph keeps explicit relations, filtering, bounds, unknown sources and historical overlays separate
+  ---
+  duration_ms: 4.1384
+  type: 'test'
+  ...
+# Subtest: cross-entity rule targets are shown only through actual source-backed edges
+ok 29 - cross-entity rule targets are shown only through actual source-backed edges
+  ---
+  duration_ms: 16.2274
+  type: 'test'
+  ...
+# Subtest: log filters are bounded, pages dedupe, and copied summaries exclude raw payloads
+ok 30 - log filters are bounded, pages dedupe, and copied summaries exclude raw payloads
+  ---
+  duration_ms: 6.7036
+  type: 'test'
+  ...
+# Subtest: stale query results and late completion after dispose cannot write back
+ok 31 - stale query results and late completion after dispose cannot write back
+  ---
+  duration_ms: 1.1872
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1722.2308

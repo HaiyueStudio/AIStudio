@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "mode": "user-directed-independent-g07-acceptance",
+  "acceptedOn": "2026-09-08",
+  "verifiedAt": "2026-09-08T04:56:34.043Z",
+  "inputDigest": "sha256:fe690706d0b2ec0fe882e23e67dc2daa00bfb4a51ed1792ce04f41cd881d1e79",
+  "editorInputDigest": "sha256:72dc8bebc88d3bd5247a5f6fe256a9ed6cf727f700a0433eb9fba08254b68211",
+  "productIntegrated": false,
+  "handoffOwner": "g09-ai-native-editor-integration-acceptance",
+  "checks": {
+    "advancedAndExistingEditor": {
+      "evidence": "Editor/editor-shell/test/advanced-authoring/test-output/checks.json",
+      "digest": "sha256:6619a181530601f9e0d6f52d2d936d2da3f8e334f3ab384a300cbdcbb1abd4cc",
+      "passed": 20
+    },
+    "advancedAndExistingStudio": {
+      "evidence": "AIStudio/apps/ai-studio/test/advanced-editor/test-output/checks.json",
+      "digest": "sha256:7af37547a92d2d3fcbe297b9bff7b01bb1254f5d85996c7eaffaae7ec6280190",
+      "passed": 41
+    },
+    "capability": {
+      "passed": 120,
+      "inputDigest": "sha256:fe690706d0b2ec0fe882e23e67dc2daa00bfb4a51ed1792ce04f41cd881d1e79",
+      "outputDigest": "sha256:232f8d29c78cb6bcc6be4333186e453c865e6cc3d587966c1f6f2a276cb426aa"
+    },
+    "studioTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p packages/studio-shell/tsconfig.json --noEmit",
+      "exitCode": 0,
+      "outputDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "repository": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "outputDigest": "sha256:559bfc4245da922065a3b57083bbe5edbfc7484004b8870a2576255f5b7404c3"
+    },
+    "milestones": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "outputDigest": "sha256:6546a2142b3e3180e09a1c90694ba319087db133d1b7856fd0531fc9782a9bc2"
+    }
+  },
+  "fixtureCompatibility": {
+    "digest": "sha256:5e538800f256aa11d95d612332224b221c95e5ab60ff04fec9391296de52d1b0",
+    "mode": "JSON fixture compatibility only; no cross-repository runtime import or candidate consumption"
+  },
+  "discardedAttempts": [
+    {
+      "file": "capability-restricted-attempt.txt",
+      "reason": "Restricted host could not launch existing Electron GPU subprocess; no evidence accepted."
+    },
+    {
+      "file": "capability-source-changed-attempt.txt",
+      "reason": "All 120 checks passed, but source binding changed during capture; no evidence accepted."
+    }
+  ],
+  "preservedPrerequisites": [
+    {
+      "milestone": "m12-ai-native-game-studio-general-authoring",
+      "goal": "g12-cross-genre-integration-acceptance",
+      "status": "blocked"
+    },
+    {
+      "milestone": "m13-agent-session-execution-graph",
+      "goal": "g11-migration-cross-backend-acceptance",
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "mode": "user-directed-independent-g07-acceptance",
+  "verifiedAt": "2026-09-08T04:41:02.157Z",
+  "inputDigest": "sha256:fe690706d0b2ec0fe882e23e67dc2daa00bfb4a51ed1792ce04f41cd881d1e79",
+  "productIntegrated": false,
+  "checks": [
+    {
+      "id": "advanced-adapter",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/studio-shell/test/advanced-editor/*.test.mjs"
+      ],
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 3106,
+      "outputDigest": "sha256:b8c7b943756cb09f786eb6f6b79b98fb4da202ab8de945aa20ce8c3efb564f32"
+    },
+    {
+      "id": "existing-shell",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/studio-shell/test/*.test.mjs"
+      ],
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 1936,
+      "outputDigest": "sha256:562f77c6adf46398d18269069e2c4519d877667e55a627416ec041addab76201"
+    }
+  ],
+  "candidates": [
+    {
+      "name": "@haiyue/editor-plugin-sdk",
+      "version": "0.1.0",
+      "tarball": "vendor/haiyue-editor-plugin-sdk-0.1.0.tgz",
+      "digest": "sha256:168f290ca44bcd579c0cdf5ef15820c90151d83d10137f20eb141d1f0c613a1b",
+      "integrity": "sha512-ZT43u4tgcda4SdKaRZhxxm4HsusEyvjn43uItj/HaeWcujOgRpgTdtWBYZP7Y2Ee6lBH1k4mI0DMZ4kH51kLxA==",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js"
+        }
+      }
+    },
+    {
+      "name": "@haiyue/editor-platform",
+      "version": "0.1.0",
+      "tarball": "vendor/haiyue-editor-platform-0.1.0.tgz",
+      "digest": "sha256:f49d60b5c3cc26f8a9c6a9448b72c67af894cc360c5e8011c8497d3e2ed593e7",
+      "integrity": "sha512-LXHtWGYIbOz/ju9ZUzFcD5bZnGbqazJspU7e8rfTt0vbQjZwwdD6gqsD6N0iBw4mPaiuEg0P6yNdHj6UCywbyg==",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js"
+        },
+        "./conformance": {
+          "types": "./dist/conformance.d.ts",
+          "import": "./dist/conformance.js"
+        }
+      }
+    },
+    {
+      "name": "@haiyue/editor-shell",
+      "version": "0.1.0",
+      "tarball": "vendor/haiyue-editor-shell-0.1.0.tgz",
+      "digest": "sha256:7fb97069d33a7181986af4735dd58857ddae7a324dc583f82eea44faf66d296e",
+      "integrity": "sha512-vuP8CNiAAVN1V+l8K3KOTKvX/Ky+zRjOyqWG5WCDhCX5+S5D1y3d2ZT5QuLsS4BqAwWfuNpTi2PbGJ8YXb0MNg==",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js"
+        }
+      }
+    },
+    {
+      "name": "@haiyue/editor-app-kit",
+      "version": "0.1.0",
+      "tarball": "vendor/haiyue-editor-app-kit-0.1.0.tgz",
+      "digest": "sha256:50f0e8c62aec4a67d220666bf27fde90aa3bdce00faffeb70a389e05d914d912",
+      "integrity": "sha512-Ng19nu1aftNGG+154RHL0BwruXj74PTG5Fk99pdAjNA0K9aiy0DgwPz41coNI2XrdveRBEZHI0PCOhQRHJVMUw==",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js"
+        },
+        "./node": "./node.mjs"
+      }
+    }
+  ],
+  "lockfileDigest": "sha256:a2280e1781851e3244ed12cc189c4b655089461ce8e02b017d9da26e8723850a",
+  "fixtureDigest": "sha256:5e538800f256aa11d95d612332224b221c95e5ab60ff04fec9391296de52d1b0"
+}

@@ -1,0 +1,450 @@
+{
+  "schemaVersion": 1,
+  "binding": {
+    "documentId": "document:91322b87-e1ce-44f4-82f8-14e42105f218",
+    "revision": 2,
+    "epoch": "open:fixture-1"
+  },
+  "hierarchy": [
+    {
+      "reference": {
+        "kind": "scene-entity",
+        "id": "entity:77b4833f-ef68-472e-a14b-c018fb851e51",
+        "documentId": "document:91322b87-e1ce-44f4-82f8-14e42105f218"
+      },
+      "parentId": null,
+      "order": 0,
+      "label": "Controller",
+      "editable": true
+    }
+  ],
+  "selection": {
+    "revision": 1,
+    "active": {
+      "kind": "scene-entity",
+      "id": "entity:77b4833f-ef68-472e-a14b-c018fb851e51",
+      "documentId": "document:91322b87-e1ce-44f4-82f8-14e42105f218"
+    },
+    "items": [
+      {
+        "kind": "scene-entity",
+        "id": "entity:77b4833f-ef68-472e-a14b-c018fb851e51",
+        "documentId": "document:91322b87-e1ce-44f4-82f8-14e42105f218"
+      }
+    ]
+  },
+  "history": {
+    "revision": 4,
+    "canUndo": true,
+    "canRedo": false,
+    "undoLabel": "Create Empty",
+    "busy": false,
+    "estimatedBytes": 529,
+    "entries": [
+      {
+        "id": 1,
+        "label": "Create Empty",
+        "estimatedBytes": 529
+      }
+    ]
+  },
+  "sections": [
+    {
+      "id": "component:transform:a0661757-08cc-4005-8f4e-eb4105efc945",
+      "title": "Transform 3D",
+      "description": "haiyue.transform.3d@1.0.0",
+      "enabled": true,
+      "editable": true,
+      "removable": true,
+      "fields": [
+        {
+          "id": "position",
+          "label": "position",
+          "kind": "json",
+          "value": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "readOnly": false
+        },
+        {
+          "id": "rotationDegrees",
+          "label": "rotationDegrees",
+          "kind": "json",
+          "value": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "readOnly": false
+        },
+        {
+          "id": "scale",
+          "label": "scale",
+          "kind": "json",
+          "value": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "readOnly": false
+        },
+        {
+          "id": "$value",
+          "label": "完整组件值（含可选字段）",
+          "kind": "json",
+          "value": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotationDegrees": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "readOnly": false
+        }
+      ]
+    }
+  ],
+  "additions": [
+    {
+      "id": "haiyue.animation.2d@1.0.0",
+      "label": "HaiYue Animation 2D (1.0.0)",
+      "description": "Animation",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.animation.state@1.0.0",
+      "label": "Animation State (1.0.0)",
+      "description": "Animation",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.animation.transform-clips@1.0.0",
+      "label": "3D Transform Clips (1.0.0)",
+      "description": "Animation",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.asset.reference@1.0.0",
+      "label": "Asset Reference (1.0.0)",
+      "description": "Assets",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.audio.listener@1.0.0",
+      "label": "Audio Listener (1.0.0)",
+      "description": "Audio",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.audio.mixer@1.0.0",
+      "label": "Audio Mixer (1.0.0)",
+      "description": "Audio",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.audio.source@1.0.0",
+      "label": "Audio Source (1.0.0)",
+      "description": "Audio",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.camera.2d@1.0.0",
+      "label": "Camera 2D (1.0.0)",
+      "description": "Camera",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.camera.3d@1.0.0",
+      "label": "Camera 3D (1.0.0)",
+      "description": "Camera",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.camera.follow@1.0.0",
+      "label": "Camera Follow (1.0.0)",
+      "description": "Camera",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.gameplay.character@1.0.0",
+      "label": "Character Controller (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.gameplay.ground-probe@1.0.0",
+      "label": "Ground Probe (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.gameplay.pool@1.0.0",
+      "label": "Gameplay Spawn Pool (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.gameplay.rules@1.0.0",
+      "label": "Gameplay Rules (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.gameplay.state@1.0.0",
+      "label": "Gameplay State (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.gameplay.timers@1.0.0",
+      "label": "Gameplay Timers (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.input.action-map@1.0.0",
+      "label": "Input Action Map (1.0.0)",
+      "description": "Input",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.interaction.pointer@1.0.0",
+      "label": "Pointer Interaction (1.0.0)",
+      "description": "Input",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.light.ambient@1.0.0",
+      "label": "Ambient Light (1.0.0)",
+      "description": "Lighting",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.light.directional@1.0.0",
+      "label": "Directional Light (1.0.0)",
+      "description": "Lighting",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.light.environment@1.0.0",
+      "label": "Environment Light (1.0.0)",
+      "description": "Lighting",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.light.point@1.0.0",
+      "label": "Point Light (1.0.0)",
+      "description": "Lighting",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.material.pbr@1.0.0",
+      "label": "PBR Material (1.0.0)",
+      "description": "Materials",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.model.gltf@1.0.0",
+      "label": "glTF Model (1.0.0)",
+      "description": "Models",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.particles.2d@1.0.0",
+      "label": "Particle Emitter 2D (1.0.0)",
+      "description": "Effects",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.particles.3d@1.0.0",
+      "label": "Particle Emitter 3D (1.0.0)",
+      "description": "Effects",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.collider.2d@1.0.0",
+      "label": "Collider 2D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.collider.3d@1.0.0",
+      "label": "Collider 3D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.joint.2d@1.0.0",
+      "label": "Joint 2D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.joint.3d@1.0.0",
+      "label": "Joint 3D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.material@1.0.0",
+      "label": "Physics Material (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.rigidbody.2d@1.0.0",
+      "label": "Rigid Body 2D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.rigidbody.3d@1.0.0",
+      "label": "Rigid Body 3D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.world.2d@1.0.0",
+      "label": "Physics World 2D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.physics.world.3d@1.0.0",
+      "label": "Physics World 3D (1.0.0)",
+      "description": "Physics",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.render.fog@1.0.0",
+      "label": "Fog (1.0.0)",
+      "description": "Lighting",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.render.geometry@1.0.0",
+      "label": "Geometry (1.0.0)",
+      "description": "Rendering",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.render.material@1.0.0",
+      "label": "Material (1.0.0)",
+      "description": "Rendering",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.render.postprocess-stack@1.0.0",
+      "label": "Post-process Stack (1.0.0)",
+      "description": "Rendering",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.render.profile@1.0.0",
+      "label": "Render Profile (1.0.0)",
+      "description": "Rendering",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.script.binding@1.0.0",
+      "label": "Script Binding (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.simulation.settings@1.0.0",
+      "label": "Simulation Settings (1.0.0)",
+      "description": "Gameplay",
+      "enabled": true
+    },
+    {
+      "id": "haiyue.transform.3d@1.0.0",
+      "label": "Transform 3D (1.0.0)",
+      "description": "Layout",
+      "enabled": false
+    },
+    {
+      "id": "haiyue.ui.hud@1.0.0",
+      "label": "HUD Layout (1.0.0)",
+      "description": "UI",
+      "enabled": true
+    }
+  ],
+  "gizmo": {
+    "enabled": true,
+    "transforms": [
+      {
+        "id": "entity:77b4833f-ef68-472e-a14b-c018fb851e51",
+        "parentId": null,
+        "value": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotationDegrees": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    ],
+    "projection": {
+      "origin": [
+        200,
+        180
+      ],
+      "axes": {
+        "x": [
+          70,
+          0
+        ],
+        "y": [
+          0,
+          -70
+        ],
+        "z": [
+          -45,
+          35
+        ]
+      },
+      "unitsPerPixel": 0.1
+    }
+  },
+  "runtime": {
+    "status": "stopped",
+    "instanceId": null,
+    "documentRevision": null,
+    "frame": null,
+    "tick": null,
+    "fields": [],
+    "diagnostics": [
+      "尚无当前项目的运行时观测。"
+    ]
+  },
+  "diagnostics": [],
+  "capabilities": {
+    "multiSelection": false,
+    "rename": true,
+    "reparent": true,
+    "addSection": true
+  }
+}
