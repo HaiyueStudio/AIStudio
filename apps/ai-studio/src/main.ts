@@ -26,7 +26,8 @@ import {
   StudioIpcRouter,
 } from './ipc.js';
 import { AgentPreviewBroker } from './agent-preview-broker.js';
-import { ProjectConversationController, StudioSessionOrchestrator } from '@haiyue/ai-studio-agent-orchestration';
+import { ProjectBehaviorController, ProjectConversationController, StudioSessionOrchestrator } from '@haiyue/ai-studio-agent-orchestration';
+import { createWorkspaceBehaviorPorts } from './behavior-adapters.js';
 import { RecoveryClaimStore } from './session-orchestrator/index.js';
 import { createWorkspaceRecoveryAuthority } from './session-orchestrator/workspace-recovery.js';
 import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
@@ -71,6 +72,7 @@ const configuredUserData = process.env.HAIYUE_ELECTRON_USER_DATA?.trim();
 app.setPath('userData', configuredUserData || path.join(app.getPath('appData'), descriptor.productName));
 const root = createHarnessStudioRoot();
 const agentPreview = new AgentPreviewBroker();
+let projectBehavior: ProjectBehaviorController | null = null;
 let mainWindow: BrowserWindow | null = null;
 let activeRouter: StudioIpcRouter | null = null;
 let shuttingDown = false;
@@ -164,7 +166,10 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       });
       context.effects.own('conversation.dispose', () => conversation.dispose());
       await conversation.initialize();
-      const projectHistoryChanges = workspace.subscribe(() => { void conversation.syncProject().catch(cause => {
+      const behavior = new ProjectBehaviorController(createWorkspaceBehaviorPorts(workspace, operationLog));
+      projectBehavior = behavior;
+      context.effects.own('behavior.dispose', async () => { if (projectBehavior === behavior) projectBehavior = null; await behavior.dispose(); });
+      const projectHistoryChanges = workspace.subscribe(() => { behavior.syncProject(); void conversation.syncProject().catch(cause => {
         void operationLog.append({ kind: 'project/history-failed', severity: 'error', source: asStableId('studio.electron'), payload: { message: errorMessage(cause) } }).catch(() => undefined);
       }); });
       context.effects.own('project-history-subscription.dispose', () => projectHistoryChanges.dispose());
@@ -183,6 +188,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         scripts,
         operationLog,
         conversation,
+        behavior,
         agentPreview,
         bugBundleRoot: path.join(app.getPath('userData'), 'bug-bundles'),
         versions: Object.freeze({ app: descriptor.version, schema: 'm06-g10-v1', upstream: Object.freeze({
@@ -260,6 +266,7 @@ async function boot(): Promise<void> {
     ...createPocAgentGameAuthoringPlugins({
       backend: agentProfile.backend,
       preview: agentPreview,
+      behaviorSource: signal => { if (!projectBehavior) throw new Error('behavior.project-unavailable'); return projectBehavior.source(signal); },
       resolveDeepSeekApiKey: () => deepSeekCredentials.resolve(),
       clearDeepSeekApiKey: () => deepSeekCredentials.clear(),
     }),
@@ -332,16 +339,30 @@ function createWindow(): void {
     if (isMainFrame) activeRouter?.cancelPending();
   });
   window.webContents.on('render-process-gone', () => activeRouter?.cancelPending());
-  if (smoke) window.webContents.on('console-message', (details) => console.log(`[ai-studio-renderer:${details.level}] ${details.message}`));
+  if (smoke) window.webContents.on('console-message', (details) => {
+    console.log(`[ai-studio-renderer:${details.level}] ${details.message}`);
+    const stage = /^\[behavior-smoke-evidence\] (structure|source|component|adapter|trace)$/u.exec(details.message)?.[1];
+    if (stage) void (async () => {
+      const directory = process.env.HAIYUE_ELECTRON_BEHAVIOR_EVIDENCE;
+      if (directory) { await mkdir(directory, { recursive: true }); await writeFile(path.join(directory, `product-${stage}.png`), (await window.webContents.capturePage()).toPNG()); }
+      await window.webContents.executeJavaScript(`document.body.dataset.behaviorEvidence='${stage}:captured'`);
+    })().catch(cause => finishSmoke(1, errorMessage(cause)));
+  });
   window.once('closed', () => { activeRouter?.cancelPending(); if (mainWindow === window) mainWindow = null; });
   if (openDevTools && !smoke) window.webContents.once('did-finish-load', () => window.webContents.openDevTools({ mode: 'detach' }));
   if (smoke) {
-    smokeDeadline = setTimeout(async () => {
-      try {
-        const state = await window.webContents.executeJavaScript(`({status:document.body.dataset.status,stage:document.body.dataset.smokeStage,message:document.querySelector('#status')?.textContent,visibility:document.visibilityState,modal:document.querySelector('#workspace-advanced')?.open,play:document.querySelector('#play-page')?.getBoundingClientRect().toJSON()})`);
-        finishSmoke(1, `workflow deadline exceeded: ${JSON.stringify(state)}`);
-      } catch (cause) { finishSmoke(1, `workflow deadline inspection failed: ${errorMessage(cause)}`); }
-    }, 65_000);
+    // Each load runs the complete product flow, including source navigation and
+    // runtime evidence. The reload must receive its own bounded workflow window.
+    const armSmokeDeadline = (): void => {
+      if (smokeDeadline) clearTimeout(smokeDeadline);
+      smokeDeadline = setTimeout(async () => {
+        try {
+          const state = await window.webContents.executeJavaScript(`({status:document.body.dataset.status,stage:document.body.dataset.smokeStage,message:document.querySelector('#status')?.textContent,visibility:document.visibilityState,modal:document.querySelector('#workspace-advanced')?.open,play:document.querySelector('#play-page')?.getBoundingClientRect().toJSON()})`);
+          finishSmoke(1, `workflow deadline exceeded: ${JSON.stringify(state)}`);
+        } catch (cause) { finishSmoke(1, `workflow deadline inspection failed: ${errorMessage(cause)}`); }
+      }, 120_000);
+    };
+    armSmokeDeadline();
     let smokeLoads = 0;
     window.webContents.once('did-fail-load', (_event, code, description) => finishSmoke(1, `renderer load failed ${code}: ${description}`));
     window.webContents.on('did-finish-load', async () => {
@@ -356,7 +377,7 @@ function createWindow(): void {
           || result.settings !== true || result.scriptHidden !== true
           || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));
         smokeLoads += 1;
-        if (smokeLoads === 1) window.webContents.reload();
+        if (smokeLoads === 1) { armSmokeDeadline(); window.webContents.reload(); }
         else {
           const candidate = process.env.HAIYUE_ELECTRON_PIXEL_CANDIDATE;
           if (candidate) {

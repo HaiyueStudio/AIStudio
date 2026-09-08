@@ -9,10 +9,15 @@ import {
 import { MeshHelper } from '@haiyue/engine/experimental';
 import { createInteractionRaycastResult, InteractionSystem } from '@haiyue/engine/systems';
 import type { ScriptCapabilityName } from '@haiyue/engine/components';
-import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
+import { hasDeclarativeGameplay, parseBehaviorRuntimePlan, type BehaviorRuntimePlan } from '@haiyue/ai-studio-script-preview/behavior/runtime';
+import type { JsonObject, StableId, BehaviorManifestV1, EditorLocationV1 } from '@haiyue/ai-studio-contracts';
 import {
   AgentHistoryViewer,
   IntentWorkspace,
+  LogicExplorerPanel,
+  type LogicPanelData,
+  type LogicPanelIntent,
+  type LogicArtifactReference,
   workspaceSplitPreferenceKey,
   ConversationProjector,
   LogViewerController,
@@ -100,7 +105,7 @@ interface PreviewDisclosure {
   readonly diagnostics: readonly (ScriptDiagnostic & Readonly<{ scriptId: StableId; entityId: StableId }>)[];
 }
 interface PreviewGrant { readonly id: StableId; }
-interface ConsumedPreviewPlan extends Omit<PreviewDisclosure, 'scripts'> { readonly scripts: readonly (PreviewScriptDisclosure & Readonly<{ emittedText: string }>)[]; }
+interface ConsumedPreviewPlan extends Omit<PreviewDisclosure, 'scripts'> { readonly scripts: readonly (PreviewScriptDisclosure & Readonly<{ emittedText: string }>)[]; readonly behavior?: BehaviorRuntimePlan | null; readonly behaviorDiagnostic?: string; }
 interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop' | 'step' | 'input' | 'physics-query' | 'inspect' | 'capture'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan; count?: number; event?: JsonObject; query?: JsonObject }> }
 let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
@@ -109,6 +114,10 @@ let selection: SelectionSnapshot = { activeEntityId: null, source: 'system' };
 let selectionIntentGeneration = 0;
 let viewport: WebGpuViewportRuntime | null = null;
 let previewFrame: SandboxedPreviewFrame | null = null;
+let behaviorSnapshot: JsonObject | null = null;
+let logicPanel: LogicExplorerPanel | null = null;
+let logicRequest: AbortController | null = null;
+let focusedScriptId: string | null = null;
 let scripts: ScriptCatalogSnapshot = { documentRevision: 0, resources: [] };
 let pendingScriptProposal: ScriptProposal | null = null;
 let previewDisclosure: PreviewDisclosure | null = null;
@@ -395,7 +404,7 @@ type PreviewRealmMessage = Readonly<Record<string, unknown> & { protocol: 'haiyu
 type DeferredSignal = Readonly<{ promise: Promise<void>; resolve(value?: void): void; reject(cause: unknown): void; readonly settled: boolean }>;
 
 class SandboxedPreviewFrame {
-  readonly previewId = `preview-realm:${requestSequence + 1}` as StableId;
+  readonly previewId: StableId;
   private readonly frame = document.createElement('iframe');
   private readonly ready = deferred<void>();
   private readonly started = deferred<void>();
@@ -416,12 +425,15 @@ class SandboxedPreviewFrame {
   private readonly startController = new AbortController();
   private requestSequence = 0;
   private readonly observationRequests = new Map<string, ReturnType<typeof deferred<JsonObject>>>();
+  private readonly behaviorRequests = new Map<string, ReturnType<typeof deferred<JsonObject>>>();
+  private behaviorWrites: Promise<void> = Promise.resolve();
   private readonly stepRequests = new Map<string, ReturnType<typeof deferred<void>>>();
   private readonly captureRequests = new Map<string, ReturnType<typeof deferred<Readonly<{ base64: string; byteLength: number; tick: number; frame: number }>>>>();
   private documentRevision = 0;
   private scriptDigests: readonly string[] = Object.freeze([]);
 
-  constructor(private readonly entityId: StableId) {
+  constructor(private readonly entityId: StableId, behaviorPlayId?: string) {
+    this.previewId = (behaviorPlayId ?? `preview-realm:${requestSequence + 1}`) as StableId;
     this.frame.id = 'preview-frame';
     this.frame.title = 'Isolated trusted-project game preview';
     this.frame.setAttribute('sandbox', 'allow-scripts');
@@ -443,13 +455,26 @@ class SandboxedPreviewFrame {
     }
     this.runtimeAssets.push(...assets);
     const { assets: _assetManifest, ...runtimeScene } = snapshot;
-    this.post({ type: 'start', scene: runtimeScene, plan, assets });
+    const { behavior, behaviorDiagnostic: _behaviorDiagnostic, ...approvedPlan } = plan;
+    this.post({ type: 'start', scene: runtimeScene, plan: approvedPlan, assets, ...(behavior ? { behavior: parseBehaviorRuntimePlan(behavior) } : {}) });
     await withTimeout(this.started.promise, 15_000, 'Preview realm did not start.');
   }
 
   hotReload(scriptId: StableId, emittedText: string): void {
     if (this.disposed) throw new Error('Preview realm is disposed.');
     this.post({ type: 'hot-reload', scriptId, emittedText });
+  }
+  async captureBehavior(): Promise<JsonObject> {
+    if (this.disposed) throw new Error('behavior.play-stale');
+    const id = this.nextRequestId('behavior'), pending = deferred<JsonObject>(); this.behaviorRequests.set(id, pending);
+    this.post({ type: 'behavior-inspect', requestId: id });
+    try { const capture = await withTimeout(pending.promise, 5000, 'behavior.capture-timeout'); return await this.persistBehavior(capture); }
+    finally { this.behaviorRequests.delete(id); }
+  }
+  private persistBehavior(capture: JsonObject): Promise<JsonObject> {
+    const result = this.behaviorWrites.catch(() => undefined).then(() => invoke('behavior/capture', { capture }));
+    this.behaviorWrites = result.then(snapshot => { acceptBehaviorSnapshot(snapshot); }).catch(() => { setStatus('本次行为轨迹未能保存，请检查项目状态。'); });
+    return result;
   }
 
   async setPaused(paused: boolean): Promise<void> {
@@ -519,12 +544,15 @@ class SandboxedPreviewFrame {
     this.startController.abort(new Error('Preview realm was disposed while loading assets.'));
     this.pauseChange?.resolve();
     for (const request of this.observationRequests.values()) request.reject(new Error('Preview realm disposed.'));
+    for (const request of this.behaviorRequests.values()) request.reject(new Error('behavior.play-stale'));
     for (const request of this.stepRequests.values()) request.reject(new Error('Preview realm disposed.'));
     for (const request of this.captureRequests.values()) request.reject(new Error('Preview realm disposed.'));
     this.observationRequests.clear(); this.stepRequests.clear(); this.captureRequests.clear();
+    this.behaviorRequests.clear();
     const ownedBeforeStop = this.disposableCount;
     this.post({ type: 'stop' });
     await withTimeout(this.cleanup.promise, 2_000, 'Preview cleanup acknowledgement timed out.').catch(() => undefined);
+    await withTimeout(this.behaviorWrites, 10000, 'behavior.persist-timeout').catch(() => undefined);
     window.removeEventListener('message', this.onMessage);
     this.frame.remove();
     releasePreviewAssetUrls(this.runtimeAssets);
@@ -571,6 +599,10 @@ class SandboxedPreviewFrame {
       if (!this.started.settled) this.started.reject(new Error(detail));
     } else if (message.type === 'inspection' && typeof message.requestId === 'string' && isJsonObject(message.value)) {
       this.observationRequests.get(message.requestId)?.resolve(message.value);
+    } else if (message.type === 'behavior-capture' && typeof message.requestId === 'string' && isJsonObject(message.capture)) {
+      this.behaviorRequests.get(message.requestId)?.resolve(message.capture);
+    } else if (message.type === 'behavior-final' && isJsonObject(message.capture)) {
+      void this.persistBehavior(message.capture).catch(() => undefined);
     } else if (message.type === 'stepped' && typeof message.requestId === 'string') {
       this.stepRequests.get(message.requestId)?.resolve();
     } else if (message.type === 'capture' && typeof message.requestId === 'string' && typeof message.base64 === 'string'
@@ -580,6 +612,7 @@ class SandboxedPreviewFrame {
     } else if (message.type === 'request-failed' && typeof message.requestId === 'string') {
       const cause = new Error(typeof message.message === 'string' ? message.message : 'Preview observation request failed.');
       this.observationRequests.get(message.requestId)?.reject(cause); this.stepRequests.get(message.requestId)?.reject(cause); this.captureRequests.get(message.requestId)?.reject(cause);
+      this.behaviorRequests.get(message.requestId)?.reject(cause);
     } else if (message.type === 'cleanup-complete') {
       this.disposableCount = finiteNumber(message.disposableCount, 0);
       this.cleanup.resolve();
@@ -616,12 +649,20 @@ async function boot(): Promise<void> {
         const entity = scene?.entities.find(entity => entity.id === intent.entityId);
         if (intent.entityId && !entity) throw new Error('The selected entity is no longer in this project.');
         await action(() => selectEntity(entity?.id ?? null, 'hierarchy'));
+      } else if (intent.type === 'workspace/locate' && intent.location.target.kind === 'behavior-node') {
+        await dispatchLogicIntent({ type: 'locate', manifestDigest: intent.location.target.manifestDigest, nodeId: intent.location.target.nodeId });
       } else {
-        setStatus(language === 'zh-CN' ? '此来源的项目定位服务尚未接入。' : 'The project location service is not connected yet.');
+        setStatus(language === 'zh-CN' ? '此资源入口仍由资源工作流处理。' : 'This resource uses the resource workflow.');
       }
     },
   }, preferenceStorage);
   intentWorkspace.setLanguage(language);
+  const logicHost = document.createElement('div'); logicHost.id = 'workspace-logic-explorer';
+  element('workspace-logic').querySelector('.workspace-manual-links')!.after(logicHost);
+  logicPanel = new LogicExplorerPanel(document, logicHost, dispatchLogicIntent); logicPanel.setLanguage(language);
+  const playLogic = document.createElement('button'); playLogic.id = 'play-logic'; playLogic.type = 'button'; playLogic.textContent = language === 'zh-CN' ? '行为轨迹' : 'Behavior trace';
+  element('play-pause').after(playLogic);
+  playLogic.addEventListener('click', () => { logicPanel?.openExpanded(); void dispatchLogicIntent({ type: 'capture' }); });
   document.body.dataset.startupStage = 'services';
   const status = await invoke<ProjectSnapshot & JsonObject>('app/status');
   project = status;
@@ -696,6 +737,8 @@ function applyLocale(): void {
   document.documentElement.lang = language;
   document.body.dataset.language = language;
   intentWorkspace?.setLanguage(language);
+  logicPanel?.setLanguage(language);
+  const playLogic = document.getElementById('play-logic'); if (playLogic) playLogic.textContent = language === 'zh-CN' ? '行为轨迹' : 'Behavior trace';
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n]')) node.textContent = t(node.dataset.i18n ?? '');
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-aria]')) node.setAttribute('aria-label', t(node.dataset.i18nAria ?? ''));
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) node.title = t(node.dataset.i18nTitle ?? '');
@@ -962,6 +1005,7 @@ function bindUi(): void {
   element('run-approve').addEventListener('click', () => void approveProjectRun());
   element('run-fix-agent').addEventListener('click', () => void requestAgentScriptFix());
   window.addEventListener('beforeunload', () => {
+    logicRequest?.abort(); logicPanel?.dispose(); logicPanel = null;
     intentWorkspace?.dispose(); intentWorkspace = null;
     agentHistoryViewer?.dispose(); agentHistoryViewer = null;
     agentPoll?.stop(); agentPoll = null;
@@ -1148,6 +1192,7 @@ async function refresh(): Promise<void> {
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
   scene = await invoke<SceneSnapshot & JsonObject>('scene/snapshot');
   scripts = await invoke<ScriptCatalogSnapshot & JsonObject>('script/snapshot');
+  if (document.body.dataset.shell !== 'web') behaviorSnapshot = await invoke('behavior/snapshot').catch(() => null);
   if (selection.activeEntityId && !scene.entities.some((entity) => entity.id === selection.activeEntityId)) {
     selection = await invoke<SelectionSnapshot & JsonObject>('scene/select', { entityId: null, source: 'system' });
   }
@@ -1191,7 +1236,7 @@ async function prepareProjectRun(): Promise<boolean> {
   const sourceScene = scene;
   if (!sourceScene.entities.some((entity) => isRenderableSceneKind(entity.kind))) throw new Error(t('noRenderableRun'));
   const enabledScripts = scripts.resources.filter((script) => script.enabled).sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
-  if (!enabledScripts.length) {
+  if (!enabledScripts.length && !hasDeclarativeGameplay(sourceScene.entities.flatMap(entity => entity.components ?? []))) {
     previewDisclosure = null;
     runScriptContext = Object.freeze({
       kind: 'missing-script',
@@ -1213,12 +1258,12 @@ async function prepareProjectRun(): Promise<boolean> {
     const resource = enabledScripts.find((script) => script.id === planned.scriptId);
     if (resource) scriptDiagnosticsById.set(resource.id, Object.freeze({ textRevision: resource.textRevision, diagnostics: planned.diagnostics }));
   }
-  const firstPlanned = previewDisclosure.scripts[0]!;
-  const entity = sourceScene.entities.find((candidate) => candidate.id === firstPlanned.entityId);
-  const firstErrors = previewDisclosure.diagnostics.filter((diagnostic) => diagnostic.scriptId === firstPlanned.scriptId);
-  runScriptContext = Object.freeze({ kind: 'script-errors', scriptId: firstPlanned.scriptId, entityId: firstPlanned.entityId, entityName: entity?.name ?? firstPlanned.entityId, diagnostics: firstErrors });
+  const firstPlanned = previewDisclosure.scripts[0];
+  const entity = sourceScene.entities.find((candidate) => candidate.id === firstPlanned?.entityId);
+  const firstErrors = previewDisclosure.diagnostics.filter((diagnostic) => diagnostic.scriptId === firstPlanned?.scriptId);
+  runScriptContext = firstPlanned ? Object.freeze({ kind: 'script-errors', scriptId: firstPlanned.scriptId, entityId: firstPlanned.entityId, entityName: entity?.name ?? firstPlanned.entityId, diagnostics: firstErrors }) : null;
   element('run-disclosure-text').textContent = t('runDisclosure', {
-    entity: `${previewDisclosure.scripts.length} scripts`,
+    entity: firstPlanned ? `${previewDisclosure.scripts.length} scripts` : language === 'zh-CN' ? '声明式组件' : 'Declarative components',
     risk: previewDisclosure.risk,
     capabilities: previewDisclosure.capabilities.join(', '),
   });
@@ -1392,13 +1437,87 @@ async function requestAgentScriptFix(): Promise<void> {
 }
 
 function renderIntentWorkspace(): void {
+  const binding = behaviorSnapshot?.project;
+  if (behaviorSnapshot && (!isJsonObject(binding) || binding.documentId !== scene?.documentId || binding.revision !== documentRevision())) { logicRequest?.abort(); behaviorSnapshot = null; }
+  const behavior = behaviorSnapshot?.manifest as unknown as BehaviorManifestV1 | null ?? null;
   intentWorkspace?.update({
     documentId: scene?.documentId ?? null, documentRevision: documentRevision(), selectedEntityId: selection.activeEntityId,
     entities: (scene?.entities ?? []).map(entity => ({ id: entity.id, name: entity.name,
       sources: [...(scripts.resources.some(script => script.entityId === entity.id) ? ['script' as const] : []), ...((entity.components?.length ?? 0) > 0 ? ['declarative-component' as const] : [])],
     })),
-    sourceBinding: null, behavior: null, catalog: null,
+    sourceBinding: behavior?.binding ?? null, behavior, catalog: null,
   });
+  renderLogicPanel();
+}
+function acceptBehaviorSnapshot(snapshot: JsonObject): void {
+  const binding = snapshot.project;
+  if (!isJsonObject(binding) || binding.documentId !== scene?.documentId || binding.revision !== documentRevision()) return;
+  behaviorSnapshot = snapshot;
+  renderIntentWorkspace();
+}
+function renderLogicPanel(): void {
+  const value = behaviorSnapshot as unknown as Partial<LogicPanelData> | null;
+  logicPanel?.update({ documentId: scene?.documentId ?? null, documentRevision: documentRevision(), entityId: selection.activeEntityId, playing,
+    state: value?.state ?? (scene ? 'pending' : 'empty'), diagnostic: value?.diagnostic ?? null, manifest: value?.manifest ?? null, explanation: value?.explanation ?? null,
+    trace: value?.trace ?? null, traceStatus: value?.traceStatus ?? null, artifacts: value?.artifacts ?? [], historicalStructure: value?.historicalStructure });
+}
+async function dispatchLogicIntent(intent: LogicPanelIntent): Promise<void> {
+  if (intent.type === 'cancel') { logicRequest?.abort(); await invoke('behavior/cancel'); acceptBehaviorSnapshot(await invoke('behavior/snapshot')); return; }
+  const controller = new AbortController(); logicRequest?.abort(); logicRequest = controller; logicPanel?.setBusy(true);
+  const documentId = scene?.documentId, revision = documentRevision();
+  const current = () => !controller.signal.aborted && documentId === scene?.documentId && revision === documentRevision();
+  try {
+    if (intent.type === 'refresh') acceptBehaviorSnapshot(await invoke('behavior/refresh', {}, controller.signal));
+    else if (intent.type === 'capture') { if (!previewFrame) throw new Error('behavior.play-unavailable'); await previewFrame.captureBehavior(); }
+    else if (intent.type === 'history') { const page = await invoke('behavior/history', { limit: 100, ...(intent.cursor ? { cursor: intent.cursor } : {}) }, controller.signal); if (current()) logicPanel?.setHistory(page.records as unknown as readonly LogicArtifactReference[], typeof page.nextCursor === 'string' ? page.nextCursor : null); }
+    else if (intent.type === 'related') {
+      const page = await invoke('behavior/related', { manifestDigest: intent.manifestDigest, nodeId: intent.nodeId, ...(intent.cursor ? { cursor: intent.cursor } : {}) }, controller.signal);
+      if (current()) logicPanel?.setRelated(intent.nodeId, page.events as unknown as Parameters<LogicExplorerPanel['setRelated']>[1], typeof page.nextCursor === 'string' ? page.nextCursor : undefined);
+    } else if (intent.type === 'locate') {
+      const location = await invoke('behavior/locate', { manifestDigest: intent.manifestDigest, nodeId: intent.nodeId }, controller.signal);
+      if (current()) await applyBehaviorLocation(location as unknown as EditorLocationV1);
+    } else if (intent.type === 'explain') {
+      await invoke('behavior/explain', { manifestDigest: intent.manifestDigest, nodeIds: [...intent.nodeIds], language: intent.language }, controller.signal);
+      if (current()) acceptBehaviorSnapshot(await invoke('behavior/snapshot', {}, controller.signal));
+    } else if (intent.type === 'read') {
+      const result = await invoke('behavior/read', { kind: intent.kind, artifactId: intent.artifactId }, controller.signal);
+      if (current()) {
+        const base = behaviorSnapshot ?? await invoke('behavior/snapshot', {}, controller.signal);
+        if (intent.kind === 'manifest') acceptBehaviorSnapshot({ ...base, manifest: result.value, explanation: null, historicalStructure: result.status !== 'current' });
+        else if (intent.kind === 'explanation') acceptBehaviorSnapshot({ ...base, explanation: result.value });
+        else acceptBehaviorSnapshot({ ...base, trace: result.value, traceStatus: result.status });
+      }
+    }
+  } catch (error) { if (current()) logicPanel?.showDiagnostic(errorMessage(error)); }
+  finally { if (logicRequest === controller) { logicRequest = null; logicPanel?.setBusy(false); } }
+}
+async function applyBehaviorLocation(location: EditorLocationV1): Promise<void> {
+  const current = () => location.documentId === scene?.documentId && location.documentRevision === documentRevision();
+  if (!current() || location.target.kind !== 'behavior-node') throw new Error('behavior.location-historical');
+  const source = location.target.source;
+  if (source.kind === 'script') {
+    const script = scripts.resources.find(script => script.id === source.scriptId && script.entityId === source.entityId);
+    if (!script) throw new Error('behavior.location-historical');
+    const bytes = new TextEncoder().encode(script.text), hash = await crypto.subtle.digest('SHA-256', bytes);
+    const digest = `sha256:${[...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join('')}`;
+    if (!current() || digest !== source.digest || source.range.end > script.text.length) throw new Error('behavior.location-historical');
+    focusedScriptId = script.id; await selectEntity(source.entityId as StableId, 'system'); if (!current()) throw new Error('behavior.location-historical');
+    logicPanel?.closeExpanded(); intentWorkspace?.openAdvanced('script');
+    const editor = element<HTMLTextAreaElement>('script-source'); if (editor.value !== script.text) throw new Error('behavior.location-historical');
+    editor.focus(); editor.setSelectionRange(source.range.start, source.range.end); editor.scrollTop = Math.max(0, (source.range.startLine - 3) * 18);
+    editor.dataset.behaviorNode = location.target.nodeId;
+  } else {
+    await selectEntity(source.entityId as StableId, 'system'); if (!current()) throw new Error('behavior.location-historical');
+    logicPanel?.closeExpanded(); intentWorkspace?.openAdvanced('inspect');
+    let detail = document.getElementById('logic-source-location');
+    if (!detail) { detail = document.createElement('pre'); detail.id = 'logic-source-location'; detail.tabIndex = 0; element('workspace-manual-inspect').prepend(detail); }
+    const component = scene?.entities.find(entity => entity.id === source.entityId)?.components?.find(component => component.id === source.componentId);
+    if (!component) throw new Error('behavior.location-historical');
+    let value: unknown = component.value;
+    if (source.kind === 'declarative-component' && source.field) for (const part of source.field.slice(1).split('/')) value = value && typeof value === 'object' ? (value as Record<string, unknown>)[part.replace(/~1/g,'/').replace(/~0/g,'~')] : undefined;
+    detail.textContent = source.kind === 'runtime-adapter' ? `${source.adapter.id}@${source.adapter.version}\n${source.adapter.digest}\n${language === 'zh-CN' ? '适配器来源；内部执行路径未知。' : 'Adapter source; internal execution remains unknown.'}` : `${source.componentType}@${source.componentVersion}\n${source.componentId} ${source.field || '/'}\n${JSON.stringify(value ?? null, null, 2)}`;
+    detail.dataset.componentId = source.componentId; detail.dataset.field = source.field; detail.focus();
+  }
 }
 
 function render(): void {
@@ -1480,8 +1599,9 @@ function renderScriptPanel(
   selected: SceneEntitySnapshot | null,
   options: Readonly<{ preservePreviewDisclosure?: boolean }> = {},
 ): void {
-  const script = selected ? scripts.resources.find((resource) => resource.entityId === selected.id) : undefined;
-  const identity = `${selected?.id ?? ''}:${script?.textRevision ?? 0}`;
+  const primaryScript = selected ? scripts.resources.find((resource) => resource.entityId === selected.id) : undefined;
+  const script = scripts.resources.find(resource => resource.entityId === selected?.id && resource.id === focusedScriptId) ?? primaryScript;
+  const identity = `${selected?.id ?? ''}:${script?.id ?? ''}:${script?.textRevision ?? 0}`;
   if (identity !== loadedScriptIdentity) {
     loadedScriptIdentity = identity;
     element<HTMLTextAreaElement>('script-source').value = selected ? script?.text ?? DEMO_SCRIPT : '';
@@ -1489,7 +1609,7 @@ function renderScriptPanel(
     if (!options.preservePreviewDisclosure) previewDisclosure = null;
     element('script-diagnostics').textContent = t(selected ? 'scriptEditHint' : 'scriptSelectHint');
   }
-  element<HTMLButtonElement>('propose-script').disabled = !selected || playing;
+  element<HTMLButtonElement>('propose-script').disabled = !selected || playing || script?.id !== primaryScript?.id;
   element<HTMLButtonElement>('commit-script').disabled = !pendingScriptProposal || playing;
   element<HTMLButtonElement>('prepare-preview').disabled = !script || playing;
   element<HTMLButtonElement>('approve-preview').disabled = !previewDisclosure || playing;
@@ -1545,9 +1665,8 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   const authoringCleanup = viewport?.dispose();
   viewport = null;
   showPlayPage();
-  const primary = plan.scripts[0];
-  if (!primary) throw new Error('Preview plan has no scripts.');
-  const frame = new SandboxedPreviewFrame(primary.entityId);
+  const primary = plan.scripts[0] ?? { entityId: sourceScene.entities.find(entity => isRenderableSceneKind(entity.kind))!.id };
+  const frame = new SandboxedPreviewFrame(primary.entityId, plan.behavior?.playId);
   previewFrame = frame;
   const previewScene = Object.freeze({ ...sourceScene, camera: sourceScene.camera ?? currentProjectCamera() });
   try {
@@ -1563,6 +1682,7 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
     throw cause;
   }
   playing = true;
+  renderLogicPanel();
   previewPaused = false;
   element('viewport-empty-state').hidden = true;
   document.body.dataset.preview = 'playing';
@@ -1601,6 +1721,7 @@ async function stopPreview(): Promise<void> {
   previewFrame = null;
   await reportPreview('stopped', 'Preview stopped.', disposedSideEffects, previewId, selection.activeEntityId);
   playing = false;
+  renderLogicPanel();
   previewPaused = false;
   document.body.dataset.preview = 'stopped';
   await hidePlayPage();
@@ -1669,6 +1790,26 @@ async function runSmokeWorkflow(): Promise<void> {
   await refresh();
   const smokeScript = scripts.resources.find((resource) => resource.entityId === picked);
   if (!smokeScript) throw new Error('Smoke script did not commit.');
+  await dispatchLogicIntent({ type: 'refresh' });
+  if (!(element('workspace-logic-explorer').compareDocumentPosition(element('workspace-events')) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Behavior controls must precede the legacy source list.');
+  const behaviorManifest = behaviorSnapshot?.manifest as unknown as BehaviorManifestV1 | undefined;
+  const behaviorNode = behaviorManifest?.nodes.find(node => node.source.kind === 'script' && node.source.scriptId === smokeScript.id && node.source.range.end > node.source.range.start);
+  if (!behaviorManifest || !behaviorNode || behaviorNode.source.kind !== 'script') throw new Error('Behavior structure did not load in the product.');
+  logicPanel!.selectNode(behaviorNode.id);
+  await dispatchLogicIntent({ type: 'explain', manifestDigest: behaviorManifest.digest, nodeIds: [behaviorNode.id], language });
+  if (!element('logic-explanation-text').querySelector('[data-explanation-node]')) throw new Error('Independent explanation is missing.');
+  logicPanel!.openExpanded(); await smokeBehaviorEvidence('structure');
+  await dispatchLogicIntent({ type: 'locate', manifestDigest: behaviorManifest.digest, nodeId: behaviorNode.id });
+  const locatedEditor = element<HTMLTextAreaElement>('script-source');
+  if (!element<HTMLDialogElement>('workspace-advanced').open || locatedEditor.value !== smokeScript.text || locatedEditor.selectionStart !== behaviorNode.source.range.start || locatedEditor.selectionEnd !== behaviorNode.source.range.end || document.activeElement !== locatedEditor) throw new Error('Behavior source navigation did not select the exact current script range.');
+  await smokeBehaviorEvidence('source');
+  for (const kind of ['declarative-component', 'runtime-adapter'] as const) {
+    const node = behaviorManifest.nodes.find(node => node.source.kind === kind);
+    if (!node || node.source.kind === 'script') throw new Error('Component or adapter source is missing.');
+    await dispatchLogicIntent({ type: 'locate', manifestDigest: behaviorManifest.digest, nodeId: node.id });
+    if (element('logic-source-location').dataset.componentId !== node.source.componentId || !element<HTMLDialogElement>('workspace-advanced').open) throw new Error('Component source navigation did not reach the actual config.');
+    await smokeBehaviorEvidence(kind === 'runtime-adapter' ? 'adapter' : 'component');
+  }
   const disclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', {});
   const grant = await invoke<PreviewGrant & JsonObject>('preview/authorize', { planId: disclosure.id, approved: true });
   const previewPlan = await invoke<ConsumedPreviewPlan & JsonObject>('preview/consume', { grantId: grant.id });
@@ -1691,6 +1832,15 @@ async function runSmokeWorkflow(): Promise<void> {
   if (!moved) throw new Error('Trusted preview script did not visibly move the Cube.');
   await togglePreviewPause();
   smokeStage('preview-paused');
+  const observedBehavior = await previewFrame!.captureBehavior();
+  const observedArtifact = observedBehavior.trace;
+  const observedTrace = isJsonObject(observedArtifact) ? observedArtifact.trace : null;
+  if (!previewPlan.behavior || observedBehavior.traceStatus !== 'current' || !isJsonObject(observedTrace) || !Array.isArray(observedTrace.events)
+    || !observedTrace.events.some(event => isJsonObject(event) && event.scriptId === smokeScript.id && event.kind === 'node-enter')) throw new Error('Behavior observation did not reach the project trace service.');
+  document.body.dataset.behaviorObservation = 'persisted';
+  logicPanel!.openExpanded();
+  if (!element('logic-canvas').querySelector('.observed') || !element('logic-events').children.length || !element('logic-observation-time').textContent?.includes('tick')) throw new Error('Actual Play trace did not reach the visible behavior panel.');
+  await smokeBehaviorEvidence('trace'); logicPanel!.closeExpanded();
   const pausedPosition = previewFrame!.latestPosition();
   // A paused hidden test window may stop producing display frames. Verify that
   // simulation state stays stable over elapsed time, independently of repaint.
@@ -1700,21 +1850,25 @@ async function runSmokeWorkflow(): Promise<void> {
   await togglePreviewPause();
   smokeStage('preview-resumed');
   let resumed = false;
-  for (let frame = 0; frame < 30 && !resumed; frame += 1) {
-    await nextFrames(1);
+  const resumeDeadline = performance.now() + 4000;
+  while (!resumed && performance.now() < resumeDeadline) {
+    await new Promise(resolve => setTimeout(resolve, 50));
     resumed = previewFrame!.latestPosition()?.x !== pausedPosition?.x;
   }
-  if (!resumed) throw new Error('Standalone preview did not resume.');
+  if (!resumed) throw new Error(`Standalone preview did not resume: ${JSON.stringify(await previewFrame!.inspect())}`);
   previewFrame!.hotReload(smokeScript.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
-  await nextFrames(2);
+  await smokeWaitUntil(() => previewFrame!.ownedDisposableCount() === 1);
   smokeStage('preview-hot-reloaded');
   if (previewFrame!.ownedDisposableCount() !== 1) throw new Error('Preview timer was not owned by ScriptExecutionScope.');
   previewFrame!.hotReload(smokeScript.id, `throw new Error('injected preview fault');`);
-  await nextFrames(2);
+  await smokeWaitUntil(() => previewFrame!.runtimeErrorCount() > 0 && previewFrame!.ownedDisposableCount() === 0);
   smokeStage('preview-fault-observed');
   if (previewFrame!.runtimeErrorCount() === 0 || previewFrame!.ownedDisposableCount() !== 0) throw new Error('Preview fault/cleanup evidence is missing.');
   await stopPreview();
   smokeStage('preview-stopped');
+  await dispatchLogicIntent({ type: 'history' });
+  if (!element('logic-history-items').querySelector('[data-artifact-id]')) throw new Error('Project behavior artifacts are not readable in the product.');
+  document.body.dataset.behaviorWorkflow = 'structure-explanation-exact-source-real-trace-project-history';
   if (scene.entities.find((entity) => entity.id === picked)?.transform.position.x !== 0.4) throw new Error('Preview mutation leaked into the edit document.');
   document.body.dataset.workflow = 'create-pick-transform-undo-redo-save-reopen';
   document.body.dataset.webgpu = 'ready';
@@ -1842,6 +1996,20 @@ function isVec3(value: unknown): value is Readonly<{ x: number; y: number; z: nu
 
 function finiteNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+/** Existing isolated smoke harness only: let main capture the real product
+ * window before continuing, without exposing any additional preload API. */
+async function smokeBehaviorEvidence(stage: 'structure' | 'source' | 'component' | 'adapter' | 'trace'): Promise<void> {
+  if (stage === 'trace') element('logic-trace').scrollIntoView({ block: 'start' });
+  await nextFrames(2); document.body.dataset.behaviorEvidence = stage;
+  console.info(`[behavior-smoke-evidence] ${stage}`);
+  const deadline = performance.now() + 8000;
+  await new Promise<void>((resolve, reject) => { const poll = () => { if (document.body.dataset.behaviorEvidence === `${stage}:captured`) resolve(); else if (performance.now() >= deadline) reject(new Error('Behavior window evidence timed out.')); else setTimeout(poll, 20); }; poll(); });
+}
+async function smokeWaitUntil(ready: () => boolean): Promise<void> {
+  const deadline = performance.now() + 4000;
+  while (!ready() && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
 }
 
 function isJsonObject(value: unknown): value is JsonObject {

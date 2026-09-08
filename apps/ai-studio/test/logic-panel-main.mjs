@@ -1,0 +1,36 @@
+import { app, BrowserWindow } from 'electron';
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
+const directory = process.env.HAIYUE_LOGIC_PANEL_ROOT;
+app.setPath('userData', path.join(directory, 'user-data'));
+let window;
+const deadline = setTimeout(() => finish(1, 'panel deadline exceeded'), 35000);
+app.whenReady().then(async () => {
+  window = new BrowserWindow({ width: 1100, height: 900, show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, backgroundThrottling: false } });
+  await window.loadFile(path.join(directory, 'host.html'));
+  const evaluate = code => window.webContents.executeJavaScript(`(async()=>{const {panel,base,get,intents,assert,fixture}=window.logicTest;${code}})()`);
+  const settle = () => window.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+  await evaluate(`assert(typeof process==='undefined','sandbox');assert(get('logic-canvas').querySelector('.observed'),'real trace overlay');assert(get('logic-canvas').querySelector('.unknown'),'unknown source');assert(get('logic-canvas').querySelector('[data-edge-kind="concurrent"]'),'explicit concurrency');
+    get('logic-search').value='no such source';get('logic-search').dispatchEvent(new Event('input'));assert(!get('logic-canvas').querySelector('svg'),'empty search');
+    get('logic-search').value='';get('logic-search').dispatchEvent(new Event('input'));const width=get('logic-canvas').querySelector('svg').getAttribute('width');get('logic-zoom').value='50';get('logic-zoom').dispatchEvent(new Event('input'));assert(Number(get('logic-canvas').querySelector('svg').getAttribute('width'))===Number(width)/2,'zoom');
+    get('logic-group').value=base.manifest.triggers[0];get('logic-group').dispatchEvent(new Event('change'));assert(get('logic-canvas').querySelector('svg'),'event group');
+    get('logic-explain').click();await Promise.resolve();await Promise.resolve();assert(intents.at(-1).type==='explain','typed explanation intent');
+    panel.setLanguage('en');assert(panel.root.textContent.includes('Behavior structure'),'locale presentation');assert(intents.filter(i=>i.type==='refresh').length===0,'locale does not analyze');
+    panel.update({...base,historicalStructure:true});assert(get('logic-locate').disabled && get('logic-explain').disabled,'old source navigation disabled');
+    panel.update(base);panel.setHistory([{kind:'trace',artifactId:'artifact:sha256:'+ 'a'.repeat(64),documentRevision:1,createdAt:'2026-09-07',manifestDigest:base.manifest.digest,digest:'sha256:'+ 'b'.repeat(64)}],'next-page');get('logic-history-next').click();await Promise.resolve();await Promise.resolve();assert(intents.at(-1).cursor==='next-page','history cursor');
+    panel.update({...base,documentId:'document:another',manifest:null,trace:null,explanation:null,artifacts:[]});assert(!get('logic-history-items').querySelector('button'),'project switch removes history');
+    panel.update({...base,manifest:fixture.large,documentId:fixture.large.binding.documentId,documentRevision:fixture.large.binding.documentRevision,trace:null});assert(get('logic-canvas').querySelectorAll('[data-node-id]').length<=100,'bounded graph page');get('logic-next').click();assert(get('logic-page').textContent.startsWith('101'),'large graph paging');
+    panel.update(base);panel.openExpanded();assert(get('logic-expanded').open,'expanded graph');assert(document.activeElement===get('logic-expanded-close'),'initial focus');`);
+  const press = keyCode => { window.webContents.sendInputEvent({ type: 'keyDown', keyCode }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode }); };
+  press('Tab'); await evaluate(`assert(get('logic-expanded').contains(document.activeElement),'native dialog focus');`);
+  await settle(); await writeFile(path.join(directory, 'panel-desktop.png'), (await window.webContents.capturePage()).toPNG());
+  press('Escape'); await new Promise(resolve => setTimeout(resolve, 80));
+  await evaluate(`assert(!get('logic-expanded').open && get('host').contains(panel.root),'Escape restores panel');const node=get('logic-canvas').querySelector('[data-node-id]');node.focus();`);
+  press('Enter'); await evaluate(`assert(document.activeElement.matches('[data-node-id]'),'node keyboard focus survives redraw');get('logic-structure').open=false;assert(!get('logic-structure').open,'collapse');get('logic-structure').open=true;`);
+  window.setContentSize(375, 850); await evaluate(`panel.openExpanded();`); await new Promise(resolve => setTimeout(resolve, 80));
+  await evaluate(`const r=get('logic-expanded').getBoundingClientRect();assert(r.left>=0&&r.right<=innerWidth,'narrow dialog fits');assert(document.documentElement.scrollWidth<=innerWidth,'no page overflow');`);
+  await settle(); await writeFile(path.join(directory, 'panel-narrow.png'), (await window.webContents.capturePage()).toPNG());
+  await evaluate(`panel.dispose();panel.dispose();assert(!get('logic-explorer')&&!get('logic-expanded'),'idempotent teardown');`);
+  finish(0, 'filter, grouping, zoom, locale, history, keyboard, narrow and teardown passed');
+}).catch(error => finish(1, error.stack ?? String(error)));
+function finish(code, message) { clearTimeout(deadline); console.log(message); app.exit(code); }

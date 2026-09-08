@@ -12,3 +12,4 @@ export {
 } from './plugin.js';
 export type { OperationLogService } from './plugin.js';
 export type * from './types.js';
+export * from './behavior-history.js';

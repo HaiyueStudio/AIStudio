@@ -1,5 +1,6 @@
 import type { EditorContributionKind } from '@haiyue/editor-plugin-sdk';
 export * from './workspace/index.js';
+export * from './panels/logic/index.js';
 import type { EditorShellLayoutSnapshot } from '@haiyue/editor-shell';
 import {
   asStableId,

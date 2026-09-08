@@ -1,0 +1,162 @@
+{
+  "recordedAt": "2026-09-08T01:40:30.042Z",
+  "inputDigest": "sha256:d15f599462875617a18f809df9293e5b17de8f8646b7b6a5c833a4a8dbb88b03",
+  "checks": [
+    {
+      "id": "behavior-project-flow",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/operation-log/test/behavior-history.test.mjs",
+        "packages/agent-orchestration/test/behavior-project.test.mjs",
+        "packages/studio-shell/test/logic-model.test.mjs",
+        "packages/script-preview/test/behavior-runtime.test.mjs",
+        "apps/ai-studio/test/logic-behavior-ipc.test.mjs",
+        "apps/ai-studio/test/logic-declarative-play.test.mjs",
+        "apps/ai-studio/test/logic-replay.test.mjs",
+        "apps/ai-studio/test/logic-m12.test.mjs"
+      ],
+      "startedAt": "2026-09-08T01:32:41.969Z",
+      "durationMs": 18636,
+      "exitCode": 0,
+      "passed": 29,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:947837800b4c9fccd943511e00c63b1d5ae87aa52a7322ae9b30a626afd3ddd5"
+    },
+    {
+      "id": "behavior-panel-window",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/logic-panel-electron.test.mjs"
+      ],
+      "startedAt": "2026-09-08T01:33:00.606Z",
+      "durationMs": 4478,
+      "exitCode": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:e89f9f160be7cf50343c03b5f39e1f303f09b410763e49dbe2bab3fab28f632b"
+    },
+    {
+      "id": "behavior-product-window",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/logic-product-electron.test.mjs"
+      ],
+      "startedAt": "2026-09-08T01:33:05.084Z",
+      "durationMs": 81954,
+      "exitCode": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:4a39e9725f0a4eb840e371c69b4842f6cd0fcd5a175c921cfee906438f78f9dd"
+    }
+  ],
+  "windowSource": {
+    "product": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\haiyue-m14-logic-product-S85mlQ",
+    "panel": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\haiyue-m14-logic-panel-ouW8pT"
+  },
+  "persistedProjectId": "project:dd795293-6465-4fc6-bdbf-8db44e79ebc8",
+  "references": [
+    {
+      "projectId": "project:dd795293-6465-4fc6-bdbf-8db44e79ebc8",
+      "documentId": "document:bdc95730-b048-41d1-b3a9-7e6fceaf2fd1",
+      "documentRevision": 12,
+      "sourceBindingDigest": "sha256:75c5641bf8b9fe8dfb22c09c3e1c4be9124924f6cb42330650d0ea7f77da7d98",
+      "manifestDigest": "sha256:932398b3585a5210b3970252200220cab1481c9fe65c4d29b6aeefa7c0e8e193",
+      "kind": "manifest",
+      "artifactId": "artifact:sha256:2658a0662f9b797a004e0563e4de2c8d8caaba150c8becbdca8152d906d036f8",
+      "digest": "sha256:c090a57011f3e1bfad94c716b6898dd10f28b7ff27125566cb6628401a0d9ce1",
+      "createdAt": "2026-09-08T01:39:01.126Z"
+    },
+    {
+      "projectId": "project:dd795293-6465-4fc6-bdbf-8db44e79ebc8",
+      "documentId": "document:bdc95730-b048-41d1-b3a9-7e6fceaf2fd1",
+      "documentRevision": 12,
+      "sourceBindingDigest": "sha256:75c5641bf8b9fe8dfb22c09c3e1c4be9124924f6cb42330650d0ea7f77da7d98",
+      "manifestDigest": "sha256:932398b3585a5210b3970252200220cab1481c9fe65c4d29b6aeefa7c0e8e193",
+      "kind": "explanation",
+      "artifactId": "artifact:sha256:e02c3d9c860c05aee5b0230fe8bed2e77a4af5d3b111e76b3712c2f098fd19e7",
+      "digest": "sha256:ceb8360450558e01648677de126f02af72c9d585ed5e8ee270c905130373ffbc",
+      "createdAt": "2026-09-08T01:39:01.189Z"
+    },
+    {
+      "projectId": "project:dd795293-6465-4fc6-bdbf-8db44e79ebc8",
+      "documentId": "document:bdc95730-b048-41d1-b3a9-7e6fceaf2fd1",
+      "documentRevision": 12,
+      "sourceBindingDigest": "sha256:75c5641bf8b9fe8dfb22c09c3e1c4be9124924f6cb42330650d0ea7f77da7d98",
+      "manifestDigest": "sha256:932398b3585a5210b3970252200220cab1481c9fe65c4d29b6aeefa7c0e8e193",
+      "kind": "trace",
+      "artifactId": "artifact:sha256:b821cb83346b263aef4e34d17cdf1bb009351165514f06756d9026af43112c78",
+      "digest": "sha256:b7f7cef5a3b3b9e386d5b8c737c712c559a9a9b53fcbc74f123af25f1f8e088b",
+      "createdAt": "2026-09-08T01:39:20.940Z"
+    }
+  ],
+  "files": [
+    {
+      "path": "panel-desktop.png",
+      "bytes": 62539,
+      "sha256": "12594fa2cc08272809bf16354839edb8d7d38d9646eeebdb44efcebf3bd860fc"
+    },
+    {
+      "path": "panel-narrow.png",
+      "bytes": 43564,
+      "sha256": "645d6671b31487305b84a8ee45befd5fd9cde60fdee1a806716f50aee3b4b1b0"
+    },
+    {
+      "path": "persisted-explanation.json",
+      "bytes": 1862,
+      "sha256": "91dbd1a4d70186feece26d56d53a5953cefcd8b5804999d06e959ec9bbca911f"
+    },
+    {
+      "path": "persisted-manifest.json",
+      "bytes": 42121,
+      "sha256": "1030124a8caadf33e4d6bb3d17facbed2002fe01b3d7a880f78a8f77636629c6"
+    },
+    {
+      "path": "persisted-trace.json",
+      "bytes": 688269,
+      "sha256": "9f3e666bdc34beb02e506f8f68bc631f915123c32681cd1048ded9efb72e6578"
+    },
+    {
+      "path": "product-adapter.png",
+      "bytes": 67919,
+      "sha256": "42b34a00acb9c21267a04822f4a28da1479d601569d31551b9092e6bb55147eb"
+    },
+    {
+      "path": "product-component.png",
+      "bytes": 66001,
+      "sha256": "aec49d10bfb6d16e0d470724b667c96652858e374577a0c79759ebabcffffdc6"
+    },
+    {
+      "path": "product-source.png",
+      "bytes": 63795,
+      "sha256": "835ffc16bc7d1d43796b2d52d447652389708eb1b50f3376f91ba7bf2506a2d6"
+    },
+    {
+      "path": "product-structure.png",
+      "bytes": 87531,
+      "sha256": "416792df8279e81d3d4fc979341b4b71138cfa00a229f8d28300a209a0c1187c"
+    },
+    {
+      "path": "product-trace.png",
+      "bytes": 137841,
+      "sha256": "9f5c4d84704f82ff94378e042bde57524a4c18ac8c3093e15a5d1174f29e5a0c"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 5252,
+      "sha256": "0fd78dd8bb345206f8cee775d955949d3b6e5a95bccf88a0a04ed549962a2bbc"
+    }
+  ],
+  "scope": "G05 independent product and portable artifact verification; M12/M13 formal acceptance and later gates unchanged"
+}

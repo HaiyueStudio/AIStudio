@@ -1,0 +1,170 @@
+{
+  "recordedAt": "2026-09-08T01:40:30.034Z",
+  "inputDigest": "sha256:d15f599462875617a18f809df9293e5b17de8f8646b7b6a5c833a4a8dbb88b03",
+  "commands": [
+    {
+      "command": "npm run m14:capability:capture",
+      "exitCode": 0,
+      "build": {
+        "command": "npm run build -w @haiyue/ai-studio",
+        "exitCode": 0,
+        "durationMs": 107519,
+        "outputDigest": "sha256:7712006e713cb4d480697ab617b631612fd22aec99bf65a62adfed427012c5c7"
+      },
+      "checks": [
+        {
+          "id": "documents",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 975,
+          "outputDigest": "sha256:d82f92b5f9738c28fd23da125a5043bb5af7709d687b93b8d39513607ed0e0a5"
+        },
+        {
+          "id": "tools",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 27278,
+          "outputDigest": "sha256:8a0a821a1c1a081a81983ff16b1d16b65c51b5f2ea5127027643c3629ba3db70"
+        },
+        {
+          "id": "camera",
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 659,
+          "outputDigest": "sha256:98fd2eca496039fd45a14d58300e7869aa68cb169e547dbbb9cb5eb35c381d26"
+        },
+        {
+          "id": "simulation",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 416,
+          "outputDigest": "sha256:09c1b0e240143f331b53c266b65be37db7fc7cccc5bf23158721b962904b5b05"
+        },
+        {
+          "id": "physics",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 931,
+          "outputDigest": "sha256:51cb167b0a4097ed7d2847ab6927ba1d6202adf15ec3dc435d324ba8e2524e62"
+        },
+        {
+          "id": "render",
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 1060,
+          "outputDigest": "sha256:c992baa9214573028cc93ba48452b3f42e6bbae83ab986efff72771a392223cd"
+        },
+        {
+          "id": "scripts",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 17522,
+          "outputDigest": "sha256:760b40a0a6b6c666ca50a6a9e114df6c5d9a9432be30ac2ed2b343ea6cdc0ecb"
+        },
+        {
+          "id": "observations",
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 1290,
+          "outputDigest": "sha256:a79afa8efce024c4ca5d9006d065ce66e576783b8db8d29aa786d17cd1213248"
+        },
+        {
+          "id": "census-guards",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 1474,
+          "outputDigest": "sha256:a35d9ec1a258314c794433c6916cde7a2401070d7afd44d9cfff2c5deb7e2a74"
+        },
+        {
+          "id": "behavior-project-flow",
+          "passed": 29,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 18636,
+          "outputDigest": "sha256:947837800b4c9fccd943511e00c63b1d5ae87aa52a7322ae9b30a626afd3ddd5"
+        },
+        {
+          "id": "behavior-panel-window",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 4478,
+          "outputDigest": "sha256:e89f9f160be7cf50343c03b5f39e1f303f09b410763e49dbe2bab3fab28f632b"
+        },
+        {
+          "id": "behavior-product-window",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "exitCode": 0,
+          "durationMs": 81954,
+          "outputDigest": "sha256:4a39e9725f0a4eb840e371c69b4842f6cd0fcd5a175c921cfee906438f78f9dd"
+        }
+      ]
+    },
+    {
+      "command": "npm run check",
+      "exitCode": 0,
+      "logDigest": "sha256:f6ddfdb40fec13fd8cc7b971fdf351d45dada11b523de520e68143c7d7f176d3",
+      "includedGates": [
+        "contracts:check",
+        "typecheck",
+        "typecheck -w @haiyue/ai-studio-agent-orchestration",
+        "boundaries:check",
+        "upstream:check",
+        "engine:candidate:check",
+        "render:candidate:check",
+        "spike:check",
+        "m12:g12:quick",
+        "m14:capability:check",
+        "build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts",
+        "build -w @haiyue/ai-studio --ignore-scripts",
+        "m14:behavior:test",
+        "m14:workspace:test",
+        "m14:agent-tools:test",
+        "m14:logic:test"
+      ],
+      "m14Tests": {
+        "behavior": 32,
+        "workspace": 5,
+        "agentTools": 99,
+        "logic": 23,
+        "failed": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "note": "Repository check exit code observed by the integration owner before archiving. This is local independent G05 acceptance, not M12/M13 formal or G09 release acceptance."
+}

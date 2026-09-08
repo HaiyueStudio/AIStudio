@@ -1,5 +1,5 @@
 export { StudioConversationHost } from './conversation-host.js';
-export type { BehaviorReadPort } from './behavior/ports.js';
+export type { BehaviorReadPort, BehaviorProjectIdentity, ProjectBehaviorPorts, BehaviorApprovedPlay, BehaviorRuntimePort } from './behavior/ports.js';
 export { ProjectConversationController } from './project-conversation.js';
 export type { ConversationProjectBinding, ProjectHistoryScope, ProjectConversationOptions } from './project-conversation.js';
 export type { ConversationHostOptions } from './conversation-host.js';
@@ -8,3 +8,4 @@ export type { RecoveryClaimPort, RecoveryClaimLease } from './session-orchestrat
 export { migrateLegacySessions } from './legacy-session-migration.js';
 export type { LegacySessionMigrationInput, LegacySessionMigrationResult } from './legacy-session-migration.js';
 export { queryRetainedOperationEvents } from './retained-events.js';
+export * from './behavior/project.js';

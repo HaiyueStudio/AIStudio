@@ -13,6 +13,10 @@
     "./effects": {
       "types": "./dist/effects/index.d.ts",
       "import": "./dist/effects/index.js"
+    },
+    "./behavior/runtime": {
+      "types": "./dist/behavior/runtime-observer.d.ts",
+      "import": "./dist/behavior/runtime-observer.js"
     }
   },
   "engines": {

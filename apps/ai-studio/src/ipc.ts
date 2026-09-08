@@ -1,7 +1,7 @@
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import type { OperationLog } from '@haiyue/ai-studio-operation-log';
+import type { OperationLog, BehaviorArtifactKind } from '@haiyue/ai-studio-operation-log';
 import { validateConversationIntent, type LogQueryIntent } from '@haiyue/ai-studio-shell';
-import type { ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
+import type { ScriptPreviewStudioService, PreviewPlan } from '@haiyue/ai-studio-script-preview';
 import type {
   ProjectWorkspace,
   SceneAuthoringService,
@@ -12,7 +12,7 @@ import type {
   TransformSnapshot,
 } from '@haiyue/ai-studio-editor-plugins';
 import type { AgentPreviewBroker } from './agent-preview-broker.js';
-import type { ProjectConversationController, StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
+import type { ProjectBehaviorController, ProjectConversationController, StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 export const STUDIO_IPC_CHANNEL = 'studio:request' as const;
 export const STUDIO_IPC_CANCEL_CHANNEL = 'studio:cancel' as const;
@@ -46,6 +46,8 @@ export type StudioIpcMethod =
   | 'preview/report'
   | 'preview/agent-command'
   | 'preview/agent-result'
+  | 'behavior/snapshot' | 'behavior/refresh' | 'behavior/explain' | 'behavior/locate'
+  | 'behavior/history' | 'behavior/read' | 'behavior/capture' | 'behavior/cancel' | 'behavior/related'
   | 'conversation/replay'
   | 'conversation/intent'
   | 'conversation/history'
@@ -77,6 +79,7 @@ export interface StudioIpcRouterOptions {
   readonly operationLog: OperationLog;
   readonly conversation: Pick<StudioConversationHost, 'dispatch' | 'replay' | 'cancelPending'> & Partial<Pick<ProjectConversationController, 'prepareProjectChange' | 'syncProject' | 'queryHistory' | 'readHistory'>>;
   readonly agentPreview: AgentPreviewBroker;
+  readonly behavior?: ProjectBehaviorController;
   readonly bugBundleRoot: string;
   readonly versions: Readonly<{ app: string; schema: string; upstream: Readonly<Record<string, string>> }>;
   readonly selectProjectRoot: (purpose: 'open' | 'save') => Promise<string | null>;
@@ -140,6 +143,7 @@ export class StudioIpcRouter {
     this.options.workspace.cancelAll();
     this.options.conversation.cancelPending();
     this.options.agentPreview.cancelPending();
+    this.options.behavior?.cancel();
   }
 
   get activeCount(): number { return this.active.size; }
@@ -250,7 +254,7 @@ export class StudioIpcRouter {
         const grant = await this.options.scripts.decide(request.payload.planId as StableId, request.payload.approved as boolean);
         return grant ? toJson(grant) : Object.freeze({ denied: true });
       }
-      case 'preview/consume': return toJson(this.options.scripts.consume(request.payload.grantId as StableId));
+      case 'preview/consume': return this.observedPlan(this.options.scripts.consume(request.payload.grantId as StableId), request, signal);
       case 'preview/report': {
         const event = request.payload.event as string;
         await this.options.operationLog.append({
@@ -260,7 +264,13 @@ export class StudioIpcRouter {
         });
         return Object.freeze({ recorded: true });
       }
-      case 'preview/agent-command': return this.options.agentPreview.command();
+      case 'preview/agent-command': {
+        const value = this.options.agentPreview.command(), command = value.command as JsonObject | undefined;
+        if (value.pending !== true || command?.kind !== 'start' || !command.plan) return value;
+        const plan = await this.observedPlan(command.plan as unknown as PreviewPlan, request, signal);
+        if ((this.options.agentPreview.command().command as JsonObject | undefined)?.id !== command.id) throw new Error('behavior.play-stale');
+        return toJson({ ...value, command: { ...command, plan } });
+      }
       case 'preview/agent-result': {
         const commandId = request.payload.commandId as StableId;
         if (request.payload.ok === true) this.options.agentPreview.resolve(commandId, request.payload.snapshot);
@@ -268,6 +278,27 @@ export class StudioIpcRouter {
         return Object.freeze({ recorded: true });
       }
       case 'conversation/replay': return toJson(this.options.conversation.replay());
+      case 'behavior/snapshot': return toJson(this.requireBehavior().snapshot());
+      case 'behavior/refresh': {
+        await this.options.conversation.syncProject?.();
+        return toJson(await this.requireBehavior().refresh(signal));
+      }
+      case 'behavior/explain': return toJson(await this.requireBehavior().explain(request.payload as unknown as Parameters<ProjectBehaviorController['explain']>[0], signal));
+      case 'behavior/locate': return toJson(await this.requireBehavior().locateNode(request.payload.manifestDigest as string, request.payload.nodeId as string, signal));
+      case 'behavior/related': {
+        await this.options.conversation.syncProject?.();
+        return toJson(await this.requireBehavior().related(request.payload.manifestDigest as string, request.payload.nodeId as string, request.payload.cursor as string | undefined, signal));
+      }
+      case 'behavior/history': {
+        await this.options.conversation.syncProject?.();
+        return toJson(await this.requireBehavior().history(request.payload as unknown as Parameters<ProjectBehaviorController['history']>[0]));
+      }
+      case 'behavior/read': {
+        await this.options.conversation.syncProject?.();
+        return toJson(await this.requireBehavior().readArtifact(request.payload.kind as BehaviorArtifactKind, request.payload.artifactId as string, signal));
+      }
+      case 'behavior/capture': return toJson(await this.requireBehavior().capturePlay(request.payload.capture, signal));
+      case 'behavior/cancel': this.requireBehavior().cancel(); return Object.freeze({ cancelled: true });
       case 'conversation/intent': await this.options.conversation.dispatch(request.payload.intent, signal); return Object.freeze({ accepted: true });
       case 'conversation/history': {
         if (!this.options.conversation.queryHistory) throw new Error('项目执行记录不可用。');
@@ -290,12 +321,30 @@ export class StudioIpcRouter {
     this.cancelProjectAgentState(reason);
     await this.options.conversation.prepareProjectChange?.();
     try { return await action(); }
-    finally { await this.options.conversation.syncProject?.(); }
+    finally { this.options.behavior?.syncProject(); await this.options.conversation.syncProject?.(); }
   }
 
   private cancelProjectAgentState(reason: string): void {
     this.options.conversation.cancelPending(reason);
     this.options.agentPreview.cancelPending();
+    this.options.behavior?.cancel();
+  }
+  private requireBehavior(): ProjectBehaviorController {
+    const behavior = this.options.behavior; if (!behavior) throw new Error('behavior.service-unavailable');
+    behavior.syncProject(); return behavior;
+  }
+  private async observedPlan(plan: PreviewPlan, request: StudioIpcRequest, signal: AbortSignal): Promise<JsonObject> {
+    if (!this.options.behavior) return toJson(plan);
+    try {
+      await this.options.conversation.syncProject?.();
+      const behavior = await this.options.behavior.preparePlay(plan, { taskId: request.correlationId, turnId: request.id }, signal);
+      return toJson({ ...plan, behavior });
+    } catch {
+      if (signal.aborted) throw new Error('behavior.cancelled');
+      // Observation failure is visible and cannot change the approved program or
+      // prevent an otherwise supported Play from using its existing runtime.
+      return toJson({ ...plan, behavior: null, behaviorDiagnostic: 'behavior.observation-unavailable' });
+    }
   }
 }
 
@@ -389,6 +438,27 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
       throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/agent-result payload is invalid.');
     }
   }
+  else if (channel === 'behavior/explain') {
+    requireAllowedShape(payload, keys, ['manifestDigest','nodeIds','language'], []);
+    if (!behaviorDigest(payload.manifestDigest) || !Array.isArray(payload.nodeIds) || payload.nodeIds.length < 1 || payload.nodeIds.length > 100 || !payload.nodeIds.every(behaviorId) || new Set(payload.nodeIds).size !== payload.nodeIds.length || !['en','zh-CN'].includes(String(payload.language))) throw new IpcDiagnosticError('ipc-payload-rejected', 'Behavior explanation request is invalid.');
+  }
+  else if (channel === 'behavior/locate' || channel === 'behavior/related') {
+    requireAllowedShape(payload, keys, ['manifestDigest','nodeId'], channel === 'behavior/related' ? ['cursor'] : []);
+    if (payload.cursor !== undefined && (typeof payload.cursor !== 'string' || payload.cursor.length > 1024)) throw new IpcDiagnosticError('ipc-payload-rejected', 'Behavior cursor is invalid.');
+    if (!behaviorDigest(payload.manifestDigest) || !behaviorId(payload.nodeId)) throw new IpcDiagnosticError('ipc-payload-rejected', 'Behavior location request is invalid.');
+  }
+  else if (channel === 'behavior/history') {
+    requireAllowedShape(payload, keys, [], ['kind','cursor','limit']);
+    if ((payload.kind !== undefined && !['manifest','explanation','trace'].includes(String(payload.kind))) || (payload.cursor !== undefined && (typeof payload.cursor !== 'string' || payload.cursor.length > 1024)) || (payload.limit !== undefined && (!Number.isSafeInteger(payload.limit) || Number(payload.limit) < 1 || Number(payload.limit) > 100))) throw new IpcDiagnosticError('ipc-payload-rejected', 'Behavior history request is invalid.');
+  }
+  else if (channel === 'behavior/read') {
+    requireAllowedShape(payload, keys, ['kind','artifactId'], []);
+    if (!['manifest','explanation','trace'].includes(String(payload.kind)) || typeof payload.artifactId !== 'string' || !/^artifact:sha256:[a-f0-9]{64}$/u.test(payload.artifactId)) throw new IpcDiagnosticError('ipc-payload-rejected', 'Behavior artifact request is invalid.');
+  }
+  else if (channel === 'behavior/capture') {
+    requireAllowedShape(payload, keys, ['capture'], []);
+    if (!isRecord(payload.capture)) throw new IpcDiagnosticError('ipc-payload-rejected', 'Behavior capture request is invalid.');
+  }
   else if (channel === 'conversation/intent') {
     requireShape(payload, keys, ['intent'], { intent: 'json' });
     validateConversationIntent(payload.intent);
@@ -427,7 +497,10 @@ const allowedChannels = new Set<StudioIpcMethod>([
   'scene/snapshot', 'asset/read', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',
   'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
   'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'conversation/history', 'conversation/history-detail', 'logs/query', 'logs/export',
+  'behavior/snapshot', 'behavior/refresh', 'behavior/explain', 'behavior/locate', 'behavior/history', 'behavior/read', 'behavior/capture', 'behavior/cancel', 'behavior/related',
 ]);
+const behaviorDigest = (value: unknown): boolean => typeof value === 'string' && /^sha256:[a-f0-9]{64}$/u.test(value);
+const behaviorId = (value: unknown): boolean => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/u.test(value);
 
 type ViewportReportEvent = 'ready' | 'rendered' | 'device-lost' | 'failed' | 'picking-failed';
 const viewportReportEvents = new Set<ViewportReportEvent>(['ready', 'rendered', 'device-lost', 'failed', 'picking-failed']);

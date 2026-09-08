@@ -425,7 +425,7 @@ export function createScriptPreviewPlugin(): StudioPluginDefinition<JsonObject> 
       const log = context.services.get(operationLogServiceToken).log;
       const validator = new ScriptValidationWorker();
       const scripts = new ProjectScriptService(workspace, validator, log);
-      const authorization = new PreviewAuthorizationService(scripts, validator, log, Date.now, () => playRuntimeConfigFromScene(scene.snapshot()));
+      const authorization = new PreviewAuthorizationService(scripts, validator, log, Date.now, () => playRuntimeConfigFromScene(scene.snapshot()), () => hasDeclarativeGameplay(scene.snapshot().entities.flatMap(entity => entity.components ?? [])));
       const service: ScriptPreviewStudioService = Object.freeze({
         snapshot: () => scripts.snapshot(),
         proposeEdit: (input: Parameters<ScriptPreviewStudioService['proposeEdit']>[0]) => {
@@ -461,6 +461,7 @@ export class PreviewAuthorizationService {
     private readonly log: OperationLog,
     private readonly clock: () => number = Date.now,
     private readonly runtimeConfig: () => PlayRuntimeConfig = () => DEFAULT_PLAY_RUNTIME_CONFIG,
+    private readonly allowScriptless: () => boolean = () => false,
   ) {
     let initial = true;
     this.subscription = scripts.subscribe(() => {
@@ -472,7 +473,7 @@ export class PreviewAuthorizationService {
   async prepare(input: PreviewPrepareInput = {}): Promise<PreviewPlan> {
     this.assertActive();
     const catalog = this.scripts.snapshot();
-    const selected = selectPreviewScripts(catalog, input.scriptIds);
+    const selected = selectPreviewScripts(catalog, input.scriptIds, this.allowScriptless());
     const runtimeConfig = normalizePlayRuntimeConfig(this.runtimeConfig());
     const validations = await Promise.all(selected.map((script) => this.validator.validate({
       scriptId: script.id, textRevision: script.textRevision, sourcePath: script.sourcePath, text: script.text, capabilities: script.capabilities,
@@ -528,7 +529,7 @@ export class PreviewAuthorizationService {
     if (this.clock() > entry.grant.expiresAt) throw new Error('Preview grant expired.');
     const catalog = this.scripts.snapshot();
     if (catalog.documentId !== entry.plan.documentId || catalog.documentRevision !== entry.plan.documentRevision) throw new Error('Preview grant is stale.');
-    const selected = selectPreviewScripts(catalog, entry.plan.selection === 'all-enabled' ? undefined : entry.plan.scripts.map((script) => script.scriptId));
+    const selected = selectPreviewScripts(catalog, entry.plan.selection === 'all-enabled' ? undefined : entry.plan.scripts.map((script) => script.scriptId), this.allowScriptless());
     if (selected.length !== entry.plan.scripts.length) throw new Error('Preview grant script set is stale.');
     for (let index = 0; index < selected.length; index += 1) {
       const current = selected[index]!; const planned = entry.plan.scripts[index]!;
@@ -583,7 +584,7 @@ export class IsolatedTrustedPreviewRuntime {
   private async startNow(scene: SceneSnapshot, plan: PreviewPlan): Promise<PreviewRuntimeSnapshot> {
     await this.stopNow('restart');
     if (scene.documentId !== plan.documentId || scene.revision !== plan.documentRevision) throw new Error('Preview plan does not match the Scene document revision.');
-    if (plan.scripts.length < 1 || plan.scripts.length > MAX_PLAY_SCRIPTS) throw new Error(`Preview plan must contain 1-${MAX_PLAY_SCRIPTS} scripts.`);
+    if (plan.scripts.length > MAX_PLAY_SCRIPTS) throw new Error(`Preview plan must contain 0-${MAX_PLAY_SCRIPTS} scripts.`);
     const world = new World('AIStudio Isolated Preview');
     try {
       const entities = new Map<StableId, Entity>();
@@ -743,7 +744,7 @@ function normalizePlayRuntimeConfig(value: unknown): PlayRuntimeConfig {
   return Object.freeze({ schemaVersion: 1, mode: 'fixed-step', tickRateHz: input.tickRateHz, maxSubSteps: Number(input.maxSubSteps), seed: input.seed });
 }
 
-function selectPreviewScripts(catalog: ScriptCatalogSnapshot, requestedIds: readonly StableId[] | undefined): readonly ScriptResourceSnapshot[] {
+function selectPreviewScripts(catalog: ScriptCatalogSnapshot, requestedIds: readonly StableId[] | undefined, allowScriptless = false): readonly ScriptResourceSnapshot[] {
   if (requestedIds !== undefined && (!Array.isArray(requestedIds) || requestedIds.length < 1 || requestedIds.length > MAX_PLAY_SCRIPTS)) throw new RangeError(`Preview scriptIds must contain 1-${MAX_PLAY_SCRIPTS} ids.`);
   if (requestedIds && new Set(requestedIds).size !== requestedIds.length) throw new TypeError('Preview scriptIds must be unique.');
   const requested = requestedIds ? new Set(requestedIds) : null;
@@ -752,7 +753,7 @@ function selectPreviewScripts(catalog: ScriptCatalogSnapshot, requestedIds: read
     .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
   if (requested && selected.length !== requested.size) throw new Error('One or more requested preview scripts do not exist.');
   if (selected.some((script) => !script.enabled)) throw new Error('Disabled scripts cannot enter a preview plan.');
-  if (selected.length < 1) throw new Error('Preview requires at least one enabled committed script.');
+  if (selected.length < 1 && !allowScriptless) throw new Error('Preview requires at least one enabled committed script.');
   if (selected.length > MAX_PLAY_SCRIPTS) throw new Error(`Preview exceeds the ${MAX_PLAY_SCRIPTS}-script budget.`);
   if (new Set(selected.map((script) => script.entityId)).size !== selected.length) throw new Error('Only one enabled preview script may bind to each entity.');
   return Object.freeze(selected);
@@ -807,3 +808,4 @@ function hasErrors(diagnostics: readonly ScriptDiagnostic[]): boolean { return d
 function tuple(value: Readonly<{ x: number; y: number; z: number }>): [number, number, number] { return [value.x, value.y, value.z]; }
 function tupleRadians(value: Readonly<{ x: number; y: number; z: number }>): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }
 export * from './effects/index.js';
+import { hasDeclarativeGameplay } from './behavior/runtime-observer.js';

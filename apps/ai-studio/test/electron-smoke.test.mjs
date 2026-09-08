@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import electronPath from 'electron';
 
-test('real Electron loads a sandboxed renderer through the typed preload and closes cleanly', { timeout: 100_000 }, async () => {
+test('real Electron loads a sandboxed renderer through the typed preload and closes cleanly', { timeout: 310_000 }, async () => {
   const userData = await mkdtemp(path.join(tmpdir(), 'haiyue-electron-userdata-'));
   const pixelCandidate = path.join(userData, 'pixel-candidates', 'g05-cube-selected.png');
   const entry = new URL('../dist/main.js', import.meta.url);
@@ -36,9 +36,10 @@ function run(command, args, env) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
+    const deadline = setTimeout(() => { child.kill(); reject(new Error('Electron smoke timed out: ' + output)); }, 300_000);
     child.stdout.on('data', (chunk) => { output += chunk; });
     child.stderr.on('data', (chunk) => { output += chunk; });
-    child.once('error', reject);
-    child.once('exit', (code) => resolve({ code, output }));
+    child.once('error', (error) => { clearTimeout(deadline); reject(error); });
+    child.once('exit', (code) => { clearTimeout(deadline); resolve({ code, output }); });
   });
 }

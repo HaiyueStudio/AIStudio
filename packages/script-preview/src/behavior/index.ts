@@ -5,3 +5,8 @@ export { parseBehaviorContract } from './validation.js';
 export { createBehaviorTrace, associateBehaviorTrace } from './trace.js';
 export { projectBehaviorResources } from './resources.js';
 export { BehaviorContractError } from './canonical.js';
+export { validateBehaviorArtifact } from './history-validation.js';
+export { hasDeclarativeGameplay, BehaviorRuntimeRecorder, parseBehaviorRuntimePlan, type BehaviorRuntimePlan, type BehaviorRuntimeCapture } from './runtime-observer.js';
+export { instrumentBehaviorScripts, type BehaviorScriptProgram } from './instrument.js';
+export { createBehaviorRuntimePlan } from './runtime-plan.js';
+export { sealBehaviorRuntimeCapture, assertBehaviorCaptureProgress, type BehaviorCaptureMetadata } from './runtime-capture.js';

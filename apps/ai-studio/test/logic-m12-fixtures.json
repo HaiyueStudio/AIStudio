@@ -1,0 +1,3482 @@
+{
+  "cases": [
+    {
+      "genre": "snake",
+      "provenance": {
+        "source": "D:/HaiyueStudio/.g12-reviewed/AIStudio/evals/evidence/g12/runs/2f1e8a5491e1/codex/snake/g12-codex-snake-d85c3c9e-6dd6-4258-8fc1-f50ccb6bcd00/project/.haiyue-project.json",
+        "sha256": "76f3dabbaeca3dff9e974e455c1cb6e78451bca768e3edacf51183cfb6961807",
+        "purpose": "G05 behavior browsing of preserved M12 projects; not M12 gameplay acceptance"
+      },
+      "projectId": "project:6cb6e50e-9dd2-4ceb-866c-c4be6c550ed9",
+      "document": {
+        "schemaVersion": 2,
+        "id": "document:52be629b-a963-4a2d-8c14-3c3e6a1bfc0a",
+        "revision": 7,
+        "savedRevision": 7,
+        "scenes": [
+          {
+            "id": "scene:52be629b-a963-4a2d-8c14-3c3e6a1bfc0a",
+            "name": "Main",
+            "rootEntityIds": [
+              "entity:cca2d02b-f347-4665-9bb6-b2e927e862a9",
+              "entity:9a7fefab-9fae-4589-b5df-5f0dafd5369b"
+            ]
+          }
+        ],
+        "entities": [
+          {
+            "id": "entity:9a7fefab-9fae-4589-b5df-5f0dafd5369b",
+            "sceneId": "scene:52be629b-a963-4a2d-8c14-3c3e6a1bfc0a",
+            "name": "Board",
+            "parentId": null,
+            "order": 1,
+            "componentIds": [
+              "component:transform:d30113ee-1563-470a-9f3c-ee7073a00cbe",
+              "component:geometry:45589890-fd50-46b7-bb0c-3f5ad882a343",
+              "component:material:e82c7301-1704-4f7e-9c84-c425056e0369"
+            ]
+          },
+          {
+            "id": "entity:cca2d02b-f347-4665-9bb6-b2e927e862a9",
+            "sceneId": "scene:52be629b-a963-4a2d-8c14-3c3e6a1bfc0a",
+            "name": "Snake Game Controller",
+            "parentId": null,
+            "order": 0,
+            "componentIds": [
+              "component:transform:a86a4914-cb4c-4dd4-8eb1-ae0cf345bd60"
+            ]
+          }
+        ],
+        "components": [
+          {
+            "id": "component:geometry:45589890-fd50-46b7-bb0c-3f5ad882a343",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "plane"
+            }
+          },
+          {
+            "id": "component:material:e82c7301-1704-4f7e-9c84-c425056e0369",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.04,
+                0.08,
+                0.1,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:transform:a86a4914-cb4c-4dd4-8eb1-ae0cf345bd60",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:d30113ee-1563-470a-9f3c-ee7073a00cbe",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": -0.15,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 18,
+                "y": 1,
+                "z": 18
+              }
+            }
+          }
+        ],
+        "scripts": [
+          {
+            "id": "script:8263ebb3-a9b8-4863-9db6-94ba05fdb2ed",
+            "entityId": "entity:cca2d02b-f347-4665-9bb6-b2e927e862a9",
+            "name": "Entity Script",
+            "sourcePath": "scripts/8263ebb3-a9b8-4863-9db6-94ba05fdb2ed.ts",
+            "source": "\nconst bag=component as any;\nlet s:any=bag.__snakeState;\nif(!s)s=bag.__snakeState={status:\"playing\",score:0,tick:0,elapsed:0,dir:{x:1,y:0},nextDir:{x:1,y:0},snake:[{x:0,y:0},{x:-1,y:0},{x:-2,y:0}],food:{x:3,y:0},events:[\"game-started\"],foodIndex:0,foods:[{x:3,y:0},{x:3,y:3},{x:-2,y:3},{x:-5,y:0},{x:-5,y:-4},{x:2,y:-4},{x:6,y:2}]};\nconst pressed=(name:string)=>api.input.wasPressed(name);\nconst up=pressed(\"ArrowUp\")||pressed(\"KeyW\");\nconst down=pressed(\"ArrowDown\")||pressed(\"KeyS\");\nconst left=pressed(\"ArrowLeft\")||pressed(\"KeyA\");\nconst right=pressed(\"ArrowRight\")||pressed(\"KeyD\");\nconst restartPressed=pressed(\"KeyR\")||pressed(\"r\")||pressed(\"Enter\")||pressed(\"Space\");\nif(restartPressed){\n  if(s.status===\"game-over\"){\n    s.status=\"playing\";s.score=0;s.tick=0;s.elapsed=0;s.dir={x:1,y:0};s.nextDir={x:1,y:0};s.snake=[{x:0,y:0},{x:-1,y:0},{x:-2,y:0}];s.foodIndex=0;s.food={x:3,y:0};\n    s.events.push(\"restart-input-accepted\",\"game-restarted\");\n  }else s.events.push(\"restart-input-rejected\");\n}\nlet requested:any=null;\nif(up)requested={x:0,y:1};else if(down)requested={x:0,y:-1};else if(left)requested={x:-1,y:0};else if(right)requested={x:1,y:0};\nif(requested){\n  if(s.status!==\"playing\")s.events.push(\"direction-input-rejected-game-over\");\n  else if(requested.x===-s.dir.x&&requested.y===-s.dir.y)s.events.push(\"direction-input-rejected-opposite\");\n  else{s.nextDir=requested;s.events.push(\"direction-input-accepted\");}\n}\nif(s.status===\"playing\"){\n  s.elapsed+=delta;\n  if(s.elapsed>=180){\n    s.elapsed-=180;s.dir=s.nextDir;s.tick+=1;\n    const head={x:s.snake[0].x+s.dir.x,y:s.snake[0].y+s.dir.y};\n    const wall=Math.abs(head.x)>8||Math.abs(head.y)>8;\n    const hitBody=s.snake.some((p:any)=>p.x===head.x&&p.y===head.y);\n    if(wall||hitBody){\n      s.status=\"game-over\";\n      s.events.push(wall?\"boundary-collision\":\"self-collision\",\"run-settled\",\"game-over\");\n    }else{\n      s.snake.unshift(head);\n      if(head.x===s.food.x&&head.y===s.food.y){\n        s.score+=10;s.events.push(\"food-eaten\",\"score-changed\");\n        s.foodIndex=(s.foodIndex+1)%s.foods.length;const f=s.foods[s.foodIndex];s.food={x:f.x,y:f.y};\n      }else s.snake.pop();\n    }\n  }\n}\nif(s.events.length>64)s.events=s.events.slice(-64);\nconst rows:string[]=[];\nfor(let y=8;y>=-8;y--){let row=\"\";for(let x=-8;x<=8;x++){if(s.food.x===x&&s.food.y===y)row+=\"◆\";else{const idx=s.snake.findIndex((p:any)=>p.x===x&&p.y===y);row+=idx===0?\"●\":idx>0?\"■\":\"·\";}}rows.push(row);}\napi.scene.hudText(\"snake-title\",\"SNAKE 贪吃蛇 | SCORE 得分: \"+s.score+\" | \"+(s.status===\"playing\"?\"游戏中\":\"游戏结束\"),{});\napi.scene.hudText(\"snake-board\",rows.join(\"\\n\"),{});\napi.scene.hudText(\"snake-help\",s.status===\"playing\"?\"方向键 / WASD 控制\":\"撞到了！按 R / Enter / Space 一键重新开始\",{});\n// @ts-ignore Studio runtime provides the generic gameplay observation channel.\napi.scene.observe(\"snake-gameplay\",{status:s.status,state:s.status,score:s.score,tick:s.tick,direction:s.dir,queuedDirection:s.nextDir,snake:s.snake.map((p:any)=>({x:p.x,y:p.y})),length:s.snake.length,food:{x:s.food.x,y:s.food.y},input:{up:api.input.isPressed(\"ArrowUp\"),down:api.input.isPressed(\"ArrowDown\"),left:api.input.isPressed(\"ArrowLeft\"),right:api.input.isPressed(\"ArrowRight\"),restart:restartPressed},events:s.events.slice(),triggers:s.events.slice(),interactionTargets:[{id:\"restart\",action:\"KeyR\",enabled:s.status===\"game-over\",x:0.35,y:0.88,width:0.3,height:0.08}]});\n",
+            "textRevision": 3,
+            "enabled": true,
+            "order": 0,
+            "capabilities": [
+              "input",
+              "scene",
+              "debug"
+            ],
+            "digest": "sha256:269f4bbc0b2c0d96bc9e1ee9084266018c5ea528bf21ea99f0b9963f97c25f46"
+          }
+        ],
+        "assets": [],
+        "settings": {
+          "studio.camera.main": {
+            "projection": "orthographic",
+            "target": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "distance": 20,
+            "azimuthDegrees": 0,
+            "elevationDegrees": 90,
+            "fovDegrees": 45,
+            "orthographicSize": 22,
+            "near": 0.1,
+            "far": 1000
+          }
+        },
+        "migration": {
+          "fromVersion": null,
+          "migratedAt": null,
+          "sourceDigest": null
+        }
+      }
+    },
+    {
+      "genre": "match-3",
+      "provenance": {
+        "source": "D:/HaiyueStudio/.g12-reviewed/AIStudio/evals/evidence/g12/runs/2f1e8a5491e1/codex/match-3/g12-codex-match-3-e434b0e9-8098-45a7-b177-2f07eb26a7c9/project/.haiyue-project.json",
+        "sha256": "87ad0126ff04986763870bb61021cea56c999659431e96ecc4c7951d402491c3",
+        "purpose": "G05 behavior browsing of preserved M12 projects; not M12 gameplay acceptance"
+      },
+      "projectId": "project:59bc76c8-0c8b-4897-bb97-ac3c7f6bef17",
+      "document": {
+        "schemaVersion": 2,
+        "id": "document:ab1edc43-4837-429a-b2df-6e578ba817c0",
+        "revision": 6,
+        "savedRevision": 6,
+        "scenes": [
+          {
+            "id": "scene:ab1edc43-4837-429a-b2df-6e578ba817c0",
+            "name": "Main",
+            "rootEntityIds": [
+              "entity:12ee0c23-a245-477d-bba6-30f305443698",
+              "entity:e40febef-af7a-4aab-818a-1ebf3f108b19"
+            ]
+          }
+        ],
+        "entities": [
+          {
+            "id": "entity:12ee0c23-a245-477d-bba6-30f305443698",
+            "sceneId": "scene:ab1edc43-4837-429a-b2df-6e578ba817c0",
+            "name": "Match3Controller",
+            "parentId": null,
+            "order": 0,
+            "componentIds": [
+              "component:transform:f83104a1-985a-4b23-9947-6055d9ccced5"
+            ]
+          },
+          {
+            "id": "entity:e40febef-af7a-4aab-818a-1ebf3f108b19",
+            "sceneId": "scene:ab1edc43-4837-429a-b2df-6e578ba817c0",
+            "name": "BoardBackdrop",
+            "parentId": null,
+            "order": 1,
+            "componentIds": [
+              "component:transform:78c4b441-eb85-4b7a-bffc-3f10ec86beb7",
+              "component:geometry:084d2f28-93e9-4e54-985a-2a95593a8d79",
+              "component:material:3a4d361f-766c-4055-a411-e2ecd7d0f4ee"
+            ]
+          }
+        ],
+        "components": [
+          {
+            "id": "component:geometry:084d2f28-93e9-4e54-985a-2a95593a8d79",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "plane"
+            }
+          },
+          {
+            "id": "component:material:3a4d361f-766c-4055-a411-e2ecd7d0f4ee",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.03,
+                0.05,
+                0.12,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:transform:78c4b441-eb85-4b7a-bffc-3f10ec86beb7",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 9,
+                "y": 9,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:f83104a1-985a-4b23-9947-6055d9ccced5",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          }
+        ],
+        "scripts": [
+          {
+            "id": "script:737cfa1b-8107-44ab-898e-bf54bbb9b663",
+            "entityId": "entity:12ee0c23-a245-477d-bba6-30f305443698",
+            "name": "Entity Script",
+            "sourcePath": "scripts/737cfa1b-8107-44ab-898e-bf54bbb9b663.ts",
+            "source": "\nvar S:any=(component as any).__match3;\nfunction rng(st:any):number{st.seed=(Math.imul(st.seed,1664525)+1013904223)>>>0;return st.seed;}\nfunction makeBoard(st:any):void{st.seed=246813579;st.board=[];for(var r=0;r<8;r++){var row:number[]=[];for(var c=0;c<8;c++){var v:number,tries=0;do{v=rng(st)%6;tries++;}while(tries<20&&((c>=2&&row[c-1]===v&&row[c-2]===v)||(r>=2&&st.board[r-1][c]===v&&st.board[r-2][c]===v)));row.push(v);}st.board.push(row);}}\nfunction matches(st:any):string[]{var hit:Record<string,boolean>={},r:number,c:number,k:number,v:number;for(r=0;r<8;r++){c=0;while(c<8){v=st.board[r][c];k=c+1;while(k<8&&st.board[r][k]===v)k++;if(v>=0&&k-c>=3)for(var x=c;x<k;x++)hit[r+\",\"+x]=true;c=k;}}for(c=0;c<8;c++){r=0;while(r<8){v=st.board[r][c];k=r+1;while(k<8&&st.board[k][c]===v)k++;if(v>=0&&k-r>=3)for(var y=r;y<k;y++)hit[y+\",\"+c]=true;r=k;}}return Object.keys(hit);}\nfunction settle(st:any,hit:string[]):void{for(var i=0;i<hit.length;i++){var p=hit[i].split(\",\");st.board[+p[0]][+p[1]]=-1;}for(var c=0;c<8;c++){var write=7;for(var r=7;r>=0;r--)if(st.board[r][c]>=0)st.board[write--][c]=st.board[r][c];while(write>=0)st.board[write--][c]=rng(st)%6;}}\nfunction emit(st:any,name:string):void{st.events.push(name);if(st.events.length>96)st.events.shift();}\nfunction reset(st:any):void{st.score=0;st.combo=0;st.moves=0;st.selected=null;st.status=\"ready\";st.lastResult=\"restart\";makeBoard(st);emit(st,\"restart-accepted\");emit(st,\"game-restarted\");}\nfunction swap(st:any,a:any,b:any):void{var t=st.board[a.r][a.c];st.board[a.r][a.c]=st.board[b.r][b.c];st.board[b.r][b.c]=t;}\nfunction attempt(st:any,a:any,b:any):void{swap(st,a,b);var hit=matches(st);st.moves++;if(!hit.length){swap(st,a,b);st.combo=0;st.status=\"ready\";st.lastResult=\"invalid\";emit(st,\"swap-rejected\");emit(st,\"invalid-swap-restored\");return;}emit(st,\"swap-accepted\");var chain=0;while(hit.length&&chain<20){chain++;var gained=hit.length*10*chain;st.score+=gained;settle(st,hit);emit(st,chain===1?\"match-cleared\":\"cascade-cleared\");emit(st,\"score-changed\");hit=matches(st);}st.combo=chain;st.status=\"ready\";st.lastResult=\"valid\";emit(st,\"settlement-completed\");emit(st,\"board-settled\");}\nfunction cellAt(px:number,py:number):any{var boardLeft=0.20,boardTop=0.16,size=0.075,c=Math.floor((px-boardLeft)/size),r=Math.floor((py-boardTop)/size);return r>=0&&r<8&&c>=0&&c<8?{r:r,c:c}:null;}\nif(!S){S={seed:246813579,board:[],score:0,combo:0,moves:0,selected:null,events:[],status:\"ready\",lastResult:\"init\"};(component as any).__match3=S;makeBoard(S);emit(S,\"board-generated\");}\nvar pe=api.input.pointerEvents();for(var pi=0;pi<pe.length;pi++){var ev=pe[pi];if(ev.type!==\"down\")continue;if(ev.x>=0.78&&ev.y<=0.12){reset(S);continue;}var cell=cellAt(ev.x,ev.y);if(!cell){S.selected=null;S.status=\"ready\";emit(S,\"interaction-rejected\");emit(S,\"selection-cancelled\");continue;}if(!S.selected){S.selected=cell;S.status=\"selected\";emit(S,\"interaction-accepted\");emit(S,\"tile-selected\");}else{var d=Math.abs(S.selected.r-cell.r)+Math.abs(S.selected.c-cell.c);if(d===1){var first=S.selected;S.selected=null;attempt(S,first,cell);}else if(S.selected.r===cell.r&&S.selected.c===cell.c){S.selected=null;S.status=\"ready\";emit(S,\"interaction-accepted\");emit(S,\"selection-cancelled\");}else{S.selected=cell;S.status=\"selected\";emit(S,\"interaction-rejected\");emit(S,\"tile-selected\");}}}\nvar glyph=[\"🔴\",\"🟡\",\"🟢\",\"🔵\",\"🟣\",\"🟠\"],lines:string[]=[];for(var rr=0;rr<8;rr++){var line=\"\";for(var cc=0;cc<8;cc++){var chosen=S.selected&&S.selected.r===rr&&S.selected.c===cc;line+=chosen?\"⬜\":glyph[S.board[rr][cc]];}lines.push(line);}\napi.scene.hudText(\"match3-title\",\"SEED MATCH-3   Score: \"+S.score+\"   Combo: x\"+S.combo+\"   Moves: \"+S.moves+\"\\n\\n\"+lines.join(\"\\n\")+\"\\n\\nTap two adjacent gems to swap.\\nLast: \"+S.lastResult,{position:\"top-center\",fontSize:24,color:\"#ffffff\"});\napi.scene.hudText(\"match3-restart\",\"RESTART\",{position:\"top-right\",fontSize:22,color:\"#ffe36e\"});\nvar targets:any[]=[];for(var tr=0;tr<8;tr++)for(var tc=0;tc<8;tc++)targets.push({id:\"cell-\"+tr+\"-\"+tc,x:0.20+tc*0.075,y:0.16+tr*0.075,width:0.075,height:0.075});targets.push({id:\"restart\",x:0.78,y:0.01,width:0.20,height:0.11});\n// @ts-ignore Studio runtime provides the documented gameplay observation API.\napi.scene.observe(\"match3-gameplay\",{status:S.status,state:{seed:246813579,rows:8,cols:8,board:S.board,score:S.score,combo:S.combo,moves:S.moves,selected:S.selected,lastResult:S.lastResult,initialMatches:0,terminal:false},events:S.events,triggers:S.events,interactionTargets:targets});\n",
+            "textRevision": 2,
+            "enabled": true,
+            "order": 0,
+            "capabilities": [
+              "input",
+              "debug",
+              "scene"
+            ],
+            "digest": "sha256:870d88ce80df46f1b18d3b76cf74de2d6701fef808af848e81a8c2c265aa12ef"
+          }
+        ],
+        "assets": [],
+        "settings": {
+          "studio.camera.main": {
+            "projection": "orthographic",
+            "target": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "distance": 10,
+            "azimuthDegrees": 0,
+            "elevationDegrees": 90,
+            "fovDegrees": 45,
+            "orthographicSize": 11,
+            "near": 0.1,
+            "far": 1000
+          }
+        },
+        "migration": {
+          "fromVersion": null,
+          "migratedAt": null,
+          "sourceDigest": null
+        }
+      }
+    },
+    {
+      "genre": "falling-blocks",
+      "provenance": {
+        "source": "D:/HaiyueStudio/.g12-reviewed/AIStudio/evals/evidence/g12/runs/2a6b4009194a/harness/falling-blocks/g12-harness-falling-blocks-d5a488f8-5da7-4b35-90cc-30f4e0a0b6f9/project/.haiyue-project.json",
+        "sha256": "f37e41781101da160322ea29b612b0a64871eb192974b8e57accc0ed38ad769a",
+        "purpose": "G05 behavior browsing of preserved M12 projects; not M12 gameplay acceptance"
+      },
+      "projectId": "project:83fd6308-c5b0-4c17-bd47-919b7983789a",
+      "document": {
+        "schemaVersion": 2,
+        "id": "document:464c3519-a845-4cd2-8be5-b8acf750b114",
+        "revision": 12,
+        "savedRevision": 12,
+        "scenes": [
+          {
+            "id": "scene:464c3519-a845-4cd2-8be5-b8acf750b114",
+            "name": "Main",
+            "rootEntityIds": [
+              "entity:1365591e-2677-490f-984a-ac89c840a20a",
+              "entity:841f718e-f517-43fb-aa6d-0e5c5c9e2b87",
+              "entity:176b5fc9-b770-4c5f-b9b8-901000bfcc60"
+            ]
+          }
+        ],
+        "entities": [
+          {
+            "id": "entity:1365591e-2677-490f-984a-ac89c840a20a",
+            "sceneId": "scene:464c3519-a845-4cd2-8be5-b8acf750b114",
+            "name": "GameController",
+            "parentId": null,
+            "order": 0,
+            "componentIds": [
+              "component:transform:704273c1-5020-46cf-b88e-8e13bff4943c",
+              "component:5bc53125-4e27-4635-97b9-34b7dc0d560c",
+              "component:ac9eec96-0eab-4627-9101-2fe067223c84"
+            ]
+          },
+          {
+            "id": "entity:176b5fc9-b770-4c5f-b9b8-901000bfcc60",
+            "sceneId": "scene:464c3519-a845-4cd2-8be5-b8acf750b114",
+            "name": "CellInstances",
+            "parentId": null,
+            "order": 2,
+            "componentIds": [
+              "component:transform:8e2f14b6-06d7-4991-8e87-3af1db999e22",
+              "component:geometry:7dbc084b-09a4-4d1d-ade5-28918ce03dad",
+              "component:material:26257b0c-8520-4b5a-add2-cc6d2f1e23b1"
+            ]
+          },
+          {
+            "id": "entity:841f718e-f517-43fb-aa6d-0e5c5c9e2b87",
+            "sceneId": "scene:464c3519-a845-4cd2-8be5-b8acf750b114",
+            "name": "BoardBG",
+            "parentId": null,
+            "order": 1,
+            "componentIds": [
+              "component:transform:598d6446-f55e-42d9-b898-44a99a28dcec",
+              "component:geometry:aeb5b405-4416-49a7-9ab6-1e35cf9ada66",
+              "component:material:f68dbc15-1bef-4d51-ad21-6e32d5f39d89"
+            ]
+          }
+        ],
+        "components": [
+          {
+            "id": "component:5bc53125-4e27-4635-97b9-34b7dc0d560c",
+            "type": "haiyue.script.binding",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "scriptId": "script:92c95cf1-4d2d-4085-b511-f55bd089887d"
+            }
+          },
+          {
+            "id": "component:ac9eec96-0eab-4627-9101-2fe067223c84",
+            "type": "haiyue.input.action-map",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "actions": [
+                {
+                  "name": "MoveLeft",
+                  "keys": [
+                    "ArrowLeft",
+                    "KeyA"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "MoveRight",
+                  "keys": [
+                    "ArrowRight",
+                    "KeyD"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "Rotate",
+                  "keys": [
+                    "ArrowUp",
+                    "KeyW"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "SoftDrop",
+                  "keys": [
+                    "ArrowDown",
+                    "KeyS"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "HardDrop",
+                  "keys": [
+                    "Space"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "Restart",
+                  "keys": [
+                    "KeyR"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                }
+              ]
+            }
+          },
+          {
+            "id": "component:geometry:7dbc084b-09a4-4d1d-ade5-28918ce03dad",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:aeb5b405-4416-49a7-9ab6-1e35cf9ada66",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:material:26257b0c-8520-4b5a-add2-cc6d2f1e23b1",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.9,
+                0.9,
+                0.95,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:f68dbc15-1bef-4d51-ad21-6e32d5f39d89",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.1,
+                0.1,
+                0.12,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:transform:598d6446-f55e-42d9-b898-44a99a28dcec",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 9.5
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 10.4,
+                "y": 0.5,
+                "z": 20.4
+              }
+            }
+          },
+          {
+            "id": "component:transform:704273c1-5020-46cf-b88e-8e13bff4943c",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:8e2f14b6-06d7-4991-8e87-3af1db999e22",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0.5,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.9,
+                "y": 0.9,
+                "z": 0.9
+              }
+            }
+          }
+        ],
+        "scripts": [
+          {
+            "id": "script:92c95cf1-4d2d-4085-b511-f55bd089887d",
+            "entityId": "entity:1365591e-2677-490f-984a-ac89c840a20a",
+            "name": "Entity Script",
+            "sourcePath": "scripts/92c95cf1-4d2d-4085-b511-f55bd089887d.ts",
+            "source": "// Ambient input helpers (exist at runtime; not in ambient types).\ndeclare function wasPressed(n: string): boolean;\ndeclare function isPressed(n: string): boolean;\n\n// Persistent state lives in component.data (live across fixed simulation ticks).\nconst cd: any = component.data;\nconst COLS = 10;\nconst ROWS = 20;\nconst FIXED_SEED = 20260717;\nconst SHAPES: number[][][] = [\n  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I\n  [[1,1],[1,1]],                             // O\n  [[0,1,0],[1,1,1],[0,0,0]],                 // T\n  [[0,1,1],[1,1,0],[0,0,0]],                 // S\n  [[1,1,0],[0,1,1],[0,0,0]],                 // Z\n  [[1,0,0],[1,1,1],[0,0,0]],                 // J\n  [[0,0,1],[1,1,1],[0,0,0]],                 // L\n];\n\nfunction rotateCW(m: number[][]): number[][] {\n  const n = m.length;\n  const res: number[][] = [];\n  for (let i = 0; i < n; i++) { res.push([]); for (let j = 0; j < n; j++) res[i].push(m[n - 1 - j][i]); }\n  return res;\n}\nfunction cellsOf(type: number, rot: number): number[][] {\n  let m = SHAPES[type];\n  for (let k = 0; k < rot; k++) m = rotateCW(m);\n  const out: number[][] = [];\n  for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) if (m[r][c]) out.push([r, c]);\n  return out;\n}\nfunction nextRand(): number {\n  let a = (cd.s.rngA | 0);\n  a = (a + 0x6D2B79F5) | 0;\n  let t = Math.imul(a ^ (a >>> 15), 1 | a);\n  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\n  cd.s.rngA = a;\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;\n}\nfunction shuffleBag(): number[] {\n  const arr = [0, 1, 2, 3, 4, 5, 6];\n  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(nextRand() * (i + 1)); const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }\n  return arr;\n}\nfunction collides(type: number, rot: number, x: number, y: number): boolean {\n  const cells = cellsOf(type, rot);\n  for (const cc of cells) {\n    const row = y + cc[0], col = x + cc[1];\n    if (col < 0 || col >= COLS || row >= ROWS) return true;\n    if (row >= 0 && cd.s.grid[row][col] !== 0) return true;\n  }\n  return false;\n}\nfunction addEvent(e: string): void {\n  cd.s.events.push(e);\n  if (cd.s.events.length > 8) cd.s.events.shift();\n}\nfunction clearLines(): void {\n  const newGrid: number[][] = [];\n  let cleared = 0;\n  for (let row = 0; row < ROWS; row++) {\n    let full = true;\n    for (let col = 0; col < COLS; col++) if (cd.s.grid[row][col] === 0) { full = false; break; }\n    if (full) cleared++;\n    else newGrid.push(cd.s.grid[row]);\n  }\n  while (newGrid.length < ROWS) newGrid.unshift(new Array(COLS).fill(0));\n  cd.s.grid = newGrid;\n  if (cleared > 0) {\n    const pts = [0, 100, 300, 500, 800][cleared] * cd.s.level;\n    cd.s.lines += cleared;\n    cd.s.score += pts;\n    cd.s.level = Math.floor(cd.s.lines / 10) + 1;\n    cd.s.dropInterval = Math.max(6, 40 - (cd.s.level - 1) * 4);\n    addEvent('lines+' + cleared + ' pts+' + pts);\n  }\n}\nfunction spawnNext(): void {\n  cd.s.piece = { type: cd.s.nextType, rot: 0, x: 3, y: 0 };\n  if (!cd.s.bag || cd.s.bag.length === 0) cd.s.bag = shuffleBag();\n  cd.s.nextType = cd.s.bag.pop();\n  if (collides(cd.s.piece.type, cd.s.piece.rot, cd.s.piece.x, cd.s.piece.y)) { cd.s.gameOver = true; addEvent('gameover'); }\n}\nfunction lockPiece(): void {\n  const cells = cellsOf(cd.s.piece.type, cd.s.piece.rot);\n  for (const cc of cells) {\n    const row = cd.s.piece.y + cc[0], col = cd.s.piece.x + cc[1];\n    if (row >= 0 && row < ROWS && col >= 0 && col < COLS) cd.s.grid[row][col] = cd.s.piece.type + 1;\n  }\n  clearLines();\n  spawnNext();\n}\nfunction resetGame(): void {\n  cd.s.rngA = FIXED_SEED;\n  cd.s.grid = [];\n  for (let i = 0; i < ROWS; i++) cd.s.grid.push(new Array(COLS).fill(0));\n  cd.s.score = 0; cd.s.lines = 0; cd.s.level = 1; cd.s.gameOver = false; cd.s.gravity = 0;\n  cd.s.dropInterval = 40; cd.s.events = []; cd.s.tick = 0; cd.s.started = true;\n  cd.s.bag = shuffleBag();\n  cd.s.nextType = cd.s.bag.pop();\n  cd.s.piece = { type: cd.s.bag.pop(), rot: 0, x: 3, y: 0 };\n  addEvent('start');\n  if (collides(cd.s.piece.type, cd.s.piece.rot, cd.s.piece.x, cd.s.piece.y)) cd.s.gameOver = true;\n}\n\nif (!cd.s) { cd.s = {}; resetGame(); }\nconst s: any = cd.s;\ns.tick++;\n\n// ----- input -----\nconst left = wasPressed('MoveLeft');\nconst right = wasPressed('MoveRight');\nconst rot = wasPressed('Rotate');\nconst soft = isPressed('SoftDrop');\nconst hard = wasPressed('HardDrop');\nconst restart = wasPressed('Restart');\n\nif (restart) resetGame();\n\nif (!s.gameOver) {\n  if (hard) {\n    let dropped = 0;\n    while (!collides(s.piece.type, s.piece.rot, s.piece.x, s.piece.y + 1)) { s.piece.y++; dropped++; }\n    s.score += dropped * 2;\n    lockPiece();\n  } else {\n    if (left && !collides(s.piece.type, s.piece.rot, s.piece.x - 1, s.piece.y)) s.piece.x--;\n    if (right && !collides(s.piece.type, s.piece.rot, s.piece.x + 1, s.piece.y)) s.piece.x++;\n    if (rot) {\n      const nr = (s.piece.rot + 1) % 4;\n      if (!collides(s.piece.type, nr, s.piece.x, s.piece.y)) s.piece.rot = nr;\n      else if (!collides(s.piece.type, nr, s.piece.x - 1, s.piece.y)) { s.piece.rot = nr; s.piece.x--; }\n      else if (!collides(s.piece.type, nr, s.piece.x + 1, s.piece.y)) { s.piece.rot = nr; s.piece.x++; }\n    }\n    if (soft) {\n      if (!collides(s.piece.type, s.piece.rot, s.piece.x, s.piece.y + 1)) { s.piece.y++; s.score += 1; }\n      else lockPiece();\n    } else {\n      s.gravity++;\n      if (s.gravity >= s.dropInterval) {\n        s.gravity = 0;\n        if (!collides(s.piece.type, s.piece.rot, s.piece.x, s.piece.y + 1)) s.piece.y++;\n        else lockPiece();\n      }\n    }\n  }\n}\n\n// ----- render (instance source: CellInstances cube) -----\nconst inst = api.scene.instances('entity:176b5fc9-b770-4c5f-b9b8-901000bfcc60', 220);\nconst render: number[][] = [];\nfor (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++) if (s.grid[row][col] !== 0) render.push([col, row]);\nif (!s.gameOver && s.piece) {\n  const cells = cellsOf(s.piece.type, s.piece.rot);\n  for (const cc of cells) {\n    const row = s.piece.y + cc[0], col = s.piece.x + cc[1];\n    if (row >= 0 && row < ROWS && col >= 0 && col < COLS) render.push([col, row]);\n  }\n}\nfor (let i = 0; i < 220; i++) {\n  let pos: any;\n  if (i < render.length) { const cell = render[i]; pos = { x: cell[0] - 4.5, y: 0.5, z: cell[1] }; }\n  else pos = { x: -50, y: -50, z: -50 };\n  inst.set(i, { position: pos });\n}\n\n// ----- authoritative gameplay state publication -----\nconst obs = {\n  status: s.gameOver ? 'over' : 'playing',\n  score: s.score, level: s.level, lines: s.lines, tick: s.tick,\n  piece: s.piece ? { type: s.piece.type, rot: s.piece.rot, x: s.piece.x, y: s.piece.y } : null,\n  next: s.nextType, events: s.events.slice(-6)\n};\ntry { (api.scene as any).observe('tetris.state', obs); } catch (e) { /* observe unavailable */ }\napi.scene.hudText('state', JSON.stringify(obs));\n",
+            "textRevision": 3,
+            "enabled": true,
+            "order": 0,
+            "capabilities": [
+              "read",
+              "input",
+              "scene"
+            ],
+            "digest": "sha256:c1aca7f0e5e29d8c1fa3a833f17b00c2586378c3def27a97ba787bbc1fb4ea63"
+          }
+        ],
+        "assets": [],
+        "settings": {
+          "studio.camera.main": {
+            "projection": "orthographic",
+            "target": {
+              "x": 0,
+              "y": 0,
+              "z": 9.5
+            },
+            "distance": 30,
+            "azimuthDegrees": 0,
+            "elevationDegrees": 90,
+            "fovDegrees": 45,
+            "orthographicSize": 11,
+            "near": 0.1,
+            "far": 200
+          }
+        },
+        "migration": {
+          "fromVersion": null,
+          "migratedAt": null,
+          "sourceDigest": null
+        }
+      }
+    },
+    {
+      "genre": "jigsaw",
+      "provenance": {
+        "source": "D:/HaiyueStudio/.g12-reviewed/AIStudio/evals/evidence/g12/runs/3fca989e4ee1/codex/jigsaw/g12-codex-jigsaw-4d33ec83-f69a-407e-a90f-e966cb86eaa6/project/.haiyue-project.json",
+        "sha256": "e9f427e53c121bc26fd040d55f4dafa2b202605e714a34bcea98a1accc206120",
+        "purpose": "G05 behavior browsing of preserved M12 projects; not M12 gameplay acceptance"
+      },
+      "projectId": "project:6c2a56e1-3a41-453b-8332-d1866c17539c",
+      "document": {
+        "schemaVersion": 2,
+        "id": "document:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+        "revision": 20,
+        "savedRevision": 20,
+        "scenes": [
+          {
+            "id": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Main",
+            "rootEntityIds": [
+              "entity:1cad56cd-ba14-428d-81cc-c6192b356237",
+              "entity:7596ed23-d548-49a2-80cc-7e5f228f502d",
+              "entity:62722f4c-430c-4fd4-8e03-1d52eb1139da",
+              "entity:80922a9a-df77-4737-826e-e0ac61d7b3ef",
+              "entity:3fcf22ab-4126-4124-b06a-a207a2f54ee7",
+              "entity:d3f8c1b0-23a1-4a7f-9ff5-a71bc41adc24",
+              "entity:f32d5e00-edee-408e-950a-793864a7c3f5",
+              "entity:a38d8ad3-04bc-4f60-afd8-b4e12cbedc98",
+              "entity:57e460e2-1ff8-4e25-96ed-e991aee842eb",
+              "entity:2566d374-ea32-4233-a6c6-3074d72c4645",
+              "entity:092c5a17-f2ec-478a-b84e-48f4b1e374f2",
+              "entity:d209f9d3-cd66-4c58-a7e5-952674e768a0",
+              "entity:82836165-4959-4108-aa33-f90876b652fc",
+              "entity:5cbc7b8e-2ae4-4412-8493-058cabc5e2fb",
+              "entity:1f9cd853-d3cc-4430-a671-58ab1a9b4077",
+              "entity:31eab733-e94d-456e-afb2-18bc3194d058"
+            ]
+          }
+        ],
+        "entities": [
+          {
+            "id": "entity:092c5a17-f2ec-478a-b84e-48f4b1e374f2",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 07",
+            "parentId": null,
+            "order": 10,
+            "componentIds": [
+              "component:transform:7c420c8c-fb75-4f24-8373-269911a3af79",
+              "component:geometry:352c364a-1873-42a4-aa05-77c83ae2f191",
+              "component:material:0fc8e7b5-71af-49c4-88ce-b45f8c611237"
+            ]
+          },
+          {
+            "id": "entity:1cad56cd-ba14-428d-81cc-c6192b356237",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Table",
+            "parentId": null,
+            "order": 0,
+            "componentIds": [
+              "component:transform:e43d44ed-9447-4f61-a865-e3b88f03012c",
+              "component:geometry:4e13c597-8c5a-45ae-8d67-16db883642ff",
+              "component:material:0a7dbdd2-0adf-4f3c-b621-a01a11f696c3"
+            ]
+          },
+          {
+            "id": "entity:1f9cd853-d3cc-4430-a671-58ab1a9b4077",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 11",
+            "parentId": null,
+            "order": 14,
+            "componentIds": [
+              "component:transform:5d6533c3-4e47-45d3-84bb-d03736dd3a59",
+              "component:geometry:80b00568-a730-4b7f-a7a2-82a325ee117f",
+              "component:material:df5d38bb-cbce-49f8-bd00-05f64a79ee0d"
+            ]
+          },
+          {
+            "id": "entity:2566d374-ea32-4233-a6c6-3074d72c4645",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 06",
+            "parentId": null,
+            "order": 9,
+            "componentIds": [
+              "component:transform:0a659d4b-c9e8-40c4-a180-51f862b61211",
+              "component:geometry:20172614-a904-4291-b864-dc43f5348e25",
+              "component:material:1102d61c-6477-4e7f-ba51-f76424ff935f"
+            ]
+          },
+          {
+            "id": "entity:31eab733-e94d-456e-afb2-18bc3194d058",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 12",
+            "parentId": null,
+            "order": 15,
+            "componentIds": [
+              "component:transform:670973ba-532c-403d-854f-90fd2123f21e",
+              "component:geometry:3f5af38e-9a14-46df-b815-08fe7a64ff05",
+              "component:material:76400488-7c88-47d2-bf2e-97c93b5455c4"
+            ]
+          },
+          {
+            "id": "entity:3fcf22ab-4126-4124-b06a-a207a2f54ee7",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 01",
+            "parentId": null,
+            "order": 4,
+            "componentIds": [
+              "component:transform:fb460832-6e17-4b28-a38b-e0d1cb975e1d",
+              "component:geometry:a04565e1-fd5f-4495-897c-59224717342e",
+              "component:material:25e587c6-128a-4e86-a436-f7d91ab428b2"
+            ]
+          },
+          {
+            "id": "entity:57e460e2-1ff8-4e25-96ed-e991aee842eb",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 05",
+            "parentId": null,
+            "order": 8,
+            "componentIds": [
+              "component:transform:7c5e741a-431e-4c87-b250-5a68c5e98af2",
+              "component:geometry:4a492441-af2b-49be-b077-98623c17d5dd",
+              "component:material:195d2343-cf6f-4952-bdad-89337c388da9"
+            ]
+          },
+          {
+            "id": "entity:5cbc7b8e-2ae4-4412-8493-058cabc5e2fb",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 10",
+            "parentId": null,
+            "order": 13,
+            "componentIds": [
+              "component:transform:ffda9d85-da2d-41bc-85ec-fa0bae3941e1",
+              "component:geometry:9db4570f-b973-4921-b73e-4d4d11af3054",
+              "component:material:e5f32278-582c-44dd-b5d6-677e02ab8553"
+            ]
+          },
+          {
+            "id": "entity:62722f4c-430c-4fd4-8e03-1d52eb1139da",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Jigsaw Game Controller",
+            "parentId": null,
+            "order": 2,
+            "componentIds": [
+              "component:transform:495561c2-c4db-4cef-b27b-eddfe06c17f0"
+            ]
+          },
+          {
+            "id": "entity:7596ed23-d548-49a2-80cc-7e5f228f502d",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Puzzle Board",
+            "parentId": null,
+            "order": 1,
+            "componentIds": [
+              "component:transform:b984b4ad-b302-4164-966c-52be402c1564",
+              "component:geometry:f5ecae94-ecea-4b30-aad9-55a17be32eaa",
+              "component:material:62424534-588f-44c4-930d-2f2c149d1027"
+            ]
+          },
+          {
+            "id": "entity:80922a9a-df77-4737-826e-e0ac61d7b3ef",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Soft Ambient",
+            "parentId": null,
+            "order": 3,
+            "componentIds": [
+              "component:transform:e5197a51-64b5-4b4f-a3f8-610815533e28",
+              "component:light:e034e5b8-879c-42b3-ba9c-62b1d25bbb90"
+            ]
+          },
+          {
+            "id": "entity:82836165-4959-4108-aa33-f90876b652fc",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 09",
+            "parentId": null,
+            "order": 12,
+            "componentIds": [
+              "component:transform:30679bcf-3638-425e-8803-7ec9275fc851",
+              "component:geometry:2f388520-8472-4be9-850f-98a0f7ecca82",
+              "component:material:60343472-1199-454d-999b-575402c969c6"
+            ]
+          },
+          {
+            "id": "entity:a38d8ad3-04bc-4f60-afd8-b4e12cbedc98",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 04",
+            "parentId": null,
+            "order": 7,
+            "componentIds": [
+              "component:transform:d9a5edcb-ede5-4d8d-b2ca-ec81a9626c36",
+              "component:geometry:f81f308d-cb30-45aa-93f0-52444f05b004",
+              "component:material:b1da0d73-a007-421d-a450-0844bcf230d6"
+            ]
+          },
+          {
+            "id": "entity:d209f9d3-cd66-4c58-a7e5-952674e768a0",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 08",
+            "parentId": null,
+            "order": 11,
+            "componentIds": [
+              "component:transform:61db7242-6d1c-4a6b-8b40-717481f2b705",
+              "component:geometry:a697274d-339a-4c7e-9e00-b21c86b5bc2b",
+              "component:material:8e9017a8-c605-41bf-a26f-7fd247353490"
+            ]
+          },
+          {
+            "id": "entity:d3f8c1b0-23a1-4a7f-9ff5-a71bc41adc24",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 02",
+            "parentId": null,
+            "order": 5,
+            "componentIds": [
+              "component:transform:bfc354a3-0159-4b8e-ba27-5babd880f05a",
+              "component:geometry:3e32f989-2063-4c61-8f56-6af653f33073",
+              "component:material:81a93f6b-760f-498e-b66f-fa278d91aafc"
+            ]
+          },
+          {
+            "id": "entity:f32d5e00-edee-408e-950a-793864a7c3f5",
+            "sceneId": "scene:7085b406-03be-4b5b-ae45-2d3011e76c8b",
+            "name": "Piece 03",
+            "parentId": null,
+            "order": 6,
+            "componentIds": [
+              "component:transform:dce99bbf-ffa6-45cb-86b5-ae66db2249e1",
+              "component:geometry:5c6563f1-0ec6-4fe6-95ae-8b01db5a7f77",
+              "component:material:7b0e07af-c5e4-48f8-831b-2acaf3722f4b"
+            ]
+          }
+        ],
+        "components": [
+          {
+            "id": "component:geometry:20172614-a904-4291-b864-dc43f5348e25",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:2f388520-8472-4be9-850f-98a0f7ecca82",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:352c364a-1873-42a4-aa05-77c83ae2f191",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:3e32f989-2063-4c61-8f56-6af653f33073",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:3f5af38e-9a14-46df-b815-08fe7a64ff05",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:4a492441-af2b-49be-b077-98623c17d5dd",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:4e13c597-8c5a-45ae-8d67-16db883642ff",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "plane"
+            }
+          },
+          {
+            "id": "component:geometry:5c6563f1-0ec6-4fe6-95ae-8b01db5a7f77",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:80b00568-a730-4b7f-a7a2-82a325ee117f",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:9db4570f-b973-4921-b73e-4d4d11af3054",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:a04565e1-fd5f-4495-897c-59224717342e",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:a697274d-339a-4c7e-9e00-b21c86b5bc2b",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:f5ecae94-ecea-4b30-aad9-55a17be32eaa",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:f81f308d-cb30-45aa-93f0-52444f05b004",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:light:e034e5b8-879c-42b3-ba9c-62b1d25bbb90",
+            "type": "haiyue.light.ambient",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "color": [
+                0.7,
+                0.8,
+                1
+              ],
+              "intensity": 0.25
+            }
+          },
+          {
+            "id": "component:material:0a7dbdd2-0adf-4f3c-b621-a01a11f696c3",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.12,
+                0.18,
+                0.22,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:0fc8e7b5-71af-49c4-88ce-b45f8c611237",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.28,
+                0.42,
+                0.95,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:1102d61c-6477-4e7f-ba51-f76424ff935f",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.15,
+                0.62,
+                0.88,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:195d2343-cf6f-4952-bdad-89337c388da9",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.18,
+                0.75,
+                0.62,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:25e587c6-128a-4e86-a436-f7d91ab428b2",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.95,
+                0.28,
+                0.3,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:60343472-1199-454d-999b-575402c969c6",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.76,
+                0.32,
+                0.86,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:62424534-588f-44c4-930d-2f2c149d1027",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.08,
+                0.1,
+                0.13,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:76400488-7c88-47d2-bf2e-97c93b5455c4",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.8,
+                0.82,
+                0.88,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:7b0e07af-c5e4-48f8-831b-2acaf3722f4b",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.98,
+                0.82,
+                0.2,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:81a93f6b-760f-498e-b66f-fa278d91aafc",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                1,
+                0.55,
+                0.18,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:8e9017a8-c605-41bf-a26f-7fd247353490",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.48,
+                0.3,
+                0.9,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:b1da0d73-a007-421d-a450-0844bcf230d6",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.45,
+                0.82,
+                0.3,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:df5d38bb-cbce-49f8-bd00-05f64a79ee0d",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.72,
+                0.48,
+                0.3,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:e5f32278-582c-44dd-b5d6-677e02ab8553",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.94,
+                0.34,
+                0.66,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:transform:0a659d4b-c9e8-40c4-a180-51f862b61211",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 5.2,
+                "y": 0.18,
+                "z": -2.7
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:30679bcf-3638-425e-8803-7ec9275fc851",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -2.7,
+                "y": 0.18,
+                "z": 4.1
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:495561c2-c4db-4cef-b27b-eddfe06c17f0",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:5d6533c3-4e47-45d3-84bb-d03736dd3a59",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 2.7,
+                "y": 0.18,
+                "z": 4.1
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:61db7242-6d1c-4a6b-8b40-717481f2b705",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -4.9,
+                "y": 0.18,
+                "z": 4
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:670973ba-532c-403d-854f-90fd2123f21e",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 5,
+                "y": 0.18,
+                "z": 3.4
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:7c420c8c-fb75-4f24-8373-269911a3af79",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -5,
+                "y": 0.18,
+                "z": 2.9
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:7c5e741a-431e-4c87-b250-5a68c5e98af2",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 3.8,
+                "y": 0.18,
+                "z": -4
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:b984b4ad-b302-4164-966c-52be402c1564",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 6.5,
+                "y": 0.12,
+                "z": 4.9
+              }
+            }
+          },
+          {
+            "id": "component:transform:bfc354a3-0159-4b8e-ba27-5babd880f05a",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -2.9,
+                "y": 0.18,
+                "z": -4.2
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:d9a5edcb-ede5-4d8d-b2ca-ec81a9626c36",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 1.5,
+                "y": 0.18,
+                "z": -4.1
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:dce99bbf-ffa6-45cb-86b5-ae66db2249e1",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -0.8,
+                "y": 0.18,
+                "z": -4.1
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:e43d44ed-9447-4f61-a865-e3b88f03012c",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": -0.12,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 14,
+                "y": 1,
+                "z": 10
+              }
+            }
+          },
+          {
+            "id": "component:transform:e5197a51-64b5-4b4f-a3f8-610815533e28",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 5,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:fb460832-6e17-4b28-a38b-e0d1cb975e1d",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -5,
+                "y": 0.18,
+                "z": -3.7
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          },
+          {
+            "id": "component:transform:ffda9d85-da2d-41bc-85ec-fa0bae3941e1",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0.18,
+                "z": 4.1
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.45,
+                "y": 0.22,
+                "z": 1.45
+              }
+            }
+          }
+        ],
+        "scripts": [
+          {
+            "id": "script:4b016102-8657-4969-b328-b98d34245e81",
+            "entityId": "entity:62722f4c-430c-4fd4-8e03-1d52eb1139da",
+            "name": "Entity Script",
+            "sourcePath": "scripts/4b016102-8657-4969-b328-b98d34245e81.ts",
+            "source": "\nconst S:any=component;\nconst ids=[\"entity:3fcf22ab-4126-4124-b06a-a207a2f54ee7\",\"entity:d3f8c1b0-23a1-4a7f-9ff5-a71bc41adc24\",\"entity:f32d5e00-edee-408e-950a-793864a7c3f5\",\"entity:a38d8ad3-04bc-4f60-afd8-b4e12cbedc98\",\"entity:57e460e2-1ff8-4e25-96ed-e991aee842eb\",\"entity:2566d374-ea32-4233-a6c6-3074d72c4645\",\"entity:092c5a17-f2ec-478a-b84e-48f4b1e374f2\",\"entity:d209f9d3-cd66-4c58-a7e5-952674e768a0\",\"entity:82836165-4959-4108-aa33-f90876b652fc\",\"entity:5cbc7b8e-2ae4-4412-8493-058cabc5e2fb\",\"entity:1f9cd853-d3cc-4430-a671-58ab1a9b4077\",\"entity:31eab733-e94d-456e-afb2-18bc3194d058\"];\nconst targets:any[]=[];for(let i=0;i<12;i++)targets.push({x:-2.25+(i%4)*1.5,z:-1.5+Math.floor(i/4)*1.5});\nS.triggers=[];\nfunction emit(name:string){S.events.push(name);S.triggers.push(name);}\nfunction seededPositions(seed:number){let a=seed>>>0;const zones:any[]=[[-5,-3.7],[-3.3,-4.1],[-1.5,-4.1],[0.5,-4.1],[2.4,-4.1],[4.6,-3.7],[-5,3.4],[-3.5,4.05],[-1.4,4.1],[1.2,4.1],[3.2,4],[5,3.3]];for(let i=11;i>0;i--){a=(a*1664525+1013904223)>>>0;const j=a%(i+1),t=zones[i];zones[i]=zones[j];zones[j]=t;}return zones.map((v:any)=>({x:v[0],z:v[1]}));}\nfunction reset(seed:number,initial:boolean){const wasCompleted=S.status===\"completed\";S.seed=seed;S.positions=seededPositions(seed);S.locked=new Array(12).fill(false);S.drag=-1;S.status=\"playing\";S.elapsedMs=0;S.completedCount=0;if(!initial){emit(\"reshuffle-accepted\");emit(wasCompleted?\"game-restarted\":\"puzzle-reset\");}emit(\"reshuffled\");}\nif(!S.initialized){S.initialized=true;S.events=[];S.shuffleCount=0;reset(12031986,true);emit(\"game-started\");}\nfor(const e of api.input.pointerEvents()){\n const wx=(e.x-0.5)*14,wz=(0.5-e.y)*10;\n if(e.type===\"down\"){\n  if(e.x>=0.82&&e.x<=0.98&&e.y>=0.04&&e.y<=0.14){emit(\"reshuffle-requested\");S.shuffleCount++;reset(12031986+S.shuffleCount,false);continue;}\n  let hit=-1,bd=999;for(let i=0;i<12;i++){const dx=S.positions[i].x-wx,dz=S.positions[i].z-wz,d=dx*dx+dz*dz;if(d<bd&&d<1){bd=d;hit=i;}}\n  if(hit<0){emit(\"pointer-down-rejected\");emit(\"empty-space-selected\");}\n  else if(S.locked[hit]){emit(\"pointer-down-rejected\");emit(\"locked-piece-rejected\");}\n  else if(S.drag>=0){emit(\"pointer-down-rejected\");emit(\"drag-already-active\");}\n  else{S.drag=hit;emit(\"pointer-down-accepted\");emit(\"drag-started\");}\n }else if(e.type===\"move\"){\n  if(S.drag>=0){S.positions[S.drag]={x:Math.max(-5.4,Math.min(5.4,wx)),z:Math.max(-4.2,Math.min(4.2,wz))};emit(\"drag-moved\");}\n  else emit(\"pointer-move-ignored\");\n }else if(e.type===\"up\"||e.type===\"cancel\"){\n  if(S.drag<0){emit(\"release-rejected\");emit(\"no-active-drag\");continue;}\n  const i=S.drag,dx=S.positions[i].x-targets[i].x,dz=S.positions[i].z-targets[i].z;emit(\"piece-released\");\n  if(e.type===\"cancel\"){emit(\"release-cancelled\");emit(\"drag-cancelled\");}\n  else if(dx*dx+dz*dz<=0.3025){S.positions[i]={x:targets[i].x,z:targets[i].z};S.locked[i]=true;emit(\"release-accepted\");emit(\"piece-snapped\");S.completedCount=S.locked.filter(Boolean).length;emit(\"score-changed\");if(S.completedCount===12&&S.status!==\"completed\"){S.status=\"completed\";emit(\"puzzle-completed\");emit(\"game-won\");}}\n  else{emit(\"release-rejected\");emit(\"wrong-position-rejected\");emit(\"wrong-release\");}\n  S.drag=-1;emit(\"drag-ended\");\n }\n}\nif(S.status===\"playing\")S.elapsedMs+=delta;\nfor(let i=0;i<12;i++)api.scene.instances(ids[i],1).set(0,{position:{x:S.positions[i].x,y:S.drag===i?0.38:0.18,z:S.positions[i].z},rotationDegrees:{x:0,y:0,z:0},scale:{x:1.45,y:0.22,z:1.45}});\nconst sec=(S.elapsedMs/1000).toFixed(1);\napi.scene.hudText(\"jigsaw-title\",\"十二块拼图  |  拖动彩色块到中央对应格\",{});\napi.scene.hudText(\"jigsaw-status\",\"用时 \"+sec+\" 秒 · 已完成 \"+S.completedCount+\"/12 · 右上角点击重新洗牌\",{});\nif(S.status===\"completed\")api.scene.hudText(\"jigsaw-success\",\"完成！用时 \"+sec+\" 秒 🎉  点击右上角重玩\",{});else api.scene.removeHudText(\"jigsaw-success\");\nconst interactionTargets:any[]=[{id:\"reshuffle\",kind:\"button\",x:0.82,y:0.04,width:0.16,height:0.10,enabled:true}];\nfor(let i=0;i<12;i++)interactionTargets.push({id:\"piece-\"+(i+1),kind:\"draggable\",x:S.positions[i].x/14+0.5,y:0.5-S.positions[i].z/10,width:0.11,height:0.15,enabled:!S.locked[i]});\n(api.scene as any).observe(\"jigsaw-gameplay\",{status:S.status,state:{seed:S.seed,shuffleCount:S.shuffleCount,elapsedMs:Math.round(S.elapsedMs),completedCount:S.completedCount,score:S.completedCount,draggingPiece:S.drag>=0?S.drag+1:null,locked:S.locked.slice(),positions:S.positions.map((p:any)=>({x:p.x,z:p.z}))},events:S.events.slice(-128),triggers:S.triggers.slice(),interactionTargets});\n",
+            "textRevision": 2,
+            "enabled": true,
+            "order": 0,
+            "capabilities": [
+              "input",
+              "scene",
+              "debug"
+            ],
+            "digest": "sha256:3cc4b6a6f16fdc8f3e09a846edc9eca73fb18738d128d1c66de021b4c80bc235"
+          }
+        ],
+        "assets": [],
+        "settings": {
+          "studio.camera.main": {
+            "projection": "orthographic",
+            "target": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "distance": 12,
+            "azimuthDegrees": 0,
+            "elevationDegrees": 90,
+            "fovDegrees": 45,
+            "orthographicSize": 12,
+            "near": 0.1,
+            "far": 1000
+          }
+        },
+        "migration": {
+          "fromVersion": null,
+          "migratedAt": null,
+          "sourceDigest": null
+        }
+      }
+    },
+    {
+      "genre": "platformer",
+      "provenance": {
+        "source": "D:/HaiyueStudio/.g12-reviewed/AIStudio/evals/evidence/g12/runs/3fca989e4ee1/codex/platformer/g12-codex-platformer-2550c25a-8a1c-4be1-94b4-47c782896bf7/project/.haiyue-project.json",
+        "sha256": "2390a58d9a64207df5c367968ce7d4be3be8006915968b70f2fa2af9f3931cff",
+        "purpose": "G05 behavior browsing of preserved M12 projects; not M12 gameplay acceptance"
+      },
+      "projectId": "project:55728119-ebf1-4d69-a90a-8248dbca6278",
+      "document": {
+        "schemaVersion": 2,
+        "id": "document:4953b873-0513-4ea7-b641-31479266aba7",
+        "revision": 6,
+        "savedRevision": 6,
+        "scenes": [
+          {
+            "id": "scene:4953b873-0513-4ea7-b641-31479266aba7",
+            "name": "Main",
+            "rootEntityIds": [
+              "entity:900379c1-f7d3-427c-92df-b74784b9d3c8",
+              "entity:7791b5bb-1ead-4eb3-9b4a-f902cec8d7d4"
+            ]
+          }
+        ],
+        "entities": [
+          {
+            "id": "entity:7791b5bb-1ead-4eb3-9b4a-f902cec8d7d4",
+            "sceneId": "scene:4953b873-0513-4ea7-b641-31479266aba7",
+            "name": "StartGround",
+            "parentId": null,
+            "order": 1,
+            "componentIds": [
+              "component:transform:90ac2782-ba55-4636-9ebd-e8d157bb076c",
+              "component:geometry:0744f3a3-8dec-4157-956c-bbba4698d94f",
+              "component:material:1d637207-6882-464b-94fd-1c3974a325ed"
+            ]
+          },
+          {
+            "id": "entity:900379c1-f7d3-427c-92df-b74784b9d3c8",
+            "sceneId": "scene:4953b873-0513-4ea7-b641-31479266aba7",
+            "name": "PlatformerController",
+            "parentId": null,
+            "order": 0,
+            "componentIds": [
+              "component:transform:0a5b89fe-6133-4ddc-b5a2-284419f27ee4"
+            ]
+          }
+        ],
+        "components": [
+          {
+            "id": "component:geometry:0744f3a3-8dec-4157-956c-bbba4698d94f",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:material:1d637207-6882-464b-94fd-1c3974a325ed",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.18,
+                0.42,
+                0.3,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:transform:0a5b89fe-6133-4ddc-b5a2-284419f27ee4",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:90ac2782-ba55-4636-9ebd-e8d157bb076c",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 2.5,
+                "y": -0.5,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 9,
+                "y": 1,
+                "z": 2
+              }
+            }
+          }
+        ],
+        "scripts": [
+          {
+            "id": "script:a4509b4a-4b5d-4054-90b9-2bd29def9d1f",
+            "entityId": "entity:900379c1-f7d3-427c-92df-b74784b9d3c8",
+            "name": "Entity Script",
+            "sourcePath": "scripts/a4509b4a-4b5d-4054-90b9-2bd29def9d1f.ts",
+            "source": "// @ts-ignore runtime-owned bounded state\nconst st=component.__game||(component.__game={x:0,y:1.1,vx:0,vy:0,grounded:false,checkpointX:0,checkpointY:1.1,coins:0,coinTaken:[false,false,false],health:3,status:\"playing\",events:[],tick:0,cameraX:6,moveDir:0});\nst.tick+=1;\nconst triggers=[\"telemetry-tick\"];triggers.pop();\nconst emit=(name=\"\")=>{triggers.push(name);st.events.push(name);};\nconst dt=1/60;\nconst left=api.input.isPressed(\"move-left\")||api.input.isDown(\"ArrowLeft\");\nconst right=api.input.isPressed(\"move-right\")||api.input.isDown(\"ArrowRight\");\nconst jump=api.input.wasPressed(\"jump\")||api.input.wasPressed(\"Space\");\nlet requestedDir=(right?1:0)-(left?1:0);\nif(left&&right){requestedDir=0;emit(\"move-input-rejected\");}\nif(st.status!==\"playing\"&&(requestedDir!==0||jump)){emit(\"terminal-input-rejected\");}\nconst nextDir=st.status===\"playing\"?requestedDir:0;\nif(nextDir!==st.moveDir){if(nextDir===0)emit(\"movement-stopped\");else{emit(\"movement-started\");emit(nextDir<0?\"move-left-accepted\":\"move-right-accepted\");}st.moveDir=nextDir;}\nst.vx=nextDir*5;\nif(jump){if(st.status!==\"playing\")emit(\"jump-rejected-terminal\");else if(!st.grounded)emit(\"jump-rejected-airborne\");else{st.vy=9;st.grounded=false;emit(\"jump-accepted\");emit(\"player-jumped\");}}\nst.vy-=24*dt;\nlet nx=st.x+st.vx*dt,ny=st.y+st.vy*dt;\nconst platforms=[{x0:-2,x1:7,y:0},{x0:8,x1:13,y:0},{x0:14,x1:20,y:1},{x0:21,x1:27,y:0},{x0:28,x1:36,y:0},{x0:5,x1:9,y:2.4},{x0:12,x1:16,y:3.5},{x0:19,x1:23,y:3}];\nconst wasGrounded=st.grounded;st.grounded=false;\nfor(const p of platforms){const ob=st.y-1,nb=ny-1;if(nx+.45>p.x0&&nx-.45<p.x1&&st.vy<=0&&ob>=p.y&&nb<=p.y){ny=p.y+1;st.vy=0;st.grounded=true;}}\nif(!wasGrounded&&st.grounded)emit(\"player-landed\");\nif(wasGrounded&&!st.grounded&&!jump)emit(\"player-left-platform\");\nst.x=nx;st.y=ny;\nconst coins=[{x:5.5,y:3.2},{x:15,y:5},{x:30,y:1.7}];\nfor(let i=0;i<3;i++){const c=coins[i];if(!st.coinTaken[i]&&Math.abs(st.x-c.x)<.8&&Math.abs(st.y-c.y)<1.2){st.coinTaken[i]=true;st.coins++;emit(\"coin-contact-accepted\");emit(\"coin-collected\");emit(\"score-changed\");}}\nif(st.x>17&&st.checkpointX<17){st.checkpointX=17;st.checkpointY=2.1;emit(\"checkpoint-contact-accepted\");emit(\"checkpoint-activated\");}\nconst hit=(st.x>10.2&&st.x<11.8&&st.y<1.4)||(st.x>24&&st.x<25.5&&st.y<1.4);\nif(hit||st.y<-5){st.health=Math.max(0,st.health-1);emit(hit?\"hazard-collision\":\"fall-threshold-crossed\");emit(\"damage-applied\");st.x=st.checkpointX;st.y=st.checkpointY;st.vx=0;st.vy=0;st.grounded=false;emit(\"checkpoint-restore-started\");emit(\"player-respawned\");emit(\"checkpoint-restored\");}\nif(st.x>34&&st.status===\"playing\"){emit(\"goal-contact-accepted\");st.status=\"won\";st.vx=0;emit(\"level-completed\");emit(\"game-won\");}\nst.cameraX+=(Math.max(6,st.x+4)-st.cameraX)*.12;\nif(st.events.length>64)st.events.splice(0,st.events.length-64);\napi.scene.hudText(\"platformer-title\",\"横版跳跃短关卡\");\napi.scene.hudText(\"platformer-status\",\"金币 \"+st.coins+\"/3  生命 \"+st.health+\"  检查点 \"+(st.checkpointX>0?\"已激活\":\"起点\")+\"  \"+(st.status===\"won\"?\"胜利！\":\"← → 移动 / Space 跳跃\"));\n// @ts-ignore generic observation API is supplied by Play runtime\napi.scene.observe(\"gameplay\",{status:st.status,state:{tick:st.tick,fixedDeltaSeconds:dt,player:{x:st.x,y:st.y,vx:st.vx,vy:st.vy,grounded:st.grounded,health:st.health,moveDirection:st.moveDir},camera:{x:st.cameraX,y:3,follow:true},checkpoint:{x:st.checkpointX,y:st.checkpointY,active:st.checkpointX>0},collectibles:{coins:st.coins,total:3,taken:st.coinTaken},score:st.coins,progress:Math.max(0,Math.min(1,st.x/34))},events:st.events,triggers:triggers,interactionTargets:[{id:\"coin-1\",kind:\"collectible\",x:.29,y:.42},{id:\"hazard-1\",kind:\"hazard\",x:.42,y:.58},{id:\"checkpoint\",kind:\"checkpoint\",x:.55,y:.55},{id:\"goal\",kind:\"goal\",x:.9,y:.5}]});",
+            "textRevision": 2,
+            "enabled": true,
+            "order": 0,
+            "capabilities": [
+              "input",
+              "scene"
+            ],
+            "digest": "sha256:e3a65dac9072812499b079489f10082ec760607a603d3f4fbf88b3956f84db63"
+          }
+        ],
+        "assets": [],
+        "settings": {
+          "studio.camera.main": {
+            "projection": "orthographic",
+            "target": {
+              "x": 8,
+              "y": 3,
+              "z": 0
+            },
+            "distance": 20,
+            "azimuthDegrees": 0,
+            "elevationDegrees": 0,
+            "fovDegrees": 45,
+            "orthographicSize": 12,
+            "near": 0.1,
+            "far": 1000
+          }
+        },
+        "migration": {
+          "fromVersion": null,
+          "migratedAt": null,
+          "sourceDigest": null
+        }
+      }
+    },
+    {
+      "genre": "racing",
+      "provenance": {
+        "source": "D:/HaiyueStudio/.g12-reviewed/AIStudio/evals/evidence/g12/runs/2f1e8a5491e1/codex/racing/g12-codex-racing-5ecfb1e2-209f-4628-9c08-8bd854415a82/project/.haiyue-project.json",
+        "sha256": "3f6212d797e56bbad0d9d02566204189308b7d4d9c8bfae9e9fbd86ae689f2e5",
+        "purpose": "G05 behavior browsing of preserved M12 projects; not M12 gameplay acceptance"
+      },
+      "projectId": "project:75fb2157-bd8f-4bf1-9bc4-67a52ece16c8",
+      "document": {
+        "schemaVersion": 2,
+        "id": "document:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+        "revision": 25,
+        "savedRevision": 25,
+        "scenes": [
+          {
+            "id": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "Main",
+            "rootEntityIds": [
+              "entity:0c42d83b-4643-4f9e-87c1-ce473cee392d",
+              "entity:ddfbb67f-1d36-4133-ba81-8464f7c42c53",
+              "entity:190a1ec6-1473-419e-b2ab-fa0fbbebd8e6",
+              "entity:46bce19e-5c85-4819-93b6-02c0c7d78b67",
+              "entity:7eff73f0-3c93-4b85-9f55-08276c19acec",
+              "entity:f98baef8-fb1f-46f7-aa33-d4df2726e7c4",
+              "entity:065f9113-43a3-40b7-bdb7-d6a062cf26f6",
+              "entity:bbb8955a-e150-44cf-87d1-166f8f98e01c",
+              "entity:c2cdf602-c25c-4e04-9e11-d2b6ab0abcbd",
+              "entity:fbed7361-3fcb-41b0-8cfa-f5aa1a3a4983",
+              "entity:a0ecd073-f07a-4ddd-aa91-95a1c1e457fc",
+              "entity:f0f193f1-f80a-4d4f-bf21-ee8a7dcc7720",
+              "entity:106529cd-c542-430f-a7b7-0b457cd5fbf9"
+            ]
+          }
+        ],
+        "entities": [
+          {
+            "id": "entity:065f9113-43a3-40b7-bdb7-d6a062cf26f6",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "PlayerCar",
+            "parentId": null,
+            "order": 6,
+            "componentIds": [
+              "component:transform:b9786e49-54b9-430c-8d3a-8094ec06eded",
+              "component:geometry:2bb6fbc6-2021-4c78-924d-b76ab5cf19b6",
+              "component:material:4cc75781-60f0-464f-bc23-ff7b609033f6"
+            ]
+          },
+          {
+            "id": "entity:0c42d83b-4643-4f9e-87c1-ce473cee392d",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "RaceController",
+            "parentId": null,
+            "order": 0,
+            "componentIds": [
+              "component:transform:2aa36639-ede2-463c-9973-5344f6bcfb03",
+              "component:18d14e8f-9c18-4376-93f5-3bd50e3dfd19",
+              "component:4e1622f8-cbae-480c-9495-30d0d391015f"
+            ]
+          },
+          {
+            "id": "entity:106529cd-c542-430f-a7b7-0b457cd5fbf9",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "Sun",
+            "parentId": null,
+            "order": 12,
+            "componentIds": [
+              "component:transform:8b8239e3-1fac-4041-8c26-ec0444edb5b1",
+              "component:light:d81045c9-8f7b-431d-89d5-2cfcd8cfb0fa"
+            ]
+          },
+          {
+            "id": "entity:190a1ec6-1473-419e-b2ab-fa0fbbebd8e6",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "RoadNorth",
+            "parentId": null,
+            "order": 2,
+            "componentIds": [
+              "component:transform:a8cee9b3-7468-4c8e-8b95-4185506684cd",
+              "component:geometry:99f39348-38cc-4127-ae3e-d42044f7143b",
+              "component:material:12c6f01c-d980-4218-8753-87f9a4a7dc55"
+            ]
+          },
+          {
+            "id": "entity:46bce19e-5c85-4819-93b6-02c0c7d78b67",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "RoadSouth",
+            "parentId": null,
+            "order": 3,
+            "componentIds": [
+              "component:transform:0f094568-49b7-44ce-9b42-1073ac38e586",
+              "component:geometry:c7ef8d80-a8d0-427b-b902-12036bab8e8d",
+              "component:material:602ace1c-bd98-46c3-87f0-163cf3f625cf"
+            ]
+          },
+          {
+            "id": "entity:7eff73f0-3c93-4b85-9f55-08276c19acec",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "RoadWest",
+            "parentId": null,
+            "order": 4,
+            "componentIds": [
+              "component:transform:325c009f-5e49-466c-95d1-51bcf16dd70c",
+              "component:geometry:c43cdc92-c9bc-480a-b8f8-4901dfb6a974",
+              "component:material:c2359f68-5465-40e3-8694-5f19d61ad6f8"
+            ]
+          },
+          {
+            "id": "entity:a0ecd073-f07a-4ddd-aa91-95a1c1e457fc",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "Checkpoint3",
+            "parentId": null,
+            "order": 10,
+            "componentIds": [
+              "component:transform:4b81c7df-ca9e-475b-b640-98ade5124f93",
+              "component:geometry:40f15e0c-b707-4b90-83b3-425d79690f6f",
+              "component:material:b4e0c67e-e849-425b-aff2-7c95a1b1259e"
+            ]
+          },
+          {
+            "id": "entity:bbb8955a-e150-44cf-87d1-166f8f98e01c",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "CheckpointStart",
+            "parentId": null,
+            "order": 7,
+            "componentIds": [
+              "component:transform:e9ae1f90-f7aa-4a73-b8e4-138c10b9881c",
+              "component:geometry:2019b12c-1a0d-4523-a146-a597400cbad1",
+              "component:material:52049c96-f6a0-4c20-bee7-22da3ec41ac2"
+            ]
+          },
+          {
+            "id": "entity:c2cdf602-c25c-4e04-9e11-d2b6ab0abcbd",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "Checkpoint1",
+            "parentId": null,
+            "order": 8,
+            "componentIds": [
+              "component:transform:bad1c49b-3ff4-48a7-a4d5-c2ab134b45cf",
+              "component:geometry:39dec460-d744-4b78-bd85-006dd5b425d4",
+              "component:material:f9c3c564-cf57-415c-9400-9bddf0f553e4"
+            ]
+          },
+          {
+            "id": "entity:ddfbb67f-1d36-4133-ba81-8464f7c42c53",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "Grass",
+            "parentId": null,
+            "order": 1,
+            "componentIds": [
+              "component:transform:417c4e8c-daf6-499c-82f2-bc720824d1cc",
+              "component:geometry:87a5b903-007f-4d45-8037-b9da822aec1d",
+              "component:material:128fa03c-b805-453a-a297-18f8fbe0a904"
+            ]
+          },
+          {
+            "id": "entity:f0f193f1-f80a-4d4f-bf21-ee8a7dcc7720",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "Ambient",
+            "parentId": null,
+            "order": 11,
+            "componentIds": [
+              "component:transform:79c1d77a-6694-457e-b4ba-64dbcc1320f1",
+              "component:light:756ccbd0-f280-4882-8ad5-6dc69d26c9da"
+            ]
+          },
+          {
+            "id": "entity:f98baef8-fb1f-46f7-aa33-d4df2726e7c4",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "RoadEast",
+            "parentId": null,
+            "order": 5,
+            "componentIds": [
+              "component:transform:02fc1e29-45dc-4187-932c-4a763bef36ba",
+              "component:geometry:912d85cd-38d4-40b3-a6b7-d2807b605483",
+              "component:material:3c764ef8-f181-4d45-aa7e-a1129fce8974"
+            ]
+          },
+          {
+            "id": "entity:fbed7361-3fcb-41b0-8cfa-f5aa1a3a4983",
+            "sceneId": "scene:7c6033ce-c6e9-43e1-acfa-d007c671b97c",
+            "name": "Checkpoint2",
+            "parentId": null,
+            "order": 9,
+            "componentIds": [
+              "component:transform:dd4060ce-9cf3-45e8-8b65-e67d16a79491",
+              "component:geometry:b1f7e54b-be66-46df-9bfe-ddaa58bfd124",
+              "component:material:284a4522-4507-4347-ae24-31d1882c49ec"
+            ]
+          }
+        ],
+        "components": [
+          {
+            "id": "component:18d14e8f-9c18-4376-93f5-3bd50e3dfd19",
+            "type": "haiyue.simulation.settings",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "tickRateHz": 60,
+              "seed": "short-track-race-v1",
+              "maxSubSteps": 1000
+            }
+          },
+          {
+            "id": "component:4e1622f8-cbae-480c-9495-30d0d391015f",
+            "type": "haiyue.input.action-map",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "actions": [
+                {
+                  "name": "Accelerate",
+                  "keys": [
+                    "ArrowUp",
+                    "KeyW"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "Brake",
+                  "keys": [
+                    "ArrowDown",
+                    "KeyS"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "Left",
+                  "keys": [
+                    "ArrowLeft",
+                    "KeyA"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "Right",
+                  "keys": [
+                    "ArrowRight",
+                    "KeyD"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                },
+                {
+                  "name": "Restart",
+                  "keys": [
+                    "KeyR"
+                  ],
+                  "pointerButtons": [],
+                  "gamepadButtons": [],
+                  "gamepadAxes": []
+                }
+              ]
+            }
+          },
+          {
+            "id": "component:geometry:2019b12c-1a0d-4523-a146-a597400cbad1",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:2bb6fbc6-2021-4c78-924d-b76ab5cf19b6",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:39dec460-d744-4b78-bd85-006dd5b425d4",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:40f15e0c-b707-4b90-83b3-425d79690f6f",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:87a5b903-007f-4d45-8037-b9da822aec1d",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "plane"
+            }
+          },
+          {
+            "id": "component:geometry:912d85cd-38d4-40b3-a6b7-d2807b605483",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:99f39348-38cc-4127-ae3e-d42044f7143b",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:b1f7e54b-be66-46df-9bfe-ddaa58bfd124",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:c43cdc92-c9bc-480a-b8f8-4901dfb6a974",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:c7ef8d80-a8d0-427b-b902-12036bab8e8d",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:light:756ccbd0-f280-4882-8ad5-6dc69d26c9da",
+            "type": "haiyue.light.ambient",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "color": [
+                0.7,
+                0.8,
+                1
+              ],
+              "intensity": 0.25
+            }
+          },
+          {
+            "id": "component:light:d81045c9-8f7b-431d-89d5-2cfcd8cfb0fa",
+            "type": "haiyue.light.directional",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "color": [
+                1,
+                1,
+                1
+              ],
+              "intensity": 1,
+              "direction": [
+                -0.5,
+                -1,
+                -0.35
+              ],
+              "castShadow": true,
+              "shadow": {
+                "mapSize": 1024,
+                "extent": 20,
+                "near": 0.1,
+                "far": 60,
+                "bias": 0.0015,
+                "normalBias": 0.02
+              }
+            }
+          },
+          {
+            "id": "component:material:128fa03c-b805-453a-a297-18f8fbe0a904",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.12,
+                0.3,
+                0.12,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:12c6f01c-d980-4218-8753-87f9a4a7dc55",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.11,
+                0.12,
+                0.14,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:284a4522-4507-4347-ae24-31d1882c49ec",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.1,
+                0.8,
+                1,
+                0.65
+              ]
+            }
+          },
+          {
+            "id": "component:material:3c764ef8-f181-4d45-aa7e-a1129fce8974",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.11,
+                0.12,
+                0.14,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:4cc75781-60f0-464f-bc23-ff7b609033f6",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.9,
+                0.08,
+                0.03,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:52049c96-f6a0-4c20-bee7-22da3ec41ac2",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.95,
+                0.95,
+                0.95,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:602ace1c-bd98-46c3-87f0-163cf3f625cf",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.11,
+                0.12,
+                0.14,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:b4e0c67e-e849-425b-aff2-7c95a1b1259e",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.1,
+                0.8,
+                1,
+                0.65
+              ]
+            }
+          },
+          {
+            "id": "component:material:c2359f68-5465-40e3-8694-5f19d61ad6f8",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.11,
+                0.12,
+                0.14,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:f9c3c564-cf57-415c-9400-9bddf0f553e4",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                0.1,
+                0.8,
+                1,
+                0.65
+              ]
+            }
+          },
+          {
+            "id": "component:transform:02fc1e29-45dc-4187-932c-4a763bef36ba",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 10,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 6,
+                "y": 0.15,
+                "z": 20
+              }
+            }
+          },
+          {
+            "id": "component:transform:0f094568-49b7-44ce-9b42-1073ac38e586",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 10
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 26,
+                "y": 0.15,
+                "z": 6
+              }
+            }
+          },
+          {
+            "id": "component:transform:2aa36639-ede2-463c-9973-5344f6bcfb03",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:325c009f-5e49-466c-95d1-51bcf16dd70c",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -10,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 6,
+                "y": 0.15,
+                "z": 20
+              }
+            }
+          },
+          {
+            "id": "component:transform:417c4e8c-daf6-499c-82f2-bc720824d1cc",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": -0.15,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 42,
+                "y": 1,
+                "z": 34
+              }
+            }
+          },
+          {
+            "id": "component:transform:4b81c7df-ca9e-475b-b640-98ade5124f93",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -10,
+                "y": 0.18,
+                "z": 4
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 5,
+                "y": 0.08,
+                "z": 0.35
+              }
+            }
+          },
+          {
+            "id": "component:transform:79c1d77a-6694-457e-b4ba-64dbcc1320f1",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 8,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:8b8239e3-1fac-4041-8c26-ec0444edb5b1",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 8,
+                "y": 14,
+                "z": 6
+              },
+              "rotationDegrees": {
+                "x": 45,
+                "y": -35,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:a8cee9b3-7468-4c8e-8b95-4185506684cd",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": -10
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 26,
+                "y": 0.15,
+                "z": 6
+              }
+            }
+          },
+          {
+            "id": "component:transform:b9786e49-54b9-430c-8d3a-8094ec06eded",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -7,
+                "y": 0.65,
+                "z": -10
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 90,
+                "z": 0
+              },
+              "scale": {
+                "x": 1.2,
+                "y": 0.55,
+                "z": 2.2
+              }
+            }
+          },
+          {
+            "id": "component:transform:bad1c49b-3ff4-48a7-a4d5-c2ab134b45cf",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 10,
+                "y": 0.18,
+                "z": -4
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 5,
+                "y": 0.08,
+                "z": 0.35
+              }
+            }
+          },
+          {
+            "id": "component:transform:dd4060ce-9cf3-45e8-8b65-e67d16a79491",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 5,
+                "y": 0.18,
+                "z": 10
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.35,
+                "y": 0.08,
+                "z": 5
+              }
+            }
+          },
+          {
+            "id": "component:transform:e9ae1f90-f7aa-4a73-b8e4-138c10b9881c",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -5,
+                "y": 0.18,
+                "z": -10
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.35,
+                "y": 0.08,
+                "z": 5
+              }
+            }
+          }
+        ],
+        "scripts": [
+          {
+            "id": "script:ba315bf4-143b-487d-8bb4-7a983d5f33c7",
+            "entityId": "entity:065f9113-43a3-40b7-bdb7-d6a062cf26f6",
+            "name": "Entity Script",
+            "sourcePath": "scripts/ba315bf4-143b-487d-8bb4-7a983d5f33c7.ts",
+            "source": "const runtime=component as any;\nlet st=runtime.__raceTelemetry;\nif(!st){st={x:-7,z:-10,heading:Math.PI/2,speed:0,tick:0,elapsedTicks:0,nextCheckpoint:1,score:0,status:\"racing\",collisionTicks:0,events:[\"race-started\"]};try{runtime.__raceTelemetry=st;}catch(e){}}\nconst dt=1/60;\nconst accel=api.input.isPressed(\"Accelerate\"),brake=api.input.isPressed(\"Brake\"),left=api.input.isPressed(\"Left\"),right=api.input.isPressed(\"Right\");\nconst restart=api.input.wasPressed(\"Restart\");\nconst actionEdge=api.input.wasPressed(\"Accelerate\")||api.input.wasPressed(\"Brake\")||api.input.wasPressed(\"Left\")||api.input.wasPressed(\"Right\");\nif(restart){st.x=-7;st.z=-10;st.heading=Math.PI/2;st.speed=0;st.tick=0;st.elapsedTicks=0;st.nextCheckpoint=1;st.score=0;st.status=\"racing\";st.collisionTicks=0;st.events.push(\"restart-accepted\",\"race-started\");}\nif(st.status===\"finished\"&&actionEdge)st.events.push(\"input-rejected-finished\");\nif(st.status===\"racing\"){\n st.tick++;st.elapsedTicks++;\n if(api.input.wasPressed(\"Accelerate\"))st.events.push(\"accelerate-accepted\");\n if(api.input.wasPressed(\"Brake\"))st.events.push(\"brake-accepted\");\n if(api.input.wasPressed(\"Left\"))st.events.push(\"steer-left-accepted\");\n if(api.input.wasPressed(\"Right\"))st.events.push(\"steer-right-accepted\");\n if(accel)st.speed+=9.5*dt;if(brake)st.speed-=14*dt;if(!accel&&!brake)st.speed*=0.985;\n st.speed=Math.max(-4,Math.min(15,st.speed));\n const steering=(right?1:0)-(left?1:0);\n st.heading+=steering*1.65*dt*Math.min(1,Math.abs(st.speed)/3)*(st.speed>=0?1:-1);\n const nx=st.x+Math.sin(st.heading)*st.speed*dt,nz=st.z+Math.cos(st.heading)*st.speed*dt;\n if(Math.abs(nx)>14||Math.abs(nz)>14||(Math.abs(nx)<7&&Math.abs(nz)<7)){st.speed*=-0.32;st.heading+=0.18;st.collisionTicks=10;st.events.push(\"collision-entered\");}else{st.x=nx;st.z=nz;}\n const cps=[{x:10,z:-4},{x:5,z:10},{x:-10,z:4},{x:-5,z:-10}],cp=cps[st.nextCheckpoint-1];\n if(Math.abs(st.x-cp.x)<3.2&&Math.abs(st.z-cp.z)<3.2){st.events.push(\"checkpoint-\"+st.nextCheckpoint+\"-passed\",\"score-awarded\");st.score+=100;if(st.nextCheckpoint===4){st.status=\"finished\";st.speed=0;st.events.push(\"lap-settled\",\"race-finished\");}else st.nextCheckpoint++;}\n}\nif(st.collisionTicks>0)st.collisionTicks--;if(st.events.length>64)st.events=st.events.slice(-64);\nconst seconds=st.elapsedTicks/60;\napi.scene.hudText(\"race-title\",st.status===\"finished\"?\"FINISH! Press R to race again\":\"SHORT CIRCUIT  W/S accelerate-brake  A/D steer\",{position:\"top-center\",color:\"#ffffff\",fontSize:24});\napi.scene.hudText(\"race-stats\",\"SPEED \"+Math.round(Math.abs(st.speed)*3.6)+\" km/h   TIME \"+seconds.toFixed(2)+\" s   CHECKPOINT \"+Math.min(st.nextCheckpoint,4)+\"/4   SCORE \"+st.score,{position:\"top-left\",color:st.collisionTicks>0?\"#ff453a\":\"#7ee8ff\",fontSize:20});\n// @ts-ignore registry telemetry API may be injected by Play runtime\nif (typeof api.scene.observe === \"function\") {\n// @ts-ignore direct generic gameplay telemetry call\napi.scene.observe(\"gameplay\",{status:st.status,state:st.status,tick:st.tick,fixedTickHz:60,elapsedTicks:st.elapsedTicks,elapsedSeconds:Number(seconds.toFixed(3)),speedMps:Number(st.speed.toFixed(3)),score:st.score,vehicle:{x:Number(st.x.toFixed(3)),z:Number(st.z.toFixed(3)),headingRadians:Number(st.heading.toFixed(4))},checkpoint:{next:st.nextCheckpoint,total:4,passed:st.status===\"finished\"?4:st.nextCheckpoint-1},lap:st.status===\"finished\"?1:0,collisionFeedbackActive:st.collisionTicks>0,events:st.events,interactionTargets:[{id:\"accelerate\",action:\"Accelerate\",normalized:{x:0.86,y:0.82}},{id:\"brake\",action:\"Brake\",normalized:{x:0.86,y:0.92}},{id:\"left\",action:\"Left\",normalized:{x:0.10,y:0.88}},{id:\"right\",action:\"Right\",normalized:{x:0.22,y:0.88}},{id:\"restart\",action:\"Restart\",normalized:{x:0.50,y:0.90}}]});\n}",
+            "textRevision": 6,
+            "enabled": true,
+            "order": 0,
+            "capabilities": [
+              "read",
+              "input",
+              "scene"
+            ],
+            "digest": "sha256:3a25a2a68bd4e648c4131512ead3ff3fa639b1fd1272ec6fa4a22a2d5b5b87c4"
+          }
+        ],
+        "assets": [],
+        "settings": {
+          "studio.camera.main": {
+            "projection": "perspective",
+            "target": {
+              "x": -7,
+              "y": 0.7,
+              "z": -10
+            },
+            "distance": 17,
+            "azimuthDegrees": 180,
+            "elevationDegrees": 24,
+            "fovDegrees": 55,
+            "orthographicSize": 24,
+            "near": 0.1,
+            "far": 1000
+          }
+        },
+        "migration": {
+          "fromVersion": null,
+          "migratedAt": null,
+          "sourceDigest": null
+        }
+      }
+    },
+    {
+      "genre": "shooter",
+      "provenance": {
+        "source": "D:/HaiyueStudio/.g12-reviewed/AIStudio/evals/evidence/g12/runs/2f1e8a5491e1/codex/shooter/g12-codex-shooter-4671cc58-650a-4dd1-9b61-adccfa59c4e3/project/.haiyue-project.json",
+        "sha256": "d3041e8d918fbe40ab464888ae3a155e81d690f003c2c5a1ccfca9251668ab2d",
+        "purpose": "G05 behavior browsing of preserved M12 projects; not M12 gameplay acceptance"
+      },
+      "projectId": "project:a0f1e2b8-bbb6-4c40-ad85-2559c3c4746f",
+      "document": {
+        "schemaVersion": 2,
+        "id": "document:da8959a8-6aaa-4d38-852f-6e45ce192073",
+        "revision": 19,
+        "savedRevision": 19,
+        "scenes": [
+          {
+            "id": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Main",
+            "rootEntityIds": [
+              "entity:bb1973be-5054-45b1-94c2-d5aa0a0d3d4c",
+              "entity:31d98eda-9cda-4147-98ba-5ba90f244dad",
+              "entity:aa193dd1-2370-4638-bbda-5060e23a146f",
+              "entity:57ec93d8-9c20-4af4-84c1-b259aad89cf2",
+              "entity:f6ff84b7-ba5d-4be7-be47-6f6c0ffc64be",
+              "entity:c08935a3-c61e-4942-9f10-bd31a861f1dd",
+              "entity:c8b74d06-57d1-42e6-9d22-877667fce9bc",
+              "entity:93127c8b-b8a8-4968-a7e0-51f2540b799f",
+              "entity:1dbcc4b0-df63-4983-b6e2-be235957e38a",
+              "entity:6f533ae0-c0e5-49e2-8b3d-f3d60dd1167b",
+              "entity:4766942e-e260-409d-b481-9bd0b043d853",
+              "entity:c709c810-bef6-42a4-ad39-a3986df9e50b",
+              "entity:b67d1d00-69f2-42ab-97c1-2f0eadc65262"
+            ]
+          }
+        ],
+        "entities": [
+          {
+            "id": "entity:1dbcc4b0-df63-4983-b6e2-be235957e38a",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Ambient Light",
+            "parentId": null,
+            "order": 8,
+            "componentIds": [
+              "component:transform:156a4e5b-8180-4962-a3da-18dda66d542a",
+              "component:light:0f30f8a1-ae3a-468a-94b1-33247b3c8980"
+            ]
+          },
+          {
+            "id": "entity:31d98eda-9cda-4147-98ba-5ba90f244dad",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "North Wall",
+            "parentId": null,
+            "order": 1,
+            "componentIds": [
+              "component:transform:50d1b7cf-e279-4cb2-b53d-da08ccb81c53",
+              "component:geometry:a20c2ac6-4437-4675-a50a-18052ed7d21d",
+              "component:material:a53d5594-252a-48d5-9748-b7070ee88a74"
+            ]
+          },
+          {
+            "id": "entity:4766942e-e260-409d-b481-9bd0b043d853",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Enemy Instance Template",
+            "parentId": null,
+            "order": 10,
+            "componentIds": [
+              "component:transform:a5a517d8-c2da-45b0-80f5-b66866a97cf5",
+              "component:geometry:2f0e8877-2230-44c8-b45e-ce7dc6ad20c6",
+              "component:material:a703c822-4d6a-491f-904e-8eac79224f7a"
+            ]
+          },
+          {
+            "id": "entity:57ec93d8-9c20-4af4-84c1-b259aad89cf2",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "West Wall",
+            "parentId": null,
+            "order": 3,
+            "componentIds": [
+              "component:transform:8dc1d9d2-c224-42c3-902a-d7023e4d1439",
+              "component:geometry:4e093b40-7199-4e49-88b5-5bdea1066778",
+              "component:material:f34b01f0-1d12-4ee6-ad18-5e35808d6214"
+            ]
+          },
+          {
+            "id": "entity:6f533ae0-c0e5-49e2-8b3d-f3d60dd1167b",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Key Light",
+            "parentId": null,
+            "order": 9,
+            "componentIds": [
+              "component:transform:34e6d1c5-c574-4663-881c-957fbe99314b",
+              "component:light:d56f0ee0-dccd-4d03-8b90-c5da8b071b67"
+            ]
+          },
+          {
+            "id": "entity:93127c8b-b8a8-4968-a7e0-51f2540b799f",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Survival Game Controller",
+            "parentId": null,
+            "order": 7,
+            "componentIds": [
+              "component:transform:9ed770cb-d901-48b4-b4a6-a0736d063bfb"
+            ]
+          },
+          {
+            "id": "entity:aa193dd1-2370-4638-bbda-5060e23a146f",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "South Wall",
+            "parentId": null,
+            "order": 2,
+            "componentIds": [
+              "component:transform:f9fdcdca-37cd-4b22-b5ae-4c9e823667e0",
+              "component:geometry:36020082-d7d2-4b15-bfbc-68398f64270f",
+              "component:material:ade2be1a-baad-4562-9e6c-ce5a1f3336b6"
+            ]
+          },
+          {
+            "id": "entity:b67d1d00-69f2-42ab-97c1-2f0eadc65262",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Hit Effect Instance Template",
+            "parentId": null,
+            "order": 12,
+            "componentIds": [
+              "component:transform:e2bcaa2a-e95a-490c-8b98-19195abd7768",
+              "component:geometry:fab425a7-6a73-441c-8dda-f0c590650ddf",
+              "component:material:7ada4aa5-0818-4610-9511-b1e0f59577cc"
+            ]
+          },
+          {
+            "id": "entity:bb1973be-5054-45b1-94c2-d5aa0a0d3d4c",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Arena Floor",
+            "parentId": null,
+            "order": 0,
+            "componentIds": [
+              "component:transform:ec346b30-ef8b-4890-8c88-2ed6093d8203",
+              "component:geometry:60207fdf-2f41-42e4-95c4-ad5cf8032dcd",
+              "component:material:c6b16bab-7fe9-42b2-8115-4022ef7566b3"
+            ]
+          },
+          {
+            "id": "entity:c08935a3-c61e-4942-9f10-bd31a861f1dd",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Player",
+            "parentId": null,
+            "order": 5,
+            "componentIds": [
+              "component:transform:fe22d4e1-0904-450f-9db7-d6068044d4df",
+              "component:geometry:7cea99af-1cfb-48d5-a99a-163688b7d1a9",
+              "component:material:8b4491d8-4d7e-4e64-bfc6-f51a619e6f38"
+            ]
+          },
+          {
+            "id": "entity:c709c810-bef6-42a4-ad39-a3986df9e50b",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Projectile Instance Template",
+            "parentId": null,
+            "order": 11,
+            "componentIds": [
+              "component:transform:ecce22f9-3eeb-4158-b5b7-6726724a0a3c",
+              "component:geometry:02b1695b-a130-41c6-80f6-138fe237f0a5",
+              "component:material:163d5203-0fdf-4d2e-99b0-ba2a19b9858d"
+            ]
+          },
+          {
+            "id": "entity:c8b74d06-57d1-42e6-9d22-877667fce9bc",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "Aim Indicator",
+            "parentId": null,
+            "order": 6,
+            "componentIds": [
+              "component:transform:07281903-1e0d-4682-a4e4-5e7894e03448",
+              "component:geometry:f509e508-46ab-4741-9a95-6ef621d6c14c",
+              "component:material:7d3858cf-7fff-4c87-a424-f13916c25efb"
+            ]
+          },
+          {
+            "id": "entity:f6ff84b7-ba5d-4be7-be47-6f6c0ffc64be",
+            "sceneId": "scene:da8959a8-6aaa-4d38-852f-6e45ce192073",
+            "name": "East Wall",
+            "parentId": null,
+            "order": 4,
+            "componentIds": [
+              "component:transform:3d5ebf9f-6e82-4ee9-abfa-6816a9959220",
+              "component:geometry:2b92b805-05c6-478f-9b3f-091bd9261a21",
+              "component:material:2b0e5ac7-92e7-482d-af4c-65c18e230870"
+            ]
+          }
+        ],
+        "components": [
+          {
+            "id": "component:geometry:02b1695b-a130-41c6-80f6-138fe237f0a5",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "sphere"
+            }
+          },
+          {
+            "id": "component:geometry:2b92b805-05c6-478f-9b3f-091bd9261a21",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:2f0e8877-2230-44c8-b45e-ce7dc6ad20c6",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "icosahedron"
+            }
+          },
+          {
+            "id": "component:geometry:36020082-d7d2-4b15-bfbc-68398f64270f",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:4e093b40-7199-4e49-88b5-5bdea1066778",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:60207fdf-2f41-42e4-95c4-ad5cf8032dcd",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "plane"
+            }
+          },
+          {
+            "id": "component:geometry:7cea99af-1cfb-48d5-a99a-163688b7d1a9",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cylinder"
+            }
+          },
+          {
+            "id": "component:geometry:a20c2ac6-4437-4675-a50a-18052ed7d21d",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cube"
+            }
+          },
+          {
+            "id": "component:geometry:f509e508-46ab-4741-9a95-6ef621d6c14c",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "cone"
+            }
+          },
+          {
+            "id": "component:geometry:fab425a7-6a73-441c-8dda-f0c590650ddf",
+            "type": "haiyue.render.geometry",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "kind": "torus"
+            }
+          },
+          {
+            "id": "component:light:0f30f8a1-ae3a-468a-94b1-33247b3c8980",
+            "type": "haiyue.light.ambient",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "color": [
+                0.7,
+                0.8,
+                1
+              ],
+              "intensity": 0.25
+            }
+          },
+          {
+            "id": "component:light:d56f0ee0-dccd-4d03-8b90-c5da8b071b67",
+            "type": "haiyue.light.directional",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "color": [
+                1,
+                1,
+                1
+              ],
+              "intensity": 1,
+              "direction": [
+                -0.5,
+                -1,
+                -0.35
+              ],
+              "castShadow": true,
+              "shadow": {
+                "mapSize": 1024,
+                "extent": 20,
+                "near": 0.1,
+                "far": 60,
+                "bias": 0.0015,
+                "normalBias": 0.02
+              }
+            }
+          },
+          {
+            "id": "component:material:163d5203-0fdf-4d2e-99b0-ba2a19b9858d",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                1,
+                0.9,
+                0.2,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:2b0e5ac7-92e7-482d-af4c-65c18e230870",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.15,
+                0.25,
+                0.35,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:7ada4aa5-0818-4610-9511-b1e0f59577cc",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "basic",
+              "color": [
+                1,
+                0.45,
+                0.05,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:7d3858cf-7fff-4c87-a424-f13916c25efb",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                1,
+                0.85,
+                0.15,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:8b4491d8-4d7e-4e64-bfc6-f51a619e6f38",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.1,
+                0.8,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:a53d5594-252a-48d5-9748-b7070ee88a74",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.15,
+                0.25,
+                0.35,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:a703c822-4d6a-491f-904e-8eac79224f7a",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                1,
+                0.18,
+                0.12,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:ade2be1a-baad-4562-9e6c-ce5a1f3336b6",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.15,
+                0.25,
+                0.35,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:c6b16bab-7fe9-42b2-8115-4022ef7566b3",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.06,
+                0.09,
+                0.13,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:material:f34b01f0-1d12-4ee6-ad18-5e35808d6214",
+            "type": "haiyue.render.material",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "material": "pbr",
+              "color": [
+                0.15,
+                0.25,
+                0.35,
+                1
+              ]
+            }
+          },
+          {
+            "id": "component:transform:07281903-1e0d-4682-a4e4-5e7894e03448",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0.65,
+                "z": -0.9
+              },
+              "rotationDegrees": {
+                "x": 90,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.25,
+                "y": 0.7,
+                "z": 0.25
+              }
+            }
+          },
+          {
+            "id": "component:transform:156a4e5b-8180-4962-a3da-18dda66d542a",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 8,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:34e6d1c5-c574-4663-881c-957fbe99314b",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 4,
+                "y": 10,
+                "z": 4
+              },
+              "rotationDegrees": {
+                "x": -55,
+                "y": 35,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:3d5ebf9f-6e82-4ee9-abfa-6816a9959220",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 10,
+                "y": 0.5,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.5,
+                "y": 1,
+                "z": 20
+              }
+            }
+          },
+          {
+            "id": "component:transform:50d1b7cf-e279-4cb2-b53d-da08ccb81c53",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0.5,
+                "z": -10
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 20,
+                "y": 1,
+                "z": 0.5
+              }
+            }
+          },
+          {
+            "id": "component:transform:8dc1d9d2-c224-42c3-902a-d7023e4d1439",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": -10,
+                "y": 0.5,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.5,
+                "y": 1,
+                "z": 20
+              }
+            }
+          },
+          {
+            "id": "component:transform:9ed770cb-d901-48b4-b4a6-a0736d063bfb",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "id": "component:transform:a5a517d8-c2da-45b0-80f5-b66866a97cf5",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": -10,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.65,
+                "y": 0.65,
+                "z": 0.65
+              }
+            }
+          },
+          {
+            "id": "component:transform:e2bcaa2a-e95a-490c-8b98-19195abd7768",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": -10,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 90,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.7,
+                "y": 0.15,
+                "z": 0.7
+              }
+            }
+          },
+          {
+            "id": "component:transform:ec346b30-ef8b-4890-8c88-2ed6093d8203",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 20,
+                "y": 1,
+                "z": 20
+              }
+            }
+          },
+          {
+            "id": "component:transform:ecce22f9-3eeb-4158-b5b7-6726724a0a3c",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": -10,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.18,
+                "y": 0.18,
+                "z": 0.18
+              }
+            }
+          },
+          {
+            "id": "component:transform:f9fdcdca-37cd-4b22-b5ae-4c9e823667e0",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0.5,
+                "z": 10
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 20,
+                "y": 1,
+                "z": 0.5
+              }
+            }
+          },
+          {
+            "id": "component:transform:fe22d4e1-0904-450f-9db7-d6068044d4df",
+            "type": "haiyue.transform.3d",
+            "version": "1.0.0",
+            "enabled": true,
+            "value": {
+              "position": {
+                "x": 0,
+                "y": 0.5,
+                "z": 0
+              },
+              "rotationDegrees": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 0.8,
+                "y": 1,
+                "z": 0.8
+              }
+            }
+          }
+        ],
+        "scripts": [
+          {
+            "id": "script:a6fc3823-a338-4079-b201-286896422f7d",
+            "entityId": "entity:93127c8b-b8a8-4968-a7e0-51f2540b799f",
+            "name": "Entity Script",
+            "sourcePath": "scripts/a6fc3823-a338-4079-b201-286896422f7d.ts",
+            "source": "\nconst C:any=component, input:any=api.input, scene:any=api.scene;\nconst S:any = C.__survival || (C.__survival = {seed:1337,tick:0,status:\"playing\",hp:100,kills:0,elapsed:0,spawnClock:0,shotClock:0,nextEnemy:1,nextShot:1,player:{x:0,z:0},aim:{x:0,z:-1},enemies:[],shots:[],effects:[],events:[],eventSeq:0});\nconst tickEvents:string[]=[];\nconst emit=(type:string,data:any={})=>{tickEvents.push(type);S.eventSeq++;S.events.push(Object.assign({seq:S.eventSeq,type,tick:S.tick},data));if(S.events.length>40)S.events.shift()};\nconst reset=()=>{Object.assign(S,{seed:1337,tick:0,status:\"playing\",hp:100,kills:0,elapsed:0,spawnClock:0,shotClock:0,nextEnemy:1,nextShot:1,player:{x:0,z:0},aim:{x:0,z:-1},enemies:[],shots:[],effects:[],events:[],eventSeq:0});emit(\"game-restarted\")};\nif(input.wasPressed(\"restart\",0)||input.wasPressed(\"KeyR\",0)){emit(\"restart-request-accepted\");reset();}\nconst dt=Math.min(0.05,delta/1000);S.tick++;\nif(S.status===\"playing\"){\n S.elapsed+=dt;\n let mx=(input.isDown(\"move-right\",0)||input.isDown(\"KeyD\",0)?1:0)-(input.isDown(\"move-left\",0)||input.isDown(\"KeyA\",0)?1:0);\n let mz=(input.isDown(\"move-down\",0)||input.isDown(\"KeyS\",0)?1:0)-(input.isDown(\"move-up\",0)||input.isDown(\"KeyW\",0)?1:0);\n const ml=Math.hypot(mx,mz)||1;mx/=ml;mz/=ml;S.player.x=Math.max(-8.9,Math.min(8.9,S.player.x+mx*5.2*dt));S.player.z=Math.max(-8.9,Math.min(8.9,S.player.z+mz*5.2*dt));\n const pe:any[]=input.pointerEvents();for(const e of pe)if(e.type===\"move\"||e.type===\"down\"){const ax=(e.x-.5)*20-S.player.x,az=(e.y-.5)*20-S.player.z,al=Math.hypot(ax,az)||1;S.aim={x:ax/al,z:az/al}}\n S.spawnClock-=dt;if(S.spawnClock<=0){S.seed=(S.seed*1664525+1013904223)>>>0;const edge=S.seed%4,t=((S.seed>>>8)%1800)/100-9;let x=0,z=0;if(edge===0){x=-9;z=t}else if(edge===1){x=9;z=t}else if(edge===2){x=t;z=-9}else{x=t;z=9}S.enemies.push({id:S.nextEnemy++,x,z,hp:3});S.spawnClock=Math.max(.35,1.05-S.elapsed*.008);emit(\"enemy-spawned\",{enemyId:S.nextEnemy-1})}\n S.shotClock-=dt;const fireIntent=input.isDown(\"fire\",0)||input.isDown(\"pointer-primary\",0)||input.isDown(\"Space\",0);if(fireIntent&&S.shotClock<=0){S.shots.push({id:S.nextShot++,x:S.player.x,z:S.player.z,vx:S.aim.x*12,vz:S.aim.z*12,life:1.4});S.shotClock=.18;emit(\"fire-request-accepted\",{shotId:S.nextShot-1});emit(\"shot-fired\",{shotId:S.nextShot-1})}else if(fireIntent){emit(\"fire-request-rejected\",{reason:\"cooldown\"})}\n for(const q of S.shots){q.x+=q.vx*dt;q.z+=q.vz*dt;q.life-=dt}for(const e of S.enemies){const dx=S.player.x-e.x,dz=S.player.z-e.z,l=Math.hypot(dx,dz)||1;e.x+=dx/l*(1.25+S.elapsed*.006)*dt;e.z+=dz/l*(1.25+S.elapsed*.006)*dt}\n for(const q of S.shots)if(q.life>0)for(const e of S.enemies)if(e.hp>0){const dx=q.x-e.x,dz=q.z-e.z;if(dx*dx+dz*dz<.38){emit(\"projectile-enemy-collision\",{enemyId:e.id,shotId:q.id});e.hp--;q.life=0;S.effects.push({x:e.x,z:e.z,life:.18});emit(\"damage-applied\",{target:\"enemy\",damage:1});emit(\"enemy-hit\",{enemyId:e.id,damage:1,hp:Math.max(0,e.hp)});if(e.hp<=0){S.kills++;emit(\"enemy-defeated\",{enemyId:e.id,kills:S.kills});emit(\"score-increased\",{score:S.kills})}break}}\n for(const e of S.enemies)if(e.hp>0){const dx=S.player.x-e.x,dz=S.player.z-e.z;if(dx*dx+dz*dz<.55){emit(\"enemy-player-collision\",{enemyId:e.id});e.hp=0;S.hp=Math.max(0,S.hp-12);emit(\"damage-applied\",{target:\"player\",damage:12});emit(\"player-damaged\",{damage:12,hp:S.hp})}}\n for(const f of S.effects)f.life-=dt;S.shots=S.shots.filter((q:any)=>q.life>0&&Math.abs(q.x)<10&&Math.abs(q.z)<10);S.enemies=S.enemies.filter((e:any)=>e.hp>0);S.effects=S.effects.filter((f:any)=>f.life>0);\n if(S.hp<=0){S.status=\"lost\";emit(\"terminal-loss\");emit(\"game-lost\")}else if(S.kills>=20||S.elapsed>=90){S.status=\"won\";emit(\"terminal-win\");emit(\"game-won\",{reason:S.kills>=20?\"kills\":\"survival\"})}\n}\nconst draw=(template:string,items:any[],scale:number)=>{try{const set:any=scene.instances(template,8);if(set&&typeof set.set===\"function\"){for(let i=0;i<8;i++){const p=items[i];set.set(i,p?{position:{x:p.x,y:.58,z:p.z},rotationDegrees:{x:0,y:S.tick*2,z:0},scale:{x:scale,y:scale,z:scale}}:{position:{x:0,y:-20,z:0},rotationDegrees:{x:0,y:0,z:0},scale:{x:0,y:0,z:0}})}}}catch(_){}};\ndraw(\"entity:4766942e-e260-409d-b481-9bd0b043d853\",S.enemies,.65);draw(\"entity:c709c810-bef6-42a4-ad39-a3986df9e50b\",S.shots,.18);draw(\"entity:b67d1d00-69f2-42ab-97c1-2f0eadc65262\",S.effects,.7);\nscene.hudText(\"survival-hud\",\"HP \"+S.hp+\"   KILLS \"+S.kills+\"/20   TIME \"+S.elapsed.toFixed(1)+\"s\\nWASD移动 · 指针瞄准 · 空格/按住射击 · R重开\"+(S.status===\"won\"?\"\\n胜利！按 R 重新开始\":S.status===\"lost\"?\"\\n失败！按 R 重新开始\":\"\"),{color:\"#ffffff\",fontSize:20});\n(api.scene as any).observe(\"gameplay\",{status:S.status,state:S.status,seed:1337,tick:S.tick,elapsed:Number(S.elapsed.toFixed(3)),health:S.hp,kills:S.kills,enemyCount:S.enemies.length,projectileCount:S.shots.length,player:{x:Number(S.player.x.toFixed(3)),z:Number(S.player.z.toFixed(3))},aim:{x:Number(S.aim.x.toFixed(3)),z:Number(S.aim.z.toFixed(3))},events:tickEvents,triggers:tickEvents,eventLog:S.events,interactionTargets:[{id:\"arena\",kind:\"normalized-viewport\",minX:0,minY:0,maxX:1,maxY:1,actions:[\"aim\",\"fire\"]},{id:\"restart\",kind:\"action\",action:\"restart\",enabled:S.status!==\"playing\"}]});\n",
+            "textRevision": 4,
+            "enabled": true,
+            "order": 0,
+            "capabilities": [
+              "read",
+              "input",
+              "debug",
+              "scene"
+            ],
+            "digest": "sha256:58109cba7d9b7f5575c5d26a1275ebaf784d042796bc20fac49642ceb9713702"
+          }
+        ],
+        "assets": [],
+        "settings": {
+          "studio.camera.main": {
+            "projection": "orthographic",
+            "target": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "distance": 24,
+            "azimuthDegrees": 0,
+            "elevationDegrees": 90,
+            "fovDegrees": 45,
+            "orthographicSize": 24,
+            "near": 0.1,
+            "far": 1000
+          }
+        },
+        "migration": {
+          "fromVersion": null,
+          "migratedAt": null,
+          "sourceDigest": null
+        }
+      }
+    }
+  ]
+}

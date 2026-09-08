@@ -79,6 +79,31 @@
       "files": [
         "scripts/m14-capability-census.test.mjs"
       ]
+    },
+    {
+      "id": "behavior-project-flow",
+      "files": [
+        "packages/operation-log/test/behavior-history.test.mjs",
+        "packages/agent-orchestration/test/behavior-project.test.mjs",
+        "packages/studio-shell/test/logic-model.test.mjs",
+        "packages/script-preview/test/behavior-runtime.test.mjs",
+        "apps/ai-studio/test/logic-behavior-ipc.test.mjs",
+        "apps/ai-studio/test/logic-declarative-play.test.mjs",
+        "apps/ai-studio/test/logic-replay.test.mjs",
+        "apps/ai-studio/test/logic-m12.test.mjs"
+      ]
+    },
+    {
+      "id": "behavior-panel-window",
+      "files": [
+        "apps/ai-studio/test/logic-panel-electron.test.mjs"
+      ]
+    },
+    {
+      "id": "behavior-product-window",
+      "files": [
+        "apps/ai-studio/test/logic-product-electron.test.mjs"
+      ]
     }
   ],
   "groups": [
@@ -562,7 +587,10 @@
       ],
       "checkIds": [
         "observations",
-        "simulation"
+        "simulation",
+        "behavior-project-flow",
+        "behavior-panel-window",
+        "behavior-product-window"
       ],
       "ui": [
         "apps/ai-studio/src/renderer.ts",

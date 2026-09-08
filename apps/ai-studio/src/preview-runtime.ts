@@ -9,6 +9,7 @@ import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isRender
 import { PlaySimulation } from './play-simulation.js';
 import { PhysicsPlayRuntime } from './physics-play-runtime.js';
 import { RenderEffectsPlayRuntime } from '@haiyue/ai-studio-script-preview/effects';
+import { hasDeclarativeGameplay, BehaviorRuntimeRecorder, parseBehaviorRuntimePlan, type BehaviorRuntimePlan } from '@haiyue/ai-studio-script-preview/behavior/runtime';
 import { createEquirectangularReflectionMap } from '@haiyue/engine/lighting';
 import { GameplayObservationStore } from './gameplay-observation-store.js';
 import { DeclarativePlayRuntime, type DeclarativeHudItem } from './declarative-play-components.js';
@@ -68,6 +69,7 @@ let paused = false;
 let lifecycleGeneration = 0;
 let renderedFrame = 0;
 let runtimeErrorCount = 0;
+let behaviorRecorder: BehaviorRuntimeRecorder | null = null;
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
   if (event.source !== parent || !isRecord(event.data) || event.data.protocol !== 'haiyue-preview/1') return;
@@ -75,7 +77,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
     const request = parseStartRequest(event.data);
     if (!request) { startFailed(new Error('Preview start request failed schema validation.')); return; }
     const generation = ++lifecycleGeneration;
-    void start(request.scene, request.plan, request.assets, generation).catch((cause) => {
+    void start(request.scene, request.plan, request.assets, generation, request.behavior).catch((cause) => {
       if (generation !== lifecycleGeneration) return;
       stop('start-failed'); startFailed(cause);
     });
@@ -85,6 +87,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
       const scriptId = event.data.scriptId;
       const owner = scriptOwners.find((candidate) => candidate.plan.scriptId === scriptId);
       if (!owner) throw new Error(`Preview script ${scriptId} is not playing.`);
+      finishBehavior('source-changed');
       owner.resource.setScript('onUpdate', event.data.emittedText);
       send('hot-reloaded', { scriptId: owner.plan.scriptId, entityId: owner.plan.entityId, disposableCount: totalDisposableCount() });
     } catch (cause) { fail(cause); }
@@ -94,15 +97,20 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
   else if (event.data.type === 'input' && exactKeys(event.data, ['protocol', 'type', 'event']) && isRecord(event.data.event)) injectInput(event.data.event as unknown as ReplayInputEventInput);
   else if (event.data.type === 'replay' && exactKeys(event.data, ['protocol', 'type', 'replay']) && isRecord(event.data.replay)) loadReplay(event.data.replay as unknown as InputReplayV1);
   else if (event.data.type === 'inspect' && exactKeys(event.data, ['protocol', 'type', 'requestId']) && typeof event.data.requestId === 'string') publishInspection(event.data.requestId);
+  else if (event.data.type === 'behavior-inspect' && exactKeys(event.data, ['protocol','type','requestId']) && typeof event.data.requestId === 'string') {
+    if (!behaviorRecorder) requestFailed(event.data.requestId, new Error('behavior.runtime-unavailable'));
+    else { behaviorRecorder.beginTick(simulation?.clock.tick ?? 0, renderedFrame); send('behavior-capture', { requestId: event.data.requestId, capture: behaviorRecorder.snapshot() }); }
+  }
   else if (event.data.type === 'physics-query' && exactKeys(event.data, ['protocol', 'type', 'requestId', 'query']) && typeof event.data.requestId === 'string' && isRecord(event.data.query)) publishPhysicsQuery(event.data.requestId, event.data.query);
   else if (event.data.type === 'capture' && exactKeys(event.data, ['protocol', 'type', 'requestId']) && typeof event.data.requestId === 'string') void capture(event.data.requestId);
   else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
 });
 
-async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonly PreviewAsset[], generation: number): Promise<void> {
+async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonly PreviewAsset[], generation: number, behavior: BehaviorRuntimePlan | null): Promise<void> {
   if (engine) stop('restart', false);
   if (snapshot.documentId !== plan.documentId || snapshot.revision !== plan.documentRevision) throw new Error('Preview plan does not match the Scene document revision.');
   if (!snapshot.entities.some((item) => isRenderableSceneKind(item.kind))) throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
+  behaviorRecorder = behavior ? new BehaviorRuntimeRecorder(behavior) : null;
   const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas');
   if (!canvas) throw new Error('Preview canvas is missing.');
   const renderProfile = RenderEffectsPlayRuntime.engineProfile(snapshot.entities);
@@ -181,8 +189,9 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   });
   declarativePlayRuntime = new DeclarativePlayRuntime(snapshot.entities);
   applyDeclarativePlaySnapshot(0, assetsById, true);
-  target = entities.get(plan.scripts[0]!.entityId) ?? null;
-  if (!target) throw new Error(`Preview target ${plan.scripts[0]!.entityId} is missing.`);
+  const primaryEntityId = plan.scripts[0]?.entityId ?? snapshot.entities.find(entity => isRenderableSceneKind(entity.kind))?.id;
+  target = entities.get(primaryEntityId ?? '') ?? null;
+  if (!target) throw new Error('Preview target is missing.');
   const persistedSettings = readSimulationSettings(snapshot.entities);
   const settings = plan.runtimeConfig;
   if (persistedSettings.tickRateHz !== settings.tickRateHz || persistedSettings.maxSubSteps !== settings.maxSubSteps || persistedSettings.seed !== settings.seed) {
@@ -202,6 +211,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   const actionMap = readInputActionMap(snapshot.entities);
   ScriptComponent.setRuntimeApiFactory((base, context) => studioRuntimeApi(base, context, planByComponent.get(context.component)?.capabilities ?? Object.freeze([])));
   ScriptComponent.enableTrustedProject({ capabilities: plan.capabilities, errorPolicy: 'disable-script', onError: runtimeError });
+  if (behaviorRecorder) ScriptComponent.configureExecution({ compiler: behaviorRecorder.compiler(component => planByComponent.get(component)?.scriptId) });
   for (const script of plan.scripts) {
     const entity = entities.get(script.entityId);
     if (!entity) throw new Error(`Preview entity ${script.entityId} is missing.`);
@@ -224,6 +234,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
     maxSubSteps: settings.maxSubSteps,
     seed: settings.seed,
     onTick: (step, input) => {
+      behaviorRecorder?.beginTick(step.tick, renderedFrame);
       activeInput = input;
       renderEffectsRuntime?.beforeTick(step.tick);
       physicsRuntime?.beforeTick(input, step.deltaMs);
@@ -231,6 +242,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
       updateInteractions(input);
       ownedEngine.updateActiveScene(step.timeMs, step.deltaMs);
       physicsRuntime?.afterTick(step.tick);
+      behaviorRecorder?.capturePhysics((physicsRuntime?.events() ?? []).map(event => ({ kind: event.kind, phase: event.phase, entityAId: event.entityAId, entityBId: event.entityBId })));
       applyDeclarativePlaySnapshot(step.tick, assetsById, true, true);
       publishState();
     },
@@ -241,7 +253,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   renderedFrame = 0;
   runtimeErrorCount = 0;
   animationFrame = requestAnimationFrame(displayFrame);
-  send('started', { entityId: plan.scripts[0]!.entityId, scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, tickRateHz: settings.tickRateHz, seed: settings.seed, physics: physicsRuntime.status(), renderEffects: renderEffectsRuntime.manifest(), disposableCount: 0 });
+  send('started', { entityId: primaryEntityId, scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, tickRateHz: settings.tickRateHz, seed: settings.seed, physics: physicsRuntime.status(), renderEffects: renderEffectsRuntime.manifest(), disposableCount: 0 });
 }
 
 function beginManualRenderFrame(ownedEngine: HaiyueEngine): void {
@@ -259,6 +271,7 @@ function publishState(): void {
 function runtimeError(event: ScriptRuntimeErrorEvent): void {
   runtimeErrorCount += 1;
   const plan = planByComponent.get(event.component);
+  behaviorRecorder?.recordError(plan?.scriptId ?? null);
   send('runtime-error', { scriptId: plan?.scriptId ?? null, entityId: plan?.entityId ?? null, code: event.error.code, message: event.error.message, line: event.sourceLocation.line, column: event.sourceLocation.column, disposableCount: totalDisposableCount() });
 }
 interface SceneComponent { readonly id: string; readonly type: string; readonly version: string; readonly enabled: boolean; readonly value: Readonly<Record<string, unknown>>; }
@@ -287,7 +300,7 @@ function displayFrame(timestamp: number): void {
     simulation.advanceDisplayFrame(deltaMs);
     renderedFrame += 1;
   }
-  catch (cause) { stop('simulation-failed'); fail(cause); return; }
+  catch (cause) { behaviorRecorder?.recordError(null); stop('simulation-failed'); fail(cause); return; }
   animationFrame = requestAnimationFrame(displayFrame);
 }
 
@@ -295,7 +308,7 @@ function step(requestId: string, count: number): void {
   if (!simulation || !engine) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
   if (!paused) { requestFailed(requestId, new Error('Preview must be paused before stepping.')); return; }
   try { beginManualRenderFrame(engine); simulation.step(count); renderedFrame += 1; send('stepped', { requestId, count, tick: simulation.clock.tick, frame: renderedFrame, disposableCount: totalDisposableCount() }); }
-  catch (cause) { requestFailed(requestId, cause); }
+  catch (cause) { behaviorRecorder?.recordError(null); requestFailed(requestId, cause); }
 }
 
 function injectInput(event: ReplayInputEventInput): void {
@@ -306,7 +319,10 @@ function injectInput(event: ReplayInputEventInput): void {
 
 function loadReplay(replay: InputReplayV1): void {
   if (!simulation) { fail(new Error('Preview is not playing.')); return; }
-  try { simulation.loadReplay(replay); activeInput = simulation.input.snapshot(); previousFrameTime = null; send('replay-loaded', { eventCount: replay.events.length, tick: 0 }); }
+  try {
+    if (simulation.clock.tick > 0) finishBehavior('clock-reset');
+    simulation.loadReplay(replay); activeInput = simulation.input.snapshot(); previousFrameTime = null; send('replay-loaded', { eventCount: replay.events.length, tick: 0 });
+  }
   catch (cause) { fail(cause); }
 }
 
@@ -630,6 +646,7 @@ function findEnabledComponent(entities: readonly SceneEntity[], type: string): S
 
 function stop(reason: string, invalidatePendingStart = true): void {
   if (invalidatePendingStart) lifecycleGeneration += 1;
+  finishBehavior(reason === 'restart' ? 'restart' : 'stop');
   const disposableCount = totalDisposableCount();
   if (animationFrame !== null) cancelAnimationFrame(animationFrame);
   animationFrame = null; previousFrameTime = null;
@@ -657,6 +674,13 @@ function stop(reason: string, invalidatePendingStart = true): void {
   engine = null; scene = null; target = null; activeCamera = null; gameplayCamera = null; activeSceneEntities = null; interactionSystem = null; interactionEvents = Object.freeze([]); hoveredEntityId = null; pointerDownTargets.clear(); stableIdByEntityId.clear(); paused = false;
   send('cleanup-complete', { reason, disposedSideEffects: disposableCount, disposableCount: 0 });
 }
+function finishBehavior(reason: Parameters<BehaviorRuntimeRecorder['close']>[0]): void {
+  if (!behaviorRecorder) return;
+  behaviorRecorder.beginTick(simulation?.clock.tick ?? 0, renderedFrame);
+  behaviorRecorder.close(reason);
+  send('behavior-final', { capture: behaviorRecorder.snapshot() });
+  behaviorRecorder = null;
+}
 
 function totalDisposableCount(): number { return scriptOwners.reduce((sum, owner) => sum + owner.component.disposableCount, 0); }
 function scriptRuntimeStates(): readonly Readonly<{ scriptId: string; entityId: string; order: number; position: Vec3 | null; disposableCount: number }>[] {
@@ -679,8 +703,8 @@ function exactKeys(value: Record<string, unknown>, allowed: readonly string[]): 
   const expected = new Set(allowed);
   return Object.keys(value).length === expected.size && Object.keys(value).every((key) => expected.has(key));
 }
-function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: SceneSnapshot; plan: PreviewPlan; assets: readonly PreviewAsset[] }> | null {
-  if (!exactKeys(value, ['protocol', 'type', 'scene', 'plan', 'assets']) || !isRecord(value.scene) || !isRecord(value.plan) || !Array.isArray(value.assets) || value.assets.length > 128) return null;
+function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: SceneSnapshot; plan: PreviewPlan; assets: readonly PreviewAsset[]; behavior: BehaviorRuntimePlan | null }> | null {
+  if (!exactKeys(value, ['protocol', 'type', 'scene', 'plan', 'assets', ...(Object.hasOwn(value, 'behavior') ? ['behavior'] : [])]) || !isRecord(value.scene) || !isRecord(value.plan) || !Array.isArray(value.assets) || value.assets.length > 128) return null;
   const rawScene = value.scene;
   const rawPlan = value.plan;
   if (typeof rawScene.documentId !== 'string' || !Number.isSafeInteger(rawScene.revision)
@@ -690,13 +714,14 @@ function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: Sc
     || !Number.isSafeInteger(rawPlan.documentRevision) || rawPlan.documentRevision !== rawScene.revision
     || (rawPlan.selection !== 'all-enabled' && rawPlan.selection !== 'explicit')
     || typeof rawPlan.scriptSetDigest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(rawPlan.scriptSetDigest)
-    || !Array.isArray(rawPlan.scripts) || rawPlan.scripts.length < 1 || rawPlan.scripts.length > 128 || !rawPlan.scripts.every(isPreviewScriptPlan)
+    || !Array.isArray(rawPlan.scripts) || rawPlan.scripts.length > 128 || !rawPlan.scripts.every(isPreviewScriptPlan)
     || !Array.isArray(rawPlan.capabilities) || rawPlan.capabilities.length > 6 || !rawPlan.capabilities.every(isCapability) || new Set(rawPlan.capabilities).size !== rawPlan.capabilities.length
     || !isPlayRuntimeConfig(rawPlan.runtimeConfig) || rawPlan.risk !== 'trusted-project'
     || !Array.isArray(rawPlan.diagnostics) || rawPlan.diagnostics.length > 4_096
     || !rawScene.entities.every(isSceneEntity) || !value.assets.every(isPreviewAsset)
     || new Set(value.assets.map((asset) => (asset as PreviewAsset).id)).size !== value.assets.length) return null;
   const scripts = rawPlan.scripts as unknown as PreviewScriptPlan[];
+  if (!scripts.length && !hasDeclarativeGameplay((rawScene.entities as SceneEntity[]).flatMap(entity => entity.components ?? []))) return null;
   const aggregateCapabilities = rawPlan.capabilities as ScriptCapabilityName[];
   const sceneIds = new Set((rawScene.entities as SceneEntity[]).map((entity) => entity.id));
   const expectedCapabilities = SCRIPT_CAPABILITIES.filter((capability) => scripts.some((script) => script.capabilities.includes(capability)));
@@ -709,7 +734,17 @@ function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: Sc
   let camera: ProjectCameraSnapshot | undefined;
   try { camera = rawScene.camera === undefined ? undefined : normalizeProjectCamera(rawScene.camera); }
   catch { return null; }
-  return Object.freeze({ scene: Object.freeze({ documentId: rawScene.documentId, revision: Number(rawScene.revision), entities: rawScene.entities as SceneEntity[], ...(camera ? { camera } : {}) }), plan: rawPlan as unknown as PreviewPlan, assets: Object.freeze(value.assets as PreviewAsset[]) });
+  let behavior: BehaviorRuntimePlan | null = null;
+  try {
+    if (value.behavior !== undefined && value.behavior !== null) {
+      behavior = parseBehaviorRuntimePlan(value.behavior);
+      const approved = rawPlan.scripts as PreviewScriptPlan[], entities = rawScene.entities as SceneEntity[];
+      if (behavior.programs.length !== approved.length || behavior.programs.some(program => !approved.some(script => script.scriptId === program.scriptId && script.entityId === program.entityId && script.emittedText === program.originalEmittedText))
+        || behavior.entityIds.length !== entities.length || behavior.entityIds.some(id => !entities.some(entity => entity.id === id))
+        || behavior.components.some(c => !entities.some(entity => entity.id === c.entityId && entity.components?.some(component => component.id === c.id && component.type === c.type && component.enabled)))) return null;
+    }
+  } catch { return null; }
+  return Object.freeze({ scene: Object.freeze({ documentId: rawScene.documentId, revision: Number(rawScene.revision), entities: rawScene.entities as SceneEntity[], ...(camera ? { camera } : {}) }), plan: rawPlan as unknown as PreviewPlan, assets: Object.freeze(value.assets as PreviewAsset[]), behavior });
 }
 function isPreviewScriptPlan(value: unknown): value is PreviewScriptPlan {
   return isRecord(value) && exactKeys(value, ['scriptId', 'entityId', 'order', 'textRevision', 'digest', 'capabilities', 'diagnostics', 'emittedText'])
@@ -864,6 +899,7 @@ function applyDeclarativePlaySnapshot(tick: number, assets: ReadonlyMap<string, 
     physicsEvents: (physicsRuntime?.events() ?? []).map((event) => ({ kind: event.kind, phase: event.phase, entityAId: event.entityAId, entityBId: event.entityBId })),
   }) : runtime.snapshot(tick);
   if (!snapshot) return;
+  behaviorRecorder?.captureDeclarative(snapshot, advance);
   for (const item of snapshot.observations) gameplayObservations.set(item.owner, item.id, item.value);
   for (const pool of snapshot.pools) {
     const instances = getOrCreateInstanceSet(pool.templateEntityId, pool.capacity);

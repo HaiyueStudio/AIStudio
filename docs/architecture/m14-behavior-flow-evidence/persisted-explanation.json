@@ -1,0 +1,47 @@
+{
+  "reference": {
+    "projectId": "project:dd795293-6465-4fc6-bdbf-8db44e79ebc8",
+    "documentId": "document:bdc95730-b048-41d1-b3a9-7e6fceaf2fd1",
+    "documentRevision": 12,
+    "sourceBindingDigest": "sha256:75c5641bf8b9fe8dfb22c09c3e1c4be9124924f6cb42330650d0ea7f77da7d98",
+    "manifestDigest": "sha256:932398b3585a5210b3970252200220cab1481c9fe65c4d29b6aeefa7c0e8e193",
+    "kind": "explanation",
+    "artifactId": "artifact:sha256:e02c3d9c860c05aee5b0230fe8bed2e77a4af5d3b111e76b3712c2f098fd19e7",
+    "digest": "sha256:ceb8360450558e01648677de126f02af72c9d585ed5e8ee270c905130373ffbc",
+    "createdAt": "2026-09-08T01:39:01.189Z"
+  },
+  "value": {
+    "digest": "sha256:f66a0d7fbc194de15d6b01cb29617a8084c10926e8df1ae37c8850421389f4c2",
+    "entries": [
+      {
+        "evidence": [
+          {
+            "digest": "sha256:80399941d1a928431fce19d75c94f47e8f3b06cee423e3459098f0f2d4c661b3",
+            "entityId": "entity:6295b617-42ea-4280-9660-33ea41b30905",
+            "kind": "script",
+            "path": "scripts/1ae0094b-83da-402d-9afc-ec2bf9b16143.ts",
+            "range": {
+              "end": 388,
+              "endColumn": 59,
+              "endLine": 5,
+              "start": 0,
+              "startColumn": 1,
+              "startLine": 1
+            },
+            "scriptId": "script:1ae0094b-83da-402d-9afc-ec2bf9b16143"
+          }
+        ],
+        "nodeId": "node:f904997365a166c89f35492180bfc539",
+        "text": "来源类型：script；结构：script-entry。此项仅描述静态结构。是否执行需核对运行观测。"
+      }
+    ],
+    "language": "zh-CN",
+    "manifestDigest": "sha256:932398b3585a5210b3970252200220cab1481c9fe65c4d29b6aeefa7c0e8e193",
+    "producer": {
+      "kind": "verified-structure",
+      "templateVersion": "1.0.0"
+    },
+    "producerVersion": "1.0.0",
+    "schemaVersion": 1
+  }
+}

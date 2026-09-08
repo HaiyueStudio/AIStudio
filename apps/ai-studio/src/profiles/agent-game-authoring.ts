@@ -1,7 +1,7 @@
 import { asStableId, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import { HarnessApiKeyBackend, CodexAppServerBackend } from '@haiyue/ai-studio-agent-backends';
 import { createAgentRuntimePlugin } from '@haiyue/ai-studio-agent-runtime';
-import { createGameAuthoringToolsPlugin, type GamePreviewControl } from '@haiyue/ai-studio-game-authoring-tools';
+import { createGameAuthoringToolsPlugin, type GamePreviewControl, type GameBehaviorSource } from '@haiyue/ai-studio-game-authoring-tools';
 import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
 
 export interface PocEditorProfile {
@@ -31,10 +31,11 @@ export interface PocAgentGameAuthoringProfileOptions {
   readonly resolveDeepSeekApiKey: () => Promise<string | null>;
   readonly clearDeepSeekApiKey: () => Promise<void>;
   readonly codexLoginMode?: 'browser' | 'device-code';
+  readonly behaviorSource?: GameBehaviorSource;
 }
 
 export function createPocAgentGameAuthoringPlugins(options: PocAgentGameAuthoringProfileOptions): readonly StudioPluginDefinition<any>[] {
-  const tools = createGameAuthoringToolsPlugin({ preview: options.preview });
+  const tools = createGameAuthoringToolsPlugin({ preview: options.preview, behaviorSource: options.behaviorSource });
   const agent = createAgentRuntimePlugin({
     createBackends: async (context) => {
       if (options.backend === 'codex-app-server') {
