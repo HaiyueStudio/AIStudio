@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: sandboxed product preview resolves a controlled blob texture and releases every owner
+ok 1 - sandboxed product preview resolves a controlled blob texture and releases every owner
+  ---
+  duration_ms: 2261.7868
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2488.2838

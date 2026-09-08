@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: 0/1/100/1000 entities and 200 scripts are actual Document inputs with bounded pages and no source text
+ok 1 - 0/1/100/1000 entities and 200 scripts are actual Document inputs with bounded pages and no source text
+  ---
+  duration_ms: 3675.7266
+  type: 'test'
+  ...
+# Subtest: oversize source and model external dependencies use existing controlled import rejection
+ok 2 - oversize source and model external dependencies use existing controlled import rejection
+  ---
+  duration_ms: 522.4951
+  type: 'test'
+  ...
+# Subtest: proven use-site navigation validates exact component field and refuses fabricated or old sites
+ok 3 - proven use-site navigation validates exact component field and refuses fabricated or old sites
+  ---
+  duration_ms: 774.2809
+  type: 'test'
+  ...
+# Subtest: catalog projects frozen four-kind contracts from actual registry and Document without changing History
+ok 4 - catalog projects frozen four-kind contracts from actual registry and Document without changing History
+  ---
+  duration_ms: 485.7369
+  type: 'test'
+  ...
+# Subtest: Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
+ok 5 - Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
+  ---
+  duration_ms: 1554.4
+  type: 'test'
+  ...
+# Subtest: unknown usage, partial component references and zero references cannot be confused by unused filtering
+ok 6 - unknown usage, partial component references and zero references cannot be confused by unused filtering
+  ---
+  duration_ms: 1997.4479
+  type: 'test'
+  ...
+# Subtest: forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
+ok 7 - forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
+  ---
+  duration_ms: 721.351
+  type: 'test'
+  ...
+# Subtest: missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+ok 8 - missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+  ---
+  duration_ms: 1072.8079
+  type: 'test'
+  ...
+# Subtest: reference query cancellation settles despite an uncooperative port; late project results never publish
+ok 9 - reference query cancellation settles despite an uncooperative port; late project results never publish
+  ---
+  duration_ms: 949.8643
+  type: 'test'
+  ...
+# Subtest: file inspection cancelled by caller or superseded by another project cannot assign or change its status
+ok 10 - file inspection cancelled by caller or superseded by another project cannot assign or change its status
+  ---
+  duration_ms: 803.2678
+  type: 'test'
+  ...
+# Subtest: query pages are bounded, query-bound and version-bound; same revision in another project is insufficient
+ok 11 - query pages are bounded, query-bound and version-bound; same revision in another project is insufficient
+  ---
+  duration_ms: 1389.8383
+  type: 'test'
+  ...
+# Subtest: existing import containment, file format and decode limits reject invalid sources before Document changes
+ok 12 - existing import containment, file format and decode limits reject invalid sources before Document changes
+  ---
+  duration_ms: 1023.428
+  type: 'test'
+  ...
+# Subtest: real approval rejection, History undo/redo, missing references and failed query state remain explicit
+ok 13 - real approval rejection, History undo/redo, missing references and failed query state remain explicit
+  ---
+  duration_ms: 1111.1028
+  type: 'test'
+  ...
+# Subtest: registered light, geometry, material and component template values match the actual committed defaults
+ok 14 - registered light, geometry, material and component template values match the actual committed defaults
+  ---
+  duration_ms: 1673.4445
+  type: 'test'
+  ...
+# Subtest: workflow errors never disclose port text and delayed mutations keep exact source revision
+ok 15 - workflow errors never disclose port text and delayed mutations keep exact source revision
+  ---
+  duration_ms: 386.394
+  type: 'test'
+  ...
+# Subtest: copied projects keep resource identity while file health and pending reads stay with their storage owner
+ok 16 - copied projects keep resource identity while file health and pending reads stay with their storage owner
+  ---
+  duration_ms: 766.1852
+  type: 'test'
+  ...
+# Subtest: resource presentation preserves authoritative kind, unsupported presets and proven zero versus unknown
+ok 17 - resource presentation preserves authoritative kind, unsupported presets and proven zero versus unknown
+  ---
+  duration_ms: 627.8963
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24630.9634

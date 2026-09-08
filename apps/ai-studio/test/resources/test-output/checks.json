@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "mode": "user-directed-independent-g06-acceptance",
+  "inputDigest": "sha256:c1311446be1cfda9d055588b094f2a9ff93de9b6b3acf7449a33555bd173f8eb",
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "verifiedAt": "2026-09-08T03:00:29.607Z",
+  "productIntegrated": false,
+  "checks": [
+    {
+      "id": "resource-services-and-model",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "packages/editor-plugins/test/resources/*.test.mjs",
+        "packages/studio-shell/test/resources/*.test.mjs"
+      ],
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 24840,
+      "output": "resource-services-and-model.tap",
+      "outputDigest": "sha256:ae2dd474f70b88811ca4fc30efa3888795dc5a17ac05c71e21bb2c62455579f6"
+    },
+    {
+      "id": "existing-asset-regressions",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "packages/editor-plugins/test/g08-render-asset-components.test.mjs",
+        "apps/ai-studio/test/preview-asset-transfer.test.mjs"
+      ],
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 577,
+      "output": "existing-asset-regressions.tap",
+      "outputDigest": "sha256:9cc355fef1a2e086f1b22c189c930debf6c8425cc7c1c8874e8edeab99c6fc6d"
+    },
+    {
+      "id": "resource-module-window",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/resources/panel-electron.test.mjs"
+      ],
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 52945,
+      "output": "resource-module-window.tap",
+      "outputDigest": "sha256:5886c957cf22ffb4f8f29f4225b27c145b1f2e9d3415b941166eb4f93becc578"
+    },
+    {
+      "id": "existing-preview-asset-lifecycle",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/g08-preview-asset-electron.test.mjs"
+      ],
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 2642,
+      "output": "existing-preview-asset-lifecycle.tap",
+      "outputDigest": "sha256:bcb6ea805c67878cb03d9588e2ed9b8621d14a72badb4a0e5b627a4040725674"
+    }
+  ]
+}

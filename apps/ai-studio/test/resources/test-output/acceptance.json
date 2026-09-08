@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "acceptedOn": "2026-09-08",
+  "status": "complete",
+  "mode": "user-directed-independent-g06-acceptance",
+  "scope": "resource-leaf-service-panel-and-real-module-verification",
+  "inputDigest": "sha256:c1311446be1cfda9d055588b094f2a9ff93de9b6b3acf7449a33555bd173f8eb",
+  "leafPassed": 25,
+  "capabilityPassed": 120,
+  "repositoryCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "evidence": "repository-check.txt"
+  },
+  "productIntegrated": false,
+  "handoff": "../README.md",
+  "downstreamPrerequisitesWaived": false,
+  "artifacts": [
+    {
+      "path": "checks.json",
+      "byteLength": 2402,
+      "digest": "sha256:50cfbeb63deacdd1939469b1ee4a0c661dbde82c0a4001e8991465c10865d40a"
+    },
+    {
+      "path": "repository-check.txt",
+      "byteLength": 33053,
+      "digest": "sha256:5164de197ef98f200bfe69f665dac626e2163578f14eb5350ffe5f8d138ac453"
+    },
+    {
+      "path": "resource-services-and-model.tap",
+      "byteLength": 4789,
+      "digest": "sha256:ae2dd474f70b88811ca4fc30efa3888795dc5a17ac05c71e21bb2c62455579f6"
+    },
+    {
+      "path": "existing-asset-regressions.tap",
+      "byteLength": 1489,
+      "digest": "sha256:9cc355fef1a2e086f1b22c189c930debf6c8425cc7c1c8874e8edeab99c6fc6d"
+    },
+    {
+      "path": "resource-module-window.tap",
+      "byteLength": 523,
+      "digest": "sha256:5886c957cf22ffb4f8f29f4225b27c145b1f2e9d3415b941166eb4f93becc578"
+    },
+    {
+      "path": "existing-preview-asset-lifecycle.tap",
+      "byteLength": 360,
+      "digest": "sha256:bcb6ea805c67878cb03d9588e2ed9b8621d14a72badb4a0e5b627a4040725674"
+    },
+    {
+      "path": "window/verification.json",
+      "byteLength": 708,
+      "digest": "sha256:b43f9ef6e40adfbceb61b56e002c3516564cd63747cb01e6ebe6be7ffb97694b"
+    },
+    {
+      "path": "window/accessibility.json",
+      "byteLength": 252948,
+      "digest": "sha256:4dcec33fe357b40039eb7281c89b14cca9669540f29090810e4c16f53809e908"
+    },
+    {
+      "path": "window/resource-desktop.png",
+      "byteLength": 62197,
+      "digest": "sha256:6607e2cdeb02cec9c98aadbef1e9c2a19bcfaa6e17dbda7334cb962c7dd68634"
+    },
+    {
+      "path": "window/resource-missing.png",
+      "byteLength": 66627,
+      "digest": "sha256:de8336d8a34e703c30821b88e147ab440a412a22cc6d88b404077d56b8762148"
+    },
+    {
+      "path": "window/resource-narrow.png",
+      "byteLength": 41834,
+      "digest": "sha256:8825df42bc6db6abfe4ccac291d65a4d5453f554b24721a3e516c036338f24c6"
+    },
+    {
+      "path": "milestones-check.txt",
+      "byteLength": 200,
+      "digest": "sha256:6546a2142b3e3180e09a1c90694ba319087db133d1b7856fd0531fc9782a9bc2"
+    }
+  ],
+  "milestonesCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "evidence": "milestones-check.txt"
+  }
+}

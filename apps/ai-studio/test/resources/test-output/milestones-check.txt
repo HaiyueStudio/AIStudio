@@ -1,0 +1,5 @@
+
+> @haiyue/milestones@0.1.0 check
+> node milestones/verify-repository-version-policy.mjs
+
+[repository-version-policy] repository graph, version range, release order, and DeepSeek pinning passed.

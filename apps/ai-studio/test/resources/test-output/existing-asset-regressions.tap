@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: preview transfer reads only enabled referenced assets and releases owned URLs
+ok 1 - preview transfer reads only enabled referenced assets and releases owned URLs
+  ---
+  duration_ms: 2.8643
+  type: 'test'
+  ...
+# Subtest: preview transfer fails closed on descriptor drift, encoded length and aggregate budgets
+ok 2 - preview transfer fails closed on descriptor drift, encoded length and aggregate budgets
+  ---
+  duration_ms: 0.8881
+  type: 'test'
+  ...
+# Subtest: preview transfer releases owned URLs when disposal aborts a pending read
+ok 3 - preview transfer releases owned URLs when disposal aborts a pending read
+  ---
+  duration_ms: 3.9841
+  type: 'test'
+  ...
+# Subtest: G08 registry round-trips render, effects, animation, audio and asset descriptors
+ok 4 - G08 registry round-trips render, effects, animation, audio and asset descriptors
+  ---
+  duration_ms: 10.4367
+  type: 'test'
+  ...
+# Subtest: post-process, particles and render budgets fail closed at schema boundaries
+ok 5 - post-process, particles and render budgets fail closed at schema boundaries
+  ---
+  duration_ms: 3.9071
+  type: 'test'
+  ...
+# Subtest: controlled asset catalog enforces containment, format, license, decode and image budgets
+ok 6 - controlled asset catalog enforces containment, format, license, decode and image budgets
+  ---
+  duration_ms: 3.2315
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 411.532
