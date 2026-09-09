@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "inputDigest": "sha256:f9f6d795f187cfea0d0318f225e3c16c31815c34806281b92df27e60919b4032",
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "build": {
+    "command": "npm run build -w @haiyue/ai-studio",
+    "exitCode": 0,
+    "durationMs": 6587,
+    "outputDigest": "sha256:d1ea8d0644720daa40c7b1005904f9719072cbd924a9777d9ae8bd05c5b17725"
+  },
+  "checks": [
+    {
+      "id": "documents",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/editor-plugins/test/g05-document-v2.test.mjs",
+        "packages/editor-plugins/test/g08-render-asset-components.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:44:35.504Z",
+      "durationMs": 1662,
+      "exitCode": 0,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:e837260c8888c06c0cc520113441db82e37e48cd8865ffa79ceb14c046535e35"
+    },
+    {
+      "id": "tools",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/game-authoring-tools/test/tool-invocation.test.mjs",
+        "packages/game-authoring-tools/test/g08-semantic-tools.test.mjs",
+        "apps/ai-studio/test/tool-discovery-invocation.test.mjs",
+        "packages/game-authoring-tools/test/behavior-tools.test.mjs",
+        "packages/game-authoring-tools/test/behavior-resource-tool-invocation.test.mjs",
+        "apps/ai-studio/test/agent-tools/behavior-tool-invocation.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:44:37.168Z",
+      "durationMs": 34366,
+      "exitCode": 0,
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:2a1c1b129967262ebfffb4dc1915195f918d0887dc9d2c823022c40c58c80dfb"
+    },
+    {
+      "id": "camera",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/editor-plugins/test/camera-authoring.test.mjs",
+        "apps/ai-studio/test/camera-authoring.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:11.535Z",
+      "durationMs": 831,
+      "exitCode": 0,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:116791bb865cb054ebc0b2740098582db9b4f167e0e6afe62bc1e5f541a2e136"
+    },
+    {
+      "id": "simulation",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/play-simulation.test.mjs",
+        "apps/ai-studio/test/declarative-play-components.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:12.366Z",
+      "durationMs": 483,
+      "exitCode": 0,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:e7ebb55b898fb40584cc2a57b470928bec908d53905bc4c5e7e461ee7b8ad979"
+    },
+    {
+      "id": "physics",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/editor-plugins/test/g07-physics-components.test.mjs",
+        "apps/ai-studio/test/g07-physics-runtime.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:12.850Z",
+      "durationMs": 1201,
+      "exitCode": 0,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:fdce04f3223b9f93b64b4a153050635881f714d908bfe839a1ec9a37140ac02e"
+    },
+    {
+      "id": "render",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/g08-render-effects-runtime.test.mjs",
+        "apps/ai-studio/test/preview-asset-transfer.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:14.050Z",
+      "durationMs": 1307,
+      "exitCode": 0,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:cb9b352c62dfa11e99b86a104eb88b9d0fb28ee6aa11d058dc64bd4f7ddaa8ea"
+    },
+    {
+      "id": "scripts",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/script-preview/test/script-preview.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:15.357Z",
+      "durationMs": 23576,
+      "exitCode": 0,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:b66561fb73edc5a39dffaa7fcc4c1e1b3634b0daff55223d77c7a081aa18d4b9"
+    },
+    {
+      "id": "observations",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/game-authoring-tools/test/g10-observations.test.mjs",
+        "apps/ai-studio/test/gameplay-observation-store.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:38.934Z",
+      "durationMs": 1555,
+      "exitCode": 0,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:c1baaa1553d2fd477e082fc2e8be8a8df7ef3e22ad835b68ea7d7acc7aea9a6d"
+    },
+    {
+      "id": "census-guards",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "scripts/m14-capability-census.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:40.489Z",
+      "durationMs": 2451,
+      "exitCode": 0,
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:21366126011257cee36f4c39aa279ec5ae1251da19a36e643bfa6297e5993d0b"
+    },
+    {
+      "id": "behavior-project-flow",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "packages/operation-log/test/behavior-history.test.mjs",
+        "packages/agent-orchestration/test/behavior-project.test.mjs",
+        "packages/studio-shell/test/logic-model.test.mjs",
+        "packages/script-preview/test/behavior-runtime.test.mjs",
+        "apps/ai-studio/test/logic-behavior-ipc.test.mjs",
+        "apps/ai-studio/test/logic-declarative-play.test.mjs",
+        "apps/ai-studio/test/logic-replay.test.mjs",
+        "apps/ai-studio/test/logic-m12.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:45:42.940Z",
+      "durationMs": 24148,
+      "exitCode": 0,
+      "passed": 30,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:0911f9be1e5738c865a240bb11d141bc454f1dd37c46031fa94d8952d7a4aae7"
+    },
+    {
+      "id": "behavior-panel-window",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/logic-panel-electron.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:46:07.088Z",
+      "durationMs": 4767,
+      "exitCode": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:ed70ac429b276f55f20779d29d03a48baad4b4958c935c608af429c196908d8d"
+    },
+    {
+      "id": "behavior-product-window",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/logic-product-electron.test.mjs"
+      ],
+      "startedAt": "2026-09-09T07:46:11.856Z",
+      "durationMs": 75371,
+      "exitCode": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:59431d4716526ebce3c40f8650a7f41c031b5c6a6406c7a1237cccbecc7e181e"
+    }
+  ]
+}

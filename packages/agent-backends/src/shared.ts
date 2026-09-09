@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
 import { asStableId, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
-import { AgentBackendProtocolError, type AgentBackendEvent, type AgentTurnInput } from '@haiyue/ai-studio-agent-runtime';
+import { AgentBackendProtocolError, type AgentBackendEvent } from '@haiyue/ai-studio-agent-runtime';
+export { toolSetSignature } from '@haiyue/ai-studio-agent-runtime';
 
 export class TurnChannel {
   private readonly history: AgentBackendEvent[] = [];
@@ -38,13 +38,5 @@ export interface Deferred<T> { readonly promise: Promise<T>; resolve(value: T): 
 export function deferred<T>(): Deferred<T> { let resolve!: (value: T) => void; let reject!: (cause?: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 export function backendEvent(backendId: StableId, sessionId: string, turnId: string, kind: AgentBackendEvent['kind'], payload: JsonObject): AgentBackendEvent { return Object.freeze({ schemaVersion: 1, backendId, sessionId: asStableId(sessionId), turnId: asStableId(turnId), kind, payload: Object.freeze(payload) }); }
 export function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
-export function toolSetSignature(tools: AgentTurnInput['tools']): string {
-  return createHash('sha256').update(stableJson(tools.map((tool) => ({ id: tool.id, description: tool.description, inputSchema: tool.inputSchema })))).digest('hex');
-}
-function stableJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`).join(',')}}`;
-}
 const MAX_BACKEND_EVENT_PAYLOAD_BYTES = 1024 * 1024;
 const MAX_TURN_EVENTS = 10_000;

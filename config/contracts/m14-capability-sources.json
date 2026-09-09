@@ -456,6 +456,7 @@
       "toolIds": [
         "asset.search",
         "asset.dependencies",
+        "asset.generate-texture",
         "asset.import",
         "asset.assign",
         "prefab.manage"
@@ -466,7 +467,9 @@
       ],
       "runtime": [
         "packages/editor-plugins/src/assets/catalog.ts",
-        "apps/ai-studio/src/declarative-play-components.ts"
+        "apps/ai-studio/src/declarative-play-components.ts",
+        "packages/game-authoring-tools/src/canvas-texture.ts",
+        "apps/ai-studio/src/canvas-texture-renderer.ts"
       ],
       "upstream": [
         {

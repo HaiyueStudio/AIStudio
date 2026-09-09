@@ -1,6 +1,7 @@
 import type { BehaviorNodeV1 } from '@haiyue/ai-studio-contracts';
 import type { DurableOperationEvent } from '@haiyue/ai-studio-operation-log';
 import { layoutLogicGraph, projectLogicGraph, sourceLabel, type LogicArtifactReference, type LogicPanelData, type LogicPanelIntent } from './model.js';
+import { attachGraphPan } from '../graph-pan.js';
 
 /** Displays immutable read models and emits typed intents. DOM state is limited
  * to selection, paging, filtering, zoom and disclosure preferences. */
@@ -52,6 +53,8 @@ export class LogicExplorerPanel {
     listen('logic-locate', 'click', () => { if (this.selected && this.data.manifest) this.send({ type: 'locate', manifestDigest: this.data.manifest.digest, nodeId: this.selected }); });
     listen('logic-related', 'click', () => this.requestRelated());
     listen('logic-related-next', 'click', () => this.requestRelated(this.relatedCursor));
+    const stopPanning = attachGraphPan(this.get('logic-canvas'));
+    this.lifetime.signal.addEventListener('abort', stopPanning, { once: true });
     this.render();
   }
   update(data: LogicPanelData): void {
@@ -116,7 +119,10 @@ export class LogicExplorerPanel {
     for (const id of ['logic-explain','logic-locate','logic-related','logic-related-next']) this.get<HTMLButtonElement>(id).disabled = this.busy || !this.selected || !graph.current;
   }
   private renderGraph(): void {
-    const graph = this.view(), root = this.get('logic-canvas'); root.replaceChildren();
+    const graph = this.view(), root = this.get('logic-canvas');
+    const scroll = { left: root.scrollLeft, top: root.scrollTop };
+    root.title = this.text('按住左键或中键拖动查看；单击节点查看详情。', 'Drag with the left or middle button to pan; click a node for details.');
+    root.replaceChildren();
     this.get('logic-page').textContent = `${graph.total ? this.offset + 1 : 0}–${Math.min(this.offset + 100, graph.total)} / ${graph.total}`;
     this.get<HTMLButtonElement>('logic-previous').disabled = this.offset === 0; this.get<HTMLButtonElement>('logic-next').disabled = this.offset + 100 >= graph.total;
     if (!graph.nodes.length) { root.textContent = this.text('此分组没有可显示的节点。','No nodes match this group.'); return; }
@@ -133,6 +139,7 @@ export class LogicExplorerPanel {
       const select = () => { this.clearRelated(); this.selected = node.id; this.render(); this.root.querySelector<SVGElement>(`[data-node-id="${node.id}"]`)?.focus(); }; g.addEventListener('click', select); g.addEventListener('keydown', event => { if ((event as KeyboardEvent).key === 'Enter' || (event as KeyboardEvent).key === ' ') { event.preventDefault(); select(); } }); svg.append(g);
     }
     root.append(svg);
+    root.scrollLeft = scroll.left; root.scrollTop = scroll.top;
     const counts = new Map<string,number>(); for (const edge of graph.edges) counts.set(edge.kind, (counts.get(edge.kind) ?? 0) + 1);
     this.get('logic-relations').textContent = [...counts].map(([kind,count]) => `${kind}: ${count}`).join(' · ');
   }

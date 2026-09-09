@@ -1,28 +1,40 @@
 TAP version 13
-# Subtest: 0/1/100/1000 entities and 200 scripts are actual Document inputs with bounded pages and no source text
-ok 1 - 0/1/100/1000 entities and 200 scripts are actual Document inputs with bounded pages and no source text
+# Subtest: failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=false)
+ok 1 - failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=false)
   ---
-  duration_ms: 5708.8585
+  duration_ms: 418.4254
   type: 'test'
   ...
-# Subtest: oversize source and model external dependencies use existing controlled import rejection
-ok 2 - oversize source and model external dependencies use existing controlled import rejection
+# Subtest: failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=true)
+ok 2 - failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=true)
   ---
-  duration_ms: 699.9496
+  duration_ms: 351.6219
   type: 'test'
   ...
-# Subtest: proven use-site navigation validates exact component field and refuses fabricated or old sites
-ok 3 - proven use-site navigation validates exact component field and refuses fabricated or old sites
+# Subtest: a malformed request closes an empty batch after its delayed start and retains the original error
+ok 3 - a malformed request closes an empty batch after its delayed start and retains the original error
   ---
-  duration_ms: 898.0019
+  duration_ms: 111.6125
   type: 'test'
   ...
-1..3
-# tests 3
+# Subtest: cancellation before a durable tool start waits for it and cannot execute a late tool body
+ok 4 - cancellation before a durable tool start waits for it and cannot execute a late tool body
+  ---
+  duration_ms: 103.4186
+  type: 'test'
+  ...
+# Subtest: cleanup does not complete a batch twice when its completion audit fails
+ok 5 - cleanup does not complete a batch twice when its completion audit fails
+  ---
+  duration_ms: 109.5981
+  type: 'test'
+  ...
+1..5
+# tests 5
 # suites 0
-# pass 3
+# pass 5
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 8905.9268
+# duration_ms 2088.4964

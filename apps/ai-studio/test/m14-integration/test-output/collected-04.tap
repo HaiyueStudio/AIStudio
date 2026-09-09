@@ -1,22 +1,46 @@
 TAP version 13
-# Subtest: G08 zero-script: authorized production iframe, provenance, runtime and teardown
-ok 1 - G08 zero-script: authorized production iframe, provenance, runtime and teardown
+# Subtest: an approval barrier remains actionable after process restart and resumes from its durable checkpoint
+ok 1 - an approval barrier remains actionable after process restart and resumes from its durable checkpoint
   ---
-  duration_ms: 5395.1227
+  duration_ms: 151.012
   type: 'test'
   ...
-# Subtest: G08 mixed: authorized production iframe, provenance, runtime and teardown
-ok 2 - G08 mixed: authorized production iframe, provenance, runtime and teardown
+# Subtest: trusted script and runtime start barriers survive a real Electron process restart
+ok 2 - trusted script and runtime start barriers survive a real Electron process restart
   ---
-  duration_ms: 8825.681
+  duration_ms: 2664.9617
   type: 'test'
   ...
-1..2
-# tests 2
+# Subtest: a long durable plan releases the provider call and selects real catalog tools for its approved continuation
+ok 3 - a long durable plan releases the provider call and selects real catalog tools for its approved continuation
+  ---
+  duration_ms: 373.9864
+  type: 'test'
+  ...
+# Subtest: durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
+ok 4 - durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
+  ---
+  duration_ms: 425.5106
+  type: 'test'
+  ...
+# Subtest: durable backend question cancels the old provider turn and continues from the persisted answer
+ok 5 - durable backend question cancels the old provider turn and continues from the persisted answer
+  ---
+  duration_ms: 124.4387
+  type: 'test'
+  ...
+# Subtest: durable budget continuation releases the completed provider tranche and preserves prior output
+ok 6 - durable budget continuation releases the completed provider tranche and preserves prior output
+  ---
+  duration_ms: 221.1875
+  type: 'test'
+  ...
+1..6
+# tests 6
 # suites 0
-# pass 2
+# pass 6
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 15530.7048
+# duration_ms 5109.059

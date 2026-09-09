@@ -3,9 +3,10 @@ import { budgetMetricLabel, budgetContinuationRequest, DEFAULT_TASK_BUDGET, asse
 import { approvedPlanRequest, PLAN_TOOL_ID, PLAN_TOOL_DEFINITION, validatePlanProposal, PlanProtocolError, type ApprovedPlanExecution, type PlanAcceptanceProposal } from './plan-policy.js';
 import { taskTimeline, taskTitle, acceptanceReadModel, acceptanceLabel, taskSpecFromPlan, taskSpecFromRun, productPhaseForTool, productToolTitle, advancePlaytest, observationArtifacts, evaluationResult, repairRequest, taskAccountingProjection } from './task-acceptance.js';
 import { queryRetainedOperationEvents } from './retained-events.js';
+import { compareExecutionGraphs } from '@haiyue/ai-studio-shell/conversation';
 import { approvalContent, presentationDigest, intentLogPayload, localCompactionSummary, questionOptions, terminalStatus, completionSummary, boundedJson, projectToolModelResult, toolArgumentSummary, toolResultSummary } from './conversation-presentation.js';
 import { asStableId, type AgentTurnConfigV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type ObservationArtifactV2, type StableId, type TaskBudgetV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
-import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type BackendSessionAdapter, type BudgetDecision, type CompactionSummaryRequestV1, type ContextCompactionRuntime, type ContextProjectSnapshot, type DurableSessionHandle, type PromptProfileSnapshot, type SessionReplaySnapshotV1, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
+import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type AgentTurnInput, type BackendSessionAdapter, type BudgetDecision, type CompactionSummaryRequestV1, type ContextCompactionRuntime, type ContextProjectSnapshot, type DurableSessionHandle, type PromptProfileSnapshot, type SessionReplaySnapshotV1, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
 import { BoundedPlaytestTask, GameToolProtocolError, MODEL_TOOL_INVOKE_DEFINITION, PlaytestLoopError, RollingToolBatchScheduler, normalizeToolBatchRequest, resolveModelToolInvocation, type GameAuthoringToolService, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult, type LegacyToolRequest, type RollingToolWorkResult, type ToolBatchDiagnostic, type ToolBatchNodeStatus } from '@haiyue/ai-studio-game-authoring-tools';
 import { canonicalStringify, redactObject, sha256, type ConversationOperationLog } from '@haiyue/ai-studio-operation-log';
 import { normalizeConversationNode, normalizeTaskAccounting, normalizeTaskRun, projectExecutionGraph, validateConversationIntent, type ConversationBackendReadModel, type ConversationNodeReadModel, type ConversationProjectionEvent, type ConversationReplaySnapshot, type ConversationTaskAcceptanceReadModel, type ConversationTaskAccountingReadModel, type ConversationTaskEvidenceReadModel, type ConversationTaskPhase, type ConversationTaskRunReadModel, type ExecutionGraphReadModel } from '@haiyue/ai-studio-shell/conversation';
@@ -15,6 +16,8 @@ interface ActiveTurn {
   readonly backendId: StableId;
   readonly taskId: StableId;
   readonly config: AgentTurnConfigV2;
+  readonly tools: AgentTurnInput['tools'] | null;
+  providerStarted: boolean;
   readonly account: TaskAccount;
   sessionId: StableId | null;
   turnId: StableId | null;
@@ -105,6 +108,7 @@ interface ActiveToolBatch {
   transactionGroup: BatchTransactionGroup | null;
   startTail: Promise<void>;
   commitTail: Promise<void>;
+  drain: Promise<void> | null;
   outputBytes: number;
 }
 interface RecoveredContinuationSeed {
@@ -169,6 +173,7 @@ export class StudioConversationHost {
   private projectionPersistenceFailure: unknown = null;
   private readonly durableSessions = new Map<StableId, Promise<DurableSessionHandle>>();
   private readonly executionGraphs = new Map<StableId, ExecutionGraphReadModel>();
+  private readonly restoredGraphSessions = new Map<StableId, string>();
   private readonly pendingGraphSnapshots = new Map<StableId, SessionReplaySnapshotV1>();
   private readonly initializedSessionTurns = new Set<string>();
   private readonly finalizedSessionTurns = new Set<string>();
@@ -215,7 +220,7 @@ export class StudioConversationHost {
       backends: this.backends,
       taskAccounting: this.taskAccountingReadModel(),
       taskRuns: Object.freeze([...this.taskRuns.values()].sort((left, right) => left.startedAt.localeCompare(right.startedAt)).slice(-50)),
-      executionGraphs: Object.freeze([...this.executionGraphs.values()].sort((left, right) => left.revision - right.revision || left.sessionId.localeCompare(right.sessionId)).slice(-50)),
+      executionGraphs: Object.freeze([...this.executionGraphs.values()].sort(compareExecutionGraphs).slice(-50)),
       events: Object.freeze(this.events.map((event) => Object.freeze({ ...event, source: 'replay' as const }))),
     });
   }
@@ -409,7 +414,7 @@ export class StudioConversationHost {
       acceptance: Object.freeze([]), evidence: Object.freeze([]), timeline: Object.freeze([taskTimeline('planning', 'active', '任务已开始', '正在读取项目上下文并形成可审阅的方案。')]), terminalDiagnostic: null, resumable: false,
     });
     this.taskRuns.set(taskId, taskRun); this.persistTaskRun(taskRun);
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal: prompt, decisions: [], toolFacts: [], blockers: [], contextCommitted: false, suspendedBarrierId: null };
+    this.active = { backendId, taskId, config, tools, providerStarted: false, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: null, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal: prompt, decisions: [], toolFacts: [], blockers: [], contextCommitted: false, suspendedBarrierId: null };
     this.project(userNodeId, 'text', 'completed', provenance, Object.freeze({ text: prompt, role: 'user' }));
     this.project(initialProgressNodeId, 'progress', 'pending', provenance, Object.freeze({
       label: '正在分析需求', message: 'Agent 正在读取项目上下文并规划下一步。', phase: 'awaiting-first-step',
@@ -463,7 +468,7 @@ export class StudioConversationHost {
     const playtest = this.playtestTasks.get(taskId);
     if (playtest?.snapshot().phase === 'repairing') playtest.advance('editing');
     this.updateTaskRun(taskId, { status: 'running', phase: playtest?.snapshot().phase ?? (plan ? 'editing' : 'planning'), terminalDiagnostic: null, resumable: false }, { phase: playtest?.snapshot().phase ?? 'editing', status: 'active', title: plan ? '继续执行已批准方案' : '继续预算分段', detail: continuationInstruction ?? '从权威项目状态恢复。' });
-    this.active = { backendId, taskId, config, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal, decisions: plan ? [`Approved plan: ${plan.title}. ${plan.summary}`] : ['User approved continuation after a completed budget checkpoint.'], toolFacts: [], blockers: [], contextCommitted: false, suspendedBarrierId: null };
+    this.active = { backendId, taskId, config, tools, providerStarted: false, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal, decisions: plan ? [`Approved plan: ${plan.title}. ${plan.summary}`] : ['User approved continuation after a completed budget checkpoint.'], toolFacts: [], blockers: [], contextCommitted: false, suspendedBarrierId: null };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId }), Object.freeze({
       label: plan ? '正在执行已批准方案' : '正在恢复任务', message: plan ? '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。' : '预算续期已确认，Agent 正在从安全检查点恢复任务。', phase: plan ? 'approved-plan-execution' : 'budget-continuation',
     }));
@@ -506,7 +511,7 @@ export class StudioConversationHost {
     const restoredRun = this.taskRuns.get(taskId);
     const restoredPlan: ApprovedPlanExecution | null = restoredRun?.acceptance.length ? { title: restoredRun.title, summary: 'Restored user-approved plan and acceptance criteria.', items: Object.freeze([]), attempts: 1, mutationCount: 1 } : null;
     if (restoredPlan) this.approvedPlanTurns.add(turnKey(sessionId, turnId));
-    this.active = { backendId, taskId, config, account, sessionId, turnId, controller, wallTimeBudget, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: restoredPlan, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey: conversationKeyFor(project), projectId: project?.projectId ?? null, goal: restoredRun?.requestSummary ?? 'Retry the interrupted visible task.', decisions: [], toolFacts: [], blockers: [], contextCommitted: false, suspendedBarrierId: null };
+    this.active = { backendId, taskId, config, tools: null, providerStarted: false, account, sessionId, turnId, controller, wallTimeBudget, initialProgressNodeId, localSessionId: sessionId, localTurnId: turnId, approvedPlan: restoredPlan, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey: conversationKeyFor(project), projectId: project?.projectId ?? null, goal: restoredRun?.requestSummary ?? 'Retry the interrupted visible task.', decisions: [], toolFacts: [], blockers: [], contextCommitted: false, suspendedBarrierId: null };
     this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId, turnId }), Object.freeze({
       label: '正在恢复任务', message: 'Agent 正在恢复上次任务的上下文。', phase: 'awaiting-first-step',
     }));
@@ -537,12 +542,14 @@ export class StudioConversationHost {
     const backend = this.options.runtime.registry.get(backendId);
     let batch: ActiveToolBatch | null = null;
     let lastCoordinates: Readonly<{ sessionId: StableId; turnId: StableId }> | null = null;
+    let streamFailed = false;
     try {
       for await (const event of stream) {
         lastCoordinates = Object.freeze({ sessionId: event.sessionId, turnId: event.turnId });
         await this.ensureSessionTurnStarted(event);
         if (signal.aborted && event.kind !== 'usage' && event.kind !== 'completed') continue;
         if (this.active) {
+          if (event.kind === 'status' && event.payload.status === 'running') this.active.providerStarted = true;
           this.active.sessionId = event.sessionId; this.active.turnId = event.turnId;
           this.updateTaskRun(this.active.taskId, { sessionId: event.sessionId, turnId: event.turnId });
           const model = typeof event.payload.model === 'string' ? event.payload.model : this.active.config.model;
@@ -563,9 +570,18 @@ export class StudioConversationHost {
         if (event.kind === 'completed') await this.finalizeSessionTurn(event.sessionId, event.turnId, terminalStatus(event.payload.status));
         if ((event.kind === 'usage' || event.kind === 'completed') && this.active) { await this.recordTaskAccounting(this.active.account, event.sessionId, event.turnId); this.changed(); }
       }
+    } catch (cause) {
+      streamFailed = true;
+      throw cause;
     } finally {
-      if (batch) await this.drainToolBatch(batch);
-      if (lastCoordinates && !this.finalizedSessionTurns.has(turnKey(lastCoordinates.sessionId, lastCoordinates.turnId))) await this.finalizeSessionTurn(lastCoordinates.sessionId, lastCoordinates.turnId, 'interrupted').catch(() => undefined);
+      try {
+        if (batch) await this.drainToolBatch(batch);
+      } catch (cause) {
+        if (!streamFailed) throw cause;
+        await this.options.operationLog.append({ kind: 'conversation/batch-cleanup-failed', severity: 'error', source: asStableId('studio.conversation-host'), correlation: lastCoordinates ?? {}, payload: { code: errorCode(cause), message: errorMessage(cause) } }).catch(() => undefined);
+      } finally {
+        if (lastCoordinates && !this.finalizedSessionTurns.has(turnKey(lastCoordinates.sessionId, lastCoordinates.turnId))) await this.finalizeSessionTurn(lastCoordinates.sessionId, lastCoordinates.turnId, 'interrupted').catch(() => undefined);
+      }
     }
   }
 
@@ -675,7 +691,7 @@ export class StudioConversationHost {
       maxNodes: 64, maxConcurrency: 4, maxWallTimeMs: 60_000, signal,
       cancelled: (node, diagnostic) => Object.freeze({ status: 'cancelled', value: this.cancelledToolBody(contexts.get(asStableId(node.id)), diagnostic) }),
     });
-    const batch: ActiveToolBatch = { id, backend, sessionId: event.sessionId, turnId: event.turnId, startedAtMs: Date.now(), calls: [], contexts, bodies: [], scheduler, transactionGroup: null, startTail: Promise.resolve(), commitTail: Promise.resolve(), outputBytes: 0 };
+    const batch: ActiveToolBatch = { id, backend, sessionId: event.sessionId, turnId: event.turnId, startedAtMs: Date.now(), calls: [], contexts, bodies: [], scheduler, transactionGroup: null, startTail: Promise.resolve(), commitTail: Promise.resolve(), drain: null, outputBytes: 0 };
     batch.startTail = this.startToolBatchSession(batch);
     return batch;
   }
@@ -708,7 +724,6 @@ export class StudioConversationHost {
     const context: ToolExecutionContext = Object.freeze({ backend: batch.backend, event, toolCallId, toolId, args, provenance, toolNodeId, node, ...(invocationError ? { invocationError } : {}) });
     batch.contexts.set(asStableId(node.id), context);
     this.project(toolNodeId, 'tool-call', 'pending', provenance, Object.freeze({ toolCallId, toolId, executionClass: node.executionClass, argumentsSummary: toolArgumentSummary(toolId, args), ...(this.options.recordProjectId ? { parameters: args } : {}) }));
-    if (this.active) this.beforeProductTool(this.active.taskId, toolId, args, event.turnId, toolCallId);
     const dispatched = batch.startTail.then(async () => {
       const handle = await this.ensureDurableSession(batch.sessionId);
       await handle.append({ kind: 'tool-batch.planned', turnId: batch.turnId, batchId: batch.id, nodeId: node.id, dependsOn: node.dependsOn, projectRevision: this.options.projectContext?.()?.revision ?? null,
@@ -729,6 +744,7 @@ export class StudioConversationHost {
     const work = batch.scheduler.enqueue(node, async (batchSignal): Promise<RollingToolWorkResult<HostToolWork>> => {
       await dispatched;
       if (precedingTransaction) await precedingTransaction;
+      if (batchSignal.aborted) return Object.freeze({ status: 'cancelled', value: this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.cancelled', message: 'Tool batch was cancelled before execution.', retryable: true })) });
       if (group) {
         const prepared = await this.prepareMutationWork(context, group, batchSignal);
         return Object.freeze({ status: isPreparedMutationWork(prepared) ? 'completed' : prepared.status, value: prepared });
@@ -738,6 +754,8 @@ export class StudioConversationHost {
     });
     if (group) group.entries.push(Object.freeze({ context, work }));
     batch.commitTail = batch.commitTail.then(async () => {
+      // The scheduler can cancel a queued node without running its body/start await.
+      await dispatched;
       const value = (await work).value;
       const body = isPreparedMutationWork(value) ? (await this.flushTransactionGroup(batch, value.group, signal)).get(asStableId(context.node.id)) ?? this.cancelledToolBody(context, Object.freeze({ code: 'scene-transaction.result-missing', message: 'Scene transaction did not produce a member result.', retryable: false }), Date.now() - value.startedAtMs, 'failed') : value;
       const committed = await this.commitToolBody(batch, context, body, signal);
@@ -745,11 +763,17 @@ export class StudioConversationHost {
     });
   }
 
-  private async drainToolBatch(batch: ActiveToolBatch): Promise<void> {
+  private drainToolBatch(batch: ActiveToolBatch): Promise<void> {
+    return batch.drain ??= this.finishToolBatch(batch);
+  }
+
+  private async finishToolBatch(batch: ActiveToolBatch): Promise<void> {
     const pendingTransaction = batch.transactionGroup ? this.flushTransactionGroup(batch, batch.transactionGroup) : null;
     batch.transactionGroup = null;
     await batch.scheduler.drain();
     await pendingTransaction;
+    // Even a rejected first request owns an asynchronously started, empty batch.
+    await batch.startTail;
     await batch.commitTail;
     const completed = batch.bodies.filter((body) => body.status === 'completed').length;
     const failed = batch.bodies.filter((body) => body.status === 'failed').length;
@@ -832,13 +856,17 @@ export class StudioConversationHost {
   private async restoreExecutionGraphs(): Promise<void> {
     const sessions = this.options.runtime.sessions;
     if (!sessions) return;
-    const ids = [...new Set([...this.taskRuns.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).map((run) => run.sessionId).filter((id): id is StableId => id !== null))].slice(0, 12);
+    const candidates = new Map(this.restoredGraphSessions);
+    const remember = (id: StableId, timestamp: string): void => { if (timestamp > (candidates.get(id) ?? '')) candidates.set(id, timestamp); };
+    for (const run of this.taskRuns.values()) if (run.sessionId) remember(run.sessionId, run.updatedAt);
+    for (const node of this.nodes.values()) remember(node.provenance.sessionId, node.createdAt);
+    const ids = [...candidates].sort((left, right) => right[1].localeCompare(left[1]) || right[0].localeCompare(left[0])).slice(0, 50).map(([id]) => id);
     for (const sessionId of ids) {
-      if (this.durableSessions.has(sessionId)) continue;
       try {
-        const base = await sessions.open(sessionId, { repairOpenOperations: false });
+        const existing = this.durableSessions.get(sessionId);
+        const base = existing ? await existing : await sessions.open(sessionId, { repairOpenOperations: false });
         if (!isCompleteDurableSessionHandle(base)) continue;
-        const observed = this.observeDurableSession(base); this.durableSessions.set(sessionId, Promise.resolve(observed));
+        const observed = existing ? base : this.observeDurableSession(base); this.durableSessions.set(sessionId, Promise.resolve(observed));
         this.captureGraphSnapshot(await observed.snapshot(), true);
       } catch { /* Legacy task projections without a durable M13 session remain available through the Transcript fallback. */ }
     }
@@ -1045,7 +1073,7 @@ export class StudioConversationHost {
 
   private async prepareMutationWork(context: ToolExecutionContext, group: BatchTransactionGroup, signal: AbortSignal): Promise<PreparedMutationWork | HostToolBody> {
     const { event, toolCallId, toolId, provenance } = context;
-    const account = this.active?.account; const startedAtMs = Date.now(); let stage: 'budget' | 'prepare' | 'approval' = 'budget';
+    const account = this.active?.account; const startedAtMs = Date.now(); let stage: 'budget' | 'workflow' | 'prepare' | 'approval' = 'budget';
     try {
       if (!account) throw new Error('Task accounting is unavailable for this tool call.');
       if (this.active?.budgetCheckpoint) return this.cancelledToolBody(context, Object.freeze({ code: 'budget.turn-stopping', message: 'This turn is already stopping at a safe budget checkpoint. Retry in the continuation turn.', retryable: true }), Date.now() - startedAtMs);
@@ -1060,6 +1088,8 @@ export class StudioConversationHost {
       const definition = this.options.tools.definitions().find((item) => item.id === toolId);
       if (!definition || definition.effect !== 'reversible-edit') throw new Error(`Tool ${toolId} is not eligible for a Scene transaction.`);
       if (!this.approvedPlanTurns.has(turnKey(event.sessionId, event.turnId))) throw new PlanProtocolError('plan.approval-required', 'Submit studio.plan.propose and wait for user confirmation before mutating the project.');
+      stage = 'workflow';
+      if (this.active) this.beforeProductTool(this.active.taskId, toolId, context.args, event.turnId, toolCallId);
       stage = 'prepare';
       const preparation = await this.options.tools.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, ...(this.active?.taskId ? { taskId: this.active.taskId } : {}), toolId, toolVersion: context.node.toolVersion, arguments: context.args }, signal);
       stage = 'approval'; if (preparation.approvalId && await this.awaitApproval(preparation, provenance, signal) === 'suspended') {
@@ -1125,7 +1155,7 @@ export class StudioConversationHost {
     let args = context.args;
     const account = this.active?.account;
     const startedAtMs = Date.now();
-    let stage: 'budget' | 'prepare' | 'approval' | 'execute' = 'budget';
+    let stage: 'budget' | 'workflow' | 'prepare' | 'approval' | 'execute' = 'budget';
     try {
       if (!account) throw new Error('Task accounting is unavailable for this tool call.');
       if (this.active?.budgetCheckpoint) {
@@ -1154,6 +1184,9 @@ export class StudioConversationHost {
         if (!task) throw new PlaytestLoopError('task.acceptance-unapproved', 'Task evaluation requires user-approved acceptance criteria.');
         args = Object.freeze({ ...args, taskSpec: task }) as unknown as JsonObject;
       }
+      stage = 'workflow';
+      if (this.active) this.beforeProductTool(this.active.taskId, toolId, args, event.turnId, toolCallId);
+      stage = 'prepare';
       const preparation = await this.options.tools.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, ...(this.active?.taskId ? { taskId: this.active.taskId } : {}), toolId, toolVersion: context.node.toolVersion, arguments: args }, signal);
       stage = 'approval'; if (preparation.approvalId && await this.awaitApproval(preparation, provenance, signal) === 'suspended') {
         await this.options.tools.cancel(context.toolCallId).catch(() => undefined);
@@ -1698,7 +1731,7 @@ export class StudioConversationHost {
     try {
       let pending = this.durableSessions.get(node.provenance.sessionId);
       if (!pending) {
-        pending = sessions.open(node.provenance.sessionId, { repairOpenOperations: false }).then(async (handle) => { await this.options.sessionRecovery?.recover(handle); return handle; });
+        pending = sessions.open(node.provenance.sessionId, { repairOpenOperations: false }).then(async (handle) => { await this.options.sessionRecovery?.recover(handle); return isCompleteDurableSessionHandle(handle) ? this.observeDurableSession(handle) : handle; });
         this.durableSessions.set(node.provenance.sessionId, pending);
       }
       const handle = await pending; const snapshot = await handle.snapshot();
@@ -1844,6 +1877,7 @@ export class StudioConversationHost {
       const id = event.artifactRefs[0]; if (!id) continue;
       try {
         const run = normalizeTaskRun((await this.options.operationLog.readArtifact(id)).value); const prior = this.taskRuns.get(run.taskId);
+        if (run.sessionId && run.updatedAt > (this.restoredGraphSessions.get(run.sessionId) ?? '')) this.restoredGraphSessions.set(run.sessionId, run.updatedAt);
         if (!prior || run.revision > prior.revision) this.taskRuns.set(run.taskId, run);
       } catch { /* corrupt/future projections stay hidden */ }
     }
@@ -1948,6 +1982,7 @@ export class StudioConversationHost {
     await this.options.runtime.context.commit({
       conversationKey: active.conversationKey, backendId: active.backendId, taskId: active.taskId, sessionId: event.sessionId, turnId: event.turnId,
       projectId: active.projectId, goals: [active.goal], decisions: active.decisions, toolFacts: active.toolFacts,
+      ...(active.providerStarted && active.tools ? { tools: active.tools } : {}),
       blockers: status === 'completed' ? active.blockers : [...active.blockers, `Turn ended with ${status}.`],
     });
   }

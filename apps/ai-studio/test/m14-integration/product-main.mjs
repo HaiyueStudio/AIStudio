@@ -24,6 +24,7 @@ const call = async (channel, payload = {}) => {
 const waitFor = async (read, label) => { console.log(`[m14-product:${phase}] ${label}`); const deadline = Date.now() + 15000; while (Date.now() < deadline) { if (await read()) return; await new Promise(r => setTimeout(r, 40)); } throw Error('Timed out: ' + label + '\n' + JSON.stringify(await evaluate('({dataset:{...document.body.dataset},status:document.querySelector("#status")?.textContent,advanced:document.querySelector("[data-advanced=error]")?.textContent,resources:document.querySelector("[data-resource=status]")?.textContent})'))); };
 const ready = () => waitFor(() => evaluate('document.body.dataset.status === "ready"'), 'product ready');
 const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+const selectWorkspaceTab = value => evaluate(`document.querySelector('#workspace-tabs').shadowRoot.querySelector('[data-value="${value}"]').click()`);
 const settle = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
 const screenshot = async name => writeFile(path.join(directory, name), (await window.webContents.capturePage()).toPNG());
 const data = () => call('editor/advanced');
@@ -46,11 +47,11 @@ async function run() {
     const history = await call('conversation/history', { projectId: (await call('project/snapshot')).document.projectId, limit: 100 });
     assert.equal(history.storage, 'project'); assert.equal(history.projectId, (await call('project/snapshot')).document.projectId);
     assert.equal(history.records.length, 0, 'manual authoring does not fabricate Agent execution records');
-    await click('#workspace-resources-tab'); await screenshot('resources-restarted.png');
+    await selectWorkspaceTab('resources'); await screenshot('resources-restarted.png');
     await writeFile(path.join(directory, 'restart.json'), JSON.stringify({ schemaVersion: 1, assetId: expected.assetId, entityId: expected.entityId, projectRecords: history.records.length }, null, 2));
     return finish(0);
   }
-  await click('#workspace-resources-tab');
+  await selectWorkspaceTab('resources');
   await waitFor(() => evaluate('document.querySelector("#studio-resource-panel [data-resource-entry]") !== null'), 'resource catalog');
   await evaluate(`(()=>{const p=document.querySelector('#studio-resource-panel');p.querySelector('[data-resource=kind]').value='template';p.querySelector('[data-resource=category]').value='Geometry';p.querySelector('form').requestSubmit();})()`);
   await waitFor(() => evaluate('document.querySelector(".resource-explorer").getAttribute("aria-busy")==="false" && document.querySelector("[data-resource=kind]").value==="template"'), 'geometry catalog');
@@ -97,7 +98,7 @@ async function run() {
   // Save also refreshes the project-bound panels. A path alone does not mean
   // that refresh has finished; opening a dialog during rebinding cancels it.
   await waitFor(() => evaluate('!document.querySelector("#save-project").disabled && document.querySelector("#status").textContent === "项目已保存"'), 'save UI settled');
-  await click('#workspace-resources-tab');
+  await selectWorkspaceTab('resources');
   await waitFor(() => evaluate('!document.querySelector("[data-resource=import]").disabled'), 'import available'); await click('[data-resource=import]');
   await evaluate(`(()=>{const f=document.querySelector('.studio-resource-import form');for(const[k,v]of Object.entries({projectPath:'assets/sky.png',provenance:'G09 generated local test image',decodedBytes:'256',width:'2',height:'1'}))f.elements.namedItem(k).value=v;f.requestSubmit();})()`);
   await waitFor(async () => (await call('scene/snapshot')).assets.length === 1 && await evaluate('!document.querySelector(".studio-resource-import")'), 'import committed');
@@ -115,7 +116,7 @@ async function large() {
   const timings = {}, measure = async (name, limit, operation) => { const start = performance.now(); await operation(); timings[name] = performance.now() - start; assert.ok(timings[name] <= limit, `${name}: ${timings[name]} > ${limit} ms`); };
   await measure('open', budget.maxOpenMs, async () => { await click('#open-project'); await waitFor(async () => (await data()).document?.entities.length === budget.entities, 'large project opened'); });
   assert.equal((await call('project/snapshot')).document.counts.scripts, budget.scripts);
-  await click('#workspace-resources-tab');
+  await selectWorkspaceTab('resources');
   await waitFor(() => evaluate('document.querySelector("[data-resource-entry]") !== null'), 'large resource panel');
   await measure('advancedMount', budget.maxInteractionMs, async () => { await click('#workspace-advanced-button'); await waitFor(() => evaluate('document.querySelectorAll("[data-entity]").length>0'), 'large hierarchy mounted'); });
   assert.ok(await evaluate('document.querySelectorAll("[data-entity]").length') <= budget.maxVisibleTreeRows);

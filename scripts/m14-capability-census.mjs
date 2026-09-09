@@ -47,8 +47,8 @@ function targets(value) {
 }
 
 export async function collectPackages() {
-  const [manifest, lock, engine, render, editor, app] = await Promise.all(['package.json', 'package-lock.json', 'config/engine-candidate.json', 'config/render-extension-candidates.json', 'config/upstream/editor-candidates.json', 'apps/ai-studio/package.json'].map(readJson));
-  const candidates = [engine, ...render.candidates.map(c => ({ ...c, sourceRevision: render.sourceRevision })), ...editor.packages.map(c => ({ ...c, package: c.name, sha256: c.tarballSha256 }))];
+  const [manifest, lock, engine, render, editor, app, ui] = await Promise.all(['package.json', 'package-lock.json', 'config/engine-candidate.json', 'config/render-extension-candidates.json', 'config/upstream/editor-candidates.json', 'apps/ai-studio/package.json', 'config/upstream/ui-candidate.json'].map(readJson));
+  const candidates = [engine, ui, ...render.candidates.map(c => ({ ...c, sourceRevision: render.sourceRevision })), ...editor.packages.map(c => ({ ...c, package: c.name, sha256: c.tarballSha256 }))];
   const names = [...new Set([...candidates.map(c => c.package), '@haiyue/ui'])].sort();
   return Promise.all(names.map(async name => {
     const folder = `node_modules/${name}`;

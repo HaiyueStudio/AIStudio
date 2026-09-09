@@ -1,5 +1,6 @@
+import { createAuthoringPlane } from '@haiyue/ai-studio-editor-plugins/render';
 import {
-  BasicMaterial, createBox3D, createPlane3D, createSphere3D,
+  BasicMaterial, createBox3D, createSphere3D,
   type Entity, type HaiyueEngine, Mesh3D, PbrMaterial, type Scene,
 } from '@haiyue/engine';
 import { BlinnPhongMaterial, BlinnPhongRenderSystem, createCone3D, createCylinder3D, createIcosahedron3D, createTorus3D, NormalMaterial } from '@haiyue/engine/experimental';
@@ -7,6 +8,7 @@ import { AmbientLight, DirectionalLight, PointLight } from '@haiyue/engine/light
 import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-editor-plugins';
 
 export interface RenderableSceneEntity {
+  readonly components?: readonly Readonly<{ type: string; value: Readonly<Record<string, unknown>> }>[];
   readonly kind: SceneEntityKind;
   readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
   readonly light?: Readonly<{ color: readonly [number, number, number]; intensity: number; range?: number; direction?: readonly [number, number, number]; castShadow?: boolean }>;
@@ -29,7 +31,7 @@ export function installSceneEntityMaterialRenderers(engine: HaiyueEngine, scene:
 export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEntity): void {
   if (isRenderableSceneKind(item.kind)) {
     const appearance = item.appearance ?? { material: 'basic' as const, color: [0.16, 0.58, 1, 1] as const };
-    entity.addComponent(new Mesh3D(createGeometry(item.kind), createMaterial(appearance)));
+    entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components), createMaterial(appearance)));
     return;
   }
   if (!isLightSceneKind(item.kind)) return;
@@ -39,10 +41,10 @@ export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEn
   else entity.addComponent(new AmbientLight({ color: light.color, intensity: light.intensity }));
 }
 
-function createGeometry(kind: SceneEntityKind) {
+function createGeometry(kind: SceneEntityKind, components?: RenderableSceneEntity['components']) {
   switch (kind) {
     case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();
-    case 'plane': return createPlane3D({ normal: 'y' }); case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
+    case 'plane': { const plane = components?.find(item => item.type === 'haiyue.render.geometry')?.value.plane; return createAuthoringPlane(plane); } case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
     default: throw new Error(`Entity kind ${kind} has no geometry.`);
   }
 }

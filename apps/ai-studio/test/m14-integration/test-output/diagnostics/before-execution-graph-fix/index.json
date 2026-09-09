@@ -1,0 +1,100 @@
+{
+  "sourceInputDigest": "sha256:597b965ebfc1ca51228a9d38f37ae2b041491867a4257ff7adf57baf36941e6e",
+  "files": [
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/tool-contract-capability-capture.log",
+      "sha256": "10b7c6fe180ebfacd71ab8db2437ae5304a84b34f36008fb21bff64249b6523e",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/tool-contract-capability-capture.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/tool-contract-root-check.log",
+      "sha256": "3f846c9f70803d4ae925f40e3f0a5de793a0888116a91b18c38002a77dc7e2bf",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/tool-contract-root-check.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "e198c960d154bde3be5dd7f8275d7b64e8f162af13f44f4181e8d130e57d4938",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/collected-tests.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/editor-candidate-source.json",
+      "sha256": "d61dc05bdfcf4d8de23c4c3937bd762b1031c4515dfe8892b305b939dec1e1b0",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/editor-candidate-source.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/replay-source-binding.json",
+      "sha256": "16168fd7d7c9c9f2b880a4e449458abedb5b5fb39c713efb5507065b03f09ce3",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/replay-source-binding.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
+      "sha256": "a70494c2da02ef0125ef9cd09674f017de45538a89e3203b7ca68ef613a3c284",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+      "sha256": "53121e7101311c7fd72970596bca52a08cffe60ae0754792dad3bc5589f7e6b7",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/product/author/author.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
+      "sha256": "e1693526c05fd79429bbd92198175a1281375c34841eb61404d7ac826583e684",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
+      "sha256": "381ad33e7eeead25bc90c94b44e013fcfd1ccd8a70b1715c61154d85d027c24c",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/product/large/large.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
+      "sha256": "faae48818334dd86484944907bf3710bd6ae29b88a42d0d6ca7b0c1c012d85d3",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
+      "sha256": "8aa209983bbd1dddcec2faa1674f6dd0df6fed80ac54b7226113bb06a49f38dc",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
+      "sha256": "d1ae02e683b1887e99ba8539390de97598551b1fa6407135d8b7dca1ac073d4c",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
+      "sha256": "df2cff148f7ffe3eb90d5fadf5d7ad6f0bb43aa48c166e66f45cbeb68984185c",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
+      "sha256": "657f399975c5faa012934befb6f4f25a8ff3e6185c10af9ac35023dbcfcfcdef",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
+      "sha256": "79d8f13f6cf5c5d52c50d7191526bc2c660806faaf32fbc78b85206fc3120953",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
+      "sha256": "9f6dded7f68d4714d3aa6bd312c87ad67b9735f1820047bf7883644e90516d61",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/secret-scan.json",
+      "sha256": "dd294de6903b9f1514cdea72669705704febe6e2af63d645681329645942c3c6",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/secret-scan.json"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "94fd7afb10d74d4af78b35f722fa070d51e6627d3099886f1f021b0e4dcb2c29",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/config/contracts/m14-capability-verification.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/tool-contract-focused.log",
+      "sha256": "47ecbb00f71d86741521f76f34805659ca3fdb58dacb2845ec27292fbcb67814",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-graph-fix/apps/ai-studio/test/m14-integration/test-output/tool-contract-focused.log"
+    }
+  ]
+}

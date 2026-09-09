@@ -43,6 +43,9 @@ export function productToolTitle(toolId: StableId): string {
   return '正在编辑项目';
 }
 export function advancePlaytest(playtest: BoundedPlaytestTask, target: Extract<ConversationTaskPhase, 'editing' | 'validating' | 'playing' | 'evaluating'>): void {
+  // Rechecking a preview is an observation, not a rollback into an editable phase.
+  // Keep the evidence/repair lifecycle at its current stage.
+  if (target === 'validating' && ['playing', 'evaluating'].includes(playtest.snapshot().phase)) return;
   for (let guard = 0; guard < 5 && playtest.snapshot().phase !== target; guard += 1) {
     const phase = playtest.snapshot().phase;
     if (phase === 'planning' || phase === 'repairing' || phase === 'evaluating' && target === 'editing') playtest.advance('editing');

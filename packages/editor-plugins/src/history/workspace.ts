@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { ControlledAssetCatalog, CONTROLLED_ASSET_CATALOG_SETTING_KEY, type ControlledAssetManifestEntry } from '../assets/catalog.js';
 import type {
   EditorDocumentHostSnapshot,
   EditorHistoryService,
@@ -211,46 +212,76 @@ export class ProjectWorkspace {
   }
 
   async executeBatch(input: ProjectBatchCommandInput, signal?: AbortSignal): Promise<ProjectWorkspaceSnapshot> {
+    return this.serialize(() => this.executeBatchNow(input, signal));
+  }
+
+  async importGeneratedTexture(input: Readonly<{ id: StableId; documentId: StableId; baseRevision: number; bytes: Uint8Array; width: number; height: number; recipeDigest: string }>, signal?: AbortSignal): Promise<Readonly<{ revision: number; asset: ControlledAssetManifestEntry }>> {
     return this.serialize(async () => {
-      this.assertActive();
-      throwIfAborted(signal);
-      const document = this.requireDocument();
+      this.assertActive(); throwIfAborted(signal);
+      const document = this.requireDocument(); const repository = this.requireRepository();
+      if (document.documentId !== input.documentId) throw new Error('Generated texture belongs to a different project document.');
       assertBaseRevision(document, input.baseRevision);
-      validateCommand(input);
-      const requested = await this.resources.operationLog.append({
-        kind: 'document/command-requested', severity: 'info', source: asStableId('studio.document'),
-        correlation: commandCorrelation(document, input),
-        payload: { label: input.label, baseRevision: input.baseRevision, operationCount: input.operations.length, operationKinds: [...new Set(input.operations.map((operation) => operation.op))] },
-      }, { signal });
-      throwIfAborted(signal);
-      let latest: GameDocumentDeltaV2 | undefined;
-      const command: EditorCommand = {
-        label: input.label,
-        estimatedBytes: JSON.stringify(input.operations).length,
-        execute: () => { latest = document.apply(input.transactionId ?? input.id, input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
-        undo: () => { if (!latest) throw new Error('Document command has no inverse.'); latest = document.apply(asStableId(`transaction:undo:${randomUUID()}`), latest.inverse); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); },
-        redo: () => { latest = document.apply(asStableId(`transaction:redo:${randomUUID()}`), input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
-      };
-      this.mutationProvenanceOpIds = Object.freeze([requested.eventId]);
+      if (!/^sha256:[a-f0-9]{64}$/u.test(input.recipeDigest)) throw new TypeError('Texture recipe digest is invalid.');
+      if (!Number.isInteger(input.width) || !Number.isInteger(input.height) || input.width < 1 || input.height < 1 || input.width > 2048 || input.height > 2048) throw new TypeError('Texture dimensions must be 1..2048.');
+      const bytes = new Uint8Array(input.bytes);
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      const catalog = ControlledAssetCatalog.fromManifest(document.gameSnapshot().settings[CONTROLLED_ASSET_CATALOG_SETTING_KEY]);
+      const asset = catalog.import({ projectPath: `assets/generated/${digest}.png`, bytes, kind: 'texture', mimeType: 'image/png', license: 'project-owned', provenance: `Canvas 2D recipe v1 ${input.recipeDigest}`, width: input.width, height: input.height, decodedBytes: Math.max(bytes.byteLength, input.width * input.height * 4) });
+      const staged = await repository.stageGeneratedTexture(bytes, signal);
       try {
-        if (!this.resources.history.execute(command)) throw new Error('Command reported no change.');
+        this.assertActive(); throwIfAborted(signal);
+        const result = await this.executeBatchNow({ id: input.id, label: 'Draw PNG Texture', baseRevision: input.baseRevision, operations: [
+          { op: 'asset.upsert', asset: { id: asset.id, kind: asset.kind, digest: asset.digest, source: 'project' } },
+          { op: 'setting.set', key: CONTROLLED_ASSET_CATALOG_SETTING_KEY, value: catalog.settingValue() },
+        ] }, signal);
+        return Object.freeze({ revision: result.document!.revision, asset });
       } catch (cause) {
-        await this.resources.operationLog.append({
-          kind: 'document/command-failed', severity: 'error', source: asStableId('studio.document'),
-          correlation: commandCorrelation(document, input), payload: { message: errorMessage(cause) },
-        }).catch(() => {});
+        // A post-commit audit error must not remove bytes referenced by the committed document.
+        if (document.revision === input.baseRevision) await staged.rollback();
         throw cause;
-      } finally {
-        this.mutationProvenanceOpIds = Object.freeze([]);
       }
-      this.resources.projectSession.updateDocumentRevision(document.revision);
-      await this.resources.operationLog.append({
-        kind: 'document/command-committed', severity: 'info', source: asStableId('studio.document'),
-        correlation: commandCorrelation(document, input), payload: { revision: document.revision, historyLabel: input.label, operationCount: input.operations.length, metrics: latest?.metrics ?? null },
-      });
-      this.emit();
-      return this.snapshot();
     });
+  }
+
+  private async executeBatchNow(input: ProjectBatchCommandInput, signal?: AbortSignal): Promise<ProjectWorkspaceSnapshot> {
+    this.assertActive();
+    throwIfAborted(signal);
+    const document = this.requireDocument();
+    assertBaseRevision(document, input.baseRevision);
+    validateCommand(input);
+    const requested = await this.resources.operationLog.append({
+      kind: 'document/command-requested', severity: 'info', source: asStableId('studio.document'),
+      correlation: commandCorrelation(document, input),
+      payload: { label: input.label, baseRevision: input.baseRevision, operationCount: input.operations.length, operationKinds: [...new Set(input.operations.map((operation) => operation.op))] },
+    }, { signal });
+    throwIfAborted(signal);
+    let latest: GameDocumentDeltaV2 | undefined;
+    const command: EditorCommand = {
+      label: input.label,
+      estimatedBytes: JSON.stringify(input.operations).length,
+      execute: () => { latest = document.apply(input.transactionId ?? input.id, input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
+      undo: () => { if (!latest) throw new Error('Document command has no inverse.'); latest = document.apply(asStableId(`transaction:undo:${randomUUID()}`), latest.inverse); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); },
+      redo: () => { latest = document.apply(asStableId(`transaction:redo:${randomUUID()}`), input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
+    };
+    this.mutationProvenanceOpIds = Object.freeze([requested.eventId]);
+    try {
+      if (!this.resources.history.execute(command)) throw new Error('Command reported no change.');
+    } catch (cause) {
+      await this.resources.operationLog.append({
+        kind: 'document/command-failed', severity: 'error', source: asStableId('studio.document'),
+        correlation: commandCorrelation(document, input), payload: { message: errorMessage(cause) },
+      }).catch(() => {});
+      throw cause;
+    } finally {
+      this.mutationProvenanceOpIds = Object.freeze([]);
+    }
+    this.resources.projectSession.updateDocumentRevision(document.revision);
+    await this.resources.operationLog.append({
+      kind: 'document/command-committed', severity: 'info', source: asStableId('studio.document'),
+      correlation: commandCorrelation(document, input), payload: { revision: document.revision, historyLabel: input.label, operationCount: input.operations.length, metrics: latest?.metrics ?? null },
+    });
+    this.emit();
+    return this.snapshot();
   }
 
   async executeTransaction(input: ProjectTransactionInput, signal?: AbortSignal): Promise<ProjectTransactionCommit> {

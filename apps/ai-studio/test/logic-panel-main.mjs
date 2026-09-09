@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { checkGraphPanning } from './graph-pan-input.mjs';
 const directory = process.env.HAIYUE_LOGIC_PANEL_ROOT;
 app.setPath('userData', path.join(directory, 'user-data'));
 let window;
@@ -22,6 +23,10 @@ app.whenReady().then(async () => {
     panel.update({...base,manifest:fixture.large,documentId:fixture.large.binding.documentId,documentRevision:fixture.large.binding.documentRevision,trace:null});assert(get('logic-canvas').querySelectorAll('[data-node-id]').length<=100,'bounded graph page');get('logic-next').click();assert(get('logic-page').textContent.startsWith('101'),'large graph paging');
     panel.update(base);panel.openExpanded();assert(get('logic-expanded').open,'expanded graph');assert(document.activeElement===get('logic-expanded-close'),'initial focus');`);
   const press = keyCode => { window.webContents.sendInputEvent({ type: 'keyDown', keyCode }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode }); };
+  window.showInactive();
+  await evaluate(`panel.update({...base,manifest:fixture.large,documentId:fixture.large.binding.documentId,documentRevision:fixture.large.binding.documentRevision,trace:null});get('logic-zoom').value='175';get('logic-zoom').dispatchEvent(new Event('input'));`);
+  await checkGraphPanning(window, '#logic-canvas', 'selected');
+  await evaluate(`get('logic-canvas').style.maxWidth='';get('logic-canvas').style.height='';get('logic-zoom').value='100';panel.update(base);get('logic-expanded-close').focus();`);
   press('Tab'); await evaluate(`assert(get('logic-expanded').contains(document.activeElement),'native dialog focus');`);
   await settle(); await writeFile(path.join(directory, 'panel-desktop.png'), (await window.webContents.capturePage()).toPNG());
   press('Escape'); await new Promise(resolve => setTimeout(resolve, 80));
@@ -31,6 +36,6 @@ app.whenReady().then(async () => {
   await evaluate(`const r=get('logic-expanded').getBoundingClientRect();assert(r.left>=0&&r.right<=innerWidth,'narrow dialog fits');assert(document.documentElement.scrollWidth<=innerWidth,'no page overflow');`);
   await settle(); await writeFile(path.join(directory, 'panel-narrow.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate(`panel.dispose();panel.dispose();assert(!get('logic-explorer')&&!get('logic-expanded'),'idempotent teardown');`);
-  finish(0, 'filter, grouping, zoom, locale, history, keyboard, narrow and teardown passed');
+  finish(0, 'filter, grouping, zoom, drag panning, node click, pointer cancellation, locale, history, keyboard, narrow and teardown passed');
 }).catch(error => finish(1, error.stack ?? String(error)));
 function finish(code, message) { clearTimeout(deadline); console.log(message); app.exit(code); }

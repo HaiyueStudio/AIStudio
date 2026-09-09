@@ -348,6 +348,10 @@ function fakeConversationPort() {
 function fakeDom() {
   let innerHtmlWrites = 0;
   class FakeNode {
+    get classList() {
+      const read = () => new Set((this.className ?? '').split(/\s+/u).filter(Boolean));
+      return { add: (...names) => { this.className = [...new Set([...read(), ...names])].join(' '); }, remove: (...names) => { this.className = [...read()].filter(name => !names.includes(name)).join(' '); }, contains: name => read().has(name) };
+    }
     constructor(ownerDocument, tag = 'fragment') { this.ownerDocument = ownerDocument; this.tagName = tag; this.children = []; this.dataset = {}; this.attributes = {}; this.style = {}; this.listeners = new Map(); this._text = ''; this.value = ''; this.selectionStart = 0; this.selectionEnd = 0; this.selectionDirection = 'none'; this.scrollTop = 0; this.scrollHeight = 0; this.clientHeight = 0; }
     append(...values) { this.children.push(...values); }
     replaceChildren(...values) { this.children = [...values]; }

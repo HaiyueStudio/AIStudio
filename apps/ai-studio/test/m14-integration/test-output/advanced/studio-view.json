@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "binding": {
-    "documentId": "document:934d6668-f325-4a7a-87c8-fec6f78beb49",
+    "documentId": "document:cf83a0da-8bc3-4fd1-999e-05a52a9e1962",
     "revision": 2,
     "epoch": "open:fixture-1"
   },
@@ -9,8 +9,8 @@
     {
       "reference": {
         "kind": "scene-entity",
-        "id": "entity:c5278277-08da-4b2d-9752-d9127140f7d0",
-        "documentId": "document:934d6668-f325-4a7a-87c8-fec6f78beb49"
+        "id": "entity:ff416981-66e8-4b16-bbf5-482d250202bf",
+        "documentId": "document:cf83a0da-8bc3-4fd1-999e-05a52a9e1962"
       },
       "parentId": null,
       "order": 0,
@@ -22,14 +22,14 @@
     "revision": 1,
     "active": {
       "kind": "scene-entity",
-      "id": "entity:c5278277-08da-4b2d-9752-d9127140f7d0",
-      "documentId": "document:934d6668-f325-4a7a-87c8-fec6f78beb49"
+      "id": "entity:ff416981-66e8-4b16-bbf5-482d250202bf",
+      "documentId": "document:cf83a0da-8bc3-4fd1-999e-05a52a9e1962"
     },
     "items": [
       {
         "kind": "scene-entity",
-        "id": "entity:c5278277-08da-4b2d-9752-d9127140f7d0",
-        "documentId": "document:934d6668-f325-4a7a-87c8-fec6f78beb49"
+        "id": "entity:ff416981-66e8-4b16-bbf5-482d250202bf",
+        "documentId": "document:cf83a0da-8bc3-4fd1-999e-05a52a9e1962"
       }
     ]
   },
@@ -50,7 +50,7 @@
   },
   "sections": [
     {
-      "id": "component:transform:d92c5d4e-b089-491e-be14-c87f1bbd2173",
+      "id": "component:transform:56b24f62-4357-47df-86e4-dfa3ca17aeec",
       "title": "Transform 3D",
       "description": "haiyue.transform.3d@1.0.0",
       "enabled": true,
@@ -386,7 +386,7 @@
     "enabled": true,
     "transforms": [
       {
-        "id": "entity:c5278277-08da-4b2d-9752-d9127140f7d0",
+        "id": "entity:ff416981-66e8-4b16-bbf5-482d250202bf",
         "parentId": null,
         "value": {
           "position": [

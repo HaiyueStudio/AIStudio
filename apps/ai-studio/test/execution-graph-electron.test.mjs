@@ -26,6 +26,10 @@ test('G09 real Electron renders an accessible replayed graph and bounded large-g
 
 function appSource(shellEntry) { return `
 import { ConversationProjector, layoutExecutionGraph, presentChatPanel, projectExecutionGraph, renderChatPanel } from ${JSON.stringify(shellEntry.replaceAll('\\', '/'))};
+import { defineBorderBeamComponents, HYBorderBeam } from '@haiyue/ui/border-beam';
+defineBorderBeamComponents();
+const componentErrors=[];
+window.addEventListener('error',event=>{componentErrors.push(event.error?.stack??event.message);document.body.dataset.g09Status='failed';document.body.dataset.g09Error=event.error?.stack??event.message;});
 const backendId='backend:g09-ui',sessionId='session:g09-ui',turnId='turn:g09-ui';
 const pressure={maxInputTokens:100000,reservedOutputTokens:10000,reservedSafetyTokens:10000,usedInputTokens:64000,ratio:.8,measurement:'tokenizer-estimated',state:'compact-required'};
 const afterPressure={...pressure,usedInputTokens:48000,ratio:.6,state:'normal'};
@@ -47,7 +51,9 @@ const transcript=[{id:'transcript:user',opId:'op:2',role:'user',content:'创建�
 const graph=projectExecutionGraph({sessionId,activeGoal:'创建并验证一个跨类型游戏交互',status:'completed',ops,transcript});
 const backend={id:backendId,label:'Fixture',kind:'harness-api-key',state:'ready',authMode:'api-key',protocolVersion:'fixture',capabilities:{resume:true,questions:true,structuredTools:true,backendApprovals:false,usage:true,rateLimits:true},promptProfile:null,rateLimits:[],models:[{id:'fixture-model',label:'Fixture',reasoningEfforts:['high'],defaultReasoningEffort:'high',maxOutputTokens:8192,isDefault:true}],selectedModel:'fixture-model',selectedReasoningEffort:'high',outputTokenLimit:4096};
 const snapshot={revision:1,connection:'connected',busy:false,backendId,backends:[backend],taskAccounting:{taskId:'task:g09-ui',budgetStatus:'within',budget:{schemaVersion:2,id:'budget:g09-ui',enforcement:'hard',limits:{inputTokens:100000,outputTokens:10000,estimatedCostMicros:1000000,wallTimeMs:600000,turns:30,toolCalls:100,repairIterations:4,observationBytes:1000000}},usage:{inputTokens:12000,cachedInputTokens:4000,outputTokens:1200,reasoningTokens:600,toolInputBytes:1000,toolOutputBytes:2000,wallTimeMs:8000,contextCache:{localArtifactHits:5,localArtifactMisses:1,deltaReuseBytes:4096,providerCacheEligibleBytes:8192,providerReportedHitTokens:null}},cost:{status:'unknown',amountMicros:null,currency:null,cacheSavingMicros:null,explanation:'Provider subscription did not expose billable cost.',final:true}},taskRuns:[],executionGraphs:[graph],events:[]};
-const root=document.querySelector('#root'),intents=[]; const projector=new ConversationProjector(); const model=presentChatPanel(projector.reset(snapshot));
+const pendingCard={id:'card:pending',kind:'progress',status:'pending',title:'等待执行',body:'等待下一步',tone:'progress',actions:[],metadata:[]};
+const withPending=model=>({...model,cards:[...model.cards,pendingCard]});
+const root=document.querySelector('#root'),intents=[]; const projector=new ConversationProjector(); const model=withPending(presentChatPanel(projector.reset(snapshot)));
 const renderStarted=performance.now(); renderChatPanel(root,model,intent=>intents.push(intent)); const renderMs=performance.now()-renderStarted;
 const graphVisible=!!root.querySelector('[aria-label="Agent execution graph and transcript"]')&&root.querySelectorAll('.execution-node').length>3&&root.querySelectorAll('.execution-edges path').length>0;
 const firstNode=root.querySelector('.execution-node'); firstNode?.focus(); firstNode?.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true})); const keyboard=document.activeElement?.classList.contains('execution-node')===true;
@@ -58,8 +64,29 @@ const accessible=!!root.querySelector('.execution-accessible-list')&&root.textCo
 const largeOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started'),makeOp(2,'tool-batch.planned',{batchId:'batch:large'}),makeOp(3,'tool-batch.started',{batchId:'batch:large'})]; let sequence=4;
 for(let i=0;i<1000;i++){const nodeId='node:large:'+i;largeOps.push(makeOp(sequence++,'tool-batch.planned',{batchId:'batch:large',nodeId,payload:{toolId:'scene.query',executionClass:'parallel-read'}}),makeOp(sequence++,'tool.started',{batchId:'batch:large',nodeId,payload:{toolId:'scene.query'}}),makeOp(sequence++,'tool.completed',{batchId:'batch:large',nodeId,payload:{toolId:'scene.query',status:'completed'}}));} largeOps.push(makeOp(sequence++,'tool-batch.completed',{batchId:'batch:large',payload:{status:'completed'}}),makeOp(sequence++,'turn.completed',{payload:{status:'completed'}}));
 const projectionStarted=performance.now();const largeGraph=projectExecutionGraph({sessionId,ops:largeOps});const projectionMs=performance.now()-projectionStarted;const layoutStarted=performance.now();const largeLayout=layoutExecutionGraph(largeGraph);const layoutMs=performance.now()-layoutStarted;
-const result={graph:graphVisible,transcript:transcriptVisible,keyboard,idempotent,accessible,digest:/^sha256:[a-f0-9]{64}$/.test(graph.digest),parallel:graph.edges.some(edge=>edge.kind==='parallel-with'),large:largeGraph.nodes.filter(node=>node.kind==='tool').length===1000&&largeLayout.visibleNodeIds.length<100,renderBudget:renderMs<1500,projectionBudget:projectionMs<1500,layoutBudget:layoutMs<100,renderMs,projectionMs,layoutMs};
-document.body.dataset.g09Result=JSON.stringify(result);document.body.dataset.g09Status=Object.entries(result).filter(([key])=>!key.endsWith('Ms')).every(([,value])=>value===true)?'passed':'failed';if(document.body.dataset.g09Status==='failed')document.body.dataset.g09Error=JSON.stringify(result);
+const makeLater=(id,count,day)=>projectExecutionGraph({sessionId:id,activeGoal:'阶段 '+day,ops:ops.slice(0,count).map(op=>({...op,sessionId:id,id:id+':'+op.id,timestamp:op.timestamp.replace('2026-09-02',day)}))});
+const shortGraph=makeLater('session:short',3,'2026-09-03'),nextGraph=makeLater('session:next',20,'2026-09-04');
+const show=graphs=>renderChatPanel(root,withPending(presentChatPanel(projector.reset({...snapshot,executionGraphs:graphs}))),intent=>intents.push(intent));
+const button=label=>[...root.querySelectorAll('button')].find(item=>item.textContent===label);
+const activeSession=()=>root.querySelector('.execution-workspace')?.dataset.sessionId;
+show([graph,shortGraph]);const followsNewShortSession=activeSession()===shortGraph.sessionId;
+const history=root.querySelector('[aria-label="Agent session"]');history.value=graph.sessionId;history.dispatchEvent(new Event('change'));
+show([graph,shortGraph,nextGraph]);const preservesHistorySelection=activeSession()===graph.sessionId;
+button('跟随最新').click();const followsLatest=activeSession()===nextGraph.sessionId;
+const fits=()=>{const viewport=root.querySelector('.execution-graph-viewport'),region=root.querySelector('.execution-graph-region'),bounds=viewport.getBoundingClientRect(),regionBounds=region.getBoundingClientRect();return viewport.clientWidth>100&&viewport.clientHeight>100&&bounds.bottom<=regionBounds.bottom+1&&[...root.querySelectorAll('.execution-node')].every(node=>{const rect=node.getBoundingClientRect();return rect.left>=bounds.left&&rect.top>=bounds.top&&rect.right<=bounds.right+1&&rect.bottom<=bounds.bottom+1;});};
+button('展开全部')?.click();button('适应视图').click();const fitsWholeGraph=fits()&&!!root.querySelector('.edge-contains');
+for(let index=0;index<9;index++)root.querySelector('[aria-label="Zoom in execution graph"]').click();
+let viewport=root.querySelector('.execution-graph-viewport');viewport.scrollTop=120;viewport.scrollLeft=100;viewport.dispatchEvent(new Event('scroll'));const scroll={left:viewport.scrollLeft,top:viewport.scrollTop};
+show([graph,shortGraph,nextGraph]);viewport=root.querySelector('.execution-graph-viewport');const preservesScroll=scroll.top>0&&viewport.scrollTop===scroll.top&&viewport.scrollLeft===scroll.left;
+const lastStep=[...root.querySelectorAll('.execution-accessible-list button')].at(-1);lastStep.click();const selected=root.querySelector('.execution-node.is-selected'),selectedBounds=selected.getBoundingClientRect(),viewBounds=root.querySelector('.execution-graph-viewport').getBoundingClientRect();const locatesOffscreenStep=selectedBounds.left>=viewBounds.left&&selectedBounds.top>=viewBounds.top&&selectedBounds.right<=viewBounds.right&&selectedBounds.bottom<=viewBounds.bottom;
+button('适应视图').click();
+window.runNarrowGraphCheck=()=>{show([graph,shortGraph,nextGraph]);button('适应视图').click();return fits();};
+window.prepareGraphPanCheck=()=>{show([graph,shortGraph,nextGraph]);button('展开全部')?.click();for(let i=0;i<9;i++)root.querySelector('[aria-label="Zoom in execution graph"]').click();};
+const liveBeam=root.querySelector('hy-border-beam');
+const waitingCardHealthy=liveBeam instanceof HYBorderBeam&&liveBeam.shadowRoot.querySelectorAll('.beam').length===2&&liveBeam.style.getPropertyValue('--_beam-glow')==='3.75px';
+window.graphComponentErrors=componentErrors;
+const result={graph:graphVisible,transcript:transcriptVisible,keyboard,idempotent,accessible,waitingCardHealthy,noComponentErrors:componentErrors.length===0,followsNewShortSession,preservesHistorySelection,followsLatest,fitsWholeGraph,preservesScroll,locatesOffscreenStep,digest:/^sha256:[a-f0-9]{64}$/.test(graph.digest),parallel:graph.edges.some(edge=>edge.kind==='parallel-with'),large:largeGraph.nodes.filter(node=>node.kind==='tool').length===1000&&largeLayout.visibleNodeIds.length<100,renderBudget:renderMs<1500,projectionBudget:projectionMs<1500,layoutBudget:layoutMs<100,renderMs,projectionMs,layoutMs};
+document.body.dataset.g09Result=JSON.stringify(result);document.body.dataset.g09Status=Object.entries(result).filter(([key])=>!key.endsWith('Ms')).every(([,value])=>value===true)?'passed':'failed';if(document.body.dataset.g09Status==='failed')document.body.dataset.g09Error=JSON.stringify({result,componentErrors});
 `; }
 
 function run(command, args, env) { return new Promise((resolve, reject) => { const child = spawn(command, args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }); let output=''; child.stdout.on('data',(chunk)=>{output+=chunk;}); child.stderr.on('data',(chunk)=>{output+=chunk;}); child.once('error',reject); child.once('exit',(code)=>resolve({code,output})); }); }

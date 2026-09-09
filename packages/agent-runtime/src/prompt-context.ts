@@ -1,6 +1,8 @@
 import { asStableId, type ContextArtifactV2, type JsonObject, type JsonValue, type M12Digest, type M13StableId, type StableId } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, OperationLogError, redactJson, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import type { KnowledgeRetrievalRuntime, KnowledgeSearchResult } from './retrieval/index.js';
+import type { AgentTurnInput } from './index.js';
+import { toolSetSignature } from './tool-set.js';
 
 export type PromptModuleLayer = 'policy' | 'tool-contract' | 'workflow';
 export interface PromptModuleDefinition {
@@ -64,6 +66,8 @@ export interface CommitConversationInput extends VisibleConversationFacts {
   readonly sessionId: StableId;
   readonly turnId: StableId;
   readonly projectId: StableId | null;
+  /** Exact tools of a successfully started provider turn; unknown contracts cannot be reused. */
+  readonly tools?: AgentTurnInput['tools'];
 }
 
 interface StoredContextArtifact {
@@ -168,7 +172,7 @@ export class PromptContextRuntime {
   private readonly metadata = new Map<StableId, ContextArtifactV2>();
   private readonly projectStates = new Map<StableId, ContextProjectSnapshot>();
   private readonly indexes = new Map<string, ConversationIndex>();
-  private readonly liveSessions = new Map<string, StableId>();
+  private readonly liveSessions = new Map<string, Readonly<{ sessionId: StableId; toolSignature: string }>>();
   private initialized = false;
 
   constructor(private readonly log: OperationLog, prompts = new PromptModuleRegistry(), private readonly retrieval?: KnowledgeRetrievalRuntime) { this.prompts = prompts; }
@@ -181,7 +185,7 @@ export class PromptContextRuntime {
   }
 
   liveSession(conversationKey: StableId, backendId: StableId): StableId | null {
-    return this.liveSessions.get(indexKey(conversationKey, backendId)) ?? null;
+    return this.liveSessions.get(indexKey(conversationKey, backendId))?.sessionId ?? null;
   }
 
   async prepare(input: Readonly<{
@@ -194,7 +198,9 @@ export class PromptContextRuntime {
   }>): Promise<PreparedTurnContext> {
     await this.initialize();
     const request = sanitizeText(input.request, 32_768);
-    const reuseSessionId = this.liveSession(input.conversationKey, input.backendId);
+    const liveSession = this.liveSessions.get(indexKey(input.conversationKey, input.backendId));
+    const toolSignature = toolSetSignature(input.tools);
+    const reuseSessionId = liveSession?.toolSignature === toolSignature ? liveSession.sessionId : null;
     const knowledge = await this.retrieveKnowledge(request, input.conversationKey, input.project);
     const puts: StoredContextArtifact[] = [];
     puts.push(await this.put('policy', CONTEXT_SOURCE, null, {
@@ -263,7 +269,7 @@ export class PromptContextRuntime {
     const contextDigest = digest(canonicalStringify(ids as unknown as JsonValue));
     await this.log.append({
       kind: 'agent/context-bundle-prepared', severity: 'info', source: CONTEXT_SOURCE,
-      payload: { taskId: input.taskId, backendId: input.backendId, conversationKey: input.conversationKey, contextArtifactIds: ids, contextDigest, promptDigest: digest(prompt), promptBytes: Buffer.byteLength(prompt), reusedSessionId: reuseSessionId, cache },
+      payload: { taskId: input.taskId, backendId: input.backendId, conversationKey: input.conversationKey, contextArtifactIds: ids, contextDigest, promptDigest: digest(prompt), promptBytes: Buffer.byteLength(prompt), reusedSessionId: reuseSessionId, sessionReuse: reuseSessionId ? 'same-tool-contract' : liveSession ? 'tool-contract-changed' : 'no-live-contract', toolSignature, cache },
       artifactRefs: ids,
     });
     return Object.freeze({ prompt, promptDigest: digest(prompt), promptProfile: this.prompts.profile, contextArtifactIds: ids, contextDigest, cache, reusedSessionId: reuseSessionId });
@@ -295,7 +301,9 @@ export class PromptContextRuntime {
       projectId: input.projectId, summaryArtifactId: asStableId(stored.artifact.id), updatedAt,
     });
     this.indexes.set(indexKey(input.conversationKey, input.backendId), index);
-    this.liveSessions.set(indexKey(input.conversationKey, input.backendId), input.sessionId);
+    const key = indexKey(input.conversationKey, input.backendId);
+    if (input.tools) this.liveSessions.set(key, Object.freeze({ sessionId: input.sessionId, toolSignature: toolSetSignature(input.tools) }));
+    else this.liveSessions.delete(key);
     await this.log.append({
       kind: 'agent/conversation-indexed', severity: 'info', source: CONTEXT_SOURCE,
       correlation: { sessionId: input.sessionId, turnId: input.turnId, ...(input.projectId ? { projectId: input.projectId } : {}) },

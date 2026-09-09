@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "sourceRevision": "8aa1dbae92cfcf9f6853e51e2ae6f25a583a3dd3",
+  "sourceDirty": true,
+  "sourceFilesDigestAlgorithm": "sha256-json-source-files-v1",
+  "sourceFilesDigest": "4cae674d8d1e7505cdca77854f4693d1c5041e522730dce65d7420b20ed7aaaa",
+  "verifiedFiles": 14,
+  "tarballSha256": "b051f6e9afcd1efce1c06a6ad2958e8d219b59548ab3614ae511f9b8f81cd0e5",
+  "verifiedAt": "2026-09-08T09:19:20.242Z"
+}

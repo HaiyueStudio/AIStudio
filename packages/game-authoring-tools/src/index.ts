@@ -9,3 +9,5 @@ export * from './playtest-loop.js';
 export * from './transactions.js';
 export * from './scheduler/index.js';
 export * from './catalog/index.js';
+
+export * from './canvas-texture.js';

@@ -45,7 +45,7 @@ const GROUPS: readonly CapabilityGroup[] = Object.freeze([
   group('gameplay', ['gameplay', 'state', 'trigger', 'score', 'spawn', 'reset', '玩法', '状态', '触发', '计分', '生成', '重开'], ['play.', 'script.'], ['gameplay']),
   group('physics', ['physics', 'collision', 'gravity', 'body', 'raycast', 'overlap', '物理', '碰撞', '重力', '刚体', '射线'], ['play.physics-', 'component.'], ['physics']),
   group('presentation', ['render', 'light', 'material', 'shadow', 'particle', 'effect', 'hud', 'ui', '渲染', '灯光', '材质', '阴影', '粒子', '特效', '界面'], ['material.', 'camera.', 'component.', 'play.capture'], ['render', 'ui']),
-  group('assets', ['asset', 'texture', 'model', 'audio', 'animation', '资源', '纹理', '模型', '音频', '动画'], ['asset.'], ['asset']),
+  group('assets', ['asset', 'texture', 'canvas', 'png', 'draw', 'model', 'audio', 'animation', '资源', '纹理', '绘制', '画布', '图片', '素材', '模型', '音频', '动画'], ['asset.'], ['asset']),
   group('validation', ['validate', 'diagnostic', 'preview', 'capture', 'evidence', 'evaluate', '验证', '诊断', '预览', '截图', '证据', '验收'], ['diagnostics.', 'preview.', 'play.inspect', 'play.capture', 'task.evaluate'], ['validation']),
 ]);
 
@@ -68,13 +68,13 @@ export class ToolCatalogRuntime {
     const toolMatches = this.tools.map((definition) => {
       const group = capabilityGroup(`${definition.id} ${definition.requiredCapabilities.join(' ')}`);
       const candidate = `${definition.id} ${definition.title} ${definition.description} ${definition.requiredCapabilities.join(' ')} ${group.aliases.join(' ')}`;
-      const score = semanticScore(query.toLocaleLowerCase(), queryTokens, queryVector, candidate, this.embedding);
+      const score = query.toLocaleLowerCase() === definition.id.toLocaleLowerCase() ? 1 : semanticScore(query.toLocaleLowerCase(), queryTokens, queryVector, candidate, this.embedding);
       return Object.freeze({ kind: 'tool' as const, id: definition.id, title: definition.title, capabilityGroup: group.id, score, reason: reason(score, group.id), nextTool: definition.id, effect: definition.effect, risk: definition.risk, version: definition.version, requiresApproval: definition.requiresApproval, ...(includeSchemas ? { inputSchema: definition.inputSchema, invocation: Object.freeze({ tool: MODEL_TOOL_INVOKE_DEFINITION.id, toolId: definition.id, toolVersion: definition.version }) } : {}) });
     });
     const componentMatches = this.components().map((definition) => {
       const group = capabilityGroup(`${definition.type} ${definition.capability} ${definition.editor.category}`);
       const candidate = `${definition.type} ${definition.capability} ${definition.editor.label} ${definition.editor.category} ${group.aliases.join(' ')}`;
-      const score = semanticScore(query.toLocaleLowerCase(), queryTokens, queryVector, candidate, this.embedding);
+      const score = query.toLocaleLowerCase() === definition.type.toLocaleLowerCase() ? 1 : semanticScore(query.toLocaleLowerCase(), queryTokens, queryVector, candidate, this.embedding);
       return Object.freeze({ kind: 'component' as const, id: definition.type as StableId, title: definition.editor.label, capabilityGroup: group.id, score, reason: reason(score, group.id), nextTool: asStableId('component.describe'), effect: definition.effect, risk: definition.risk, version: definition.version });
     });
     return Object.freeze([...toolMatches, ...componentMatches].filter((entry) => entry.score > 0.05).sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, limit));

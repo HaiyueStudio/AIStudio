@@ -66,5 +66,5 @@ test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme
   assert.match(renderer, /updateTransform\(entityId[\s\S]*component\.setPosition/);
   assert.match(renderer, /async function applyTransform[\s\S]*viewport\?\.updateTransform[\s\S]*renderProjectChrome\(\)/);
   assert.match(styles, /hy-border-beam/);
-  assert.equal(manifest.dependencies['@haiyue/ui'], '0.1.1');
+  assert.equal(manifest.dependencies['@haiyue/ui'], '0.1.3');
 });

@@ -1,4 +1,5 @@
 import { ProjectAgentHistory, sha256 } from '@haiyue/ai-studio-operation-log';
+import { renderCanvasTexture } from './canvas-texture-renderer.js';
 import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -283,6 +284,7 @@ async function boot(): Promise<void> {
     ...createPocAgentGameAuthoringPlugins({
       backend: agentProfile.backend,
       preview: agentPreview,
+      textureRenderer: { render: renderCanvasTexture },
       behaviorSource: signal => { if (!projectBehavior) throw new Error('behavior.project-unavailable'); return projectBehavior.source(signal); },
       resolveDeepSeekApiKey: () => deepSeekCredentials.resolve(),
       clearDeepSeekApiKey: () => deepSeekCredentials.clear(),
@@ -389,7 +391,7 @@ function createWindow(): void {
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-standalone-play-pause-resume-device-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
           || result.agentBackend !== 'backend:codex-app-server' || !['ready', 'auth-required', 'error'].includes(result.agentBackendState)
-          || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4 || result.tabCount !== 2
+          || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4 || result.tabCount !== 3
           || !['zh-CN', 'en'].includes(result.language) || !['light', 'dark'].includes(result.theme)
           || result.settings !== true || result.scriptHidden !== true
           || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));

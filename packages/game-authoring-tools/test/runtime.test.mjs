@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EditorDocumentHost, EditorHistoryService, EditorProjectSessionState, EditorTaskCoordinator } from '@haiyue/editor-platform';
@@ -27,7 +27,7 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
     'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search', 'engine.capabilities.describe', 'component.describe', 'component.get',
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
     'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
-    'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
+    'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.generate-texture', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
@@ -64,6 +64,91 @@ test('entity.create-many creates mixed scene roles in one revision and rejects m
     assert.equal(value.workspace.snapshot().history.entries.length, 1);
     await assert.rejects(value.runtime.prepare(call('call:create-many-invalid', 'entity.create-many', { baseRevision: 2, entities: [{ kind: 'ambient-light', material: 'basic' }] })), /Only geometry entities/);
     assert.equal(value.workspace.snapshot().document.revision, 2);
+  } finally { await dispose(value); }
+});
+
+test('plane creation, batch creation and repair persist local geometry orientation through Undo/Redo and reopen', async () => {
+  const value = await fixture();
+  try {
+    const first = await executeReady(value.runtime, call('call:plane-single', 'entity.create', { baseRevision: 1, kind: 'plane', plane: 'xz' }));
+    assert.equal(first.status, 'completed');
+    assert.equal(first.value.entity.components.find(c => c.type === 'haiyue.render.geometry').value.plane, 'xz');
+    assert.deepEqual(first.value.entity.transform.rotationDegrees, { x: 0, y: 0, z: 0 });
+    const batch = await approveAndExecute(value.runtime, call('call:plane-batch', 'entity.create-many', { baseRevision: 2, entities: [{ kind: 'plane', plane: 'xy' }, { kind: 'plane', plane: 'yz' }, { kind: 'plane' }] }));
+    assert.equal(batch.status, 'completed');
+    assert.deepEqual(batch.value.entities.map(e => e.components.find(c => c.type === 'haiyue.render.geometry').value.plane ?? 'xy'), ['xy', 'yz', 'xy']);
+    for (const args of [{ kind: 'cube', plane: 'xz' }, { kind: 'plane', plane: 'zx' }]) await assert.rejects(value.runtime.prepare(call('call:bad-plane', 'entity.create', { baseRevision: 3, ...args })), /plane/);
+    await assert.rejects(value.runtime.prepare(call('call:bad-plane-batch', 'entity.create-many', { baseRevision: 3, entities: [{ kind: 'cube', plane: 'xz' }] })), /plane/);
+    const entityId = first.value.entity.id;
+    const repair = await approveAndExecute(value.runtime, call('call:plane-repair', 'component.configure', { baseRevision: 3, action: 'upsert', entityId, type: 'haiyue.render.geometry', patch: { plane: 'yz' } }));
+    assert.equal(repair.status, 'completed');
+    const orientation = () => value.scene.snapshot().entities.find(e => e.id === entityId).components.find(c => c.type === 'haiyue.render.geometry').value.plane;
+    assert.equal(orientation(), 'yz'); await value.workspace.undo(4); assert.equal(orientation(), 'xz');
+    await value.workspace.redo(5); assert.equal(orientation(), 'yz');
+    await value.workspace.save(); await value.workspace.reopen(); assert.equal(orientation(), 'yz');
+  } finally { await dispose(value); }
+});
+
+test('Canvas texture discovery, approval, PNG persistence, material assignment and Undo/Redo share document history', async () => {
+  let draws = 0;
+  const bytes = pngHeader(2, 2);
+  const value = await fixture({ textureRenderer: { async render() { draws++; return bytes; } } });
+  try {
+    const search = await executeReady(value.runtime, call('call:find-canvas', 'tool.search', { text: 'canvas png 绘制纹理', includeSchemas: true, limit: 5 }));
+    assert.ok(search.value.matches.some(m => m.id === 'asset.generate-texture' && m.inputSchema.properties.recipe));
+    const recipe = { schemaVersion: 1, width: 2, height: 2, background: '#ffffff', commands: [] };
+    const preparation = await value.runtime.prepare(call('call:draw-texture', 'asset.generate-texture', { baseRevision: 1, recipe }));
+    assert.equal(preparation.status, 'approval-required'); assert.equal(draws, 0);
+    await assert.rejects(value.runtime.execute(preparation.id), /approval/i); assert.equal(draws, 0);
+    await value.runtime.decide(preparation.approvalId, 'allow-once');
+    const generated = await value.runtime.execute(preparation.id); assert.equal(generated.status, 'completed', JSON.stringify(generated)); assert.equal(draws, 1);
+    const asset = generated.value.asset; assert.match(asset.projectPath, /^assets\/generated\/[a-f0-9]{64}\.png$/u);
+    assert.equal(asset.mimeType, 'image/png'); assert.equal(asset.width, 2); assert.equal(asset.license, 'project-owned');
+    assert.deepEqual(new Uint8Array(await readFile(path.join(value.projectRoot, asset.projectPath))), bytes);
+    assert.equal(value.workspace.snapshot().history.entries.length, 1);
+    await value.workspace.undo(2); assert.equal(value.workspace.gameSnapshot().assets.length, 0);
+    await value.workspace.redo(3); assert.equal(value.workspace.gameSnapshot().assets.length, 1);
+    const entity = await executeReady(value.runtime, call('call:texture-target', 'entity.create', { baseRevision: 4, kind: 'plane', plane: 'xz' }));
+    const assigned = await approveAndExecute(value.runtime, call('call:texture-assign', 'asset.assign', { baseRevision: 5, entityId: entity.value.entity.id, assetId: asset.id, usage: 'texture.base-color' }));
+    assert.equal(assigned.status, 'completed');
+    await value.workspace.save(); await value.workspace.reopen();
+    assert.equal(value.scene.snapshot().assets[0].id, asset.id);
+    assert.equal(value.scene.snapshot().entities[0].components.find(c => c.type === 'haiyue.material.pbr').value.baseColorAssetId, asset.id);
+    assert.deepEqual(new Uint8Array(await value.workspace.readControlledAsset(asset.projectPath, 1024)), bytes);
+  } finally { await dispose(value); }
+});
+
+test('Canvas late results cannot write into a changed or cancelled project', async () => {
+  for (const action of ['revision', 'project', 'cancel']) {
+    const entered = deferred(), release = deferred();
+    const value = await fixture({ textureRenderer: { async render() { entered.resolve(); await release.promise; return pngHeader(2, 2); } } });
+    try {
+      const prepared = await value.runtime.prepare(call(`call:texture-${action}`, 'asset.generate-texture', { baseRevision: 1, recipe: { schemaVersion: 1, width: 2, height: 2, commands: [] } }));
+      await value.runtime.decide(prepared.approvalId, 'allow-once');
+      const running = value.runtime.execute(prepared.id); await entered.promise;
+      if (action === 'revision') await value.workspace.execute({ id: 'command:concurrent', baseRevision: 1, key: 'test', value: true, label: 'Manual edit' });
+      else if (action === 'project') await value.workspace.newProject(value.projectRoot, 'Replacement');
+      else await value.runtime.cancel(`call:texture-${action}`);
+      const rejected = assert.rejects(running); release.resolve(); await rejected;
+      assert.equal(value.workspace.gameSnapshot().assets.length, 0);
+      const files = await readdir(path.join(value.projectRoot, 'assets/generated')).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+      assert.deepEqual(files, []);
+    } finally { release.resolve(); await dispose(value); }
+  }
+});
+
+test('Canvas rolls back newly staged bytes on command failure and rejects unsaved projects before drawing', async () => {
+  let draws = 0;
+  const value = await fixture({ textureRenderer: { async render() { draws++; return pngHeader(2, 2); } } });
+  try {
+    const recipe = { schemaVersion: 1, width: 2, height: 2, commands: [] };
+    const execute = value.resources.history.execute;
+    value.resources.history.execute = () => { throw new Error('Injected History failure'); };
+    try { await assert.rejects(approveAndExecute(value.runtime, call('call:texture-failed', 'asset.generate-texture', { baseRevision: 1, recipe })), /Injected History failure/); } finally { value.resources.history.execute = execute; }
+    assert.equal(draws, 1);
+    assert.equal(value.workspace.gameSnapshot().assets.length, 0); assert.deepEqual(await readdir(path.join(value.projectRoot, 'assets/generated')), []);
+    await value.workspace.newProject(null, 'Unsaved');
+    await assert.rejects(approveAndExecute(value.runtime, call('call:texture-unsaved', 'asset.generate-texture', { baseRevision: 1, recipe })), /Save the project/); assert.equal(draws, 1);
   } finally { await dispose(value); }
 });
 
@@ -701,7 +786,7 @@ test('every revision-bound tool publishes a required version and rejects omissio
   const value = await fixture();
   try {
     const definitions = GAME_AUTHORING_TOOL_DEFINITIONS.filter((tool) => tool.inputSchema.properties.baseRevision && tool.id !== 'preview.validate');
-    assert.equal(definitions.length, 24);
+    assert.equal(definitions.length, 25);
     for (const definition of definitions) {
       assert.ok(definition.inputSchema.required.includes('baseRevision'), `${definition.id} must tell both providers that the version is required`);
       await assert.rejects(value.runtime.prepare(call(`call:missing-revision:${definition.id}`, definition.id, {})), (error) => {
@@ -1263,7 +1348,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 50);
+      assert.equal(input.tools.length, 51);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -1288,7 +1373,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 50);
+      assert.equal(input.tools.length, 51);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');

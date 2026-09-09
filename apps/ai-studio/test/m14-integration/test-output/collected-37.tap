@@ -1,0 +1,130 @@
+TAP version 13
+# Subtest: live and replay use the same projector and stale read models cannot regress terminal nodes
+ok 1 - live and replay use the same projector and stale read models cannot regress terminal nodes
+  ---
+  duration_ms: 19.6101
+  type: 'test'
+  ...
+# Subtest: unknown, oversized and injection-shaped nodes get bounded safe presentation fallbacks
+ok 2 - unknown, oversized and injection-shaped nodes get bounded safe presentation fallbacks
+  ---
+  duration_ms: 2.9332
+  type: 'test'
+  ...
+# Subtest: controller keeps the composer available across durable barriers, keeps plan acceptance separate, and makes approval one-shot
+ok 3 - controller keeps the composer available across durable barriers, keeps plan acceptance separate, and makes approval one-shot
+  ---
+  duration_ms: 5.0667
+  type: 'test'
+  ...
+# Subtest: auth handoff carries backend identity only and IME Enter never sends prematurely
+ok 4 - auth handoff carries backend identity only and IME Enter never sends prematurely
+  ---
+  duration_ms: 0.7389
+  type: 'test'
+  ...
+# Subtest: chat feed follows new content only while the reader is near the latest message
+ok 5 - chat feed follows new content only while the reader is near the latest message
+  ---
+  duration_ms: 0.2266
+  type: 'test'
+  ...
+# Subtest: composer keeps an editable focused draft while sending is temporarily blocked
+ok 6 - composer keeps an editable focused draft while sending is temporarily blocked
+  ---
+  duration_ms: 0.9017
+  type: 'test'
+  ...
+# Subtest: model controls and task cost card expose effective settings, cache savings and unknown explanations safely
+ok 7 - model controls and task cost card expose effective settings, cache savings and unknown explanations safely
+  ---
+  duration_ms: 1.8458
+  type: 'test'
+  ...
+# Subtest: a connected conversation can refresh failed backend state, retain the draft and send after recovery
+ok 8 - a connected conversation can refresh failed backend state, retain the draft and send after recovery
+  ---
+  duration_ms: 1.5957
+  type: 'test'
+  ...
+# Subtest: missing login and model configuration keep sending blocked with distinct recovery instructions
+ok 9 - missing login and model configuration keep sending blocked with distinct recovery instructions
+  ---
+  duration_ms: 0.3582
+  type: 'test'
+  ...
+# Subtest: task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields
+ok 10 - task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields
+  ---
+  duration_ms: 4.4899
+  type: 'test'
+  ...
+# Subtest: unknown task versions and pass claims without retained evidence fail closed
+ok 11 - unknown task versions and pass claims without retained evidence fail closed
+  ---
+  duration_ms: 0.4914
+  type: 'test'
+  ...
+# Subtest: user messages are projected as conversation input rather than assistant output
+ok 12 - user messages are projected as conversation input rather than assistant output
+  ---
+  duration_ms: 0.3487
+  type: 'test'
+  ...
+# Subtest: pending implementation plans put an explicit approval action before the detailed item list
+ok 13 - pending implementation plans put an explicit approval action before the detailed item list
+  ---
+  duration_ms: 0.4839
+  type: 'test'
+  ...
+# Subtest: tool results show a readable step and keep raw structured output collapsed
+ok 14 - tool results show a readable step and keep raw structured output collapsed
+  ---
+  duration_ms: 0.3356
+  type: 'test'
+  ...
+# Subtest: approval cards expose a validated project-session Allow always action
+ok 15 - approval cards expose a validated project-session Allow always action
+  ---
+  duration_ms: 0.5084
+  type: 'test'
+  ...
+# Subtest: trusted-code and runtime-start approvals expose one-shot decisions only
+ok 16 - trusted-code and runtime-start approvals expose one-shot decisions only
+  ---
+  duration_ms: 0.8381
+  type: 'test'
+  ...
+# Subtest: approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed
+ok 17 - approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed
+  ---
+  duration_ms: 1.1326
+  type: 'test'
+  ...
+# Subtest: expired approval read models are visible but cannot block the composer or dispatch another decision
+ok 18 - expired approval read models are visible but cannot block the composer or dispatch another decision
+  ---
+  duration_ms: 0.5938
+  type: 'test'
+  ...
+# Subtest: a cancelled plan no longer blocks the composer after its turn terminates
+ok 19 - a cancelled plan no longer blocks the composer after its turn terminates
+  ---
+  duration_ms: 0.358
+  type: 'test'
+  ...
+# Subtest: execution workspace renders a replayed topology and dispatches one durable manual compaction request
+ok 20 - execution workspace renders a replayed topology and dispatches one durable manual compaction request
+  ---
+  duration_ms: 20.8287
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 322.7093

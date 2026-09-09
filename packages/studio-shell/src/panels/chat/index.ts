@@ -1,6 +1,8 @@
 import type { JsonObject, StableId, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 import { approvalFromNode, planFromNode, questionFromNode, safeText } from '../../conversation/validation.js';
 import { layoutExecutionGraph } from '../../conversation/execution-layout.js';
+import { compareExecutionGraphs } from '../../conversation/execution-graph.js';
+import { attachGraphPan } from '../graph-pan.js';
 import type {
   ChatCardAction,
   ChatCardReadModel,
@@ -90,6 +92,8 @@ export function chatFeedIsNearLatest(position: ChatFeedScrollPosition, threshold
 }
 
 export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void): void {
+  executionPanDisposers.get(root)?.(); executionPanDisposers.delete(root);
+  executionViewportUpdates.delete(root);
   currentChatModels.set(root, model);
   const document = root.ownerDocument;
   for (const image of [...(root.querySelectorAll?.('.chat-evidence-preview') ?? [])] as HTMLImageElement[]) image.removeAttribute('src');
@@ -239,6 +243,7 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const composerStatus = document.createElement('span'); composerStatus.id = 'chat-composer-status'; composerStatus.textContent = model.composer.blockedReason ?? 'Ready to send.'; composer.append(composerStatus);
   fragment.append(composer);
   root.replaceChildren(fragment);
+  executionViewportUpdates.get(root)?.();
   if (restoreInputFocus) {
     input.focus();
     if (preservedSelection) input.setSelectionRange(preservedSelection.start, preservedSelection.end, preservedSelection.direction);
@@ -253,21 +258,32 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
 
 interface ExecutionWorkspaceState {
   sessionId: string | null;
+  followLatest: boolean;
   mode: 'graph' | 'transcript';
   selectedNodeId: string | null;
   query: string;
   filter: 'all' | 'current' | 'waiting' | 'failed' | 'changes' | 'validation' | 'compaction' | 'approval' | 'cost-unknown';
   detailMode: 'overview' | 'expanded';
   scale: number;
+  fit: boolean;
+  scrollLeft: number;
+  scrollTop: number;
+  revealSelection: boolean;
 }
 
 const executionWorkspaceStates = new WeakMap<HTMLElement, ExecutionWorkspaceState>();
+const executionViewportUpdates = new WeakMap<HTMLElement, () => void>();
+const executionPanDisposers = new WeakMap<HTMLElement, () => void>();
 
 function renderExecutionWorkspace(root: HTMLElement, document: Document, graphs: readonly ExecutionGraphReadModel[], accounting: ConversationReadModel['taskAccounting'], dispatch: (intent: ConversationIntent) => void): HTMLElement {
-  const latest = graphs.at(-1)!;
+  const ordered = [...graphs].sort(compareExecutionGraphs);
+  const latest = ordered.at(-1)!;
   const prior = executionWorkspaceStates.get(root);
-  const state: ExecutionWorkspaceState = prior ?? { sessionId: latest.sessionId, mode: 'graph', selectedNodeId: null, query: '', filter: 'all', detailMode: 'overview', scale: 1 };
-  const graph = graphs.find((candidate) => candidate.sessionId === state.sessionId) ?? latest;
+  const state: ExecutionWorkspaceState = prior ?? { sessionId: latest.sessionId, followLatest: true, mode: 'graph', selectedNodeId: null, query: '', filter: 'all', detailMode: 'overview', scale: 1, fit: true, scrollLeft: 0, scrollTop: 0, revealSelection: false };
+  const selectedGraph = graphs.find((candidate) => candidate.sessionId === state.sessionId);
+  if (!selectedGraph) state.followLatest = true;
+  const graph = state.followLatest ? latest : selectedGraph!;
+  if (state.sessionId !== graph.sessionId) { state.selectedNodeId = null; state.query = ''; state.filter = 'all'; state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; }
   state.sessionId = graph.sessionId;
   if (state.selectedNodeId && !graph.nodes.some((node) => node.id === state.selectedNodeId)) state.selectedNodeId = null;
   executionWorkspaceStates.set(root, state);
@@ -275,9 +291,11 @@ function renderExecutionWorkspace(root: HTMLElement, document: Document, graphs:
   const header = document.createElement('header'); header.className = 'execution-header';
   const heading = document.createElement('div'); const title = document.createElement('strong'); title.textContent = graph.title; const status = document.createElement('span'); status.className = `execution-status status-${graph.status}`; status.textContent = executionStatusLabel(graph.status); heading.append(title, status);
   const sessionSelect = document.createElement('select'); sessionSelect.setAttribute('aria-label', 'Agent session');
-  for (const candidate of [...graphs].reverse()) { const option = document.createElement('option'); option.value = candidate.sessionId; option.selected = candidate.sessionId === graph.sessionId; option.textContent = `${candidate.title} · ${executionStatusLabel(candidate.status)}`; sessionSelect.append(option); }
-  sessionSelect.addEventListener('change', () => { state.sessionId = sessionSelect.value; state.selectedNodeId = null; renderChatPanel(root, currentChatModel(root), dispatch); });
-  header.append(heading, sessionSelect); workspace.append(header);
+  for (const [index, candidate] of ordered.entries()) { const option = document.createElement('option'); option.value = candidate.sessionId; option.selected = candidate.sessionId === graph.sessionId; option.textContent = `第 ${index + 1} 段 · ${candidate.nodes.length} 个步骤 · ${candidate.title} · ${executionStatusLabel(candidate.status)}`; sessionSelect.append(option); }
+  sessionSelect.addEventListener('change', () => { state.sessionId = sessionSelect.value; state.followLatest = false; state.selectedNodeId = null; state.query = ''; state.filter = 'all'; state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const follow = document.createElement('button'); follow.type = 'button'; follow.textContent = state.followLatest ? '正在跟随最新' : '跟随最新'; follow.disabled = state.followLatest;
+  follow.addEventListener('click', () => { state.followLatest = true; renderChatPanel(root, currentChatModel(root), dispatch); });
+  header.append(heading, sessionSelect, follow); workspace.append(header);
 
   const summary = document.createElement('div'); summary.className = 'execution-summary';
   const pressure = document.createElement('div'); pressure.className = `execution-pressure pressure-${graph.context.pressure?.state ?? 'unknown'}`;
@@ -292,10 +310,10 @@ function renderExecutionWorkspace(root: HTMLElement, document: Document, graphs:
   const graphTab = tabButton(document, '拓扑图', state.mode === 'graph', () => { state.mode = 'graph'; renderChatPanel(root, currentChatModel(root), dispatch); });
   const transcriptTab = tabButton(document, `完整记录 ${graph.transcript.length}`, state.mode === 'transcript', () => { state.mode = 'transcript'; renderChatPanel(root, currentChatModel(root), dispatch); });
   const search = document.createElement('input'); search.type = 'search'; search.placeholder = '搜索步骤、工具、实体或错误'; search.setAttribute('aria-label', 'Search execution graph'); search.value = state.query;
-  search.addEventListener('change', () => { state.query = search.value; renderChatPanel(root, currentChatModel(root), dispatch); });
+  search.addEventListener('change', () => { state.query = search.value; state.fit = true; renderChatPanel(root, currentChatModel(root), dispatch); });
   const filter = document.createElement('select'); filter.setAttribute('aria-label', 'Filter execution graph');
   for (const [value, label] of [['all','全部'],['current','当前'],['waiting','等待'],['failed','失败'],['changes','修改'],['validation','验证'],['compaction','压缩'],['approval','审批'],['cost-unknown','成本未知']] as const) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = state.filter === value; filter.append(option); }
-  filter.addEventListener('change', () => { state.filter = filter.value as ExecutionWorkspaceState['filter']; renderChatPanel(root, currentChatModel(root), dispatch); });
+  filter.addEventListener('change', () => { state.filter = filter.value as ExecutionWorkspaceState['filter']; state.fit = true; renderChatPanel(root, currentChatModel(root), dispatch); });
   controls.append(graphTab, transcriptTab, search, filter); workspace.append(controls);
 
   if (state.mode === 'transcript') workspace.append(renderExecutionTranscript(root, document, graph, state, dispatch));
@@ -310,32 +328,49 @@ function currentChatModel(root: HTMLElement): ChatPanelReadModel { const value =
 function renderExecutionGraph(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
   const region = document.createElement('div'); region.className = 'execution-graph-region';
   const toolbar = document.createElement('div'); toolbar.className = 'execution-graph-toolbar';
-  const detail = document.createElement('button'); detail.type = 'button'; detail.textContent = state.detailMode === 'overview' ? '展开全部' : '折叠已完成读取'; detail.addEventListener('click', () => { state.detailMode = state.detailMode === 'overview' ? 'expanded' : 'overview'; renderChatPanel(root, currentChatModel(root), dispatch); });
-  const zoomOut = document.createElement('button'); zoomOut.type = 'button'; zoomOut.textContent = '−'; zoomOut.setAttribute('aria-label', 'Zoom out execution graph'); zoomOut.addEventListener('click', () => { state.scale = Math.max(0.5, state.scale - 0.1); renderChatPanel(root, currentChatModel(root), dispatch); });
-  const zoomIn = document.createElement('button'); zoomIn.type = 'button'; zoomIn.textContent = '+'; zoomIn.setAttribute('aria-label', 'Zoom in execution graph'); zoomIn.addEventListener('click', () => { state.scale = Math.min(1.8, state.scale + 0.1); renderChatPanel(root, currentChatModel(root), dispatch); });
-  const fit = document.createElement('button'); fit.type = 'button'; fit.textContent = '适应视图'; fit.addEventListener('click', () => { state.scale = 1; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const detail = document.createElement('button'); detail.type = 'button'; detail.textContent = state.detailMode === 'overview' ? '展开全部' : '折叠已完成读取'; detail.addEventListener('click', () => { state.detailMode = state.detailMode === 'overview' ? 'expanded' : 'overview'; state.fit = true; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const zoomOut = document.createElement('button'); zoomOut.type = 'button'; zoomOut.textContent = '−'; zoomOut.setAttribute('aria-label', 'Zoom out execution graph'); zoomOut.addEventListener('click', () => { state.fit = false; state.scale = Math.max(0.01, state.scale / 1.25); renderChatPanel(root, currentChatModel(root), dispatch); });
+  const zoomIn = document.createElement('button'); zoomIn.type = 'button'; zoomIn.textContent = '+'; zoomIn.setAttribute('aria-label', 'Zoom in execution graph'); zoomIn.addEventListener('click', () => { state.fit = false; state.scale = Math.min(1.8, state.scale * 1.25); renderChatPanel(root, currentChatModel(root), dispatch); });
+  const fit = document.createElement('button'); fit.type = 'button'; fit.textContent = '适应视图'; fit.addEventListener('click', () => { state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; renderChatPanel(root, currentChatModel(root), dispatch); });
   toolbar.append(detail, zoomOut, zoomIn, fit); region.append(toolbar);
   const options = graphFilterOptions(state);
   const layout = layoutExecutionGraph(graph, { mode: state.detailMode, query: state.query, ...options });
+  const count = document.createElement('span'); count.className = 'execution-node-count'; count.textContent = `显示 ${layout.visibleNodeIds.length}/${graph.nodes.length} 个步骤`; toolbar.append(count);
   const visible = new Set(layout.visibleNodeIds); const nodes = new Map(graph.nodes.map((node) => [node.id, node])); const positions = new Map(layout.nodes.map((node) => [node.id, node]));
   const viewport = document.createElement('div'); viewport.className = 'execution-graph-viewport'; viewport.tabIndex = 0; viewport.setAttribute('aria-label', `${layout.visibleNodeIds.length} visible execution nodes. Use Tab or arrow keys to navigate.`);
-  const stage = document.createElement('div'); stage.className = 'execution-graph-stage'; stage.style.width = `${layout.width * state.scale}px`; stage.style.height = `${layout.height * state.scale}px`; stage.style.transformOrigin = 'top left';
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'execution-edges'); svg.setAttribute('width', String(layout.width * state.scale)); svg.setAttribute('height', String(layout.height * state.scale)); svg.setAttribute('aria-hidden', 'true');
+  viewport.title = '按住左键或中键拖动查看；单击节点查看详情。';
+  executionPanDisposers.set(root, attachGraphPan(viewport, () => { state.fit = false; state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop; }));
+  const stage = document.createElement('div'); stage.className = 'execution-graph-stage';
+  const canvas = document.createElement('div'); canvas.className = 'execution-graph-canvas'; canvas.style.width = `${layout.width}px`; canvas.style.height = `${layout.height}px`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'execution-edges'); svg.setAttribute('width', String(layout.width)); svg.setAttribute('height', String(layout.height)); svg.setAttribute('aria-hidden', 'true');
   for (const edge of graph.edges) {
-    if (!visible.has(edge.from) || !visible.has(edge.to) || edge.kind === 'contains') continue;
+    if (!visible.has(edge.from) || !visible.has(edge.to)) continue;
     const from = positions.get(edge.from)!; const to = positions.get(edge.to)!;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path'); const x1 = (from.x + from.width) * state.scale; const y1 = (from.y + from.height / 2) * state.scale; const x2 = to.x * state.scale; const y2 = (to.y + to.height / 2) * state.scale; const middle = (x1 + x2) / 2;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path'); const x1 = from.x + from.width; const y1 = from.y + from.height / 2; const x2 = to.x; const y2 = to.y + to.height / 2; const middle = (x1 + x2) / 2;
     line.setAttribute('d', `M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2}`); line.setAttribute('class', `edge-${edge.kind}`); svg.append(line);
   }
-  stage.append(svg);
+  canvas.append(svg);
   for (const position of layout.nodes) {
-    const node = nodes.get(position.id)!; const button = document.createElement('button'); button.type = 'button'; button.id = executionDomId(node.id); button.className = `execution-node kind-${node.kind} status-${node.status}${graph.criticalPathNodeIds.includes(node.id) ? ' is-critical' : ''}${state.selectedNodeId === node.id ? ' is-selected' : ''}`; button.style.left = `${position.x * state.scale}px`; button.style.top = `${position.y * state.scale}px`; button.style.width = `${position.width * state.scale}px`; button.style.minHeight = `${position.height * state.scale}px`; button.dataset.nodeId = node.id; button.dataset.layer = String(position.layer); button.dataset.order = String(position.order); button.tabIndex = state.selectedNodeId === node.id || (!state.selectedNodeId && graph.currentNodeIds.includes(node.id)) ? 0 : -1; button.setAttribute('aria-label', `${node.title}. ${executionStatusLabel(node.status)}. ${node.summary}`);
+    const node = nodes.get(position.id)!; const button = document.createElement('button'); button.type = 'button'; button.id = executionDomId(node.id); button.className = `execution-node kind-${node.kind} status-${node.status}${graph.criticalPathNodeIds.includes(node.id) ? ' is-critical' : ''}${state.selectedNodeId === node.id ? ' is-selected' : ''}`; button.style.left = `${position.x}px`; button.style.top = `${position.y}px`; button.style.width = `${position.width}px`; button.style.height = `${position.height}px`; button.dataset.nodeId = node.id; button.dataset.layer = String(position.layer); button.dataset.order = String(position.order); button.tabIndex = state.selectedNodeId === node.id || (!state.selectedNodeId && node.id === (graph.currentNodeIds[0] ?? layout.visibleNodeIds[0])) ? 0 : -1; button.setAttribute('aria-label', `${node.title}. ${executionStatusLabel(node.status)}. ${node.summary}`);
     const kind = document.createElement('span'); kind.className = 'execution-node-kind'; kind.textContent = executionKindLabel(node.kind); const label = document.createElement('strong'); label.textContent = node.title; const summary = document.createElement('span'); summary.className = 'execution-node-summary'; summary.textContent = node.summary; button.append(kind, label, summary);
     button.addEventListener('click', () => { state.selectedNodeId = node.id; renderChatPanel(root, currentChatModel(root), dispatch); });
     button.addEventListener('keydown', (event) => navigateGraphNode(event, root, graph, layout.nodes, node.id, state, dispatch));
-    stage.append(button);
+    canvas.append(button);
   }
+  stage.append(canvas);
   viewport.append(stage); region.append(viewport);
+  viewport.addEventListener('scroll', () => { state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop; }, { passive: true });
+  // Measure after the panel is attached; scale edges, text and hit targets together.
+  executionViewportUpdates.set(root, () => {
+    if (!(viewport.clientWidth > 0 && viewport.clientHeight > 0)) return;
+    if (state.fit) state.scale = Math.min(1, Math.max(1, viewport.clientWidth - 8) / layout.width, Math.max(1, viewport.clientHeight - 8) / layout.height);
+    stage.style.width = `${layout.width * state.scale}px`; stage.style.height = `${layout.height * state.scale}px`;
+    canvas.style.transform = `scale(${state.scale})`;
+    const selectedPosition = state.revealSelection && state.selectedNodeId ? positions.get(state.selectedNodeId) : null;
+    if (selectedPosition) { state.scrollLeft = (selectedPosition.x + selectedPosition.width / 2) * state.scale - viewport.clientWidth / 2; state.scrollTop = (selectedPosition.y + selectedPosition.height / 2) * state.scale - viewport.clientHeight / 2; }
+    viewport.scrollLeft = state.fit ? 0 : state.scrollLeft; viewport.scrollTop = state.fit ? 0 : state.scrollTop;
+    state.revealSelection = false;
+  });
   const selected = graph.nodes.find((node) => node.id === state.selectedNodeId) ?? graph.nodes.find((node) => graph.currentNodeIds.includes(node.id)) ?? graph.nodes.at(-1);
   if (selected) region.append(renderExecutionNodeDetail(root, document, graph, selected, state, dispatch));
   region.append(renderAccessibleGraphList(root, document, graph, state, dispatch));
@@ -351,7 +386,7 @@ function renderExecutionTranscript(root: HTMLElement, document: Document, graph:
     const row = document.createElement('li'); row.className = `transcript-item transcript-${item.kind} status-${item.status}`; row.id = `transcript-${executionDomId(item.id)}`;
     const header = document.createElement('div'); const title = document.createElement('strong'); title.textContent = item.title; const time = document.createElement('time'); time.dateTime = item.timestamp; time.textContent = new Date(item.timestamp).toLocaleTimeString(); header.append(title, time);
     const body = document.createElement('p'); body.textContent = item.body; row.append(header, body);
-    if (item.graphNodeIds.length) { const locate = document.createElement('button'); locate.type = 'button'; locate.textContent = '在拓扑中定位'; locate.addEventListener('click', () => { state.selectedNodeId = item.graphNodeIds[0] ?? null; state.mode = 'graph'; renderChatPanel(root, currentChatModel(root), dispatch); }); row.append(locate); }
+    if (item.graphNodeIds.length) { const locate = document.createElement('button'); locate.type = 'button'; locate.textContent = '在拓扑中定位'; locate.addEventListener('click', () => { selectExecutionNode(state, item.graphNodeIds[0]!); renderChatPanel(root, currentChatModel(root), dispatch); }); row.append(locate); }
     list.append(row);
   }
   region.append(list); return region;
@@ -372,7 +407,7 @@ function renderExecutionNodeDetail(root: HTMLElement, document: Document, graph:
 
 function renderAccessibleGraphList(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
   const details = document.createElement('details'); details.className = 'execution-accessible-list'; const summary = document.createElement('summary'); summary.textContent = '使用层级列表浏览全部执行步骤'; const list = document.createElement('ol');
-  for (const node of graph.nodes) { const item = document.createElement('li'); const button = document.createElement('button'); button.type = 'button'; button.textContent = `${executionKindLabel(node.kind)} · ${node.title} · ${executionStatusLabel(node.status)}`; button.addEventListener('click', () => { state.selectedNodeId = node.id; renderChatPanel(root, currentChatModel(root), dispatch); }); item.append(button); list.append(item); }
+  for (const node of graph.nodes) { const item = document.createElement('li'); const button = document.createElement('button'); button.type = 'button'; button.textContent = `${executionKindLabel(node.kind)} · ${node.title} · ${executionStatusLabel(node.status)}`; button.addEventListener('click', () => { selectExecutionNode(state, node.id); renderChatPanel(root, currentChatModel(root), dispatch); }); item.append(button); list.append(item); }
   details.append(summary, list); return details;
 }
 
@@ -382,7 +417,11 @@ function navigateGraphNode(event: KeyboardEvent, root: HTMLElement, graph: Execu
   let candidate = event.key === 'Home' ? layout.find((node) => graph.currentNodeIds.includes(node.id)) ?? layout[0] : undefined;
   if (!candidate && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) candidate = layout.filter((node) => node.layer === current.layer).sort((left, right) => Math.abs(left.order - (current.order + (event.key === 'ArrowUp' ? -1 : 1))) - Math.abs(right.order - (current.order + (event.key === 'ArrowUp' ? -1 : 1))))[0];
   if (!candidate) { const targetLayer = current.layer + (event.key === 'ArrowLeft' ? -1 : 1); candidate = layout.filter((node) => node.layer === targetLayer).sort((left, right) => Math.abs(left.order - current.order) - Math.abs(right.order - current.order))[0]; }
-  if (candidate) { state.selectedNodeId = candidate.id; renderChatPanel(root, currentChatModel(root), dispatch); root.querySelector<HTMLElement>(`#${executionDomId(candidate.id)}`)?.focus(); }
+  if (candidate) { selectExecutionNode(state, candidate.id); renderChatPanel(root, currentChatModel(root), dispatch); root.querySelector<HTMLElement>(`#${executionDomId(candidate.id)}`)?.focus({ preventScroll: true }); }
+}
+
+function selectExecutionNode(state: ExecutionWorkspaceState, id: string): void {
+  state.selectedNodeId = id; state.mode = 'graph'; state.query = ''; state.filter = 'all'; state.detailMode = 'expanded'; state.fit = false; state.scale = Math.max(0.75, state.scale); state.revealSelection = true;
 }
 
 function graphFilterOptions(state: ExecutionWorkspaceState): Readonly<{ statuses?: readonly ExecutionGraphProductNodeStatus[]; kinds?: readonly ExecutionGraphNodeReadModel['kind'][]; costUnknown?: boolean }> {

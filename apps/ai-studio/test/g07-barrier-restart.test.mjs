@@ -38,12 +38,14 @@ test('an approval barrier remains actionable after process restart and resumes f
     await host.initialize();
     const recovered = host.replay().events.map((event) => event.node).find((candidate) => candidate.id === nodeId);
     assert.equal(recovered.status, 'pending'); assert.equal(recovered.content.decision, 'pending');
+    assert.ok(host.replay().executionGraphs.find(graph => graph.sessionId === sessionId)?.nodes.some(node => node.kind === 'approval' && node.status === 'waiting'), 'a session opened during barrier recovery must also restore its topology');
     await host.dispatch({ type: 'conversation/resolve-approval', approvalId, decision: 'allow-once' });
     await waitFor(() => host.replay().busy === false && host.replay().events.some((event) => event.node.id === nodeId && event.node.status === 'completed'));
     const replay = await reopenedSessions.replay(sessionId);
     assert.deepEqual(replay.recovery.unresolvedBarrierIds, []);
     assert.equal(replay.ops.some((op) => op.kind === 'approval.resolved' && op.payload.resolvedBy === 'user-after-restart'), true);
     assert.equal(runtime.resumeCalls, 1);
+    await waitFor(() => host.replay().executionGraphs.find(graph => graph.sessionId === sessionId)?.nodes.some(node => node.kind === 'approval' && node.status === 'completed'));
   } finally {
     await host?.dispose().catch(() => undefined); await reopenedSessions?.dispose().catch(() => undefined); await reopenedLog?.close().catch(() => undefined);
     await firstSessions?.dispose().catch(() => undefined); await firstLog?.close().catch(() => undefined);

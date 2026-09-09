@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "productionEntry": "apps/ai-studio/dist/main.js",
+  "platformDecisionDriver": "explicit test decisions; real tool approvals",
+  "entityId": "entity:5db3c15b-2c38-42aa-bf67-698999aa3087",
+  "assetId": "asset:99e04b58052ef6941b043be0",
+  "approvals": [
+    {
+      "title": "Rename entity",
+      "detail": "Rename Cone to Integrated geometry.\nentity:5db3c15b-2c38-42aa-bf67-698999aa3087\n修订 2\n\n- Cone\n+ Integrated geometry",
+      "decision": "allow-once"
+    },
+    {
+      "title": "Rename entity",
+      "detail": "Rename Integrated geometry to Rejected change.\nentity:5db3c15b-2c38-42aa-bf67-698999aa3087\n修订 5\n\n- Integrated geometry\n+ Rejected change",
+      "decision": "reject"
+    },
+    {
+      "title": "Batch spatial transform",
+      "detail": "set 1 entities in one History transaction.\ndocument:de0f8083-d9ac-44be-a60e-c407218bbc81\n修订 5\n\nset · 1 entities",
+      "decision": "allow-once"
+    },
+    {
+      "title": "Register project asset",
+      "detail": "Register texture asset sky.png with project-owned provenance.\ndocument:de0f8083-d9ac-44be-a60e-c407218bbc81\n修订 6\n\n+ texture image/png (256 decoded bytes)",
+      "decision": "allow-once"
+    }
+  ],
+  "checks": [
+    "resource template creates through production IPC and original tool",
+    "public rename exact approval and shared undo/redo",
+    "explicit rejection leaves document unchanged",
+    "native pointer Gizmo commits once through transform.batch",
+    "real accessibility tree",
+    "controlled import UI retains asset identity"
+  ],
+  "versions": {
+    "electron": "43.5.1",
+    "chrome": "150.0.7871.250",
+    "node": "v24.19.0"
+  },
+  "screenshots": [
+    "advanced-desktop.png",
+    "resources-desktop.png"
+  ]
+}

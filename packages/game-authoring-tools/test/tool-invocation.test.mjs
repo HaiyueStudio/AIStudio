@@ -5,6 +5,15 @@ import { GAME_AUTHORING_TOOL_DEFINITIONS, MODEL_TOOL_INVOKE_DEFINITION, ToolCata
 const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => []);
 const invocation = (toolId, args = {}) => ({ toolId, toolVersion: '1.0.0', arguments: args });
 
+test('an exact tool id outranks descriptions that reference that tool', () => {
+  for (const definition of GAME_AUTHORING_TOOL_DEFINITIONS) {
+    const match = catalog.search(definition.id, { includeSchemas: true, limit: 1 })[0];
+    assert.equal(match.id, definition.id);
+    assert.equal(match.score, 1);
+    assert.equal(match.invocation.toolId, definition.id);
+  }
+});
+
 test('search returns an exact executable route for tools omitted from the initial native surface', () => {
   const selection = catalog.selectDefinitions('做一个俄罗斯方块游戏');
   for (const toolId of ['script.apply', 'play.start', 'play.input']) {

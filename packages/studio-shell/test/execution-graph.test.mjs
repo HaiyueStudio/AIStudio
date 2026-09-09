@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { layoutExecutionGraph, projectExecutionGraph } from '../dist/index.js';
+import { layoutExecutionGraph, projectExecutionGraph, normalizeExecutionGraphs } from '../dist/index.js';
 
 const SESSION = 'session:g09';
 const TURN = 'turn:g09:1';
@@ -159,6 +159,15 @@ test('projects a 1000-tool graph within a bounded unit-test budget', () => {
   const expandedElapsed = performance.now() - expandedStarted;
   assert.equal(expanded.visibleNodeIds.length, graph.nodes.length);
   assert.ok(expandedElapsed < 1_500, `expanded layout took ${expandedElapsed.toFixed(1)}ms`);
+});
+
+test('session history orders actual execution time instead of unrelated operation counts', () => {
+  const older = projectExecutionGraph({ sessionId: SESSION, ops: linearFixture() });
+  const nextSession = 'session:g09:next';
+  const newer = projectExecutionGraph({ sessionId: nextSession, ops: [op(0, 'session.created', { turnId: null }), op(1, 'turn.started')].map(value => ({ ...value, sessionId: nextSession, timestamp: '2026-09-02T00:00:00.000Z' })) });
+  assert.ok(older.revision > newer.revision);
+  assert.deepEqual(normalizeExecutionGraphs([newer, older]).map(graph => graph.sessionId), [SESSION, nextSession]);
+  assert.equal(normalizeExecutionGraphs([newer, older])[1].digest, newer.digest);
 });
 
 function canonical(value) {

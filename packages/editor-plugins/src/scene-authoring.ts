@@ -1,9 +1,9 @@
+import { createAuthoringPlane } from './render/plane.js';
 import { randomUUID } from 'node:crypto';
 import {
   BasicMaterial,
   CartesianTransform3D,
   createBox3D,
-  createPlane3D,
   createSphere3D,
   Entity,
   Mesh3D,
@@ -70,6 +70,7 @@ export interface SceneSnapshot {
   readonly camera?: ProjectCameraSnapshot;
 }
 export interface CreateSceneEntityIntent {
+  readonly plane?: 'xy' | 'xz' | 'yz';
   readonly commandId: StableId;
   readonly baseRevision: number;
   readonly kind: SceneEntityKind;
@@ -178,7 +179,7 @@ class EngineSceneProjection {
         scale: tuple(item.transform.scale),
       });
       entity.addComponent(transform);
-      if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind), createMaterial(item.appearance!)));
+      if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components), createMaterial(item.appearance!)));
       else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!));
       nextEntities.set(item.id, entity);
     }
@@ -218,7 +219,7 @@ class EngineSceneProjection {
     }
     if (isSceneGeometryKind(after.kind)) {
       entity.removeComponent(DirectionalLight); entity.removeComponent(PointLight); entity.removeComponent(AmbientLight);
-      entity.addComponent(new Mesh3D(createGeometry(after.kind), createMaterial(after.appearance!)));
+      entity.addComponent(new Mesh3D(createGeometry(after.kind, after.components), createMaterial(after.appearance!)));
     } else if (isSceneLightKind(after.kind)) {
       entity.removeComponent(Mesh3D); entity.removeComponent(DirectionalLight); entity.removeComponent(PointLight); entity.removeComponent(AmbientLight); entity.addComponent(createLight(after.kind, after.light!));
     } else {
@@ -258,6 +259,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     this.assertActive();
     try {
       if (!isSceneEntityKind(intent.kind)) throw new TypeError(`Unsupported entity kind ${intent.kind}.`);
+      if (intent.plane !== undefined && (intent.kind !== 'plane' || !['xy', 'xz', 'yz'].includes(intent.plane))) throw new TypeError('plane requires plane geometry and xy, xz or yz.');
       if (intent.material !== undefined && !isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
       if ((intent.material !== undefined || intent.color !== undefined) && !isSceneGeometryKind(intent.kind)) throw new TypeError('Only geometry entities can use materials.');
       const before = this.current;
@@ -281,7 +283,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
       ];
       if (isSceneGeometryKind(entity.kind)) {
         const geometryId = asStableId(`component:geometry:${randomUUID()}`); const materialId = asStableId(`component:material:${randomUUID()}`);
-        operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: geometryId, type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind: entity.kind } }) });
+        operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: geometryId, type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind: entity.kind, ...(intent.plane ? { plane: intent.plane } : {}) } }) });
         operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: materialId, type: asStableId('haiyue.render.material'), version: '1.0.0', value: entity.appearance as unknown as JsonObject }) });
       } else if (isSceneLightKind(entity.kind)) {
         const lightId = asStableId(`component:light:${randomUUID()}`);
@@ -679,7 +681,7 @@ function normalizeEntityName(value: string | undefined, kind: SceneEntityKind): 
 function normalizeRequiredEntityName(value: string): string { const name = value.trim(); if (!name || name.length > 80) throw new TypeError('Entity name must contain 1-80 characters.'); return name; }
 function tuple(value: Vec3Snapshot): [number, number, number] { return [value.x, value.y, value.z]; }
 function tupleDegreesToRadians(value: Vec3Snapshot): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }
-function engineEntity(item: SceneEntitySnapshot): Entity { const entity = new Entity(item.name); entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: tupleDegreesToRadians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) })); if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind), createMaterial(item.appearance!))); else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!)); return entity; }
+function engineEntity(item: SceneEntitySnapshot): Entity { const entity = new Entity(item.name); entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: tupleDegreesToRadians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) })); if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components), createMaterial(item.appearance!))); else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!)); return entity; }
 export function isSceneGeometryKind(value: unknown): value is SceneGeometryKind { return SCENE_GEOMETRY_KINDS.includes(value as SceneGeometryKind); }
 export function isSceneLightKind(value: unknown): value is SceneLightKind { return SCENE_LIGHT_KINDS.includes(value as SceneLightKind); }
 export function isSceneMaterialKind(value: unknown): value is SceneMaterialKind { return SCENE_MATERIAL_KINDS.includes(value as SceneMaterialKind); }
@@ -708,10 +710,10 @@ function freezeLight(kind: SceneLightKind, value: NonNullable<SceneEntitySnapsho
   }
   return Object.freeze({ color, intensity: value.intensity });
 }
-function createGeometry(kind: SceneGeometryKind) {
+function createGeometry(kind: SceneGeometryKind, components?: SceneEntitySnapshot['components']) {
   switch (kind) {
     case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();
-    case 'plane': return createPlane3D(); case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
+    case 'plane': { const plane = components?.find(item => item.type === 'haiyue.render.geometry')?.value.plane; return createAuthoringPlane(plane); } case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
   }
 }
 function createMaterial(appearance: NonNullable<SceneEntitySnapshot['appearance']>) {

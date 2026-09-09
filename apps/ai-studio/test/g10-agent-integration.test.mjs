@@ -86,6 +86,7 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   assert.equal(startedInput.contextCache.providerReportedHitTokens, null);
   assert.doesNotMatch(startedInput.prompt, /SnakeBody|snake body segment|贪吃蛇/iu);
   assert.equal(context.commits.length, 1);
+  assert.deepEqual(context.commits[0].tools, startedInput.tools);
   assert.ok(context.commits[0].toolFacts.some((fact) => fact.includes('entity.create')));
   assert.equal(submitted.status, 'completed');
   assert.ok(startedInput.tools.some((tool) => tool.id === 'studio.plan.propose'));
@@ -114,6 +115,29 @@ test('G10 conversation host runs typed tools through scoped approval and replay'
   subscription.dispose();
   await host.dispose();
   await host.dispose();
+});
+
+test('failure before provider startup records visible facts without making the synthetic session reusable', async () => {
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
+    async modelCatalog() { return modelCatalog(); }, async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
+    async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {},
+  };
+  const context = contextFixture();
+  const runtime = { context, accounting: accountingFixture(), registry: { descriptors: () => [backend.descriptor], get: () => backend }, turns: {
+    async *start() {
+      yield eventAt('session:failed-start', 'turn:failed-start', 'diagnostic', { code: 'fixture.start-failed', message: 'Provider rejected startup.', retryable: true });
+      yield eventAt('session:failed-start', 'turn:failed-start', 'completed', { status: 'failed' });
+    }, async *resume() {}, async cancel() {}, async recordToolResult() {},
+  } };
+  const host = new StudioConversationHost({ runtime, tools: { definitions: () => [] }, operationLog: { async append() {} }, isProjectOpen: () => true, projectContext: projectContextFixture });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Inspect the current project.' });
+    await waitFor(() => !host.replay().busy && context.commits.length === 1);
+    assert.equal(Object.hasOwn(context.commits[0], 'tools'), false);
+    assert.ok(context.commits[0].blockers.some(value => value.includes('Provider rejected startup.')));
+    assert.deepEqual(context.commits[0].goals, ['Inspect the current project.']);
+  } finally { await host.dispose(); }
 });
 
 test('an approved plan that ends without edits continues once and executes without asking for the same plan again', async () => {

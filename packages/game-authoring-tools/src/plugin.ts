@@ -6,6 +6,7 @@ import { GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import { GameAuthoringToolRuntime } from './runtime.js';
 import type { GamePreviewControl, GameToolApproval, GameToolApprovalResolution, GameToolCall, GameToolPreparation, GameToolResult, GameToolRuntimeSnapshot, GameToolTransactionInput, GameToolTransactionResult } from './types.js';
 import type { ToolSchemaSelection } from './catalog/index.js';
+import type { CanvasTextureRenderer } from './canvas-texture.js';
 import type { GameBehaviorSource } from './behavior.js';
 
 export interface GameAuthoringToolService {
@@ -20,7 +21,7 @@ export interface GameAuthoringToolService {
   cancel(callId: StableId): Promise<void>;
 }
 
-export interface GameAuthoringToolsPluginOptions { readonly preview: GamePreviewControl; readonly behaviorSource?: GameBehaviorSource; }
+export interface GameAuthoringToolsPluginOptions { readonly preview: GamePreviewControl; readonly textureRenderer?: CanvasTextureRenderer; readonly behaviorSource?: GameBehaviorSource; }
 
 export const gameAuthoringToolServiceToken = createStudioServiceToken<GameAuthoringToolService>('studio.game-authoring-tools');
 export const gameAuthoringToolContributionKind = asStableId('studio.contribution.agent-tool');
@@ -45,7 +46,7 @@ export function createGameAuthoringToolsPlugin(options: GameAuthoringToolsPlugin
       const runtime = new GameAuthoringToolRuntime({
         workspace: context.services.get(projectWorkspaceServiceToken), scene: context.services.get(sceneAuthoringToken),
         scripts: context.services.get(scriptPreviewServiceToken), diagnostics: context.services.get(diagnosticsQueryServiceToken),
-        operationLog: context.services.get(operationLogServiceToken).log, preview: options.preview,
+        operationLog: context.services.get(operationLogServiceToken).log, preview: options.preview, textureRenderer: options.textureRenderer,
         ...(options.behaviorSource ? { behaviorSource: options.behaviorSource } : {}),
       });
       const service: GameAuthoringToolService = Object.freeze({

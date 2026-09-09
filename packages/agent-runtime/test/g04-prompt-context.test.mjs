@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
-import { PromptContextRuntime, PromptModuleRegistry, UsageLedger } from '../dist/index.js';
+import { PromptContextRuntime, PromptModuleRegistry, UsageLedger, toolSetSignature } from '../dist/index.js';
 
 const backendId = 'backend:context-fixture';
 const conversationKey = 'conversation:context-fixture';
@@ -41,7 +41,7 @@ test('same revision reuses a live session by reference, changed revision sends o
     const unapproved = await fixture.log.putArtifact({ arbitrary: 'not model approved' });
     await assert.rejects(runtime.assertReadable([unapproved.id]), (error) => error.code === 'context.artifact-not-approved');
 
-    await runtime.commit({ conversationKey, backendId, taskId, sessionId: 'session:context-one', turnId: 'turn:context-one', projectId: project1.projectId,
+    await runtime.commit({ conversationKey, backendId, taskId, tools, sessionId: 'session:context-one', turnId: 'turn:context-one', projectId: project1.projectId,
       goals: ['Add keyboard input and verify movement.'], decisions: ['Use explicit input state.'], toolFacts: ['project.snapshot: revision 7'], acceptance: ['Movement replay is required.'], blockers: [] });
 
     const same = await runtime.prepare({ conversationKey, backendId, taskId: 'task:context-second', request: 'Continue the same input task.', tools, project: project1 });
@@ -62,7 +62,7 @@ test('same revision reuses a live session by reference, changed revision sends o
     assert.match(delta.prompt, /prior revision-bound tool facts and acceptance were invalidated/);
     assert.ok(delta.cache.deltaReuseBytes > 0);
 
-    await runtime.commit({ conversationKey, backendId, taskId: 'task:context-third', sessionId: 'session:context-one', turnId: 'turn:context-three', projectId: project2.projectId,
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:context-third', tools, sessionId: 'session:context-one', turnId: 'turn:context-three', projectId: project2.projectId,
       goals: ['Continue the same input task.'], decisions: [], toolFacts: ['scene.list-entities: revision 8'], acceptance: [], blockers: [] });
     const beforeRestart = await runtime.prepare({ conversationKey, backendId, taskId: 'task:before-restart', request: 'Continue the same input task.', tools, project: project2 });
     await fixture.log.close();
@@ -90,7 +90,7 @@ test('exact project source replaces legacy full manifests with bounded scene sna
     const firstProject = { projectId: 'project:context-fixture', documentId: 'document:context-fixture', revision: 20, manifest: { schemaVersion: 1, project: { id: 'project:context-fixture', revision: 20, counts: { entities: 1, scripts: 1 } } }, exact };
     const first = await runtime.prepare({ conversationKey, backendId, taskId: 'task:exact-first', request: 'Inspect exact project context.', tools, project: firstProject });
     assert.match(first.prompt, /"kind":"project-manifest"/u); assert.match(first.prompt, /"kind":"script"/u); assert.doesNotMatch(first.prompt, /FULL_SCRIPT_SOURCE_MUST_NOT_APPEAR/u);
-    await runtime.commit({ conversationKey, backendId, taskId: 'task:exact-first', sessionId: 'session:exact', turnId: 'turn:exact-first', projectId: firstProject.projectId, goals: [], decisions: [], toolFacts: [], acceptance: [], blockers: [] });
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:exact-first', tools, sessionId: 'session:exact', turnId: 'turn:exact-first', projectId: firstProject.projectId, goals: [], decisions: [], toolFacts: [], acceptance: [], blockers: [] });
     const secondProject = { ...firstProject, revision: 21, manifest: { schemaVersion: 1, project: { id: 'project:context-fixture', revision: 21, counts: { entities: 1, scripts: 1 } } } };
     const second = await runtime.prepare({ conversationKey, backendId, taskId: 'task:exact-second', request: 'Continue with exact deltas.', tools, project: secondProject });
     assert.match(second.prompt, /"kind":"document-delta"/u); assert.match(second.prompt, /"fromRevision":20/u); assert.match(second.prompt, /"toRevision":21/u);
@@ -179,6 +179,54 @@ test('all seven canonical game requests use one profile without cross-genre prom
       for (let other = 0; other < suite.cases.length; other += 1) if (other !== index) assert.doesNotMatch(value.prompt, new RegExp(escapeRegExp(suite.cases[other].request), 'u'));
     }
   } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('tool contract changes start with full context while preserving approved decisions and current project state', async () => {
+  const fixture = await openFixture();
+  try {
+    const runtime = new PromptContextRuntime(fixture.log);
+    const before = project(7, 'SCRIPT_BASELINE', [{ id: 'entity:one', name: 'One' }]);
+    const after = project(8, 'SCRIPT_CURRENT', [{ id: 'entity:one', name: 'One' }]);
+    await runtime.prepare({ conversationKey, backendId, taskId, request: 'Inspect.', tools, project: before });
+    await runtime.commit({ conversationKey, backendId, taskId, tools, sessionId: 'session:contract-a', turnId: 'turn:a', projectId: before.projectId, decisions: ['User approved the implementation plan.'] });
+    const variants = [[], [...tools, { ...tools[0], id: 'scene.query' }], [{ ...tools[0], description: 'A changed contract description.' }], [{ ...tools[0], inputSchema: { type: 'object', required: ['revision'] } }]];
+    for (const [index, changedTools] of variants.entries()) {
+      const changed = await runtime.prepare({ conversationKey, backendId, taskId: `task:changed:${index}`, request: 'Execute the approved plan.', tools: changedTools, project: after });
+      assert.equal(changed.reusedSessionId, null);
+      assert.doesNotMatch(changed.prompt, /reference-only|document-delta/);
+      assert.match(changed.prompt, /SCRIPT_CURRENT/);
+      assert.match(changed.prompt, /Work only through the supplied Studio tools/);
+      assert.match(changed.prompt, /User approved the implementation plan/);
+      assert.equal(changed.cache.deltaReuseBytes, 0);
+    }
+    const changedTools = variants[1];
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:changed:1', tools: changedTools, sessionId: 'session:contract-b', turnId: 'turn:b', projectId: after.projectId });
+    const same = await runtime.prepare({ conversationKey, backendId, taskId: 'task:same-b', request: 'Continue.', tools: changedTools, project: after });
+    assert.equal(same.reusedSessionId, 'session:contract-b'); assert.match(same.prompt, /reference-only/);
+    const restoredTools = await runtime.prepare({ conversationKey, backendId, taskId: 'task:restore-a', request: 'Continue.', tools, project: after });
+    assert.equal(restoredTools.reusedSessionId, null); assert.doesNotMatch(restoredTools.prompt, /reference-only/);
+    const events = await fixture.log.query({ kinds: ['agent/context-bundle-prepared'], limit: 30, traverseCorrelation: false });
+    assert.ok(events.events.some(event => event.payload.sessionReuse === 'tool-contract-changed'));
+  } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('unknown turn contracts retain visible history but cannot authorize provider session reuse', async () => {
+  const fixture = await openFixture();
+  try {
+    const runtime = new PromptContextRuntime(fixture.log);
+    await runtime.prepare({ conversationKey, backendId, taskId, request: 'Inspect.', tools, project: null });
+    await runtime.commit({ conversationKey, backendId, taskId, sessionId: 'session:unconfirmed', turnId: 'turn:unconfirmed', projectId: null, blockers: ['Provider failed before starting.'] });
+    const prepared = await runtime.prepare({ conversationKey, backendId, taskId: 'task:retry', request: 'Retry.', tools, project: null });
+    assert.equal(prepared.reusedSessionId, null); assert.doesNotMatch(prepared.prompt, /reference-only/);
+    assert.match(prepared.prompt, /Provider failed before starting/);
+  } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('tool contract fingerprint ignores object key order but preserves descriptions, schemas and ordered tool identities', () => {
+  assert.equal(toolSetSignature(tools), toolSetSignature([{ ...tools[0], inputSchema: { additionalProperties: false, type: 'object' } }]));
+  assert.notEqual(toolSetSignature(tools), toolSetSignature([{ ...tools[0], description: tools[0].description + ' Changed.' }]));
+  const other = { ...tools[0], id: 'scene.query' };
+  assert.notEqual(toolSetSignature([...tools, other]), toolSetSignature([other, ...tools]));
 });
 
 function project(revision, scriptText, entities) {

@@ -30,27 +30,27 @@
     "maxResourceProjectionBytes": 524288
   },
   "timings": {
-    "open": 513.2512999999999,
-    "advancedMount": 469.8025999999991,
-    "filterAndSelect": 160.76599999999962,
-    "resourceQuery": 942.7112000000016
+    "open": 332.5565000000006,
+    "advancedMount": 257.89310000000023,
+    "filterAndSelect": 93.42319999999927,
+    "resourceQuery": 890.4454999999998
   },
-  "initialHeapBytes": 7923752,
-  "finalHeapBytes": 12120428,
+  "initialHeapBytes": 7982768,
+  "finalHeapBytes": 8190328,
   "metrics": [
     {
       "cpu": {
-        "cumulativeCPUUsage": 3.911047,
+        "cumulativeCPUUsage": 2.588397,
         "percentCPUUsage": 0,
         "idleWakeupsPerSecond": 0
       },
-      "pid": 23600,
+      "pid": 16068,
       "type": "Tab",
-      "creationTime": 1788871313103.842,
+      "creationTime": 1788946915639.524,
       "memory": {
-        "workingSetSize": 146100,
-        "peakWorkingSetSize": 196928,
-        "privateBytes": 65904
+        "workingSetSize": 154452,
+        "peakWorkingSetSize": 204424,
+        "privateBytes": 58340
       },
       "integrityLevel": "untrusted",
       "sandboxed": true

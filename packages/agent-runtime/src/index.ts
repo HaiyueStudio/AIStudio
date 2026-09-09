@@ -22,6 +22,7 @@ export type { PricingCatalogV1, PricingEntryV1 } from '@haiyue/ai-studio-contrac
 export { UsageLedger, UsageLedgerError, UsageLedgerStore } from './usage-ledger.js';
 export type { NormalizedFinishReason, UsageLedgerSnapshot, UsageUpdate } from './usage-ledger.js';
 export { GENERAL_GAME_AUTHORING_MODULES, PromptContextError, PromptContextRuntime, PromptModuleRegistry } from './prompt-context.js';
+export { toolSetSignature } from './tool-set.js';
 export type { CommitConversationInput, ContextCacheMetrics, ContextProjectSnapshot, ExactProjectContextSource, PreparedTurnContext, PromptModuleDefinition, PromptModuleSnapshot, PromptProfileSnapshot, VisibleConversationFacts } from './prompt-context.js';
 export { AgentSessionError, DurableSessionRecoveryCoordinator, DurableSessionRuntime, sessionPayloadDigest } from './session/index.js';
 export type { AppendSessionMessageInput, AppendSessionOpInput, CreateSessionInput, DurableSessionHandle, ForkSessionInput, MutationRecoveryAuthorityResult, MutationRecoveryIntent, OpenSessionOptions, ReplaceModelSurfaceInput, SessionForkSeedV1, SessionMessageArtifactV1, SessionRecoveryAction, SessionRecoveryAuthorityPort, SessionRecoveryRun, SessionRecoverySnapshotV1, SessionReplaySnapshotV1, SessionRuntimeOptions, TranscriptEntryV1 } from './session/index.js';

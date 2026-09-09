@@ -1,14 +1,14 @@
 TAP version 13
-# Subtest: preview commands wake their existing renderer poll owner and dispose the subscription
-ok 1 - preview commands wake their existing renderer poll owner and dispose the subscription
+# Subtest: G08 zero-script: authorized production iframe, provenance, runtime and teardown
+ok 1 - G08 zero-script: authorized production iframe, provenance, runtime and teardown
   ---
-  duration_ms: 3.0354
+  duration_ms: 4293.8921
   type: 'test'
   ...
-# Subtest: an already cancelled preview request rejects without leaving a pending promise or wakeup
-ok 2 - an already cancelled preview request rejects without leaving a pending promise or wakeup
+# Subtest: G08 mixed: authorized production iframe, provenance, runtime and teardown
+ok 2 - G08 mixed: authorized production iframe, provenance, runtime and teardown
   ---
-  duration_ms: 2.5922
+  duration_ms: 10720.166
   type: 'test'
   ...
 1..2
@@ -19,4 +19,4 @@ ok 2 - an already cancelled preview request rejects without leaving a pending pr
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 239.5809
+# duration_ms 16174.4662

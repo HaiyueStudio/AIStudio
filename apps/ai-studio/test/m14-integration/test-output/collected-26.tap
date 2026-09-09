@@ -1,34 +1,40 @@
 TAP version 13
-# Subtest: lazy adapter loads only on open, deduplicates, cancels, unmounts and retries with no late revival
-ok 1 - lazy adapter loads only on open, deduplicates, cancels, unmounts and retries with no late revival
+# Subtest: catalog projects frozen four-kind contracts from actual registry and Document without changing History
+ok 1 - catalog projects frozen four-kind contracts from actual registry and Document without changing History
   ---
-  duration_ms: 296.0276
+  duration_ms: 639.1963
   type: 'test'
   ...
-# Subtest: close/cancel during import, project replacement, and close during async mounting reject late ownership
-ok 2 - close/cancel during import, project replacement, and close during async mounting reject late ownership
+# Subtest: Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
+ok 2 - Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
   ---
-  duration_ms: 240.8081
+  duration_ms: 1648.3666
   type: 'test'
   ...
-# Subtest: module version/getter failure remains retryable and malformed mounted result rolls back
-ok 3 - module version/getter failure remains retryable and malformed mounted result rolls back
+# Subtest: unknown usage, partial component references and zero references cannot be confused by unused filtering
+ok 3 - unknown usage, partial component references and zero references cannot be confused by unused filtering
   ---
-  duration_ms: 236.2528
+  duration_ms: 1998.8382
   type: 'test'
   ...
-# Subtest: adapter binds dispatch and preview to latest source, suppresses detached callbacks and never authors previews
-ok 4 - adapter binds dispatch and preview to latest source, suppresses detached callbacks and never authors previews
+# Subtest: forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
+ok 4 - forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
   ---
-  duration_ms: 253.2281
+  duration_ms: 616.9345
   type: 'test'
   ...
-1..4
-# tests 4
+# Subtest: missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+ok 5 - missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+  ---
+  duration_ms: 1007.1044
+  type: 'test'
+  ...
+1..5
+# tests 5
 # suites 0
-# pass 4
+# pass 5
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2071.7227
+# duration_ms 7106.9474

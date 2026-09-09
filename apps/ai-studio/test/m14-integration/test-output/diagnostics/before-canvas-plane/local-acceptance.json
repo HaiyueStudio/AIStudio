@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "status": "offline-verified-online-pending",
+  "verifiedAt": "2026-09-09T07:58:50.332Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 594,
+    "sourceDigest": "sha256:ec5bcc27b827d6f4dd18bdab1f01e79dff2dc87055a4675d82cdb0df11ebcfe9",
+    "packageDigest": "sha256:a7210e20dd3eb5557c7724a845310bdd72cf5c9b5ced1f9619d9c7df21741e9e",
+    "digest": "sha256:f9f6d795f187cfea0d0318f225e3c16c31815c34806281b92df27e60919b4032"
+  },
+  "rootCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "log": "apps/ai-studio/test/m14-integration/test-output/graph-pan-root-check.log"
+  },
+  "capabilityChecks": 122,
+  "integration": {
+    "files": 38,
+    "passed": 190,
+    "failed": 0,
+    "skipped": 0
+  },
+  "games": [
+    {
+      "genre": "snake",
+      "flows": [
+        "direction-input-accepted",
+        "direction-input-rejected-opposite"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        76456,
+        76456
+      ]
+    },
+    {
+      "genre": "match-3",
+      "flows": [
+        "tile-selected",
+        "invalid-swap-restored"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        19830,
+        19830
+      ]
+    },
+    {
+      "genre": "falling-blocks",
+      "flows": [
+        "input-moves-piece-left",
+        "input-rotates-piece"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        57161,
+        57161
+      ]
+    },
+    {
+      "genre": "jigsaw",
+      "flows": [
+        "game-started",
+        "reshuffle-accepted"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        1788,
+        1788
+      ]
+    },
+    {
+      "genre": "platformer",
+      "flows": [
+        "move-right-accepted",
+        "jump-rejected-airborne"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        0,
+        0
+      ]
+    },
+    {
+      "genre": "racing",
+      "flows": [
+        "accelerate-accepted",
+        "brake-accepted"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        0,
+        0
+      ]
+    },
+    {
+      "genre": "shooter",
+      "flows": [
+        "fire-request-accepted",
+        "fire-request-rejected"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        1396,
+        1396
+      ]
+    }
+  ],
+  "performance": {
+    "machine": {
+      "platform": "win32",
+      "release": "10.0.19045",
+      "arch": "x64",
+      "cpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+      "logicalCpus": 8
+    },
+    "entityCount": 1000,
+    "scriptCount": 200,
+    "timings": {
+      "open": 413.7283000000007,
+      "advancedMount": 337.84040000000095,
+      "filterAndSelect": 137.6239999999998,
+      "resourceQuery": 975.7922999999992
+    },
+    "initialHeapBytes": 7948124,
+    "finalHeapBytes": 12487236,
+    "scope": "Document, hierarchy, queries and interactions; no claim of 1000 rendered meshes or 200 simultaneous running scripts"
+  },
+  "productScan": {
+    "schemaVersion": 1,
+    "passed": true,
+    "files": 142,
+    "bytes": 15558243,
+    "crashDumps": 0,
+    "rules": [
+      "configured-secret-utf8-and-utf16",
+      "credential-token-patterns",
+      "credential-store-path"
+    ],
+    "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+    "scope": [
+      "temporary projects",
+      "generated app user-data including journal/artifacts and any crash dumps",
+      "renderer DOM and public projections",
+      "window evidence"
+    ]
+  },
+  "online": {
+    "executed": false,
+    "status": "awaiting-explicit-data-send-authorization",
+    "destinations": [
+      "DeepSeek API",
+      "Codex App Server"
+    ],
+    "payload": "Generated temporary project with one entity, a timer component, fixed script and tool arguments; no actual user game project"
+  },
+  "productIntegrated": false,
+  "remaining": [
+    "Real online verification with both backends on the current binding",
+    "Final six-layer admission and G09 completion after all required evidence passes"
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "15278e35274c0b323743bf50a471ed530e127d271119f07cf47f519c3284326c"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/editor-candidate-source.json",
+      "sha256": "d61dc05bdfcf4d8de23c4c3937bd762b1031c4515dfe8892b305b939dec1e1b0"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/replay-source-binding.json",
+      "sha256": "16168fd7d7c9c9f2b880a4e449458abedb5b5fb39c713efb5507065b03f09ce3"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
+      "sha256": "66005362b1ab49dab7970948ae290bdf7a177cb496aa25e62d905bba201cc6c9"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+      "sha256": "ffca70d8c0ca0610217167426922c06ca417ea52c52979e9661a78d4797eeff8"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
+      "sha256": "b10a57d5c3e5957b21ec46a08f1725c5c7c6bfe84303d7ac51ab557b4c9d69b9"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
+      "sha256": "67cdce9fff87fc419925c52bf8c45086b45468b04a3bd6d336236fa39c3d748e"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
+      "sha256": "4c6ff2734e055e047173dd6c15355bb02580d1ec0330cd88180f97f41d541ead"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
+      "sha256": "bb074231b10dc7957604bacf3279fb34fbf4ce591683f57a77e8c861217d0ae1"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
+      "sha256": "941bf42864a868c80d9ae90f49b26232981ac24cc504496d00dc6efd95057245"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
+      "sha256": "7c16f730421c971a2882db12fdd427fb40aa1a182aa311c1717b58ac67cfd453"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
+      "sha256": "9a271d53db2249a34d1ff8be35497ba0527a71a5c0b5fafcd1ff23e6094737c1"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
+      "sha256": "4f939a6c64981cd8f61655dc39a85556ff365a065460e6f4f7af162b55bab5c2"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
+      "sha256": "b0d4bd7e3b54b373d1269a1c9b6f7852e84290f6ecc749420074e4e641d1a770"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/secret-scan.json",
+      "sha256": "fa8c54903a92d75aefef38f1d2f38de6419315d391643a4474b0e087aea902a3"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "303c8a3002e1e80b9d48765889fbf6ac2f1a3eacc4b0fb9a8e1ffa16db69e826"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/graph-pan-capability-capture.log",
+      "sha256": "5a23e0ee9b4b67dc0b631d7f47de2c7a230fb06a9425cda78b77fb596da48fee"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/graph-pan-root-check.log",
+      "sha256": "175c9f344925364a9abf5c709562a790af04933209431428b8e3f3b3e4ef0c55"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/graph-pan-unit.log",
+      "sha256": "f8e7464884874580310f8fb22f275e8e03b219452026f5fe871222cb100f8604"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/graph-pan-window.log",
+      "sha256": "f10e24b9d30ea9c2fc36dbd111a151fb6af34ff131c3f237dd39523293330e81"
+    }
+  ],
+  "sendButtonFix": {
+    "focusedTests": 41,
+    "readiness": {
+      "schemaVersion": 1,
+      "inputDigest": "sha256:a47ab5af8cfca9f444ccf7fda968e5e35dcf92ad744f0df5f9fb052eea8b53bb",
+      "verifiedAt": "2026-09-08T11:22:42.352Z",
+      "scope": "Read-only account/model metadata projected through the production chat presenter; no thread or turn created",
+      "state": "ready",
+      "modelCount": 6,
+      "canSend": true,
+      "blockedReason": null
+    },
+    "optionalUsageDeadlineMs": 2000,
+    "existingWindowRequiresReload": true,
+    "backendChangesRequireRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:a47ab5af8cfca9f444ccf7fda968e5e35dcf92ad744f0df5f9fb052eea8b53bb",
+    "note": "The prior read-only account/model readiness probe is preserved in the archive and was not rerun for this source revision."
+  },
+  "priorEvidenceArchive": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-pan/index.json",
+  "toolFailureFix": {
+    "focusedTests": 19,
+    "publicSearchMaxLength": 512,
+    "fullPlanSelection": true,
+    "sharedEvaluatorAssertionValidation": true,
+    "preservedBarrierStatusExplained": true,
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:793b2696081db61fc64fd6660db734b14594513d6ec2cf6ef51a5b9673d952c7"
+  },
+  "toolContractFix": {
+    "focusedTests": 46,
+    "exactOrderedToolContract": [
+      "id",
+      "description",
+      "inputSchema"
+    ],
+    "sharedFingerprintWithBackendGuards": true,
+    "changedOrUnknownContractUsesFullContext": true,
+    "preservedApprovedPlanAndCurrentProject": true,
+    "unstartedProviderSessionNotReusable": true,
+    "backendGuardsRetained": true,
+    "testedBackends": [
+      "harness",
+      "codex"
+    ],
+    "transportScope": "Production backend adapters with local deterministic transports; no online Agent task",
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:597b965ebfc1ca51228a9d38f37ae2b041491867a4257ff7adf57baf36941e6e"
+  },
+  "executionGraphFix": {
+    "focusedTests": 36,
+    "chronologicalSessionOrder": true,
+    "followLatestByDefault": true,
+    "preservedManualHistorySelection": true,
+    "restoredEarlierTaskSessions": true,
+    "restoredAlreadyOpenBarrierGraphs": true,
+    "retainedSessionLimit": 50,
+    "fitFullGraph": true,
+    "consistentCanvasScale": true,
+    "preservedScroll": true,
+    "locateOffscreenStep": true,
+    "visibleContainmentEdges": true,
+    "realWindowChecks": [
+      "desktop",
+      "narrow",
+      "keyboard",
+      "session switch",
+      "scroll",
+      "fit",
+      "locate"
+    ],
+    "noMutationReplay": true,
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:70b0db4bb2f988d9353bd20a814a5eb73e9cf617901134e9ddb11ed9363917b0"
+  },
+  "batchLifecycleFix": {
+    "focusedTests": 51,
+    "newDurableRegressionCases": 5,
+    "revalidationPreservesRepairPhase": true,
+    "workflowFailuresReturnToolResults": true,
+    "emptyBatchWaitsForStart": true,
+    "cancelledResultWaitsForStart": true,
+    "cancelledQueuedBodyDoesNotExecute": true,
+    "idempotentBatchDrain": true,
+    "primaryFailurePreserved": true,
+    "approvalAndRevisionGuardsPreserved": true,
+    "userJournalUnmodified": true,
+    "existingWindowRequiresRestart": true,
+    "inventoryFailureLog": "apps/ai-studio/test/m14-integration/test-output/diagnostics/batch-lifecycle-inventory-failure.log",
+    "historical": true,
+    "verifiedInputDigest": "sha256:431ef1d68b37bf37c76abf0b9a931e0b68181347d836907bbb4c9abb80a95702"
+  },
+  "graphPanning": {
+    "focusedTests": 30,
+    "realWindowChecks": [
+      "behavior structure",
+      "execution topology"
+    ],
+    "leftAndMiddleDrag": true,
+    "screenPixelMovementAtZoom": true,
+    "noNodeSelectionAfterDrag": true,
+    "clickWithSmallMovementSelectsNode": true,
+    "preservedScrollAfterSelection": true,
+    "pointerReleaseAndCancellation": true,
+    "viewportOwnedListenersAndCapture": true,
+    "preservedZoomKeyboardAndScrollbars": true,
+    "existingWindowRequiresRestart": true
+  }
+}

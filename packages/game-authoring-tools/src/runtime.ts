@@ -4,6 +4,7 @@ import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, proje
 import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, ControlledAssetError, type ControlledAssetKind, type ControlledAssetLicense } from '@haiyue/ai-studio-editor-plugins/assets';
 import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
+import { normalizeCanvasTextureRecipe, type CanvasTextureRenderer } from './canvas-texture.js';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import { DeterministicTaskEvaluator, PlayObservationRepository } from './observations.js';
 import { classifyToolConcurrency } from './scheduler/classify.js';
@@ -28,6 +29,7 @@ import {
 
 export interface GameAuthoringToolRuntimeOptions {
   readonly workspace: ProjectWorkspace;
+  readonly textureRenderer?: CanvasTextureRenderer;
   readonly scene: SceneAuthoringService;
   readonly scripts: ScriptPreviewStudioService;
   readonly diagnostics: DiagnosticsQueryService;
@@ -416,7 +418,7 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
       ];
       if (isSceneGeometryKind(kind)) {
         const appearance = Object.freeze({ material: (args.material ?? 'basic') as string, color: (args.color ?? DEFAULT_TRANSACTION_COLOR) as JsonValue }) as unknown as JsonObject;
-        operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', stored.call.id), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind } }) });
+        operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', stored.call.id), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind, ...(args.plane ? { plane: args.plane } : {}) } }) });
         operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-material', stored.call.id), type: asStableId('haiyue.render.material'), version: '1.0.0', value: appearance }) });
       } else if (kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light') {
         const type = kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient';
@@ -445,7 +447,7 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
         );
         if (isSceneGeometryKind(kind)) {
           const appearance = Object.freeze({ material: (entry.material ?? 'basic') as string, color: (entry.color ?? DEFAULT_TRANSACTION_COLOR) as JsonValue }) as unknown as JsonObject;
-          operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', itemCallId), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind } }) });
+          operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', itemCallId), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind, ...(entry.plane ? { plane: entry.plane } : {}) } }) });
           operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-material', itemCallId), type: asStableId('haiyue.render.material'), version: '1.0.0', value: appearance }) });
         } else if (kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light') {
           const type = kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient';
@@ -1011,7 +1013,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'entity.create': {
       const beforeIds = new Set(scene.entities.map((item) => item.id));
-      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as SceneEntityKind, ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}), ...(args.material ? { material: args.material as never } : {}), ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}), ...(args.transform ? { transform: args.transform as unknown as TransformSnapshot } : {}) }, signal);
+      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as SceneEntityKind, ...(args.plane ? { plane: args.plane as 'xy' | 'xz' | 'yz' } : {}), ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}), ...(args.material ? { material: args.material as never } : {}), ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}), ...(args.transform ? { transform: args.transform as unknown as TransformSnapshot } : {}) }, signal);
       const created = next.entities.find((item) => !beforeIds.has(item.id)); if (!created) throw new GameToolProtocolError('tool.result-invalid', 'Created entity was not projected.'); return Object.freeze({ entity: entitySummary(created), revision: next.revision });
     }
     case 'entity.rename': {
@@ -1056,6 +1058,15 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: `Remove ${target.component.type}`, baseRevision: args.baseRevision as number, operations: [{ op: 'component.remove', entityId: target.entityId, componentId: target.component.id }] }, signal);
       if (!next.document) throw new GameToolProtocolError('tool.project-missing', 'Project closed while removing a component.');
       return Object.freeze({ documentId: next.document.documentId, revision: next.document.revision, entityId: target.entityId, componentId: target.component.id, removedType: target.component.type });
+    }
+    case 'asset.generate-texture': {
+      if (!options.textureRenderer) throw new GameToolProtocolError('texture.canvas-unavailable', 'Canvas texture rendering is unavailable on this host.');
+      if (!options.workspace.snapshot().projectRoot) throw new GameToolProtocolError('texture.project-unsaved', 'Save the project before generating PNG assets.');
+      const recipe = normalizeCanvasTextureRecipe(args.recipe);
+      const bytes = await options.textureRenderer.render(recipe, signal);
+      signal.throwIfAborted();
+      const result = await options.workspace.importGeneratedTexture({ id: commandId(stored.call.id), documentId: stored.view.documentId, baseRevision: args.baseRevision as number, bytes, width: recipe.width, height: recipe.height, recipeDigest: `sha256:${sha256(canonicalStringify(args.recipe as JsonObject))}` }, signal);
+      return Object.freeze({ documentId: stored.view.documentId, revision: result.revision, asset: result.asset as unknown as JsonValue });
     }
     case 'asset.import': {
       const catalog = controlledAssetCatalog(options.workspace);
@@ -1247,22 +1258,22 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     }
     case 'camera.author': return normalizeCameraAuthorArguments(raw);
     case 'entity.create': {
-      exact(raw, ['baseRevision', 'kind'], ['name', 'parentId', 'material', 'color', 'transform'], toolId);
+      exact(raw, ['baseRevision', 'kind'], ['name', 'parentId', 'material', 'color', 'transform', 'plane'], toolId);
       if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
       if (raw.material !== undefined && !isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.');
       if ((raw.material !== undefined || raw.color !== undefined) && !isSceneGeometryKind(raw.kind)) throw invalid('Only geometry entities can select a material appearance.');
-      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), kind: raw.kind as JsonValue, ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
+      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), kind: raw.kind as JsonValue, ...normalizedPlane(raw), ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
     }
     case 'entity.create-many': {
       exact(raw, ['baseRevision', 'entities'], [], toolId);
       if (!Array.isArray(raw.entities) || raw.entities.length < 1 || raw.entities.length > 32) throw invalid('entity.create-many entities must contain 1-32 items.');
       const entities = raw.entities.map((item, index) => {
         if (!isRecord(item)) throw invalid(`entity.create-many entities[${index}] must be an object.`);
-        exact(item, ['kind'], ['name', 'parentId', 'material', 'color', 'transform'], `entity.create-many entities[${index}]`);
+        exact(item, ['kind'], ['name', 'parentId', 'material', 'color', 'transform', 'plane'], `entity.create-many entities[${index}]`);
         if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(item.kind))) throw invalid(`entity.create-many entities[${index}] kind is invalid.`);
         if (item.material !== undefined && !isSceneMaterialKind(item.material)) throw invalid(`entity.create-many entities[${index}] material is invalid.`);
         if ((item.material !== undefined || item.color !== undefined) && !isSceneGeometryKind(item.kind)) throw invalid('Only geometry entities can select a material appearance.');
-        return Object.freeze({ kind: item.kind as JsonValue, ...(item.name === undefined ? {} : { name: boundedString(item.name, `entities[${index}].name`, 80, true) }), ...(item.parentId === undefined ? {} : { parentId: item.parentId === null ? null : stable(item.parentId, `entities[${index}].parentId`) }), ...(item.material === undefined ? {} : { material: item.material as JsonValue }), ...(item.color === undefined ? {} : { color: normalizeMaterialColor(item.color) as unknown as JsonValue }), ...(item.transform === undefined ? {} : { transform: normalizeTransform(item.transform) as unknown as JsonValue }) });
+        return Object.freeze({ kind: item.kind as JsonValue, ...normalizedPlane(item), ...(item.name === undefined ? {} : { name: boundedString(item.name, `entities[${index}].name`, 80, true) }), ...(item.parentId === undefined ? {} : { parentId: item.parentId === null ? null : stable(item.parentId, `entities[${index}].parentId`) }), ...(item.material === undefined ? {} : { material: item.material as JsonValue }), ...(item.color === undefined ? {} : { color: normalizeMaterialColor(item.color) as unknown as JsonValue }), ...(item.transform === undefined ? {} : { transform: normalizeTransform(item.transform) as unknown as JsonValue }) });
       });
       return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entities: Object.freeze(entities) });
     }
@@ -1280,6 +1291,10 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       const action = String(raw.action); if (!['upsert', 'remove'].includes(action)) throw invalid('component.configure action is invalid.');
       if (action === 'remove' && (raw.enabled !== undefined || raw.patch !== undefined)) throw invalid('component.configure remove does not accept enabled or patch.');
       return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), action, entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), ...(raw.patch === undefined ? {} : { patch: jsonObjectValue(raw.patch, 'component patch') as JsonValue }) });
+    }
+    case 'asset.generate-texture': {
+      exact(raw, ['baseRevision', 'recipe'], [], toolId);
+      try { return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), recipe: normalizeCanvasTextureRecipe(raw.recipe) as unknown as JsonValue }); } catch { throw invalid('Invalid Canvas texture recipe. Use schemaVersion 1, bounded drawing commands and hexadecimal colors.'); }
     }
     case 'asset.import': {
       exact(raw, ['baseRevision', 'projectPath', 'kind', 'mimeType', 'license', 'provenance', 'decodedBytes'], ['width', 'height'], toolId);
@@ -1620,6 +1635,7 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       const entity = requireEntity(snapshot, raw.entityId as StableId); const action = String(raw.action);
       return preview(`${action === 'remove' ? 'Remove' : 'Configure'} semantic component`, entity.id, `${action} ${raw.type}@${raw.version} on ${entity.name} using the Component Registry.`, `${action === 'remove' ? '-' : '~'} ${raw.type}@${raw.version}${raw.patch ? ` ${canonicalStringify(raw.patch as JsonObject)}` : ''}`);
     }
+    case 'asset.generate-texture': { const recipe = raw.recipe as JsonObject; return preview('Draw PNG texture', snapshot.documentId, `Generate a ${recipe.width} × ${recipe.height} PNG with ${(recipe.commands as readonly JsonValue[]).length} drawing commands.`, canonicalStringify(recipe).slice(0, 8192)); }
     case 'asset.import': return preview('Register project asset', snapshot.documentId, `Register ${raw.kind} asset ${String(raw.projectPath).split('/').at(-1)} with ${raw.license} provenance.`, `+ ${raw.kind} ${raw.mimeType} (${raw.decodedBytes} decoded bytes)`);
     case 'asset.assign': {
       const entity = requireEntity(snapshot, raw.entityId as StableId);
@@ -1737,7 +1753,12 @@ function assetBinding(usage: AssetUsage, assetId: StableId): Readonly<{ type: St
 function isPbrTextureUsage(usage: AssetUsage): boolean { return ['texture.base-color', 'texture.metallic-roughness', 'texture.normal', 'texture.occlusion', 'texture.emissive'].includes(usage); }
 function entitySummary(entity: ReturnType<SceneAuthoringService['snapshot']>['entities'][number], includeComponents = true): JsonObject { return Object.freeze({ id: entity.id, name: entity.name, kind: entity.kind, parentId: entity.parentId, order: entity.order, transform: entity.transform as unknown as JsonValue, ...(includeComponents && entity.components ? { components: entity.components as unknown as JsonValue } : {}), ...(entity.appearance ? { appearance: entity.appearance as unknown as JsonValue } : {}), ...(entity.light ? { light: entity.light as unknown as JsonValue } : {}) }); }
 function commandId(callId: StableId): StableId { return asStableId(`command:agent:${sha256(callId).slice(7, 31)}`); }
-function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function normalizedPlane(raw: Record<string, unknown>): JsonObject {
+  if (raw.plane === undefined) return {};
+  if (raw.kind !== 'plane' || !['xy', 'xz', 'yz'].includes(String(raw.plane))) throw invalid('plane is valid only for plane geometry and must be xy, xz or yz.');
+  return { plane: raw.plane as string };
+}
+function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.generate-texture': 'Draw PNG Texture', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;
   return Object.freeze({

@@ -195,7 +195,18 @@ export function normalizeExecutionGraphs(value: unknown): readonly ExecutionGrap
       sessions.add(graph.sessionId); result.push(graph);
     } catch { /* malformed or future projections fail closed */ }
   }
-  return freeze(result.sort((left, right) => left.revision - right.revision || left.sessionId.localeCompare(right.sessionId)));
+  return freeze(result.sort(compareExecutionGraphs));
+}
+
+/** Revisions count operations within one session and cannot order different sessions. */
+export function compareExecutionGraphs(left: ExecutionGraphReadModel, right: ExecutionGraphReadModel): number {
+  const latest = (graph: ExecutionGraphReadModel): string => {
+    let timestamp = '';
+    for (const node of graph.nodes) for (const value of [node.startedAt, node.completedAt]) if (value && value > timestamp) timestamp = value;
+    for (const item of graph.transcript) if (item.timestamp > timestamp) timestamp = item.timestamp;
+    return timestamp;
+  };
+  return latest(left).localeCompare(latest(right)) || left.sessionId.localeCompare(right.sessionId);
 }
 
 export function normalizeExecutionGraph(value: unknown): ExecutionGraphReadModel {

@@ -1,3 +1,4 @@
+import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
 import type { BehaviorManifestV1, BehaviorNodeV1, BehaviorSourceV1, EditorLocationV1 } from '@haiyue/ai-studio-contracts';
 import { workspaceText, type WorkspaceLanguage } from './copy.js';
 import { loadWorkspacePreferences, saveWorkspacePreferences, workspaceSplitPreferenceKey, WORKSPACE_CATEGORIES, type WorkspaceCategory, type WorkspacePreferences } from './preferences.js';
@@ -50,9 +51,9 @@ export class IntentWorkspace {
     this.panels = [...this.resourceTabs.querySelectorAll<HTMLElement>(':scope > section[slot]')];
     this.root = document.createElement('aside'); this.root.id = 'intent-workspace'; this.root.className = 'panel intent-workspace';
     // Static app-owned markup only. All document/model strings below use textContent.
-    this.root.innerHTML = `<div class="workspace-tabs" role="tablist" data-ws-aria="workspace"><button type="button" id="workspace-logic-tab" role="tab" aria-controls="workspace-logic" data-tab="logic" data-ws="logic"></button><button type="button" id="workspace-resources-tab" role="tab" aria-controls="workspace-resources" data-tab="resources" data-ws="resources"></button></div>
-<section id="workspace-logic" role="tabpanel" aria-labelledby="workspace-logic-tab"><label class="workspace-label" for="workspace-search" data-ws="search"></label><input id="workspace-search" type="search" maxlength="128" autocomplete="off"><label class="workspace-label" for="workspace-entity" data-ws="entity"></label><select id="workspace-entity" size="6"></select><p id="workspace-entity-status" class="workspace-note" role="status"></p><div id="workspace-source-kinds" class="workspace-badges"></div><div class="workspace-manual-links"><button type="button" id="workspace-inspect" data-ws="manualInspect"></button><button type="button" id="workspace-script" data-ws="manualScript"></button></div><h2 data-ws="events"></h2><p id="workspace-behavior-status" class="workspace-note" role="status"></p><ul id="workspace-events" class="workspace-events"></ul><details id="workspace-source-details" hidden><summary data-ws="sourceDetails"></summary><p data-ws="sourceHint"></p><pre id="workspace-source-reference"></pre></details></section>
-<section id="workspace-resources" role="tabpanel" aria-labelledby="workspace-resources-tab" hidden><div class="workspace-filters"><label><span data-ws="category"></span><select id="workspace-category"></select></label><label><span data-ws="kind"></span><select id="workspace-kind"></select></label></div><p id="workspace-catalog-status" class="workspace-note" role="status"></p><ul id="workspace-catalog" class="workspace-catalog"></ul><div id="workspace-existing-resources"></div></section><p id="workspace-action-status" class="workspace-note" role="status"></p>`;
+    this.root.innerHTML = `<hy-tabs id="workspace-tabs" data-ws-aria="workspace">
+<section id="workspace-logic" slot="logic"><label class="workspace-label" for="workspace-search" data-ws="search"></label><input id="workspace-search" type="search" maxlength="128" autocomplete="off"><label class="workspace-label" for="workspace-entity" data-ws="entity"></label><select id="workspace-entity" size="6"></select><p id="workspace-entity-status" class="workspace-note" role="status"></p><div id="workspace-source-kinds" class="workspace-badges"></div><div class="workspace-manual-links"><button type="button" id="workspace-inspect" data-ws="manualInspect"></button><button type="button" id="workspace-script" data-ws="manualScript"></button></div><h2 data-ws="events"></h2><p id="workspace-behavior-status" class="workspace-note" role="status"></p><ul id="workspace-events" class="workspace-events"></ul><details id="workspace-source-details" hidden><summary data-ws="sourceDetails"></summary><p data-ws="sourceHint"></p><pre id="workspace-source-reference"></pre></details></section>
+<section id="workspace-resources" slot="resources" hidden><div class="workspace-filters"><label><span data-ws="category"></span><select id="workspace-category"></select></label><label><span data-ws="kind"></span><select id="workspace-kind"></select></label></div><p id="workspace-catalog-status" class="workspace-note" role="status"></p><ul id="workspace-catalog" class="workspace-catalog"></ul><div id="workspace-existing-resources"></div></section></hy-tabs><p id="workspace-action-status" class="workspace-note" role="status"></p>`;
     this.dialog = document.createElement('dialog'); this.dialog.id = 'workspace-advanced'; this.dialog.setAttribute('aria-labelledby', 'workspace-advanced-title');
     const sourceHeading = document.createElement('h2'); sourceHeading.dataset.ws = 'sources';
     const sourceList = document.createElement('ul'); sourceList.id = 'workspace-sources'; sourceList.className = 'workspace-events';
@@ -64,8 +65,12 @@ export class IntentWorkspace {
     this.modeLabel = document.createElement('label'); this.modeLabel.innerHTML = '<span data-ws="mode"></span><select id="workspace-mode"><option value="intent" data-ws="intent"></option><option value="classic" data-ws="classic"></option></select>';
     settings.append(this.modeLabel); document.body.append(this.dialog, this.parking); this.parking.append(this.root);
     const listen = (element: EventTarget, event: string, callback: EventListener) => element.addEventListener(event, callback, { signal: this.lifetime.signal });
-    for (const button of this.root.querySelectorAll<HTMLElement>('[data-tab]')) listen(button, 'click', () => this.setTab(button.dataset.tab as 'logic' | 'resources'));
-    this.keyboardTabs(this.root.querySelector('[role="tablist"]')!, '[data-tab]', button => this.setTab(button.dataset.tab as 'logic' | 'resources'));
+    const tabs = this.get<HYTabs>('workspace-tabs');
+    listen(tabs, 'tab-change', event => {
+      if (event.target !== tabs) return;
+      const value = (event as CustomEvent<HYTabChangeDetail>).detail?.value;
+      if (value === 'logic' || value === 'resources') this.setTab(value);
+    });
     this.keyboardTabs(this.dialog.querySelector('[role="tablist"]')!, '[data-advanced]', button => this.setAdvancedTab(button.dataset.advanced as 'inspect' | 'script'));
     for (const button of this.dialog.querySelectorAll<HTMLElement>('[data-advanced]')) listen(button, 'click', () => this.setAdvancedTab(button.dataset.advanced as 'inspect' | 'script'));
     listen(this.launcher, 'click', () => this.openAdvanced());
@@ -105,6 +110,7 @@ export class IntentWorkspace {
         if (node.dataset.wsAria) node.setAttribute('aria-label', this.text(node.dataset.wsAria as Parameters<typeof workspaceText>[1]));
       }
     }
+    this.get<HYTabs>('workspace-tabs').options = ['logic', 'resources'].map(value => ({ value, label: this.text(value as 'logic' | 'resources') }));
     this.fillSelect('workspace-category', WORKSPACE_CATEGORIES.map(value => [value, this.text(value)]), this.preferences.category);
     this.fillSelect('workspace-kind', [['all', this.text('allKinds')], ...kinds.map(value => [value, this.text(value)] as const)], this.kind);
     this.get<HTMLSelectElement>('workspace-mode').value = this.preferences.mode;
@@ -118,12 +124,10 @@ export class IntentWorkspace {
   setTab(tab: 'logic' | 'resources'): void {
     if (this.closed) return;
     this.patch({ tab });
-    for (const name of ['logic', 'resources'] as const) {
-      const selected = name === tab, button = this.get(`workspace-${name}-tab`);
-      button.setAttribute('aria-selected', String(selected)); button.tabIndex = selected ? 0 : -1;
-      this.get(`workspace-${name}`).hidden = !selected;
-    }
+    this.get<HYTabs>('workspace-tabs').value = tab;
+    for (const name of ['logic', 'resources'] as const) this.get(`workspace-${name}`).hidden = name !== tab;
   }
+
   openAdvanced(tab: 'inspect' | 'script' = this.preferences.advancedTab): void {
     if (this.closed) return;
     this.returnFocus = this.document.activeElement as HTMLElement | null;

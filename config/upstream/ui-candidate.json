@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "package": "@haiyue/ui",
+  "version": "0.1.3",
+  "tarball": "vendor/haiyue-ui-0.1.3.tgz",
+  "sha256": "4f2bc1da7643a0c3a356da5f4cbd359dbc3092a28e95285e7c7eabe48def092b",
+  "integrity": "sha512-R0284uI9z8SHKFw/WAELGgj6yi7RxxE98O08b2VezRaKuimqR4jpip9pdbUrD1qlYb9IIs9lhSwxKU15nHrdNg==",
+  "sourceRevision": "0810b4b1f794befa35911c27640f8197737defcd",
+  "sourceDirty": true,
+  "sourceFiles": [
+    {
+      "path": "package-lock.json",
+      "sha256": "9feaa1980d75c4290a79ad87aa85b30e563670b78fd6c3269425a9f9df0e36d6"
+    },
+    {
+      "path": "package.json",
+      "sha256": "cf14465cde7a6f19326ebe990b3ff147802a7c8c4ea0ac7d675f4e1cf8f5948a"
+    },
+    {
+      "path": "README.md",
+      "sha256": "ae4760bade219e362a9a634b3ca6cbdb0617547c31f761bb50795388f4ab9bd8"
+    },
+    {
+      "path": "src/border-beam.ts",
+      "sha256": "8a8162076e2a4fa75d42b9f55dc9e982da662e235aa7f61994a2112ef0bbbe6a"
+    },
+    {
+      "path": "src/button.ts",
+      "sha256": "c9430496da7db3e72dd7e64d30dce6316a111e9297d107eb12d711787b06d445"
+    },
+    {
+      "path": "src/checkbox.ts",
+      "sha256": "5bb48c6ea8740ceb6b32789d0750b06d25dfe6f3d620aed77ff85f10d0e0e01e"
+    },
+    {
+      "path": "src/context-menu.ts",
+      "sha256": "b3bb3ae9bef8cf75335c4dd058669ef97bd52caad725bcaa46bf39ebcfe80ebf"
+    },
+    {
+      "path": "src/dialog.ts",
+      "sha256": "2d7a539b4d7c1991e90e79207973690c916a7c20446342a0f5f43b622b47e3dd"
+    },
+    {
+      "path": "src/drawer.ts",
+      "sha256": "bdadf44dd352a5ac1a27bfc91395f93ff3c8b267c4b05ccabd947db40494e888"
+    },
+    {
+      "path": "src/dropdown.ts",
+      "sha256": "38e772eb193053f9d14a9941c2453c47604c93dbd42cab7ac572de27dbdbcede"
+    },
+    {
+      "path": "src/history-controls.ts",
+      "sha256": "06a4e29291fb80e7941973c5eb653b94c654c776da7318ea9099536cfe629dff"
+    },
+    {
+      "path": "src/index.ts",
+      "sha256": "584b28edeb1404526bfd06d260e381ecd5ee0d36e516ff1b72528cc2759f78b6"
+    },
+    {
+      "path": "src/input.ts",
+      "sha256": "e782634a31cf3d9c7ca37377c1055c4073a3d818d99d049910736098ce0e6928"
+    },
+    {
+      "path": "src/menu-shared.ts",
+      "sha256": "f9de2a268c725d49b9715bd95b3fbfefee558c80af2e3180f3e1154acedba306"
+    },
+    {
+      "path": "src/notification.ts",
+      "sha256": "939096a1627a7df5ad6f8c349298a65955b4e47d0a4ffcf17b47c60f3ae8831b"
+    },
+    {
+      "path": "src/radio.ts",
+      "sha256": "c07744c17a203b86421f8308c43c1dd92a47cffb90e4ef25534ed0c58a874161"
+    },
+    {
+      "path": "src/range.ts",
+      "sha256": "15902638fa3cbb2bf0b6cb99d5a56fb1b3ebf7937c666c6b3eb2e0e9a5c15b50"
+    },
+    {
+      "path": "src/select.ts",
+      "sha256": "4f9d1138924a95af08278da805dfaf0e3525f836ce6621d660f78fa0f969c3ab"
+    },
+    {
+      "path": "src/split.ts",
+      "sha256": "23b9a6d80e24d55b2885c65b329568a8f192eb1f2bca04868eba1aa190e2b54a"
+    },
+    {
+      "path": "src/tabs.ts",
+      "sha256": "5cbb4e35cdfdc8b3ad029e417cbd50ed694b1ce43e2364726cad82e3e27cf3f6"
+    },
+    {
+      "path": "src/tooltip.ts",
+      "sha256": "7203a5220797f320ae8ee98bcb50ae0a70f84d9e72ccdfe58fd1cf61ad19ed73"
+    },
+    {
+      "path": "src/tree-model.ts",
+      "sha256": "3dd51af0f770f47ab585bdb6f810433ed02806b6bbc8ba3447837579334cd916"
+    },
+    {
+      "path": "src/tree-node.ts",
+      "sha256": "119ee2c0e626b780fdd274ccb5cac5bb96c66cd4a6a08f10b035e0f96a5a98f7"
+    },
+    {
+      "path": "src/tree-types.ts",
+      "sha256": "ecccc7d6601823a121989874293314b6458fb9eddce36efda81a4370857f4c05"
+    },
+    {
+      "path": "src/tree.ts",
+      "sha256": "4edff122eeee2312256c54fd95c8abd7319886cabd077b8fe5b22b60dca02efc"
+    },
+    {
+      "path": "src/virtual-list.ts",
+      "sha256": "6e02169cfff379f74d980e5fafee6bb3b1be256195269091e4ceaabf3c815a36"
+    },
+    {
+      "path": "test/border-beam.test.mjs",
+      "sha256": "4fe6e89614c5baa62d4f78b69968990fb2a20bb6358ca3ea4b3fc56dd95a9921"
+    },
+    {
+      "path": "test/package-boundaries.test.mjs",
+      "sha256": "e2a2c04d497a64dd5a9240d0c90d0c2d01b24ececcc8d11bac149d9593274aa7"
+    },
+    {
+      "path": "test/tree-model.test.mjs",
+      "sha256": "1b64d0df9f5bfbaf41f69426c7c996119ff9683b798b235ba9276b2f69c21565"
+    },
+    {
+      "path": "test/ui-surface.test.mjs",
+      "sha256": "dec721e27bcd9d7b48071e79c80f7d4d841648d844dc939a84bfff6002d6b1b9"
+    },
+    {
+      "path": "themes/haiyue-dark.css",
+      "sha256": "cfe4977d9885298935a49fb614c7b0ddfa47e6d50563b00ebc108ef061552db9"
+    },
+    {
+      "path": "themes/haiyue-light.css",
+      "sha256": "1ddae18ce350636a6c0784a3752b4bb5a05d052b38a6b840b2c930048ed33dbe"
+    }
+  ],
+  "requiredExports": [
+    "./tabs",
+    "./border-beam"
+  ],
+  "exportDecision": "Existing public exports and events retained; no new exports. Keyboard/ARIA and reconnection behavior repaired. Constructor host mutations removed.",
+  "verification": [
+    "UI: npm run pack:candidate (typecheck, tests, build)",
+    "AIStudio: real Electron workspace and execution graph regression"
+  ]
+}

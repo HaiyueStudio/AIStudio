@@ -70,6 +70,7 @@ export class ComponentRegistry {
     if (typeof instance.enabled !== 'boolean' || !isRecord(instance.value)) throw new ComponentRegistryError('component.instance-invalid', `Component ${id} has an invalid enabled/value field.`);
     const definition = this.get(type, version);
     const value = validateValueAgainstSchema(definition.valueSchema, instance.value, '$value');
+    if (type === 'haiyue.render.geometry' && value.plane !== undefined && value.kind !== 'plane') throw new ComponentRegistryError('component.value-invalid', 'plane is valid only for plane geometry.');
     if (Buffer.byteLength(canonicalStringify(value)) > definition.validation.maxSerializedBytes) throw new ComponentRegistryError('component.value-oversized', `Component ${id} exceeds ${definition.validation.maxSerializedBytes} bytes.`);
     return deepFreeze({ id, type, version, enabled: instance.enabled, value }) as GameComponentInstanceV2;
   }
@@ -117,7 +118,7 @@ export const BUILTIN_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = O
     objectSchema({ position: vec3Schema(), rotationDegrees: vec3Schema(), scale: vec3Schema(0.000001) }, ['position', 'rotationDegrees', 'scale']),
     { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }),
   definition('haiyue.render.geometry', 'document.v2', 'gpu-owner', 'medium', 'Geometry', 'Rendering', 'inspector.geometry', 'adapter.render.geometry',
-    objectSchema({ kind: { enum: ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] } }, ['kind']), { kind: 'cube' }),
+    objectSchema({ kind: { enum: ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] }, plane: { enum: ['xy', 'xz', 'yz'], description: 'For plane geometry: xy faces +Z (default), xz faces +Y (horizontal), yz faces +X. Transform rotation is applied afterwards.' } }, ['kind']), { kind: 'cube' }),
   definition('haiyue.render.material', 'material.pbr', 'gpu-owner', 'medium', 'Material', 'Rendering', 'inspector.material', 'adapter.render.material',
     objectSchema({ material: { enum: ['basic', 'pbr', 'blinn-phong', 'normal'] }, color: numberArraySchema(4, 0, 1) }, ['material', 'color']),
     { material: 'basic', color: [0.16, 0.58, 1, 1] }),
@@ -304,7 +305,7 @@ function validateNode(schema: Readonly<Record<string, unknown>>, value: unknown,
 }
 
 function validateSchemaVocabulary(schema: Readonly<Record<string, unknown>>, path: string): void {
-  const allowed = new Set(['type', 'enum', 'additionalProperties', 'properties', 'required', 'items', 'minItems', 'maxItems', 'minimum', 'maximum', 'pattern']);
+  const allowed = new Set(['type', 'enum', 'additionalProperties', 'properties', 'required', 'items', 'minItems', 'maxItems', 'minimum', 'maximum', 'pattern', 'description']);
   for (const key of Object.keys(schema)) if (!allowed.has(key)) throw new ComponentRegistryError('component.schema-unsupported', `${path} uses unsupported keyword ${key}.`);
   if (isRecord(schema.properties)) for (const [key, child] of Object.entries(schema.properties)) { if (!isRecord(child)) throw new ComponentRegistryError('component.schema-invalid', `${path}.properties.${key} must be a schema.`); validateSchemaVocabulary(child, `${path}.properties.${key}`); }
   if (isRecord(schema.items)) validateSchemaVocabulary(schema.items, `${path}.items`);

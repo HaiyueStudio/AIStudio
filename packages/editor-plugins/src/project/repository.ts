@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { migrateProjectDocumentV1, parseProjectDocumentFile, parseProjectDocumentSource, type ProjectDocumentFile, type ProjectMigrationReport } from './document.js';
@@ -52,6 +52,33 @@ export class ProjectRepository {
     const bytes = await readFile(target);
     if (bytes.byteLength !== info.size) throw new ProjectPathError('project-asset-read-raced', 'Controlled asset changed while it was being read; retry the import.');
     return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  }
+
+  /** Immutable content-addressed bytes: never overwrite user files; retain committed files for Redo. */
+  async stageGeneratedTexture(bytes: Uint8Array, signal?: AbortSignal): Promise<Readonly<{ projectPath: string; rollback(): Promise<void> }>> {
+    signal?.throwIfAborted();
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 20 * 1024 * 1024) throw new ProjectPathError('texture.source-budget', 'Generated PNG exceeds the texture byte budget.');
+    for (const directory of ['assets', 'assets/generated']) {
+      const target = this.resolveProjectPath(directory); await this.assertTargetSafe(target, true);
+      await mkdir(target).catch(cause => { if (!isAlreadyExists(cause)) throw cause; });
+      const info = await lstat(target); if (info.isSymbolicLink() || !info.isDirectory()) throw new ProjectPathError('project-symlink-rejected', 'Generated asset directories must be real project directories.');
+    }
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    const projectPath = `assets/generated/${digest}.png`; const target = this.resolveProjectPath(projectPath);
+    await this.assertTargetSafe(target, true); signal?.throwIfAborted();
+    let created = false;
+    const rollback = async () => { if (created) { await this.assertTargetSafe(target); await rm(target, { force: true }); created = false; } };
+    try {
+      const handle = await open(target, 'wx').catch(async cause => {
+        if (!isAlreadyExists(cause)) throw cause;
+        const existing = await this.readControlledAsset(projectPath, 20 * 1024 * 1024);
+        if (!Buffer.from(existing).equals(bytes)) throw new ProjectPathError('texture.content-conflict', 'Existing generated texture has unexpected contents.');
+        return null;
+      });
+      if (handle) { created = true; try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); } }
+      signal?.throwIfAborted();
+      return Object.freeze({ projectPath, rollback });
+    } catch (cause) { await rollback(); throw cause; }
   }
 
   async readWithMigration(registry = new ComponentRegistry().freeze()): Promise<Readonly<{ file: ProjectDocumentFile; migration: ProjectMigrationReport | null }>> {
