@@ -2,31 +2,31 @@ TAP version 13
 # Subtest: history projection rejects unknown versions, foreign records, secret metadata and invalid durations
 ok 1 - history projection rejects unknown versions, foreign records, secret metadata and invalid durations
   ---
-  duration_ms: 1.635
+  duration_ms: 1.5043
   type: 'test'
   ...
 # Subtest: a delayed response from the previous project cannot repopulate the current history view
 ok 2 - a delayed response from the previous project cannot repopulate the current history view
   ---
-  duration_ms: 3.8271
+  duration_ms: 4.4626
   type: 'test'
   ...
 # Subtest: history pages and expanded details display types, timing and complete parameters/results as plain text
 ok 3 - history pages and expanded details display types, timing and complete parameters/results as plain text
   ---
-  duration_ms: 2.6529
+  duration_ms: 2.4044
   type: 'test'
   ...
 # Subtest: cancelled tool history distinguishes preserved confirmation pauses from actual cancellations without rewriting raw data
 ok 4 - cancelled tool history distinguishes preserved confirmation pauses from actual cancellations without rewriting raw data
   ---
-  duration_ms: 1.8068
+  duration_ms: 1.242
   type: 'test'
   ...
 # Subtest: cancelled history detail from a previous project is discarded and failed reads can retry on expansion
 ok 5 - cancelled history detail from a previous project is discarded and failed reads can retry on expansion
   ---
-  duration_ms: 3.009
+  duration_ms: 1.9798
   type: 'test'
   ...
 1..5
@@ -37,4 +37,4 @@ ok 5 - cancelled history detail from a previous project is discarded and failed 
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 243.1807
+# duration_ms 225.8159

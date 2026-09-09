@@ -2,67 +2,67 @@ TAP version 13
 # Subtest: prompt profile is deterministic, versioned and genre neutral
 ok 1 - prompt profile is deterministic, versioned and genre neutral
   ---
-  duration_ms: 3.2104
+  duration_ms: 3.1704
   type: 'test'
   ...
 # Subtest: same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest
 ok 2 - same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest
   ---
-  duration_ms: 227.4831
+  duration_ms: 201.4301
   type: 'test'
   ...
 # Subtest: exact project source replaces legacy full manifests with bounded scene snapshot then revision diff
 ok 3 - exact project source replaces legacy full manifests with bounded scene snapshot then revision diff
   ---
-  duration_ms: 75.0282
+  duration_ms: 66.0638
   type: 'test'
   ...
 # Subtest: restart rebuilds context metadata and conversation indexes through bounded sequence windows
 ok 4 - restart rebuilds context metadata and conversation indexes through bounded sequence windows
   ---
-  duration_ms: 120.4352
+  duration_ms: 104.7001
   type: 'test'
   ...
 # Subtest: secret canaries are absent from artifacts, summaries, prompt logs and exported bug bundles
 ok 5 - secret canaries are absent from artifacts, summaries, prompt logs and exported bug bundles
   ---
-  duration_ms: 100.5146
+  duration_ms: 77.2312
   type: 'test'
   ...
 # Subtest: usage ledger distinguishes provider cache eligibility from reported cache evidence
 ok 6 - usage ledger distinguishes provider cache eligibility from reported cache evidence
   ---
-  duration_ms: 1.2659
+  duration_ms: 0.9528
   type: 'test'
   ...
 # Subtest: summary compaction keeps bounded visible facts and ignores hidden-reasoning-shaped input
 ok 7 - summary compaction keeps bounded visible facts and ignores hidden-reasoning-shaped input
   ---
-  duration_ms: 60.1998
+  duration_ms: 41.6797
   type: 'test'
   ...
 # Subtest: all seven canonical game requests use one profile without cross-genre prompt leakage
 ok 8 - all seven canonical game requests use one profile without cross-genre prompt leakage
   ---
-  duration_ms: 172.2755
+  duration_ms: 145.5071
   type: 'test'
   ...
 # Subtest: tool contract changes start with full context while preserving approved decisions and current project state
 ok 9 - tool contract changes start with full context while preserving approved decisions and current project state
   ---
-  duration_ms: 191.5582
+  duration_ms: 166.521
   type: 'test'
   ...
 # Subtest: unknown turn contracts retain visible history but cannot authorize provider session reuse
 ok 10 - unknown turn contracts retain visible history but cannot authorize provider session reuse
   ---
-  duration_ms: 70.8155
+  duration_ms: 64.8835
   type: 'test'
   ...
 # Subtest: tool contract fingerprint ignores object key order but preserves descriptions, schemas and ordered tool identities
 ok 11 - tool contract fingerprint ignores object key order but preserves descriptions, schemas and ordered tool identities
   ---
-  duration_ms: 0.7805
+  duration_ms: 0.5118
   type: 'test'
   ...
 1..11
@@ -73,4 +73,4 @@ ok 11 - tool contract fingerprint ignores object key order but preserves descrip
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1287.2845
+# duration_ms 1137.6819

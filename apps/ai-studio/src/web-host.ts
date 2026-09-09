@@ -91,6 +91,9 @@ export class WebStudioHost {
   private async dispatch(request: StudioIpcRequest): Promise<JsonObject> {
     const payload = request.payload as Record<string, unknown>;
     switch (request.channel) {
+      case 'notifications/get': return { supported: false, preferences: null, delivery: 'unsupported' };
+      case 'notifications/target': return { target: null };
+      case 'notifications/set': case 'notifications/test': throw new Error('Desktop notifications require the Electron app.');
       case 'editor/advanced': case 'editor/advanced-intent': case 'editor/resources': case 'editor/resource-intent': case 'editor/resource-import': case 'editor/cancel':
         throw new WebHostError('web-editor-integration-unavailable', 'Project resource and advanced authoring services require the Electron desktop app.');
       case 'behavior/snapshot': case 'behavior/refresh': case 'behavior/explain': case 'behavior/locate':

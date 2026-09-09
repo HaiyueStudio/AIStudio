@@ -24,6 +24,7 @@ import {
   LogViewerController,
   presentChatPanel,
   renderChatPanel,
+  revealChatAttention,
   renderLogViewer,
   type ConversationIntent,
   type ConversationReplaySnapshot,
@@ -33,6 +34,7 @@ import {
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
+import { mountNotificationSettings } from './notification-ui.js';
 import { IntegratedEditorPanels } from './editor-panels.js';
 import {
   PLAY_DEVICE_PROFILES,
@@ -66,6 +68,8 @@ let agentHistoryViewer: AgentHistoryViewer | null = null;
 let intentWorkspace: IntentWorkspace | null = null;
 let editorPanels: IntegratedEditorPanels | null = null;
 let agentHistoryWasBusy = false;
+let notificationSettings: ReturnType<typeof mountNotificationSettings> | null = null;
+let disposeNotificationClicked: (() => void) | null = null;
 
 declare global {
   interface Window {
@@ -73,6 +77,7 @@ declare global {
       invoke(request: StudioIpcRequest): Promise<StudioIpcResponse>;
       cancel(requestId: string): void;
       onConversationChanged(listener: () => void): () => void;
+      onNotificationClicked?(listener: () => void): () => void;
     }>;
   }
 }
@@ -736,6 +741,7 @@ async function boot(): Promise<void> {
     cancel: (handle) => window.clearTimeout(handle as number),
   });
   disposeConversationChanged = window.haiyueStudio.onConversationChanged(() => agentPoll?.trigger());
+  disposeNotificationClicked = window.haiyueStudio.onNotificationClicked?.(() => { void navigateNotification().catch(cause => setStatus(errorMessage(cause))); }) ?? null;
   agentPoll.start();
   document.body.dataset.agentSync = 'push-single-flight';
   void logViewer?.refresh().catch((cause) => setStatus(errorMessage(cause)));
@@ -766,6 +772,10 @@ function setupUiPreferences(): void {
   theme = readStoredTheme();
   applyTheme(theme);
 
+  notificationSettings = mountNotificationSettings(document, element('settings-dialog').querySelector('.settings-form')!, {
+    desktop: typeof window.haiyueStudio.onNotificationClicked === 'function', language: () => language, invoke,
+  });
+
   const languageSelect = element<HYSelect>('language-select');
   const themeSelect = element<HYSelect>('theme-select');
   languageSelect.addEventListener('value-change', (event) => {
@@ -793,6 +803,7 @@ function setupUiPreferences(): void {
 }
 
 function applyLocale(): void {
+  notificationSettings?.refreshLocale();
   document.documentElement.lang = language;
   document.body.dataset.language = language;
   intentWorkspace?.setLanguage(language);
@@ -1070,6 +1081,8 @@ function bindUi(): void {
     agentHistoryViewer?.dispose(); agentHistoryViewer = null;
     agentPoll?.stop(); agentPoll = null;
     disposeConversationChanged?.(); disposeConversationChanged = null;
+    disposeNotificationClicked?.(); disposeNotificationClicked = null;
+    notificationSettings?.dispose(); notificationSettings = null;
     logViewerSubscription?.dispose(); logViewerSubscription = null;
     logViewer?.dispose(); logViewer = null;
     playStageResizeObserver?.disconnect(); playStageResizeObserver = null;
@@ -1106,6 +1119,21 @@ async function refreshConversation(force: boolean): Promise<boolean> {
   document.body.dataset.agentBackend = snapshot.backendId ?? 'none';
   document.body.dataset.agentBackendState = snapshot.backends.find((item) => item.id === snapshot.backendId)?.state ?? 'unavailable';
   return editorChanged;
+}
+
+async function navigateNotification(): Promise<void> {
+  const response = await invoke('notifications/target');
+  if (!response.target || typeof response.target !== 'object' || Array.isArray(response.target)) return;
+  const target = response.target as JsonObject;
+  if (typeof target.projectId !== 'string' || typeof target.documentId !== 'string'
+    || (target.nodeId !== null && typeof target.nodeId !== 'string') || (target.taskId !== null && typeof target.taskId !== 'string')) return;
+  await refreshConversation(true);
+  const snapshot = await invoke('project/snapshot');
+  if (!snapshot.document || typeof snapshot.document !== 'object' || Array.isArray(snapshot.document)) return;
+  const current = snapshot.document as JsonObject;
+  if (current.projectId !== target.projectId || current.documentId !== target.documentId) return;
+  element<HYTabs>('right-tabs').value = 'agent';
+  revealChatAttention(element('chat-content'), { nodeId: target.nodeId, taskId: target.taskId });
 }
 
 async function dispatchConversation(intent: ConversationIntent): Promise<boolean> {

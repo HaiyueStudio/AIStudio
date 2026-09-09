@@ -1,9 +1,9 @@
 TAP version 13
-# M14 integrated product evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-m14-integrated-product-wDZjRh
+# M14 integrated product evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-m14-integrated-product-0oQAxB
 # Subtest: production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
 ok 1 - production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
   ---
-  duration_ms: 36475.97
+  duration_ms: 47885.104
   type: 'test'
   ...
 1..1
@@ -14,4 +14,4 @@ ok 1 - production window uses public resource / advanced entries, real tools, ex
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 37883.9359
+# duration_ms 48881.8727

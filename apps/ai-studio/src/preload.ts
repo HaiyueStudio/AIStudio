@@ -6,6 +6,11 @@ const api = Object.freeze({
     return ipcRenderer.invoke(STUDIO_IPC_CHANNEL, request) as Promise<StudioIpcResponse>;
   },
   cancel(requestId: string): void { ipcRenderer.send(STUDIO_IPC_CANCEL_CHANNEL, requestId); },
+  onNotificationClicked(listener: () => void): () => void {
+    const handle = (): void => listener();
+    ipcRenderer.on('studio:notification-clicked', handle);
+    return () => ipcRenderer.removeListener('studio:notification-clicked', handle);
+  },
   onConversationChanged(listener: () => void): () => void {
     const handle = (): void => listener();
     ipcRenderer.on(STUDIO_CONVERSATION_CHANGED_CHANNEL, handle);

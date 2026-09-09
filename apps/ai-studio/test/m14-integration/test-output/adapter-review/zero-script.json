@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "zero-script",
   "status": "passed",
-  "recordedAt": "2026-09-09T09:39:50.289Z",
+  "recordedAt": "2026-09-09T11:22:25.405Z",
   "device": {
     "os": {
       "platform": "win32",
@@ -52,12 +52,12 @@
   "scriptCount": 0,
   "binding": {
     "schemaVersion": 1,
-    "projectId": "project:c5a5884c-0a7f-40f2-8880-3d8eea3e8a78",
-    "documentId": "document:3d5c0ec3-c4b3-44eb-a7db-d8de18ef5d37",
+    "projectId": "project:881af627-ec02-4e3b-9e35-e08e0add6973",
+    "documentId": "document:946abc5a-dbfa-4562-a0e7-ad04339c944f",
     "documentRevision": 8,
-    "documentDigest": "sha256:d71d921e9a606b102a2ac630fc351abb69145f5144f3b81975a144b2603748b8",
+    "documentDigest": "sha256:db15d75988a40994c03b5f3544f5be3d4354f392df9d9e2213da81700648a647",
     "scripts": [],
-    "componentsDigest": "sha256:6df67dbf6aac095b9fdc9436a876c801f87f16336e25d6e98cc65b4a3882fcba",
+    "componentsDigest": "sha256:24fd3cf65b0b79010682a8c305faaa068d61e6d83b2c5dcc75291e96a36d74ec",
     "dependenciesDigest": "sha256:47e5ee5f91c3bfff087a8a9a284fcaa397494ac5dd7f0bf76db4e3237a49d1c6",
     "registry": {
       "version": "0.0.0",
@@ -265,17 +265,17 @@
         "digest": "sha256:298fa20fa470589dfd7297683da7046251df0f57f80e1c62ffea75b944977699"
       }
     ],
-    "digest": "sha256:c5ed98fbb6fb1e25fd07373f876005fce7c8b8eb434497f8b5f143adc50cb63f"
+    "digest": "sha256:5f96861d16e74fa88fdb01a0bfb854cf48ed27e5010aba81a3cf4d54ff0d7a8a"
   },
-  "manifestDigest": "sha256:fe35b22e82bb64ebbc2c2dbe61ee382cad44564b2c2c2cd971da6f1d37b5c826",
+  "manifestDigest": "sha256:156e6ba2f4e13b764bb9168ee38ccda705be559fde297c7e3c9833d712dac2fa",
   "rounds": [
     {
       "started": {
         "started": {
           "protocol": "haiyue-preview/1",
           "type": "started",
-          "entityId": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
-          "scriptSetDigest": "sha256:a0819f45cece5dbaa3248645d37a765586167872db8116c706d99040a2b26179",
+          "entityId": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
+          "scriptSetDigest": "sha256:970b5508e9d6864fea587e053c1120d4832f4cd7b287827922c6860f714739e4",
           "scriptCount": 0,
           "tickRateHz": 60,
           "seed": "haiyue-play",
@@ -325,7 +325,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -338,7 +338,7 @@
         "paused": {
           "protocol": "haiyue-preview/1",
           "type": "paused",
-          "tick": 2,
+          "tick": 0,
           "disposableCount": 0
         }
       },
@@ -347,16 +347,16 @@
         "type": "inspection",
         "requestId": "review:2",
         "value": {
-          "tick": 2,
-          "frame": 3,
-          "timeMs": 33.333333333333336,
+          "tick": 0,
+          "frame": 2,
+          "timeMs": 0,
           "paused": true,
           "seed": "haiyue-play",
           "state": {
-            "tick": 2,
+            "tick": 0,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -374,7 +374,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -442,7 +442,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -454,7 +454,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -469,16 +469,16 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [],
-                "tick": 2
+                "tick": 0
               }
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -490,11 +490,11 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [],
-                "tick": 2,
+                "tick": 0,
                 "timers": [
                   {
                     "completed": false,
@@ -502,7 +502,7 @@
                     "event": "elapsed",
                     "fired": false,
                     "id": "clock",
-                    "remainingTicks": 8,
+                    "remainingTicks": 10,
                     "repeat": true,
                     "running": true
                   }
@@ -511,26 +511,13 @@
             }
           ],
           "input": {
-            "tick": 2,
+            "tick": 0,
             "actions": [],
             "pointers": [],
             "events": [],
-            "hash": "fnv1a64:a92da00a37ffe81e"
+            "hash": "fnv1a64:a9339c0a38044d00"
           },
-          "trace": [
-            {
-              "tick": 1,
-              "timeMs": 16.666666666666668,
-              "inputHash": "fnv1a64:a930a00a38021df5",
-              "stateHash": "fnv1a64:410b5e6b9f82b41d"
-            },
-            {
-              "tick": 2,
-              "timeMs": 33.333333333333336,
-              "inputHash": "fnv1a64:a92da00a37ffe81e",
-              "stateHash": "fnv1a64:41075e6b9f7ecb46"
-            }
-          ],
+          "trace": [],
           "physics": {
             "state": "ready",
             "dimensions": [],
@@ -578,7 +565,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -611,7 +598,7 @@
             "tick": 10,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -629,7 +616,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -697,7 +684,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -709,7 +696,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -724,7 +711,7 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [
@@ -735,7 +722,7 @@
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -747,7 +734,7 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [
@@ -788,62 +775,62 @@
             {
               "tick": 1,
               "timeMs": 16.666666666666668,
-              "inputHash": "fnv1a64:a930a00a38021df5",
-              "stateHash": "fnv1a64:410b5e6b9f82b41d"
+              "inputHash": "fnv1a64:eb1c5c2560d71f5a",
+              "stateHash": "fnv1a64:42577a568b966b54"
             },
             {
               "tick": 2,
               "timeMs": 33.333333333333336,
-              "inputHash": "fnv1a64:a92da00a37ffe81e",
-              "stateHash": "fnv1a64:41075e6b9f7ecb46"
+              "inputHash": "fnv1a64:e3014ea6e02b875f",
+              "stateHash": "fnv1a64:424d7a568b8e16cf"
             },
             {
               "tick": 3,
               "timeMs": 50,
-              "inputHash": "fnv1a64:6599a64b1c3e044e",
-              "stateHash": "fnv1a64:41045a6b9f7c8ea3"
+              "inputHash": "fnv1a64:e30552a6e02f7702",
+              "stateHash": "fnv1a64:42507e568b905372"
             },
             {
               "tick": 4,
               "timeMs": 66.66666666666667,
               "inputHash": "fnv1a64:e31652a6e03dea35",
-              "stateHash": "fnv1a64:41005a6b9f78a5cc"
+              "stateHash": "fnv1a64:42617e568b9ec6a5"
             },
             {
               "tick": 5,
               "timeMs": 83.33333333333334,
               "inputHash": "fnv1a64:e3194ea6e0401940",
-              "stateHash": "fnv1a64:40fd5e6b9f7676c1"
+              "stateHash": "fnv1a64:42647a568ba0f5b0"
             },
             {
               "tick": 6,
               "timeMs": 100,
               "inputHash": "fnv1a64:e30f4ea6e037c4bb",
-              "stateHash": "fnv1a64:40fa5e6b9f7440ea"
+              "stateHash": "fnv1a64:425a7a568b98a12b"
             },
             {
               "tick": 7,
               "timeMs": 116.66666666666667,
               "inputHash": "fnv1a64:e31252a6e03a015e",
-              "stateHash": "fnv1a64:40f65a6b9f705147"
+              "stateHash": "fnv1a64:425e7e568b9c90ce"
             },
             {
               "tick": 8,
               "timeMs": 133.33333333333334,
               "inputHash": "fnv1a64:e2ed52a6e01ae521",
-              "stateHash": "fnv1a64:41295a6b9f9baae0"
+              "stateHash": "fnv1a64:42387e568b7bc191"
             },
             {
               "tick": 9,
               "timeMs": 150,
               "inputHash": "fnv1a64:e2f04ea6e01d142c",
-              "stateHash": "fnv1a64:41265e6b9f997bd5"
+              "stateHash": "fnv1a64:423c7a568b7fa39c"
             },
             {
               "tick": 10,
               "timeMs": 166.66666666666669,
               "inputHash": "fnv1a64:00c6428ef8b7004a",
-              "stateHash": "fnv1a64:07ffd4e00a39a741"
+              "stateHash": "fnv1a64:50110e0f2fbf5d7a"
             }
           ],
           "physics": {
@@ -893,7 +880,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -918,7 +905,7 @@
         "requestId": "review:6",
         "value": {
           "tick": 10,
-          "frame": 6,
+          "frame": 7,
           "timeMs": 166.66666666666669,
           "paused": true,
           "seed": "haiyue-play",
@@ -926,7 +913,7 @@
             "tick": 10,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -944,7 +931,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -1012,7 +999,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -1024,7 +1011,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -1039,7 +1026,7 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [
@@ -1050,7 +1037,7 @@
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -1062,7 +1049,7 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [
@@ -1103,62 +1090,62 @@
             {
               "tick": 1,
               "timeMs": 16.666666666666668,
-              "inputHash": "fnv1a64:a930a00a38021df5",
-              "stateHash": "fnv1a64:410b5e6b9f82b41d"
+              "inputHash": "fnv1a64:eb1c5c2560d71f5a",
+              "stateHash": "fnv1a64:42577a568b966b54"
             },
             {
               "tick": 2,
               "timeMs": 33.333333333333336,
-              "inputHash": "fnv1a64:a92da00a37ffe81e",
-              "stateHash": "fnv1a64:41075e6b9f7ecb46"
+              "inputHash": "fnv1a64:e3014ea6e02b875f",
+              "stateHash": "fnv1a64:424d7a568b8e16cf"
             },
             {
               "tick": 3,
               "timeMs": 50,
-              "inputHash": "fnv1a64:6599a64b1c3e044e",
-              "stateHash": "fnv1a64:41045a6b9f7c8ea3"
+              "inputHash": "fnv1a64:e30552a6e02f7702",
+              "stateHash": "fnv1a64:42507e568b905372"
             },
             {
               "tick": 4,
               "timeMs": 66.66666666666667,
               "inputHash": "fnv1a64:e31652a6e03dea35",
-              "stateHash": "fnv1a64:41005a6b9f78a5cc"
+              "stateHash": "fnv1a64:42617e568b9ec6a5"
             },
             {
               "tick": 5,
               "timeMs": 83.33333333333334,
               "inputHash": "fnv1a64:e3194ea6e0401940",
-              "stateHash": "fnv1a64:40fd5e6b9f7676c1"
+              "stateHash": "fnv1a64:42647a568ba0f5b0"
             },
             {
               "tick": 6,
               "timeMs": 100,
               "inputHash": "fnv1a64:e30f4ea6e037c4bb",
-              "stateHash": "fnv1a64:40fa5e6b9f7440ea"
+              "stateHash": "fnv1a64:425a7a568b98a12b"
             },
             {
               "tick": 7,
               "timeMs": 116.66666666666667,
               "inputHash": "fnv1a64:e31252a6e03a015e",
-              "stateHash": "fnv1a64:40f65a6b9f705147"
+              "stateHash": "fnv1a64:425e7e568b9c90ce"
             },
             {
               "tick": 8,
               "timeMs": 133.33333333333334,
               "inputHash": "fnv1a64:e2ed52a6e01ae521",
-              "stateHash": "fnv1a64:41295a6b9f9baae0"
+              "stateHash": "fnv1a64:42387e568b7bc191"
             },
             {
               "tick": 9,
               "timeMs": 150,
               "inputHash": "fnv1a64:e2f04ea6e01d142c",
-              "stateHash": "fnv1a64:41265e6b9f997bd5"
+              "stateHash": "fnv1a64:423c7a568b7fa39c"
             },
             {
               "tick": 10,
               "timeMs": 166.66666666666669,
               "inputHash": "fnv1a64:00c6428ef8b7004a",
-              "stateHash": "fnv1a64:07ffd4e00a39a741"
+              "stateHash": "fnv1a64:50110e0f2fbf5d7a"
             }
           ],
           "physics": {
@@ -1208,7 +1195,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -1241,7 +1228,7 @@
             "tick": 20,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -1259,7 +1246,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -1327,7 +1314,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -1339,7 +1326,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -1354,7 +1341,7 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [
@@ -1365,7 +1352,7 @@
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -1377,7 +1364,7 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [
@@ -1418,122 +1405,122 @@
             {
               "tick": 1,
               "timeMs": 16.666666666666668,
-              "inputHash": "fnv1a64:a930a00a38021df5",
-              "stateHash": "fnv1a64:410b5e6b9f82b41d"
+              "inputHash": "fnv1a64:eb1c5c2560d71f5a",
+              "stateHash": "fnv1a64:42577a568b966b54"
             },
             {
               "tick": 2,
               "timeMs": 33.333333333333336,
-              "inputHash": "fnv1a64:a92da00a37ffe81e",
-              "stateHash": "fnv1a64:41075e6b9f7ecb46"
+              "inputHash": "fnv1a64:e3014ea6e02b875f",
+              "stateHash": "fnv1a64:424d7a568b8e16cf"
             },
             {
               "tick": 3,
               "timeMs": 50,
-              "inputHash": "fnv1a64:6599a64b1c3e044e",
-              "stateHash": "fnv1a64:41045a6b9f7c8ea3"
+              "inputHash": "fnv1a64:e30552a6e02f7702",
+              "stateHash": "fnv1a64:42507e568b905372"
             },
             {
               "tick": 4,
               "timeMs": 66.66666666666667,
               "inputHash": "fnv1a64:e31652a6e03dea35",
-              "stateHash": "fnv1a64:41005a6b9f78a5cc"
+              "stateHash": "fnv1a64:42617e568b9ec6a5"
             },
             {
               "tick": 5,
               "timeMs": 83.33333333333334,
               "inputHash": "fnv1a64:e3194ea6e0401940",
-              "stateHash": "fnv1a64:40fd5e6b9f7676c1"
+              "stateHash": "fnv1a64:42647a568ba0f5b0"
             },
             {
               "tick": 6,
               "timeMs": 100,
               "inputHash": "fnv1a64:e30f4ea6e037c4bb",
-              "stateHash": "fnv1a64:40fa5e6b9f7440ea"
+              "stateHash": "fnv1a64:425a7a568b98a12b"
             },
             {
               "tick": 7,
               "timeMs": 116.66666666666667,
               "inputHash": "fnv1a64:e31252a6e03a015e",
-              "stateHash": "fnv1a64:40f65a6b9f705147"
+              "stateHash": "fnv1a64:425e7e568b9c90ce"
             },
             {
               "tick": 8,
               "timeMs": 133.33333333333334,
               "inputHash": "fnv1a64:e2ed52a6e01ae521",
-              "stateHash": "fnv1a64:41295a6b9f9baae0"
+              "stateHash": "fnv1a64:42387e568b7bc191"
             },
             {
               "tick": 9,
               "timeMs": 150,
               "inputHash": "fnv1a64:e2f04ea6e01d142c",
-              "stateHash": "fnv1a64:41265e6b9f997bd5"
+              "stateHash": "fnv1a64:423c7a568b7fa39c"
             },
             {
               "tick": 10,
               "timeMs": 166.66666666666669,
               "inputHash": "fnv1a64:00c6428ef8b7004a",
-              "stateHash": "fnv1a64:07ffd4e00a39a741"
+              "stateHash": "fnv1a64:50110e0f2fbf5d7a"
             },
             {
               "tick": 11,
               "timeMs": 183.33333333333334,
               "inputHash": "fnv1a64:00c33e8ef8b4c3a7",
-              "stateHash": "fnv1a64:e2080cc3e685a1f8"
+              "stateHash": "fnv1a64:7188aa651fb2e13b"
             },
             {
               "tick": 12,
               "timeMs": 200,
               "inputHash": "fnv1a64:00cd3e8ef8bd182c",
-              "stateHash": "fnv1a64:e1fe0cc3e67d4d73"
+              "stateHash": "fnv1a64:7192aa651fbb35c0"
             },
             {
               "tick": 13,
               "timeMs": 216.66666666666669,
               "inputHash": "fnv1a64:00ca428ef8bae921",
-              "stateHash": "fnv1a64:e20110c3e67f8a16"
+              "stateHash": "fnv1a64:718fae651fb906b5"
             },
             {
               "tick": 14,
               "timeMs": 233.33333333333334,
               "inputHash": "fnv1a64:00d4428ef8c33da6",
-              "stateHash": "fnv1a64:e1f710c3e6773591"
+              "stateHash": "fnv1a64:717eae651faa9382"
             },
             {
               "tick": 15,
               "timeMs": 250.00000000000003,
               "inputHash": "fnv1a64:00d13e8ef8c10103",
-              "stateHash": "fnv1a64:e1fb0cc3e67b179c"
+              "stateHash": "fnv1a64:717aaa651fa6a3df"
             },
             {
               "tick": 16,
               "timeMs": 266.6666666666667,
               "inputHash": "fnv1a64:00db3e8ef8c95588",
-              "stateHash": "fnv1a64:e1f00cc3e6711017"
+              "stateHash": "fnv1a64:7184aa651faef864"
             },
             {
               "tick": 17,
               "timeMs": 283.33333333333337,
               "inputHash": "fnv1a64:00d7428ef8c5737d",
-              "stateHash": "fnv1a64:e1f410c3e674ffba"
+              "stateHash": "fnv1a64:7181ae651facc959"
             },
             {
               "tick": 18,
               "timeMs": 300,
               "inputHash": "fnv1a64:00e2428ef8cf7b02",
-              "stateHash": "fnv1a64:e22010c3e69a3aa5"
+              "stateHash": "fnv1a64:7170ae651f9e5626"
             },
             {
               "tick": 19,
               "timeMs": 316.6666666666667,
               "inputHash": "fnv1a64:00de3e8ef8cb8b5f",
-              "stateHash": "fnv1a64:e2230cc3e69c69b0"
+              "stateHash": "fnv1a64:716daa651f9c1983"
             },
             {
               "tick": 20,
               "timeMs": 333.33333333333337,
               "inputHash": "fnv1a64:e7a3c38eeab8903f",
-              "stateHash": "fnv1a64:d8eee3c3e13f26ec"
+              "stateHash": "fnv1a64:57fc2f651159dbf3"
             }
           ],
           "physics": {
@@ -1583,7 +1570,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -1604,49 +1591,49 @@
       },
       "trace": {
         "schemaVersion": 1,
-        "sourceBindingDigest": "sha256:c5ed98fbb6fb1e25fd07373f876005fce7c8b8eb434497f8b5f143adc50cb63f",
-        "manifestDigest": "sha256:fe35b22e82bb64ebbc2c2dbe61ee382cad44564b2c2c2cd971da6f1d37b5c826",
+        "sourceBindingDigest": "sha256:5f96861d16e74fa88fdb01a0bfb854cf48ed27e5010aba81a3cf4d54ff0d7a8a",
+        "manifestDigest": "sha256:156e6ba2f4e13b764bb9168ee38ccda705be559fde297c7e3c9833d712dac2fa",
         "playId": "play:g08-zero-script-0",
         "generation": 1,
         "events": [
           {
             "sequence": 0,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:8bd7d3acea58328b0b6f963af1c0c683",
+            "nodeId": "node:e81bc9ea54e434b4982483fadd249928",
             "kind": "event",
             "event": "rule-fired",
-            "tick": 3,
-            "frame": 4,
+            "tick": 1,
+            "frame": 2,
             "durationMicros": null,
             "stateDiff": null,
             "error": null
           },
           {
             "sequence": 1,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:24da126e1586a42eea1d35fcb4b86c32",
+            "nodeId": "node:00b3a75c721307c9e67af4237467f0b7",
             "kind": "event",
             "event": "action-completed",
-            "tick": 3,
-            "frame": 4,
+            "tick": 1,
+            "frame": 2,
             "durationMicros": null,
             "stateDiff": null,
             "error": null
           },
           {
             "sequence": 2,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:9677437b74f39ba7a967a613",
             "scriptId": null,
-            "nodeId": "node:cac5adbf9060283ce8525015e8c2bfcb",
+            "nodeId": "node:5036582cf2d376a1c639f87f7af90f4a",
             "kind": "state-diff",
             "event": "component-state",
-            "tick": 3,
-            "frame": 4,
+            "tick": 1,
+            "frame": 2,
             "durationMicros": null,
             "stateDiff": {
               "field": "score",
@@ -1657,56 +1644,56 @@
           },
           {
             "sequence": 3,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:ae09ad75df9220032ff01fde",
             "scriptId": null,
-            "nodeId": "node:94366d2105169050f9313f8a28605ba6",
+            "nodeId": "node:21a861d7950ce8073de1a921e19cf79a",
             "kind": "event",
             "event": "timer-fired",
             "tick": 10,
-            "frame": 4,
+            "frame": 2,
             "durationMicros": null,
             "stateDiff": null,
             "error": null
           },
           {
             "sequence": 4,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:863d31ef4d7fae09df2df9f6a23d41b3",
+            "nodeId": "node:5d2da81c831cc7ef5b48043661d7066a",
             "kind": "event",
             "event": "rule-fired",
             "tick": 10,
-            "frame": 4,
+            "frame": 2,
             "durationMicros": null,
             "stateDiff": null,
             "error": null
           },
           {
             "sequence": 5,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:66816a7d5451f343ecfcc7209248e1d3",
+            "nodeId": "node:d3f302e2253c46958e12a2e8fbe4473d",
             "kind": "event",
             "event": "action-completed",
             "tick": 10,
-            "frame": 4,
+            "frame": 2,
             "durationMicros": null,
             "stateDiff": null,
             "error": null
           },
           {
             "sequence": 6,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:9677437b74f39ba7a967a613",
             "scriptId": null,
-            "nodeId": "node:cac5adbf9060283ce8525015e8c2bfcb",
+            "nodeId": "node:5036582cf2d376a1c639f87f7af90f4a",
             "kind": "state-diff",
             "event": "component-state",
             "tick": 10,
-            "frame": 4,
+            "frame": 2,
             "durationMicros": null,
             "stateDiff": {
               "field": "score",
@@ -1722,7 +1709,7 @@
           "omittedAtLeast": 0
         },
         "tick": 10,
-        "frame": 5,
+        "frame": 6,
         "closed": false
       },
       "capture": {
@@ -1746,8 +1733,8 @@
         "started": {
           "protocol": "haiyue-preview/1",
           "type": "started",
-          "entityId": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
-          "scriptSetDigest": "sha256:a0819f45cece5dbaa3248645d37a765586167872db8116c706d99040a2b26179",
+          "entityId": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
+          "scriptSetDigest": "sha256:970b5508e9d6864fea587e053c1120d4832f4cd7b287827922c6860f714739e4",
           "scriptCount": 0,
           "tickRateHz": 60,
           "seed": "haiyue-play",
@@ -1797,7 +1784,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -1820,7 +1807,7 @@
         "requestId": "review:11",
         "value": {
           "tick": 0,
-          "frame": 0,
+          "frame": 1,
           "timeMs": 0,
           "paused": true,
           "seed": "haiyue-play",
@@ -1828,7 +1815,7 @@
             "tick": 0,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -1846,7 +1833,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -1914,7 +1901,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -1926,7 +1913,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -1941,7 +1928,7 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [],
@@ -1950,7 +1937,7 @@
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -1962,7 +1949,7 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [],
@@ -2037,7 +2024,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -2070,7 +2057,7 @@
             "tick": 10,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -2088,7 +2075,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -2156,7 +2143,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -2168,7 +2155,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -2183,7 +2170,7 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [
@@ -2194,7 +2181,7 @@
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -2206,7 +2193,7 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [
@@ -2248,61 +2235,61 @@
               "tick": 1,
               "timeMs": 16.666666666666668,
               "inputHash": "fnv1a64:eb1c5c2560d71f5a",
-              "stateHash": "fnv1a64:097854b5b5c9c461"
+              "stateHash": "fnv1a64:146d26f21bbb0d00"
             },
             {
               "tick": 2,
               "timeMs": 33.333333333333336,
               "inputHash": "fnv1a64:e3014ea6e02b875f",
-              "stateHash": "fnv1a64:097554b5b5c78e8a"
+              "stateHash": "fnv1a64:146326f21bb2b87b"
             },
             {
               "tick": 3,
               "timeMs": 50,
               "inputHash": "fnv1a64:e30552a6e02f7702",
-              "stateHash": "fnv1a64:097250b5b5c551e7"
+              "stateHash": "fnv1a64:14672af21bb6a81e"
             },
             {
               "tick": 4,
               "timeMs": 66.66666666666667,
               "inputHash": "fnv1a64:e31652a6e03dea35",
-              "stateHash": "fnv1a64:098950b5b5d830c8"
+              "stateHash": "fnv1a64:145c2af21baca099"
             },
             {
               "tick": 5,
               "timeMs": 83.33333333333334,
               "inputHash": "fnv1a64:e3194ea6e0401940",
-              "stateHash": "fnv1a64:098654b5b5d601bd"
+              "stateHash": "fnv1a64:146026f21bb082a4"
             },
             {
               "tick": 6,
               "timeMs": 100,
               "inputHash": "fnv1a64:e30f4ea6e037c4bb",
-              "stateHash": "fnv1a64:098254b5b5d218e6"
+              "stateHash": "fnv1a64:145626f21ba82e1f"
             },
             {
               "tick": 7,
               "timeMs": 116.66666666666667,
               "inputHash": "fnv1a64:e31252a6e03a015e",
-              "stateHash": "fnv1a64:097f50b5b5cfdc43"
+              "stateHash": "fnv1a64:14592af21baa6ac2"
             },
             {
               "tick": 8,
               "timeMs": 133.33333333333334,
               "inputHash": "fnv1a64:e2ed52a6e01ae521",
-              "stateHash": "fnv1a64:099750b5b5e46e24"
+              "stateHash": "fnv1a64:144f2af21ba2163d"
             },
             {
               "tick": 9,
               "timeMs": 150,
               "inputHash": "fnv1a64:e2f04ea6e01d142c",
-              "stateHash": "fnv1a64:099354b5b5e08c19"
+              "stateHash": "fnv1a64:145226f21ba44548"
             },
             {
               "tick": 10,
               "timeMs": 166.66666666666669,
               "inputHash": "fnv1a64:00c6428ef8b7004a",
-              "stateHash": "fnv1a64:e20510c3e68372ed"
+              "stateHash": "fnv1a64:718bae651fb51dde"
             }
           ],
           "physics": {
@@ -2352,7 +2339,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -2385,7 +2372,7 @@
             "tick": 10,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -2403,7 +2390,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -2471,7 +2458,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -2483,7 +2470,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -2498,7 +2485,7 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [
@@ -2509,7 +2496,7 @@
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -2521,7 +2508,7 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [
@@ -2563,61 +2550,61 @@
               "tick": 1,
               "timeMs": 16.666666666666668,
               "inputHash": "fnv1a64:eb1c5c2560d71f5a",
-              "stateHash": "fnv1a64:097854b5b5c9c461"
+              "stateHash": "fnv1a64:146d26f21bbb0d00"
             },
             {
               "tick": 2,
               "timeMs": 33.333333333333336,
               "inputHash": "fnv1a64:e3014ea6e02b875f",
-              "stateHash": "fnv1a64:097554b5b5c78e8a"
+              "stateHash": "fnv1a64:146326f21bb2b87b"
             },
             {
               "tick": 3,
               "timeMs": 50,
               "inputHash": "fnv1a64:e30552a6e02f7702",
-              "stateHash": "fnv1a64:097250b5b5c551e7"
+              "stateHash": "fnv1a64:14672af21bb6a81e"
             },
             {
               "tick": 4,
               "timeMs": 66.66666666666667,
               "inputHash": "fnv1a64:e31652a6e03dea35",
-              "stateHash": "fnv1a64:098950b5b5d830c8"
+              "stateHash": "fnv1a64:145c2af21baca099"
             },
             {
               "tick": 5,
               "timeMs": 83.33333333333334,
               "inputHash": "fnv1a64:e3194ea6e0401940",
-              "stateHash": "fnv1a64:098654b5b5d601bd"
+              "stateHash": "fnv1a64:146026f21bb082a4"
             },
             {
               "tick": 6,
               "timeMs": 100,
               "inputHash": "fnv1a64:e30f4ea6e037c4bb",
-              "stateHash": "fnv1a64:098254b5b5d218e6"
+              "stateHash": "fnv1a64:145626f21ba82e1f"
             },
             {
               "tick": 7,
               "timeMs": 116.66666666666667,
               "inputHash": "fnv1a64:e31252a6e03a015e",
-              "stateHash": "fnv1a64:097f50b5b5cfdc43"
+              "stateHash": "fnv1a64:14592af21baa6ac2"
             },
             {
               "tick": 8,
               "timeMs": 133.33333333333334,
               "inputHash": "fnv1a64:e2ed52a6e01ae521",
-              "stateHash": "fnv1a64:099750b5b5e46e24"
+              "stateHash": "fnv1a64:144f2af21ba2163d"
             },
             {
               "tick": 9,
               "timeMs": 150,
               "inputHash": "fnv1a64:e2f04ea6e01d142c",
-              "stateHash": "fnv1a64:099354b5b5e08c19"
+              "stateHash": "fnv1a64:145226f21ba44548"
             },
             {
               "tick": 10,
               "timeMs": 166.66666666666669,
               "inputHash": "fnv1a64:00c6428ef8b7004a",
-              "stateHash": "fnv1a64:e20510c3e68372ed"
+              "stateHash": "fnv1a64:718bae651fb51dde"
             }
           ],
           "physics": {
@@ -2667,7 +2654,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -2700,7 +2687,7 @@
             "tick": 20,
             "entities": [
               {
-                "id": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
+                "id": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
                 "position": [
                   0,
                   0,
@@ -2718,7 +2705,7 @@
                 ]
               },
               {
-                "id": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "id": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "position": [
                   0,
                   0,
@@ -2786,7 +2773,7 @@
                 "audioListeners": 1
               },
               "audioListener": {
-                "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+                "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
                 "spatial": true,
                 "masterGain": 0.75,
                 "dopplerFactor": 1,
@@ -2798,7 +2785,7 @@
           "gameplay": [
             {
               "scriptId": "component:m13:9677437b74f39ba7a967a613",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "review-round",
               "value": {
                 "checkpoint": "",
@@ -2813,7 +2800,7 @@
             },
             {
               "scriptId": "component:m13:96cd54ede0995d19398fe137",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "rules",
               "value": {
                 "firedRules": [
@@ -2824,7 +2811,7 @@
             },
             {
               "scriptId": "component:m13:a40582e8e15386c9b8482050",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "audio-listener",
               "value": {
                 "active": true,
@@ -2836,7 +2823,7 @@
             },
             {
               "scriptId": "component:m13:ae09ad75df9220032ff01fde",
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "id": "timers",
               "value": {
                 "firedEvents": [
@@ -2878,121 +2865,121 @@
               "tick": 1,
               "timeMs": 16.666666666666668,
               "inputHash": "fnv1a64:eb1c5c2560d71f5a",
-              "stateHash": "fnv1a64:097854b5b5c9c461"
+              "stateHash": "fnv1a64:146d26f21bbb0d00"
             },
             {
               "tick": 2,
               "timeMs": 33.333333333333336,
               "inputHash": "fnv1a64:e3014ea6e02b875f",
-              "stateHash": "fnv1a64:097554b5b5c78e8a"
+              "stateHash": "fnv1a64:146326f21bb2b87b"
             },
             {
               "tick": 3,
               "timeMs": 50,
               "inputHash": "fnv1a64:e30552a6e02f7702",
-              "stateHash": "fnv1a64:097250b5b5c551e7"
+              "stateHash": "fnv1a64:14672af21bb6a81e"
             },
             {
               "tick": 4,
               "timeMs": 66.66666666666667,
               "inputHash": "fnv1a64:e31652a6e03dea35",
-              "stateHash": "fnv1a64:098950b5b5d830c8"
+              "stateHash": "fnv1a64:145c2af21baca099"
             },
             {
               "tick": 5,
               "timeMs": 83.33333333333334,
               "inputHash": "fnv1a64:e3194ea6e0401940",
-              "stateHash": "fnv1a64:098654b5b5d601bd"
+              "stateHash": "fnv1a64:146026f21bb082a4"
             },
             {
               "tick": 6,
               "timeMs": 100,
               "inputHash": "fnv1a64:e30f4ea6e037c4bb",
-              "stateHash": "fnv1a64:098254b5b5d218e6"
+              "stateHash": "fnv1a64:145626f21ba82e1f"
             },
             {
               "tick": 7,
               "timeMs": 116.66666666666667,
               "inputHash": "fnv1a64:e31252a6e03a015e",
-              "stateHash": "fnv1a64:097f50b5b5cfdc43"
+              "stateHash": "fnv1a64:14592af21baa6ac2"
             },
             {
               "tick": 8,
               "timeMs": 133.33333333333334,
               "inputHash": "fnv1a64:e2ed52a6e01ae521",
-              "stateHash": "fnv1a64:099750b5b5e46e24"
+              "stateHash": "fnv1a64:144f2af21ba2163d"
             },
             {
               "tick": 9,
               "timeMs": 150,
               "inputHash": "fnv1a64:e2f04ea6e01d142c",
-              "stateHash": "fnv1a64:099354b5b5e08c19"
+              "stateHash": "fnv1a64:145226f21ba44548"
             },
             {
               "tick": 10,
               "timeMs": 166.66666666666669,
               "inputHash": "fnv1a64:00c6428ef8b7004a",
-              "stateHash": "fnv1a64:e20510c3e68372ed"
+              "stateHash": "fnv1a64:718bae651fb51dde"
             },
             {
               "tick": 11,
               "timeMs": 183.33333333333334,
               "inputHash": "fnv1a64:00c33e8ef8b4c3a7",
-              "stateHash": "fnv1a64:e2080cc3e685a1f8"
+              "stateHash": "fnv1a64:7188aa651fb2e13b"
             },
             {
               "tick": 12,
               "timeMs": 200,
               "inputHash": "fnv1a64:00cd3e8ef8bd182c",
-              "stateHash": "fnv1a64:e1fe0cc3e67d4d73"
+              "stateHash": "fnv1a64:7192aa651fbb35c0"
             },
             {
               "tick": 13,
               "timeMs": 216.66666666666669,
               "inputHash": "fnv1a64:00ca428ef8bae921",
-              "stateHash": "fnv1a64:e20110c3e67f8a16"
+              "stateHash": "fnv1a64:718fae651fb906b5"
             },
             {
               "tick": 14,
               "timeMs": 233.33333333333334,
               "inputHash": "fnv1a64:00d4428ef8c33da6",
-              "stateHash": "fnv1a64:e1f710c3e6773591"
+              "stateHash": "fnv1a64:717eae651faa9382"
             },
             {
               "tick": 15,
               "timeMs": 250.00000000000003,
               "inputHash": "fnv1a64:00d13e8ef8c10103",
-              "stateHash": "fnv1a64:e1fb0cc3e67b179c"
+              "stateHash": "fnv1a64:717aaa651fa6a3df"
             },
             {
               "tick": 16,
               "timeMs": 266.6666666666667,
               "inputHash": "fnv1a64:00db3e8ef8c95588",
-              "stateHash": "fnv1a64:e1f00cc3e6711017"
+              "stateHash": "fnv1a64:7184aa651faef864"
             },
             {
               "tick": 17,
               "timeMs": 283.33333333333337,
               "inputHash": "fnv1a64:00d7428ef8c5737d",
-              "stateHash": "fnv1a64:e1f410c3e674ffba"
+              "stateHash": "fnv1a64:7181ae651facc959"
             },
             {
               "tick": 18,
               "timeMs": 300,
               "inputHash": "fnv1a64:00e2428ef8cf7b02",
-              "stateHash": "fnv1a64:e22010c3e69a3aa5"
+              "stateHash": "fnv1a64:7170ae651f9e5626"
             },
             {
               "tick": 19,
               "timeMs": 316.6666666666667,
               "inputHash": "fnv1a64:00de3e8ef8cb8b5f",
-              "stateHash": "fnv1a64:e2230cc3e69c69b0"
+              "stateHash": "fnv1a64:716daa651f9c1983"
             },
             {
               "tick": 20,
               "timeMs": 333.33333333333337,
               "inputHash": "fnv1a64:e7a3c38eeab8903f",
-              "stateHash": "fnv1a64:d8eee3c3e13f26ec"
+              "stateHash": "fnv1a64:57fc2f651159dbf3"
             }
           ],
           "physics": {
@@ -3042,7 +3029,7 @@
               "audioListeners": 1
             },
             "audioListener": {
-              "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+              "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
               "spatial": true,
               "masterGain": 0.75,
               "dopplerFactor": 1,
@@ -3063,17 +3050,17 @@
       },
       "trace": {
         "schemaVersion": 1,
-        "sourceBindingDigest": "sha256:c5ed98fbb6fb1e25fd07373f876005fce7c8b8eb434497f8b5f143adc50cb63f",
-        "manifestDigest": "sha256:fe35b22e82bb64ebbc2c2dbe61ee382cad44564b2c2c2cd971da6f1d37b5c826",
+        "sourceBindingDigest": "sha256:5f96861d16e74fa88fdb01a0bfb854cf48ed27e5010aba81a3cf4d54ff0d7a8a",
+        "manifestDigest": "sha256:156e6ba2f4e13b764bb9168ee38ccda705be559fde297c7e3c9833d712dac2fa",
         "playId": "play:g08-zero-script-1",
         "generation": 2,
         "events": [
           {
             "sequence": 0,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:8bd7d3acea58328b0b6f963af1c0c683",
+            "nodeId": "node:e81bc9ea54e434b4982483fadd249928",
             "kind": "event",
             "event": "rule-fired",
             "tick": 1,
@@ -3084,10 +3071,10 @@
           },
           {
             "sequence": 1,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:24da126e1586a42eea1d35fcb4b86c32",
+            "nodeId": "node:00b3a75c721307c9e67af4237467f0b7",
             "kind": "event",
             "event": "action-completed",
             "tick": 1,
@@ -3098,10 +3085,10 @@
           },
           {
             "sequence": 2,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:9677437b74f39ba7a967a613",
             "scriptId": null,
-            "nodeId": "node:cac5adbf9060283ce8525015e8c2bfcb",
+            "nodeId": "node:5036582cf2d376a1c639f87f7af90f4a",
             "kind": "state-diff",
             "event": "component-state",
             "tick": 1,
@@ -3116,10 +3103,10 @@
           },
           {
             "sequence": 3,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:ae09ad75df9220032ff01fde",
             "scriptId": null,
-            "nodeId": "node:94366d2105169050f9313f8a28605ba6",
+            "nodeId": "node:21a861d7950ce8073de1a921e19cf79a",
             "kind": "event",
             "event": "timer-fired",
             "tick": 10,
@@ -3130,10 +3117,10 @@
           },
           {
             "sequence": 4,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:863d31ef4d7fae09df2df9f6a23d41b3",
+            "nodeId": "node:5d2da81c831cc7ef5b48043661d7066a",
             "kind": "event",
             "event": "rule-fired",
             "tick": 10,
@@ -3144,10 +3131,10 @@
           },
           {
             "sequence": 5,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:96cd54ede0995d19398fe137",
             "scriptId": null,
-            "nodeId": "node:66816a7d5451f343ecfcc7209248e1d3",
+            "nodeId": "node:d3f302e2253c46958e12a2e8fbe4473d",
             "kind": "event",
             "event": "action-completed",
             "tick": 10,
@@ -3158,10 +3145,10 @@
           },
           {
             "sequence": 6,
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "componentId": "component:m13:9677437b74f39ba7a967a613",
             "scriptId": null,
-            "nodeId": "node:cac5adbf9060283ce8525015e8c2bfcb",
+            "nodeId": "node:5036582cf2d376a1c639f87f7af90f4a",
             "kind": "state-diff",
             "event": "component-state",
             "tick": 10,
@@ -3212,8 +3199,8 @@
     "started": {
       "protocol": "haiyue-preview/1",
       "type": "started",
-      "entityId": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
-      "scriptSetDigest": "sha256:a0819f45cece5dbaa3248645d37a765586167872db8116c706d99040a2b26179",
+      "entityId": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
+      "scriptSetDigest": "sha256:970b5508e9d6864fea587e053c1120d4832f4cd7b287827922c6860f714739e4",
       "scriptCount": 0,
       "tickRateHz": 60,
       "seed": "haiyue-play",
@@ -3263,7 +3250,7 @@
           "audioListeners": 1
         },
         "audioListener": {
-          "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+          "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
           "spatial": true,
           "masterGain": 0.75,
           "dopplerFactor": 1,
@@ -3308,8 +3295,8 @@
       {
         "protocol": "haiyue-preview/1",
         "type": "started",
-        "entityId": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
-        "scriptSetDigest": "sha256:a0819f45cece5dbaa3248645d37a765586167872db8116c706d99040a2b26179",
+        "entityId": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
+        "scriptSetDigest": "sha256:970b5508e9d6864fea587e053c1120d4832f4cd7b287827922c6860f714739e4",
         "scriptCount": 0,
         "tickRateHz": 60,
         "seed": "haiyue-play",
@@ -3359,7 +3346,7 @@
             "audioListeners": 1
           },
           "audioListener": {
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "spatial": true,
             "masterGain": 0.75,
             "dopplerFactor": 1,
@@ -3379,8 +3366,8 @@
       {
         "protocol": "haiyue-preview/1",
         "type": "started",
-        "entityId": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
-        "scriptSetDigest": "sha256:a0819f45cece5dbaa3248645d37a765586167872db8116c706d99040a2b26179",
+        "entityId": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
+        "scriptSetDigest": "sha256:970b5508e9d6864fea587e053c1120d4832f4cd7b287827922c6860f714739e4",
         "scriptCount": 0,
         "tickRateHz": 60,
         "seed": "haiyue-play",
@@ -3430,7 +3417,7 @@
             "audioListeners": 1
           },
           "audioListener": {
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "spatial": true,
             "masterGain": 0.75,
             "dopplerFactor": 1,
@@ -3457,8 +3444,8 @@
       {
         "protocol": "haiyue-preview/1",
         "type": "started",
-        "entityId": "entity:1e4cbdfa-6ede-499e-9abc-8f8bf49d8850",
-        "scriptSetDigest": "sha256:a0819f45cece5dbaa3248645d37a765586167872db8116c706d99040a2b26179",
+        "entityId": "entity:13f34066-c0c1-44c2-a64c-bdfae1d0edca",
+        "scriptSetDigest": "sha256:970b5508e9d6864fea587e053c1120d4832f4cd7b287827922c6860f714739e4",
         "scriptCount": 0,
         "tickRateHz": 60,
         "seed": "haiyue-play",
@@ -3508,7 +3495,7 @@
             "audioListeners": 1
           },
           "audioListener": {
-            "entityId": "entity:f4f9afb8-cbe9-434e-928a-b9001fe97e98",
+            "entityId": "entity:7f4082e7-9146-414d-90d7-8b3a1d2224d9",
             "spatial": true,
             "masterGain": 0.75,
             "dopplerFactor": 1,

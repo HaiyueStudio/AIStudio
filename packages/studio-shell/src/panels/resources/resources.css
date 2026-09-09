@@ -1,7 +1,7 @@
-.resource-explorer { color: #e3e8f1; background: #151b25; padding: 18px; box-sizing: border-box; font: 14px/1.55 system-ui, sans-serif; min-width: 0; }
+.resource-explorer { color: #e3e8f1; background: #151b25; padding: 18px; box-sizing: border-box; font: 14px/1.55 system-ui, sans-serif; min-width: 0; container: resource-explorer / inline-size; }
 .resource-explorer * { box-sizing: border-box; min-width: 0; }
 .resource-explorer header, .resource-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.resource-explorer header > div { flex: 1; }
+.resource-explorer header > div { flex: 1 1 100%; }
 .resource-explorer h2, .resource-explorer h3 { margin: 0 0 6px; }
 .resource-explorer p { margin: 8px 0; overflow-wrap: anywhere; }
 .resource-explorer button, .resource-explorer input, .resource-explorer select { font: inherit; color: inherit; border: 1px solid #63718a; background: #212c3d; border-radius: 6px; padding: 7px 10px; max-width: 100%; }
@@ -10,10 +10,10 @@
 .resource-explorer :focus-visible { outline: 3px solid #87c7ff; outline-offset: 2px; }
 .resource-explorer label { display: flex; flex-direction: column; gap: 4px; }
 .resource-explorer .resource-unused { flex-direction: row; align-items: center; grid-column: 1 / -1; }
-.resource-filters { display: grid; grid-template-columns: minmax(160px, 1fr) auto repeat(3, minmax(90px, .6fr)); gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid #384357; }
+.resource-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid #384357; }
 .resource-hint, .resource-list span, .resource-explorer dt { color: #b8c6da; }
-.resource-columns { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(250px, 1.15fr); gap: 18px; margin-top: 12px; }
-.resource-list { display: grid; gap: 7px; list-style: none; padding: 0; margin: 10px 0; max-height: 540px; overflow: auto; scrollbar-gutter: stable; }
+.resource-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 12px; }
+.resource-list { display: grid; gap: 7px; list-style: none; padding: 0; margin: 10px 0; max-height: 310px; overflow: auto; scrollbar-gutter: stable; }
 .resource-list button { width: 100%; display: grid; gap: 4px; }
 .resource-list button[aria-pressed="true"] { border-color: #94cdff; background: #263d58; }
 .resource-detail { border: 1px solid #4a5870; border-radius: 8px; padding: 14px; align-self: start; overflow-wrap: anywhere; }
@@ -23,4 +23,10 @@
 .resource-detail dd { margin: 0; }
 .resource-detail summary { cursor: pointer; padding: 5px 0; }
 .resource-diagnostic, .resource-explorer [role="alert"] { color: #ffcb9a; white-space: pre-wrap; }
-@media (max-width: 650px) { .resource-explorer { padding: 12px; } .resource-filters { grid-template-columns: minmax(0, 1fr) auto; } .resource-columns { grid-template-columns: minmax(0, 1fr); } .resource-list { max-height: 310px; } }
+/* A desktop side pane can be narrow even when the application window is wide. */
+@container resource-explorer (min-width: 650px) {
+  .resource-explorer header > div { flex: 1; }
+  .resource-filters { grid-template-columns: minmax(160px, 1fr) auto repeat(3, minmax(90px, .6fr)); }
+  .resource-columns { grid-template-columns: minmax(220px, 1fr) minmax(250px, 1.15fr); }
+  .resource-list { max-height: 540px; }
+}

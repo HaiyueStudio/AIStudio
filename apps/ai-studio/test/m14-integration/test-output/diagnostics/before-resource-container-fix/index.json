@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 603,
+    "sourceDigest": "sha256:51f17cf6ad39d3b8e057cf9b20fd8e81c0667cfbe093436115b635485e5db6c8",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:e354afa3f85772c91c381478d983bdb3f1a1c7fc69b6bdda905d8e17a636f86f"
+  },
+  "reason": "Current full checks pass, but visual inspection found resource-side-panel overflow and screenshots captured while busy; preserve evidence before fixing.",
+  "files": [
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:666189d65134fb07da3aa8a4f2d902bd26d1707b4b0c838828010d574db60f44",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/01-collected-tests.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/editor-candidate-source.json",
+      "sha256": "sha256:d61dc05bdfcf4d8de23c4c3937bd762b1031c4515dfe8892b305b939dec1e1b0",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/02-editor-candidate-source.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/replay-source-binding.json",
+      "sha256": "sha256:16168fd7d7c9c9f2b880a4e449458abedb5b5fb39c713efb5507065b03f09ce3",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/03-replay-source-binding.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
+      "sha256": "sha256:d00aaed4cd855144fd16c67883da8679a10a4bc8042b5961ff1dcc26659faf3d",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/04-secret-scan.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+      "sha256": "sha256:f38e7902256c3e2947f5dca818c3643db5f5b79cf534ed921559a6f218c2ecfc",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/05-author.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
+      "sha256": "sha256:72e47802cb4082f42e08b8aa66e44edf3b5d25e1dc90a4fa952a64485a3e36b7",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/06-restart.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
+      "sha256": "sha256:6cba3a984022061284cbcc6050c46dbe0bbb0196b0fbc1f446afdc2af81e3018",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/07-large.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
+      "sha256": "sha256:1fe056f6465292fde3c94ae935c8d67791fd3f6cba7757abf57b907889baa4f0",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/08-snake.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
+      "sha256": "sha256:b434de3f3fd966486e5f6cf2a4a58fdda36aa22f68b1ba0746d4bdb061e58e5c",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/09-match-3.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
+      "sha256": "sha256:a7946e679e987c8bbda1ea1116ec70d715a640fa2f34eb4ad8341747a7c272f0",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/10-falling-blocks.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
+      "sha256": "sha256:23c2a5bb542b0819d57719db16142c9a090a7b37fa3ee5f8f3e80dc8d291983d",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/11-jigsaw.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
+      "sha256": "sha256:30b7722ba058d117111ababf0097456fb6e96b4eccb776926decb7ee54d4e6ac",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/12-platformer.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
+      "sha256": "sha256:fedc7bb29b860c5256b71c6f954db6ef36784a99b360e70242f32b2ef3aeeaed",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/13-racing.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
+      "sha256": "sha256:45beac7e116dc8caf11ba5fa5a12afb511c7b8391a0c66ebef74f23329d13099",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/14-shooter.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/secret-scan.json",
+      "sha256": "sha256:ca700cc41ab94a34b50f1080f09433937e657ef7212ffaf8cb99b61d299d2ca5",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/15-secret-scan.json"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:e10657bc683c6ae4f7bf6e65c30a2edac3320f80370057307b9dc52bf5ace82a",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/16-m14-capability-verification.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/canvas-texture/canvas-texture.png",
+      "sha256": "sha256:5b70b5e888ca78c42d66871d73c4896ef2199f20ca4da4189c48c362b32a7ab5",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/17-canvas-texture.png"
+    },
+    {
+      "path": "config/upstream/ui-candidate.json",
+      "sha256": "sha256:af76b0beced5a674855de3936519c0d3478078ee4956052e8a40e8895509ac4c",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/18-ui-candidate.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-capability-capture.log",
+      "sha256": "sha256:055dfa232b1d313b681d51707c27abcc014694b49381b97cdd746a6b7cf5df00",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/19-completion-capability-capture.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:91c211f7911e45fd8aca484d7cf3ed144d67ac261ec42cb0aa2be9cc97f7ccc0",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/20-completion-root-check.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-checks.json",
+      "sha256": "sha256:8a281d4a99861cc07400fa096b3aa7ae163d46fedde8c92ddf931a78125baa8c",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/21-completion-checks.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-adapter-latest.json",
+      "sha256": "sha256:0047799c209bed9de29d09a4b138a7cc85f2cc30731097f59c4845ba1ea17115",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/22-completion-adapter-latest.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-check.json",
+      "sha256": "sha256:0ed6da7a30944075b417dd334ccb6d797a46a8e0c5bbaa26189a99d264292933",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/23-adapter-check.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/capture-completion-adapter.mjs",
+      "sha256": "sha256:8910ff0c30774df990b4b313a5830e18517a8f08842cee59f42120edc0155f61",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/24-capture-completion-adapter.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter.tap",
+      "sha256": "sha256:51f0c7af67b25b4640029429a04fe89f17162423b2719a94ed898f921f18add3",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/25-adapter.tap"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-0.png",
+      "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/26-mixed-0.png"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-1.png",
+      "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/27-mixed-1.png"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-window.png",
+      "sha256": "sha256:1ff1de06760f6692336b44f660b7d7149429e0941fa4628cc2bc37f57d083e1a",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/28-mixed-window.png"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed.json",
+      "sha256": "sha256:5ab16973814de3aac4537e0468ff3016ee8ff9b1c9129f2a6cf35e0c3d5c07cb",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/29-mixed.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed.log",
+      "sha256": "sha256:f69c366f48035232c820ff7440cc217239f6740aef5c2f4a37556c899440a7f2",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/30-mixed.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-0.png",
+      "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/31-zero-script-0.png"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-1.png",
+      "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/32-zero-script-1.png"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-window.png",
+      "sha256": "sha256:b0f0696271328386ef77e32feffb9aab4112bff298d593f9042a46e1f78d7565",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/33-zero-script-window.png"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script.json",
+      "sha256": "sha256:bb00b814e3e927532c9b1b87d9df71499edeb2a0617f437386ba126e931ab5e1",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/34-zero-script.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script.log",
+      "sha256": "sha256:db976a2eb20a11b9736d0fc7ae9b7559ceeec70e7f55fd70d6bbf909016570cc",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/35-zero-script.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/advanced-desktop.png",
+      "sha256": "sha256:0e2513dd280d50afeb61031c089f66e963c442de4ac22e9044c5e2619eae3098",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/36-advanced-desktop.png"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/resources-desktop.png",
+      "sha256": "sha256:ff36ab00915ebf19c4fa3d83b1e00564ac6aa2c474305abb367f9afb6c4b0ed9",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/37-resources-desktop.png"
+    }
+  ]
+}

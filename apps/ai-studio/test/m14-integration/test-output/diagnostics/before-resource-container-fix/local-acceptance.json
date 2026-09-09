@@ -1,0 +1,495 @@
+{
+  "schemaVersion": 1,
+  "status": "offline-verified-online-pending",
+  "verifiedAt": "2026-09-09T10:58:21.076Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 603,
+    "sourceDigest": "sha256:51f17cf6ad39d3b8e057cf9b20fd8e81c0667cfbe093436115b635485e5db6c8",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:e354afa3f85772c91c381478d983bdb3f1a1c7fc69b6bdda905d8e17a636f86f"
+  },
+  "rootCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "log": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log"
+  },
+  "capabilityChecks": 123,
+  "integration": {
+    "files": 41,
+    "passed": 194,
+    "failed": 0,
+    "skipped": 0
+  },
+  "games": [
+    {
+      "genre": "snake",
+      "flows": [
+        "direction-input-accepted",
+        "direction-input-rejected-opposite"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        76456,
+        76456
+      ]
+    },
+    {
+      "genre": "match-3",
+      "flows": [
+        "tile-selected",
+        "invalid-swap-restored"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        19830,
+        19830
+      ]
+    },
+    {
+      "genre": "falling-blocks",
+      "flows": [
+        "input-moves-piece-left",
+        "input-rotates-piece"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        57161,
+        57161
+      ]
+    },
+    {
+      "genre": "jigsaw",
+      "flows": [
+        "game-started",
+        "reshuffle-accepted"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        1788,
+        1788
+      ]
+    },
+    {
+      "genre": "platformer",
+      "flows": [
+        "move-right-accepted",
+        "jump-rejected-airborne"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        0,
+        0
+      ]
+    },
+    {
+      "genre": "racing",
+      "flows": [
+        "accelerate-accepted",
+        "brake-accepted"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        0,
+        0
+      ]
+    },
+    {
+      "genre": "shooter",
+      "flows": [
+        "fire-request-accepted",
+        "fire-request-rejected"
+      ],
+      "runs": 2,
+      "documentUnchanged": true,
+      "located": true,
+      "omittedCounts": [
+        1396,
+        1396
+      ]
+    }
+  ],
+  "performance": {
+    "machine": {
+      "platform": "win32",
+      "release": "10.0.19045",
+      "arch": "x64",
+      "cpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+      "logicalCpus": 8
+    },
+    "entityCount": 1000,
+    "scriptCount": 200,
+    "timings": {
+      "open": 307.84220000000005,
+      "advancedMount": 237.6279000000004,
+      "filterAndSelect": 110.24439999999959,
+      "resourceQuery": 717.6206999999995
+    },
+    "initialHeapBytes": 7982280,
+    "finalHeapBytes": 12386164,
+    "scope": "Document, hierarchy, queries and interactions; no claim of 1000 rendered meshes or 200 simultaneous running scripts"
+  },
+  "productScan": {
+    "schemaVersion": 1,
+    "passed": true,
+    "files": 142,
+    "bytes": 15544089,
+    "crashDumps": 0,
+    "rules": [
+      "configured-secret-utf8-and-utf16",
+      "credential-token-patterns",
+      "credential-store-path"
+    ],
+    "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+    "scope": [
+      "temporary projects",
+      "generated app user-data including journal/artifacts and any crash dumps",
+      "renderer DOM and public projections",
+      "window evidence"
+    ]
+  },
+  "online": {
+    "executed": false,
+    "status": "awaiting-explicit-data-send-authorization",
+    "destinations": [
+      "DeepSeek API",
+      "Codex App Server"
+    ],
+    "payload": "Generated temporary project with one entity, a timer component, fixed script and tool arguments; no actual user game project"
+  },
+  "productIntegrated": false,
+  "remaining": [
+    "Real online verification with both backends on the current binding",
+    "Final six-layer admission and G09 completion after all required evidence passes"
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "666189d65134fb07da3aa8a4f2d902bd26d1707b4b0c838828010d574db60f44"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/editor-candidate-source.json",
+      "sha256": "d61dc05bdfcf4d8de23c4c3937bd762b1031c4515dfe8892b305b939dec1e1b0"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/replay-source-binding.json",
+      "sha256": "16168fd7d7c9c9f2b880a4e449458abedb5b5fb39c713efb5507065b03f09ce3"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
+      "sha256": "d00aaed4cd855144fd16c67883da8679a10a4bc8042b5961ff1dcc26659faf3d"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+      "sha256": "f38e7902256c3e2947f5dca818c3643db5f5b79cf534ed921559a6f218c2ecfc"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
+      "sha256": "72e47802cb4082f42e08b8aa66e44edf3b5d25e1dc90a4fa952a64485a3e36b7"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
+      "sha256": "6cba3a984022061284cbcc6050c46dbe0bbb0196b0fbc1f446afdc2af81e3018"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
+      "sha256": "1fe056f6465292fde3c94ae935c8d67791fd3f6cba7757abf57b907889baa4f0"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
+      "sha256": "b434de3f3fd966486e5f6cf2a4a58fdda36aa22f68b1ba0746d4bdb061e58e5c"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
+      "sha256": "a7946e679e987c8bbda1ea1116ec70d715a640fa2f34eb4ad8341747a7c272f0"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
+      "sha256": "23c2a5bb542b0819d57719db16142c9a090a7b37fa3ee5f8f3e80dc8d291983d"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
+      "sha256": "30b7722ba058d117111ababf0097456fb6e96b4eccb776926decb7ee54d4e6ac"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
+      "sha256": "fedc7bb29b860c5256b71c6f954db6ef36784a99b360e70242f32b2ef3aeeaed"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
+      "sha256": "45beac7e116dc8caf11ba5fa5a12afb511c7b8391a0c66ebef74f23329d13099"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/secret-scan.json",
+      "sha256": "ca700cc41ab94a34b50f1080f09433937e657ef7212ffaf8cb99b61d299d2ca5"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "e10657bc683c6ae4f7bf6e65c30a2edac3320f80370057307b9dc52bf5ace82a"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/canvas-texture/canvas-texture.png",
+      "sha256": "5b70b5e888ca78c42d66871d73c4896ef2199f20ca4da4189c48c362b32a7ab5"
+    },
+    {
+      "path": "config/upstream/ui-candidate.json",
+      "sha256": "af76b0beced5a674855de3936519c0d3478078ee4956052e8a40e8895509ac4c"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-capability-capture.log",
+      "sha256": "055dfa232b1d313b681d51707c27abcc014694b49381b97cdd746a6b7cf5df00"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "91c211f7911e45fd8aca484d7cf3ed144d67ac261ec42cb0aa2be9cc97f7ccc0"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-checks.json",
+      "sha256": "8a281d4a99861cc07400fa096b3aa7ae163d46fedde8c92ddf931a78125baa8c"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-adapter-latest.json",
+      "sha256": "0047799c209bed9de29d09a4b138a7cc85f2cc30731097f59c4845ba1ea17115"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-check.json",
+      "sha256": "0ed6da7a30944075b417dd334ccb6d797a46a8e0c5bbaa26189a99d264292933"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/capture-completion-adapter.mjs",
+      "sha256": "8910ff0c30774df990b4b313a5830e18517a8f08842cee59f42120edc0155f61"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter.tap",
+      "sha256": "51f0c7af67b25b4640029429a04fe89f17162423b2719a94ed898f921f18add3"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-0.png",
+      "sha256": "33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-1.png",
+      "sha256": "33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-window.png",
+      "sha256": "1ff1de06760f6692336b44f660b7d7149429e0941fa4628cc2bc37f57d083e1a"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed.json",
+      "sha256": "5ab16973814de3aac4537e0468ff3016ee8ff9b1c9129f2a6cf35e0c3d5c07cb"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed.log",
+      "sha256": "f69c366f48035232c820ff7440cc217239f6740aef5c2f4a37556c899440a7f2"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-0.png",
+      "sha256": "c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-1.png",
+      "sha256": "c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-window.png",
+      "sha256": "b0f0696271328386ef77e32feffb9aab4112bff298d593f9042a46e1f78d7565"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script.json",
+      "sha256": "bb00b814e3e927532c9b1b87d9df71499edeb2a0617f437386ba126e931ab5e1"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script.log",
+      "sha256": "db976a2eb20a11b9736d0fc7ae9b7559ceeec70e7f55fd70d6bbf909016570cc"
+    }
+  ],
+  "sendButtonFix": {
+    "focusedTests": 41,
+    "readiness": {
+      "schemaVersion": 1,
+      "inputDigest": "sha256:a47ab5af8cfca9f444ccf7fda968e5e35dcf92ad744f0df5f9fb052eea8b53bb",
+      "verifiedAt": "2026-09-08T11:22:42.352Z",
+      "scope": "Read-only account/model metadata projected through the production chat presenter; no thread or turn created",
+      "state": "ready",
+      "modelCount": 6,
+      "canSend": true,
+      "blockedReason": null
+    },
+    "optionalUsageDeadlineMs": 2000,
+    "existingWindowRequiresReload": true,
+    "backendChangesRequireRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:a47ab5af8cfca9f444ccf7fda968e5e35dcf92ad744f0df5f9fb052eea8b53bb",
+    "note": "The prior read-only account/model readiness probe is preserved in the archive and was not rerun for this source revision."
+  },
+  "priorEvidenceArchive": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-completion-audit/index.json",
+  "toolFailureFix": {
+    "focusedTests": 19,
+    "publicSearchMaxLength": 512,
+    "fullPlanSelection": true,
+    "sharedEvaluatorAssertionValidation": true,
+    "preservedBarrierStatusExplained": true,
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:793b2696081db61fc64fd6660db734b14594513d6ec2cf6ef51a5b9673d952c7"
+  },
+  "toolContractFix": {
+    "focusedTests": 46,
+    "exactOrderedToolContract": [
+      "id",
+      "description",
+      "inputSchema"
+    ],
+    "sharedFingerprintWithBackendGuards": true,
+    "changedOrUnknownContractUsesFullContext": true,
+    "preservedApprovedPlanAndCurrentProject": true,
+    "unstartedProviderSessionNotReusable": true,
+    "backendGuardsRetained": true,
+    "testedBackends": [
+      "harness",
+      "codex"
+    ],
+    "transportScope": "Production backend adapters with local deterministic transports; no online Agent task",
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:597b965ebfc1ca51228a9d38f37ae2b041491867a4257ff7adf57baf36941e6e"
+  },
+  "executionGraphFix": {
+    "focusedTests": 36,
+    "chronologicalSessionOrder": true,
+    "followLatestByDefault": true,
+    "preservedManualHistorySelection": true,
+    "restoredEarlierTaskSessions": true,
+    "restoredAlreadyOpenBarrierGraphs": true,
+    "retainedSessionLimit": 50,
+    "fitFullGraph": true,
+    "consistentCanvasScale": true,
+    "preservedScroll": true,
+    "locateOffscreenStep": true,
+    "visibleContainmentEdges": true,
+    "realWindowChecks": [
+      "desktop",
+      "narrow",
+      "keyboard",
+      "session switch",
+      "scroll",
+      "fit",
+      "locate"
+    ],
+    "noMutationReplay": true,
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:70b0db4bb2f988d9353bd20a814a5eb73e9cf617901134e9ddb11ed9363917b0"
+  },
+  "batchLifecycleFix": {
+    "focusedTests": 51,
+    "newDurableRegressionCases": 5,
+    "revalidationPreservesRepairPhase": true,
+    "workflowFailuresReturnToolResults": true,
+    "emptyBatchWaitsForStart": true,
+    "cancelledResultWaitsForStart": true,
+    "cancelledQueuedBodyDoesNotExecute": true,
+    "idempotentBatchDrain": true,
+    "primaryFailurePreserved": true,
+    "approvalAndRevisionGuardsPreserved": true,
+    "userJournalUnmodified": true,
+    "existingWindowRequiresRestart": true,
+    "inventoryFailureLog": "apps/ai-studio/test/m14-integration/test-output/diagnostics/batch-lifecycle-inventory-failure.log",
+    "historical": true,
+    "verifiedInputDigest": "sha256:431ef1d68b37bf37c76abf0b9a931e0b68181347d836907bbb4c9abb80a95702"
+  },
+  "graphPanning": {
+    "focusedTests": 30,
+    "realWindowChecks": [
+      "behavior structure",
+      "execution topology"
+    ],
+    "leftAndMiddleDrag": true,
+    "screenPixelMovementAtZoom": true,
+    "noNodeSelectionAfterDrag": true,
+    "clickWithSmallMovementSelectsNode": true,
+    "preservedScrollAfterSelection": true,
+    "pointerReleaseAndCancellation": true,
+    "viewportOwnedListenersAndCapture": true,
+    "preservedZoomKeyboardAndScrollbars": true,
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:f9f6d795f187cfea0d0318f225e3c16c31815c34806281b92df27e60919b4032"
+  },
+  "canvasTextureAndPlanes": {
+    "focusedTestRuns": 85,
+    "focusedUniqueTests": 82,
+    "realCanvasWindowChecks": 1,
+    "tool": "asset.generate-texture",
+    "recipeVersion": 1,
+    "savedProjectPngAssets": true,
+    "chineseTextAndAlphaPixels": true,
+    "exactRevisionAndProjectBinding": true,
+    "approvalBeforeDrawing": true,
+    "historyAndAssetAssignment": true,
+    "undoRedoAndReopen": true,
+    "rollbackAfterCommandFailure": true,
+    "lateCancelledOrChangedProjectRejected": true,
+    "explicitPlanes": [
+      "xy",
+      "xz",
+      "yz"
+    ],
+    "legacyDefault": "xy",
+    "horizontalPlane": "xz",
+    "sharedAuthoringAndPreviewGeometry": true,
+    "batchCreationAndComponentRepair": true,
+    "exactToolNameSearchWinsOverDescriptionReferences": true,
+    "existingWindowRequiresRestart": true,
+    "historical": true,
+    "verifiedInputDigest": "sha256:8a5d71c14654de4ee8bf56f665e8c48148faa30e96796598f10ffcfa919fa274"
+  },
+  "uiComponents": {
+    "package": "@haiyue/ui",
+    "version": "0.1.3",
+    "candidate": "config/upstream/ui-candidate.json",
+    "focusedChecks": 55,
+    "uiPackageChecks": 24,
+    "shellChecks": 27,
+    "layoutContractChecks": 1,
+    "realWindowChecks": 3,
+    "workspaceUsesPublicTabs": true,
+    "mouseAndKeyboardSelection": true,
+    "rovingFocusAndAria": true,
+    "disabledTabsSkipped": true,
+    "singleChangeEvent": true,
+    "languageAndLayoutReconnection": true,
+    "retainedPanelIdentity": true,
+    "waitingCardRepeatedGraphInteractions": true,
+    "zeroComponentErrors": true,
+    "desktopAndNarrowScreenshots": true,
+    "existingWindowRequiresRestart": true,
+    "reproduction": "apps/ai-studio/test/m14-integration/test-output/diagnostics/ui-beam-before-fix.log",
+    "historical": true,
+    "verifiedInputDigest": "sha256:a8e270079b413307ff0ec192660b6ea4fdfebb61f7de046047ea75d71a8dea50"
+  },
+  "fixtureStartTiming": {
+    "source": "apps/ai-studio/test/m14-g08-adapter-review/device-main.mjs",
+    "productionRuntimeChanged": false,
+    "pausedStart": true,
+    "requiredInitialTick": 0,
+    "requiredInitialScore": 0,
+    "focusedPassed": 2,
+    "currentAdapterCheck": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-check.json",
+    "failedAttempt": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-23-09-348Z/adapter.tap",
+    "completionAudit": "apps/ai-studio/test/m14-integration/test-output/completion-audit.json"
+  }
+}

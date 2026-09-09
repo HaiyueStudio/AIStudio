@@ -12,6 +12,8 @@ import type {
   TransformSnapshot,
 } from '@haiyue/ai-studio-editor-plugins';
 import type { AgentPreviewBroker } from './agent-preview-broker.js';
+import type { DesktopNotificationService } from './desktop-notifications.js';
+import { parseNotificationPreferences } from './notification-settings.js';
 import type { ProjectBehaviorController, ProjectConversationController, ProjectEditorController, StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 export const STUDIO_IPC_CHANNEL = 'studio:request' as const;
@@ -21,6 +23,7 @@ export const STUDIO_IPC_SCHEMA_VERSION = 1 as const;
 
 export type StudioIpcMethod =
   | 'app/status'
+  | 'notifications/get' | 'notifications/set' | 'notifications/test' | 'notifications/target'
   | 'project/new'
   | 'project/open'
   | 'project/save'
@@ -73,6 +76,7 @@ export interface StudioIpcResponse {
 }
 
 export interface StudioIpcRouterOptions {
+  readonly notifications?: DesktopNotificationService;
   readonly workspace: ProjectWorkspace;
   readonly scene: SceneAuthoringService;
   readonly selection: SceneSelectionService;
@@ -153,6 +157,16 @@ export class StudioIpcRouter {
 
   private async dispatch(request: StudioIpcRequest, signal: AbortSignal): Promise<JsonObject> {
     switch (request.channel) {
+      case 'notifications/get': return toJson(this.options.notifications?.snapshot() ?? { supported: false, preferences: null, delivery: 'unsupported' });
+      case 'notifications/set': {
+        if (!this.options.notifications) throw new IpcDiagnosticError('notifications.unavailable', 'Desktop notifications are unavailable.');
+        return toJson(await this.options.notifications.configure(request.payload.preferences));
+      }
+      case 'notifications/test': {
+        if (!this.options.notifications) throw new IpcDiagnosticError('notifications.unavailable', 'Desktop notifications are unavailable.');
+        return toJson(this.options.notifications.test());
+      }
+      case 'notifications/target': return toJson({ target: this.options.notifications?.takeTarget() ?? null });
       case 'app/status':
         return toJson({ ...this.options.workspace.snapshot(), smoke: this.options.smoke === true });
       case 'project/snapshot': return toJson(this.options.workspace.snapshot());
@@ -371,7 +385,8 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
   if (!allowedChannels.has(channel)) throw new IpcDiagnosticError('ipc-channel-rejected', `IPC channel ${value.channel} is not allowed.`);
   const payload = value.payload as Record<string, unknown>;
   const keys = Object.keys(payload);
-  if (channel === 'project/new') requireShape(payload, keys, ['name'], { name: 'string' });
+  if (channel === 'notifications/set') { requireShape(payload, keys, ['preferences'], { preferences: 'json' }); parseNotificationPreferences(payload.preferences); }
+  else if (channel === 'project/new') requireShape(payload, keys, ['name'], { name: 'string' });
   else if (channel === 'project/command') requireShape(payload, keys, ['commandId', 'label', 'baseRevision', 'key', 'value'], {
     commandId: 'string', label: 'string', baseRevision: 'number', key: 'string', value: 'json',
   });
@@ -517,6 +532,7 @@ export class IpcDiagnosticError extends Error {
 }
 
 const allowedChannels = new Set<StudioIpcMethod>([
+  'notifications/get', 'notifications/set', 'notifications/test', 'notifications/target',
   'app/status', 'project/new', 'project/open', 'project/save', 'project/snapshot',
   'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',
   'scene/snapshot', 'asset/read', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',

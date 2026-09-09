@@ -2,13 +2,13 @@ TAP version 13
 # Subtest: harness: durable plan approval rotates a changed tool contract with full context and executes the approved edit
 ok 1 - harness: durable plan approval rotates a changed tool contract with full context and executes the approved edit
   ---
-  duration_ms: 627.0151
+  duration_ms: 785.2689
   type: 'test'
   ...
 # Subtest: codex: durable plan approval rotates a changed tool contract with full context and executes the approved edit
 ok 2 - codex: durable plan approval rotates a changed tool contract with full context and executes the approved edit
   ---
-  duration_ms: 448.1488
+  duration_ms: 534.8373
   type: 'test'
   ...
 1..2
@@ -19,4 +19,4 @@ ok 2 - codex: durable plan approval rotates a changed tool contract with full co
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2155.7656
+# duration_ms 2549.969

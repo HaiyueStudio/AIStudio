@@ -905,7 +905,7 @@
       }
     ],
     "finalObservation": {
-      "playId": "behavior-play:32f386ef-2ae4-4ff6-8106-e473cd1667d3",
+      "playId": "behavior-play:6a65c601-526c-410a-9587-0f0dde7b3e1c",
       "documentRevision": 6,
       "scriptDigests": [
         "sha256:e3a65dac9072812499b079489f10082ec760607a603d3f4fbf88b3956f84db63"
@@ -917,7 +917,7 @@
         "height": 480
       },
       "device": "desktop",
-      "capturedAt": "2026-09-09T09:40:55.724Z",
+      "capturedAt": "2026-09-09T11:23:37.112Z",
       "value": {
         "tick": 6,
         "frame": 8,
@@ -1235,7 +1235,7 @@
     "schemaVersion": 1,
     "sourceBindingDigest": "sha256:5e6bf356325b082c50cce9622a59c3c1ecce84de4570b3b51572395e87656266",
     "manifestDigest": "sha256:8284ffd0e7025e9963de83ccf85959f46069ee48d3e354395ce10c15a437db28",
-    "playId": "behavior-play:32f386ef-2ae4-4ff6-8106-e473cd1667d3",
+    "playId": "behavior-play:6a65c601-526c-410a-9587-0f0dde7b3e1c",
     "generation": 2,
     "events": [
       {
@@ -1559,7 +1559,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -1761,7 +1761,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -1966,7 +1966,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -2261,7 +2261,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -2407,7 +2407,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -2491,7 +2491,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -2547,7 +2547,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -2687,7 +2687,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -3038,7 +3038,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -3302,7 +3302,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -3518,7 +3518,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -3650,7 +3650,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -3838,7 +3838,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -4057,7 +4057,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -4088,7 +4088,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -4147,7 +4147,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -4268,7 +4268,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -4636,7 +4636,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -4734,7 +4734,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -5093,7 +5093,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 300,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -5219,7 +5219,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -5233,7 +5233,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -5261,7 +5261,7 @@
         "event": null,
         "tick": 1,
         "frame": 1,
-        "durationMicros": 3000,
+        "durationMicros": 3100,
         "stateDiff": null,
         "error": null
       },
@@ -5303,7 +5303,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -5502,7 +5502,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -5704,7 +5704,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -5732,7 +5732,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -5819,7 +5819,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -5920,7 +5920,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -5937,7 +5937,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -6055,7 +6055,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -6145,7 +6145,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -6260,7 +6260,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -6319,7 +6319,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -6406,7 +6406,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -6532,7 +6532,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -6546,7 +6546,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -6602,7 +6602,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -6658,7 +6658,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -6742,7 +6742,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -6897,7 +6897,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -6981,7 +6981,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7009,7 +7009,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -7068,7 +7068,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7197,7 +7197,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7211,7 +7211,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7301,7 +7301,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7416,7 +7416,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7517,7 +7517,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7531,7 +7531,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -7590,7 +7590,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -7677,7 +7677,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -7837,7 +7837,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -8028,7 +8028,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -8239,7 +8239,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -8267,7 +8267,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -8329,7 +8329,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -8649,7 +8649,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -8663,7 +8663,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -8677,7 +8677,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -8764,7 +8764,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -8890,7 +8890,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -8904,7 +8904,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -8918,7 +8918,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -8932,7 +8932,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -9005,7 +9005,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -9019,7 +9019,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -9092,7 +9092,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 400,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -9106,7 +9106,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 500,
+        "durationMicros": 300,
         "stateDiff": null,
         "error": null
       },
@@ -9148,7 +9148,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -9232,7 +9232,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -9246,7 +9246,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -9260,7 +9260,7 @@
         "event": null,
         "tick": 2,
         "frame": 1,
-        "durationMicros": 4700,
+        "durationMicros": 2700,
         "stateDiff": null,
         "error": null
       },
@@ -9273,7 +9273,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9287,7 +9287,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9301,8 +9301,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -9318,7 +9318,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9332,7 +9332,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9346,7 +9346,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9360,7 +9360,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9374,7 +9374,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9388,7 +9388,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9402,7 +9402,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9416,7 +9416,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9430,7 +9430,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9444,7 +9444,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9458,7 +9458,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9472,7 +9472,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9486,7 +9486,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9500,7 +9500,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9514,7 +9514,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9528,8 +9528,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -9542,7 +9542,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9556,8 +9556,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -9573,7 +9573,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9587,7 +9587,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9601,7 +9601,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9615,7 +9615,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9629,7 +9629,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9643,8 +9643,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -9657,7 +9657,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9671,8 +9671,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -9688,7 +9688,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9702,7 +9702,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9716,7 +9716,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9730,7 +9730,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9744,7 +9744,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9758,8 +9758,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -9772,7 +9772,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9786,7 +9786,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -9803,7 +9803,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9817,7 +9817,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -9831,7 +9831,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9845,8 +9845,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -9859,7 +9859,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9873,7 +9873,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9887,7 +9887,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -9904,7 +9904,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9918,8 +9918,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -9935,7 +9935,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": null,
         "error": null
@@ -9949,7 +9949,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9963,8 +9963,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -9977,7 +9977,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -9991,7 +9991,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -10008,7 +10008,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10022,7 +10022,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -10039,7 +10039,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10053,7 +10053,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10067,7 +10067,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10081,7 +10081,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -10098,7 +10098,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10112,7 +10112,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
@@ -10129,7 +10129,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10143,8 +10143,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -10157,7 +10157,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10171,7 +10171,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -10188,7 +10188,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10202,7 +10202,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10216,7 +10216,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10230,7 +10230,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10244,7 +10244,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10258,7 +10258,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -10275,7 +10275,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10289,8 +10289,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -10303,7 +10303,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10317,7 +10317,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -10334,7 +10334,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10348,7 +10348,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10362,7 +10362,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10376,8 +10376,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -10390,7 +10390,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10404,7 +10404,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10418,8 +10418,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 300,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -10432,7 +10432,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10446,7 +10446,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10460,8 +10460,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -10474,7 +10474,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10488,7 +10488,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -10505,7 +10505,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10519,7 +10519,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10533,8 +10533,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -10547,7 +10547,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10561,7 +10561,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10575,8 +10575,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -10589,7 +10589,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10603,7 +10603,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10617,7 +10617,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10631,7 +10631,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10645,7 +10645,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10659,7 +10659,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10673,7 +10673,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10687,7 +10687,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -10704,7 +10704,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10718,7 +10718,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10732,7 +10732,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10746,7 +10746,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10760,7 +10760,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10774,7 +10774,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10788,7 +10788,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10802,7 +10802,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10816,7 +10816,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10830,7 +10830,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10844,7 +10844,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10858,7 +10858,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10872,7 +10872,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10886,7 +10886,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10900,7 +10900,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10914,7 +10914,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10928,7 +10928,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10942,7 +10942,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -10956,7 +10956,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10970,8 +10970,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -10984,7 +10984,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -10998,7 +10998,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11012,7 +11012,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11026,7 +11026,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11040,7 +11040,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11054,8 +11054,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -11068,7 +11068,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11082,7 +11082,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -11099,7 +11099,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11113,7 +11113,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -11130,7 +11130,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11144,7 +11144,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -11161,7 +11161,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11175,7 +11175,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -11192,7 +11192,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11206,7 +11206,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
@@ -11223,7 +11223,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11237,7 +11237,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11251,7 +11251,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11265,7 +11265,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11279,7 +11279,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11293,7 +11293,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11307,7 +11307,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11321,7 +11321,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11335,7 +11335,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11349,7 +11349,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11363,7 +11363,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11377,7 +11377,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -11394,7 +11394,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11408,8 +11408,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -11422,7 +11422,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11436,7 +11436,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11450,7 +11450,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11464,7 +11464,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -11481,7 +11481,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11495,7 +11495,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11509,7 +11509,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11523,8 +11523,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -11537,8 +11537,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -11551,8 +11551,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -11565,7 +11565,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11579,7 +11579,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -11596,7 +11596,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11610,8 +11610,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -11627,7 +11627,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11641,7 +11641,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11655,7 +11655,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11669,7 +11669,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11683,7 +11683,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11697,7 +11697,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -11714,7 +11714,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11728,7 +11728,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11742,7 +11742,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11756,7 +11756,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11770,7 +11770,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11784,7 +11784,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -11801,7 +11801,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11815,7 +11815,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11829,7 +11829,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11843,7 +11843,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11857,7 +11857,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11871,8 +11871,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -11885,7 +11885,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11899,7 +11899,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -11916,7 +11916,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11930,8 +11930,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -11947,7 +11947,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11961,7 +11961,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -11975,7 +11975,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -11989,7 +11989,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12003,7 +12003,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12017,7 +12017,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -12034,7 +12034,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12048,7 +12048,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12062,7 +12062,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12076,7 +12076,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12090,7 +12090,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12104,7 +12104,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
@@ -12121,7 +12121,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12135,7 +12135,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12149,7 +12149,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12163,7 +12163,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12177,8 +12177,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -12191,8 +12191,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -12205,7 +12205,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12219,7 +12219,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12236,7 +12236,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12250,7 +12250,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
@@ -12267,7 +12267,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12281,7 +12281,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12295,7 +12295,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12309,7 +12309,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12323,7 +12323,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12337,8 +12337,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -12354,7 +12354,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12368,7 +12368,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12382,7 +12382,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12396,7 +12396,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12413,7 +12413,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12427,8 +12427,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -12444,7 +12444,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12458,7 +12458,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12472,7 +12472,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12486,7 +12486,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12503,7 +12503,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12517,7 +12517,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12534,7 +12534,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12548,7 +12548,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12565,7 +12565,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12579,7 +12579,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12593,7 +12593,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12607,7 +12607,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12624,7 +12624,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12638,7 +12638,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12655,7 +12655,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12669,8 +12669,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -12683,7 +12683,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12697,7 +12697,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
@@ -12714,7 +12714,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12728,7 +12728,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12742,7 +12742,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12756,7 +12756,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12770,7 +12770,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12784,7 +12784,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12801,7 +12801,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12815,7 +12815,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12829,7 +12829,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12843,8 +12843,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -12860,7 +12860,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12874,7 +12874,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -12891,7 +12891,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12905,7 +12905,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12919,7 +12919,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12933,7 +12933,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12947,7 +12947,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -12961,7 +12961,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -12975,8 +12975,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -12989,8 +12989,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -13003,7 +13003,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": null,
         "error": null
@@ -13017,7 +13017,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": null,
         "error": null
@@ -13031,7 +13031,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13045,7 +13045,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13059,7 +13059,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13073,7 +13073,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -13090,7 +13090,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13104,7 +13104,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 100,
         "stateDiff": null,
         "error": null
@@ -13118,7 +13118,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13132,7 +13132,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13146,7 +13146,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13160,7 +13160,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13174,7 +13174,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13188,7 +13188,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13202,7 +13202,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13216,7 +13216,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13230,7 +13230,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13244,7 +13244,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13258,7 +13258,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13272,8 +13272,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 0,
+        "frame": 3,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -13286,7 +13286,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13300,7 +13300,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13314,7 +13314,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13328,7 +13328,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -13345,8 +13345,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -13359,8 +13359,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -13373,7 +13373,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13387,7 +13387,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13401,7 +13401,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13415,7 +13415,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
@@ -13432,8 +13432,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 300,
         "stateDiff": null,
         "error": null
       },
@@ -13446,8 +13446,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 200,
+        "frame": 3,
+        "durationMicros": 300,
         "stateDiff": null,
         "error": null
       },
@@ -13460,7 +13460,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13474,7 +13474,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13488,7 +13488,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13502,7 +13502,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13516,7 +13516,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13530,7 +13530,7 @@
         "kind": "node-enter",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": null,
         "stateDiff": null,
         "error": null
@@ -13544,7 +13544,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13558,7 +13558,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 0,
         "stateDiff": null,
         "error": null
@@ -13572,8 +13572,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 100,
+        "frame": 3,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -13586,7 +13586,7 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
+        "frame": 3,
         "durationMicros": 200,
         "stateDiff": null,
         "error": null
@@ -13600,8 +13600,8 @@
         "kind": "node-exit",
         "event": null,
         "tick": 3,
-        "frame": 4,
-        "durationMicros": 4000,
+        "frame": 3,
+        "durationMicros": 4900,
         "stateDiff": null,
         "error": null
       },
@@ -13643,7 +13643,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -13674,7 +13674,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -13758,7 +13758,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 200,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -13786,7 +13786,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -13898,7 +13898,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -14013,7 +14013,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -14100,7 +14100,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -14159,7 +14159,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -14260,7 +14260,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -14544,7 +14544,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -14572,7 +14572,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -14631,7 +14631,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -14987,7 +14987,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -15099,7 +15099,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -15183,7 +15183,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -15211,7 +15211,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -15562,7 +15562,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -15913,7 +15913,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16042,7 +16042,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16348,7 +16348,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16362,7 +16362,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16376,7 +16376,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16435,7 +16435,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -16494,7 +16494,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -16553,7 +16553,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16581,7 +16581,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -16671,7 +16671,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -16854,7 +16854,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16927,7 +16927,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -16941,7 +16941,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -17028,7 +17028,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -17146,7 +17146,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -17160,7 +17160,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -17174,7 +17174,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -17188,7 +17188,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -17202,7 +17202,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -17443,7 +17443,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -17457,7 +17457,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -17513,7 +17513,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -17530,7 +17530,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -17544,7 +17544,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -17729,7 +17729,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -17771,7 +17771,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 100,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -17785,7 +17785,7 @@
         "event": null,
         "tick": 4,
         "frame": 5,
-        "durationMicros": 4500,
+        "durationMicros": 5100,
         "stateDiff": null,
         "error": null
       },
@@ -17886,7 +17886,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -18054,7 +18054,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -18113,7 +18113,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -18169,7 +18169,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -18256,7 +18256,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -18343,7 +18343,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -18607,7 +18607,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -18961,7 +18961,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19090,7 +19090,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19202,7 +19202,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19286,7 +19286,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19342,7 +19342,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19370,7 +19370,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -19454,7 +19454,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19513,7 +19513,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -19614,7 +19614,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19735,7 +19735,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19791,7 +19791,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -19906,7 +19906,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -20021,7 +20021,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -20035,7 +20035,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -20049,7 +20049,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -20167,7 +20167,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -20226,7 +20226,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -20355,7 +20355,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -20369,7 +20369,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -20459,7 +20459,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -20515,7 +20515,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -20574,7 +20574,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -20835,7 +20835,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -21046,7 +21046,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -21136,7 +21136,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -21167,7 +21167,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 300,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -21240,7 +21240,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -21254,7 +21254,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -21372,7 +21372,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -21459,7 +21459,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -21473,7 +21473,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -21515,7 +21515,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 200,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -21543,7 +21543,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -21770,7 +21770,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -21826,7 +21826,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -21843,7 +21843,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 300,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -21857,7 +21857,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 300,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -21885,7 +21885,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -21930,7 +21930,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 400,
+        "durationMicros": 300,
         "stateDiff": null,
         "error": null
       },
@@ -21944,7 +21944,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 400,
+        "durationMicros": 300,
         "stateDiff": null,
         "error": null
       },
@@ -22056,7 +22056,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -22070,7 +22070,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -22098,7 +22098,7 @@
         "event": null,
         "tick": 5,
         "frame": 6,
-        "durationMicros": 4800,
+        "durationMicros": 5200,
         "stateDiff": null,
         "error": null
       },
@@ -22227,7 +22227,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -22454,7 +22454,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -22726,7 +22726,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -22774,7 +22774,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -22861,7 +22861,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -23069,7 +23069,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -23243,7 +23243,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -23285,7 +23285,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -23551,7 +23551,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -23790,7 +23790,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -23846,7 +23846,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -23989,7 +23989,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": true,
           "nullish": false
@@ -24048,7 +24048,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -24062,7 +24062,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -24076,7 +24076,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -24382,7 +24382,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -24601,7 +24601,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -24702,7 +24702,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -24893,7 +24893,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -25011,7 +25011,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -25222,7 +25222,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -25309,7 +25309,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -25500,7 +25500,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -25514,7 +25514,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -25528,7 +25528,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -25542,7 +25542,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 200,
         "stateDiff": null,
         "error": null
       },
@@ -25570,7 +25570,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -25629,7 +25629,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -25769,7 +25769,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -25783,7 +25783,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -25797,7 +25797,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -25870,7 +25870,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 200,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -25884,7 +25884,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 200,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -25912,7 +25912,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": null,
         "error": null
       },
@@ -25940,7 +25940,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 0,
+        "durationMicros": 100,
         "stateDiff": {
           "truthy": false,
           "nullish": false
@@ -25971,7 +25971,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 200,
+        "durationMicros": 300,
         "stateDiff": null,
         "error": null
       },
@@ -26069,7 +26069,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -26083,7 +26083,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -26097,7 +26097,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 100,
+        "durationMicros": 0,
         "stateDiff": null,
         "error": null
       },
@@ -26125,7 +26125,7 @@
         "event": null,
         "tick": 6,
         "frame": 7,
-        "durationMicros": 2800,
+        "durationMicros": 2700,
         "stateDiff": null,
         "error": null
       }

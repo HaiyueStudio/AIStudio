@@ -1,0 +1,91 @@
+{
+  "id": "g09-current-g08-device",
+  "kind": "adapter-acceptance",
+  "capabilityIds": [
+    "play.capture"
+  ],
+  "adapterIds": [
+    "adapter.ui.hud"
+  ],
+  "inputDigest": "sha256:e354afa3f85772c91c381478d983bdb3f1a1c7fc69b6bdda905d8e17a636f86f",
+  "startedAt": "2026-09-09T10:26:05.721Z",
+  "durationMs": 38852,
+  "args": [
+    "--test",
+    "--test-reporter=tap",
+    "apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs"
+  ],
+  "exitCode": 0,
+  "passed": 2,
+  "failed": 0,
+  "skipped": 0,
+  "cancelled": 0,
+  "log": {
+    "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter.tap",
+    "sha256": "sha256:51f0c7af67b25b4640029429a04fe89f17162423b2719a94ed898f921f18add3",
+    "kind": "adapter-acceptance",
+    "locator": "two real Electron/WebGPU fixtures"
+  },
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-0.png",
+      "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-1.png",
+      "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed-window.png",
+      "sha256": "sha256:1ff1de06760f6692336b44f660b7d7149429e0941fa4628cc2bc37f57d083e1a",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed.json",
+      "sha256": "sha256:5ab16973814de3aac4537e0468ff3016ee8ff9b1c9129f2a6cf35e0c3d5c07cb",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/mixed.log",
+      "sha256": "sha256:f69c366f48035232c820ff7440cc217239f6740aef5c2f4a37556c899440a7f2",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-0.png",
+      "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-1.png",
+      "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script-window.png",
+      "sha256": "sha256:b0f0696271328386ef77e32feffb9aab4112bff298d593f9042a46e1f78d7565",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script.json",
+      "sha256": "sha256:bb00b814e3e927532c9b1b87d9df71499edeb2a0617f437386ba126e931ab5e1",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-26-05-522Z/adapter-review/zero-script.log",
+      "sha256": "sha256:db976a2eb20a11b9736d0fc7ae9b7559ceeec70e7f55fd70d6bbf909016570cc",
+      "kind": "adapter-acceptance",
+      "locator": "play.capture / adapter.ui.hud"
+    }
+  ]
+}

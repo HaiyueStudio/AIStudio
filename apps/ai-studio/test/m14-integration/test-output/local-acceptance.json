@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
   "status": "offline-verified-online-pending",
-  "verifiedAt": "2026-09-09T09:44:50.611Z",
+  "verifiedAt": "2026-09-09T11:28:12.496Z",
   "inputBinding": {
     "algorithm": "sha256",
     "fileCount": 603,
-    "sourceDigest": "sha256:cdf5a4edec6e2a67d01cae2edf79f0f70fa5d803e9a1ab54cbac81ed53dc8ab0",
+    "sourceDigest": "sha256:70778bedf5f0aa0a18de08811fea9df758cc7abc31873a2253f46c0553bd8d1e",
     "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
-    "digest": "sha256:a8e270079b413307ff0ec192660b6ea4fdfebb61f7de046047ea75d71a8dea50"
+    "digest": "sha256:62d037d5e13f492c7b9ecc3c87393c66f3e4dd45921b07dd387f2a06ce894494"
   },
   "rootCheck": {
     "command": "npm run check",
     "exitCode": 0,
-    "log": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-root-check.log"
+    "log": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log"
   },
   "capabilityChecks": 123,
   "integration": {
@@ -132,20 +132,20 @@
     "entityCount": 1000,
     "scriptCount": 200,
     "timings": {
-      "open": 332.5565000000006,
-      "advancedMount": 257.89310000000023,
-      "filterAndSelect": 93.42319999999927,
-      "resourceQuery": 890.4454999999998
+      "open": 295.3852999999999,
+      "advancedMount": 313.48199999999997,
+      "filterAndSelect": 84.09580000000096,
+      "resourceQuery": 734.6921999999995
     },
-    "initialHeapBytes": 7982768,
-    "finalHeapBytes": 8190328,
+    "initialHeapBytes": 7988848,
+    "finalHeapBytes": 8211952,
     "scope": "Document, hierarchy, queries and interactions; no claim of 1000 rendered meshes or 200 simultaneous running scripts"
   },
   "productScan": {
     "schemaVersion": 1,
     "passed": true,
-    "files": 142,
-    "bytes": 15304232,
+    "files": 143,
+    "bytes": 15372459,
     "crashDumps": 0,
     "rules": [
       "configured-secret-utf8-and-utf16",
@@ -177,7 +177,7 @@
   "evidence": [
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
-      "sha256": "2f8e9b5961d56d7c87655ac1f190e16f726cf8f0da000dc2f2e36781c2c1990e"
+      "sha256": "2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/editor-candidate-source.json",
@@ -189,103 +189,135 @@
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
-      "sha256": "a9467d75c58ae656b29794b58605a092875e11025fb7f42a4aac566821dc5e2b"
+      "sha256": "a18ba82cbf646d66ba7df41db713d21f3994e035f4490f5ab3e7a6e36d349608"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
-      "sha256": "43f71c61f75da0da52d92331234915843387ce8b8fd473251fdd52e305802fd8"
+      "sha256": "680633624f860f9aaabb105a9e89f3057a30db721a25d23d60f877c1cdc69c3d"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
-      "sha256": "5a1674dc2e6bec0e998252dfd47c4962f698f86a62a967f0d4f33eb092dd8f2f"
+      "sha256": "5edc3485fa5ebc6a0490fa5c54c24384791a72c1a0c99bfb1aa7ddda67fccb0f"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
-      "sha256": "6b2ad227efbadc8d8e6c6a17bc196eb6add372f98421ea21e3ee0fb9716bf4cc"
+      "sha256": "083cda9d4aece0b64917a6e12ace891e3bff4ad183cb3804c5e10a55f6ff63bc"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
-      "sha256": "6a2768c0c5464db79352897d369ab86da77bc2f6661d0122a9207c24e2874f78"
+      "sha256": "eb03acdb17f0cfb31b484d2f10993e4353f2299695e5b84ae5bc12a2e9f3c8aa"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
-      "sha256": "8b612e3fa52f241ae401d8f84fb812dae0e3c96e9459c681edcd78b4947e2633"
+      "sha256": "a58a19d18d769ec789e59fa3ae45cd5bc28f8c38a3f36f17b928b7ee4a1016c5"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
-      "sha256": "ba403932410eeb822c420f095b4aa1b70317aaaa8a8a2a1f325c401c328fc139"
+      "sha256": "10763220a06737b95c9b43407b9f651bb53461cde8abe1358d76a0eb067edcfb"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
-      "sha256": "899e03cfe461c39d974a82e4d4435a67e5c28aeacb27c5fc0cc3d3c969b41728"
+      "sha256": "f4ca134d3e6bd4fe63de40ce0ce06231d0dd40ad31bb4343109fcfd912131d8b"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
-      "sha256": "6d56cf68184767fd7e09d9e3b77cbcd477b5a1742ab18035ecf7d12b3e1b99ce"
+      "sha256": "942214e31016fa9a72e4b7b12a1a156651ea8cbb4fa94b51292eb3cf1b7c9519"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
-      "sha256": "6cfc8f8d706b0859d0ab55ae38fb6ef6b6863da908022b6c0bb03be9e9ce6b4b"
+      "sha256": "01a30e8a53dba60e228a02e0da3f7b80889e132822483a73b101e8fca45f7758"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
-      "sha256": "b12a8f1a24f9844ac57d426d66b5f124ca212fb354b2aa88970c981f4a00aacc"
+      "sha256": "2669da6f8590b7380c6b1f4562cb7f7b44ecd39860783e2a816d334e3fbccb7f"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/secret-scan.json",
-      "sha256": "d2f0719f0b4b64cc79de7b072e12dd563d7a3948ca8bd97143dd03a982e6f87c"
+      "sha256": "6c4ac56449462a52d1c4a316503134f16f3bbe17a6009eb0d6c09c579fcd90cf"
     },
     {
       "path": "config/contracts/m14-capability-verification.json",
-      "sha256": "f851736ef95270a58dbafc38c5f5362633c0fe1643e7febc391326f711c2f041"
+      "sha256": "35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7"
     },
     {
       "path": "apps/ai-studio/test/m14-integration/test-output/canvas-texture/canvas-texture.png",
       "sha256": "5b70b5e888ca78c42d66871d73c4896ef2199f20ca4da4189c48c362b32a7ab5"
     },
     {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-capability-capture.log",
-      "sha256": "10a06c91f5f985f01770d4766225e0879dc688c1e7822263bb43019dd56c3f05"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-root-check.log",
-      "sha256": "4d24f167caa82550868a04ec6e102641a719e356f0559eb2ce3f417fb26149d2"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-unit.log",
-      "sha256": "da5fc724f9fc3b57dba9992cc31dd5e781259c16e1b8a9d8e5f9057ae177205f"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-window.log",
-      "sha256": "055eda613b586978b28b9722ef8525ec4ed5d8c5e458f245e38fb406462bb2d6"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-package.log",
-      "sha256": "b3fe8db884469f93ba039675367b32016f1c29119606ba0113e4f92aeea3ed8a"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-product-window.log",
-      "sha256": "08059efaf0154acfbec81cede7b4ef7d813cf792a2f3592019aaabd617f3c9d5"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-layout-contract.log",
-      "sha256": "bc16d99621f3d01b1795712b81da0b7a603d5909996bd03a9f457c8ca078d97c"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-window/workspace-desktop.png",
-      "sha256": "228ba451060fd9a4955bfb2dc64cc94c55d762bd38ff13e59ca1136697a2796e"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-window/workspace-resources.png",
-      "sha256": "bf3b5b9a2244f511eec74859212daad0bc89b2eed32be98878479f11e862e1f8"
-    },
-    {
-      "path": "apps/ai-studio/test/m14-integration/test-output/ui-tabs-window/workspace-375.png",
-      "sha256": "f88a33cdc68e9afc37efafe435ace75564a6e2c453a2ce2bca9ba30e145ce471"
-    },
-    {
       "path": "config/upstream/ui-candidate.json",
       "sha256": "af76b0beced5a674855de3936519c0d3478078ee4956052e8a40e8895509ac4c"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-capability-capture.log",
+      "sha256": "f220e89a8b37116189d2724211193a8aa136970487f3b1cc55b13414b5d6a642"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-checks.json",
+      "sha256": "b52bbdc102d289a1b4da32f95d32f70cd9221886d58a67dd686507c019c0f176"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-adapter-latest.json",
+      "sha256": "13090d5a9bcaa400551f1f01ef6b9a7555605193439b2f7e60dc53c0ad0b9fe6"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+      "sha256": "aeb4af10ffcd35bc26257d075ddb5208de2b7982f084b701edd8fdc2e02e7c0f"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/capture-completion-adapter.mjs",
+      "sha256": "8910ff0c30774df990b4b313a5830e18517a8f08842cee59f42120edc0155f61"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter.tap",
+      "sha256": "0407664090a01c651d937496a05861320309821e9940443589da701fba86386c"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-0.png",
+      "sha256": "33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-1.png",
+      "sha256": "33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-window.png",
+      "sha256": "1ff1de06760f6692336b44f660b7d7149429e0941fa4628cc2bc37f57d083e1a"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed.json",
+      "sha256": "fe42e040383ce944cfa2e9634c9cece3e453c41cf5ce2d8b44b29ea126238106"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed.log",
+      "sha256": "487c2645de4fd8643ddbad84e6e4a6b18293ef2d82718998577b7e703be24622"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-0.png",
+      "sha256": "c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-1.png",
+      "sha256": "c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-window.png",
+      "sha256": "ffebac61b068a157292384352c57d49f3ec093144d02df2cc7319efaa55080de"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script.json",
+      "sha256": "a5e2fe5dd215d6f610a6ab5dcb9b6560a90f8ab20d46c1d2204a9920c760206f"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script.log",
+      "sha256": "4613e163d39a286c97a90c6b376307e6b95a6665e4e9c15e8371faf37e17328a"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/resource-container-product-final.log",
+      "sha256": "97601ffa7a7092e8125ac4f1cacec1a325e0916ef7bd40c952e9627d42ed3f98"
     }
   ],
   "sendButtonFix": {
@@ -307,7 +339,7 @@
     "verifiedInputDigest": "sha256:a47ab5af8cfca9f444ccf7fda968e5e35dcf92ad744f0df5f9fb052eea8b53bb",
     "note": "The prior read-only account/model readiness probe is preserved in the archive and was not rerun for this source revision."
   },
-  "priorEvidenceArchive": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-ui-tabs/index.json",
+  "priorEvidenceArchive": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-completion-audit/index.json",
   "toolFailureFix": {
     "focusedTests": 19,
     "publicSearchMaxLength": 512,
@@ -449,6 +481,45 @@
     "zeroComponentErrors": true,
     "desktopAndNarrowScreenshots": true,
     "existingWindowRequiresRestart": true,
-    "reproduction": "apps/ai-studio/test/m14-integration/test-output/diagnostics/ui-beam-before-fix.log"
+    "reproduction": "apps/ai-studio/test/m14-integration/test-output/diagnostics/ui-beam-before-fix.log",
+    "historical": true,
+    "verifiedInputDigest": "sha256:a8e270079b413307ff0ec192660b6ea4fdfebb61f7de046047ea75d71a8dea50"
+  },
+  "fixtureStartTiming": {
+    "source": "apps/ai-studio/test/m14-g08-adapter-review/device-main.mjs",
+    "productionRuntimeChanged": false,
+    "pausedStart": true,
+    "requiredInitialTick": 0,
+    "requiredInitialScore": 0,
+    "focusedPassed": 2,
+    "currentAdapterCheck": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+    "failedAttempt": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T10-23-09-348Z/adapter.tap",
+    "completionAudit": "apps/ai-studio/test/m14-integration/test-output/completion-audit.json"
+  },
+  "resourceContainerLayout": {
+    "source": "packages/studio-shell/src/panels/resources/resources.css",
+    "measurements": {
+      "desktop": {
+        "viewportWidth": 1424,
+        "panelWidth": 283,
+        "scrollWidth": 283,
+        "controlsVisible": true
+      },
+      "narrow": {
+        "viewportWidth": 1008,
+        "panelWidth": 188,
+        "scrollWidth": 188,
+        "controlsVisible": true
+      }
+    },
+    "standaloneHostWidth": 375,
+    "productionMinimumWindowWidth": 1024,
+    "verifiedBy": [
+      "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+      "apps/ai-studio/test/resources/panel-electron.test.mjs"
+    ],
+    "screenshotsAfterUiSettled": true,
+    "failedAttempt": "apps/ai-studio/test/m14-integration/test-output/diagnostics/resource-panel-before-fix.log",
+    "priorCurrentEvidence": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-resource-container-fix/index.json"
   }
 }

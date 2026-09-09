@@ -2,37 +2,37 @@ TAP version 13
 # Subtest: projects a deterministic graph, transcript and modification evidence chain
 ok 1 - projects a deterministic graph, transcript and modification evidence chain
   ---
-  duration_ms: 35.2064
+  duration_ms: 25.644
   type: 'test'
   ...
 # Subtest: shows actual overlapping tool intervals as parallel and preserves dependency order
 ok 2 - shows actual overlapping tool intervals as parallel and preserves dependency order
   ---
-  duration_ms: 3.9997
+  duration_ms: 1.5049
   type: 'test'
   ...
 # Subtest: keeps barriers, compaction and outcome-unknown visible in graph and transcript
 ok 3 - keeps barriers, compaction and outcome-unknown visible in graph and transcript
   ---
-  duration_ms: 2.9861
+  duration_ms: 1.3575
   type: 'test'
   ...
 # Subtest: reports sequence gaps and dangling references without crashing
 ok 4 - reports sequence gaps and dangling references without crashing
   ---
-  duration_ms: 1.1832
+  duration_ms: 0.5563
   type: 'test'
   ...
 # Subtest: projects a 1000-tool graph within a bounded unit-test budget
 ok 5 - projects a 1000-tool graph within a bounded unit-test budget
   ---
-  duration_ms: 185.2651
+  duration_ms: 147.0077
   type: 'test'
   ...
 # Subtest: session history orders actual execution time instead of unrelated operation counts
 ok 6 - session history orders actual execution time instead of unrelated operation counts
   ---
-  duration_ms: 8.6661
+  duration_ms: 3.8883
   type: 'test'
   ...
 1..6
@@ -43,4 +43,4 @@ ok 6 - session history orders actual execution time instead of unrelated operati
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 571.8246
+# duration_ms 390.6696

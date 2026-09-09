@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "inputDigest": "sha256:e354afa3f85772c91c381478d983bdb3f1a1c7fc69b6bdda905d8e17a636f86f",
+  "temporaryDirectory": "system default",
+  "capability": {
+    "exitCode": 0,
+    "log": "apps/ai-studio/test/m14-integration/test-output/completion-capability-capture.log"
+  },
+  "rootCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "log": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log"
+  }
+}

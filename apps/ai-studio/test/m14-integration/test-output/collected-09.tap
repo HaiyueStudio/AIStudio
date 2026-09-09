@@ -2,19 +2,19 @@ TAP version 13
 # Subtest: production IPC / project owner / resource adapter use exact tool approval and shared History
 ok 1 - production IPC / project owner / resource adapter use exact tool approval and shared History
   ---
-  duration_ms: 1238.4666
+  duration_ms: 2405.9847
   type: 'test'
   ...
 # Subtest: actual resource import retains asset identity after reopen and copy; old view cannot import into the copied project
 ok 2 - actual resource import retains asset identity after reopen and copy; old view cannot import into the copied project
   ---
-  duration_ms: 942.417
+  duration_ms: 888.5066
   type: 'test'
   ...
 # Subtest: production projections keep 1000 entities and 200 scripts bounded and reject extra IPC authority
 ok 3 - production projections keep 1000 entities and 200 scripts bounded and reject extra IPC authority
   ---
-  duration_ms: 2322.9581
+  duration_ms: 2219.6716
   type: 'test'
   ...
 1..3
@@ -25,4 +25,4 @@ ok 3 - production projections keep 1000 entities and 200 scripts bounded and rej
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 5828.4074
+# duration_ms 6656.347

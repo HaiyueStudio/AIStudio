@@ -3,7 +3,7 @@ import { renderCanvasTexture } from './canvas-texture-renderer.js';
 import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { defineEditorAppDescriptor } from '@haiyue/editor-app-kit';
 import { asStableId, defineStudioPlugin, type JsonObject, type JsonValue, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import {
@@ -36,6 +36,8 @@ import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
 import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
 import { installStdioErrorGuards } from './stdio-safety.js';
 import { StudioKnowledgeSourceLoader } from './knowledge-source-loader.js';
+import { DesktopNotificationService } from './desktop-notifications.js';
+import { electronNotificationPort, prepareNotificationIdentity } from './electron-notifications.js';
 
 const descriptor = defineEditorAppDescriptor({
   schemaVersion: 1,
@@ -167,6 +169,13 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         }),
       });
       context.effects.own('conversation.dispose', () => conversation.dispose());
+      const isolatedNotifications = smoke || process.env.HAIYUE_STUDIO_DISABLE_NOTIFICATIONS === '1';
+      const notifications = new DesktopNotificationService(path.join(app.getPath('userData'), 'preferences'), electronNotificationPort(() => mainWindow, isolatedNotifications));
+      context.effects.own('notifications.dispose', () => notifications.dispose());
+      await notifications.initialize();
+      if (!isolatedNotifications) await prepareNotificationIdentity(descriptor.appId, fileURLToPath(import.meta.url)).catch(() => { /* OS notification failures cannot block the editor. */ });
+      const attentionChanges = conversation.subscribeAttention(change => notifications.receive(change));
+      context.effects.own('notifications-subscription.dispose', () => attentionChanges.dispose());
       await conversation.initialize();
       const behaviorPorts = createWorkspaceBehaviorPorts(workspace, operationLog);
       const behavior = new ProjectBehaviorController(behaviorPorts);
@@ -198,6 +207,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       const conversationChanges = conversation.subscribe(notifyRenderer);
       const previewChanges = agentPreview.subscribePending(notifyRenderer);
       const router = new StudioIpcRouter({
+        notifications,
         workspace,
         scene,
         selection,

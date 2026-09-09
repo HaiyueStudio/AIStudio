@@ -1,0 +1,6 @@
+{
+  "phase": "author",
+  "error": "AssertionError [ERR_ASSERTION]: Resource panel overflows its container: {\"viewportWidth\":1424,\"panelWidth\":283,\"scrollWidth\":510,\"controlsVisible\":false}",
+  "checks": [],
+  "approvals": []
+}

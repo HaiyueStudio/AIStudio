@@ -28,6 +28,18 @@ const selectWorkspaceTab = value => evaluate(`document.querySelector('#workspace
 const settle = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
 const screenshot = async name => writeFile(path.join(directory, name), (await window.webContents.capturePage()).toPNG());
 const data = () => call('editor/advanced');
+const resourceLayout = async () => {
+  await settle();
+  const value = await evaluate(`(() => {
+    const panel = document.querySelector('.resource-explorer'), bounds = panel.getBoundingClientRect();
+    const controls = [...panel.querySelectorAll('.resource-filters input, .resource-filters select, .resource-filters button')].map(el => el.getBoundingClientRect());
+    return { viewportWidth: innerWidth, panelWidth: panel.clientWidth, scrollWidth: panel.scrollWidth,
+      controlsVisible: controls.every(r => r.width > 0 && r.left >= bounds.left - 1 && r.right <= bounds.right + 1) };
+  })()`);
+  assert.ok(value.panelWidth > 0 && value.scrollWidth <= value.panelWidth + 1, `Resource panel overflows its container: ${JSON.stringify(value)}`);
+  assert.equal(value.controlsVisible, true, 'Resource filter controls must remain inside the panel.');
+  return value;
+};
 
 app.on('browser-window-created', (_event, created) => {
   if (window) return; window = created;
@@ -53,6 +65,17 @@ async function run() {
   }
   await selectWorkspaceTab('resources');
   await waitFor(() => evaluate('document.querySelector("#studio-resource-panel [data-resource-entry]") !== null'), 'resource catalog');
+  const desktopLayout = await resourceLayout();
+  assert.ok(desktopLayout.viewportWidth > 650 && desktopLayout.panelWidth < 650, 'Exercise a narrow pane in a wide window.');
+  // Respect the production desktop minimum; the isolated resource fixture
+  // separately exercises a real 375 px host without that window constraint.
+  const windowSize = window.getSize(), minimumSize = window.getMinimumSize();
+  window.setSize(minimumSize[0], Math.max(768, minimumSize[1]));
+  const narrowLayout = await resourceLayout();
+  assert.ok(narrowLayout.viewportWidth < desktopLayout.viewportWidth);
+  await screenshot('resources-narrow.png');
+  window.setSize(...windowSize); await resourceLayout();
+  checks.push('resource panel fits its container at desktop and narrow widths');
   await evaluate(`(()=>{const p=document.querySelector('#studio-resource-panel');p.querySelector('[data-resource=kind]').value='template';p.querySelector('[data-resource=category]').value='Geometry';p.querySelector('form').requestSubmit();})()`);
   await waitFor(() => evaluate('document.querySelector(".resource-explorer").getAttribute("aria-busy")==="false" && document.querySelector("[data-resource=kind]").value==="template"'), 'geometry catalog');
   await click('#studio-resource-panel [data-resource-entry]');
@@ -87,6 +110,7 @@ async function run() {
   window.webContents.sendInputEvent({ type: 'mouseMove', x: point.x + 35, y: point.y, button: 'left' }); await settle();
   window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x + 35, y: point.y, button: 'left', clickCount: 1 });
   await waitFor(async () => (await data()).history.entries.length === beforeDrag.history.entries.length + 1, 'one native gesture history transaction');
+  await waitFor(() => evaluate('!document.querySelector("[data-advanced=rename]").disabled && !document.querySelector("[data-advanced=status]").textContent.includes("Working")'), 'Gizmo UI settled');
   checks.push('native pointer Gizmo commits once through transform.batch');
   await screenshot('advanced-desktop.png');
   window.webContents.debugger.attach('1.3'); await window.webContents.debugger.sendCommand('Accessibility.enable');
@@ -104,9 +128,11 @@ async function run() {
   await waitFor(async () => (await call('scene/snapshot')).assets.length === 1 && await evaluate('!document.querySelector(".studio-resource-import")'), 'import committed');
   const assets = await call('scene/snapshot'), assetId = assets.assets[0].id; assert.ok(assetId);
   await click('#save-project'); await waitFor(async () => !(await call('project/snapshot')).document.dirty, 'asset save');
+  await waitFor(() => evaluate('!document.querySelector("#save-project").disabled && document.querySelector("#status").textContent === "项目已保存" && document.querySelector(".resource-explorer").getAttribute("aria-busy") === "false"'), 'saved resource UI settled');
   checks.push('controlled import UI retains asset identity');
+  await resourceLayout();
   await screenshot('resources-desktop.png');
-  const report = { schemaVersion: 1, productionEntry: 'apps/ai-studio/dist/main.js', platformDecisionDriver: 'explicit test decisions; real tool approvals', entityId, assetId, approvals, checks, versions: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.version }, screenshots: ['advanced-desktop.png', 'resources-desktop.png'] };
+  const report = { schemaVersion: 1, productionEntry: 'apps/ai-studio/dist/main.js', platformDecisionDriver: 'explicit test decisions; real tool approvals', entityId, assetId, approvals, checks, resourceLayout: { desktop: desktopLayout, narrow: narrowLayout }, versions: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.version }, screenshots: ['advanced-desktop.png', 'resources-desktop.png', 'resources-narrow.png'] };
   await writeFile(path.join(directory, 'author.json'), JSON.stringify(report, null, 2)); return finish(0);
 }
 async function large() {

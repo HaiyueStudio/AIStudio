@@ -2,6 +2,7 @@ import { asStableId, type AgentHistoryDetailV1, type AgentHistoryPageV1, type St
 import type { ConversationOperationLog } from '@haiyue/ai-studio-operation-log';
 import type { ConversationReplaySnapshot } from '@haiyue/ai-studio-shell/conversation';
 import { StudioConversationHost, type ConversationHostOptions } from './conversation-host.js';
+import { ConversationAttentionTracker, type ConversationAttentionChange } from './conversation-attention.js';
 
 export interface ConversationProjectBinding {
   readonly projectId: StableId | null;
@@ -30,6 +31,8 @@ export class ProjectConversationController {
   private binding: ConversationProjectBinding | null = null;
   private hostSubscription: Readonly<{ dispose(): void }> | null = null;
   private readonly listeners = new Set<() => void>();
+  private readonly attention = new ConversationAttentionTracker();
+  private readonly attentionListeners = new Set<(change: ConversationAttentionChange) => void>();
   private pending: Promise<void> = Promise.resolve();
   private revision = 0;
   private changing = false;
@@ -92,6 +95,10 @@ export class ProjectConversationController {
     this.assertActive(); this.listeners.add(listener);
     return Object.freeze({ dispose: () => { this.listeners.delete(listener); } });
   }
+  subscribeAttention(listener: (change: ConversationAttentionChange) => void): Readonly<{ dispose(): void }> {
+    this.assertActive(); this.attentionListeners.add(listener);
+    return Object.freeze({ dispose: () => { this.attentionListeners.delete(listener); } });
+  }
   cancelPending(reason?: string): void { this.host?.cancelPending(reason); }
 
   async queryHistory(projectId: StableId | null, input: Readonly<{ cursor?: string; limit?: number }>): Promise<AgentHistoryPageV1> {
@@ -110,7 +117,7 @@ export class ProjectConversationController {
   dispose(): Promise<void> {
     return this.disposal ??= (async () => {
       this.disposed = true; this.changing = true;
-      await this.pending; await this.releaseProject(); this.listeners.clear();
+      await this.pending; await this.releaseProject(); this.listeners.clear(); this.attentionListeners.clear();
     })();
   }
 
@@ -128,5 +135,11 @@ export class ProjectConversationController {
     if (this.changing || projectId !== (this.binding?.projectId ?? null)) throw new Error('项目已切换，请重新读取执行记录。');
   }
   private assertActive(): void { if (this.disposed) throw new Error('Project conversation controller is disposed.'); }
-  private changed(): void { this.revision += 1; if (!this.disposed) for (const listener of this.listeners) { try { listener(); } catch { /* View observers cannot own transitions. */ } } }
+  private changed(): void {
+    this.revision += 1;
+    const changes = !this.disposed && !this.changing && this.host && this.binding?.projectId && this.binding.documentId
+      ? this.attention.update(this.binding.projectId, this.binding.documentId, this.host.replay()) : this.attention.reset();
+    for (const change of changes) for (const listener of this.attentionListeners) { try { listener(change); } catch { /* Notifications cannot own task outcomes. */ } }
+    if (!this.disposed) for (const listener of this.listeners) { try { listener(); } catch { /* View observers cannot own transitions. */ } }
+  }
 }

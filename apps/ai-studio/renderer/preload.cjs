@@ -6,6 +6,12 @@ const CONVERSATION_CHANGED_CHANNEL = 'studio:conversation-changed';
 contextBridge.exposeInMainWorld('haiyueStudio', Object.freeze({
   invoke(request) { return ipcRenderer.invoke(REQUEST_CHANNEL, request); },
   cancel(requestId) { ipcRenderer.send(CANCEL_CHANNEL, requestId); },
+  onNotificationClicked(listener) {
+    if (typeof listener !== 'function') throw new TypeError('Notification listener must be a function.');
+    const handle = () => listener();
+    ipcRenderer.on('studio:notification-clicked', handle);
+    return () => ipcRenderer.removeListener('studio:notification-clicked', handle);
+  },
   onConversationChanged(listener) {
     if (typeof listener !== 'function') throw new TypeError('Conversation listener must be a function.');
     const handle = () => listener();

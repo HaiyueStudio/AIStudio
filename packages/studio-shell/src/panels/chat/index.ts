@@ -272,6 +272,20 @@ interface ExecutionWorkspaceState {
 }
 
 const executionWorkspaceStates = new WeakMap<HTMLElement, ExecutionWorkspaceState>();
+/** Selects existing UI only; a notification never approves or resumes work. */
+export function revealChatAttention(root: HTMLElement, target: Readonly<{ nodeId: string | null; taskId: string | null }>): boolean {
+  let found = target.nodeId ? [...root.querySelectorAll<HTMLElement>('[data-conversation-node-id]')].find(item => item.dataset.conversationNodeId === target.nodeId) : undefined;
+  if (!found && target.taskId) {
+    found = [...root.querySelectorAll<HTMLElement>('.chat-task-run')].find(item => item.dataset.taskId === target.taskId);
+    if (found) {
+      const workspace = found.closest('.chat-task-workspace')!, selector = workspace.querySelector('select')!;
+      selector.value = target.taskId;
+      for (const panel of workspace.querySelectorAll<HTMLElement>('.chat-task-run')) panel.hidden = panel !== found;
+    }
+  }
+  if (!found) return false;
+  found.tabIndex = -1; found.scrollIntoView({ block: 'center' }); found.focus({ preventScroll: true }); return true;
+}
 const executionViewportUpdates = new WeakMap<HTMLElement, () => void>();
 const executionPanDisposers = new WeakMap<HTMLElement, () => void>();
 
@@ -546,6 +560,7 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
   const item = document.createElement('li');
   item.className = `chat-card tone-${card.tone}`;
   item.dataset.kind = card.kind;
+  item.dataset.conversationNodeId = card.id;
   item.dataset.status = card.status;
   const content = createChatCardSurface(document, item, card.status === 'pending' || card.status === 'streaming');
   const title = document.createElement('h3'); title.textContent = card.title; content.append(title);

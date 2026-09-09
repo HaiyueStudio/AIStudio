@@ -42,12 +42,14 @@ app.whenReady().then(async () => {
   const game = snapshot => snapshot.value.gameplay.find(item => item.id === 'review-round').value;
   for (let round = 0; round < 2; round++) {
     const run = fixture.runs[round];
-    stage = `start-${round}`; const started = await command('start', run);
+    // Start the production simulation paused: host message latency must not
+    // advance timers/physics before the fixture injects its first input.
+    stage = `start-${round}`; const started = await command('start', { ...run, paused: true });
     assert.equal(started.started.scriptCount, fixture.scriptCount);
     assert.equal(started.started.seed, 'haiyue-play'); assert.equal(started.started.tickRateHz, 60);
     const baseline = await command('inspect');
-    assert.ok(baseline.value.tick < 10, 'Pause must precede the first timer event.');
-    assert.ok((fixture.scriptCount ? [0, 100] : [0]).includes(game(baseline).score));
+    assert.equal(baseline.value.tick, 0, 'A paused start must not advance before an explicit step.');
+    assert.equal(game(baseline).score, 0);
     stage = `step-${round}`;
     await command('input', { tick: baseline.value.tick + 1, kind: 'action', action: 'HardDrop', phase: 'down', source: 'synthetic' });
     const stepped = await command('step', { count: 10 - baseline.value.tick });
@@ -84,7 +86,7 @@ app.whenReady().then(async () => {
     rounds.push({ started, baseline, stepped, resized, afterResize, trace, capture: { tick: capture.tick, frame: capture.frame, byteLength: capture.byteLength, bluePixels, whitePixels, file: `${fixture.kind}-${round}.png` }, cleanup });
   }
   stage = 'cancel-start'; const cancelled = await command('cancel-start', fixture.runs[2]); assert.equal(cancelled.disposableCount, 0);
-  stage = 'retry'; const retry = await command('start', fixture.runs[3]); assert.equal(retry.started.scriptCount, fixture.scriptCount);
+  stage = 'retry'; const retry = await command('start', { ...fixture.runs[3], paused: true }); assert.equal(retry.started.scriptCount, fixture.scriptCount);
   const retried = await command('step', { count: 1 }); assert.equal(retried.value.runtimeErrorCount, 0);
   assert.ok(game(retried).score < 101, 'Held input and previous timer/rule state must not survive restart.');
   // Delay only PNG completion to make Stop/async encoding ordering deterministic.

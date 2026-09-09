@@ -2,7 +2,7 @@ TAP version 13
 # Subtest: authoring and preview planes share vertices, front normals and UV orientation in all three planes
 ok 1 - authoring and preview planes share vertices, front normals and UV orientation in all three planes
   ---
-  duration_ms: 4.8642
+  duration_ms: 4.537
   type: 'test'
   ...
 1..1
@@ -13,4 +13,4 @@ ok 1 - authoring and preview planes share vertices, front normals and UV orienta
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 515.5746
+# duration_ms 528.9591

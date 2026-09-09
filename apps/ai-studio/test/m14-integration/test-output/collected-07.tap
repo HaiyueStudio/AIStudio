@@ -2,13 +2,13 @@ TAP version 13
 # Subtest: G08 zero-script: authorized production iframe, provenance, runtime and teardown
 ok 1 - G08 zero-script: authorized production iframe, provenance, runtime and teardown
   ---
-  duration_ms: 4293.8921
+  duration_ms: 6149.5494
   type: 'test'
   ...
 # Subtest: G08 mixed: authorized production iframe, provenance, runtime and teardown
 ok 2 - G08 mixed: authorized production iframe, provenance, runtime and teardown
   ---
-  duration_ms: 10720.166
+  duration_ms: 11892.0253
   type: 'test'
   ...
 1..2
@@ -19,4 +19,4 @@ ok 2 - G08 mixed: authorized production iframe, provenance, runtime and teardown
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 16174.4662
+# duration_ms 19109.2944

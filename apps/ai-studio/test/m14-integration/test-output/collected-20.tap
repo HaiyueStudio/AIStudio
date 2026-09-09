@@ -2,127 +2,127 @@ TAP version 13
 # Subtest: Harness and Codex normalize equivalent multi-step turns to the same semantic event kinds
 ok 1 - Harness and Codex normalize equivalent multi-step turns to the same semantic event kinds
   ---
-  duration_ms: 624.2115
+  duration_ms: 779.4121
   type: 'test'
   ...
 # Subtest: both backends advertise model/reasoning capabilities and reject unsupported config without provider execution
 ok 2 - both backends advertise model/reasoning capabilities and reject unsupported config without provider execution
   ---
-  duration_ms: 0.9553
+  duration_ms: 2.1227
   type: 'test'
   ...
 # Subtest: Backend Session adapters expose honest Harness/Codex capacity, boundary and compaction capabilities
 ok 3 - Backend Session adapters expose honest Harness/Codex capacity, boundary and compaction capabilities
   ---
-  duration_ms: 1.9003
+  duration_ms: 2.8946
   type: 'test'
   ...
 # Subtest: Harness preserves unknown provider cache evidence and Codex reuses a live thread without another thread/start
 ok 4 - Harness preserves unknown provider cache evidence and Codex reuses a live thread without another thread/start
   ---
-  duration_ms: 8.9928
+  duration_ms: 5.8844
   type: 'test'
   ...
 # Subtest: Harness session reuse rejects a changed Studio tool allowlist before provider execution
 ok 5 - Harness session reuse rejects a changed Studio tool allowlist before provider execution
   ---
-  duration_ms: 1.1155
+  duration_ms: 3.3437
   type: 'test'
   ...
 # Subtest: Harness auth, logout, tool result, cancellation and unsupported capability methods conform directly
 ok 6 - Harness auth, logout, tool result, cancellation and unsupported capability methods conform directly
   ---
-  duration_ms: 1.3114
+  duration_ms: 2.6297
   type: 'test'
   ...
 # Subtest: both backends bound provider event payloads and terminate oversized streams
 ok 7 - both backends bound provider event payloads and terminate oversized streams
   ---
-  duration_ms: 12.1418
+  duration_ms: 19.5531
   type: 'test'
   ...
 # Subtest: Codex model catalog fails closed on pinned schema drift
 ok 8 - Codex model catalog fails closed on pinned schema drift
   ---
-  duration_ms: 0.4858
+  duration_ms: 0.9068
   type: 'test'
   ...
 # Subtest: Codex keeps user questions separate and denies every built-in effect at the wire boundary
 ok 9 - Codex keeps user questions separate and denies every built-in effect at the wire boundary
   ---
-  duration_ms: 1.6683
+  duration_ms: 3.2542
   type: 'test'
   ...
 # Subtest: auth state, browser handoff, logout, rate limit and cancel use the pinned protocol
 ok 10 - auth state, browser handoff, logout, rate limit and cancel use the pinned protocol
   ---
-  duration_ms: 2.7287
+  duration_ms: 4.5712
   type: 'test'
   ...
 # Subtest: Codex normalizes 401 and 429 request failures to terminal auth/rate-limit diagnostics
 ok 11 - Codex normalizes 401 and 429 request failures to terminal auth/rate-limit diagnostics
   ---
-  duration_ms: 0.8602
+  duration_ms: 2.8649
   type: 'test'
   ...
 # Subtest: temporary usage lookup failure preserves verified login and can recover without starting a turn
 ok 12 - temporary usage lookup failure preserves verified login and can recover without starting a turn
   ---
-  duration_ms: 1.8558
+  duration_ms: 3.6683
   type: 'test'
   ...
 # Subtest: unresponsive optional usage metadata cannot consume the full login readiness deadline
 ok 13 - unresponsive optional usage metadata cannot consume the full login readiness deadline
   ---
-  duration_ms: 2002.1371
+  duration_ms: 2003.4338
   type: 'test'
   ...
 # Subtest: Codex 5xx and unresponsive RPCs become retryable terminal failures
 ok 14 - Codex 5xx and unresponsive RPCs become retryable terminal failures
   ---
-  duration_ms: 22.8248
+  duration_ms: 22.7613
   type: 'test'
   ...
 # Subtest: malformed JSON and process exit become terminal interrupted events; env drops credential variables
 ok 15 - malformed JSON and process exit become terminal interrupted events; env drops credential variables
   ---
-  duration_ms: 16.7536
+  duration_ms: 123.8583
   type: 'test'
   ...
 # Subtest: Codex disposal cleans its temporary cwd even when transport shutdown fails
 ok 16 - Codex disposal cleans its temporary cwd even when transport shutdown fails
   ---
-  duration_ms: 5.0676
+  duration_ms: 3.4935
   type: 'test'
   ...
 # Subtest: malformed terminal/usage notifications and duplicate tool ids fail closed and release pending RPCs
 ok 17 - malformed terminal/usage notifications and duplicate tool ids fail closed and release pending RPCs
   ---
-  duration_ms: 3.7166
+  duration_ms: 3.0601
   type: 'test'
   ...
 # Subtest: child crash terminates the turn and a fresh pinned backend restarts cleanly
 ok 18 - child crash terminates the turn and a fresh pinned backend restarts cleanly
   ---
-  duration_ms: 2.2991
+  duration_ms: 1.6353
   type: 'test'
   ...
 # Subtest: Electron main launches the pinned Codex JS entry in Node mode without widening the env allowlist
 ok 19 - Electron main launches the pinned Codex JS entry in Node mode without widening the env allowlist
   ---
-  duration_ms: 1.4454
+  duration_ms: 1.5007
   type: 'test'
   ...
 # Subtest: the opt-in DeepSeek real smoke uses the current versioned turn configuration
 ok 20 - the opt-in DeepSeek real smoke uses the current versioned turn configuration
   ---
-  duration_ms: 1.3781
+  duration_ms: 1.2702
   type: 'test'
   ...
 # Subtest: the opt-in Codex real smoke covers auth, text, dynamic tool, question and cancel with current config
 ok 21 - the opt-in Codex real smoke covers auth, text, dynamic tool, question and cancel with current config
   ---
-  duration_ms: 2.0062
+  duration_ms: 1.1196
   type: 'test'
   ...
 1..21
@@ -133,4 +133,4 @@ ok 21 - the opt-in Codex real smoke covers auth, text, dynamic tool, question an
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3053.7501
+# duration_ms 3416.7533

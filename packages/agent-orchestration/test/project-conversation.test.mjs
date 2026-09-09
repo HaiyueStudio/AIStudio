@@ -11,6 +11,18 @@ const backendId = 'backend:project-history';
 const longResult = 'full-result-'.repeat(700);
 const longReply = '完整回复'.repeat(5000);
 
+test('project attention follows real host transitions and project hydration does not replay alerts', async t => {
+  const value = await fixture(t), changes = [];
+  const subscription = value.controller.subscribeAttention(change => changes.push(change));
+  await value.run('A notification regression');
+  await until(() => changes.some(c => c.type === 'show'));
+  assert.equal(changes.filter(c => c.type === 'show').length, 1);
+  assert.equal(changes.find(c => c.type === 'show').notice.kind, 'blocked');
+  await value.change('b'); await value.change('a');
+  assert.equal(changes.filter(c => c.type === 'show').length, 1);
+  assert.ok(changes.some(c => c.type === 'withdraw')); subscription.dispose();
+});
+
 async function fixture(t, slow = false) {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-project-conversation-'));
   const source = await OperationLog.open({ rootDirectory: path.join(root, 'editor-cache'), appVersion: 'test' });

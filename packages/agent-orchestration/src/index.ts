@@ -1,4 +1,6 @@
 export { StudioConversationHost } from './conversation-host.js';
+export { ConversationAttentionTracker } from './conversation-attention.js';
+export type { ConversationAttention, ConversationAttentionTarget, ConversationAttentionChange } from './conversation-attention.js';
 export type { BehaviorReadPort, BehaviorProjectIdentity, ProjectBehaviorPorts, BehaviorApprovedPlay, BehaviorRuntimePort } from './behavior/ports.js';
 export { ProjectConversationController } from './project-conversation.js';
 export type { ConversationProjectBinding, ProjectHistoryScope, ProjectConversationOptions } from './project-conversation.js';

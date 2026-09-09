@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { readJson, localPath, root } from '../../../../../scripts/m14-capability-census.mjs';
+
+const base = 'apps/ai-studio/test/m14-integration/test-output';
+const local = await readJson(`${base}/local-acceptance.json`), audit = await readJson(`${base}/completion-audit.json`);
+assert.equal(audit.inputBinding.digest, local.inputBinding.digest);
+assert.equal(audit.requirements.filter(r => r.status === 'verified').length, 12);
+assert.equal(audit.productIntegrated, false);
+const digest = local.inputBinding.digest, files = local.inputBinding.fileCount;
+const file = localPath('docs/architecture/m14-integration-acceptance.md');
+let text = await readFile(file, 'utf8');
+const first = `2026-09-09 当前冻结输入：\`${digest}\`（${files} 个输入文件）。资源侧栏容器布局及 G08 初始暂停复验后，\`npm run check\` 以 0 退出；${local.capabilityChecks} 项能力验证、${local.integration.files} 个集成文件共 ${local.integration.passed} 项通过，无失败或跳过。见 [本地验收记录](../../${base}/local-acceptance.json) 与 [逐项完成审计](../../${base}/completion-audit.json)。14 项审计中，12 项已有当前证据；真实双后端和最终准入仍未完成，\`productIntegrated: false\`。`;
+text = text.replace(/^2026-09-09 当前冻结输入：[^\n]*/m, first);
+text = text.replace('本轮界面跟进：', '前次界面跟进（历史记录，见归档）：');
+const details = '\n本轮复验发现并修复两处问题：G08 原先启动后跨窗口暂停，可能在繁忙时越过首个计时器事件；现在使用已有的暂停启动入口，并严格断言初始 tick/score 都为 0，原像素、计时器、重启和释放断言保留。资源面板原先按整个窗口宽度排版，1424 像素窗口内的 283 像素侧栏产生 510 像素内容；现在使用面板容器查询，宽窗口窄侧栏和最小桌面窗口均无横向溢出，375 像素由独立资源组件窗口验证。产品截图在 Gizmo 和保存操作完成后采集，避免把忙碌中的画面作为最终证据。\n\nG08 冻结的一个修复项（play.capture / adapter.ui.hud）已用同一 CapabilitySurfaceRecordV1 关联六层来源和当前真实设备结果，审计中保留 adapter-ready。G01 census 仍是 implementation-present；未把 35 个分析范围能力整体提升为产品验收。修改前的 28 份有效证据和修复侧栏前的 37 份材料分别保存在 diagnostics/before-completion-audit 与 diagnostics/before-resource-container-fix。暂停时序失败、资源溢出失败、D 盘临时目录下的超时诊断均保留；同一组 19 项工具测试恢复系统临时目录后通过，未放宽截止时间或断言。\n';
+text = text.replace(first, first + '\n' + details);
+const p = local.performance, scan = await readJson(`${base}/secret-scan.json`);
+text = text.replace(/^当前测量：[^\n]*/m, `当前测量：打开项目 ${Math.round(p.timings.open)} ms，高级面板挂载 ${Math.round(p.timings.advancedMount)} ms，筛选并选择末尾实体 ${Math.round(p.timings.filterAndSelect)} ms，资源查询 ${Math.round(p.timings.resourceQuery)} ms；五次关闭/重开面板后 renderer 堆从 ${p.initialHeapBytes.toLocaleString('en')} 增至 ${p.finalHeapBytes.toLocaleString('en')} 字节，均在冻结预算内。生产扫描 ${local.productScan.files} 个文件通过，当前完整检查扫描 ${scan.files} 个文件通过；生产没有生成 crash dump。逐项审计另有覆盖新增证据的补充扫描。`);
+text = text.replace('| 六层准入 | upstream/document/runtime/tool/ui/verification 逐项关联当前内容和有效证据 | 待完整证据；不按组件/工具数量自动提升 |', '| 六层准入 | upstream/document/runtime/tool/ui/verification 逐项关联当前内容和有效证据 | 已关联 G08 冻结修复项的当前六层；在线结果和最终 product-integrated 准入仍待完成 |');
+await writeFile(file, text);
+
+const milestone = path.join(root, '../milestones/milestones/m14-ai-native-intent-graph-editor/README.md');
+let roadmap = await readFile(milestone, 'utf8');
+const summary = `2026-09-09 G09 本地总检查已通过：当前输入 \`${digest}\`（${files} 个文件），${local.capabilityChecks} 项能力验证及 ${local.integration.files} 文件/${local.integration.passed} 项集成检查通过，无跳过。本轮修复验收启动/暂停的时序竞争，以及资源侧栏按窗口宽度排版造成的横向溢出；真实产品截图等待界面操作完成后再采集。七类游戏双回放、公共资源/高级窗口、项目记录、交互预算和扫描通过。见 [当前组合记录](../../../AIStudio/docs/architecture/m14-integration-acceptance.md) 与 [14 项完成审计](../../../AIStudio/${base}/completion-audit.json)：12 项已验证，G08 冻结修复项的六层关联保留 adapter-ready，真实在线双后端和最终产品准入未完成。G09 为 blocked，product-integrated 不提升。`;
+roadmap = roadmap.replace(/^2026-09-09 G09 本地总检查已通过：[^\n]*/m, summary);
+roadmap = roadmap.replace(/^阻塞复核：[^\n]*/m, '阻塞复核：向 DeepSeek API、OpenAI（通过 Codex App Server）发送生成的临时测试项目和工具参数仍待明确授权；自动审批此前拒绝了该发送操作。本地输入已再次冻结，当前检查和逐项审计已完成，历史证据已核验归档。只读账号就绪检查不代替真实在线任务验收；收到授权后从当前冻结组合继续，M12/M13 历史状态保持。');
+await writeFile(milestone, roadmap);
+console.log(JSON.stringify({ inputDigest: digest, evidenceFiles: local.evidence.length, auditReferences: audit.evidence.length, filesUpdated: [file, milestone] }));

@@ -2,19 +2,19 @@ TAP version 13
 # Subtest: 0/1/100/1000 entities and 200 scripts are actual Document inputs with bounded pages and no source text
 ok 1 - 0/1/100/1000 entities and 200 scripts are actual Document inputs with bounded pages and no source text
   ---
-  duration_ms: 4243.9081
+  duration_ms: 6804.3663
   type: 'test'
   ...
 # Subtest: oversize source and model external dependencies use existing controlled import rejection
 ok 2 - oversize source and model external dependencies use existing controlled import rejection
   ---
-  duration_ms: 570.4708
+  duration_ms: 2216.9644
   type: 'test'
   ...
 # Subtest: proven use-site navigation validates exact component field and refuses fabricated or old sites
 ok 3 - proven use-site navigation validates exact component field and refuses fabricated or old sites
   ---
-  duration_ms: 877.9188
+  duration_ms: 1047.4036
   type: 'test'
   ...
 1..3
@@ -25,4 +25,4 @@ ok 3 - proven use-site navigation validates exact component field and refuses fa
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 6881.7168
+# duration_ms 11582.1779

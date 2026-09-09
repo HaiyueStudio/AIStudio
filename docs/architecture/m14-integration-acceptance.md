@@ -2,9 +2,14 @@
 
 状态：本地集成与总检查通过，等待真实双后端在线验收及最终准入；G09 尚未完成。
 
-2026-09-09 当前冻结输入：`sha256:a8e270079b413307ff0ec192660b6ea4fdfebb61f7de046047ea75d71a8dea50`（603 个输入文件）。工作区公共 Tab 与边框组件创建修复后，`npm run check` 以 0 退出；123 项能力验证通过，41 个集成测试文件共 194 项通过，无失败或跳过。机器可读结果及 28 份证据摘要见 [本地验收记录](../../apps/ai-studio/test/m14-integration/test-output/local-acceptance.json)。记录保留 `productIntegrated: false`；修改前的 23 份证据已核验并归档于 `test-output/diagnostics/before-ui-tabs/`。
+2026-09-09 当前冻结输入：`sha256:62d037d5e13f492c7b9ecc3c87393c66f3e4dd45921b07dd387f2a06ce894494`（603 个输入文件）。资源侧栏容器布局及 G08 初始暂停复验后，`npm run check` 以 0 退出；123 项能力验证、41 个集成文件共 194 项通过，无失败或跳过。见 [本地验收记录](../../apps/ai-studio/test/m14-integration/test-output/local-acceptance.json) 与 [逐项完成审计](../../apps/ai-studio/test/m14-integration/test-output/completion-audit.json)。14 项审计中，12 项已有当前证据；真实双后端和最终准入仍未完成，`productIntegrated: false`。
 
-本轮界面跟进：逻辑/资源使用 `@haiyue/ui/tabs` 公共组件；保留鼠标与键盘、ARIA、中英文、选中项持久化及布局重挂载。边框动画组件的构造阶段不再写入宿主 style，修复等待卡片重绘时的 `NotSupportedError`。55 项专项检查通过，包括 UI 24 项、shell 27 项、布局合同 1 项及 3 项真实窗口回归；反复点击拓扑、切换完整记录、缩放、拖动及重载均无组件创建错误。UI 0.1.3 本地候选来源、摘要、lock 与安装内容一致，没有发布远程包。原错误及两处旧测试假设的诊断日志保留在 `test-output/diagnostics/ui-*.log`。见 [修复说明](./ui-tabs-and-border-beam.md)。
+本轮复验发现并修复两处问题：G08 原先启动后跨窗口暂停，可能在繁忙时越过首个计时器事件；现在使用已有的暂停启动入口，并严格断言初始 tick/score 都为 0，原像素、计时器、重启和释放断言保留。资源面板原先按整个窗口宽度排版，1424 像素窗口内的 283 像素侧栏产生 510 像素内容；现在使用面板容器查询，宽窗口窄侧栏和最小桌面窗口均无横向溢出，375 像素由独立资源组件窗口验证。产品截图在 Gizmo 和保存操作完成后采集，避免把忙碌中的画面作为最终证据。
+
+G08 冻结的一个修复项（play.capture / adapter.ui.hud）已用同一 CapabilitySurfaceRecordV1 关联六层来源和当前真实设备结果，审计中保留 adapter-ready。G01 census 仍是 implementation-present；未把 35 个分析范围能力整体提升为产品验收。修改前的 28 份有效证据和修复侧栏前的 37 份材料分别保存在 diagnostics/before-completion-audit 与 diagnostics/before-resource-container-fix。暂停时序失败、资源溢出失败、D 盘临时目录下的超时诊断均保留；同一组 19 项工具测试恢复系统临时目录后通过，未放宽截止时间或断言。
+
+
+前次界面跟进（历史记录，见归档）：逻辑/资源使用 `@haiyue/ui/tabs` 公共组件；保留鼠标与键盘、ARIA、中英文、选中项持久化及布局重挂载。边框动画组件的构造阶段不再写入宿主 style，修复等待卡片重绘时的 `NotSupportedError`。55 项专项检查通过，包括 UI 24 项、shell 27 项、布局合同 1 项及 3 项真实窗口回归；反复点击拓扑、切换完整记录、缩放、拖动及重载均无组件创建错误。UI 0.1.3 本地候选来源、摘要、lock 与安装内容一致，没有发布远程包。原错误及两处旧测试假设的诊断日志保留在 `test-output/diagnostics/ui-*.log`。见 [修复说明](./ui-tabs-and-border-beam.md)。
 
 前次素材与方向跟进（历史记录，见归档）：新增通用 `asset.generate-texture`，支持矩形、圆、折线、多边形、文字生成 PNG 并登记为项目素材；单个/批量创建平面支持 XY/XZ/YZ，编辑场景和 Play 共用方向工厂。82 项不同的专项检查（85 次执行，包含三项重复验证）及真实 Canvas 像素、中文文字、透明背景和取消释放验证通过；覆盖审批、精确版本/项目绑定、迟到结果、写入回滚、材质分配、Undo/Redo 和重开。精确名称搜索优先返回工具本身，避免其他说明中的交叉引用抢占首位；两个生产后端配合本地 transport 的发现回归通过。实现和调用示例见 [Canvas 纹理与平面方向](./canvas-textures-and-plane-orientation.md)。初次测试驱动、沙箱图形环境和搜索排序诊断保留在 `test-output/diagnostics/canvas-plane-*.log`。本轮未修改用户当前游戏项目，重启后使用新构建。
 
@@ -38,7 +43,7 @@
 | 规模与体验 | 冻结机器/预算下 1000 entities/200 scripts、键盘、Accessibility、布局迁移 | 真实产品规模与 AX 树专项通过；冻结组合结果见 product/large/large.json |
 | 两种 Backend | 同一通用工具链完成任务；在线凭据验收与确定性 transport 回归分别记账 | 未运行：自动审批拒绝发送测试项目及工具数据；等待用户明确允许 DeepSeek API 与 Codex App Server 两个目的地 |
 | 设备与记录 | Electron/WebGPU、真实设备丢失/恢复、Stop/restart、项目记录切换、密钥扫描 | 当前设备恢复、重载、项目记录与扫描检查全部通过 |
-| 六层准入 | upstream/document/runtime/tool/ui/verification 逐项关联当前内容和有效证据 | 待完整证据；不按组件/工具数量自动提升 |
+| 六层准入 | upstream/document/runtime/tool/ui/verification 逐项关联当前内容和有效证据 | 已关联 G08 冻结修复项的当前六层；在线结果和最终 product-integrated 准入仍待完成 |
 
 ## 集成边界
 
@@ -74,7 +79,7 @@
 
 规模测试固定为 i7-7700、8 逻辑线程、Windows 10.0.19045、GTX 1070 Ti；预算文件在测量前冻结。1000 个实体/200 个脚本验证的是文档、树、查询、选择和面板反复挂载，不代表同时运行 200 个脚本或渲染 1000 个网格。手工工具不伪造 Agent 会话记录，产品重启样例的 Agent 记录数为零；项目 Agent 完整记录的切换、复制与恢复由专门的持久化/协调测试验证，窗口记录查看器测试使用明确的 UI fixture。
 
-当前测量：打开项目 333 ms，高级面板挂载 258 ms，筛选并选择末尾实体 93 ms，资源查询 890 ms；五次关闭/重开面板后 renderer 堆从 7,982,768 增至 8,190,328 字节，均在冻结预算内。扫描通过：临时产品目录 142 个文件/约 15.3 MB，当前与诊断证据 488 个文件/约 310.5 MB；产品没有生成 crash dump，扫描器另有跨数据块及 UTF-16 二进制泄漏检测回归。
+当前测量：打开项目 295 ms，高级面板挂载 313 ms，筛选并选择末尾实体 84 ms，资源查询 735 ms；五次关闭/重开面板后 renderer 堆从 7,988,848 增至 8,211,952 字节，均在冻结预算内。生产扫描 143 个文件通过，当前完整检查扫描 605 个文件通过；生产没有生成 crash dump。逐项审计另有覆盖新增证据的补充扫描。
 
 ## 验证入口与准入
 

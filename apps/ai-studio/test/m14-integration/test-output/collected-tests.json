@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "inputDigest": "sha256:a8e270079b413307ff0ec192660b6ea4fdfebb61f7de046047ea75d71a8dea50",
+  "inputDigest": "sha256:62d037d5e13f492c7b9ecc3c87393c66f3e4dd45921b07dd387f2a06ce894494",
   "collectedFiles": 41,
   "executedFiles": 41,
   "results": [
     {
       "file": "apps/ai-studio/test/canvas-texture-electron.test.mjs",
       "log": "collected-01.tap",
-      "elapsedMs": 2419,
+      "elapsedMs": 3289,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -18,7 +18,7 @@
     {
       "file": "apps/ai-studio/test/execution-graph-context-ui.test.mjs",
       "log": "collected-02.tap",
-      "elapsedMs": 2320,
+      "elapsedMs": 3426,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -29,7 +29,7 @@
     {
       "file": "apps/ai-studio/test/execution-graph-electron.test.mjs",
       "log": "collected-03.tap",
-      "elapsedMs": 3076,
+      "elapsedMs": 4138,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -40,7 +40,7 @@
     {
       "file": "apps/ai-studio/test/g07-barrier-restart.test.mjs",
       "log": "collected-04.tap",
-      "elapsedMs": 5313,
+      "elapsedMs": 8310,
       "exitCode": 0,
       "tests": 6,
       "passed": 6,
@@ -51,7 +51,7 @@
     {
       "file": "apps/ai-studio/test/g10-agent-integration.test.mjs",
       "log": "collected-05.tap",
-      "elapsedMs": 1721,
+      "elapsedMs": 1553,
       "exitCode": 0,
       "tests": 11,
       "passed": 11,
@@ -62,7 +62,7 @@
     {
       "file": "apps/ai-studio/test/ipc.test.mjs",
       "log": "collected-06.tap",
-      "elapsedMs": 553,
+      "elapsedMs": 587,
       "exitCode": 0,
       "tests": 8,
       "passed": 8,
@@ -73,7 +73,7 @@
     {
       "file": "apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs",
       "log": "collected-07.tap",
-      "elapsedMs": 16406,
+      "elapsedMs": 19403,
       "exitCode": 0,
       "tests": 2,
       "passed": 2,
@@ -84,7 +84,7 @@
     {
       "file": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs",
       "log": "collected-08.tap",
-      "elapsedMs": 76806,
+      "elapsedMs": 83979,
       "exitCode": 0,
       "tests": 7,
       "passed": 7,
@@ -95,7 +95,7 @@
     {
       "file": "apps/ai-studio/test/m14-integration/ports.test.mjs",
       "log": "collected-09.tap",
-      "elapsedMs": 6095,
+      "elapsedMs": 6894,
       "exitCode": 0,
       "tests": 3,
       "passed": 3,
@@ -106,7 +106,7 @@
     {
       "file": "apps/ai-studio/test/m14-integration/preview-notification.test.mjs",
       "log": "collected-10.tap",
-      "elapsedMs": 438,
+      "elapsedMs": 373,
       "exitCode": 0,
       "tests": 2,
       "passed": 2,
@@ -117,7 +117,7 @@
     {
       "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
       "log": "collected-11.tap",
-      "elapsedMs": 38074,
+      "elapsedMs": 49066,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -128,7 +128,7 @@
     {
       "file": "apps/ai-studio/test/m14-integration/secret-scan.test.mjs",
       "log": "collected-12.tap",
-      "elapsedMs": 476,
+      "elapsedMs": 494,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -139,7 +139,7 @@
     {
       "file": "apps/ai-studio/test/plane-geometry.test.mjs",
       "log": "collected-13.tap",
-      "elapsedMs": 715,
+      "elapsedMs": 763,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -150,7 +150,7 @@
     {
       "file": "apps/ai-studio/test/project-history-electron.test.mjs",
       "log": "collected-14.tap",
-      "elapsedMs": 3300,
+      "elapsedMs": 3998,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -161,7 +161,7 @@
     {
       "file": "apps/ai-studio/test/resources/panel-electron.test.mjs",
       "log": "collected-15.tap",
-      "elapsedMs": 52615,
+      "elapsedMs": 61360,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -172,7 +172,7 @@
     {
       "file": "apps/ai-studio/test/security.test.mjs",
       "log": "collected-16.tap",
-      "elapsedMs": 425,
+      "elapsedMs": 388,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -183,7 +183,7 @@
     {
       "file": "apps/ai-studio/test/tool-batch-lifecycle.test.mjs",
       "log": "collected-17.tap",
-      "elapsedMs": 2269,
+      "elapsedMs": 2729,
       "exitCode": 0,
       "tests": 5,
       "passed": 5,
@@ -194,7 +194,7 @@
     {
       "file": "apps/ai-studio/test/tool-contract-continuation.test.mjs",
       "log": "collected-18.tap",
-      "elapsedMs": 2334,
+      "elapsedMs": 2720,
       "exitCode": 0,
       "tests": 2,
       "passed": 2,
@@ -205,7 +205,7 @@
     {
       "file": "apps/ai-studio/test/tool-discovery-invocation.test.mjs",
       "log": "collected-19.tap",
-      "elapsedMs": 2724,
+      "elapsedMs": 5216,
       "exitCode": 0,
       "tests": 2,
       "passed": 2,
@@ -216,7 +216,7 @@
     {
       "file": "packages/agent-backends/test/backends.test.mjs",
       "log": "collected-20.tap",
-      "elapsedMs": 3228,
+      "elapsedMs": 3609,
       "exitCode": 0,
       "tests": 21,
       "passed": 21,
@@ -227,7 +227,7 @@
     {
       "file": "packages/agent-orchestration/test/editor-project.test.mjs",
       "log": "collected-21.tap",
-      "elapsedMs": 1266,
+      "elapsedMs": 1442,
       "exitCode": 0,
       "tests": 8,
       "passed": 8,
@@ -238,7 +238,7 @@
     {
       "file": "packages/agent-orchestration/test/plan-policy.test.mjs",
       "log": "collected-22.tap",
-      "elapsedMs": 1453,
+      "elapsedMs": 1298,
       "exitCode": 0,
       "tests": 3,
       "passed": 3,
@@ -249,7 +249,7 @@
     {
       "file": "packages/agent-orchestration/test/project-conversation.test.mjs",
       "log": "collected-23.tap",
-      "elapsedMs": 3009,
+      "elapsedMs": 4763,
       "exitCode": 0,
       "tests": 3,
       "passed": 3,
@@ -260,7 +260,7 @@
     {
       "file": "packages/agent-runtime/test/g04-prompt-context.test.mjs",
       "log": "collected-24.tap",
-      "elapsedMs": 1542,
+      "elapsedMs": 1370,
       "exitCode": 0,
       "tests": 11,
       "passed": 11,
@@ -271,7 +271,7 @@
     {
       "file": "packages/editor-plugins/test/resources/budgets.test.mjs",
       "log": "collected-25.tap",
-      "elapsedMs": 7087,
+      "elapsedMs": 11785,
       "exitCode": 0,
       "tests": 3,
       "passed": 3,
@@ -282,7 +282,7 @@
     {
       "file": "packages/editor-plugins/test/resources/catalog.test.mjs",
       "log": "collected-26.tap",
-      "elapsedMs": 7298,
+      "elapsedMs": 10914,
       "exitCode": 0,
       "tests": 5,
       "passed": 5,
@@ -293,7 +293,7 @@
     {
       "file": "packages/editor-plugins/test/resources/lifecycle.test.mjs",
       "log": "collected-27.tap",
-      "elapsedMs": 6241,
+      "elapsedMs": 8570,
       "exitCode": 0,
       "tests": 5,
       "passed": 5,
@@ -304,7 +304,7 @@
     {
       "file": "packages/editor-plugins/test/resources/workflows.test.mjs",
       "log": "collected-28.tap",
-      "elapsedMs": 5177,
+      "elapsedMs": 6938,
       "exitCode": 0,
       "tests": 3,
       "passed": 3,
@@ -315,7 +315,7 @@
     {
       "file": "packages/game-authoring-tools/test/canvas-texture.test.mjs",
       "log": "collected-29.tap",
-      "elapsedMs": 1858,
+      "elapsedMs": 1306,
       "exitCode": 0,
       "tests": 2,
       "passed": 2,
@@ -326,7 +326,7 @@
     {
       "file": "packages/harness-bridge/test/bridge.test.mjs",
       "log": "collected-30.tap",
-      "elapsedMs": 1216,
+      "elapsedMs": 1051,
       "exitCode": 0,
       "tests": 16,
       "passed": 16,
@@ -337,7 +337,7 @@
     {
       "file": "packages/operation-log/test/project-agent-history.test.mjs",
       "log": "collected-31.tap",
-      "elapsedMs": 1120,
+      "elapsedMs": 1993,
       "exitCode": 0,
       "tests": 5,
       "passed": 5,
@@ -348,7 +348,7 @@
     {
       "file": "packages/studio-kernel/test/profile.test.mjs",
       "log": "collected-32.tap",
-      "elapsedMs": 495,
+      "elapsedMs": 415,
       "exitCode": 0,
       "tests": 4,
       "passed": 4,
@@ -359,7 +359,7 @@
     {
       "file": "packages/studio-shell/test/advanced-editor/adapter.test.mjs",
       "log": "collected-33.tap",
-      "elapsedMs": 7613,
+      "elapsedMs": 4617,
       "exitCode": 0,
       "tests": 5,
       "passed": 5,
@@ -370,7 +370,7 @@
     {
       "file": "packages/studio-shell/test/advanced-editor/boundary.test.mjs",
       "log": "collected-34.tap",
-      "elapsedMs": 414,
+      "elapsedMs": 354,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -381,7 +381,7 @@
     {
       "file": "packages/studio-shell/test/advanced-editor/lifecycle.test.mjs",
       "log": "collected-35.tap",
-      "elapsedMs": 4849,
+      "elapsedMs": 2185,
       "exitCode": 0,
       "tests": 4,
       "passed": 4,
@@ -392,7 +392,7 @@
     {
       "file": "packages/studio-shell/test/agent-history.test.mjs",
       "log": "collected-36.tap",
-      "elapsedMs": 442,
+      "elapsedMs": 398,
       "exitCode": 0,
       "tests": 5,
       "passed": 5,
@@ -403,7 +403,7 @@
     {
       "file": "packages/studio-shell/test/conversation.test.mjs",
       "log": "collected-37.tap",
-      "elapsedMs": 489,
+      "elapsedMs": 420,
       "exitCode": 0,
       "tests": 20,
       "passed": 20,
@@ -414,7 +414,7 @@
     {
       "file": "packages/studio-shell/test/execution-graph.test.mjs",
       "log": "collected-38.tap",
-      "elapsedMs": 910,
+      "elapsedMs": 560,
       "exitCode": 0,
       "tests": 6,
       "passed": 6,
@@ -425,7 +425,7 @@
     {
       "file": "packages/studio-shell/test/resources/model.test.mjs",
       "log": "collected-39.tap",
-      "elapsedMs": 4632,
+      "elapsedMs": 3899,
       "exitCode": 0,
       "tests": 1,
       "passed": 1,
@@ -436,7 +436,7 @@
     {
       "file": "scripts/test/editor-candidate-surface.test.mjs",
       "log": "collected-40.tap",
-      "elapsedMs": 585,
+      "elapsedMs": 455,
       "exitCode": 0,
       "tests": 3,
       "passed": 3,
@@ -447,7 +447,7 @@
     {
       "file": "scripts/test/orchestration-boundaries.test.mjs",
       "log": "collected-41.tap",
-      "elapsedMs": 936,
+      "elapsedMs": 837,
       "exitCode": 0,
       "tests": 3,
       "passed": 3,
