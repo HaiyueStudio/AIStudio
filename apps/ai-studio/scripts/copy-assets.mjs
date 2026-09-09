@@ -1,7 +1,10 @@
 import { copyFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 const root = path.resolve(import.meta.dirname, '..');
 await Promise.all([
+  copyFile(fileURLToPath(import.meta.resolve('@haiyue/ai-studio-shell/resources.css')), path.join(root, 'dist', 'resource-explorer.css')),
+  copyFile(fileURLToPath(import.meta.resolve('@haiyue/editor-shell/advanced-authoring.css')), path.join(root, 'dist', 'advanced-authoring.css')),
   copyFile(path.join(root, 'renderer', 'index.html'), path.join(root, 'dist', 'index.html')),
   copyFile(path.join(root, 'renderer', 'web.html'), path.join(root, 'dist', 'web.html')),
   copyFile(path.join(root, 'renderer', 'styles.css'), path.join(root, 'dist', 'styles.css')),

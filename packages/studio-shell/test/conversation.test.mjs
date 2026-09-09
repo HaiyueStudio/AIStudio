@@ -140,6 +140,37 @@ test('model controls and task cost card expose effective settings, cache savings
   assert.throws(() => validateConversationIntent({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: value.taskAccounting.budget, apiKey: 'CANARY' }), /unknown fields/i);
 });
 
+test('a connected conversation can refresh failed backend state, retain the draft and send after recovery', () => {
+  const value = snapshot([]);
+  value.backends[0] = { ...value.backends[0], state: 'error', diagnostic: { code: 'codex.request-timeout', message: '<b>Account lookup timed out</b> sk-CANARYSECRET0123456789' } };
+  const projector = new ConversationProjector(); const fake = fakeDom(); const intents = [];
+  renderChatPanel(fake.root, presentChatPanel(projector.reset(value)), intent => intents.push(intent));
+  assert.equal(fake.findButton('Send').disabled, true);
+  assert.match(fake.text(), /Agent connection is unavailable/);
+  assert.match(fake.text(), /codex.request-timeout/);
+  assert.doesNotMatch(fake.text(), /CANARYSECRET/);
+  assert.equal(fake.innerHtmlWrites, 0);
+  fake.find('.chat-composer textarea').value = '创建桌球项目';
+  fake.findButton('Refresh connection').click();
+  assert.deepEqual(intents, [{ type: 'conversation/reconnect' }]);
+  value.backends[0] = { ...value.backends[0], state: 'ready', diagnostic: undefined, models: [{ id: 'fixture-model', label: 'Fixture', reasoningEfforts: ['low'], defaultReasoningEffort: 'low', maxOutputTokens: 4096, isDefault: true }], selectedModel: 'fixture-model', selectedReasoningEffort: 'low', outputTokenLimit: 4096 };
+  renderChatPanel(fake.root, presentChatPanel(projector.reset(value)), intent => intents.push(intent));
+  assert.equal(fake.find('.chat-composer textarea').value, '创建桌球项目');
+  assert.equal(fake.findButton('Send').disabled, false);
+  fake.findButton('Send').click();
+  assert.deepEqual(intents.at(-1), { type: 'conversation/send', backendId, prompt: '创建桌球项目' });
+});
+
+test('missing login and model configuration keep sending blocked with distinct recovery instructions', () => {
+  const value = snapshot([]); const projector = new ConversationProjector();
+  for (const [state, authMode, reason] of [['auth-required', 'api-key', /Configure an API key/], ['auth-required', 'chatgpt', /Sign in with ChatGPT/], ['authenticating', 'chatgpt', /Complete sign-in/], ['ready', 'chatgpt', /No supported model/]]) {
+    value.backends[0] = { ...value.backends[0], state, authMode };
+    const model = presentChatPanel(projector.reset(value));
+    assert.equal(model.composer.canSend, false);
+    assert.match(model.composer.blockedReason, reason);
+  }
+});
+
 test('task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields', () => {
   const value = snapshot([]);
   value.taskRuns = [taskRun({

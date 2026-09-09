@@ -1,4 +1,5 @@
 import { asStableId, type StableId, type JsonObject, type TaskSpecV2 } from '@haiyue/ai-studio-contracts';
+import { EVIDENCE_ASSERTION_PATTERN, isSupportedEvidenceAssertion } from '@haiyue/ai-studio-game-authoring-tools';
 import { isRecord } from './value-utils.js';
 
 export interface ApprovedPlanExecution {
@@ -21,6 +22,7 @@ export function canonicalPlan(plan: ApprovedPlanExecution): string {
   return JSON.stringify({ title: plan.title, summary: plan.summary, items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
 }
 export const PLAN_TOOL_ID = asStableId('studio.plan.propose');
+const ASSERTION_GUIDANCE = 'Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Types: state, event-trace, runtime-errors, performance, screenshot, visual-analysis, lifecycle. Examples: evidence runtime-errors signal count equals 0; evidence state signal score gte 1; evidence state signal phase equals "ready". Signal paths must match the observation payload you will produce and inspect. Put human-readable requirements in label. Preserve each requirement when correcting its assertion; do not omit criteria to bypass validation. Bare evidence <type> checks presence only, not correctness; visual correctness requires visual-analysis evidence.';
 export const PLAN_TOOL_DEFINITION = Object.freeze({
   id: PLAN_TOOL_ID,
   description: 'Submit the complete implementation plan and machine-checkable acceptance criteria for user review before any project mutation. Include authored entities, responsibilities, scripts, dynamic state ownership, rendering strategy, and fixed evidence assertions. The result blocks until the user approves or requests a revision.',
@@ -36,11 +38,11 @@ export const PLAN_TOOL_DEFINITION = Object.freeze({
           details: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024 }),
         }),
       }) }),
-      acceptance: Object.freeze({ type: 'array', minItems: 1, maxItems: 50, items: Object.freeze({
+      acceptance: Object.freeze({ type: 'array', description: 'Fixed, machine-checkable criteria corresponding to the user requirements. Each assertion uses the evidence DSL described below; natural-language assertions are not executable.', minItems: 1, maxItems: 50, items: Object.freeze({
         type: 'object', additionalProperties: false, required: Object.freeze(['label', 'required', 'category', 'assertion']), properties: Object.freeze({
           label: Object.freeze({ type: 'string', minLength: 1, maxLength: 240 }), required: Object.freeze({ type: 'boolean' }),
           category: Object.freeze({ enum: Object.freeze(['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security']) }),
-          assertion: Object.freeze({ type: 'string', minLength: 1, maxLength: 2_000, pattern: '^evidence (state|event-trace|runtime-errors|performance|screenshot|visual-analysis|lifecycle)(?: signal [A-Za-z0-9_.-]+ (?:equals|gte|lte) .+)?$' }),
+          assertion: Object.freeze({ type: 'string', description: ASSERTION_GUIDANCE, minLength: 1, maxLength: 2_000, pattern: EVIDENCE_ASSERTION_PATTERN }),
         }),
       }) }),
     }),
@@ -63,9 +65,11 @@ export function validatePlanProposal(value: JsonObject): Readonly<{ title: strin
     ? (() => { throw new PlanProtocolError('plan.payload-invalid', 'Plan acceptance requires 1-50 criteria.'); })()
     : raw.acceptance.map((entry, index) => {
       if (!isRecord(entry) || Object.keys(entry).some((key) => !['label', 'required', 'category', 'assertion'].includes(key)) || typeof entry.label !== 'string' || !entry.label.trim() || entry.label.length > 240
-        || typeof entry.required !== 'boolean' || !['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security'].includes(String(entry.category))
-        || typeof entry.assertion !== 'string' || entry.assertion.length > 2_000 || !/^evidence (?:state|event-trace|runtime-errors|performance|screenshot|visual-analysis|lifecycle)(?: signal [A-Za-z0-9_.-]+ (?:equals|gte|lte) .+)?$/u.test(entry.assertion)) {
-        throw new PlanProtocolError('plan.payload-invalid', `Acceptance criterion ${index + 1} is invalid or not machine-checkable.`);
+        || typeof entry.required !== 'boolean' || !['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security'].includes(String(entry.category))) {
+        throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}] requires a non-empty label (up to 240 characters), required (boolean), category (functional, visual, performance, lifecycle, budget or security), and assertion; no extra fields.`);
+      }
+      if (typeof entry.assertion !== 'string' || entry.assertion.length > 2_000 || !isSupportedEvidenceAssertion(entry.assertion)) {
+        throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}].assertion is not executable (maximum 2000 characters). ${ASSERTION_GUIDANCE}`);
       }
       return Object.freeze({ label: entry.label.trim(), required: entry.required, category: entry.category as PlanAcceptanceProposal['category'], assertion: entry.assertion.trim() });
     });

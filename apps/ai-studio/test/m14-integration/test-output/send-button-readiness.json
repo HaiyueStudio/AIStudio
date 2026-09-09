@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "inputDigest": "sha256:a47ab5af8cfca9f444ccf7fda968e5e35dcf92ad744f0df5f9fb052eea8b53bb",
+  "verifiedAt": "2026-09-08T11:22:42.352Z",
+  "scope": "Read-only account/model metadata projected through the production chat presenter; no thread or turn created",
+  "state": "ready",
+  "modelCount": 6,
+  "canSend": true,
+  "blockedReason": null
+}

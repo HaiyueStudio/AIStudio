@@ -57,6 +57,9 @@ export async function executeG12ReplayProgram(control, program, options = {}) {
     await advanceTo(control, lastTick, tracker, signal);
   }
 
+  // A prefix containing only fixed inputs still has to consume those inputs.
+  // Enqueueing future down/up events is not evidence that gameplay ran.
+  if (tickInputs.length) await advanceTo(control, Math.max(...tickInputs.map(command => command.schedule.tick)), tracker, signal);
   const finalObservation = await observe(control.inspect(signal), tracker);
   if (tracker.gameplayRecordCount < 1) throw new G12ReplayProgramError('g12.gameplay-observation-missing', 'Replay completed without authoritative gameplay observations.');
   const capture = options.capture === true ? await control.capture(signal) : null;

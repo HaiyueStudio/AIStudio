@@ -30,10 +30,18 @@ export function presentChatPanel(snapshot: ConversationReadModel, now = Date.now
   const backendReady = selected?.state === 'ready' && selected.selectedModel !== null && selected.selectedReasoningEffort !== null && selected.outputTokenLimit !== null;
   return Object.freeze({
     backendId: snapshot.backendId, backends: snapshot.backends, cards,
-    composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : 'Authenticate and select a supported Agent model before sending.'), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
+    composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : backendBlockedReason(selected)), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
     connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns, executionGraphs: snapshot.executionGraphs ?? Object.freeze([]),
     ariaLive: cards.at(-1)?.body ?? (snapshot.connection === 'connected' ? 'Agent conversation ready.' : 'Agent conversation disconnected.'),
   });
+}
+
+function backendBlockedReason(backend: ConversationBackendReadModel | undefined): string {
+  if (!backend) return 'Select an Agent backend before sending.';
+  if (backend.state === 'auth-required') return backend.authMode === 'api-key' ? 'Configure an API key before sending.' : 'Sign in with ChatGPT, then refresh connection.';
+  if (backend.state === 'authenticating') return 'Complete sign-in, then refresh connection.';
+  if (backend.state !== 'ready') return 'Agent connection is unavailable. Refresh connection to retry.';
+  return 'No supported model is selected. Refresh connection to load models.';
 }
 
 export function presentConversationNode(node: ConversationNodeReadModel, now = Date.now()): ChatCardReadModel {
@@ -112,6 +120,14 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   });
   backendControls.append(backendSelect);
   const selectedBackend = model.backends.find((item) => item.id === model.backendId);
+  const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh connection';
+  refresh.addEventListener('click', () => dispatch(Object.freeze({ type: 'conversation/reconnect' })));
+  backendControls.append(refresh);
+  if (selectedBackend?.diagnostic) {
+    const diagnostic = document.createElement('p'); diagnostic.className = 'chat-backend-diagnostic'; diagnostic.setAttribute('role', 'status');
+    diagnostic.textContent = `${safeText(selectedBackend.diagnostic.code, 96)}: ${safeText(selectedBackend.diagnostic.message, 512)}`;
+    backendControls.append(diagnostic);
+  }
   if (selectedBackend?.state === 'auth-required') {
     const authenticate = document.createElement('button');
     authenticate.type = 'button'; authenticate.textContent = selectedBackend.authMode === 'api-key' ? 'Configure API key securely' : 'Sign in with ChatGPT';
@@ -216,6 +232,9 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   }
   if (model.connection !== 'connected') {
     const reconnect = document.createElement('button'); reconnect.type = 'button'; reconnect.textContent = 'Reconnect'; reconnect.addEventListener('click', () => dispatch(Object.freeze({ type: 'conversation/reconnect' }))); composer.append(reconnect);
+  } else if (!model.composer.canSend) {
+    const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Refresh connection';
+    retry.addEventListener('click', () => dispatch(Object.freeze({ type: 'conversation/reconnect' }))); composer.append(retry);
   }
   const composerStatus = document.createElement('span'); composerStatus.id = 'chat-composer-status'; composerStatus.textContent = model.composer.blockedReason ?? 'Ready to send.'; composer.append(composerStatus);
   fragment.append(composer);

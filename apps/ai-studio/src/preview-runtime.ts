@@ -78,7 +78,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
     const request = parseStartRequest(event.data);
     if (!request) { startFailed(new Error('Preview start request failed schema validation.')); return; }
     const generation = ++lifecycleGeneration;
-    void start(request.scene, request.plan, request.assets, generation, request.behavior).catch((cause) => {
+    void start(request.scene, request.plan, request.assets, generation, request.behavior, request.paused).catch((cause) => {
       if (generation !== lifecycleGeneration) return;
       stop('start-failed'); startFailed(cause);
     });
@@ -107,7 +107,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
   else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
 });
 
-async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonly PreviewAsset[], generation: number, behavior: BehaviorRuntimePlan | null): Promise<void> {
+async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonly PreviewAsset[], generation: number, behavior: BehaviorRuntimePlan | null, initiallyPaused: boolean): Promise<void> {
   if (engine) stop('restart', false);
   if (snapshot.documentId !== plan.documentId || snapshot.revision !== plan.documentRevision) throw new Error('Preview plan does not match the Scene document revision.');
   if (!snapshot.entities.some((item) => isRenderableSceneKind(item.kind))) throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
@@ -250,6 +250,9 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
     readState: readSimulationState,
   });
   removeInputListeners = installInput(canvas, actionMap);
+  // Replay control can start at tick zero without racing a cross-frame pause
+  // message. The approved plan and all simulation/input ownership stay intact.
+  if (initiallyPaused) { simulation.pause(); paused = true; }
   previousFrameTime = null;
   renderedFrame = 0;
   runtimeErrorCount = 0;
@@ -721,8 +724,10 @@ function exactKeys(value: Record<string, unknown>, allowed: readonly string[]): 
   const expected = new Set(allowed);
   return Object.keys(value).length === expected.size && Object.keys(value).every((key) => expected.has(key));
 }
-function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: SceneSnapshot; plan: PreviewPlan; assets: readonly PreviewAsset[]; behavior: BehaviorRuntimePlan | null }> | null {
-  if (!exactKeys(value, ['protocol', 'type', 'scene', 'plan', 'assets', ...(Object.hasOwn(value, 'behavior') ? ['behavior'] : [])]) || !isRecord(value.scene) || !isRecord(value.plan) || !Array.isArray(value.assets) || value.assets.length > 128) return null;
+function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: SceneSnapshot; plan: PreviewPlan; assets: readonly PreviewAsset[]; behavior: BehaviorRuntimePlan | null; paused: boolean }> | null {
+  if (!exactKeys(value, ['protocol', 'type', 'scene', 'plan', 'assets', ...(Object.hasOwn(value, 'behavior') ? ['behavior'] : []), ...(Object.hasOwn(value, 'paused') ? ['paused'] : [])])
+    || (Object.hasOwn(value, 'paused') && typeof value.paused !== 'boolean')
+    || !isRecord(value.scene) || !isRecord(value.plan) || !Array.isArray(value.assets) || value.assets.length > 128) return null;
   const rawScene = value.scene;
   const rawPlan = value.plan;
   if (typeof rawScene.documentId !== 'string' || !Number.isSafeInteger(rawScene.revision)
@@ -762,7 +767,7 @@ function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: Sc
         || behavior.components.some(c => !entities.some(entity => entity.id === c.entityId && entity.components?.some(component => component.id === c.id && component.type === c.type && component.enabled)))) return null;
     }
   } catch { return null; }
-  return Object.freeze({ scene: Object.freeze({ documentId: rawScene.documentId, revision: Number(rawScene.revision), entities: rawScene.entities as SceneEntity[], ...(camera ? { camera } : {}) }), plan: rawPlan as unknown as PreviewPlan, assets: Object.freeze(value.assets as PreviewAsset[]), behavior });
+  return Object.freeze({ scene: Object.freeze({ documentId: rawScene.documentId, revision: Number(rawScene.revision), entities: rawScene.entities as SceneEntity[], ...(camera ? { camera } : {}) }), plan: rawPlan as unknown as PreviewPlan, assets: Object.freeze(value.assets as PreviewAsset[]), behavior, paused: value.paused === true });
 }
 function isPreviewScriptPlan(value: unknown): value is PreviewScriptPlan {
   return isRecord(value) && exactKeys(value, ['scriptId', 'entityId', 'order', 'textRevision', 'digest', 'capabilities', 'diagnostics', 'emittedText'])

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { GameplaySignalTracker, awaitG12GameplayTrigger, compileG12ReplayProgram, executeG12ReplayProgram } from '../src/index.mjs';
 
 test('replay executor prequeues fixed input, runs semantic drivers and resolves observed triggers', async () => {
-  const control = previewControl({ eventAt: 4, event: 'game-over' });
+const control = previewControl({ eventAt: 4, event: 'game-over' });
   const program = compileG12ReplayProgram({ driver: 'fixed', steps: [
     { id: 'start', at: 'play-ready', action: 'press', control: 'ArrowRight', durationTicks: 1 },
     { id: 'semantic', at: 'tick:2', action: 'scripted-swap', parameters: { kind: 'creates-match' } },
@@ -15,6 +15,15 @@ test('replay executor prequeues fixed input, runs semantic drivers and resolves 
   assert.deepEqual(result.semanticDriverIds, ['scripted-swap']);
   assert.ok(result.observedSignals.includes('game-over') && result.observedSignals.includes('terminal-state'));
   assert.deepEqual(control.events.filter((entry) => entry.action === 'KeyR').map((entry) => [entry.phase, entry.tick]), [['down', 5], ['up', 6]]);
+});
+
+test('a fixed-input-only replay consumes both press and release before accepting observations', async () => {
+  const control = previewControl({ eventAt: 4, event: 'input-consumed' });
+  const program = compileG12ReplayProgram({ driver: 'fixed', steps: [{ id: 'hold', at: 'tick:2', action: 'hold', control: 'ArrowRight', durationTicks: 6 }] });
+  const result = await executeG12ReplayProgram(control, program);
+  assert.equal(result.finalTick, 8); assert.equal(control.tick(), 8);
+  assert.ok(result.observedSignals.includes('input-consumed'));
+  assert.deepEqual(control.events.map(e => [e.tick, e.phase]), [[2, 'down'], [8, 'up']]);
 });
 
 test('trigger wait consumes fixed ticks and fails closed without an authoritative event', async () => {

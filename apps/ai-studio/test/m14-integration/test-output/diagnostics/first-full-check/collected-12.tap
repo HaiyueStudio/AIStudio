@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: harness: omitted tools execute after search through the real backend adapter and retain policy/replay
+ok 1 - harness: omitted tools execute after search through the real backend adapter and retain policy/replay
+  ---
+  duration_ms: 773.5211
+  type: 'test'
+  ...
+# Subtest: codex: omitted tools execute after search through the real backend adapter and retain policy/replay
+ok 2 - codex: omitted tools execute after search through the real backend adapter and retain policy/replay
+  ---
+  duration_ms: 668.165
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2452.9599

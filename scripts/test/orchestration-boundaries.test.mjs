@@ -4,9 +4,18 @@ import { orchestrationBoundaryViolations as check } from '../orchestration-bound
 
 test('orchestration allows public service ports and local policies, but rejects platform and implementation imports', () => {
   const file = 'packages/agent-orchestration/src/host.ts';
-  for (const target of ['@haiyue/ai-studio-agent-runtime', '@haiyue/ai-studio-shell/conversation', './plan-policy.js']) assert.deepEqual(check(file, `import { value } from '${target}';`), []);
-  for (const target of ['electron', 'node:fs/promises', '@haiyue/ai-studio-editor-plugins', '@haiyue/ai-studio-agent-backends', '@haiyue/ai-studio-shell', '../../../apps/ai-studio/src/main.js']) {
+  for (const target of ['@haiyue/ai-studio-agent-runtime', '@haiyue/ai-studio-shell/conversation', '@haiyue/ai-studio-shell/advanced/model', '@haiyue/ai-studio-shell/resources/model', './plan-policy.js']) assert.deepEqual(check(file, `import { value } from '${target}';`), []);
+  for (const target of ['electron', 'node:fs/promises', '@haiyue/ai-studio-editor-plugins', '@haiyue/ai-studio-agent-backends', '@haiyue/ai-studio-shell', '@haiyue/ai-studio-shell/advanced', '@haiyue/ai-studio-shell/resources', '../../../apps/ai-studio/src/main.js']) {
     for (const statement of [`import '${target}';`, `export * from '${target}';`, `await import('${target}');`, `require('${target}');`]) assert.ok(check(file, statement).length > 0, statement);
+  }
+});
+
+test('headless editor read models cannot pull panels into orchestration', () => {
+  for (const module of ['advanced', 'resources']) {
+    const file = `packages/studio-shell/src/panels/${module}/model.ts`;
+    assert.ok(check(file, "export * from './panel.js';").length > 0);
+    assert.ok(check(file, "import 'electron';").length > 0);
+    assert.deepEqual(check(file, "import type { JsonObject } from '@haiyue/ai-studio-contracts';"), []);
   }
 });
 

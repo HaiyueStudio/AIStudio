@@ -9,3 +9,4 @@ export { migrateLegacySessions } from './legacy-session-migration.js';
 export type { LegacySessionMigrationInput, LegacySessionMigrationResult } from './legacy-session-migration.js';
 export { queryRetainedOperationEvents } from './retained-events.js';
 export * from './behavior/project.js';
+export * from './editor-project.js';

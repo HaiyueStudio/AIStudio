@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: preview commands wake their existing renderer poll owner and dispose the subscription
+ok 1 - preview commands wake their existing renderer poll owner and dispose the subscription
+  ---
+  duration_ms: 3.0354
+  type: 'test'
+  ...
+# Subtest: an already cancelled preview request rejects without leaving a pending promise or wakeup
+ok 2 - an already cancelled preview request rejects without leaving a pending promise or wakeup
+  ---
+  duration_ms: 2.5922
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 239.5809

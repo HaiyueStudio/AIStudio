@@ -7,8 +7,9 @@ const allowedImports = new Set([
   '@haiyue/ai-studio-contracts', '@haiyue/ai-studio-agent-runtime',
   '@haiyue/ai-studio-game-authoring-tools', '@haiyue/ai-studio-operation-log',
   '@haiyue/ai-studio-shell/conversation',
+  '@haiyue/ai-studio-shell/advanced/model', '@haiyue/ai-studio-shell/resources/model',
 ]);
-const allowedDependencies = new Set([...allowedImports].map((name) => name.replace('/conversation', '')));
+const allowedDependencies = new Set([...allowedImports].map((name) => name.split('/').slice(0, 2).join('/')));
 
 export function orchestrationBoundaryViolations(relative, text) {
   const violations = [];
@@ -25,6 +26,7 @@ export function orchestrationBoundaryViolations(relative, text) {
   if (!/^(?:packages|apps)\/[^/]+\/src\/.*\.[cm]?[jt]sx?$/u.test(relative)) return violations;
   const inOrchestration = relative.startsWith(`${orchestration}src/`);
   const inProjection = relative.startsWith('packages/studio-shell/src/conversation/');
+  const inEditorProjection = /^packages\/studio-shell\/src\/panels\/(?:advanced|resources)\/model\.ts$/u.test(relative);
   const source = ts.createSourceFile(relative, text, ts.ScriptTarget.Latest, true);
   const specifiers = [];
   function visit(node) {
@@ -38,6 +40,7 @@ export function orchestrationBoundaryViolations(relative, text) {
     const target = local ? path.posix.normalize(path.posix.join(path.posix.dirname(relative), specifier)) : specifier;
     if (inOrchestration && (local ? !target.startsWith(`${orchestration}src/`) : !allowedImports.has(specifier))) fail(`headless orchestration cannot import ${specifier}`);
     if (inProjection && (local ? !target.startsWith('packages/studio-shell/src/conversation/') : specifier !== '@haiyue/ai-studio-contracts')) fail(`headless conversation projections cannot import ${specifier}`);
+    if (inEditorProjection && !['@haiyue/ai-studio-contracts', '@haiyue/editor-plugin-sdk'].includes(specifier)) fail(`headless editor projections cannot import ${specifier}`);
     if (relative.startsWith('packages/') && (target.startsWith('apps/') || specifier === '@haiyue/ai-studio' || specifier.startsWith('@haiyue/ai-studio/'))) fail(`packages cannot import app code ${specifier}`);
     if (relative.startsWith('packages/') && !inOrchestration && (target.startsWith(orchestration) || specifier === packageName || specifier.startsWith(`${packageName}/`))) fail(`lower-level packages cannot import orchestration ${specifier}`);
   }

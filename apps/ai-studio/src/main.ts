@@ -26,7 +26,8 @@ import {
   StudioIpcRouter,
 } from './ipc.js';
 import { AgentPreviewBroker } from './agent-preview-broker.js';
-import { ProjectBehaviorController, ProjectConversationController, StudioSessionOrchestrator } from '@haiyue/ai-studio-agent-orchestration';
+import { ProjectBehaviorController, ProjectConversationController, ProjectEditorController, StudioSessionOrchestrator } from '@haiyue/ai-studio-agent-orchestration';
+import { createWorkspaceEditorPorts } from './editor-adapters.js';
 import { createWorkspaceBehaviorPorts } from './behavior-adapters.js';
 import { RecoveryClaimStore } from './session-orchestrator/index.js';
 import { createWorkspaceRecoveryAuthority } from './session-orchestrator/workspace-recovery.js';
@@ -45,7 +46,7 @@ const descriptor = defineEditorAppDescriptor({
   storageNamespace: 'haiyue-ai-studio-poc',
   supportTier: 'experimental',
   entries: ['main.js', 'preload.cjs', 'renderer.js', 'preview-runtime.js', 'chunks/chunk.js', 'index.html', 'styles.css', 'preview.html', 'preview.css'],
-  staticFiles: ['index.html', 'styles.css', 'preview.html', 'preview.css'],
+  staticFiles: ['index.html', 'styles.css', 'resources.css', 'advanced-authoring.css', 'preview.html', 'preview.css'],
   workers: [],
   distDirectory: 'dist',
   outputDirectory: 'release',
@@ -166,21 +167,35 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       });
       context.effects.own('conversation.dispose', () => conversation.dispose());
       await conversation.initialize();
-      const behavior = new ProjectBehaviorController(createWorkspaceBehaviorPorts(workspace, operationLog));
+      const behaviorPorts = createWorkspaceBehaviorPorts(workspace, operationLog);
+      const behavior = new ProjectBehaviorController(behaviorPorts);
       projectBehavior = behavior;
       context.effects.own('behavior.dispose', async () => { if (projectBehavior === behavior) projectBehavior = null; await behavior.dispose(); });
-      const projectHistoryChanges = workspace.subscribe(() => { behavior.syncProject(); void conversation.syncProject().catch(cause => {
+      const editor = new ProjectEditorController(createWorkspaceEditorPorts({ workspace, selection, behavior: behaviorPorts, tools: gameTools,
+        playId: () => behavior.currentPlayId(),
+        async approve(preparation, _approval, signal) {
+          const options: Electron.MessageBoxOptions = { type: 'question', title: '确认项目修改', message: preparation.preview.title,
+            detail: `${preparation.preview.summary}\n${preparation.preview.target}\n修订 ${preparation.baseRevision}\n\n${preparation.preview.diff}`,
+            buttons: ['取消', '允许此次修改'], defaultId: 0, cancelId: 0, noLink: true, signal };
+          const result = mainWindow ? await dialog.showMessageBox(mainWindow, options) : await dialog.showMessageBox(options);
+          return result.response === 1 ? 'allow-once' : 'reject';
+        },
+      }));
+      context.effects.own('editor.dispose', () => editor.dispose());
+      const projectHistoryChanges = workspace.subscribe(() => { editor.syncProject(); behavior.syncProject(); void conversation.syncProject().catch(cause => {
         void operationLog.append({ kind: 'project/history-failed', severity: 'error', source: asStableId('studio.electron'), payload: { message: errorMessage(cause) } }).catch(() => undefined);
       }); });
       context.effects.own('project-history-subscription.dispose', () => projectHistoryChanges.dispose());
       let conversationNotification: ReturnType<typeof setTimeout> | null = null;
-      const conversationChanges = conversation.subscribe(() => {
+      const notifyRenderer = (): void => {
         if (conversationNotification !== null) return;
         conversationNotification = setTimeout(() => {
           conversationNotification = null;
           if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send(STUDIO_CONVERSATION_CHANGED_CHANNEL);
         }, 50);
-      });
+      };
+      const conversationChanges = conversation.subscribe(notifyRenderer);
+      const previewChanges = agentPreview.subscribePending(notifyRenderer);
       const router = new StudioIpcRouter({
         workspace,
         scene,
@@ -189,6 +204,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         operationLog,
         conversation,
         behavior,
+        editor,
         agentPreview,
         bugBundleRoot: path.join(app.getPath('userData'), 'bug-bundles'),
         versions: Object.freeze({ app: descriptor.version, schema: 'm06-g10-v1', upstream: Object.freeze({
@@ -234,6 +250,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       ipcMain.on(STUDIO_IPC_CANCEL_CHANNEL, cancel);
       context.effects.own('electron-ipc.dispose', async () => {
         conversationChanges.dispose();
+        previewChanges.dispose();
         if (conversationNotification !== null) { clearTimeout(conversationNotification); conversationNotification = null; }
         await operationLog.append({
           kind: 'app/stopping', severity: 'info', source: asStableId('studio.electron'),

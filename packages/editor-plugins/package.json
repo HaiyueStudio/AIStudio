@@ -6,22 +6,52 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./project": { "types": "./dist/project/index.d.ts", "import": "./dist/project/index.js" },
-    "./history": { "types": "./dist/history/index.d.ts", "import": "./dist/history/index.js" },
-    "./components": { "types": "./dist/components/index.d.ts", "import": "./dist/components/index.js" },
-    "./render": { "types": "./dist/render/index.d.ts", "import": "./dist/render/index.js" },
-    "./assets": { "types": "./dist/assets/index.d.ts", "import": "./dist/assets/index.js" },
-    "./scene-authoring": { "types": "./dist/scene-authoring.d.ts", "import": "./dist/scene-authoring.js" },
-    "./camera-authoring": { "types": "./dist/camera-authoring.d.ts", "import": "./dist/camera-authoring.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./project": {
+      "types": "./dist/project/index.d.ts",
+      "import": "./dist/project/index.js"
+    },
+    "./history": {
+      "types": "./dist/history/index.d.ts",
+      "import": "./dist/history/index.js"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.js"
+    },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "import": "./dist/render/index.js"
+    },
+    "./assets": {
+      "types": "./dist/assets/index.d.ts",
+      "import": "./dist/assets/index.js"
+    },
+    "./scene-authoring": {
+      "types": "./dist/scene-authoring.d.ts",
+      "import": "./dist/scene-authoring.js"
+    },
+    "./camera-authoring": {
+      "types": "./dist/camera-authoring.d.ts",
+      "import": "./dist/camera-authoring.js"
+    },
+    "./resources": {
+      "types": "./dist/assets/resources/index.d.ts",
+      "import": "./dist/assets/resources/index.js"
+    }
   },
-  "engines": { "node": ">=22.19.0" },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prebuild": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-kernel && npm run build -w @haiyue/ai-studio-operation-log",
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "npm run build && node --test test/*.test.mjs test/resources/*.test.mjs"
   },
   "dependencies": {
     "@haiyue/ai-studio-contracts": "0.0.0",

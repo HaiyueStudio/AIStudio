@@ -91,6 +91,8 @@ export class WebStudioHost {
   private async dispatch(request: StudioIpcRequest): Promise<JsonObject> {
     const payload = request.payload as Record<string, unknown>;
     switch (request.channel) {
+      case 'editor/advanced': case 'editor/advanced-intent': case 'editor/resources': case 'editor/resource-intent': case 'editor/resource-import': case 'editor/cancel':
+        throw new WebHostError('web-editor-integration-unavailable', 'Project resource and advanced authoring services require the Electron desktop app.');
       case 'behavior/snapshot': case 'behavior/refresh': case 'behavior/explain': case 'behavior/locate':
       case 'behavior/history': case 'behavior/read': case 'behavior/capture': case 'behavior/cancel': case 'behavior/related':
         throw new Error('behavior.desktop-project-service-required');

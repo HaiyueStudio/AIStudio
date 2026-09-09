@@ -49,3 +49,17 @@ test('explicit interaction intent deterministically retains Play input', () => {
   assert.ok(selected.selectedIds.includes('play.input'));
   assert.ok(selected.selectedIds.includes('play.capture'));
 });
+
+test('complete long requests select tools without applying the short search argument limit or dropping the tail', () => {
+  const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => BUILTIN_COMPONENT_DEFINITIONS);
+  const request = '先检查当前项目并按已确认的步骤继续。'.repeat(100) + '最后用鼠标拖拽验证，并提供截图。';
+  assert.ok(request.length > 512);
+  const selected = catalog.selectDefinitions(request, [], MODEL_CORE_TOOL_IDS.length + 2);
+  for (const id of [...MODEL_CORE_TOOL_IDS, 'play.input', 'play.capture']) assert.ok(selected.selectedIds.includes(id));
+  assert.equal(selected.definitions.length, MODEL_CORE_TOOL_IDS.length + 2);
+  assert.ok(selected.selectedSchemaBytes < selected.fixedSchemaBytes);
+  assert.deepEqual(catalog.selectDefinitions(' \n\t ').selectedIds, catalog.selectDefinitions('').selectedIds);
+  assert.throws(() => catalog.search(request), /query is invalid/);
+  assert.doesNotThrow(() => catalog.search('x'.repeat(512)));
+  assert.throws(() => catalog.search('x'.repeat(513)), /query is invalid/);
+});

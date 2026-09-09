@@ -33,9 +33,9 @@ async function walk(relative, includeDistribution = false) {
 
 /** Include test helpers, schemas, build configuration and public package bytes, not just test entry names. */
 export async function inputBinding(packages) {
-  const files = (await Promise.all(['packages', 'apps', 'scripts', 'config', 'vendor'].map(p => walk(p)))).flat()
+  const files = (await Promise.all(['packages', 'apps', 'scripts', 'config', 'vendor', 'evals/src', 'evals/fixtures', 'evals/schemas', 'evals/suites', 'evals/test'].map(p => walk(p)))).flat()
     .filter(p => ![censusFile, reportFile].includes(p) && !p.includes('/test-output/') && !p.endsWith('.tsbuildinfo'));
-  files.push('package.json', 'package-lock.json', 'tsconfig.json');
+  files.push('package.json', 'package-lock.json', 'tsconfig.json', 'evals/manifest.json');
   const inputs = await Promise.all([...new Set(files)].sort().map(async p => [p, await fileDigest(p)]));
   return { algorithm: 'sha256', fileCount: inputs.length, sourceDigest: digest(inputs), packageDigest: digest(packages), digest: digest({ inputs, packages }) };
 }

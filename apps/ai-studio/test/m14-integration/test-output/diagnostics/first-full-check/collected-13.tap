@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: manual authoring uses the existing prepare / exact approval / execute path
+ok 1 - manual authoring uses the existing prepare / exact approval / execute path
+  ---
+  duration_ms: 3.7381
+  type: 'test'
+  ...
+# Subtest: revision and selection changes while awaiting approval prevent both decision and commit
+ok 2 - revision and selection changes while awaiting approval prevent both decision and commit
+  ---
+  duration_ms: 1.8735
+  type: 'test'
+  ...
+# Subtest: reopening an identical project invalidates old advanced stamps and resource tokens
+ok 3 - reopening an identical project invalidates old advanced stamps and resource tokens
+  ---
+  duration_ms: 1.0879
+  type: 'test'
+  ...
+# Subtest: cancelling or switching project during an approval never commits a late allow
+ok 4 - cancelling or switching project during an approval never commits a late allow
+  ---
+  duration_ms: 0.9653
+  type: 'test'
+  ...
+# Subtest: normalized intents cannot choose a foreign selected entity, tool or stamp extension
+ok 5 - normalized intents cannot choose a foreign selected entity, tool or stamp extension
+  ---
+  duration_ms: 0.5301
+  type: 'test'
+  ...
+# Subtest: resource actions accept only the current opaque token and main-owned binding
+ok 6 - resource actions accept only the current opaque token and main-owned binding
+  ---
+  duration_ms: 0.7387
+  type: 'test'
+  ...
+# Subtest: superseded resource queries cannot replace the newest view token
+ok 7 - superseded resource queries cannot replace the newest view token
+  ---
+  duration_ms: 0.4601
+  type: 'test'
+  ...
+# Subtest: late resource factory completion is disposed after a copied project opens
+ok 8 - late resource factory completion is disposed after a copied project opens
+  ---
+  duration_ms: 0.3158
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1045.6902

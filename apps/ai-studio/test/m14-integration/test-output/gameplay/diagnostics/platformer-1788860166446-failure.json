@@ -1,0 +1,138 @@
+{
+  "message": "AssertionError [ERR_ASSERTION]: fixed seed/input preserves observed event identities\n+ actual - expected\n\n  [\n    'jump-rejected-airborne',\n    'move-right-accepted',\n    'movement-started',\n    'movement-stopped',\n+   'player-landed',\n    'playing'\n  ]\n",
+  "runtime": {
+    "errors": [],
+    "lifecycle": [
+      {
+        "protocol": "haiyue-preview/1",
+        "type": "started",
+        "entityId": "entity:900379c1-f7d3-427c-92df-b74784b9d3c8",
+        "scriptSetDigest": "sha256:cc359c981d0e8674b3199e3212845c6b24bea39dc1e03a1040d72dfe231af832",
+        "scriptCount": 1,
+        "tickRateHz": 60,
+        "seed": "haiyue-play",
+        "physics": {
+          "state": "ready",
+          "dimensions": [],
+          "resources": {
+            "worlds": 0,
+            "bodies": 0,
+            "colliders": 0,
+            "joints": 0,
+            "activeContacts": 0
+          }
+        },
+        "renderEffects": {
+          "schemaVersion": 1,
+          "render": {
+            "renderProfile": "batched",
+            "msaaSamples": 1,
+            "clearColor": {
+              "r": 0.03,
+              "g": 0.03,
+              "b": 0.03,
+              "a": 1
+            },
+            "devicePixelRatio": 1,
+            "maxRenderPixels": 8388608
+          },
+          "viewport": {
+            "width": 640,
+            "height": 480,
+            "pixelWidth": 640,
+            "pixelHeight": 480
+          },
+          "postprocess": [],
+          "owners": {
+            "materials": 0,
+            "textures": 0,
+            "models": 0,
+            "lighting": 0,
+            "fog": 0,
+            "particles2d": 0,
+            "particles3d": 0,
+            "animations2d": 0,
+            "animations3d": 0,
+            "audio": 0,
+            "audioListeners": 0
+          },
+          "audioListener": null,
+          "device": "active"
+        },
+        "disposableCount": 0
+      },
+      {
+        "protocol": "haiyue-preview/1",
+        "type": "cleanup-complete",
+        "reason": "parent-request",
+        "disposedSideEffects": 0,
+        "disposableCount": 0
+      },
+      {
+        "protocol": "haiyue-preview/1",
+        "type": "started",
+        "entityId": "entity:900379c1-f7d3-427c-92df-b74784b9d3c8",
+        "scriptSetDigest": "sha256:cc359c981d0e8674b3199e3212845c6b24bea39dc1e03a1040d72dfe231af832",
+        "scriptCount": 1,
+        "tickRateHz": 60,
+        "seed": "haiyue-play",
+        "physics": {
+          "state": "ready",
+          "dimensions": [],
+          "resources": {
+            "worlds": 0,
+            "bodies": 0,
+            "colliders": 0,
+            "joints": 0,
+            "activeContacts": 0
+          }
+        },
+        "renderEffects": {
+          "schemaVersion": 1,
+          "render": {
+            "renderProfile": "batched",
+            "msaaSamples": 1,
+            "clearColor": {
+              "r": 0.03,
+              "g": 0.03,
+              "b": 0.03,
+              "a": 1
+            },
+            "devicePixelRatio": 1,
+            "maxRenderPixels": 8388608
+          },
+          "viewport": {
+            "width": 640,
+            "height": 480,
+            "pixelWidth": 640,
+            "pixelHeight": 480
+          },
+          "postprocess": [],
+          "owners": {
+            "materials": 0,
+            "textures": 0,
+            "models": 0,
+            "lighting": 0,
+            "fog": 0,
+            "particles2d": 0,
+            "particles3d": 0,
+            "animations2d": 0,
+            "animations3d": 0,
+            "audio": 0,
+            "audioListeners": 0
+          },
+          "audioListener": null,
+          "device": "active"
+        },
+        "disposableCount": 0
+      },
+      {
+        "protocol": "haiyue-preview/1",
+        "type": "cleanup-complete",
+        "reason": "parent-request",
+        "disposedSideEffects": 0,
+        "disposableCount": 0
+      }
+    ]
+  }
+}

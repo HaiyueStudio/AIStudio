@@ -42,6 +42,40 @@ export function json(input: unknown): JsonValue {
 export function exact(value: unknown, keys: readonly string[]): Record<string, unknown> { const v = record(value); if (Object.keys(v).length !== keys.length || keys.some(key => !Object.hasOwn(v,key))) return invalid(); return v; }
 export function stamp(source: AdvancedStudioSource): AdvancedStudioStamp { if (!source.document || !source.epoch) return invalid(); return { epoch: source.epoch, documentId: source.document.id, baseRevision: source.document.revision, selectionRevision: source.selection.revision }; }
 export function isAdvancedStudioCurrent(source: AdvancedStudioSource, expected: AdvancedStudioStamp): boolean { return source.epoch === expected.epoch && source.document?.id === expected.documentId && source.document.revision === expected.baseRevision && source.selection.revision === expected.selectionRevision; }
+
+/** Main revalidates the normalized renderer intent against its own fresh projection. */
+export function parseAdvancedStudioIntent(input: unknown, source: AdvancedStudioSource): AdvancedStudioIntent {
+  const value = record(json(input));
+  if (value.type === 'cancel') { exact(value, ['type']); return { type: 'cancel' }; }
+  const expected = exact(value.stamp, ['epoch', 'documentId', 'baseRevision', 'selectionRevision']);
+  if (!isAdvancedStudioCurrent(source, expected as unknown as AdvancedStudioStamp)) return invalid();
+  const current = stamp(source), active = source.selection.active?.id;
+  if (value.type === 'author') {
+    exact(value, ['type', 'stamp', 'toolId', 'arguments']);
+    const args = record(value.arguments);
+    if (args.baseRevision !== current.baseRevision || !active) return invalid();
+    if (['entity.rename', 'entity.hierarchy', 'component.add'].includes(String(value.toolId))) {
+      if (args.entityId !== active) return invalid();
+    } else if (value.toolId === 'component.set' || value.toolId === 'component.remove') {
+      if (!source.document?.entities.find(e => e.id === active)?.componentIds.includes(args.componentId as never)) return invalid();
+    } else if (value.toolId === 'transform.batch') {
+      if (args.action !== 'set' || !Array.isArray(args.transforms) || args.transforms.length !== 1 || record(args.transforms[0]).entityId !== active) return invalid();
+    } else return invalid();
+    return value as unknown as AdvancedStudioIntent;
+  }
+  if (value.type === 'select') {
+    exact(value, ['type', 'stamp', 'reference']);
+    if (value.reference !== null) {
+      const ref = exact(value.reference, ['kind', 'id', 'documentId']);
+      if (ref.kind !== 'scene-entity' || ref.documentId !== current.documentId || !source.document!.entities.some(e => e.id === ref.id)) return invalid();
+    }
+    return value as unknown as AdvancedStudioIntent;
+  }
+  exact(value, ['type', 'stamp']);
+  if (!['undo', 'redo', 'runtime.inspect', 'focus-selection'].includes(String(value.type)) || source.history.busy
+    || value.type === 'undo' && !source.history.canUndo || value.type === 'redo' && !source.history.canRedo) return invalid();
+  return value as unknown as AdvancedStudioIntent;
+}
 const reference = (document: NonNullable<AdvancedStudioSource['document']>, id: string) => ({ kind: 'scene-entity', id, documentId: document.id });
 const definitionFor = (source: AdvancedStudioSource, type: string, version: string) => source.definitions.find(definition => definition.type === type && definition.version === version);
 function tuple(value: JsonValue | undefined): JsonValue { const v = record(value); return [v.x,v.y,v.z] as JsonValue; }

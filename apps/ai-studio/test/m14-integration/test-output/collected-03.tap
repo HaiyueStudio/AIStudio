@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: IPC validator is versioned, allowlisted and never accepts renderer paths
+ok 1 - IPC validator is versioned, allowlisted and never accepts renderer paths
+  ---
+  duration_ms: 5.6319
+  type: 'test'
+  ...
+# Subtest: scene IPC exposes immutable JSON projections and routes typed intents through shared services
+ok 2 - scene IPC exposes immutable JSON projections and routes typed intents through shared services
+  ---
+  duration_ms: 12.4181
+  type: 'test'
+  ...
+# Subtest: new-project IPC stays untitled until first save selects a directory
+ok 3 - new-project IPC stays untitled until first save selects a directory
+  ---
+  duration_ms: 1.7215
+  type: 'test'
+  ...
+# Subtest: project replacement clears project-scoped Agent work without cancelling a dismissed picker
+ok 4 - project replacement clears project-scoped Agent work without cancelling a dismissed picker
+  ---
+  duration_ms: 1.2251
+  type: 'test'
+  ...
+# Subtest: history IPC is project-bound, paged and preserves complete structured details
+ok 5 - history IPC is project-bound, paged and preserves complete structured details
+  ---
+  duration_ms: 1.3826
+  type: 'test'
+  ...
+# Subtest: project IPC drains the old conversation before Document replacement and relocates on first save
+ok 6 - project IPC drains the old conversation before Document replacement and relocates on first save
+  ---
+  duration_ms: 2.3151
+  type: 'test'
+  ...
+# Subtest: script preview IPC discloses risk before one-shot code delivery and logs no source text
+ok 7 - script preview IPC discloses risk before one-shot code delivery and logs no source text
+  ---
+  duration_ms: 1.6731
+  type: 'test'
+  ...
+# Subtest: cancel and renderer disposal invalidate late IPC responses
+ok 8 - cancel and renderer disposal invalidate late IPC responses
+  ---
+  duration_ms: 1.6741
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 313.7676

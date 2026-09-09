@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "baselineTick": 2,
+  "namedFlows": {
+    "snake": ["direction-input-accepted", "direction-input-rejected-opposite"],
+    "match-3": ["tile-selected", "invalid-swap-restored"],
+    "falling-blocks": [],
+    "jigsaw": ["game-started", "reshuffle-accepted"],
+    "platformer": ["move-right-accepted", "jump-rejected-airborne"],
+    "racing": ["accelerate-accepted", "brake-accepted"],
+    "shooter": ["fire-request-accepted", "fire-request-rejected"]
+  },
+  "stateFlows": {
+    "falling-blocks": [
+      { "name": "input-moves-piece-left", "tick": 1, "condition": "left && !collides(s.piece.type, s.piece.rot, s.piece.x - 1, s.piece.y)", "observation": "tetris.state", "path": ["piece","x"], "before": 3, "after": 2 },
+      { "name": "input-rotates-piece", "tick": 3, "condition": "rot", "observation": "tetris.state", "path": ["piece","rot"], "before": 0, "after": 1 }
+    ]
+  },
+  "scope": "G09 short fixed input flows against isolated copies of preserved M12 projects; original M12 suite and evidence remain unchanged",
+  "cases": {
+    "snake": [[1,"action","ArrowLeft","down"],[2,"action","ArrowLeft","up"],[3,"action","ArrowUp","down"],[4,"action","ArrowUp","up"]],
+    "match-3": [[1,"pointer",0.23,0.19,"down"],[2,"pointer",0.23,0.19,"up"],[3,"pointer",0.31,0.19,"down"],[4,"pointer",0.31,0.19,"up"]],
+    "falling-blocks": [[1,"action","ArrowLeft","down"],[2,"action","ArrowLeft","up"],[3,"action","ArrowUp","down"],[4,"action","ArrowUp","up"],[5,"action","Space","down"],[6,"action","Space","up"]],
+    "jigsaw": [[1,"pointer",0.01,0.01,"down"],[2,"pointer",0.01,0.01,"up"],[3,"pointer",0.9,0.09,"down"],[4,"pointer",0.9,0.09,"up"]],
+    "platformer": [[1,"action","ArrowRight","down"],[2,"action","ArrowRight","up"],[3,"action","Space","down"],[4,"action","Space","up"]],
+    "racing": [[1,"action","ArrowUp","down"],[2,"action","ArrowUp","up"],[3,"action","ArrowDown","down"],[4,"action","ArrowDown","up"]],
+    "shooter": [[1,"action","Space","down"],[2,"action","Space","up"],[3,"action","Space","down"],[4,"action","Space","up"]]
+  }
+}

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
+import path from 'node:path';
 import { PlayObservationRepository } from '@haiyue/ai-studio-game-authoring-tools';
 import { fixture } from './fixture.mjs';
 import { adaptAdvancedStudioIntent, projectAdvancedStudio, isAdvancedStudioCurrent } from '../../dist/panels/advanced/index.js';
@@ -12,7 +14,7 @@ test('actual M12 document and registry project complete hierarchy, components an
   assert.equal(view.capabilities.multiSelection,false);assert.equal(view.runtime.status,'stopped');
   const unknown=projectAdvancedStudio({...source,definitions:[]});assert.ok(unknown.sections.every(section=>!section.editable));assert.equal(unknown.gizmo.enabled,false);
   const closed=projectAdvancedStudio({...source,document:null,selection:{revision:source.selection.revision+1,active:null,items:[]}});assert.equal(closed.binding,null);assert.deepEqual(closed.additions,[]);assert.deepEqual(closed.hierarchy,[]);assert.deepEqual(closed.sections,[]);
-  const output=new URL('../../../../apps/ai-studio/test/advanced-editor/test-output/',import.meta.url);await mkdir(output,{recursive:true});await writeFile(new URL('studio-view.json',output),JSON.stringify(view,null,2));
+  const output=pathToFileURL(path.join(process.env.HAIYUE_M14_G09_OUTPUT ?? f.directory,'advanced')+path.sep);await mkdir(output,{recursive:true});await writeFile(new URL('studio-view.json',output),JSON.stringify(view,null,2));
 });
 
 test('manual component edits, rename, hierarchy and Transform use actual tools and exactly one existing History transaction each',async t=>{

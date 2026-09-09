@@ -1,0 +1,66 @@
+{
+  "message": "AssertionError [ERR_ASSERTION]: need two observed named gameplay events with executed source sites; found 1, signals direction-input-accepted, direction-input-rejected-opposite, game-started, playing, trace 10000",
+  "runtime": {
+    "errors": [],
+    "lifecycle": [
+      {
+        "protocol": "haiyue-preview/1",
+        "type": "started",
+        "entityId": "entity:cca2d02b-f347-4665-9bb6-b2e927e862a9",
+        "scriptSetDigest": "sha256:f6c00893febb0e0addc26b937d2b397abfe973232ba6e2eef7c60cd1d43c9377",
+        "scriptCount": 1,
+        "tickRateHz": 60,
+        "seed": "haiyue-play",
+        "physics": {
+          "state": "ready",
+          "dimensions": [],
+          "resources": {
+            "worlds": 0,
+            "bodies": 0,
+            "colliders": 0,
+            "joints": 0,
+            "activeContacts": 0
+          }
+        },
+        "renderEffects": {
+          "schemaVersion": 1,
+          "render": {
+            "renderProfile": "batched",
+            "msaaSamples": 1,
+            "clearColor": {
+              "r": 0.03,
+              "g": 0.03,
+              "b": 0.03,
+              "a": 1
+            },
+            "devicePixelRatio": 1,
+            "maxRenderPixels": 8388608
+          },
+          "viewport": {
+            "width": 640,
+            "height": 480,
+            "pixelWidth": 640,
+            "pixelHeight": 480
+          },
+          "postprocess": [],
+          "owners": {
+            "materials": 0,
+            "textures": 0,
+            "models": 0,
+            "lighting": 0,
+            "fog": 0,
+            "particles2d": 0,
+            "particles3d": 0,
+            "animations2d": 0,
+            "animations3d": 0,
+            "audio": 0,
+            "audioListeners": 0
+          },
+          "audioListener": null,
+          "device": "active"
+        },
+        "disposableCount": 0
+      }
+    ]
+  }
+}

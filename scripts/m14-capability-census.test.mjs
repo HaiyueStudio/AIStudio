@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readJson, recordValidator, validateAdmission, validateScope, checkReport, localPath, collectPackages, collectRegistries, digest, scopeFile, sourcesFile } from './m14-capability-census.mjs';
+import { readJson, recordValidator, validateAdmission, validateScope, checkReport, localPath, collectPackages, collectRegistries, inputBinding, digest, scopeFile, sourcesFile } from './m14-capability-census.mjs';
+import { writeFile, unlink } from 'node:fs/promises';
 
 const fixtures = await readJson('config/contracts/fixtures/m14-capability-contract-cases.json');
 const validate = await recordValidator();
@@ -57,4 +58,16 @@ test('first-release rejects third blockers, new domains, absent adapters, missin
 
 test('evidence paths cannot escape the repository', () => {
   for (const p of ['../outside', 'D:/outside', '/outside', 'packages/../../outside', 'packages\\outside']) assert.throws(() => localPath(p));
+});
+
+test('replay support fixtures participate in the complete verification input binding', async () => {
+  const filename = localPath(`evals/fixtures/m14-binding-${crypto.randomUUID()}.json`);
+  const packages = await collectPackages(), before = await inputBinding(packages);
+  try {
+    await writeFile(filename, '{"replaySupport":1}', { flag: 'wx' });
+    const added = await inputBinding(packages); assert.equal(added.fileCount, before.fileCount + 1); assert.notEqual(added.digest, before.digest);
+    await writeFile(filename, '{"replaySupport":2}');
+    assert.notEqual((await inputBinding(packages)).digest, added.digest);
+  } finally { await unlink(filename); }
+  assert.equal((await inputBinding(packages)).digest, before.digest);
 });

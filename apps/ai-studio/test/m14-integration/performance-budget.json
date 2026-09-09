@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "frozenAt": "2026-09-08",
+  "scope": "G09 production window; limits fixed before measurement",
+  "machine": { "platform": "win32", "release": "10.0.19045", "arch": "x64", "cpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz", "logicalCpus": 8 },
+  "entities": 1000,
+  "scripts": 200,
+  "maxOpenMs": 15000,
+  "maxInteractionMs": 2000,
+  "maxResourceQueryMs": 5000,
+  "maxRendererHeapBytes": 268435456,
+  "maxRendererWorkingSetKiB": 524288,
+  "maxRendererHeapGrowthBytesAfterFiveMounts": 33554432,
+  "maxVisibleTreeRows": 50,
+  "maxResourceProjectionBytes": 524288
+}

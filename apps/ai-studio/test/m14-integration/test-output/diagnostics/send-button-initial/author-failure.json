@@ -1,0 +1,6 @@
+{
+  "phase": "author",
+  "error": "Error: Timed out: product ready\n{\"dataset\":{\"status\":\"loading\",\"theme\":\"dark\",\"language\":\"zh-CN\",\"startupStage\":\"services\",\"splitLayout\":\"ready\",\"workspaceMode\":\"intent\",\"workspaceNarrow\":\"false\",\"workspaceReady\":\"true\"},\"status\":\"AIStudio 仍在启动，请稍候…\",\"resources\":\"尚未打开项目。\"}",
+  "checks": [],
+  "approvals": []
+}

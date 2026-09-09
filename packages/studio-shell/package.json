@@ -6,21 +6,48 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./conversation": { "types": "./dist/conversation/index.d.ts", "import": "./dist/conversation/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./conversation": {
+      "types": "./dist/conversation/index.d.ts",
+      "import": "./dist/conversation/index.js"
+    },
+    "./resources": {
+      "types": "./dist/panels/resources/index.d.ts",
+      "import": "./dist/panels/resources/index.js"
+    },
+    "./resources.css": "./dist/panels/resources/resources.css",
+    "./advanced": {
+      "types": "./dist/panels/advanced/index.d.ts",
+      "import": "./dist/panels/advanced/index.js"
+    },
+    "./advanced/model": {
+      "types": "./dist/panels/advanced/model.d.ts",
+      "import": "./dist/panels/advanced/model.js"
+    },
+    "./resources/model": {
+      "types": "./dist/panels/resources/model.d.ts",
+      "import": "./dist/panels/resources/model.js"
+    }
   },
-  "engines": { "node": ">=22.19.0" },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prebuild": "npm run build -w @haiyue/ai-studio-contracts",
-    "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "test": "npm run build && node --test test/*.test.mjs test/resources/*.test.mjs test/advanced-editor/*.test.mjs"
   },
-  "dependencies": { "@haiyue/ai-studio-contracts": "0.0.0" },
+  "dependencies": {
+    "@haiyue/ai-studio-contracts": "0.0.0"
+  },
   "peerDependencies": {
     "@haiyue/editor-app-kit": "0.1.0",
-    "@haiyue/editor-shell": "0.1.0",
+    "@haiyue/editor-shell": "0.1.1",
     "@haiyue/editor-plugin-sdk": "0.1.0"
   }
 }

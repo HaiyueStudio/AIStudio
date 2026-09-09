@@ -1,0 +1,85 @@
+{
+  "inputDigest": "sha256:687de80b0be445980abb88efb843eb77ecd6ee7aac5ace835a6f35edf5174207",
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/capability-capture.log",
+      "sha256": "a6e005e11c5bd107335402c9fbc9e4fa19cb1730d45174192a5c0a957bc61d38",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/capability-capture.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/root-check.log",
+      "sha256": "87f91a298454e04355612fa799c969a4c1fbff6b8807bea52c11f423fdde581e",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/root-check.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "2cae85b5cb94a5c69ac62eb5929c5ca140843ac3b3de7ee30b722430da6fb7f7",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/collected-tests.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/editor-candidate-source.json",
+      "sha256": "d61dc05bdfcf4d8de23c4c3937bd762b1031c4515dfe8892b305b939dec1e1b0",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/editor-candidate-source.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/replay-source-binding.json",
+      "sha256": "16168fd7d7c9c9f2b880a4e449458abedb5b5fb39c713efb5507065b03f09ce3",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/replay-source-binding.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
+      "sha256": "1b5008e96ec601035e224a46c25cb94f9121bded631ef6e38990247eb19ea334",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/product/secret-scan.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+      "sha256": "7c36080aa70cfefd64a8a7a6e166d7d61f3124b3c5356340d7dd261d1e792d34",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/product/author/author.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
+      "sha256": "440d22cc38b47ea51642f68be25092bff718358fd3a096c815a51a10d056f200",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/product/restart/restart.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
+      "sha256": "59c6847f94bb95ef97153f414e99b78eec3f38b1def4ddb7d092a06431c66bb9",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/product/large/large.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
+      "sha256": "99502aa2ae9f8bf1989b4a5180b08627d9d42b65d67d99596d4821395c0b3e95",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/gameplay/snake.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
+      "sha256": "de1e8898e68cdae6534804daf42d5edf682375512b2da15f1cef53e948c83ead",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/gameplay/match-3.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
+      "sha256": "e4c8d186b1ffd34b8f9536a746a0ce3e153edf4eb96bb9a25cd5956fd1f7302e",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/gameplay/falling-blocks.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
+      "sha256": "d45bb0448768d26e9ccf92e66356b05e482a424de0e3a32c4e050d1db91cdd8d",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/gameplay/jigsaw.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
+      "sha256": "0db94de9210152903e36178e3856888890e5c2e13a6c120ca35133693f390088",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/gameplay/platformer.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
+      "sha256": "198c09b5a7ba4cddcf8462968bb5cafe97f03c9a20f0c9202781dcd6754b1688",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/gameplay/racing.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
+      "sha256": "c24f6dc66a5b6efb36ad5dbff4f77814ba9d8d3a101631b809b3c8ab856885c5",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-send-button-fix/gameplay/shooter.json"
+    }
+  ]
+}

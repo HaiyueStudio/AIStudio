@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: G10 conversation host runs typed tools through scoped approval and replay
+ok 1 - G10 conversation host runs typed tools through scoped approval and replay
+  ---
+  duration_ms: 46.329
+  type: 'test'
+  ...
+# Subtest: an approved plan that ends without edits continues once and executes without asking for the same plan again
+ok 2 - an approved plan that ends without edits continues once and executes without asking for the same plan again
+  ---
+  duration_ms: 13.4221
+  type: 'test'
+  ...
+# Subtest: plan review pauses hard wall time so a user can return later, approve, and continue editing
+ok 3 - plan review pauses hard wall time so a user can return later, approve, and continue editing
+  ---
+  duration_ms: 174.4672
+  type: 'test'
+  ...
+# Subtest: cancelling while a plan is pending terminalizes the plan so the composer can recover
+ok 4 - cancelling while a plan is pending terminalizes the plan so the composer can recover
+  ---
+  duration_ms: 15.0069
+  type: 'test'
+  ...
+# Subtest: composer queues a new message while a plan barrier waits and supersedes only the live wait
+ok 5 - composer queues a new message while a plan barrier waits and supersedes only the live wait
+  ---
+  duration_ms: 28.1371
+  type: 'test'
+  ...
+# Subtest: project Run prefers a current controller script over an incidentally selected board script
+ok 6 - project Run prefers a current controller script over an incidentally selected board script
+  ---
+  duration_ms: 0.5371
+  type: 'test'
+  ...
+# Subtest: G10 conversation host gives project-missing turns recovery instructions that work across independent turns
+ok 7 - G10 conversation host gives project-missing turns recovery instructions that work across independent turns
+  ---
+  duration_ms: 6.5591
+  type: 'test'
+  ...
+# Subtest: hard task budget releases the live tool call and continues in a fresh turn after a bounded user grant
+ok 8 - hard task budget releases the live tool call and continues in a fresh turn after a bounded user grant
+  ---
+  duration_ms: 12.5579
+  type: 'test'
+  ...
+# Subtest: declining a budget continuation stops without rolling back completed tool output
+ok 9 - declining a budget continuation stops without rolling back completed tool output
+  ---
+  duration_ms: 10.9774
+  type: 'test'
+  ...
+# Subtest: G10 renderer preview broker uses one pending command and rejects stale acknowledgements
+ok 10 - G10 renderer preview broker uses one pending command and rejects stale acknowledgements
+  ---
+  duration_ms: 1.6843
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1393.6467

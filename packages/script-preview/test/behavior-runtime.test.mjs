@@ -114,7 +114,7 @@ test('actual declarative result snapshots map timers, rules and state to config 
 test('bounded captures, rejected values, exact approved text and clock reset are explicit', () => {
   const f = fixture('for (let i=0;i<6000;i++) Math.sin(i);');
   f.recorder.beginTick(10, 3); f.run(...args({}));
-  assert.equal(f.recorder.snapshot().events.length, 10000); assert.ok(f.recorder.snapshot().truncation.omittedAtLeast > 0);
+  assert.ok(f.recorder.snapshot().events.length < 10000); assert.ok(f.recorder.snapshot().truncation.omittedAtLeast > 0);
   f.recorder.beginTick(0, 0); assert.equal(f.recorder.snapshot().closed, true);
   const g = fixture('return 1;');
   g.recorder.captureDeclarative({ tick: 0, observations: [], password: 'not-recorded-secret' }, true);
@@ -124,6 +124,29 @@ test('bounded captures, rejected values, exact approved text and clock reset are
   assert.equal(hot(...args({})), 2); assert.equal(g.recorder.snapshot().closed, true);
   assert.throws(() => createBehaviorRuntimePlan(g.input, g.manifest, { playId: 'play:test', generation: 1, scripts: [{ scriptId: 'script:main', emittedText: 'return 2;' }] }), /approved-text/);
   const bad = clone(g.plan); bad.nodes[0].entityId = 'entity:wrong'; assert.throws(() => parseBehaviorRuntimePlan(bad), /runtime-node/);
+});
+
+test('repetitive sites leave room for later events without rewriting captures or inventing full counts', () => {
+  const f = fixture('for (let i=0;i<6000;i++) api.work(); if (api.flag) api.later();');
+  let work = 0, later = 0;
+  const api = { flag: false, work() { work++; }, later() { later++; } };
+  f.recorder.beginTick(1, 1); f.run(...args(api));
+  const first = f.recorder.snapshot();
+  assert.equal(work, 6000); assert.equal(later, 0);
+  const repeated = f.manifest.nodes.find(n => n.kind === 'call' && f.input.document.scripts[0].source.slice(n.source.range.start, n.source.range.end) === 'api.work()');
+  assert.equal(first.events.filter(e => e.nodeId === repeated.id && e.kind === 'node-enter').length, 8);
+  assert.deepEqual(first.truncation.reasons, ['events']); assert.ok(first.truncation.omittedAtLeast > 10000);
+  api.flag = true; f.recorder.beginTick(2, 2); f.run(...args(api));
+  const second = f.recorder.snapshot();
+  assert.equal(work, 12000); assert.equal(later, 1);
+  assert.deepEqual(second.events.slice(0, first.events.length), first.events);
+  assert.ok(second.events.some(e => e.tick === 2 && e.kind === 'node-exit' && e.durationMicros !== null));
+  assert.ok(executedSource(f, 'node-enter').includes('api.later()'));
+  assert.ok(second.events.some((e, i) => i && e.sequence > second.events[i - 1].sequence + 1));
+  for (let tick = 3; tick <= 300; tick++) { f.recorder.beginTick(tick, tick); f.run(...args(api)); }
+  const bounded = f.recorder.snapshot(); assert.equal(bounded.events.length, 10000);
+  assert.ok(Buffer.byteLength(JSON.stringify(bounded)) <= 4 * 1024 * 1024);
+  assert.ok(bounded.truncation.omittedAtLeast > second.truncation.omittedAtLeast);
 });
 
 test('trusted ingress seals actual captures into the existing observation contract and rejects rewritten or foreign ownership', () => {

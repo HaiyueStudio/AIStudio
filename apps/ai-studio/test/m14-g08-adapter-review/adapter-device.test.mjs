@@ -10,7 +10,7 @@ import { PreviewAuthorizationService, hasDeclarativeGameplay, createBehaviorRunt
 import { behaviorFixture, execute } from '../../../../packages/game-authoring-tools/test/behavior-fixture.mjs';
 import { createWorkspaceBehaviorPorts } from '../../dist/behavior-adapters.js';
 
-const output = fileURLToPath(new URL('./test-output/', import.meta.url));
+const output = process.env.HAIYUE_M14_G09_OUTPUT ? path.join(process.env.HAIYUE_M14_G09_OUTPUT, 'adapter-review') : fileURLToPath(new URL('./test-output/', import.meta.url));
 for (const mixed of [false, true]) test(`G08 ${mixed ? 'mixed' : 'zero-script'}: authorized production iframe, provenance, runtime and teardown`, { timeout: 100000 }, async t => {
   const f = await behaviorFixture({ declarative: true, noSource: true, script: mixed ? 'if (time > 10) Math.sin(time);' : '' });
   let authorization, ports;

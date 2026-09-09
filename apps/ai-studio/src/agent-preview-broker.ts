@@ -38,6 +38,13 @@ export class AgentPreviewBroker implements GamePreviewControl {
   private latest: PreviewRuntimeSnapshot = STOPPED;
   private sequence = 0;
   private disposed = false;
+  private readonly listeners = new Set<() => void>();
+
+  subscribePending(listener: () => void): Readonly<{ dispose(): void }> {
+    if (this.disposed) throw new Error('Agent preview broker is disposed.');
+    this.listeners.add(listener);
+    return { dispose: () => { this.listeners.delete(listener); } };
+  }
 
   start(scene: SceneSnapshot, plan: PreviewPlan, signal?: AbortSignal): Promise<PreviewRuntimeSnapshot> {
     return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'start', scene, plan }), signal).then((value) => value as PreviewRuntimeSnapshot);
@@ -80,6 +87,7 @@ export class AgentPreviewBroker implements GamePreviewControl {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.listeners.clear();
     this.cancelPending('Agent preview broker disposed.');
   }
 
@@ -99,7 +107,7 @@ export class AgentPreviewBroker implements GamePreviewControl {
         this.pending = null;
         reject(signal?.reason ?? new Error('Agent preview command cancelled.'));
       };
-      if (signal?.aborted) { abort(); return; }
+      if (signal?.aborted) { reject(signal.reason ?? new Error('Agent preview command cancelled.')); return; }
       signal?.addEventListener('abort', abort, { once: true });
       this.pending = Object.freeze({
         command,
@@ -107,6 +115,7 @@ export class AgentPreviewBroker implements GamePreviewControl {
         reject,
         unlink: () => signal?.removeEventListener('abort', abort),
       });
+      for (const listener of this.listeners) listener();
     });
   }
 

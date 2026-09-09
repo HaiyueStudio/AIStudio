@@ -10,8 +10,15 @@
       "tarball": "vendor/haiyue-editor-plugin-sdk-0.1.0.tgz",
       "tarballSha256": "168f290ca44bcd579c0cdf5ef15820c90151d83d10137f20eb141d1f0c613a1b",
       "integrity": "sha512-ZT43u4tgcda4SdKaRZhxxm4HsusEyvjn43uItj/HaeWcujOgRpgTdtWBYZP7Y2Ee6lBH1k4mI0DMZ4kH51kLxA==",
-      "requiredExports": ["."],
-      "requiredRuntimeExports": ["EDITOR_PLUGIN_API_VERSION", "createEditorServiceToken", "defineEditorPlugin", "defineEditorProduct"]
+      "requiredExports": [
+        "."
+      ],
+      "requiredRuntimeExports": [
+        "EDITOR_PLUGIN_API_VERSION",
+        "createEditorServiceToken",
+        "defineEditorPlugin",
+        "defineEditorProduct"
+      ]
     },
     {
       "name": "@haiyue/editor-platform",
@@ -20,19 +27,114 @@
       "tarball": "vendor/haiyue-editor-platform-0.1.0.tgz",
       "tarballSha256": "f49d60b5c3cc26f8a9c6a9448b72c67af894cc360c5e8011c8497d3e2ed593e7",
       "integrity": "sha512-LXHtWGYIbOz/ju9ZUzFcD5bZnGbqazJspU7e8rfTt0vbQjZwwdD6gqsD6N0iBw4mPaiuEg0P6yNdHj6UCywbyg==",
-      "requiredExports": [".", "./conformance"],
-      "requiredRuntimeExports": ["EditorDocumentHost", "EditorHistoryService", "EditorSelectionService", "EditorTaskCoordinator"],
-      "requiredConformanceExports": ["runEditorPluginConformance", "runEditorDocumentConformance"]
+      "requiredExports": [
+        ".",
+        "./conformance"
+      ],
+      "requiredRuntimeExports": [
+        "EditorDocumentHost",
+        "EditorHistoryService",
+        "EditorSelectionService",
+        "EditorTaskCoordinator"
+      ],
+      "requiredConformanceExports": [
+        "runEditorPluginConformance",
+        "runEditorDocumentConformance"
+      ]
     },
     {
       "name": "@haiyue/editor-shell",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "license": "MIT",
-      "tarball": "vendor/haiyue-editor-shell-0.1.0.tgz",
-      "tarballSha256": "7fb97069d33a7181986af4735dd58857ddae7a324dc583f82eea44faf66d296e",
-      "integrity": "sha512-vuP8CNiAAVN1V+l8K3KOTKvX/Ky+zRjOyqWG5WCDhCX5+S5D1y3d2ZT5QuLsS4BqAwWfuNpTi2PbGJ8YXb0MNg==",
-      "requiredExports": ["."],
-      "requiredRuntimeExports": ["BrowserEditorShell", "EditorLazyPluginLoader", "registerHistoryShortcuts"]
+      "tarball": "vendor/haiyue-editor-shell-0.1.1.tgz",
+      "tarballSha256": "b051f6e9afcd1efce1c06a6ad2958e8d219b59548ab3614ae511f9b8f81cd0e5",
+      "integrity": "sha512-RqAU5zkbDsl2jdRFv9iv7CvTrWq2VONjcouaZtqOGNouqrx53oywI20D4/BcgMwfFTfu1dmUlGhkNOGknC9npA==",
+      "requiredExports": [
+        ".",
+        "./advanced-authoring",
+        "./advanced-authoring.css"
+      ],
+      "requiredRuntimeExports": [
+        "BrowserEditorShell",
+        "EditorLazyPluginLoader",
+        "registerHistoryShortcuts"
+      ],
+      "requiredSubpathExports": {
+        "advanced-authoring": [
+          "ADVANCED_AUTHORING_API_VERSION",
+          "parseAdvancedAuthoringView",
+          "mountAdvancedAuthoring"
+        ]
+      },
+      "requiredStylesheets": {
+        "advanced-authoring.css": "41f480a89508c2aeb14c05e3aab7d5d989903118d7ad221bbce2679db672b4b3"
+      },
+      "provenance": {
+        "milestone": "m14-ai-native-intent-graph-editor",
+        "goal": "g09-ai-native-editor-integration-acceptance",
+        "sourceRevision": "8aa1dbae92cfcf9f6853e51e2ae6f25a583a3dd3",
+        "sourceDirty": true,
+        "sourceFilesDigest": "4cae674d8d1e7505cdca77854f4693d1c5041e522730dce65d7420b20ed7aaaa",
+        "sourceFiles": [
+          {
+            "path": "editor-shell/package.json",
+            "sha256": "1b99bcd14cb670512c59bc8985122133fd5150beeb2f766c7eb2c9c72c92bb9d"
+          },
+          {
+            "path": "editor-shell/README.md",
+            "sha256": "daed674939f7e9167c638c8374916893d7fc94aa4517ddcce57727471fb01cda"
+          },
+          {
+            "path": "editor-shell/scripts/copy-assets.mjs",
+            "sha256": "302ea6e10a2bde323a9a0d8776f15f46cb2e4c03e2f4b25c08d39af2ea259346"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/advanced-authoring.css",
+            "sha256": "41f480a89508c2aeb14c05e3aab7d5d989903118d7ad221bbce2679db672b4b3"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/gizmo.ts",
+            "sha256": "f01727e166724c977bbe506131402625a89bc599daa1ae3bab2bf2e0d6bd6785"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/hierarchy.ts",
+            "sha256": "41ce1aa6fb5a5e5e824d8c383fabb12083a9a70287839f01881f3aeb78fd8633"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/index.ts",
+            "sha256": "d4c7c5ed151fdaf3807dbcfdd45348a5a78dd4f7854df26e94e11c1aa28c1c1c"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/panel.ts",
+            "sha256": "a6c9a0b7434cff04c616f944c8bd425c56581445a8f2ecbd9c296723ce825364"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/transform.ts",
+            "sha256": "10bb5db89a4cb9321e5a0b54ae66b24c14f1c420f86bba01a4cd5904f67298cf"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/types.ts",
+            "sha256": "005e6c69109d07b3efa51edf7b30ed3fef30947b45a9e7a826c0f97e58280940"
+          },
+          {
+            "path": "editor-shell/src/advanced-authoring/validation.ts",
+            "sha256": "f85f6ed79d5ec9bb0915b579f3b38d22c322619492becd38cab73ecd80e3d9b6"
+          },
+          {
+            "path": "editor-shell/src/index.ts",
+            "sha256": "b106c6d229f5105fc7d2d999e80effabce4fb78917af096b57dd1771a0f727e6"
+          },
+          {
+            "path": "editor-shell/tsconfig.json",
+            "sha256": "9fe366eedcbf23a8d1513c185e044b24b179e55f9068b66b617e597b7ab1d821"
+          },
+          {
+            "path": "package-lock.json",
+            "sha256": "d0104470643a1c35aae77b549ddaad49d50cfc31552cb8d2df0a0359ffc753bc"
+          }
+        ],
+        "sourceFilesDigestAlgorithm": "sha256-json-source-files-v1"
+      }
     },
     {
       "name": "@haiyue/editor-app-kit",
@@ -41,9 +143,20 @@
       "tarball": "vendor/haiyue-editor-app-kit-0.1.0.tgz",
       "tarballSha256": "50f0e8c62aec4a67d220666bf27fde90aa3bdce00faffeb70a389e05d914d912",
       "integrity": "sha512-Ng19nu1aftNGG+154RHL0BwruXj74PTG5Fk99pdAjNA0K9aiy0DgwPz41coNI2XrdveRBEZHI0PCOhQRHJVMUw==",
-      "requiredExports": [".", "./node"],
-      "requiredRuntimeExports": ["defineEditorAppDescriptor", "validateEditorAppDescriptor"]
+      "requiredExports": [
+        ".",
+        "./node"
+      ],
+      "requiredRuntimeExports": [
+        "defineEditorAppDescriptor",
+        "validateEditorAppDescriptor"
+      ]
     }
   ],
-  "forbiddenRuntimeExports": ["EditorStore", "World", "GPUDevice", "HTMLElement"]
+  "forbiddenRuntimeExports": [
+    "EditorStore",
+    "World",
+    "GPUDevice",
+    "HTMLElement"
+  ]
 }

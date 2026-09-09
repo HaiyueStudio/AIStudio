@@ -47,6 +47,7 @@ export class ProjectBehaviorController {
 
   constructor(private readonly ports: ProjectBehaviorPorts) { this.syncProject(); }
   snapshot(): BehaviorProjectSnapshot { return Object.freeze({ project: this.identity, state: this.state, manifest: this.manifest, explanation: this.explanation, artifacts: this.artifacts, diagnostic: this.diagnostic, trace: this.trace, traceStatus: this.traceStatus }); }
+  currentPlayId(): string | null { const play = this.activePlay ? this.plays.get(this.activePlay) : null; return play && !play.closed ? play.playId : null; }
   subscribe(listener: () => void): Readonly<{ dispose(): void }> { this.assertOpen(); this.listeners.add(listener); return Object.freeze({ dispose: () => { this.listeners.delete(listener); } }); }
 
   /** Called by the existing workspace subscription. Selection-only changes keep analysis. */

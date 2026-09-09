@@ -88,9 +88,18 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
       const account = await this.request('account/read', { refreshToken: false }, signal);
       if (!isRecord(account) || typeof account.requiresOpenaiAuth !== 'boolean') throw this.protocol('codex.account-malformed', 'Codex returned malformed account status.');
       let rateLimits: readonly AgentRateLimitSnapshot[] = Object.freeze([]);
+      let diagnostic: AgentBackendStatus['diagnostic'];
       if (account.account) {
-        const rates = await this.request('account/rateLimits/read', {}, signal);
-        rateLimits = this.captureRateLimits(rates, true);
+        let rates: unknown;
+        try { rates = await this.request('account/rateLimits/read', {}, signal, Math.min(this.options.requestTimeoutMs ?? 30_000, 2_000)); }
+        catch (cause) {
+          const failure = normalizeBackendFailure(cause);
+          // Optional usage metadata must not invalidate a successful account check.
+          // Authentication, protocol and process failures still block the backend.
+          if (!failure.retryable || signal?.aborted || this.disposed) throw cause;
+          diagnostic = Object.freeze({ code: 'codex.rate-limits-unavailable', message: 'Usage limits are temporarily unavailable. Refresh connection to retry.', retryable: true });
+        }
+        if (!diagnostic) rateLimits = this.captureRateLimits(rates, true);
       }
       const accountValue = isRecord(account.account) ? account.account : undefined;
       return Object.freeze({
@@ -98,6 +107,7 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
         authMode: accountValue?.type === 'apiKey' ? 'api-key' : 'chatgpt',
         ...(typeof accountValue?.planType === 'string' ? { accountPlan: accountValue.planType } : {}),
         rateLimits,
+        ...(diagnostic ? { diagnostic } : {}),
       });
     } catch (cause) {
       const failure = normalizeBackendFailure(cause);
@@ -342,14 +352,14 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
     await this.notify('initialized', {});
   }
 
-  private async request(method: string, params: JsonObject, signal?: AbortSignal): Promise<unknown> {
+  private async request(method: string, params: JsonObject, signal?: AbortSignal, timeoutMs = this.options.requestTimeoutMs ?? 30_000): Promise<unknown> {
     if (!this.transport) throw this.protocol('codex.transport-unavailable', 'Codex transport is unavailable.');
     if (signal?.aborted) throw signal.reason;
     const id = this.nextId++; const pending = deferred<unknown>(); this.pending.set(id, pending);
     const abort = (): void => { if (this.pending.delete(id)) pending.reject(signal?.reason); };
     const timeout = setTimeout(() => {
       if (this.pending.delete(id)) pending.reject(Object.assign(this.protocol('codex.request-timeout', `Codex App Server did not answer ${method} within the request deadline.`), { status: 504 }));
-    }, this.options.requestTimeoutMs ?? 30_000);
+    }, timeoutMs);
     timeout.unref?.();
     signal?.addEventListener('abort', abort, { once: true });
     try { await this.transport.write(JSON.stringify({ id, method, params })); return await pending.promise; }

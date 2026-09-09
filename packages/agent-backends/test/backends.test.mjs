@@ -220,6 +220,42 @@ test('Codex normalizes 401 and 429 request failures to terminal auth/rate-limit 
   }
 });
 
+test('temporary usage lookup failure preserves verified login and can recover without starting a turn', async () => {
+  const transport = new FakeCodexTransport({ rateLimitsError: 503 });
+  const backend = new CodexAppServerBackend({ transport });
+  try {
+    const status = await backend.status();
+    assert.equal(status.state, 'ready');
+    assert.deepEqual(status.rateLimits, []);
+    assert.equal(status.diagnostic.code, 'codex.rate-limits-unavailable');
+    assert.ok((await backend.modelCatalog()).models.length > 0);
+    transport.options.rateLimitsError = undefined;
+    const recovered = await backend.status();
+    assert.equal(recovered.state, 'ready');
+    assert.equal(recovered.diagnostic, undefined);
+    assert.equal(recovered.rateLimits[0].usedPercent, 12);
+    transport.options.rateLimitsError = 401;
+    assert.equal((await backend.status()).state, 'auth-required');
+    assert.ok(transport.requests.every(request => !['thread/start', 'turn/start'].includes(request.method)));
+  } finally { await backend.dispose(); }
+});
+
+test('unresponsive optional usage metadata cannot consume the full login readiness deadline', async () => {
+  const transport = new FakeCodexTransport({ rateLimitsNoResponse: true });
+  const backend = new CodexAppServerBackend({ transport });
+  // The fake transport has no process handle to keep Node alive while the owned timer runs.
+  const keepAlive = setInterval(() => {}, 100);
+  try {
+    const started = performance.now();
+    const status = await backend.status();
+    assert.equal(status.state, 'ready');
+    assert.equal(status.diagnostic.code, 'codex.rate-limits-unavailable');
+    assert.ok(performance.now() - started < 5000, 'Optional metadata must not hold startup for the 30-second RPC deadline.');
+    assert.ok((await backend.modelCatalog()).models.length > 0);
+    assert.ok(transport.requests.every(request => !['thread/start', 'turn/start'].includes(request.method)));
+  } finally { clearInterval(keepAlive); await backend.dispose(); }
+});
+
 test('Codex 5xx and unresponsive RPCs become retryable terminal failures', async () => {
   const unavailable = new CodexAppServerBackend({ transport: new FakeCodexTransport({ threadStartError: 503 }), isolatedCwd: 'D:\\isolated-ai-studio' });
   const unavailableEvents = await collect(unavailable.startTurn(input));
@@ -322,7 +358,7 @@ class FakeCodexTransport {
     if (!('id' in frame)) return; this.requests.push(frame);
     if (frame.method === 'initialize') this.result(frame.id, { userAgent: 'fixture', codexHome: 'D:\\fixture', platformFamily: 'windows', platformOs: 'windows' });
     else if (frame.method === 'account/read') this.result(frame.id, { account: this.options.authRequired ? null : { type: 'chatgpt', email: null, planType: 'plus' }, requiresOpenaiAuth: true });
-    else if (frame.method === 'account/rateLimits/read') this.result(frame.id, this.options.malformedRateLimits ? { rateLimits: { primary: { usedPercent: 'invalid' } }, rateLimitsByLimitId: null } : { rateLimits: { limitId: 'codex', limitName: 'Codex', primary: { usedPercent: 12, resetsAt: 1_800_000_000 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: 'plus', rateLimitReachedType: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null });
+    else if (frame.method === 'account/rateLimits/read') { if (this.options.rateLimitsNoResponse) return; if (this.options.rateLimitsError) this.error(frame.id, this.options.rateLimitsError, `HTTP ${this.options.rateLimitsError}`); else this.result(frame.id, this.options.malformedRateLimits ? { rateLimits: { primary: { usedPercent: 'invalid' } }, rateLimitsByLimitId: null } : { rateLimits: { limitId: 'codex', limitName: 'Codex', primary: { usedPercent: 12, resetsAt: 1_800_000_000 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: 'plus', rateLimitReachedType: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null }); }
     else if (frame.method === 'account/login/start') this.result(frame.id, frame.params.type === 'chatgptDeviceCode' ? { type: 'chatgptDeviceCode', loginId: 'login:device', verificationUrl: 'https://example.invalid/device', userCode: 'ABCD-EFGH' } : { type: 'chatgpt', loginId: 'login:1', authUrl: 'https://example.invalid/login' });
     else if (frame.method === 'account/logout') this.result(frame.id, {});
     else if (frame.method === 'model/list') this.result(frame.id, this.options.malformedCatalog ? { data: [{ model: 'drifted' }] } : { data: [{ id: 'gpt-5.6-sol', model: 'gpt-5.6-sol', displayName: 'GPT-5.6 Sol', description: 'fixture', hidden: false, isDefault: true, defaultReasoningEffort: 'high', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: 'low' }, { reasoningEffort: 'medium', description: 'medium' }, { reasoningEffort: 'high', description: 'high' }, { reasoningEffort: 'xhigh', description: 'xhigh' }] }], nextCursor: null });

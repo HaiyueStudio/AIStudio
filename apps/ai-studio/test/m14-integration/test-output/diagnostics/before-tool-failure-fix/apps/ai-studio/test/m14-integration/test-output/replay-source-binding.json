@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "scope": "Independent replay support binding, now also included in the complete capability and integration input digest",
+  "capturedBeforeGameplayChecks": true,
+  "verifiedAfterChecks": true,
+  "digest": "4b1bab9630ee45b4a778cac48ef8b28fbc833fbd689bd694c1b70baac7e7d100",
+  "inputs": [
+    {
+      "path": "evals/fixtures/reference-evidence-v1.json",
+      "sha256": "e9bfe38a93c2e757743b8a574e1bb09c4fee60c5fe9549c164bcaf9a1428f285"
+    },
+    {
+      "path": "evals/schemas/evaluation-report-v1.schema.json",
+      "sha256": "9036095c78f337d1e443548e18f405db0939fee0fe2a10d3922493c1e38befde"
+    },
+    {
+      "path": "evals/src/canonical.mjs",
+      "sha256": "1436522c3ed19e90947dab0c63f3cfbaf01fde2bca37c2c502e1df4672e8ebf1"
+    },
+    {
+      "path": "evals/src/evidence.mjs",
+      "sha256": "bc78a2aa647350e9988c0ad69449d5c38cbdb2d07ab002c755f94b866c3af8d9"
+    },
+    {
+      "path": "evals/src/fixtures.mjs",
+      "sha256": "78a40f1ac6509fd31f77acd6d8d8c82b2d5638bf8e39c71cf5dbe571f64fbc3b"
+    },
+    {
+      "path": "evals/src/g12-acceptance.mjs",
+      "sha256": "337961ea29bd006ac0cdea4bfa45025cd524bddfa0366f43ddb8bb0dddf6240c"
+    },
+    {
+      "path": "evals/src/g12-evidence-analysis.mjs",
+      "sha256": "22b45f6ddbf3f1c78ae3b07c7a1d3bceaa325d357b6437935bd47fa6073dcef5"
+    },
+    {
+      "path": "evals/src/g12-gameplay-contract.mjs",
+      "sha256": "3d687517c0bbda2516874abc755f5a33192991b639c6b412f1972061f00433a7"
+    },
+    {
+      "path": "evals/src/g12-gameplay-telemetry.mjs",
+      "sha256": "4f7f76f19dda9247e64242c2331f3c2ed247670c3767c4a9c04324defc36f280"
+    },
+    {
+      "path": "evals/src/g12-replay-executor.mjs",
+      "sha256": "f03301a9fbb83867395c9e5d9b40549446bb324548c5ed64391ab8910ebf6ba2"
+    },
+    {
+      "path": "evals/src/g12-replay-program.mjs",
+      "sha256": "3af9f580b4c28ff4cf168c374ab4ed3ba0196b80899845050179baf5889633f7"
+    },
+    {
+      "path": "evals/src/g12-semantic-drivers.mjs",
+      "sha256": "77c8c97ee13b4f487a214593cc00e89a38aa42048a45d1236881e795b5d2c39a"
+    },
+    {
+      "path": "evals/src/index.mjs",
+      "sha256": "ae362c35fe1eac8c0f2929f260a2f1f1482f515a21332aa419fb9a23f42088f2"
+    },
+    {
+      "path": "evals/src/m13-g10-retrieval-eval.mjs",
+      "sha256": "0af75e25318119735b4d94163092dc6d05055072ce95f2662793ecf5f19412b9"
+    },
+    {
+      "path": "evals/src/oracle.mjs",
+      "sha256": "296964a4fd228f7120e2ec0c4f436a6d85c06353afd06a5af8834f4ff52e8ee3"
+    },
+    {
+      "path": "evals/src/prompt-isolation.mjs",
+      "sha256": "fdbd25bbbcbf24915c595dedfd479be939aecc8f3e313989face15d65ff11d97"
+    },
+    {
+      "path": "evals/src/report-codec.mjs",
+      "sha256": "23e0f0e96e3024a22fd9e3638ef8960ad2fdbcb35bfeb033f98b9e67fba79bec"
+    },
+    {
+      "path": "evals/src/runner.mjs",
+      "sha256": "896f3997dcc1888002136eeceb0b1a8c66e26311bb6e44b8524fc052abb685fb"
+    },
+    {
+      "path": "evals/src/suite-loader.mjs",
+      "sha256": "43b3a94c28f0cbd20c865e2c9556c23edd701f5ba25afa16ff19009528ab0f40"
+    },
+    {
+      "path": "evals/suites/game-agent-evaluation-v1.json",
+      "sha256": "0843a2c4b028bfb53f186436a3595fa7aaabb9f9b09218da66ce0310178d6f24"
+    },
+    {
+      "path": "evals/suites/game-agent-evaluation-v1.oracle.json",
+      "sha256": "9e00ccf4e48bf26b6cec9b012f16704d3f00d024c9a8dc1f0ec7038402d2d60e"
+    },
+    {
+      "path": "evals/suites/game-agent-evaluation-v1.schema.json",
+      "sha256": "18a62e2a9354b06da2e4e9d1d2bdf8fbd9d0658dae11eb5d0bb382ab618b7ce4"
+    },
+    {
+      "path": "evals/suites/m13-g10-seven-game-retrieval.json",
+      "sha256": "3849928f5dcc1c381abae7b5ea170ee87ba355795adbbfcde8492ca8aeeefa0a"
+    },
+    {
+      "path": "evals/test/evaluation-suite.test.mjs",
+      "sha256": "9cb71d66c813385683654e3c9c86aad9aa3494471f32b86aabaea45935195b83"
+    },
+    {
+      "path": "evals/test/g12-acceptance.test.mjs",
+      "sha256": "299d9c00fa072073635497ad054e57c2ca5de95c8a84b052c472752c34371e44"
+    },
+    {
+      "path": "evals/test/g12-evidence-analysis.test.mjs",
+      "sha256": "443f1869be51b3f5424126396ad6dd173da909d73ea1f9df8c4a61351967a4d3"
+    },
+    {
+      "path": "evals/test/g12-gameplay-contract.test.mjs",
+      "sha256": "b5a28e007af96d381c4e97ded1345022ddb68f6d302880d587b4fe4d30628189"
+    },
+    {
+      "path": "evals/test/g12-real-runner.test.mjs",
+      "sha256": "e4df5641747003563cfd9a4d1ed2223aa1748633c2b4555e5adff7ccd8e44707"
+    },
+    {
+      "path": "evals/test/g12-replay-executor.test.mjs",
+      "sha256": "613c5c1fc74b23b3e6ee5f8aae59fbb16ba6107446159679ededb6befe4c5dba"
+    },
+    {
+      "path": "evals/test/g12-replay-program.test.mjs",
+      "sha256": "57f18b644de38a6826b3e754ce14f3226ed5c9d3aa400ce0ec1912e112c2df37"
+    },
+    {
+      "path": "evals/test/g12-semantic-drivers.test.mjs",
+      "sha256": "cb52bba99f101217809e2c13a0b27ec34fa5bca7233f1473682fe68b86d2e28d"
+    },
+    {
+      "path": "evals/test/isolation.test.mjs",
+      "sha256": "ba2402f6eccb552e7010f89ed888b3d2eec9ac73481dbf3328cd0290f6fe32b2"
+    },
+    {
+      "path": "evals/test/m13-g10-retrieval.test.mjs",
+      "sha256": "6309953bda016853dea3842582ffad66c40e49a5f202d760e8f12f19576c5b8e"
+    },
+    {
+      "path": "evals/test/runner.test.mjs",
+      "sha256": "c83f8b95cc2c738f38fe00c110793de350fee84804f7464dba11fbc460a74887"
+    }
+  ]
+}

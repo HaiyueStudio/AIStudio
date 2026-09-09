@@ -59,12 +59,17 @@ export class ToolCatalogRuntime {
   search(text: string, options: Readonly<{ limit?: number; includeSchemas?: boolean }> = {}): readonly ToolCatalogMatch[] {
     const query = text.trim(); const limit = options.limit ?? 12;
     if (!query || query.length > 512 || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new TypeError('Tool catalog query is invalid.');
+    return this.rank(query, limit, options.includeSchemas ?? false);
+  }
+
+  // Internal task selection receives complete prompts and approved plans, not bounded tool.search arguments.
+  private rank(query: string, limit: number, includeSchemas: boolean): readonly ToolCatalogMatch[] {
     const queryTokens = new Set(tokenize(query)); const queryVector = this.embedding.embed(query);
     const toolMatches = this.tools.map((definition) => {
       const group = capabilityGroup(`${definition.id} ${definition.requiredCapabilities.join(' ')}`);
       const candidate = `${definition.id} ${definition.title} ${definition.description} ${definition.requiredCapabilities.join(' ')} ${group.aliases.join(' ')}`;
       const score = semanticScore(query.toLocaleLowerCase(), queryTokens, queryVector, candidate, this.embedding);
-      return Object.freeze({ kind: 'tool' as const, id: definition.id, title: definition.title, capabilityGroup: group.id, score, reason: reason(score, group.id), nextTool: definition.id, effect: definition.effect, risk: definition.risk, version: definition.version, requiresApproval: definition.requiresApproval, ...(options.includeSchemas ? { inputSchema: definition.inputSchema, invocation: Object.freeze({ tool: MODEL_TOOL_INVOKE_DEFINITION.id, toolId: definition.id, toolVersion: definition.version }) } : {}) });
+      return Object.freeze({ kind: 'tool' as const, id: definition.id, title: definition.title, capabilityGroup: group.id, score, reason: reason(score, group.id), nextTool: definition.id, effect: definition.effect, risk: definition.risk, version: definition.version, requiresApproval: definition.requiresApproval, ...(includeSchemas ? { inputSchema: definition.inputSchema, invocation: Object.freeze({ tool: MODEL_TOOL_INVOKE_DEFINITION.id, toolId: definition.id, toolVersion: definition.version }) } : {}) });
     });
     const componentMatches = this.components().map((definition) => {
       const group = capabilityGroup(`${definition.type} ${definition.capability} ${definition.editor.category}`);
@@ -80,7 +85,7 @@ export class ToolCatalogRuntime {
     const selected = new Set<StableId>(MODEL_CORE_TOOL_IDS.filter((id) => this.byId.has(id)));
     for (const id of expandedIds) if (this.byId.has(id)) selected.add(id);
     for (const id of explicitIntentToolIds(request)) if (this.byId.has(id) && selected.size < limit) selected.add(id);
-    for (const match of this.search(request || 'project inspect', { limit: Math.max(limit, 24) })) if (match.kind === 'tool' && selected.size < limit) selected.add(match.id);
+    for (const match of this.rank(request.trim() || 'project inspect', Math.max(limit, 24), false)) if (match.kind === 'tool' && selected.size < limit) selected.add(match.id);
     const definitions = Object.freeze(this.tools.filter((definition) => selected.has(definition.id)));
     const fixedSchemaBytes = this.tools.reduce((sum, definition) => sum + schemaBytes(definition), 0);
     const selectedSchemaBytes = definitions.reduce((sum, definition) => sum + schemaBytes(definition), 0);

@@ -8,6 +8,7 @@ import electronPath from 'electron';
 import { DurableSessionRuntime, TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
+import { GAME_AUTHORING_TOOL_DEFINITIONS, ToolCatalogRuntime } from '@haiyue/ai-studio-game-authoring-tools';
 
 const backendId = 'backend:g07-barrier';
 const sessionId = 'session:g07-barrier';
@@ -65,14 +66,17 @@ test('trusted script and runtime start barriers survive a real Electron process 
   }
 });
 
-test('durable plan barrier releases the provider call and continues in a fresh turn after approval', async () => {
+test('a long durable plan releases the provider call and selects real catalog tools for its approved continuation', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g07-provider-release-'));
   const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
   const sessions = new DurableSessionRuntime(log);
   let host;
   try {
     const runtime = providerReleaseRuntime(sessions);
-    host = new StudioConversationHost({ runtime, tools: { definitions: () => [] }, operationLog: log, sessionRecovery: { async recover() {} }, projectContext: () => ({ projectId: 'project:g07-release', documentId: 'document:g07-release', revision: 1, name: 'Release fixture', dirty: false, selectedEntityId: null, sceneDigest: `sha256:${'2'.repeat(64)}`, scriptDigest: `sha256:${'3'.repeat(64)}`, capabilityDigest: `sha256:${'4'.repeat(64)}`, capabilityManifest: {}, projectSummary: {} }) });
+    const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => []);
+    const selectedRequests = [];
+    const tools = { definitions: () => GAME_AUTHORING_TOOL_DEFINITIONS, selectDefinitions(request) { selectedRequests.push(request); return catalog.selectDefinitions(request); } };
+    host = new StudioConversationHost({ runtime, tools, operationLog: log, sessionRecovery: { async recover() {} }, projectContext: () => ({ projectId: 'project:g07-release', documentId: 'document:g07-release', revision: 1, name: 'Release fixture', dirty: false, selectedEntityId: null, sceneDigest: `sha256:${'2'.repeat(64)}`, scriptDigest: `sha256:${'3'.repeat(64)}`, capabilityDigest: `sha256:${'4'.repeat(64)}`, capabilityManifest: {}, projectSummary: {} }) });
     await host.initialize();
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create a durable plan and wait for approval.' });
     await waitFor(() => host.replay().busy === false && runtime.activeCalls === 0 && host.replay().events.some((event) => event.node.kind === 'plan' && event.node.status === 'pending'));
@@ -83,6 +87,11 @@ test('durable plan barrier releases the provider call and continues in a fresh t
     await waitFor(() => runtime.startCalls === 2);
     await waitFor(() => host.replay().busy === false);
     assert.equal(runtime.maxActiveCalls, 1);
+    assert.ok(selectedRequests.at(-1).length > 512);
+    assert.match(selectedRequests.at(-1), /already approved plan/);
+    assert.match(selectedRequests.at(-1), /pointer input and screenshot evidence/);
+    for (const id of ['project.snapshot', 'tool.search', 'play.input', 'play.capture']) assert.ok(runtime.inputs[1].tools.some(tool => tool.id === id));
+    assert.equal(host.replay().events.some(event => event.node.kind === 'diagnostic' && event.node.content.code === 'conversation.operation-failed'), false);
     assert.equal(host.replay().events.some((event) => event.node.id === pending.id && event.node.status === 'completed'), true);
     const replay = await sessions.replay(sessionId);
     assert.deepEqual(replay.recovery.unresolvedBarrierIds, []);
@@ -165,7 +174,7 @@ function runtimeFixture(sessions) {
 
 function providerReleaseRuntime(sessions) {
   const usage = new UsageLedgerStore(); const accounting = new TaskAccountingRegistry(usage); const profile = { id: 'prompt:g07-release', version: '1.0.0', digest: `sha256:${'5'.repeat(64)}`, modules: [] };
-  const runtime = { activeCalls: 0, maxActiveCalls: 0, startCalls: 0, cancelCalls: 0, submitted: [], sessions, usage, accounting };
+  const runtime = { activeCalls: 0, maxActiveCalls: 0, startCalls: 0, cancelCalls: 0, submitted: [], inputs: [], sessions, usage, accounting };
   let releaseFirst;
   const firstReleased = new Promise((resolve) => { releaseFirst = resolve; });
   const backend = { descriptor: { id: backendId, kind: 'codex-app-server', protocolVersion: 'fixture', capabilities: {} }, async modelCatalog() { return { schemaVersion: 1, backendId, protocolVersion: 'fixture', source: 'fixture', models: [{ id: 'fixture-model', label: 'Fixture', description: 'Fixture', reasoningEfforts: ['high'], defaultReasoningEffort: 'high', maxOutputTokens: 4096, isDefault: true }] }; }, async status() { return { state: 'ready', authMode: 'none', rateLimits: [] }; }, async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async dispose() {}, async answerQuestion() {}, async resolveBackendApproval() {}, async submitToolResult(toolCallId, result) { runtime.submitted.push({ toolCallId, result }); releaseFirst(); } };
@@ -173,11 +182,12 @@ function providerReleaseRuntime(sessions) {
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     context: { prompts: { profile }, async commit() {}, async prepare({ request }) { return { prompt: request, promptDigest: `sha256:${'6'.repeat(64)}`, promptProfile: profile, contextArtifactIds: [], contextDigest: `sha256:${'7'.repeat(64)}`, cache: { localArtifactHits: 0, localArtifactMisses: 0, deltaReuseBytes: 0, providerCacheEligibleBytes: 0, providerReportedHitTokens: null } }; } },
     turns: {
-      async *start() {
+      async *start(_backendId, input) {
+        runtime.inputs.push(input);
         runtime.startCalls += 1; runtime.activeCalls += 1; runtime.maxActiveCalls = Math.max(runtime.maxActiveCalls, runtime.activeCalls);
         try {
           if (runtime.startCalls === 1) {
-            yield { schemaVersion: 1, backendId, sessionId, turnId, kind: 'tool-request', payload: { toolCallId: 'call:g07-release-plan', toolId: 'studio.plan.propose', arguments: { title: 'Durable release plan', summary: 'Create a plan that releases the provider while the user is away.', items: [{ label: 'Continue safely', details: 'Resume in a fresh bounded turn after approval.' }] } } };
+            yield { schemaVersion: 1, backendId, sessionId, turnId, kind: 'tool-request', payload: { toolCallId: 'call:g07-release-plan', toolId: 'studio.plan.propose', arguments: { title: 'Durable release plan', summary: 'Create a plan that releases the provider while the user is away.', items: [{ label: 'Continue safely', details: 'Resume in a fresh bounded turn after approval. '.repeat(16) + 'Use pointer input and screenshot evidence.' }], acceptance: [{ label: 'No runtime errors', required: true, category: 'functional', assertion: 'evidence runtime-errors signal count equals 0' }] } } };
             await firstReleased;
             yield { schemaVersion: 1, backendId, sessionId, turnId, kind: 'completed', payload: { status: 'cancelled' } };
           } else yield { schemaVersion: 1, backendId, sessionId, turnId: 'turn:g07-release-continuation', kind: 'completed', payload: { status: 'completed' } };

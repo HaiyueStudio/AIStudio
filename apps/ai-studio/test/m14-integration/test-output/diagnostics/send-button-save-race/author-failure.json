@@ -1,0 +1,28 @@
+{
+  "phase": "author",
+  "error": "TypeError: Cannot read properties of undefined (reading 'id')",
+  "checks": [
+    "resource template creates through production IPC and original tool",
+    "public rename exact approval and shared undo/redo",
+    "explicit rejection leaves document unchanged",
+    "native pointer Gizmo commits once through transform.batch",
+    "real accessibility tree"
+  ],
+  "approvals": [
+    {
+      "title": "Rename entity",
+      "detail": "Rename Cone to Integrated geometry.\nentity:782e4aab-9c50-4c93-bdc6-b674aa3fbce5\n修订 2\n\n- Cone\n+ Integrated geometry",
+      "decision": "allow-once"
+    },
+    {
+      "title": "Rename entity",
+      "detail": "Rename Integrated geometry to Rejected change.\nentity:782e4aab-9c50-4c93-bdc6-b674aa3fbce5\n修订 5\n\n- Integrated geometry\n+ Rejected change",
+      "decision": "reject"
+    },
+    {
+      "title": "Batch spatial transform",
+      "detail": "set 1 entities in one History transaction.\ndocument:6f71e142-840f-4e05-9e50-4565df43eeab\n修订 5\n\nset · 1 entities",
+      "decision": "allow-once"
+    }
+  ]
+}

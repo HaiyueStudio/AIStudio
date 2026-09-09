@@ -12,7 +12,7 @@ import type {
   TransformSnapshot,
 } from '@haiyue/ai-studio-editor-plugins';
 import type { AgentPreviewBroker } from './agent-preview-broker.js';
-import type { ProjectBehaviorController, ProjectConversationController, StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
+import type { ProjectBehaviorController, ProjectConversationController, ProjectEditorController, StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 export const STUDIO_IPC_CHANNEL = 'studio:request' as const;
 export const STUDIO_IPC_CANCEL_CHANNEL = 'studio:cancel' as const;
@@ -48,6 +48,7 @@ export type StudioIpcMethod =
   | 'preview/agent-result'
   | 'behavior/snapshot' | 'behavior/refresh' | 'behavior/explain' | 'behavior/locate'
   | 'behavior/history' | 'behavior/read' | 'behavior/capture' | 'behavior/cancel' | 'behavior/related'
+  | 'editor/advanced' | 'editor/advanced-intent' | 'editor/resources' | 'editor/resource-intent' | 'editor/resource-import' | 'editor/cancel'
   | 'conversation/replay'
   | 'conversation/intent'
   | 'conversation/history'
@@ -80,6 +81,7 @@ export interface StudioIpcRouterOptions {
   readonly conversation: Pick<StudioConversationHost, 'dispatch' | 'replay' | 'cancelPending'> & Partial<Pick<ProjectConversationController, 'prepareProjectChange' | 'syncProject' | 'queryHistory' | 'readHistory'>>;
   readonly agentPreview: AgentPreviewBroker;
   readonly behavior?: ProjectBehaviorController;
+  readonly editor?: ProjectEditorController;
   readonly bugBundleRoot: string;
   readonly versions: Readonly<{ app: string; schema: string; upstream: Readonly<Record<string, string>> }>;
   readonly selectProjectRoot: (purpose: 'open' | 'save') => Promise<string | null>;
@@ -144,6 +146,7 @@ export class StudioIpcRouter {
     this.options.conversation.cancelPending();
     this.options.agentPreview.cancelPending();
     this.options.behavior?.cancel();
+    this.options.editor?.cancel();
   }
 
   get activeCount(): number { return this.active.size; }
@@ -278,6 +281,12 @@ export class StudioIpcRouter {
         return Object.freeze({ recorded: true });
       }
       case 'conversation/replay': return toJson(this.options.conversation.replay());
+      case 'editor/advanced': return toJson(this.requireEditor().snapshotAdvanced());
+      case 'editor/advanced-intent': return this.requireEditor().dispatchAdvanced(request.payload.intent, signal);
+      case 'editor/resources': return toJson(await this.requireEditor().queryResources(request.payload, signal));
+      case 'editor/resource-intent': return this.requireEditor().dispatchResource(request.payload.intent, signal);
+      case 'editor/resource-import': return this.requireEditor().importResource(request.payload.viewToken, request.payload.details as JsonObject, signal);
+      case 'editor/cancel': this.requireEditor().cancel(); return { cancelled: true };
       case 'behavior/snapshot': return toJson(this.requireBehavior().snapshot());
       case 'behavior/refresh': {
         await this.options.conversation.syncProject?.();
@@ -325,6 +334,7 @@ export class StudioIpcRouter {
   }
 
   private cancelProjectAgentState(reason: string): void {
+    this.options.editor?.replaceProject();
     this.options.conversation.cancelPending(reason);
     this.options.agentPreview.cancelPending();
     this.options.behavior?.cancel();
@@ -332,6 +342,10 @@ export class StudioIpcRouter {
   private requireBehavior(): ProjectBehaviorController {
     const behavior = this.options.behavior; if (!behavior) throw new Error('behavior.service-unavailable');
     behavior.syncProject(); return behavior;
+  }
+  private requireEditor(): ProjectEditorController {
+    if (!this.options.editor) throw new Error('editor.service-unavailable');
+    return this.options.editor;
   }
   private async observedPlan(plan: PreviewPlan, request: StudioIpcRequest, signal: AbortSignal): Promise<JsonObject> {
     if (!this.options.behavior) return toJson(plan);
@@ -438,6 +452,17 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
       throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/agent-result payload is invalid.');
     }
   }
+  else if (channel === 'editor/advanced-intent' || channel === 'editor/resource-intent') {
+    requireShape(payload, keys, ['intent'], { intent: 'json' });
+    if (!isRecord(payload.intent)) throw new IpcDiagnosticError('ipc-payload-rejected', 'Editor intent is invalid.');
+  }
+  else if (channel === 'editor/resources') {
+    requireAllowedShape(payload, keys, [], ['text', 'category', 'kind', 'status', 'unused', 'cursor', 'limit']);
+  }
+  else if (channel === 'editor/resource-import') {
+    requireShape(payload, keys, ['viewToken', 'details'], { viewToken: 'string', details: 'json' });
+    if (!isRecord(payload.details)) throw new IpcDiagnosticError('ipc-payload-rejected', 'Resource import details are invalid.');
+  }
   else if (channel === 'behavior/explain') {
     requireAllowedShape(payload, keys, ['manifestDigest','nodeIds','language'], []);
     if (!behaviorDigest(payload.manifestDigest) || !Array.isArray(payload.nodeIds) || payload.nodeIds.length < 1 || payload.nodeIds.length > 100 || !payload.nodeIds.every(behaviorId) || new Set(payload.nodeIds).size !== payload.nodeIds.length || !['en','zh-CN'].includes(String(payload.language))) throw new IpcDiagnosticError('ipc-payload-rejected', 'Behavior explanation request is invalid.');
@@ -498,6 +523,7 @@ const allowedChannels = new Set<StudioIpcMethod>([
   'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
   'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'conversation/history', 'conversation/history-detail', 'logs/query', 'logs/export',
   'behavior/snapshot', 'behavior/refresh', 'behavior/explain', 'behavior/locate', 'behavior/history', 'behavior/read', 'behavior/capture', 'behavior/cancel', 'behavior/related',
+  'editor/advanced', 'editor/advanced-intent', 'editor/resources', 'editor/resource-intent', 'editor/resource-import', 'editor/cancel',
 ]);
 const behaviorDigest = (value: unknown): boolean => typeof value === 'string' && /^sha256:[a-f0-9]{64}$/u.test(value);
 const behaviorId = (value: unknown): boolean => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/u.test(value);

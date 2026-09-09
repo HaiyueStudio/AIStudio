@@ -1,0 +1,81 @@
+TAP version 13
+# Subtest: G09 snake acceptance copy: fixed inputs and real source-bound event flows
+ok 1 - G09 snake acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 10195.0535
+  type: 'test'
+  ...
+# Subtest: G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
+ok 2 - G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 12500.2541
+  type: 'test'
+  ...
+# Subtest: G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
+ok 3 - G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 13929.479
+  type: 'test'
+  ...
+# Subtest: G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
+ok 4 - G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 10823.4118
+  type: 'test'
+  ...
+# Subtest: G09 platformer acceptance copy: fixed inputs and real source-bound event flows
+ok 5 - G09 platformer acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 10391.0575
+  type: 'test'
+  ...
+# Subtest: G09 racing acceptance copy: fixed inputs and real source-bound event flows
+not ok 6 - G09 racing acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 8322.9144
+  type: 'test'
+  location: 'D:\\HaiyueStudio\\AIStudio\\apps\\ai-studio\\test\\m14-integration\\gameplay-device.test.mjs:17:38'
+  failureType: 'testCodeFailure'
+  error: |-
+    
+    AssertionError [ERR_ASSERTION]: preview must pause within the frozen startup budget
+        at file:///D:/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/gameplay-main.mjs:32:12 {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: false,
+      expected: true,
+      operator: '==',
+      diff: 'simple'
+    }
+    [6572:0908/173620.002:ERROR:gpu\ipc\client\command_buffer_proxy_impl.cc:488] GPU state invalid after WaitForGetOffsetInRange.
+    [6572:0908/173620.003:ERROR:gpu\ipc\client\command_buffer_proxy_impl.cc:488] GPU state invalid after WaitForGetOffsetInRange.
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    file:///D:/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/gameplay-main.mjs:32:12 {
+    TestContext.<anonymous> (file:///D:/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/gameplay-device.test.mjs:52:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: G09 shooter acceptance copy: fixed inputs and real source-bound event flows
+ok 7 - G09 shooter acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 17431.3888
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 85074.7224

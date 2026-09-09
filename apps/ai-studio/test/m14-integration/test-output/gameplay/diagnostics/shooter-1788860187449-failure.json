@@ -1,0 +1,1011 @@
+{
+  "message": "G12ReplayProgramError: Replay completed without authoritative gameplay observations.",
+  "progress": {
+    "observedSignals": [],
+    "observations": [
+      {
+        "tick": 1,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 1,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 1,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 2,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 3,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 4,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 5,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 6,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 7,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 8,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 9,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 10,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 11,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 12,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 13,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 14,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 15,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 16,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 17,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 18,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 19,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 20,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 21,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 22,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 23,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 24,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 25,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 26,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 27,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 28,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 29,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 30,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 31,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 34,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 34,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 36,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 36,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 36,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 36,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 36,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 36,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 36,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 39,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 39,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 41,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 41,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 41,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 41,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 41,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 41,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 41,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 44,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 44,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 46,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 46,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 46,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 46,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 46,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 46,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 46,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 49,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 49,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 51,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 51,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 51,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 51,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 51,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 51,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 51,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 54,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 54,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 56,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 56,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 56,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 56,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 56,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 56,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 56,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 59,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 59,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 61,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 61,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 61,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 61,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 61,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 61,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 61,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 64,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 64,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 66,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 66,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 66,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 66,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 66,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 66,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 66,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 69,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 69,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 71,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 71,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      },
+      {
+        "tick": 71,
+        "value": {
+          "timeMs": null,
+          "gameplay": [],
+          "hud": {},
+          "runtimeErrorCount": 0
+        }
+      }
+    ],
+    "trace": [
+      {
+        "kind": "input-queued",
+        "commandId": "g12-replay:1:1",
+        "sourceStepId": "move",
+        "tick": 1
+      },
+      {
+        "kind": "input-queued",
+        "commandId": "g12-replay:1:1",
+        "sourceStepId": "move",
+        "tick": 1
+      },
+      {
+        "kind": "semantic-driver",
+        "commandId": "g12-replay:2:1",
+        "sourceStepId": "aim-fire",
+        "driverId": "scripted-aim-and-fire",
+        "tick": 71,
+        "result": {
+          "driverId": "scripted-aim-and-fire",
+          "maxTicks": 180,
+          "ticksConsumed": 40,
+          "beforeTick": 31,
+          "afterTick": 71,
+          "inputs": 24,
+          "observations": 50
+        }
+      }
+    ],
+    "inputs": []
+  }
+}

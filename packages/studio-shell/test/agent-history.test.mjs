@@ -40,6 +40,46 @@ test('history pages and expanded details display types, timing and complete para
   assert.ok(find(root, node => node.dataset.recordId === 'record:first')); viewer.dispose();
 });
 
+test('cancelled tool history distinguishes preserved confirmation pauses from actual cancellations without rewriting raw data', async () => {
+  const root = dom(); const requests = [];
+  const records = ['tool-call', 'tool-result', 'tool-result'].map((kind, index) => ({ ...record('project:a', `record:${index}`), kind, status: 'cancelled', toolId: 'studio.plan.propose' }));
+  const viewer = new AgentHistoryViewer(root, {
+    async query(projectId) { return { ...page(projectId, 'record:0'), records, total: records.length }; },
+    async detail(projectId, id) {
+      requests.push(id);
+      return { schemaVersion: 1, projectId, record: records.find(record => record.id === id), data: { result: { status: 'cancelled', value: id === 'record:2' ? { code: 'tool.cancelled' } : { code: 'barrier.waiting-user', preserved: true, barrierKind: 'plan-review' } } } };
+    },
+  });
+  viewer.setProject('project:a'); await settled();
+  for (const id of ['record:0', 'record:1']) {
+    const item = find(root, node => node.dataset.recordId === id);
+    assert.match(find(item, node => node.tag === 'summary').textContent, /已挂起（等待确认）/);
+    item.open = true; item.fire('toggle'); await settled();
+    assert.match(item.textContent, /进度已保存/); assert.match(item.textContent, /"status": "cancelled"/);
+  }
+  assert.match(find(find(root, node => node.dataset.recordId === 'record:2'), node => node.tag === 'summary').textContent, /已取消/);
+  assert.equal(requests.length, 3); viewer.dispose();
+});
+
+test('cancelled history detail from a previous project is discarded and failed reads can retry on expansion', async () => {
+  const root = dom(); let releaseOld; let oldSignal; let attempts = 0;
+  const viewer = new AgentHistoryViewer(root, {
+    async query(projectId) { const result = page(projectId, `record:${projectId}`); return { ...result, records: [{ ...result.records[0], status: 'cancelled' }] }; },
+    detail(projectId, id, signal) {
+      if (projectId === 'project:a') { oldSignal = signal; return new Promise(resolve => { releaseOld = resolve; }); }
+      attempts += 1;
+      return attempts === 1 ? Promise.reject(new Error('Read temporarily unavailable')) : Promise.resolve({ schemaVersion: 1, projectId, record: record(projectId, id), data: { result: { status: 'cancelled', value: { code: 'barrier.waiting-user', preserved: true } } } });
+    },
+  });
+  viewer.setProject('project:a'); await settled(); viewer.setProject('project:b'); await settled();
+  releaseOld({ schemaVersion: 1, projectId: 'project:a', record: record('project:a', 'record:project:a'), data: { result: 'old result' } }); await settled();
+  assert.equal(oldSignal.aborted, true); assert.equal(root.textContent.includes('old result'), false);
+  const item = find(root, node => node.dataset.recordId === 'record:project:b');
+  assert.match(item.textContent, /Read temporarily unavailable/);
+  item.open = true; item.fire('toggle'); await settled();
+  assert.equal(attempts, 2); assert.match(item.textContent, /已挂起（等待确认）/); viewer.dispose();
+});
+
 function dom() {
   const document = { createElement: tag => new Element(tag) };
   class Element {

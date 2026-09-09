@@ -71,6 +71,11 @@ export class BehaviorRuntimeRecorder {
   private readonly stateBytes = new Map<string, number>();
   private totalStateBytes = 0;
   private readonly reasons = new Set<'events' | 'bytes'>();
+  // Repeated drawing/iteration sites must not consume the entire Play trace in
+  // its first frame. Keep the first eight occurrences per node/kind/tick;
+  // omitted occurrences remain explicit and retained captures stay append-only.
+  private readonly occurrences = new Map<string, number>();
+  private quotaExhausted = false;
   private omitted = 0;
   private bytes = 0;
   private sequence = 0;
@@ -85,6 +90,7 @@ export class BehaviorRuntimeRecorder {
   beginTick(tick: number, frame: number): void {
     if (this.closed) return;
     if (!integer(tick) || !integer(frame) || tick < this.tick || frame < this.frame) { this.close('clock-reset'); return; }
+    if (tick !== this.tick || frame !== this.frame) this.occurrences.clear();
     this.tick = tick; this.frame = frame;
   }
   /** Install via Engine's public ScriptComponent compiler seam. Exact original
@@ -101,7 +107,7 @@ export class BehaviorRuntimeRecorder {
       const enter = (nodeId: string) => {
         if (this.closed) return;
         const n = this.nodes.get(nodeId); if (!n || n.scriptId !== program.scriptId) return;
-        if (this.reasons.size) { this.emit(owner, nodeId, 'node-enter'); return; }
+        if (this.quotaExhausted) { this.emit(owner, nodeId, 'node-enter'); return; }
         // A thrown expression may lack an exit; cap unfinished timing scopes.
         const stack = starts.get(nodeId) ?? [];
         // Overlapping async invocations may resume out of order. There is no
@@ -113,7 +119,7 @@ export class BehaviorRuntimeRecorder {
       const exit = <T>(nodeId: string, value: T): T => {
         if (!this.closed) {
           const n = this.nodes.get(nodeId); if (!n || n.scriptId !== program.scriptId) return value;
-          if (this.reasons.size) { this.emit(owner, nodeId, 'node-exit'); return value; }
+          if (this.quotaExhausted) { this.emit(owner, nodeId, 'node-exit'); return value; }
           const start = starts.get(nodeId)?.pop();
           const duration = !start || start.ambiguous ? null : Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.round((this.now() - start.time) * 1000)));
           this.emit(owner, nodeId, 'node-exit', null, duration, (n.kind === 'condition' || n.kind === 'loop') ? { truthy: Boolean(value), nullish: value === null || value === undefined } : null);
@@ -186,7 +192,7 @@ export class BehaviorRuntimeRecorder {
   close(reason: 'stop' | 'restart' | 'clock-reset' | 'source-changed' | 'project-changed' = 'stop'): void {
     if (this.closed) return;
     const entityId = this.plan.entityIds[0]; if (entityId) this.emit({ entityId, scriptId: null, componentId: null }, null, 'cancel', reason);
-    this.closed = true; this.previousState.clear(); this.stateBytes.clear(); this.totalStateBytes = 0;
+    this.closed = true; this.previousState.clear(); this.stateBytes.clear(); this.totalStateBytes = 0; this.occurrences.clear();
   }
   snapshot(): BehaviorRuntimeCapture {
     return freezeProjection({ schemaVersion: 1, sourceBindingDigest: this.plan.sourceBindingDigest as BehaviorTraceV1['sourceBindingDigest'], manifestDigest: this.plan.manifestDigest as BehaviorTraceV1['manifestDigest'], playId: this.plan.playId, generation: this.plan.generation,
@@ -217,12 +223,17 @@ export class BehaviorRuntimeRecorder {
   }
   private emit(owner: Owner, nodeId: string | null, kind: TraceEvent['kind'], event: string | null = null, durationMicros: number | null = null, stateDiff: TraceEvent['stateDiff'] = null, error: string | null = null): void {
     if (this.closed) return;
-    if (this.reasons.size) { this.sequence++; this.omitted++; return; }
+    if (this.quotaExhausted) { this.sequence++; this.omitted++; return; }
+    if (nodeId !== null && (kind === 'node-enter' || kind === 'node-exit')) {
+      const key = `${nodeId}:${kind}`, count = this.occurrences.get(key) ?? 0;
+      if (count >= 8) { this.reasons.add('events'); this.sequence++; this.omitted++; return; }
+      this.occurrences.set(key, count + 1);
+    }
     const row = { sequence: this.sequence++, ...owner, nodeId, kind, event, tick: this.tick, frame: this.frame, durationMicros, stateDiff, error };
     const bytes = utf8Bytes(canonicalJson(row));
-    if (this.events.length >= 10000) this.reasons.add('events');
-    if (this.bytes + bytes > 4 * 1024 * 1024 - 8192) this.reasons.add('bytes');
-    if (this.reasons.size) { this.omitted++; return; }
+    if (this.events.length >= 10000) { this.reasons.add('events'); this.quotaExhausted = true; }
+    if (this.bytes + bytes > 4 * 1024 * 1024 - 8192) { this.reasons.add('bytes'); this.quotaExhausted = true; }
+    if (this.quotaExhausted) { this.omitted++; return; }
     this.bytes += bytes; this.events.push(freezeProjection(row));
   }
 }

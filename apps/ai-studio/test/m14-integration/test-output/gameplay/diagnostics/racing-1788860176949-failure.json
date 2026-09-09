@@ -1,0 +1,3 @@
+{
+  "message": "AssertionError [ERR_ASSERTION]: need two observed named gameplay events with executed source sites; found 1, signals accelerate-accepted, brake-accepted, collision-entered, race-started, racing, trace 10000"
+}

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "machine": {
+    "platform": "win32",
+    "release": "10.0.19045",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+    "logicalCpus": 8
+  },
+  "budget": {
+    "schemaVersion": 1,
+    "frozenAt": "2026-09-08",
+    "scope": "G09 production window; limits fixed before measurement",
+    "machine": {
+      "platform": "win32",
+      "release": "10.0.19045",
+      "arch": "x64",
+      "cpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+      "logicalCpus": 8
+    },
+    "entities": 1000,
+    "scripts": 200,
+    "maxOpenMs": 15000,
+    "maxInteractionMs": 2000,
+    "maxResourceQueryMs": 5000,
+    "maxRendererHeapBytes": 268435456,
+    "maxRendererWorkingSetKiB": 524288,
+    "maxRendererHeapGrowthBytesAfterFiveMounts": 33554432,
+    "maxVisibleTreeRows": 50,
+    "maxResourceProjectionBytes": 524288
+  },
+  "timings": {
+    "open": 303.9947999999986,
+    "advancedMount": 244.3683000000001,
+    "filterAndSelect": 116.36200000000099,
+    "resourceQuery": 922.0138000000006
+  },
+  "initialHeapBytes": 7928916,
+  "finalHeapBytes": 8129252,
+  "metrics": [
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 2.565396,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 21300,
+      "type": "Tab",
+      "creationTime": 1788861672838.402,
+      "memory": {
+        "workingSetSize": 127984,
+        "peakWorkingSetSize": 182584,
+        "privateBytes": 66792
+      },
+      "integrityLevel": "untrusted",
+      "sandboxed": true
+    }
+  ],
+  "gpu": [
+    {
+      "active": true,
+      "deviceId": 7042,
+      "deviceString": "NVIDIA GeForce GTX 1070 Ti",
+      "driverVendor": "NVIDIA",
+      "driverVersion": "32.0.15.6094",
+      "gpuPreference": 0,
+      "revision": 161,
+      "subSysId": 607525338,
+      "vendorId": 4318
+    },
+    {
+      "active": false,
+      "deviceId": 140,
+      "deviceString": "Microsoft Basic Render Driver",
+      "driverVersion": "10.0.19041.5794",
+      "gpuPreference": 0,
+      "revision": 0,
+      "subSysId": 0,
+      "vendorId": 5140
+    }
+  ],
+  "entityCount": 1000,
+  "scriptCount": 200
+}

@@ -3,10 +3,10 @@
   "purpose": "offline-derived-census-not-runtime-registry",
   "binding": {
     "algorithm": "sha256",
-    "fileCount": 532,
-    "sourceDigest": "sha256:3fdb258719c5a466f6e898ac69ee8b3fbbde12135b086dfefcbe6ab1f17352f2",
-    "packageDigest": "sha256:7f25c9c76485e160ec521032ed8cf7b460522bfdc4accaa93759e5a8d3a30762",
-    "digest": "sha256:e620f5348e2afb978313b68bfab4ca892d839f7aff560b3af0ed8a16c0b90fc4"
+    "fileCount": 589,
+    "sourceDigest": "sha256:69be72fecec4546e89410f38accaa8b96e4bac4d37e3a2ec90df95aca6c25ede",
+    "packageDigest": "sha256:a7210e20dd3eb5557c7724a845310bdd72cf5c9b5ced1f9619d9c7df21741e9e",
+    "digest": "sha256:793b2696081db61fc64fd6660db734b14594513d6ec2cf6ef51a5b9673d952c7"
   },
   "packages": [
     {
@@ -224,13 +224,13 @@
     },
     {
       "name": "@haiyue/editor-shell",
-      "version": "0.1.0",
-      "integrity": "sha512-vuP8CNiAAVN1V+l8K3KOTKvX/Ky+zRjOyqWG5WCDhCX5+S5D1y3d2ZT5QuLsS4BqAwWfuNpTi2PbGJ8YXb0MNg==",
-      "manifestDigest": "sha256:868b0607f0bb3fed57d8f203a543ca2b124d480c0869aa315fe168b2440bb1e8",
-      "contentDigest": "sha256:74934dbf889ca9ee67a29b83e12274beb74dd6c41e4962af0a86fb520b87637f",
-      "installedFileCount": 6,
+      "version": "0.1.1",
+      "integrity": "sha512-RqAU5zkbDsl2jdRFv9iv7CvTrWq2VONjcouaZtqOGNouqrx53oywI20D4/BcgMwfFTfu1dmUlGhkNOGknC9npA==",
+      "manifestDigest": "sha256:1b99bcd14cb670512c59bc8985122133fd5150beeb2f766c7eb2c9c72c92bb9d",
+      "contentDigest": "sha256:9192f197ea86e33bd56a3febe4ef32cc38cfbe6944f4e816e95008b4b8c44222",
+      "installedFileCount": 36,
       "sourceRevision": null,
-      "candidate": "vendor/haiyue-editor-shell-0.1.0.tgz",
+      "candidate": "vendor/haiyue-editor-shell-0.1.1.tgz",
       "exports": [
         {
           "subpath": ".",
@@ -242,6 +242,28 @@
             {
               "path": "./dist/index.js",
               "sha256": "sha256:641998dc9eb80b2f265a721dfb60d678f286069b79a1e6d750ec0ae2413274aa"
+            }
+          ]
+        },
+        {
+          "subpath": "./advanced-authoring",
+          "targets": [
+            {
+              "path": "./dist/advanced-authoring/index.d.ts",
+              "sha256": "sha256:6ffcdf2e132e8bfe7d2481abb5a22d3c9c4b9eaeca8b7568e8330fab1c92d983"
+            },
+            {
+              "path": "./dist/advanced-authoring/index.js",
+              "sha256": "sha256:3cc46cb28b6638d44a06765d1cad6a671d37d28b2cbf842a15d379d4f1ce7671"
+            }
+          ]
+        },
+        {
+          "subpath": "./advanced-authoring.css",
+          "targets": [
+            {
+              "path": "./dist/advanced-authoring/advanced-authoring.css",
+              "sha256": "sha256:41f480a89508c2aeb14c05e3aab7d5d989903118d7ad221bbce2679db672b4b3"
             }
           ]
         }
@@ -2612,7 +2634,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -2709,7 +2731,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -2806,7 +2828,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -2903,7 +2925,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -3053,7 +3075,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -3072,13 +3094,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -3216,7 +3238,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -3235,13 +3257,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -3378,7 +3400,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -3397,13 +3419,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -3542,7 +3564,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -3561,13 +3583,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -3663,7 +3685,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             }
@@ -3695,7 +3717,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -3714,7 +3736,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "camera"
             },
@@ -3810,7 +3832,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             }
@@ -3842,7 +3864,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -3861,7 +3883,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "camera"
             },
@@ -3957,7 +3979,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             }
@@ -3989,7 +4011,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -4008,7 +4030,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "camera"
             },
@@ -4127,7 +4149,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -4146,13 +4168,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -4224,7 +4246,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -4268,7 +4290,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -4287,31 +4309,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
@@ -4450,7 +4472,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -4469,13 +4491,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -4551,7 +4573,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -4589,7 +4611,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -4608,7 +4630,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -4703,7 +4725,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -4741,7 +4763,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -4760,7 +4782,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -4836,7 +4858,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -4874,7 +4896,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -4893,7 +4915,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -4988,7 +5010,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -5026,7 +5048,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -5045,7 +5067,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -5193,7 +5215,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -5212,13 +5234,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5364,7 +5386,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -5383,13 +5405,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5527,7 +5549,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -5546,13 +5568,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5690,7 +5712,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -5709,13 +5731,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5845,7 +5867,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -5864,7 +5886,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "physics"
             },
@@ -5994,7 +6016,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -6013,7 +6035,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "physics"
             },
@@ -6139,7 +6161,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -6158,7 +6180,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "physics"
             },
@@ -6249,7 +6271,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -6293,7 +6315,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -6312,31 +6334,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
@@ -6432,7 +6454,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -6476,7 +6498,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -6495,31 +6517,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
@@ -6628,7 +6650,7 @@
             },
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             }
@@ -6660,7 +6682,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -6679,13 +6701,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "scripts"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -6823,7 +6845,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -6842,13 +6864,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -6984,7 +7006,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -7003,13 +7025,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -7128,7 +7150,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -7147,13 +7169,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -7272,7 +7294,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -7291,13 +7313,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -7400,7 +7422,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -7438,7 +7460,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -7457,7 +7479,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -7533,7 +7555,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -7571,7 +7593,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -7590,7 +7612,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -7662,7 +7684,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/preview-runtime.ts",
-              "sha256": "sha256:ce71e4b57e3c8c91bc6e14233469eead88a9689ea73c607a0be921f543f8e938",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
               "kind": "source",
               "locator": ""
             },
@@ -7706,7 +7728,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:a2676f9a07ad66d512bdc67923f629937619758c0d2c2502c40483f02887726a",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
               "kind": "source",
               "locator": ""
             },
@@ -7725,31 +7747,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:f6ae9bb7efa0faffb05c91726fda806762d87d18e81ee281d05868b839c4f694",
+              "sha256": "sha256:0b60bc423b2003f85c1b944f772bacceb4189a86b89017293cb9c523509c10a9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },

@@ -27,6 +27,8 @@ export class IntentWorkspace {
   private readonly scriptHome: Node;
   private preferences: WorkspacePreferences;
   private language: WorkspaceLanguage = 'zh-CN';
+  private advancedInspector: HTMLElement | null = null;
+  private advancedViewport: HTMLElement | null = null;
   private snapshot: WorkspacePanelSnapshot = empty;
   private closed = false;
   private actionGeneration = 0;
@@ -126,11 +128,27 @@ export class IntentWorkspace {
     if (this.closed) return;
     this.returnFocus = this.document.activeElement as HTMLElement | null;
     this.move(this.manual, this.get('workspace-manual-inspect'));
+    this.manual.hidden = this.advancedInspector !== null;
     this.move(this.script, this.get('workspace-manual-script'));
     this.setAdvancedTab(tab);
     if (!this.dialog.open) this.dialog.showModal();
   }
   closeAdvanced(): void { if (!this.closed && this.dialog.open) this.dialog.close(); }
+  /** Public panel is installed by the application after the reviewed package is available. */
+  installAdvancedInspector(host: HTMLElement): HTMLElement {
+    if (this.closed || this.advancedInspector) throw new Error('workspace.advanced-already-mounted');
+    this.advancedInspector = host;
+    this.advancedViewport = this.document.createElement('div'); this.advancedViewport.id = 'workspace-advanced-viewport';
+    this.get('workspace-manual-inspect').append(this.advancedViewport, host);
+    this.dialog.dataset.publicAdvanced = 'true';
+    return this.advancedViewport;
+  }
+  installResourceExplorer(host: HTMLElement): void {
+    if (this.closed) return;
+    for (const id of ['workspace-catalog-status', 'workspace-catalog', 'workspace-existing-resources']) this.get(id).hidden = true;
+    this.get('workspace-resources').querySelector<HTMLElement>('.workspace-filters')!.hidden = true;
+    this.get('workspace-resources').append(host);
+  }
   dispose(): void {
     if (this.closed) return;
     this.closed = true; this.lifetime.abort(); if (this.dialog.open) this.dialog.close();
@@ -146,9 +164,11 @@ export class IntentWorkspace {
       this.get(`workspace-manual-${name}`).hidden = !selected;
     }
     this.script.hidden = tab !== 'script'; this.script.setAttribute('aria-hidden', String(tab !== 'script'));
+    if (this.advancedViewport && tab === 'inspect') this.move(this.viewport, this.advancedViewport);
   }
   private applyLayout(mode = this.preferences.mode): void {
     this.document.body.dataset.workspaceMode = mode;
+    this.manual.hidden = this.dialog.open && this.advancedInspector !== null;
     if (mode === 'intent') {
       this.move(this.manual, this.get('workspace-manual-inspect')); this.move(this.authoring, this.parking);
       this.move(this.root, this.workspace, 'first'); this.move(this.viewport, this.content, 'first');

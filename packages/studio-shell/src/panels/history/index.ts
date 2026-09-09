@@ -65,21 +65,30 @@ export class AgentHistoryViewer {
       timing.textContent = `开始：${record.startedAt}　结束：${record.finishedAt ?? '—'}　时长：${record.durationMs === null ? '—' : `${record.durationMs} ms`}`;
       const body = document.createElement('div'); body.className = 'agent-history-data';
       let loaded = false;
-      item.addEventListener('toggle', () => {
-        if (!item.open || loaded) return;
+      const loadDetail = (): void => {
+        if (loaded) return;
         loaded = true; body.textContent = '正在读取参数与结果…';
         void this.port.detail(page.projectId!, record.id, this.abort.signal).then(value => {
           if (generation !== this.generation || this.disposed) return;
           if (!isRecord(value) || value.schemaVersion !== 1 || value.projectId !== page.projectId || !isRecord(value.record) || value.record.id !== record.id || !('data' in value)) throw new Error('执行明细与当前项目不匹配。');
           const data = isRecord(value.data) ? value.data : { value: value.data };
           body.replaceChildren();
+          if (record.status === 'cancelled' && isSuspendedToolRecord(record, data)) {
+            summary.textContent = `${record.kind} · ${record.toolId} · 已挂起（等待确认）`;
+            const explanation = document.createElement('p');
+            explanation.textContent = '这次调用为等待用户确认而挂起，进度已保存，可在确认后继续。原始记录保留调用结束时的 cancelled 状态。';
+            body.append(explanation);
+          }
           for (const [label, entry] of [['参数', data.parameters ?? null], ['返回结果', data.result ?? null], ['完整记录', value.data]] as const) {
             const heading = document.createElement('h4'); heading.textContent = label;
             const text = document.createElement('pre'); text.textContent = JSON.stringify(entry, null, 2);
             body.append(heading, text);
           }
         }).catch(cause => { if (generation === this.generation && !this.disposed) { loaded = false; body.textContent = cause instanceof Error ? cause.message : '读取明细失败。'; } });
-      });
+      };
+      item.addEventListener('toggle', () => { if (item.open) loadDetail(); });
+      // Only cancelled tool rows need their result to distinguish user cancellation from a durable pause.
+      if (record.status === 'cancelled' && (record.kind === 'tool-call' || record.kind === 'tool-result')) loadDetail();
       item.append(summary, timing, body); list.append(item);
     }
     if (page.records.length === 0) { const empty = document.createElement('p'); empty.textContent = '该项目还没有 Agent 执行记录。'; list.append(empty); }
@@ -106,5 +115,9 @@ export function normalizeHistoryPage(value: unknown): AgentHistoryPageV1 {
     return Object.freeze(record) as unknown as AgentHistoryRecordV1;
   });
   return Object.freeze({ ...value, records: Object.freeze(records) }) as unknown as AgentHistoryPageV1;
+}
+function isSuspendedToolRecord(record: AgentHistoryRecordV1, data: Record<string, unknown>): boolean {
+  if (record.kind !== 'tool-call' && record.kind !== 'tool-result' || !isRecord(data.result) || data.result.status !== 'cancelled' || !isRecord(data.result.value)) return false;
+  return data.result.value.code === 'barrier.waiting-user' && data.result.value.preserved === true;
 }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }

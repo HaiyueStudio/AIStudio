@@ -1,5 +1,6 @@
 import {
   CartesianTransform3D,
+  Camera3D,
   Entity,
   HaiyueEngine,
   OrbitControl,
@@ -32,6 +33,7 @@ import {
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
+import { IntegratedEditorPanels } from './editor-panels.js';
 import {
   PLAY_DEVICE_PROFILES,
   calculatePlayViewportScale,
@@ -62,6 +64,7 @@ import { defineTabsComponents, type HYTabs } from '@haiyue/ui/tabs';
 
 let agentHistoryViewer: AgentHistoryViewer | null = null;
 let intentWorkspace: IntentWorkspace | null = null;
+let editorPanels: IntegratedEditorPanels | null = null;
 let agentHistoryWasBusy = false;
 
 declare global {
@@ -172,6 +175,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     newestLogs: '{health} · 显示最新 {visible} / {total} 条安全摘要', logCount: '{health} · {visible} 条安全摘要', bugExported: '问题包已导出 · {digest}',
     connection: '连接', connected: '已连接', reconnecting: '正在重连', disconnected: '已断开', latest: '↓ 最新', send: '发送', cancelTurn: '取消本轮', reconnect: '重新连接', signOut: '退出登录',
     configureKey: '安全配置 API Key', signIn: '使用 ChatGPT 登录', messageAgent: '向游戏创作 AI 助手发送消息', readyToSend: '可以发送。', waitTurn: '请等待当前任务完成或取消任务。',
+    refreshAgentConnection: '刷新连接', agentSelectBackend: '请选择 AI 服务后再发送。', agentConfigureKey: '请先配置 API Key。', agentSignInThenRefresh: '请使用 ChatGPT 登录，完成后点击“刷新连接”。', agentCompleteSignIn: '请完成登录，然后点击“刷新连接”。', agentConnectionUnavailable: 'AI 服务暂时不可用，请点击“刷新连接”重试。', agentModelsUnavailable: '尚未选中可用模型，请点击“刷新连接”加载模型。', agentReconnectBeforeSend: '请重新连接后再发送。',
     allowOnce: '仅允许一次', allowAlways: '始终允许', reject: '拒绝', agentBackend: 'AI 后端', jumpLatest: '跳到最新 AI 消息', noProject: '未打开项目',
   }),
   en: Object.freeze({
@@ -191,6 +195,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     newestLogs: '{health} · newest {visible} of {total} safe summaries', logCount: '{health} · {visible} safe summaries', bugExported: 'Bug bundle exported · {digest}',
     connection: 'Connection', connected: 'connected', reconnecting: 'reconnecting', disconnected: 'disconnected', latest: '↓ Latest', send: 'Send', cancelTurn: 'Cancel turn', reconnect: 'Reconnect', signOut: 'Sign out',
     configureKey: 'Configure API key securely', signIn: 'Sign in with ChatGPT', messageAgent: 'Message the game authoring Agent', readyToSend: 'Ready to send.', waitTurn: 'Wait for the active turn or cancel it.',
+    refreshAgentConnection: 'Refresh connection', agentSelectBackend: 'Select an Agent backend before sending.', agentConfigureKey: 'Configure an API key before sending.', agentSignInThenRefresh: 'Sign in with ChatGPT, then refresh connection.', agentCompleteSignIn: 'Complete sign-in, then refresh connection.', agentConnectionUnavailable: 'Agent connection is unavailable. Refresh connection to retry.', agentModelsUnavailable: 'No supported model is selected. Refresh connection to load models.', agentReconnectBeforeSend: 'Reconnect before sending a message.',
     allowOnce: 'Allow once', allowAlways: 'Allow always', reject: 'Reject', agentBackend: 'Agent backend', jumpLatest: 'Jump to latest agent message', noProject: 'No project',
   }),
 });
@@ -229,6 +234,8 @@ class WebGpuViewportRuntime {
   private readonly entitiesByStableId = new Map<StableId, Entity>();
   private selectedEntityId: StableId | null = null;
   private cameraSnapshot: ProjectCameraSnapshot | null = null;
+  private authoringSnapshot: SceneSnapshot | null = null;
+  private readonly previewEntities = new Set<StableId>();
   private disposed = false;
   private disposal: Promise<void> | null = null;
 
@@ -269,6 +276,7 @@ class WebGpuViewportRuntime {
 
   apply(snapshot: SceneSnapshot, selectedEntityId: StableId | null): void {
     const engineScene = this.requireScene();
+    this.authoringSnapshot = snapshot; this.previewEntities.clear();
     const nextCamera = snapshot.camera ?? currentProjectCamera();
     if (!this.cameraSnapshot || !sameCamera(this.cameraSnapshot, nextCamera)) {
       this.cameraSnapshot = nextCamera;
@@ -362,10 +370,51 @@ class WebGpuViewportRuntime {
     const engine = this.engine;
     this.engine = null;
     this.engineScene = null;
+    this.authoringSnapshot = null; this.previewEntities.clear();
     this.selectedEntityId = null;
     engine?.stop();
     this.disposal = disposeEngineAfterSubmittedFrames(engine);
     return this.disposal;
+  }
+  previewTransform(value: unknown | null): void {
+    if (value === null) {
+      for (const id of this.previewEntities) { const entity = this.authoringSnapshot?.entities.find(e => e.id === id); if (entity) this.updateTransform(id, entity.transform); }
+      this.previewEntities.clear(); return;
+    }
+      const change = (value as { changes: { reference: { id: StableId }; after: { position: number[]; rotationDegrees: number[]; scale: number[] } }[] }).changes[0];
+      if (!change) return;
+      this.previewEntities.add(change.reference.id);
+      const vector = (v: number[]) => ({ x: v[0]!, y: v[1]!, z: v[2]! });
+      this.updateTransform(change.reference.id, { position: vector(change.after.position), rotationDegrees: vector(change.after.rotationDegrees), scale: vector(change.after.scale) });
+  }
+
+  authoringProjection(): JsonObject | null {
+    const camera = this.engineScene?.cameraEntity.getComponent(Camera3D), cameraTransform = this.engineScene?.cameraEntity.getComponent(SphericalTransform3D);
+    const selected = this.selectedEntityId ? this.entitiesByStableId.get(this.selectedEntityId)?.getComponent(CartesianTransform3D) : null;
+    if (!camera || !cameraTransform || !selected) return null;
+    cameraTransform.updateWorldMatrix();
+    const c = cameraTransform.worldMatrix, m = selected.worldMatrix, p = camera.projectionMatrix;
+    const rect = this.canvas.getBoundingClientRect(), host = this.canvas.parentElement!.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    // The public SphericalTransform3D authoring camera is a rigid root transform.
+    const projectPoint = (v: readonly number[]): number[] | null => {
+      const d = [v[0]! - c[12]!, v[1]! - c[13]!, v[2]! - c[14]!];
+      const q = [0, 4, 8].map(i => c[i]! * d[0]! + c[i + 1]! * d[1]! + c[i + 2]! * d[2]!);
+      const clip = [0, 1, 3].map(i => p[i]! * q[0]! + p[i + 4]! * q[1]! + p[i + 8]! * q[2]! + p[i + 12]!);
+      if (clip[2]! <= 0.000001) return null;
+      return [(clip[0]! / clip[2]! + 1) * rect.width / 2 + rect.left - host.left, (1 - clip[1]! / clip[2]!) * rect.height / 2 + rect.top - host.top];
+    };
+    const world = [m[12]!, m[13]!, m[14]!], origin = projectPoint(world);
+    if (!origin) return null;
+    const right = projectPoint(world.map((v, i) => v + c[i]!));
+    if (!right) return null;
+    const pixels = Math.hypot(right[0]! - origin[0]!, right[1]! - origin[1]!);
+    if (pixels < 0.000001) return null;
+    const axes = Object.fromEntries(['x', 'y', 'z'].map((axis, index) => {
+      const end = projectPoint(world.map((v, i) => v + (i === index ? 1 : 0)));
+      return [axis, end ? [(end[0]! - origin[0]!) * 70 / pixels, (end[1]! - origin[1]!) * 70 / pixels] : [0, 0]];
+    }));
+    return { origin, axes, unitsPerPixel: 1 / pixels };
   }
 
   private requireScene(): Scene {
@@ -446,7 +495,7 @@ class SandboxedPreviewFrame {
     await withTimeout(this.ready.promise, 10_000, 'Preview realm did not become ready.');
     this.scriptSetDigest = plan.scriptSetDigest;
     this.documentRevision = plan.documentRevision;
-    this.scriptDigests = Object.freeze(plan.scripts.map((script) => script.digest));
+    this.scriptDigests = Object.freeze(plan.scripts.map((script) => /^[a-f0-9]{64}$/u.test(script.digest) ? `sha256:${script.digest}` : script.digest));
     this.scriptDescriptors = Object.freeze(plan.scripts.map(({ scriptId, entityId, order }) => Object.freeze({ scriptId, entityId, order })));
     const assets = await loadPreviewAssets(snapshot, (assetId) => invoke('asset/read', { assetId }), undefined, this.startController.signal);
     if (this.disposed) {
@@ -657,12 +706,22 @@ async function boot(): Promise<void> {
     },
   }, preferenceStorage);
   intentWorkspace.setLanguage(language);
+  if (document.body.dataset.shell !== 'web') editorPanels = new IntegratedEditorPanels(document, intentWorkspace, {
+    invoke, refreshProject: refresh,
+    acceptSelection: id => { selection = { ...selection, activeEntityId: id as StableId | null, source: 'inspector' }; renderSelection(); },
+    locate: applyResourceLocation, projection: () => viewport?.authoringProjection() ?? null,
+    preview: value => viewport?.previewTransform(value), status: setStatus,
+  });
   const logicHost = document.createElement('div'); logicHost.id = 'workspace-logic-explorer';
   element('workspace-logic').querySelector('.workspace-manual-links')!.after(logicHost);
   logicPanel = new LogicExplorerPanel(document, logicHost, dispatchLogicIntent); logicPanel.setLanguage(language);
   const playLogic = document.createElement('button'); playLogic.id = 'play-logic'; playLogic.type = 'button'; playLogic.textContent = language === 'zh-CN' ? '行为轨迹' : 'Behavior trace';
   element('play-pause').after(playLogic);
   playLogic.addEventListener('click', () => { logicPanel?.openExpanded(); void dispatchLogicIntent({ type: 'capture' }); });
+  if (editorPanels) {
+    const runtimeInspect = document.createElement('button'); runtimeInspect.id = 'play-runtime-inspect'; runtimeInspect.type = 'button'; runtimeInspect.textContent = language === 'zh-CN' ? '运行检查' : 'Runtime inspector';
+    playLogic.after(runtimeInspect); runtimeInspect.addEventListener('click', () => intentWorkspace?.openAdvanced('inspect'));
+  }
   document.body.dataset.startupStage = 'services';
   const status = await invoke<ProjectSnapshot & JsonObject>('app/status');
   project = status;
@@ -1006,6 +1065,7 @@ function bindUi(): void {
   element('run-fix-agent').addEventListener('click', () => void requestAgentScriptFix());
   window.addEventListener('beforeunload', () => {
     logicRequest?.abort(); logicPanel?.dispose(); logicPanel = null;
+    editorPanels?.dispose(); editorPanels = null;
     intentWorkspace?.dispose(); intentWorkspace = null;
     agentHistoryViewer?.dispose(); agentHistoryViewer = null;
     agentPoll?.stop(); agentPoll = null;
@@ -1197,6 +1257,7 @@ async function refresh(): Promise<void> {
     selection = await invoke<SelectionSnapshot & JsonObject>('scene/select', { entityId: null, source: 'system' });
   }
   render();
+  await editorPanels?.refresh();
 }
 
 async function saveProject(): Promise<void> {
@@ -1496,16 +1557,7 @@ async function applyBehaviorLocation(location: EditorLocationV1): Promise<void> 
   if (!current() || location.target.kind !== 'behavior-node') throw new Error('behavior.location-historical');
   const source = location.target.source;
   if (source.kind === 'script') {
-    const script = scripts.resources.find(script => script.id === source.scriptId && script.entityId === source.entityId);
-    if (!script) throw new Error('behavior.location-historical');
-    const bytes = new TextEncoder().encode(script.text), hash = await crypto.subtle.digest('SHA-256', bytes);
-    const digest = `sha256:${[...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join('')}`;
-    if (!current() || digest !== source.digest || source.range.end > script.text.length) throw new Error('behavior.location-historical');
-    focusedScriptId = script.id; await selectEntity(source.entityId as StableId, 'system'); if (!current()) throw new Error('behavior.location-historical');
-    logicPanel?.closeExpanded(); intentWorkspace?.openAdvanced('script');
-    const editor = element<HTMLTextAreaElement>('script-source'); if (editor.value !== script.text) throw new Error('behavior.location-historical');
-    editor.focus(); editor.setSelectionRange(source.range.start, source.range.end); editor.scrollTop = Math.max(0, (source.range.startLine - 3) * 18);
-    editor.dataset.behaviorNode = location.target.nodeId;
+    await applyScriptSourceLocation(source, location.documentId, location.documentRevision, location.target.nodeId);
   } else {
     await selectEntity(source.entityId as StableId, 'system'); if (!current()) throw new Error('behavior.location-historical');
     logicPanel?.closeExpanded(); intentWorkspace?.openAdvanced('inspect');
@@ -1518,6 +1570,33 @@ async function applyBehaviorLocation(location: EditorLocationV1): Promise<void> 
     detail.textContent = source.kind === 'runtime-adapter' ? `${source.adapter.id}@${source.adapter.version}\n${source.adapter.digest}\n${language === 'zh-CN' ? '适配器来源；内部执行路径未知。' : 'Adapter source; internal execution remains unknown.'}` : `${source.componentType}@${source.componentVersion}\n${source.componentId} ${source.field || '/'}\n${JSON.stringify(value ?? null, null, 2)}`;
     detail.dataset.componentId = source.componentId; detail.dataset.field = source.field; detail.focus();
   }
+}
+
+async function applyScriptSourceLocation(source: Extract<EditorLocationV1['target'], { kind: 'script' }>['source'], documentId: string, revision: number, nodeId?: string): Promise<void> {
+  const current = () => documentId === scene?.documentId && revision === documentRevision();
+    const script = scripts.resources.find(script => script.id === source.scriptId && script.entityId === source.entityId);
+    if (!script) throw new Error('behavior.location-historical');
+    const bytes = new TextEncoder().encode(script.text), hash = await crypto.subtle.digest('SHA-256', bytes);
+    const digest = `sha256:${[...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join('')}`;
+    if (!current() || digest !== source.digest || source.range.end > script.text.length) throw new Error('behavior.location-historical');
+    focusedScriptId = script.id; await selectEntity(source.entityId as StableId, 'system'); if (!current()) throw new Error('behavior.location-historical');
+    logicPanel?.closeExpanded(); intentWorkspace?.openAdvanced('script');
+    const editor = element<HTMLTextAreaElement>('script-source'); if (editor.value !== script.text) throw new Error('behavior.location-historical');
+    editor.focus(); editor.setSelectionRange(source.range.start, source.range.end); editor.scrollTop = Math.max(0, (source.range.startLine - 3) * 18);
+    if (nodeId) editor.dataset.behaviorNode = nodeId; else delete editor.dataset.behaviorNode;
+
+}
+
+async function applyResourceLocation(location: EditorLocationV1): Promise<void> {
+  if (location.documentId !== scene?.documentId || location.documentRevision !== documentRevision()) throw Error('resource.location-historical');
+  const target = location.target;
+  if (target.kind === 'script') {
+    await applyScriptSourceLocation(target.source, location.documentId, location.documentRevision); return;
+  }
+  const ref = target.kind === 'resource' ? target.ref : null;
+  const entityId = target.kind === 'component' || target.kind === 'entity' ? target.entityId : ref?.kind === 'instance' ? ref.entityId : null;
+  if (entityId) { await selectEntity(entityId as StableId, 'system'); intentWorkspace?.openAdvanced('inspect'); await editorPanels?.refresh(false); editorPanels?.reveal(entityId); return; }
+  setStatus(language === 'zh-CN' ? '来源已在资源详情中显示。' : 'Source is shown in resource details.');
 }
 
 function render(): void {
@@ -1571,6 +1650,7 @@ async function selectEntity(entityId: StableId | null, source: SelectionIntentSo
     if (generation !== selectionIntentGeneration) return;
     selection = authoritative;
     renderSelection();
+    await editorPanels?.refresh();
   } catch (cause) {
     if (generation === selectionIntentGeneration) {
       selection = previous;
@@ -1757,13 +1837,15 @@ async function runSmokeWorkflow(): Promise<void> {
   if (element<HTMLSelectElement>('workspace-entity').value !== picked) throw new Error('Viewport selection did not reach the logic workspace.');
   intentWorkspace?.openAdvanced('inspect');
   const panelDeadline = Date.now() + 4000;
-  while (element('inspector-panel').getBoundingClientRect().height < 100 && Date.now() < panelDeadline) await new Promise(resolve => setTimeout(resolve, 20));
-  if (element('inspector-panel').getBoundingClientRect().height < 100) throw new Error('Advanced manual inspector is not visible.');
+  while (!document.querySelector('#studio-advanced-panel .advanced-authoring-panel') && Date.now() < panelDeadline) await new Promise(resolve => setTimeout(resolve, 20));
+  if (!document.querySelector('#studio-advanced-panel .advanced-authoring-panel') || element('studio-advanced-panel').getBoundingClientRect().height < 100) throw new Error('Public advanced inspector is not visible.');
+  intentWorkspace?.closeAdvanced();
+  intentWorkspace?.setMode('classic');
   element<HTMLInputElement>('position-x').value = '0.4'; element<HTMLInputElement>('position-y').value = '0.2';
   element<HTMLInputElement>('rotation-y').value = '30';
   await applyTransform();
-  if (scene?.entities.find(entity => entity.id === picked)?.transform.position.x !== 0.4) throw new Error('Advanced manual edit did not reach Document.');
-  intentWorkspace?.closeAdvanced();
+  if (scene?.entities.find(entity => entity.id === picked)?.transform.position.x !== 0.4) throw new Error('Retained manual edit did not reach Document.');
+  intentWorkspace?.setMode('intent');
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
   await invoke('history/undo', { baseRevision: documentRevision() });
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
@@ -1841,6 +1923,17 @@ async function runSmokeWorkflow(): Promise<void> {
   logicPanel!.openExpanded();
   if (!element('logic-canvas').querySelector('.observed') || !element('logic-events').children.length || !element('logic-observation-time').textContent?.includes('tick')) throw new Error('Actual Play trace did not reach the visible behavior panel.');
   await smokeBehaviorEvidence('trace'); logicPanel!.closeExpanded();
+  intentWorkspace!.openAdvanced('inspect'); await editorPanels!.refresh(false);
+  const mountDeadline = performance.now() + 5000;
+  while (!element('studio-advanced-panel').querySelector('[data-advanced="runtime-refresh"]') && performance.now() < mountDeadline) await new Promise(resolve => setTimeout(resolve, 20));
+  const runtimeButton = element('studio-advanced-panel').querySelector<HTMLButtonElement>('[data-advanced="runtime-refresh"]');
+  if (!runtimeButton || runtimeButton.textContent !== 'Refresh runtime') throw new Error('Public runtime inspection action is missing.');
+  runtimeButton.click();
+  const runtimeDeadline = performance.now() + 5000;
+  while (!element('studio-advanced-panel').querySelector('[data-advanced="runtime-state"]')?.textContent?.includes('current') && performance.now() < runtimeDeadline) await new Promise(resolve => setTimeout(resolve, 20));
+  const advancedRuntime = await invoke('editor/advanced');
+  if (!advancedRuntime.observation || !element('studio-advanced-panel').querySelector('[data-advanced="runtime-state"]')?.textContent?.includes('current')) throw new Error(`Public runtime inspection did not receive the real Play observation: ${JSON.stringify({ playId: advancedRuntime.playId, observation: advancedRuntime.observation, status: element('studio-advanced-panel').querySelector('[data-advanced="status"]')?.textContent, runtime: element('studio-advanced-panel').querySelector('[data-advanced="runtime-state"]')?.textContent })}`);
+  document.body.dataset.advancedRuntime = 'real-observation'; intentWorkspace!.closeAdvanced();
   const pausedPosition = previewFrame!.latestPosition();
   // A paused hidden test window may stop producing display frames. Verify that
   // simulation state stays stable over elapsed time, independently of repaint.
@@ -1960,6 +2053,7 @@ function localizeChatUi(root: HTMLElement): void {
   const backend = root.querySelector<HTMLSelectElement>('.chat-backend-controls select');
   if (backend) backend.setAttribute('aria-label', t('agentBackend'));
   const labels: Readonly<Record<string, string>> = Object.freeze({
+    'Refresh connection': 'refreshAgentConnection',
     Send: 'send', 'Cancel turn': 'cancelTurn', Reconnect: 'reconnect', 'Sign out': 'signOut',
     'Configure API key securely': 'configureKey', 'Sign in with ChatGPT': 'signIn',
     'Allow once': 'allowOnce', 'Allow always': 'allowAlways', Reject: 'reject',
@@ -1971,6 +2065,18 @@ function localizeChatUi(root: HTMLElement): void {
   const composerStatus = root.querySelector<HTMLElement>('#chat-composer-status');
   if (composerStatus?.textContent === 'Ready to send.') composerStatus.textContent = t('readyToSend');
   else if (composerStatus?.textContent === 'Wait for the active turn or cancel it.') composerStatus.textContent = t('waitTurn');
+  else if (composerStatus) {
+    const reasons: Readonly<Record<string, string>> = {
+      'Select an Agent backend before sending.': 'agentSelectBackend',
+      'Configure an API key before sending.': 'agentConfigureKey',
+      'Sign in with ChatGPT, then refresh connection.': 'agentSignInThenRefresh',
+      'Complete sign-in, then refresh connection.': 'agentCompleteSignIn',
+      'Agent connection is unavailable. Refresh connection to retry.': 'agentConnectionUnavailable',
+      'No supported model is selected. Refresh connection to load models.': 'agentModelsUnavailable',
+      'Reconnect before sending a message.': 'agentReconnectBeforeSend',
+    };
+    const key = reasons[composerStatus.textContent ?? '']; if (key) composerStatus.textContent = t(key);
+  }
 }
 function tuple(value: Vec3Snapshot): [number, number, number] { return [value.x, value.y, value.z]; }
 function tupleRadians(value: Vec3Snapshot): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }

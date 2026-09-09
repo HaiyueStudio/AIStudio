@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyEditorCandidateSurface } from './editor-candidate-surface.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requirements = JSON.parse(await readFile(path.join(root, 'config', 'upstream', 'editor-candidates.json'), 'utf8'));
@@ -35,13 +36,8 @@ for (const candidate of requirements.packages) {
   assert.equal(manifest.version, candidate.version);
   assert.equal(manifest.license, candidate.license);
   assert.deepEqual(Object.keys(manifest.exports ?? {}).sort(), [...candidate.requiredExports].sort());
-  const runtime = await import(candidate.name);
-  for (const name of candidate.requiredRuntimeExports) assert.ok(name in runtime, `${candidate.name} misses ${name}`);
-  for (const name of requirements.forbiddenRuntimeExports) assert.equal(name in runtime, false, `${candidate.name} leaks ${name}`);
-  if (candidate.requiredConformanceExports) {
-    const conformance = await import(`${candidate.name}/conformance`);
-    for (const name of candidate.requiredConformanceExports) assert.ok(name in conformance, `${candidate.name}/conformance misses ${name}`);
-  }
+  await verifyEditorCandidateSurface(candidate, requirements.forbiddenRuntimeExports,
+    specifier => import(specifier), specifier => readFile(fileURLToPath(import.meta.resolve(specifier))));
 }
 
 console.log(`[editor-candidates] M03 complete; ${requirements.packages.length} packed public packages, exports and lock integrities passed`);

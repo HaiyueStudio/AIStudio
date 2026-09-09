@@ -176,8 +176,12 @@ function evaluateAcceptance(
 }
 
 type ParsedAssertion = Readonly<{ type: ObservationArtifactV2['type']; signal?: string; operator?: 'equals' | 'gte' | 'lte'; expected?: JsonValue }>;
+export const EVIDENCE_ASSERTION_PATTERN = '^evidence\\s+(state|event-trace|runtime-errors|performance|screenshot|visual-analysis|lifecycle)(?:\\s+signal\\s+([A-Za-z0-9_.-]{1,160})\\s+(equals|gte|lte)\\s+(.+))?$';
+const evidenceAssertionPattern = new RegExp(EVIDENCE_ASSERTION_PATTERN, 'u');
+/** Use the evaluator's parser when validating a proposed plan, before asking the user to approve it. */
+export function isSupportedEvidenceAssertion(value: string): boolean { return parseAssertion(value) !== null; }
 function parseAssertion(value: string): ParsedAssertion | null {
-  const match = /^evidence\s+(state|event-trace|runtime-errors|performance|screenshot|visual-analysis|lifecycle)(?:\s+signal\s+([A-Za-z0-9_.-]{1,160})\s+(equals|gte|lte)\s+(.+))?$/u.exec(value.trim());
+  const match = evidenceAssertionPattern.exec(value.trim());
   if (!match) return null;
   if (!match[2]) return Object.freeze({ type: match[1] as ObservationArtifactV2['type'] });
   let expected: JsonValue;
