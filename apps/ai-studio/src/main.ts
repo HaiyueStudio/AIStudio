@@ -341,6 +341,7 @@ function createWindow(): void {
     },
   });
   mainWindow = window;
+  window.on('focus', () => window.flashFrame(false));
   installApplicationMenu();
   window.webContents.session.protocol.handle(previewScheme, async (request) => {
     const url = new URL(request.url);
@@ -401,7 +402,7 @@ function createWindow(): void {
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-standalone-play-pause-resume-device-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
           || result.agentBackend !== 'backend:codex-app-server' || !['ready', 'auth-required', 'error'].includes(result.agentBackendState)
-          || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4 || result.tabCount !== 3
+          || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4 || result.tabCount !== 4
           || !['zh-CN', 'en'].includes(result.language) || !['light', 'dark'].includes(result.theme)
           || result.settings !== true || result.scriptHidden !== true
           || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));

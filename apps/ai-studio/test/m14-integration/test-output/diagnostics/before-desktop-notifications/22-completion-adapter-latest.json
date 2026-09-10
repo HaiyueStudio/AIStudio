@@ -1,0 +1,21 @@
+{
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 603,
+    "sourceDigest": "sha256:70778bedf5f0aa0a18de08811fea9df758cc7abc31873a2253f46c0553bd8d1e",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:62d037d5e13f492c7b9ecc3c87393c66f3e4dd45921b07dd387f2a06ce894494"
+  },
+  "check": {
+    "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+    "sha256": "sha256:aeb4af10ffcd35bc26257d075ddb5208de2b7982f084b701edd8fdc2e02e7c0f",
+    "kind": "adapter-acceptance",
+    "locator": "g09-current-g08-device"
+  },
+  "runner": {
+    "path": "apps/ai-studio/test/m14-integration/test-output/capture-completion-adapter.mjs",
+    "sha256": "sha256:8910ff0c30774df990b4b313a5830e18517a8f08842cee59f42120edc0155f61",
+    "kind": "source",
+    "locator": ""
+  }
+}

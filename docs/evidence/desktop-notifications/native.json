@@ -1,0 +1,15 @@
+{
+  "preferences": {
+    "schemaVersion": 1,
+    "enabled": true,
+    "sound": true,
+    "backgroundOnly": true,
+    "language": "zh-CN"
+  },
+  "supported": true,
+  "delivery": "shown",
+  "platform": "win32",
+  "electron": "43.5.1",
+  "nativeShowEvent": true,
+  "checkedAt": "2026-09-09T12:13:04.552Z"
+}

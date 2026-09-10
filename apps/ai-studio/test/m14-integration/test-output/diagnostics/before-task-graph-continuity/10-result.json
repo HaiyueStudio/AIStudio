@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "wheelCursorAnchor": {
+    "prevented": true,
+    "old": 1.414,
+    "next": 1.8,
+    "same": true,
+    "error": 0.16580229451517425
+  },
+  "nativeWheel": true,
+  "hoverAndKeyboard": true,
+  "pinAndEscape": true,
+  "runningBeamOnly": true,
+  "narrowBounds": true,
+  "unknownUsage": true,
+  "compactionOnce": true,
+  "cleanup": true,
+  "replayPreservesHover": true,
+  "sizes": [
+    [
+      760,
+      880
+    ],
+    [
+      320,
+      600
+    ]
+  ],
+  "screenshots": [
+    "usage.png",
+    "node-detail.png",
+    "graph-760x880.png",
+    "graph-320x600.png"
+  ]
+}

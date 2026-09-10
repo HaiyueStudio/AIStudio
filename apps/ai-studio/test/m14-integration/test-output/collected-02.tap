@@ -1,16 +1,46 @@
 TAP version 13
-# Subtest: manual context compaction is durable and replayed into the execution graph without deleting Transcript
-ok 1 - manual context compaction is durable and replayed into the execution graph without deleting Transcript
+# Subtest: background notification uses OS sound once, click returns a typed target without executing an approval
+ok 1 - background notification uses OS sound once, click returns a typed target without executing an approval
   ---
-  duration_ms: 2018.2566
+  duration_ms: 12.899
   type: 'test'
   ...
-1..1
-# tests 1
+# Subtest: sound/background settings persist across restart and disabled notifications suppress delivery
+ok 2 - sound/background settings persist across restart and disabled notifications suppress delivery
+  ---
+  duration_ms: 16.8695
+  type: 'test'
+  ...
+# Subtest: withdraw, project disposal, expiry and OS closure prevent stale click actions and release handles
+ok 3 - withdraw, project disposal, expiry and OS closure prevent stale click actions and release handles
+  ---
+  duration_ms: 31.8622
+  type: 'test'
+  ...
+# Subtest: notification failure degrades to taskbar attention and does not throw into the task
+ok 4 - notification failure degrades to taskbar attention and does not throw into the task
+  ---
+  duration_ms: 2.4618
+  type: 'test'
+  ...
+# Subtest: test notification works in foreground, is rate limited and follows mute
+ok 5 - test notification works in foreground, is rate limited and follows mute
+  ---
+  duration_ms: 7.2346
+  type: 'test'
+  ...
+# Subtest: notification IPC is closed: no arbitrary text, sound URL, path or approval decision
+ok 6 - notification IPC is closed: no arbitrary text, sound URL, path or approval decision
+  ---
+  duration_ms: 1.6297
+  type: 'test'
+  ...
+1..6
+# tests 6
 # suites 0
-# pass 1
+# pass 6
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3177.7651
+# duration_ms 430.7047

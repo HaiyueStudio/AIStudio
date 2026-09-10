@@ -1,17 +1,24 @@
 TAP version 13
-# G06 resource module evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-m14-resources-BbfiU3
-# Subtest: G06 isolated resource module uses real service, tools and History in sandboxed Electron with bounded accessible UI
-ok 1 - G06 isolated resource module uses real service, tools and History in sandboxed Electron with bounded accessible UI
+# [notification-ui] evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-notification-ui-0tYeg2
+# Subtest: real Electron notification settings, keyboard focus and exact card/task navigation
+ok 1 - real Electron notification settings, keyboard focus and exact card/task navigation
   ---
-  duration_ms: 60920.8976
+  duration_ms: 2170.5462
   type: 'test'
   ...
-1..1
-# tests 1
+# [notification-product] evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-notification-product-CCGoQi
+# Subtest: production window connects notification preferences through its real typed preload and preserves mute on reload
+ok 2 - production window connects notification preferences through its real typed preload and preserves mute on reload
+  ---
+  duration_ms: 8056.1309
+  type: 'test'
+  ...
+1..2
+# tests 2
 # suites 0
-# pass 1
+# pass 2
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 61122.8777
+# duration_ms 10539.6304

@@ -1,52 +1,58 @@
 TAP version 13
-# Subtest: G09 snake acceptance copy: fixed inputs and real source-bound event flows
-ok 1 - G09 snake acceptance copy: fixed inputs and real source-bound event flows
+# Subtest: IPC validator is versioned, allowlisted and never accepts renderer paths
+ok 1 - IPC validator is versioned, allowlisted and never accepts renderer paths
   ---
-  duration_ms: 12500.2061
+  duration_ms: 4.5692
   type: 'test'
   ...
-# Subtest: G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
-ok 2 - G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
+# Subtest: scene IPC exposes immutable JSON projections and routes typed intents through shared services
+ok 2 - scene IPC exposes immutable JSON projections and routes typed intents through shared services
   ---
-  duration_ms: 13711.0401
+  duration_ms: 12.2258
   type: 'test'
   ...
-# Subtest: G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
-ok 3 - G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
+# Subtest: new-project IPC stays untitled until first save selects a directory
+ok 3 - new-project IPC stays untitled until first save selects a directory
   ---
-  duration_ms: 13877.9935
+  duration_ms: 1.6492
   type: 'test'
   ...
-# Subtest: G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
-ok 4 - G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
+# Subtest: project replacement clears project-scoped Agent work without cancelling a dismissed picker
+ok 4 - project replacement clears project-scoped Agent work without cancelling a dismissed picker
   ---
-  duration_ms: 11454.8717
+  duration_ms: 1.4414
   type: 'test'
   ...
-# Subtest: G09 platformer acceptance copy: fixed inputs and real source-bound event flows
-ok 5 - G09 platformer acceptance copy: fixed inputs and real source-bound event flows
+# Subtest: history IPC is project-bound, paged and preserves complete structured details
+ok 5 - history IPC is project-bound, paged and preserves complete structured details
   ---
-  duration_ms: 9338.0569
+  duration_ms: 1.7231
   type: 'test'
   ...
-# Subtest: G09 racing acceptance copy: fixed inputs and real source-bound event flows
-ok 6 - G09 racing acceptance copy: fixed inputs and real source-bound event flows
+# Subtest: project IPC drains the old conversation before Document replacement and relocates on first save
+ok 6 - project IPC drains the old conversation before Document replacement and relocates on first save
   ---
-  duration_ms: 9933.4471
+  duration_ms: 4.6448
   type: 'test'
   ...
-# Subtest: G09 shooter acceptance copy: fixed inputs and real source-bound event flows
-ok 7 - G09 shooter acceptance copy: fixed inputs and real source-bound event flows
+# Subtest: script preview IPC discloses risk before one-shot code delivery and logs no source text
+ok 7 - script preview IPC discloses risk before one-shot code delivery and logs no source text
   ---
-  duration_ms: 11602.8236
+  duration_ms: 1.8916
   type: 'test'
   ...
-1..7
-# tests 7
+# Subtest: cancel and renderer disposal invalidate late IPC responses
+ok 8 - cancel and renderer disposal invalidate late IPC responses
+  ---
+  duration_ms: 2.3649
+  type: 'test'
+  ...
+1..8
+# tests 8
 # suites 0
-# pass 7
+# pass 8
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 83733.4715
+# duration_ms 372.6819

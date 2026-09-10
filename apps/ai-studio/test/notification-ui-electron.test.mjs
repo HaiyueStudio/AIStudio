@@ -23,3 +23,17 @@ test('real Electron notification settings, keyboard focus and exact card/task na
   assert.ok((await readFile(path.join(directory, 'notification-settings.png'))).byteLength > 5000);
   console.log(`[notification-ui] evidence: ${directory}`);
 });
+
+test('production window connects notification preferences through its real typed preload and preserves mute on reload', { timeout: 65_000 }, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'haiyue-notification-product-'));
+  const env = { ...process.env, HAIYUE_NOTIFICATION_TEST_ROOT: directory, HAIYUE_STUDIO_DISABLE_NOTIFICATIONS: '1' }; delete env.ELECTRON_RUN_AS_NODE; delete env.NODE_OPTIONS;
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn(electron, [fileURLToPath(new URL('./fixtures/notification-product-main.mjs', import.meta.url))], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }); let output = '';
+    const timer = setTimeout(() => child.kill(), 55_000);
+    child.stdout.on('data', b => output += b); child.stderr.on('data', b => output += b); child.once('error', reject); child.once('exit', code => { clearTimeout(timer); resolve({ code, output }); });
+  });
+  assert.equal(result.code, 0, result.output); assert.match(result.output, /notification-product.*passed/);
+  const report = JSON.parse(await readFile(path.join(directory, 'production.json'), 'utf8'));
+  assert.equal(report.final.preferences.sound, false); assert.equal(report.reloaded, true);
+  console.log(`[notification-product] evidence: ${directory}`);
+});

@@ -1,9 +1,13 @@
 import { IntentWorkspace, WORKSPACE_PREFERENCE_KEY } from '@haiyue/ai-studio-shell';
 import { defineSplitComponents } from '@haiyue/ui/split';
 import { defineTabsComponents } from '@haiyue/ui/tabs';
+import { defineTreeComponents, HYTree } from '@haiyue/ui/tree';
 import { defineDialogComponents } from '@haiyue/ui/dialog';
+import { defineDrawerComponents, HYDrawer } from '@haiyue/ui/drawer';
 import { defineSelectComponents } from '@haiyue/ui/select';
 import fixtures from './fixtures.generated.json';
+import { ScriptCodeEditor } from '@haiyue/ai-studio-shell/script-editor';
+import { checkScriptEditor } from './script-editor-checks.mjs';
 
 const get = id => document.getElementById(id);
 const workspaceTab = value => get('workspace-tabs').shadowRoot.querySelector(`[data-value="${value}"]`);
@@ -14,7 +18,7 @@ const key = (id, value) => get(id).dispatchEvent(new KeyboardEvent('keydown', { 
 const intents = [], samples = [];
 const { manifest, catalog } = fixtures;
 const base = { documentId: manifest.binding.documentId, documentRevision: manifest.binding.documentRevision, selectedEntityId: 'entity:main', entities: [{ id: 'entity:main', name: '灯光控制器', sources: ['script', 'declarative-component'] }], sourceBinding: manifest.binding, behavior: manifest, catalog };
-defineSplitComponents(); defineTabsComponents(); defineDialogComponents(); defineSelectComponents();
+defineSplitComponents(); defineTabsComponents(); defineTreeComponents(); defineDialogComponents(); defineDrawerComponents(); defineSelectComponents();
 const contractTabs = document.createElement('hy-tabs');
 assert(contractTabs.attributes.length === 0, 'tabs constructor must leave host attributes empty');
 contractTabs.options = [{ value: 'one', label: '<b>One</b>' }, { value: 'disabled', label: 'Disabled', disabled: true }, { value: 'two', label: 'Two' }];
@@ -45,11 +49,16 @@ get('light-resources').textContent = '方向光 · 点光源 · 环境光';
 const original = Object.fromEntries(['left-sidebar-split', 'viewport-panel', 'assets-panel', 'script-panel', 'fixture-create'].map(id => [id, get(id)]));
 let manualCalls = 0; get('fixture-create').addEventListener('click', () => manualCalls++);
 let workspace;
+let scriptChanges = 0;
+const scriptEditor = new ScriptCodeEditor(get('script-source'), () => scriptChanges++);
+const checkScript = () => checkScriptEditor(scriptEditor, get('script-source'), assert, settle, () => scriptChanges);
+window.addEventListener('beforeunload', () => scriptEditor.dispose(), { once: true });
 try {
   const reload = localStorage.getItem('layout-test-phase') === 'reload';
   if (!reload) localStorage.setItem('haiyue.ai-studio.split.v2.workspace', '0.31');
   workspace = new IntentWorkspace(document, { dispatch: intent => intents.push(intent) }, localStorage);
-  window.layoutTest = { workspace, get, assert, settle, base, intents, samples, update: snapshot => workspace.update(snapshot) };
+  assert(get('workspace-advanced') instanceof HYDrawer && !get('workspace-advanced').destroyOnHidden, 'public drawer preserves mounted editor content');
+  window.layoutTest = { workspace, get, assert, settle, base, intents, samples, scriptEditor, checkScript, update: snapshot => workspace.update(snapshot) };
   if (reload) {
     assert(document.body.dataset.workspaceMode === 'classic', 'classic mode persisted through reload');
     assert(get('workspace-category').value === 'lights', 'category persisted through reload');
@@ -62,18 +71,48 @@ try {
     assert(get('workspace-manual-inspect').contains(original['left-sidebar-split']), 'manual panel preserved');
     assert(get('content-split').contains(original['viewport-panel']), 'viewport fills main content');
     workspace.update({ ...base, entities: [], selectedEntityId: null, sourceBinding: null, behavior: null, catalog: null });
-    assert(get('workspace-entity').disabled && !get('workspace-events').children.length, 'empty state');
-    for (const count of [1, 100, 1000]) {
+    const tree = get('workspace-entity');
+    const row = id => tree.shadowRoot.querySelector(`[data-id="${id}"]`);
+    assert(tree instanceof HYTree && tree.getAttribute('aria-disabled') === 'true' && !get('workspace-events').children.length, 'public tree empty state');
+    for (const count of [1, 100, 1000, 10000]) {
       const entities = Array.from({ length: count }, (_, i) => ({ id: `entity:${i}`, name: i === 0 ? '<img src=x onerror=alert(1)>' : `对象 ${i}`, sources: [] }));
       const start = performance.now(); workspace.update({ ...base, entities, selectedEntityId: 'entity:0', sourceBinding: null, behavior: null, catalog: null });
       const durationMs = performance.now() - start; samples.push({ count, durationMs });
-      assert(get('workspace-entity').options.length === count + 1 && durationMs < 5000, `bounded entity list ${count}`);
-      assert(!get('intent-workspace').querySelector('img') && get('workspace-entity').options[1].textContent.startsWith('<img'), 'literal model text');
-      change('workspace-entity', `entity:${count - 1}`); assert(intents.at(-1).entityId === `entity:${count - 1}`, 'typed authoritative selection intent');
+      assert(tree.data.length === count && durationMs < 5000, `bounded entity tree ${count}`);
+      assert(row('entity:0').querySelector('hy-tree-node').shadowRoot.textContent.includes('<img src=x onerror=alert(1)>') && !row('entity:0').querySelector('hy-tree-node').shadowRoot.querySelector('img'), 'literal model text');
+      if (count >= 1000) assert(tree.shadowRoot.querySelectorAll('[role="treeitem"]').length < 100, 'large tree virtualizes rows');
+      tree.focus(); key('workspace-entity', 'End'); key('workspace-entity', 'Enter');
+      assert(intents.at(-1).entityId === `entity:${count - 1}`, 'keyboard emits typed authoritative selection intent');
+      assert(tree.selectedId === `entity:${count - 1}` && row(`entity:${count - 1}`), 'keyboard reveals selected row');
     }
+    const hierarchy = { ...base, sourceBinding: null, behavior: null, catalog: null, selectedEntityId: 'grid:2', entities: [
+      { id: 'board', name: 'Gomoku Board', sources: [] },
+      { id: 'grid:1', parentId: 'board', name: 'Grid V 1', sources: [] },
+      { id: 'grid:2', parentId: 'board', name: 'Grid V 2', sources: [] },
+      { id: 'light', name: 'Light', sources: [] },
+    ] };
+    workspace.update(hierarchy);
+    assert(tree.data.length === 2 && tree.data[0].children.length === 2 && row('grid:2'), 'real parent hierarchy and viewport selection reveal');
+    row('grid:1').click(); assert(intents.at(-1).entityId === 'grid:1', 'mouse selects object');
+    row('light').dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    assert(tree.selectedIds.length === 1 && tree.selectedId === 'light', 'selector remains single selection');
+    const countBeforeEditKeys = intents.length;
+    for (const options of [{ key: 'Delete' }, { key: 'Backspace' }, { key: 'c', ctrlKey: true }, { key: 'v', ctrlKey: true }, { key: 'x', metaKey: true }]) tree.dispatchEvent(new KeyboardEvent('keydown', { ...options, bubbles: true, cancelable: true }));
+    assert(tree.data.length === 2 && tree.data[0].children.length === 2 && !tree.allowDrag && intents.length === countBeforeEditKeys, 'selection tree cannot edit local objects with clipboard/delete/drag');
+    tree.dispatchEvent(new CustomEvent('selection-change', { detail: { selectedId: 'unknown' } }));
+    assert(intents.length === countBeforeEditKeys, 'unknown selection is ignored');
+    workspace.update({ ...hierarchy, selectedEntityId: 'board' }); tree.collapse('board');
+    workspace.update({ ...hierarchy, selectedEntityId: 'board' }); assert(!row('grid:1'), 'ordinary update retains collapsed branch');
+    get('workspace-search').value = 'Grid V 2'; get('workspace-search').dispatchEvent(new Event('input'));
+    assert(tree.data.length === 1 && tree.data[0].id === 'board' && tree.data[0].children.length === 1 && row('grid:2') && get('workspace-entity-status').textContent === '1 / 4', 'search retains and expands matching ancestor path');
+    get('workspace-search').value = ''; get('workspace-search').dispatchEvent(new Event('input'));
+    workspace.update(hierarchy); workspace.setMode('classic'); workspace.setMode('intent');
+    assert(tree.data.length === 2 && tree.selectedId === 'grid:2' && row('grid:2'), 'tree data and selection survive layout reparenting: ' + JSON.stringify({ data: tree.data, selected: tree.selectedId, rows: [...tree.shadowRoot.querySelectorAll('[data-id]')].map(row => row.dataset.id) }));
+    workspace.update({ ...hierarchy, selectedEntityId: 'grid:2', entities: hierarchy.entities.map(entity => ({ ...entity, parentId: entity.id === 'board' ? 'grid:2' : entity.id === 'light' ? 'missing' : entity.parentId })) });
+    assert(tree.data.length === 2 && row('grid:2') && row('light'), 'broken parent references keep objects reachable');
     workspace.update(base);
     get('workspace-search').value = '不存在'; get('workspace-search').dispatchEvent(new Event('input'));
-    assert(get('workspace-entity').disabled, 'search no matches');
+    assert(tree.getAttribute('aria-disabled') === 'true' && tree.data.length === 0 && tree.tabIndex === -1, 'search no matches');
     get('workspace-search').value = ''; get('workspace-search').dispatchEvent(new Event('input'));
     assert(get('workspace-events').children.length === manifest.triggers.length, 'real analysis event entries');
     for (const kind of ['script', 'declarative-component', 'runtime-adapter']) {
@@ -120,6 +159,7 @@ try {
     workspace.update({ ...base, sourceBinding: null, behavior: null, catalog: null });
     assert(get('workspace-behavior-status').textContent.includes('尚未就绪'), 'honest product pending state');
     assert(JSON.parse(localStorage.getItem(WORKSPACE_PREFERENCE_KEY)).mode === 'intent', 'preferences saved');
+    workspace.update(hierarchy);
     await settle(); document.body.dataset.layoutStatus = 'ready';
   }
 } catch (error) { document.body.dataset.layoutStatus = 'failed'; document.body.dataset.layoutError = error.stack ?? String(error); }

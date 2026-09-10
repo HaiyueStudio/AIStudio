@@ -1,0 +1,409 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "scope": "workspace-advanced-drawer",
+  "verifiedAt": "2026-09-10T07:05:42.309Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 622,
+    "sourceDigest": "sha256:bc07e09f88ba2aa027ac4b449ec4e46b103e35fe2463146279b5209942dde58d",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:4e4798e8a9fe9c77d3b0586b4b71b7701584aa68c785b227af2b21382560be76"
+  },
+  "behavior": "Hierarchy/property and script entry points open the public hy-drawer from the right. Component mask, Escape, close buttons and focus restoration replace the native dialog. Existing editors stay mounted and keep draft text and selection. The workspace restores viewport placement on drawer-close. Source navigation waits for initial Drawer focus before selecting the exact script range or component location. Reopening waits for previous asynchronous cancellation; aria-busy exposes completion for the current transition and superseded or disposed callbacks cannot change it.",
+  "checks": {
+    "capabilityExitCode": 0,
+    "finishedAt": "2026-09-10T07:04:44.3993209Z",
+    "focusedExitCode": 0,
+    "rootExitCode": 0,
+    "focusedCases": 4,
+    "productRecheckCases": 2,
+    "conversationRecheckCases": 4,
+    "pointerRecheckCases": 1,
+    "capabilityCases": 123,
+    "integrationFiles": 46,
+    "integrationCases": 215
+  },
+  "browser": {
+    "samples": [
+      {
+        "count": 1,
+        "durationMs": 5.099999904632568
+      },
+      {
+        "count": 100,
+        "durationMs": 8.600000023841858
+      },
+      {
+        "count": 1000,
+        "durationMs": 23.699999928474426
+      },
+      {
+        "count": 10000,
+        "durationMs": 32.39999997615814
+      }
+    ],
+    "locations": [
+      {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:005a2d93701019a4ec01395cb5b795e0",
+          "source": {
+            "kind": "script",
+            "entityId": "entity:main",
+            "scriptId": "script:main",
+            "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d",
+            "path": "scripts/main.ts",
+            "range": {
+              "start": 0,
+              "end": 355,
+              "startLine": 1,
+              "startColumn": 1,
+              "endLine": 10,
+              "endColumn": 2
+            }
+          }
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:6b36f70c0fb042c22ef135a523f3d94e",
+          "source": {
+            "kind": "declarative-component",
+            "entityId": "entity:main",
+            "componentId": "component:0",
+            "componentType": "haiyue.animation.transform-clips",
+            "componentVersion": "1.0.0",
+            "field": ""
+          }
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:fc73dfbb2194acde364d25f1402555d2",
+          "source": {
+            "kind": "runtime-adapter",
+            "entityId": "entity:main",
+            "componentId": "component:0",
+            "adapter": {
+              "id": "adapter.animation.3d-mixer",
+              "version": "1.0.0",
+              "digest": "sha256:3923ffa379151f24c06182706ffdb55ab1fb63168e2b729d509cba322a83cc0d"
+            },
+            "field": "/runtimeAdapter"
+          }
+        }
+      }
+    ],
+    "desktop": true,
+    "narrow": [
+      900,
+      375
+    ],
+    "keyboard": true,
+    "reload": true,
+    "rollback": true,
+    "teardown": true
+  },
+  "initialFocusedRun": {
+    "passed": 4,
+    "failed": 1,
+    "reason": "The hidden fixture window stopped delivering animation frames during native Tab input after opening the Drawer. A diagnostic repeat pinpointed the frame wait. The fixture now presents an inactive window, preserving the original timeout and all interaction assertions. Focused and final full checks pass."
+  },
+  "initialFullRun": {
+    "passed": 213,
+    "failed": 2,
+    "reasons": [
+      "The large product query raced asynchronous editor/cancel after closing the Drawer. Reopening now waits for cancellation and exposes the transition completion; the product test observes this completion before its independent resource query and covers rapid reopening.",
+      "The unchanged headless project-conversation test hit its 5 ms duration threshold. All four tests passed in the isolated recheck without source or assertion changes."
+    ],
+    "evidenceDirectory": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run"
+  },
+  "secondFullRun": {
+    "passed": 214,
+    "failed": 1,
+    "reason": "The product fixture presented the window with showInactive but did not establish native input focus before injecting the Gizmo drag. No transform approval or gesture transaction was produced. The fixture now focuses the window, awaits focus, and asserts that the coordinates hit the visible X handle before sending real input. The isolated product recheck passed with the original one-transaction assertion; the other 214 cases already passed in this run.",
+    "evidenceDirectory": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run"
+  },
+  "scopeNotes": [
+    "Actual sandboxed Electron tests cover both entry buttons, keyboard focus, Escape, mask and component-close actions, editor identity/draft/selection, reload and teardown.",
+    "Open Drawer geometry is checked through its public panel part at 900 px and 375 px. Production source navigation and public advanced editor composition also pass.",
+    "No live provider task was started; no user project was changed or running editor restarted. Milestone status and approval policy remain unchanged."
+  ],
+  "sources": [
+    {
+      "path": "packages/studio-shell/src/workspace/workspace.ts",
+      "sha256": "sha256:30af13fa30f5ae141d26ef43468220a9428ea074a169077de540e61677915655",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/renderer.ts",
+      "sha256": "sha256:dbd5ca3e10286a757c738d291261b26e9ad05c8c0b69c9fa370ba7d736d1bd7c",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/editor-panels.ts",
+      "sha256": "sha256:3a0ee519b5a64cb2d7f2e073ad3b9f4564f5f9cb3a9b4b682c5c521fcf064c2c",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/styles.css",
+      "sha256": "sha256:2070d82a879d95c5ac890b91989e7f9f3d90939459491421c254c8cd32d46b11",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/workspace-browser.mjs",
+      "sha256": "sha256:4491778eb8d8d2af6a01b54af1ef2842771a19a5ed2357b227414dc2e73a1434",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/workspace-main.mjs",
+      "sha256": "sha256:837118db0fb0187b50b15cb18db3703fa720918c5fcfe36082633ee6fba9c872",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/product-main.mjs",
+      "sha256": "sha256:64e05cea5c1cfda891fbdcee94e294e9e98188a54e14f0675d628789944460de",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/input.json",
+      "sha256": "sha256:7d53f4834cfc1410faa99217324d53d2c71817af0792b9a7cf31e573aed42bdc",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/checks.json",
+      "sha256": "sha256:85ec7259611153a1b49c1fdca57ef4f300815d60180e9dd295fb81795dd372b8",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/focused-check-initial.log",
+      "sha256": "sha256:536efbecbcc50a4fa577a57cfbc3b17d69fed1652912971a694139877c5ae6a1",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/drawer-diagnostic.log",
+      "sha256": "sha256:4eabebf3021a9d7072bbd9f2159597464ada10f710aaab7baf02efc62d16ba38",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/focused-check.log",
+      "sha256": "sha256:bde41b27c2d76f30a4834988d8bf6e4452d20ee2e534249b7528420db5047a3b",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/root-check.log",
+      "sha256": "sha256:d111c41e661a3e6c7e8bb036376cccbfb7cee0f789bfc73c6bb989ad173e72ee",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/capability-capture.log",
+      "sha256": "sha256:3b2943dcd6b1c1f6c2a3b9381a96ec109b5a017013d26d7c422c1736047f7c4d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:1dd1d8720df484399282378e2d10865c97ca2d32dde7c24a125eddad2c2b0c52",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:c70380d5949d8587995049f741d17f0c42b034a86822caface0eef8024284bc7",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/product-recheck.log",
+      "sha256": "sha256:316329701a739622d79c905a228a4575c077b7397b3af4f14edbc34ba2d97be3",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/conversation-recheck.log",
+      "sha256": "sha256:76736cb9051817dedcb0ebe7e19ab0cd9cbc996196dd0824f152f36f0ad7e93d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/pointer-recheck.log",
+      "sha256": "sha256:dee53c482f22cd52213e5871db0837ba892d0abfc963ec3682824752c9889195",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/input.json",
+      "sha256": "sha256:e262451b7e8996d3a91b1df556eaff7338e43493edf154555a0781070663dc2c",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/checks.json",
+      "sha256": "sha256:0e50981c8f0aacb189991cdf96fc393233fadb0ed149e1c22af8ad5f5d466e5f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/root-check.log",
+      "sha256": "sha256:94a038f30b5d7b20e8793ae37f83f21437c37d41be2575fd1099f306f8aaa06a",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/capability-capture.log",
+      "sha256": "sha256:1317f8fa2a8b2f061e7327b6faddb5d7a86cb7fae9a026c0cc5168fdf201a57c",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/collected-tests.json",
+      "sha256": "sha256:d3dac5e27f6494c9e049ebe982667db3205fead04f59e4854299d15313736249",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/collected-13.tap",
+      "sha256": "sha256:9c05f923d2bb3051484e0f9e5d47c240fb6dd3905f502b5f69e46a8fb8a97017",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/collected-28.tap",
+      "sha256": "sha256:a1ad933bf795f35764439f59869a08c652ba9593044de6d62f7d30508238902d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/m14-capability-verification.json",
+      "sha256": "sha256:ac2e85d968ec905b8e715af410a208a444c695082669301b63de5e4edb8b932a",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/m14-capability-census.json",
+      "sha256": "sha256:67d41b5e25a06adfa8c45cf7a2aa2938fbc1fe832d4c298ac6302c76fb98dd49",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/input.json",
+      "sha256": "sha256:f7017e05b738383d87d606135b3ccb819919e04e55833a9243c3cb2d4e0e3a55",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/checks.json",
+      "sha256": "sha256:4381b4ee0a276db0bfedf0fdaa6392e8fc82455e0e1dbc6df3b6c2bb76988ff2",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/root-check.log",
+      "sha256": "sha256:7d4c38b28205f37ae62e9641bfc6b7547973c42f50ed2329ad43f30604e26173",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/capability-capture.log",
+      "sha256": "sha256:0d74c19a45cf501496638ae27f60148f0af6f1c922a7f4a88ffc492c9df06911",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/collected-tests.json",
+      "sha256": "sha256:7ecf514c5b7377ae9663626db2635aa2aa43a544eaacf7679899b3c8ac317fd6",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/collected-13.tap",
+      "sha256": "sha256:35093bd99c1efd2354415cb0281db2a6d966ad8de917996c6625663ea93e3acc",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/m14-capability-verification.json",
+      "sha256": "sha256:b4ed6a03a4ce7a86a841b0949c9142f9207c2ebafa3317f51a631d06b173f24f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/m14-capability-census.json",
+      "sha256": "sha256:aafbb8458a243618ec2f28d8d4d7784af0c4d5bae670965d9b77f57796c0803f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-advanced-drawer/result.json",
+      "sha256": "sha256:fbe784a410f4421658e467708528cd50fdf1ae2e0975a2dc9ebf4e766f4f7d8a",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-advanced-drawer/workspace-advanced.png",
+      "sha256": "sha256:97c5078b231b7d52523c9a18ef32b7cb37f26865ca6f58c1c5d491dfb5601053",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-advanced-drawer/workspace-script.png",
+      "sha256": "sha256:6fc946ef3d21301f77831f91d234d8369d276aedc1a9f3cb4cd96547d2edb21f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-advanced-drawer/workspace-drawer-900.png",
+      "sha256": "sha256:af686c82661dda23ea2e3fa818c3535c4a3347136156bb5e4db420216402e9b2",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-advanced-drawer/workspace-drawer-375.png",
+      "sha256": "sha256:47031ec5fa0a486850219bef14ff80300f0cf928f4e4b6d527fad26804eefdc0",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-advanced-drawer/product-advanced-desktop.png",
+      "sha256": "sha256:5097e6d5483e4eeaaa351a5b3cb308232245ec479c8a845f44489496b750964d",
+      "kind": "verification",
+      "locator": ""
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 import { mountNotificationSettings } from '../../dist/notification-ui.js';
 import { DEFAULT_NOTIFICATION_PREFERENCES } from '../../dist/notification-settings.js';
 import { ConversationProjector, presentChatPanel, renderChatPanel, revealChatAttention } from '@haiyue/ai-studio-shell';
+import { defineTabsComponents } from '@haiyue/ui/tabs';
+defineTabsComponents();
 const assert = (value, message) => { if (!value) throw new Error(message); };
 window.testResult = (async () => {
   let preferences = { ...DEFAULT_NOTIFICATION_PREFERENCES }, language = 'zh-CN'; const calls = [];

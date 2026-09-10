@@ -1,0 +1,50 @@
+import { ScriptCodeEditor } from '@haiyue/ai-studio-shell/script-editor';
+import { EditorView } from '@codemirror/view';
+import { undo, redo } from '@codemirror/commands';
+
+export const scriptExample = `// 棋盘点击与计分\ntype Point={x:number;y:number};const points:Point[]=[{x:1,y:2}];\nif(points.length===0)return;\nfor(const point of points){const label="黑方落子";console.log(label,point.x+point.y);}`;
+
+export async function checkScriptEditor(editor, host, assert, settle, changes) {
+  const view = EditorView.findFromDOM(host.querySelector('.cm-editor'));
+  assert(view && host.querySelector('.cm-content[contenteditable="true"]'), 'CodeMirror is the actual editable surface');
+  editor.load('code:original', scriptExample);
+  await settle();
+  assert(editor.text === scriptExample && host.querySelector('.tok-keyword') && host.querySelector('.tok-string') && host.querySelector('.cm-lineNumbers'), 'loading preserves bytes and renders TypeScript highlighting and line numbers');
+  editor.focusRange(30, 30);
+  const count = changes();
+  host.querySelector('[data-script-action="format"]').click();
+  while (host.getAttribute('aria-busy') === 'true') await new Promise(resolve => setTimeout(resolve, 10));
+  const formatted = editor.text;
+  assert(formatted !== scriptExample && formatted.includes('type Point = {') && formatted.includes('if (points.length === 0) return;') && formatted.includes('黑方落子'), 'format button supports TypeScript function-body source and Unicode');
+  assert(changes() === count + 1, 'format invalidates validation exactly once');
+  assert(undo(view) && editor.text === scriptExample && editor.selection.from === 30, 'format undo restores original text and caret in one step');
+  assert(redo(view) && editor.text === formatted, 'format redo restores formatted draft');
+  const afterRedo = changes(); await editor.format();
+  assert(editor.text === formatted && changes() === afterRedo, 'format is idempotent');
+  editor.load('code:broken', 'const broken: ='); await editor.format();
+  assert(editor.text === 'const broken: =' && host.querySelector('[role="status"]').textContent.includes('无法格式化'), 'syntax failure leaves source intact with visible diagnostic');
+  editor.load('code:stale', scriptExample);
+  const stale = editor.format(); view.dispatch({ changes: { from: view.state.doc.length, insert: '\n// edited while formatting' } });
+  const draft = editor.text; await stale;
+  assert(editor.text === draft && host.getAttribute('aria-busy') === 'false', 'late format cannot replace a newer edit');
+  const switched = editor.format(); editor.load('code:other', 'const other=2;'); await switched;
+  assert(editor.text === 'const other=2;' && !undo(view), 'source switch discards late formatting and previous undo history');
+  editor.setReadOnly(true); await editor.format();
+  assert(editor.text === 'const other=2;' && host.querySelector('[data-script-action="format"]').disabled && view.contentDOM.contentEditable === 'false', 'unavailable source is read-only and cannot format');
+  editor.setReadOnly(false); editor.setLanguage('en');
+  assert(view.contentDOM.getAttribute('aria-label') === 'Entity script source' && host.querySelector('button').textContent === 'Format', 'editor localizes without replacing its view');
+  editor.setLanguage('zh-CN');
+  const crlf = scriptExample.replaceAll('\n', '\r\n'), start = crlf.indexOf('for('), end = crlf.indexOf('console.log');
+  editor.load('code:crlf', crlf); editor.focusRange(start, end);
+  assert(editor.text === crlf && editor.selection.from === start && editor.selection.to === end && view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to) === crlf.slice(start, end).replaceAll('\r\n', '\n'), 'CRLF byte identity and external source ranges survive CodeMirror normalization');
+  await editor.format(); assert(editor.text.includes('\r\n') && undo(view) && editor.text === crlf && editor.selection.from === start, 'format and undo preserve Windows line endings and source offsets');
+  editor.load('code:large', Array.from({ length: 2000 }, (_, i) => `const value${i}: number = ${i};`).join('\n'));
+  editor.focusRange(editor.text.length - 20, editor.text.length); await settle();
+  assert(view.dom.querySelectorAll('.cm-line').length < 200 && editor.selection.to === editor.text.length, 'large scripts virtualize and exact offscreen ranges remain reachable');
+  const temporary = document.createElement('div'); document.body.append(temporary);
+  let lateChanges = 0;
+  const transient = new ScriptCodeEditor(temporary, () => lateChanges++);
+  transient.load('dispose', scriptExample); const pending = transient.format(); transient.dispose(); transient.dispose(); await pending;
+  assert(!temporary.children.length && lateChanges === 0, 'dispose removes editor resources and drops late format results'); temporary.remove();
+  editor.load('code:drawer-draft', formatted); editor.focusRange(3, 10); await settle();
+}

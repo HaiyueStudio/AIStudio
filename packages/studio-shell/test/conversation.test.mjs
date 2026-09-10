@@ -134,7 +134,7 @@ test('model controls and task cost card expose effective settings, cache savings
   value.backends = [{ ...value.backends[0], state: 'ready', models: [{ id: 'fixture-model', label: 'Fixture model', reasoningEfforts: ['low', 'high'], defaultReasoningEffort: 'high', maxOutputTokens: 8192, isDefault: true }], selectedModel: 'fixture-model', selectedReasoningEffort: 'high', outputTokenLimit: 4096 }];
   value.taskAccounting = { taskId: 'task:fixture', budgetStatus: 'within', budget: { schemaVersion: 2, id: 'budget:fixture', enforcement: 'hard', limits: { inputTokens: 1000, outputTokens: 100, estimatedCostMicros: 10000, wallTimeMs: 60000, turns: 3, toolCalls: 10, repairIterations: 2, observationBytes: 10000 } }, usage: { inputTokens: 100, cachedInputTokens: 40, outputTokens: 20, reasoningTokens: 5, toolInputBytes: 10, toolOutputBytes: 20, wallTimeMs: 1000, contextCache: { localArtifactHits: 4, localArtifactMisses: 1, deltaReuseBytes: 2048, providerCacheEligibleBytes: 4096, providerReportedHitTokens: null } }, cost: { status: 'estimated', amountMicros: 42, currency: 'USD', cacheSavingMicros: 7, explanation: 'catalog', final: false } };
   const model = presentChatPanel(new ConversationProjector().reset(value)); const fake = fakeDom(); renderChatPanel(fake.root, model, () => {});
-  assert.match(fake.text(), /Model, reasoning and task budget/); assert.match(fake.text(), /Task cost · current estimate/); assert.match(fake.text(), /cache saved/); assert.match(fake.text(), /Context cache: local 4 hit \/ 1 miss/); assert.match(fake.text(), /provider hit unknown/);
+  assert.match(fake.text(), /Model, reasoning and task budget/); assert.match(fake.text(), /当前任务用量 · 执行中/); assert.match(fake.text(), /cache saved/); assert.match(fake.text(), /Context cache: local 4 hit \/ 1 miss/); assert.match(fake.text(), /provider hit unknown/);
   const unknown = new ConversationProjector().reset({ ...value, taskAccounting: { ...value.taskAccounting, cost: { status: 'unknown', amountMicros: null, currency: null, cacheSavingMicros: null, explanation: 'Subscription limits are not API billing amounts.', final: true } } });
   assert.match(presentChatPanel(unknown).taskAccounting.cost.explanation, /Subscription limits/);
   assert.throws(() => validateConversationIntent({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: value.taskAccounting.budget, apiKey: 'CANARY' }), /unknown fields/i);
@@ -268,6 +268,8 @@ test('expired approval read models are visible but cannot block the composer or 
   const card = presentChatPanel(snapshotAtExpiry, now).cards[0];
   assert.ok(card.actions.every((action) => action.enabled === false));
   assert.match(card.body, /decision: expired/i);
+  const view = fakeDom(); renderChatPanel(view.root, presentChatPanel(snapshotAtExpiry, now), () => {});
+  assert.ok(!view.text().includes('等待你的确认'), 'expired approvals remain in history, not in the action area');
   const port = fakeConversationPort(); const controller = new ConversationController(port, () => now); await controller.mount();
   port.emit({ type: 'conversation/event', event: projection(1, approvalNode('pending', { expiresAt, scope: 'operation' }), 'live') });
   await assert.rejects(controller.resolveApproval('node:approval', 'allow-once'), /no longer pending/);
@@ -356,6 +358,7 @@ function fakeDom() {
     append(...values) { this.children.push(...values); }
     replaceChildren(...values) { this.children = [...values]; }
     setAttribute(key, value) { this.attributes[key] = value; }
+    getAttribute(key) { return this.attributes[key] ?? null; }
     addEventListener(type, listener) { const values = this.listeners.get(type) ?? []; values.push(listener); this.listeners.set(type, values); }
     click() { if (this.disabled) return; for (const listener of this.listeners.get('click') ?? []) listener({ currentTarget: this, target: this, preventDefault() {} }); }
     focus() { this.ownerDocument.activeElement = this; }

@@ -25,7 +25,7 @@ if (!process.argv.includes('--inventory')) {
   assert.equal(process.argv.length, 2, 'Use no arguments or --inventory.');
   const output = path.join(root, 'apps/ai-studio/test/m14-integration/test-output'); await mkdir(output, { recursive: true });
   const binding = await inputBinding(await collectPackages());
-  const env = { ...process.env, HAIYUE_M14_G09_OUTPUT: output };
+  const env = { ...process.env, HAIYUE_M14_G09_OUTPUT: output, HAIYUE_STUDIO_DISABLE_NOTIFICATIONS: '1' };
   for (const key of ['ELECTRON_RUN_AS_NODE','NODE_OPTIONS','DEEPSEEK_API_KEY','HAIYUE_STUDIO_DEEPSEEK_SECRET','HAIYUE_M14_ALLOW_REAL']) delete env[key];
   const results = [];
   for (const [index, file] of actual.entries()) {

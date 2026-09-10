@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "archivedAt": "2026-09-10T05:47:50.913Z",
+  "priorInputDigest": "sha256:f474bad7c3ad0ea8d952973154fe16b7203e605db37cefc217b4d74d6da7ed36",
+  "reason": "Retain object Tree verification before adopting the public Drawer component.",
+  "entries": [
+    {
+      "original": "docs/evidence/workspace-entity-tree/verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/01-verification.json",
+      "sha256": "sha256:1ef0e322b2adeadd3a313759d8eb9376831ca80d7ff97002a275945c6a48bd7d"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-entity-tree/input.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/02-input.json",
+      "sha256": "sha256:c23477cefcdae5c2de437ca8a47c51e5a8cfdf47318e3748a2b66bc355352836"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-entity-tree/checks.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/03-checks.json",
+      "sha256": "sha256:29d438cdd8a60fb20449d3bc971ccddde00894db085ed5f465966826be379043"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-entity-tree/focused-check-initial.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/04-focused-check-initial.log",
+      "sha256": "sha256:7b0e215bf2bfb3c19ad2414dd60f3337d8cc8b3c76ec25fd1c88140df094419c"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-entity-tree/focused-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/05-focused-check.log",
+      "sha256": "sha256:67f83c828e0be21260d4873c3d04546387ae5413df6e03bc7f64822336273343"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-entity-tree/tree-recheck.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/06-tree-recheck.log",
+      "sha256": "sha256:34e1ebb046dbbaaaceb7b3df66873f7218b22b776d737a184fb0c783aca33188"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-entity-tree/root-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/07-root-check.log",
+      "sha256": "sha256:2948276c42d07f18389003421473206129f9fe4a70fb988d16d7f976483ac40a"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-entity-tree/capability-capture.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/08-capability-capture.log",
+      "sha256": "sha256:80ec9d653add94d327adc3f504e0390ebf850090987420eec5cb918c185ca97f"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/09-collected-tests.json",
+      "sha256": "sha256:bf4532ea8d824bbc3ad61d2a269907d8617f776543971fd5a6d77236e87382bf"
+    },
+    {
+      "original": "config/contracts/m14-capability-verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/10-m14-capability-verification.json",
+      "sha256": "sha256:eb2eef71e979983629cba0a1246d070fa4691bf3bb568588a225492ec95051f7"
+    },
+    {
+      "original": "docs/evidence/workspace-entity-tree/result.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/11-result.json",
+      "sha256": "sha256:10b55e81a167b30251093d37e278c0e75fd32bbfd0db08470e1fc5226ecd6465"
+    },
+    {
+      "original": "docs/evidence/workspace-entity-tree/workspace-desktop.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/12-workspace-desktop.png",
+      "sha256": "sha256:cb10f5efb9c3280a2160d66ea1681d2661453c9886ab78e887c5878a8828cc6d"
+    },
+    {
+      "original": "docs/evidence/workspace-entity-tree/workspace-900.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/13-workspace-900.png",
+      "sha256": "sha256:18b00fa8d8ede1462d1a68dce17c9a83d4ae2fcd70d0db46e1e54820a453e177"
+    },
+    {
+      "original": "docs/evidence/workspace-entity-tree/workspace-375.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/14-workspace-375.png",
+      "sha256": "sha256:048c41b29fdfa870676226bc321a085a524bd7a5364e391b73c2110652c15409"
+    },
+    {
+      "original": "config/contracts/m14-capability-census.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-advanced-drawer/15-m14-capability-census.json",
+      "sha256": "sha256:ee86c762244ab126732110ab73840854bab6f7fd38ad0b6f196142faad49189a"
+    }
+  ]
+}

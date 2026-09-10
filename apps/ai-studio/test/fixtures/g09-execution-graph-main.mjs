@@ -12,7 +12,8 @@ let stage = 'app-ready';
 const deadline = setTimeout(() => finish(1, `deadline exceeded during ${stage}`), 45_000);
 
 app.whenReady().then(async () => {
-  const window = new BrowserWindow({ width: 1440, height: 1000, show: false, backgroundColor: '#080d18', webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  // Frame-based input assertions must also run when the user's app covers this test window.
+  const window = new BrowserWindow({ width: 1440, height: 1000, show: false, backgroundColor: '#080d18', webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, backgroundThrottling: false } });
   window.webContents.on('did-fail-load', (_event, code, description) => finish(1, `load failed during ${stage}: ${code} ${description}`));
   window.webContents.on('render-process-gone', (_event, details) => finish(1, `renderer gone during ${stage}: ${JSON.stringify(details)}`));
   window.webContents.session.protocol.handle('g09graph', async (request) => {

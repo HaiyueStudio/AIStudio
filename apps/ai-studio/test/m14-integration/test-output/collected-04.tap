@@ -1,46 +1,16 @@
 TAP version 13
-# Subtest: an approval barrier remains actionable after process restart and resumes from its durable checkpoint
-ok 1 - an approval barrier remains actionable after process restart and resumes from its durable checkpoint
+# Subtest: G09 real Electron renders an accessible replayed graph and bounded large-graph layout
+ok 1 - G09 real Electron renders an accessible replayed graph and bounded large-graph layout
   ---
-  duration_ms: 1680.0798
+  duration_ms: 3076.0324
   type: 'test'
   ...
-# Subtest: trusted script and runtime start barriers survive a real Electron process restart
-ok 2 - trusted script and runtime start barriers survive a real Electron process restart
-  ---
-  duration_ms: 4322.778
-  type: 'test'
-  ...
-# Subtest: a long durable plan releases the provider call and selects real catalog tools for its approved continuation
-ok 3 - a long durable plan releases the provider call and selects real catalog tools for its approved continuation
-  ---
-  duration_ms: 292.5977
-  type: 'test'
-  ...
-# Subtest: durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
-ok 4 - durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
-  ---
-  duration_ms: 392.841
-  type: 'test'
-  ...
-# Subtest: durable backend question cancels the old provider turn and continues from the persisted answer
-ok 5 - durable backend question cancels the old provider turn and continues from the persisted answer
-  ---
-  duration_ms: 135.7459
-  type: 'test'
-  ...
-# Subtest: durable budget continuation releases the completed provider tranche and preserves prior output
-ok 6 - durable budget continuation releases the completed provider tranche and preserves prior output
-  ---
-  duration_ms: 247.1442
-  type: 'test'
-  ...
-1..6
-# tests 6
+1..1
+# tests 1
 # suites 0
-# pass 6
+# pass 1
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 8046.8453
+# duration_ms 3475.2164

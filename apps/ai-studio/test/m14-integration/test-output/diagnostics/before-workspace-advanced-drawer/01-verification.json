@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "scope": "workspace-entity-tree",
+  "verifiedAt": "2026-09-10T05:44:22.973Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 622,
+    "sourceDigest": "sha256:d0b27f9a07241251a3268053b6875fb1d8d89864f4fd7009cf52aebcac44cf6a",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:f474bad7c3ad0ea8d952973154fe16b7203e605db37cefc217b4d74d6da7ed36"
+  },
+  "behavior": "The logic workspace uses public hy-tree for single object selection and real scene parent-child relationships. Search keeps and expands ancestor paths, viewport selection reveals its object, and layout reparenting restores data and selected visibility. Clipboard edits and drag are disabled in this selection-only view. Large lists use the component virtualized rendering.",
+  "checks": {
+    "finishedAt": "2026-09-10T05:44:07.3275906Z",
+    "focusedExitCode": 0,
+    "rootExitCode": 0,
+    "capabilityExitCode": 0,
+    "focusedCases": 4,
+    "capabilityCases": 123,
+    "integrationFiles": 46,
+    "integrationCases": 215
+  },
+  "browser": {
+    "samples": [
+      {
+        "count": 1,
+        "durationMs": 4.599999904632568
+      },
+      {
+        "count": 100,
+        "durationMs": 7.899999976158142
+      },
+      {
+        "count": 1000,
+        "durationMs": 21.300000071525574
+      },
+      {
+        "count": 10000,
+        "durationMs": 34.800000071525574
+      }
+    ],
+    "locations": [
+      {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:005a2d93701019a4ec01395cb5b795e0",
+          "source": {
+            "kind": "script",
+            "entityId": "entity:main",
+            "scriptId": "script:main",
+            "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d",
+            "path": "scripts/main.ts",
+            "range": {
+              "start": 0,
+              "end": 355,
+              "startLine": 1,
+              "startColumn": 1,
+              "endLine": 10,
+              "endColumn": 2
+            }
+          }
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:6b36f70c0fb042c22ef135a523f3d94e",
+          "source": {
+            "kind": "declarative-component",
+            "entityId": "entity:main",
+            "componentId": "component:0",
+            "componentType": "haiyue.animation.transform-clips",
+            "componentVersion": "1.0.0",
+            "field": ""
+          }
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "projectId": "project:test",
+        "documentId": "document:test",
+        "documentRevision": 1,
+        "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+        "target": {
+          "kind": "behavior-node",
+          "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+          "nodeId": "node:fc73dfbb2194acde364d25f1402555d2",
+          "source": {
+            "kind": "runtime-adapter",
+            "entityId": "entity:main",
+            "componentId": "component:0",
+            "adapter": {
+              "id": "adapter.animation.3d-mixer",
+              "version": "1.0.0",
+              "digest": "sha256:3923ffa379151f24c06182706ffdb55ab1fb63168e2b729d509cba322a83cc0d"
+            },
+            "field": "/runtimeAdapter"
+          }
+        }
+      }
+    ],
+    "desktop": true,
+    "narrow": [
+      900,
+      375
+    ],
+    "keyboard": true,
+    "reload": true,
+    "rollback": true,
+    "teardown": true
+  },
+  "initialFocusedRun": {
+    "passed": 4,
+    "failed": 1,
+    "reason": "The public Tree resets expanded branches on reconnection. Selected objects could become hidden after layout reparenting. The workspace now explicitly reveals its authoritative selection after applying the layout. The isolated regression and final full check pass."
+  },
+  "scopeNotes": [
+    "Real sandboxed Electron workspace exercises keyboard and mouse selection, filtering, hierarchy, virtualized large lists, literal labels, layout migration and teardown.",
+    "Tests use isolated project data and no online provider tasks.",
+    "The running user editor was not restarted. Existing approval policy and milestone status are unchanged."
+  ],
+  "sources": [
+    {
+      "path": "packages/studio-shell/src/workspace/workspace.ts",
+      "sha256": "sha256:dd6ad64ddcd8481148da0d5cb63eb95ce8409d75650900aaddb2c35abe053b84",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/src/workspace/ports.ts",
+      "sha256": "sha256:605e37ef8f09995b82a5d3743c98b3f0334384af99a88ae7b9d1aeeac8c5b6df",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/renderer.ts",
+      "sha256": "sha256:b505ac6ff2786eba6023f44502778b5d42399c8602e5566ebe6bb3561f20bbf1",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/styles.css",
+      "sha256": "sha256:85f6cfddb42c8fecf6ea42950792b83a8f06bcc8dd43829efae3b5e71c9c75c4",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/workspace-browser.mjs",
+      "sha256": "sha256:f2241334b89978770ad81399c338ed3b5b44b7884bcfcb5124f6b7c978e68519",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/workspace-main.mjs",
+      "sha256": "sha256:690190e3b46a4b6f21f7d6836cfa229e1f2b7f465b19cad6dd2118d4d88a7c40",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/workspace-electron.test.mjs",
+      "sha256": "sha256:212acd3239d3a6e4d70880cfc79e79741a32b41c3537c5abf76f4a4465ffbb75",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-entity-tree/input.json",
+      "sha256": "sha256:c23477cefcdae5c2de437ca8a47c51e5a8cfdf47318e3748a2b66bc355352836",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-entity-tree/checks.json",
+      "sha256": "sha256:29d438cdd8a60fb20449d3bc971ccddde00894db085ed5f465966826be379043",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-entity-tree/focused-check-initial.log",
+      "sha256": "sha256:7b0e215bf2bfb3c19ad2414dd60f3337d8cc8b3c76ec25fd1c88140df094419c",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-entity-tree/focused-check.log",
+      "sha256": "sha256:67f83c828e0be21260d4873c3d04546387ae5413df6e03bc7f64822336273343",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-entity-tree/tree-recheck.log",
+      "sha256": "sha256:34e1ebb046dbbaaaceb7b3df66873f7218b22b776d737a184fb0c783aca33188",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-entity-tree/root-check.log",
+      "sha256": "sha256:2948276c42d07f18389003421473206129f9fe4a70fb988d16d7f976483ac40a",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/workspace-entity-tree/capability-capture.log",
+      "sha256": "sha256:80ec9d653add94d327adc3f504e0390ebf850090987420eec5cb918c185ca97f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:bf4532ea8d824bbc3ad61d2a269907d8617f776543971fd5a6d77236e87382bf",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:eb2eef71e979983629cba0a1246d070fa4691bf3bb568588a225492ec95051f7",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-entity-tree/result.json",
+      "sha256": "sha256:10b55e81a167b30251093d37e278c0e75fd32bbfd0db08470e1fc5226ecd6465",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-entity-tree/workspace-desktop.png",
+      "sha256": "sha256:cb10f5efb9c3280a2160d66ea1681d2661453c9886ab78e887c5878a8828cc6d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-entity-tree/workspace-900.png",
+      "sha256": "sha256:18b00fa8d8ede1462d1a68dce17c9a83d4ae2fcd70d0db46e1e54820a453e177",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/workspace-entity-tree/workspace-375.png",
+      "sha256": "sha256:048c41b29fdfa870676226bc321a085a524bd7a5364e391b73c2110652c15409",
+      "kind": "verification",
+      "locator": ""
+    }
+  ]
+}

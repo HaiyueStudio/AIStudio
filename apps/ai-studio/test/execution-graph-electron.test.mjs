@@ -14,7 +14,7 @@ test('G09 real Electron renders an accessible replayed graph and bounded large-g
   const shellEntry = path.resolve(new URL('../../../packages/studio-shell/dist/index.js', import.meta.url).pathname.replace(/^\/(.:\/)/u, '$1'));
   await build({ stdin: { contents: appSource(shellEntry), resolveDir: path.dirname(shellEntry), sourcefile: 'g09-execution-graph-app.ts' }, outfile: path.join(output, 'app.js'), bundle: true, format: 'esm', platform: 'browser', target: 'chrome132' });
   const studioStyles = await readFile(new URL('../renderer/styles.css', import.meta.url), 'utf8');
-  await writeFile(path.join(output, 'host.html'), `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>html,body{margin:0;background:#080d18;color:#e8eefc;font:14px system-ui}body{padding:18px}.chat-content{height:940px;max-width:1400px;margin:auto}${studioStyles}</style></head><body><main id="root" class="chat-content"></main><script type="module" src="./app.js"></script></body></html>`);
+  await writeFile(path.join(output, 'host.html'), `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>html,body{height:100%;box-sizing:border-box;margin:0;background:#080d18;color:#e8eefc;font:14px system-ui}body{padding:18px}.chat-content{max-width:1400px;margin:auto}${studioStyles}</style></head><body><main id="root" class="chat-content"></main><script type="module" src="./app.js"></script></body></html>`);
   const fixture = new URL('./fixtures/g09-execution-graph-main.mjs', import.meta.url).pathname.replace(/^\/(.:\/)/u, '$1');
   const result = await run(electronPath, [fixture], { ...process.env, HAIYUE_G09_GRAPH_ROOT: output, HAIYUE_G09_USER_DATA: path.join(output, 'user-data'), HAIYUE_G09_SCREENSHOT_OUT: screenshot });
   assert.equal(result.code, 0, result.output);
@@ -27,6 +27,8 @@ test('G09 real Electron renders an accessible replayed graph and bounded large-g
 function appSource(shellEntry) { return `
 import { ConversationProjector, layoutExecutionGraph, presentChatPanel, projectExecutionGraph, renderChatPanel } from ${JSON.stringify(shellEntry.replaceAll('\\', '/'))};
 import { defineBorderBeamComponents, HYBorderBeam } from '@haiyue/ui/border-beam';
+import { defineTabsComponents } from '@haiyue/ui/tabs';
+defineTabsComponents();
 defineBorderBeamComponents();
 const componentErrors=[];
 window.addEventListener('error',event=>{componentErrors.push(event.error?.stack??event.message);document.body.dataset.g09Status='failed';document.body.dataset.g09Error=event.error?.stack??event.message;});
@@ -58,7 +60,7 @@ const renderStarted=performance.now(); renderChatPanel(root,model,intent=>intent
 const graphVisible=!!root.querySelector('[aria-label="Agent execution graph and transcript"]')&&root.querySelectorAll('.execution-node').length>3&&root.querySelectorAll('.execution-edges path').length>0;
 const firstNode=root.querySelector('.execution-node'); firstNode?.focus(); firstNode?.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true})); const keyboard=document.activeElement?.classList.contains('execution-node')===true;
 const compact=[...root.querySelectorAll('button')].find(button=>button.textContent==='压缩上下文'); compact?.click(); compact?.click(); const idempotent=intents.filter(intent=>intent.type==='conversation/request-compaction').length===1;
-const transcriptTab=[...root.querySelectorAll('[role="tab"]')].find(button=>button.textContent.startsWith('完整记录')); transcriptTab?.click(); const transcriptVisible=!!root.querySelector('.execution-transcript')&&root.textContent.includes('实现、运行和验证已经完成');
+const transcriptTab=[...root.querySelectorAll('.execution-controls button')].find(button=>button.textContent.startsWith('完整记录')); transcriptTab?.click(); const transcriptVisible=!!root.querySelector('.execution-transcript')&&root.textContent.includes('实现、运行和验证已经完成');
 const locate=[...root.querySelectorAll('button')].find(button=>button.textContent==='在拓扑中定位'); locate?.click();
 const accessible=!!root.querySelector('.execution-accessible-list')&&root.textContent.includes('使用层级列表浏览全部执行步骤');
 const largeOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started'),makeOp(2,'tool-batch.planned',{batchId:'batch:large'}),makeOp(3,'tool-batch.started',{batchId:'batch:large'})]; let sequence=4;

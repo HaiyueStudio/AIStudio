@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: projects a deterministic graph, transcript and modification evidence chain
+ok 1 - projects a deterministic graph, transcript and modification evidence chain
+  ---
+  duration_ms: 65.549
+  type: 'test'
+  ...
+# Subtest: shows actual overlapping tool intervals as parallel and preserves dependency order
+ok 2 - shows actual overlapping tool intervals as parallel and preserves dependency order
+  ---
+  duration_ms: 3.5438
+  type: 'test'
+  ...
+# Subtest: keeps barriers, compaction and outcome-unknown visible in graph and transcript
+ok 3 - keeps barriers, compaction and outcome-unknown visible in graph and transcript
+  ---
+  duration_ms: 3.3451
+  type: 'test'
+  ...
+# Subtest: reports sequence gaps and dangling references without crashing
+ok 4 - reports sequence gaps and dangling references without crashing
+  ---
+  duration_ms: 1.9349
+  type: 'test'
+  ...
+# Subtest: projects a 1000-tool graph within a bounded unit-test budget
+ok 5 - projects a 1000-tool graph within a bounded unit-test budget
+  ---
+  duration_ms: 318.2865
+  type: 'test'
+  ...
+# Subtest: session history orders actual execution time instead of unrelated operation counts
+ok 6 - session history orders actual execution time instead of unrelated operation counts
+  ---
+  duration_ms: 9.8585
+  type: 'test'
+  ...
+# Subtest: a task retains its full chain when an approval continuation starts a two-node provider session
+ok 7 - a task retains its full chain when an approval continuation starts a two-node provider session
+  ---
+  duration_ms: 15.5013
+  type: 'test'
+  ...
+# Subtest: task membership separates different requests that reuse one provider session, even with identical titles
+ok 8 - task membership separates different requests that reuse one provider session, even with identical titles
+  ---
+  duration_ms: 9.5091
+  type: 'test'
+  ...
+# Subtest: legacy sessions stay inspectable and invalid task membership is rejected
+ok 9 - legacy sessions stay inspectable and invalid task membership is rejected
+  ---
+  duration_ms: 2.9764
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1075.9287

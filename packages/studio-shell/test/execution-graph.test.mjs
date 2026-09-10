@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { layoutExecutionGraph, projectExecutionGraph, normalizeExecutionGraphs } from '../dist/index.js';
+import { layoutExecutionGraph, projectExecutionGraph, normalizeExecutionGraphs, groupExecutionGraphsByTask, executionGraphIdentity } from '../dist/index.js';
 
 const SESSION = 'session:g09';
 const TURN = 'turn:g09:1';
@@ -168,6 +168,57 @@ test('session history orders actual execution time instead of unrelated operatio
   assert.ok(older.revision > newer.revision);
   assert.deepEqual(normalizeExecutionGraphs([newer, older]).map(graph => graph.sessionId), [SESSION, nextSession]);
   assert.equal(normalizeExecutionGraphs([newer, older])[1].digest, newer.digest);
+});
+
+function taskSession(sessionId, taskId, offset = 0, startedOnly = false) {
+  const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started', { payload: { taskId } }), op(2, 'user.message')];
+  if (!startedOnly) source.push(op(3, 'tool.started', { batchId: 'batch:shared', nodeId: 'node:shared', payload: { toolId: 'scene.query' } }), op(4, 'tool.completed', { batchId: 'batch:shared', nodeId: 'node:shared', payload: { status: 'completed', toolId: 'scene.query' } }), op(5, 'turn.completed', { payload: { status: 'completed' } }));
+  const ops = source.map(item => ({ ...item, sessionId, id: `${sessionId}:${item.id}`, turnId: item.turnId ? `${sessionId}:turn` : null, timestamp: new Date(Date.UTC(2026, 8, 10, 0, 0, offset + item.sequence)).toISOString() }));
+  return projectExecutionGraph({ sessionId, activeGoal: 'The same visible title', ops, transcript: [{ id: `${sessionId}:message`, opId: ops[2].id, role: 'user', content: taskId, timestamp: ops[2].timestamp }] });
+}
+
+test('a task retains its full chain when an approval continuation starts a two-node provider session', () => {
+  const old = taskSession('session:old', 'task:game'); const next = taskSession('session:next', 'task:game', 60, true);
+  assert.equal(next.nodes.length, 2);
+  const before = groupExecutionGraphsByTask([old])[0];
+  const [after] = groupExecutionGraphsByTask([next, old]);
+  assert.equal(executionGraphIdentity(after), executionGraphIdentity(before));
+  assert.equal(after.sessionId, next.sessionId, 'compaction must keep targeting the actual current session');
+  assert.deepEqual(after.sourceSessionIds, ['session:old', 'session:next']);
+  assert.equal(after.nodes.length, old.nodes.length + 1);
+  for (const node of before.nodes) assert.ok(after.nodes.some(item => item.id === node.id), node.id);
+  assert.equal(after.transcript.filter(item => item.kind === 'message').length, 2);
+  assert.equal(normalizeExecutionGraphs([after]).length, 1);
+  assert.equal(groupExecutionGraphsByTask([old, next])[0].digest, after.digest);
+  const completed = taskSession('session:next', 'task:game', 60);
+  const [finished] = groupExecutionGraphsByTask([old, completed]);
+  assert.equal(finished.nodes.filter(node => node.kind === 'tool').length, 2, 'session-local tool ids cannot overwrite one another');
+  assert.equal(new Set(finished.nodes.map(node => node.id)).size, finished.nodes.length);
+  assert.equal(layoutExecutionGraph(finished, { mode: 'expanded' }).visibleNodeIds.length, finished.nodes.length);
+});
+
+test('task membership separates different requests that reuse one provider session, even with identical titles', () => {
+  const a = taskSession('session:shared', 'task:a');
+  const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started', { turnId: 'turn:a', payload: { taskId: 'task:a' } }), op(2, 'turn.completed', { turnId: 'turn:a', payload: { status: 'completed' } }), op(3, 'turn.started', { turnId: 'turn:b', payload: { taskId: 'task:b' } })].map(item => ({ ...item, sessionId: a.sessionId }));
+  const shared = projectExecutionGraph({ sessionId: a.sessionId, activeGoal: a.title, ops: source });
+  const bNext = taskSession('session:b-next', 'task:b', 60, true);
+  const groups = groupExecutionGraphsByTask([shared, bNext], [{ taskId: 'task:a', title: 'First request', status: 'completed' }, { taskId: 'task:b', title: 'Second request', status: 'running' }]);
+  assert.equal(groups.length, 2); assert.equal(groups[0].taskId, 'task:a'); assert.equal(groups[1].taskId, 'task:b');
+  assert.ok(groups[0].nodes.some(node => node.turnId === 'turn:a')); assert.ok(!groups[0].nodes.some(node => node.turnId === 'turn:b'));
+  assert.ok(!groups[1].nodes.some(node => node.turnId === 'turn:a')); assert.equal(groups[1].sourceSessionIds.length, 2);
+  assert.equal(normalizeExecutionGraphs(groupExecutionGraphsByTask([shared])).length, 2, 'two tasks sharing a session are separate graph identities');
+  const other = taskSession('session:unrelated', 'task:other', 120, true);
+  assert.equal(groupExecutionGraphsByTask([shared, bNext, other]).length, 3, 'equal titles do not imply task membership');
+});
+
+test('legacy sessions stay inspectable and invalid task membership is rejected', () => {
+  const legacy = projectExecutionGraph({ sessionId: SESSION, ops: linearFixture() });
+  const current = taskSession('session:current', 'task:current', 60, true);
+  assert.ok(groupExecutionGraphsByTask([legacy, current]).some(graph => graph.digest === legacy.digest));
+  const { digest, ...body } = current;
+  body.taskScopes = [{ taskId: 'task:current', nodeIds: ['node:missing'], transcriptIds: [] }];
+  const malformed = { ...body, digest: `sha256:${createHash('sha256').update(canonical(body)).digest('hex')}` };
+  assert.deepEqual(normalizeExecutionGraphs([malformed]), []);
 });
 
 function canonical(value) {

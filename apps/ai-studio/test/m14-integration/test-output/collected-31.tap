@@ -1,32 +1,32 @@
 TAP version 13
-# Subtest: project records retain complete parameters/results, redact secrets, page by logical record and never mix projects
-ok 1 - project records retain complete parameters/results, redact secrets, page by logical record and never mix projects
+# Subtest: catalog projects frozen four-kind contracts from actual registry and Document without changing History
+ok 1 - catalog projects frozen four-kind contracts from actual registry and Document without changing History
   ---
-  duration_ms: 1226.9718
+  duration_ms: 934.2638
   type: 'test'
   ...
-# Subtest: project files reopen with an empty editor data directory and restore nested artifacts without duplicating events
-ok 2 - project files reopen with an empty editor data directory and restore nested artifacts without duplicating events
+# Subtest: Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
+ok 2 - Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
   ---
-  duration_ms: 136.0975
+  duration_ms: 1891.6543
   type: 'test'
   ...
-# Subtest: first save relocates an unsaved project archive while preserving its live log port
-ok 3 - first save relocates an unsaved project archive while preserving its live log port
+# Subtest: unknown usage, partial component references and zero references cannot be confused by unused filtering
+ok 3 - unknown usage, partial component references and zero references cannot be confused by unused filtering
   ---
-  duration_ms: 93.7217
+  duration_ms: 2088.6171
   type: 'test'
   ...
-# Subtest: legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned
-ok 4 - legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned
+# Subtest: forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
+ok 4 - forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
   ---
-  duration_ms: 63.8355
+  duration_ms: 651.2209
   type: 'test'
   ...
-# Subtest: unknown versions, malformed durations, secret-bearing metadata and foreign manifests fail closed
-ok 5 - unknown versions, malformed durations, secret-bearing metadata and foreign manifests fail closed
+# Subtest: missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+ok 5 - missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
   ---
-  duration_ms: 57.8794
+  duration_ms: 1027.0606
   type: 'test'
   ...
 1..5
@@ -37,4 +37,4 @@ ok 5 - unknown versions, malformed durations, secret-bearing metadata and foreig
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1753.3142
+# duration_ms 9162.31

@@ -1,22 +1,52 @@
 TAP version 13
-# Subtest: preview commands wake their existing renderer poll owner and dispose the subscription
-ok 1 - preview commands wake their existing renderer poll owner and dispose the subscription
+# Subtest: G09 snake acceptance copy: fixed inputs and real source-bound event flows
+ok 1 - G09 snake acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 1.8348
+  duration_ms: 11696.8008
   type: 'test'
   ...
-# Subtest: an already cancelled preview request rejects without leaving a pending promise or wakeup
-ok 2 - an already cancelled preview request rejects without leaving a pending promise or wakeup
+# Subtest: G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
+ok 2 - G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 1.4516
+  duration_ms: 13438.7907
   type: 'test'
   ...
-1..2
-# tests 2
+# Subtest: G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
+ok 3 - G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 14183.0079
+  type: 'test'
+  ...
+# Subtest: G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
+ok 4 - G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 11865.0276
+  type: 'test'
+  ...
+# Subtest: G09 platformer acceptance copy: fixed inputs and real source-bound event flows
+ok 5 - G09 platformer acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 10524.8014
+  type: 'test'
+  ...
+# Subtest: G09 racing acceptance copy: fixed inputs and real source-bound event flows
+ok 6 - G09 racing acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 12605.4702
+  type: 'test'
+  ...
+# Subtest: G09 shooter acceptance copy: fixed inputs and real source-bound event flows
+ok 7 - G09 shooter acceptance copy: fixed inputs and real source-bound event flows
+  ---
+  duration_ms: 12702.0889
+  type: 'test'
+  ...
+1..7
+# tests 7
 # suites 0
-# pass 2
+# pass 7
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 207.1652
+# duration_ms 89126.5544

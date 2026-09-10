@@ -10,6 +10,6 @@ export function parseNotificationPreferences(value: unknown): NotificationPrefer
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid notification preferences.');
   const v = value as Record<string, unknown>;
   if (Object.keys(v).sort().join() !== 'backgroundOnly,enabled,language,schemaVersion,sound' || v.schemaVersion !== 1
-    || typeof v.enabled !== 'boolean' || typeof v.sound !== 'boolean' || typeof v.backgroundOnly !== 'boolean' || !['zh-CN', 'en'].includes(String(v.language))) throw new TypeError('Invalid notification preferences.');
+    || typeof v.enabled !== 'boolean' || typeof v.sound !== 'boolean' || typeof v.backgroundOnly !== 'boolean' || (v.language !== 'zh-CN' && v.language !== 'en')) throw new TypeError('Invalid notification preferences.');
   return Object.freeze({ schemaVersion: 1, enabled: v.enabled, sound: v.sound, backgroundOnly: v.backgroundOnly, language: v.language as 'zh-CN' | 'en' });
 }

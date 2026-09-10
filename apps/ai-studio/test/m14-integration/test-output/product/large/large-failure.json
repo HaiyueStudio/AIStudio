@@ -1,0 +1,6 @@
+{
+  "phase": "large",
+  "error": "AssertionError [ERR_ASSERTION]: {\"schemaVersion\":1,\"id\":\"request:driver-5\",\"correlationId\":\"correlation:g09-window\",\"ok\":false,\"payload\":{\"diagnostic\":{\"code\":\"ipc-operation-failed\",\"severity\":\"error\",\"message\":\"resource.query-superseded\"}}}\n\nfalse !== true\n",
+  "checks": [],
+  "approvals": []
+}

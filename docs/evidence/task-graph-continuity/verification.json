@@ -1,0 +1,252 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "scope": "task-graph-continuity",
+  "verifiedAt": "2026-09-10T04:19:57.534Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 622,
+    "sourceDigest": "sha256:2351a7d80191c5b5909965adb94eeee623c9324377491fc48e5292c9d0b7f6ff",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:35e8acecce8d97e6cf9dfdf587b642f3905bc739df367422de0185355bb017e7"
+  },
+  "cause": "Approval/continuation can start another provider session for the same durable task. The UI previously selected only the newest session graph; a new session initially has just a goal and a turn. Overlapping snapshot/replay responses could also restore older graph state.",
+  "behavior": "Compose all retained source-session phases using durable task identity. Namespace nodes by source session, preserve graph selection and zoom across handoff, retain legacy history and separate new requests. Follow the current task during unbound provider bootstrap. Reject older session snapshots and renderer replay responses. Context compaction still targets the actual provider session.",
+  "checks": {
+    "focusedExitCode": 0,
+    "capabilityExitCode": 0,
+    "rootExitCode": 0,
+    "finishedAt": "2026-09-10T04:19:24.0245110Z",
+    "focusedCases": 42,
+    "capabilityCases": 123,
+    "integrationFiles": 46,
+    "integrationCases": 215
+  },
+  "browser": {
+    "status": "passed",
+    "wheelCursorAnchor": {
+      "prevented": true,
+      "old": 1.414,
+      "next": 1.8,
+      "same": true,
+      "error": 0.16580229451517425
+    },
+    "nativeWheel": true,
+    "hoverAndKeyboard": true,
+    "pinAndEscape": true,
+    "runningBeamOnly": true,
+    "narrowBounds": true,
+    "unknownUsage": true,
+    "compactionOnce": true,
+    "cleanup": true,
+    "replayPreservesHover": true,
+    "taskContinuity": {
+      "before": 5,
+      "afterHandoff": 6,
+      "afterExecution": 9,
+      "selectionAndZoomPreserved": true,
+      "separateRequests": true,
+      "historySelection": true
+    },
+    "sizes": [
+      [
+        760,
+        880
+      ],
+      [
+        320,
+        600
+      ]
+    ],
+    "screenshots": [
+      "usage.png",
+      "node-detail.png",
+      "graph-760x880.png",
+      "graph-320x600.png",
+      "task-chain.png"
+    ]
+  },
+  "initialFocusedRun": {
+    "passed": 41,
+    "failed": 1,
+    "reason": "The existing G09 drag test timed out waiting for animation frames in a background window. Test windows now disable background frame throttling; no production window policy changed. The complete 42-case focused run then passed."
+  },
+  "scopeNotes": [
+    "Uses actual Electron mouse input with isolated fixture data.",
+    "Task membership comes from durable turn.started taskId, never similar titles or timestamps.",
+    "Existing per-session durable storage, approvals, context ownership and G09 milestone status were not changed.",
+    "No live provider task was started and the user application was not stopped or restarted."
+  ],
+  "sources": [
+    {
+      "path": "packages/studio-shell/src/conversation/execution-graph-types.ts",
+      "sha256": "sha256:b6a1b3f000cf5628ac71def9b17083d0db89fbead0a67b2b915b89e705d45e61",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/src/conversation/execution-graph.ts",
+      "sha256": "sha256:fc1559c0f49132b0a8f2a06bb489500fb78e8815a47decd833c9c078f4530c41",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/src/panels/chat/index.ts",
+      "sha256": "sha256:cfca953d04b6be345045e01a68f4bf5fffa0d37de2904480e6308059f99229fd",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/agent-orchestration/src/conversation-host.ts",
+      "sha256": "sha256:0dde4897d0b78a7dc864000bbb793ae1e70dba8f252a84bf147991e8275b44fa",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/renderer.ts",
+      "sha256": "sha256:080643ae91b7cd87f7a36f45a138749259e12ce1d44811c573593c09bc73cbee",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/test/execution-graph.test.mjs",
+      "sha256": "sha256:34639e82cc34be327267a4b24805f0ea68f1b08a326dab422331d151b048ad5b",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/execution-graph-context-ui.test.mjs",
+      "sha256": "sha256:9bf9191be4e55f04e7de6caf0a8429b7521838a8845be93a1cd5f09a399f1aff",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/graph-ui-browser.mjs",
+      "sha256": "sha256:c408050e5428ceee4c4fed3fa45ac11a2d1dc3714b560846e66b9472d8f23cbe",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/graph-ui-main.mjs",
+      "sha256": "sha256:b56407ab6f3153ae8aa619369bfb551cb3f6b0f7c30d1d85c536e508ad62ba8e",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/g09-execution-graph-main.mjs",
+      "sha256": "sha256:6e8d47ce4423b5fce41f80b3b4e7b31a2e74258a79c0c2df395b80479ae9b1cb",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/task-graph-continuity/input.json",
+      "sha256": "sha256:24f58301fa652f702286cd9fb8b42f515b4573257b85370af7df443d28b935e5",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/task-graph-continuity/checks.json",
+      "sha256": "sha256:b37d6301dd472790583a08f6d33b27ae791fb51c911176ca63d3a511c09625df",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/task-graph-continuity/focused-check-initial.log",
+      "sha256": "sha256:1ec5b692c0aaad9174b93d8b5dd3ccb1df8ed5e4ffeba0fc93f4306e269c6b55",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/task-graph-continuity/focused-check.log",
+      "sha256": "sha256:a2b9168a97a9dac8f4e55faf693786b88d872bdab7a09dc320b9a00070164b6f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/task-graph-continuity/root-check.log",
+      "sha256": "sha256:77f056e9c66e7b90ddd662a95d0acf055fab8ab3971728887a6bf1a1002ea93f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/task-graph-continuity/capability-capture.log",
+      "sha256": "sha256:380a7e80a6772392291c501c65e98dca4f160b30c79a5141c00b4990db45413a",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2cab911682e29717fb70058948f9c5528afa6062821d697c0585f6428f727930",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:ebb7f80f96947bdac0601ef1bde13d98def587f612b730a1a8189292392579e7",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-03.tap",
+      "sha256": "sha256:f4964c1d12866fef0105840fde014bd6ff825fd8dc830892a47b891d9290d320",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-04.tap",
+      "sha256": "sha256:17dd166af0069a040629784f7ff83840e54d9a70e68abf729044bb1ed463ef29",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-07.tap",
+      "sha256": "sha256:eae2e94b369e455a60926667d4930d399a3ec1da384d985780b4af9f513af34d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-43.tap",
+      "sha256": "sha256:edae9c7097cefde87e0bae8703e7225630b2550329a88252adfa60e24608224e",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/task-graph-continuity/result.json",
+      "sha256": "sha256:c1295ab040be5fadaa91229b62c7020da94f9ec325bb021479040143284c8da1",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/task-graph-continuity/usage.png",
+      "sha256": "sha256:799014d37e5ca683da2823808d58da5c37935570adbd9c125ccb768de5027136",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/task-graph-continuity/node-detail.png",
+      "sha256": "sha256:cbf126421c1152051ffefa46695e998a940150ef78b92411ba2a9d2a5d1f979c",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/task-graph-continuity/graph-760x880.png",
+      "sha256": "sha256:9bcb4515e8a98d85163b3bd00c2a457c023db976bd525b420ccccd9d0b694857",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/task-graph-continuity/graph-320x600.png",
+      "sha256": "sha256:c87ea3daea5d8fdc2df719db137a1c2926754eaae50507e8c3c9c3b983a49b1b",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/task-graph-continuity/task-chain.png",
+      "sha256": "sha256:82da5aa95c0a4caa1bb893916245d404fb2bc10e85924b9ff2b7a7d99090004d",
+      "kind": "verification",
+      "locator": ""
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "archivedAt": "2026-09-10T07:16:42.894Z",
+  "priorInputDigest": "sha256:4e4798e8a9fe9c77d3b0586b4b71b7701584aa68c785b227af2b21382560be76",
+  "reason": "Retain Drawer verification before replacing the script textarea with CodeMirror.",
+  "entries": [
+    {
+      "original": "docs/evidence/workspace-advanced-drawer/verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/01-verification.json",
+      "sha256": "sha256:ad38af64507b4dfc9b17d98acfe41dc265ac97e1b71d4be4e99e6247f762cfee"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/input.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/02-input.json",
+      "sha256": "sha256:7d53f4834cfc1410faa99217324d53d2c71817af0792b9a7cf31e573aed42bdc"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/checks.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/03-checks.json",
+      "sha256": "sha256:85ec7259611153a1b49c1fdca57ef4f300815d60180e9dd295fb81795dd372b8"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/focused-check-initial.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/04-focused-check-initial.log",
+      "sha256": "sha256:536efbecbcc50a4fa577a57cfbc3b17d69fed1652912971a694139877c5ae6a1"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/drawer-diagnostic.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/05-drawer-diagnostic.log",
+      "sha256": "sha256:4eabebf3021a9d7072bbd9f2159597464ada10f710aaab7baf02efc62d16ba38"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/focused-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/06-focused-check.log",
+      "sha256": "sha256:bde41b27c2d76f30a4834988d8bf6e4452d20ee2e534249b7528420db5047a3b"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/root-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/07-root-check.log",
+      "sha256": "sha256:d111c41e661a3e6c7e8bb036376cccbfb7cee0f789bfc73c6bb989ad173e72ee"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/capability-capture.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/08-capability-capture.log",
+      "sha256": "sha256:3b2943dcd6b1c1f6c2a3b9381a96ec109b5a017013d26d7c422c1736047f7c4d"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/09-collected-tests.json",
+      "sha256": "sha256:1dd1d8720df484399282378e2d10865c97ca2d32dde7c24a125eddad2c2b0c52"
+    },
+    {
+      "original": "config/contracts/m14-capability-verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/10-m14-capability-verification.json",
+      "sha256": "sha256:c70380d5949d8587995049f741d17f0c42b034a86822caface0eef8024284bc7"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/product-recheck.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/11-product-recheck.log",
+      "sha256": "sha256:316329701a739622d79c905a228a4575c077b7397b3af4f14edbc34ba2d97be3"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/conversation-recheck.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/12-conversation-recheck.log",
+      "sha256": "sha256:76736cb9051817dedcb0ebe7e19ab0cd9cbc996196dd0824f152f36f0ad7e93d"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/pointer-recheck.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/13-pointer-recheck.log",
+      "sha256": "sha256:dee53c482f22cd52213e5871db0837ba892d0abfc963ec3682824752c9889195"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/input.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/14-input.json",
+      "sha256": "sha256:e262451b7e8996d3a91b1df556eaff7338e43493edf154555a0781070663dc2c"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/checks.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/15-checks.json",
+      "sha256": "sha256:0e50981c8f0aacb189991cdf96fc393233fadb0ed149e1c22af8ad5f5d466e5f"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/root-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/16-root-check.log",
+      "sha256": "sha256:94a038f30b5d7b20e8793ae37f83f21437c37d41be2575fd1099f306f8aaa06a"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/capability-capture.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/17-capability-capture.log",
+      "sha256": "sha256:1317f8fa2a8b2f061e7327b6faddb5d7a86cb7fae9a026c0cc5168fdf201a57c"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/collected-tests.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/18-collected-tests.json",
+      "sha256": "sha256:d3dac5e27f6494c9e049ebe982667db3205fead04f59e4854299d15313736249"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/collected-13.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/19-collected-13.tap",
+      "sha256": "sha256:9c05f923d2bb3051484e0f9e5d47c240fb6dd3905f502b5f69e46a8fb8a97017"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/collected-28.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/20-collected-28.tap",
+      "sha256": "sha256:a1ad933bf795f35764439f59869a08c652ba9593044de6d62f7d30508238902d"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/m14-capability-verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/21-m14-capability-verification.json",
+      "sha256": "sha256:ac2e85d968ec905b8e715af410a208a444c695082669301b63de5e4edb8b932a"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/initial-full-run/m14-capability-census.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/22-m14-capability-census.json",
+      "sha256": "sha256:67d41b5e25a06adfa8c45cf7a2aa2938fbc1fe832d4c298ac6302c76fb98dd49"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/input.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/23-input.json",
+      "sha256": "sha256:f7017e05b738383d87d606135b3ccb819919e04e55833a9243c3cb2d4e0e3a55"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/checks.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/24-checks.json",
+      "sha256": "sha256:4381b4ee0a276db0bfedf0fdaa6392e8fc82455e0e1dbc6df3b6c2bb76988ff2"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/root-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/25-root-check.log",
+      "sha256": "sha256:7d4c38b28205f37ae62e9641bfc6b7547973c42f50ed2329ad43f30604e26173"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/capability-capture.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/26-capability-capture.log",
+      "sha256": "sha256:0d74c19a45cf501496638ae27f60148f0af6f1c922a7f4a88ffc492c9df06911"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/collected-tests.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/27-collected-tests.json",
+      "sha256": "sha256:7ecf514c5b7377ae9663626db2635aa2aa43a544eaacf7679899b3c8ac317fd6"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/collected-13.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/28-collected-13.tap",
+      "sha256": "sha256:35093bd99c1efd2354415cb0281db2a6d966ad8de917996c6625663ea93e3acc"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/m14-capability-verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/29-m14-capability-verification.json",
+      "sha256": "sha256:b4ed6a03a4ce7a86a841b0949c9142f9207c2ebafa3317f51a631d06b173f24f"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/workspace-advanced-drawer/second-full-run/m14-capability-census.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/30-m14-capability-census.json",
+      "sha256": "sha256:aafbb8458a243618ec2f28d8d4d7784af0c4d5bae670965d9b77f57796c0803f"
+    },
+    {
+      "original": "docs/evidence/workspace-advanced-drawer/result.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/31-result.json",
+      "sha256": "sha256:fbe784a410f4421658e467708528cd50fdf1ae2e0975a2dc9ebf4e766f4f7d8a"
+    },
+    {
+      "original": "docs/evidence/workspace-advanced-drawer/workspace-advanced.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/32-workspace-advanced.png",
+      "sha256": "sha256:97c5078b231b7d52523c9a18ef32b7cb37f26865ca6f58c1c5d491dfb5601053"
+    },
+    {
+      "original": "docs/evidence/workspace-advanced-drawer/workspace-script.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/33-workspace-script.png",
+      "sha256": "sha256:6fc946ef3d21301f77831f91d234d8369d276aedc1a9f3cb4cd96547d2edb21f"
+    },
+    {
+      "original": "docs/evidence/workspace-advanced-drawer/workspace-drawer-900.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/34-workspace-drawer-900.png",
+      "sha256": "sha256:af686c82661dda23ea2e3fa818c3535c4a3347136156bb5e4db420216402e9b2"
+    },
+    {
+      "original": "docs/evidence/workspace-advanced-drawer/workspace-drawer-375.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/35-workspace-drawer-375.png",
+      "sha256": "sha256:47031ec5fa0a486850219bef14ff80300f0cf928f4e4b6d527fad26804eefdc0"
+    },
+    {
+      "original": "docs/evidence/workspace-advanced-drawer/product-advanced-desktop.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/36-product-advanced-desktop.png",
+      "sha256": "sha256:5097e6d5483e4eeaaa351a5b3cb308232245ec479c8a845f44489496b750964d"
+    },
+    {
+      "original": "config/contracts/m14-capability-census.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-script-codemirror/37-m14-capability-census.json",
+      "sha256": "sha256:478a240eeca9a84dc30b3104bb614c2a1c281d6e37c52b9f9c6c50d3bda95387"
+    }
+  ]
+}

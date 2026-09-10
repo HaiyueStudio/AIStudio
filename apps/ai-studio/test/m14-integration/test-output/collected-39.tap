@@ -1,8 +1,8 @@
 TAP version 13
-# Subtest: resource presentation preserves authoritative kind, unsupported presets and proven zero versus unknown
-ok 1 - resource presentation preserves authoritative kind, unsupported presets and proven zero versus unknown
+# Subtest: advanced adapter owns presentation only and consumes frozen M12/SDK types through declared exports
+ok 1 - advanced adapter owns presentation only and consumes frozen M12/SDK types through declared exports
   ---
-  duration_ms: 2688.6448
+  duration_ms: 10.9701
   type: 'test'
   ...
 1..1
@@ -13,4 +13,4 @@ ok 1 - resource presentation preserves authoritative kind, unsupported presets a
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3729.5212
+# duration_ms 354.7951

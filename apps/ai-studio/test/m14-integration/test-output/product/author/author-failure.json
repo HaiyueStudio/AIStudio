@@ -1,6 +1,22 @@
 {
   "phase": "author",
-  "error": "AssertionError [ERR_ASSERTION]: Resource panel overflows its container: {\"viewportWidth\":1424,\"panelWidth\":283,\"scrollWidth\":510,\"controlsVisible\":false}",
-  "checks": [],
-  "approvals": []
+  "error": "Error: Timed out: one native gesture history transaction\n{\"dataset\":{\"status\":\"ready\",\"theme\":\"dark\",\"language\":\"zh-CN\",\"startupStage\":\"ready\",\"splitLayout\":\"ready\",\"workspaceMode\":\"intent\",\"workspaceNarrow\":\"false\",\"workspaceReady\":\"true\",\"playPage\":\"standalone-device-simulation\",\"agentSync\":\"push-single-flight\",\"agentUi\":\"ready\",\"agentBackend\":\"backend:codex-app-server\",\"agentBackendState\":\"ready\",\"webgpu\":\"ready\"},\"status\":\"AIStudio 场景编辑器已就绪\",\"advanced\":\"\",\"resources\":\"资源按当前项目显示。\"}",
+  "checks": [
+    "resource panel fits its container at desktop and narrow widths",
+    "resource template creates through production IPC and original tool",
+    "public rename exact approval and shared undo/redo",
+    "explicit rejection leaves document unchanged"
+  ],
+  "approvals": [
+    {
+      "title": "Rename entity",
+      "detail": "Rename Cone to Integrated geometry.\nentity:c154ba57-8857-47bf-92b8-c4bec13c31d9\n修订 2\n\n- Cone\n+ Integrated geometry",
+      "decision": "allow-once"
+    },
+    {
+      "title": "Rename entity",
+      "detail": "Rename Integrated geometry to Rejected change.\nentity:c154ba57-8857-47bf-92b8-c4bec13c31d9\n修订 5\n\n- Integrated geometry\n+ Rejected change",
+      "decision": "reject"
+    }
+  ]
 }

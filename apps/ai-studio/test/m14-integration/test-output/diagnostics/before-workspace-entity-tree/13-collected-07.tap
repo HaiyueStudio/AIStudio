@@ -1,0 +1,17 @@
+TAP version 13
+# [graph-ui] evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-graph-ui-tSclcL
+# Subtest: graph supports cursor-anchored wheel zoom, running beams and accessible compact hover panels
+ok 1 - graph supports cursor-anchored wheel zoom, running beams and accessible compact hover panels
+  ---
+  duration_ms: 6112.2629
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6547.8789

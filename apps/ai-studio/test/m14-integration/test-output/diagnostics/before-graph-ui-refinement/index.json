@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "status": "historical-before-graph-ui-refinement",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 618,
+    "sourceDigest": "sha256:17e0e8a3044d9a573ffcf3201635526ad822a44173036de606331961a5f0ba94",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:5b9177aa0705950bedaea464d3278c8ca521d06bf2bb053ecdc6c1889136bb17"
+  },
+  "references": [
+    {
+      "path": "docs/evidence/plan-review-visibility/verification.json",
+      "sha256": "sha256:673b867c1eacf5bd60dd7cfa06577cd774903e57e559d19a956ed32bf471901d",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/01-verification.json"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/checks.json",
+      "sha256": "sha256:1be523ad1b696533f008fd0d0425ca16e08f13814e7971a9813652bcc17aa131",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/02-checks.json"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/focused-check.log",
+      "sha256": "sha256:b0de540ec1ed7b846292198a03d6c158dccbf172a8f4aea787875aaf06cf64a6",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/03-focused-check.log"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/root-check.log",
+      "sha256": "sha256:3fc759eebccbdec17c836cae1158e746e828c8675f4889cd1b39ffa24dccdd9f",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/04-root-check.log"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/capability-capture.log",
+      "sha256": "sha256:031b272d1552911b532964b718ea12348a92fde01d10d1b1ff8a6367cf3a88ea",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/05-capability-capture.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:e7ce50244159cbb797207946bb4a56a4c5d74f387cb891cef07ccb754349061d",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/06-collected-tests.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-15.tap",
+      "sha256": "sha256:49e008b0aee83c2c576185d99b082d27f11aeb6be887a127f91c90bc8ddd0326",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/07-collected-15.tap"
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/result.json",
+      "sha256": "sha256:e5fa78c89fa3527fa781855ad09819092a32b68312aa69b977a0e40a3681cde1",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/08-result.json"
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/plan-360x720.png",
+      "sha256": "sha256:18feaf81ee1132307eb64402f453ecb9458072bbe1bdaf6260289e493ec1d744",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/09-plan-360x720.png"
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/plan-320x600.png",
+      "sha256": "sha256:d7279d6e417953ce38ccd7a0f0303f697281978273637235f7237342c25d4814",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/10-plan-320x600.png"
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/plan-720x900.png",
+      "sha256": "sha256:078d4b87b51abb9a49440bdc2c8fc31e4e1dd42ea9c399ec2ffa079acb8c71e2",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/11-plan-720x900.png"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:09358308fdd9ac8da4c402e1a173afba2d3ecca708ab6ec411e7b8f82e7c79de",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/12-m14-capability-verification.json"
+    },
+    {
+      "path": "config/contracts/m14-capability-census.json",
+      "sha256": "sha256:6896c588909cb6e7d2f7ca17abaa5cdbed6118f1275cf5d0fb04b2db743cd0e1",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-graph-ui-refinement/13-m14-capability-census.json"
+    }
+  ]
+}

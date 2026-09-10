@@ -4,6 +4,7 @@ import type { BehaviorManifestV1, BehaviorSourceBindingV1, BehaviorSourceV1, Edi
 export interface WorkspaceEntityOption {
   readonly id: string;
   readonly name: string;
+  readonly parentId?: string | null;
   readonly sources: readonly BehaviorSourceV1['kind'][];
 }
 export interface WorkspacePanelSnapshot {

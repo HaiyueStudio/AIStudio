@@ -96,6 +96,11 @@ export interface ExecutionGraphContextReadModel {
 export interface ExecutionGraphReadModel {
   readonly schemaVersion: 1;
   readonly sessionId: M13StableId;
+  /** Stable product identity across provider-session changes; sessionId remains the context owner. */
+  readonly taskId?: M13StableId;
+  readonly sourceSessionIds?: readonly M13StableId[];
+  /** Membership comes from durable turn.started taskId facts, never titles or timing guesses. */
+  readonly taskScopes?: readonly Readonly<{ taskId: M13StableId; nodeIds: readonly M13StableId[]; transcriptIds: readonly M13StableId[] }>[];
   readonly revision: number;
   readonly title: string;
   readonly status: ExecutionGraphProductNodeStatus;

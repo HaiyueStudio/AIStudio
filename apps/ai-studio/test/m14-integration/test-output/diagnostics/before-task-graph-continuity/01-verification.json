@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 1,
+  "status": "verified-with-recheck",
+  "scope": "graph-ui-refinement",
+  "verifiedAt": "2026-09-10T02:38:53.934Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 622,
+    "sourceDigest": "sha256:511587b6e64b441f3e2dd7794f62b37e06d42add63d88acdafa277a62988040e",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:20e1408f0d8d931e79a25aa2c2a942e7df75a37709d4b0459bc68e68124f79bf"
+  },
+  "cause": "Permanent session, context, cost and node detail regions reduced graph space; viewing a graph required button zoom.",
+  "behavior": "Cursor-anchored wheel zoom; public hy-border-beam on running nodes; history and usage in compact hover panels; node details on hover/focus with pin, Escape and replay continuity. Unknown usage remains unknown.",
+  "checks": {
+    "finishedAt": "2026-09-10T02:37:12.2364356Z",
+    "capabilityExitCode": 0,
+    "focusedExitCode": 0,
+    "rootExitCode": 1,
+    "focusedCases": 32,
+    "capabilityCases": 123,
+    "integrationFiles": 46,
+    "integrationCases": 211,
+    "integrationInitialPassed": 210,
+    "integrationInitialFailed": 1,
+    "recheckPassed": 4
+  },
+  "browser": {
+    "status": "passed",
+    "wheelCursorAnchor": {
+      "prevented": true,
+      "old": 1.414,
+      "next": 1.8,
+      "same": true,
+      "error": 0.16580229451517425
+    },
+    "nativeWheel": true,
+    "hoverAndKeyboard": true,
+    "pinAndEscape": true,
+    "runningBeamOnly": true,
+    "narrowBounds": true,
+    "unknownUsage": true,
+    "compactionOnce": true,
+    "cleanup": true,
+    "replayPreservesHover": true,
+    "sizes": [
+      [
+        760,
+        880
+      ],
+      [
+        320,
+        600
+      ]
+    ],
+    "screenshots": [
+      "usage.png",
+      "node-detail.png",
+      "graph-760x880.png",
+      "graph-320x600.png"
+    ]
+  },
+  "recheck": {
+    "file": "packages/agent-orchestration/test/project-conversation.test.mjs",
+    "initialFailure": "Timed out waiting for project conversation",
+    "result": "4 passed, 0 failed on the same source input",
+    "note": "The initial full check remains recorded as exit 1. It was not rerun in full; only the failed test file was rerun."
+  },
+  "scopeNotes": [
+    "Uses actual Electron hit testing and mouse input with isolated fixture data.",
+    "No approval decision was made for the user project; no live provider task was started.",
+    "Existing approval policy and G09 milestone status were not changed."
+  ],
+  "sources": [
+    {
+      "path": "packages/studio-shell/src/panels/chat/index.ts",
+      "sha256": "sha256:408c7530760c3317cf788cfe466ec7a5723b8a8b6773968499b7cccf0bba2651",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/src/panels/hover-panel.ts",
+      "sha256": "sha256:cf7dcb07a58711ac1eeda16c87cff942f57c838176a7a3e673490fb9d0dba801",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/renderer.ts",
+      "sha256": "sha256:9ea38c9b1ce22b05b3bb113b3c264147e0ed5369f48806eecc3a45f1f12e6643",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/styles.css",
+      "sha256": "sha256:773b6f93dd3f663a34c426861120fabf0c2bccb94d6bbe179845499da8ecf419",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/test/conversation.test.mjs",
+      "sha256": "sha256:a4526a18688b0b9b70bb92c185fe3fc0d088ca9ab379c6bd434e87e606a9fb60",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/graph-ui-electron.test.mjs",
+      "sha256": "sha256:2851cff0adad3e4117a57eb40576fcec05a1c84faf8a7721223484d64f3125cc",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/graph-ui-browser.mjs",
+      "sha256": "sha256:ae02cbfbd2ca68422549be773b7fcd3391381fc8888867f34d0225cf92a6d69b",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/graph-ui-main.mjs",
+      "sha256": "sha256:198078f2788ced5d8d1cd5cafab51254d5a98c55ca562bccb3d2944a9c4da234",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "scripts/m14-integration-tests.json",
+      "sha256": "sha256:e89611f35085231efc620bf8a334bc980bfb0752aeb1f8c1cd93b255a5484a0e",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/graph-ui-refinement/project-conversation-recheck.log",
+      "sha256": "sha256:812da4ef18c3ef64ba8d020e97d10f8676e7770362cdb8968e0cd99904dbd03f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-28.tap",
+      "sha256": "sha256:604e97161674e477c04d4150c4cb9a27111d1ec18c88e2c3b17d77c70ff46c8e",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/graph-ui-refinement/checks.json",
+      "sha256": "sha256:f86984343e80aafc2b222e4e4ff6cbfaa4125fa34daac69debe8ede4f6965bb3",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/graph-ui-refinement/focused-check.log",
+      "sha256": "sha256:d2ca2efe0664414ec0f51b0c708432171c0ea81c050eae9513c0cad817579ca4",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/graph-ui-refinement/root-check.log",
+      "sha256": "sha256:70a233a6b447e942df2339876cfe7d8df35ed3279a313774f251968500c62636",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/graph-ui-refinement/capability-capture.log",
+      "sha256": "sha256:910b14b46145c3e44cd28bb80f595e4a2555b2fa856a4830259b9f039324250f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:4aa0e2571c71e64c4bf3f66bf152efde6cb5ec76456f7c62e405190e2ea1ca23",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-07.tap",
+      "sha256": "sha256:805fb3dab3d8ac841426138202ce7c07563fc1a75960e4e5ef18aa9a1a7c5a93",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/graph-ui-refinement/result.json",
+      "sha256": "sha256:ac83b598c9cde15b0d787f39fbfded32ebd4eb1d42199d453c675f69d0a06dc6",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/graph-ui-refinement/usage.png",
+      "sha256": "sha256:e2fd8f3d7d00cd9bbf165381568f7c6496e20145f90b7a4dcd997f45d2f8c23d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/graph-ui-refinement/node-detail.png",
+      "sha256": "sha256:eb555f1453efdd7d0ef6870a2acd8c794eb21c431fd1fda3265846847c625887",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/graph-ui-refinement/graph-760x880.png",
+      "sha256": "sha256:8ec6aa3c62c2abcf0e7f3510875178037ffd2933a6ea94ef2f5dbe22ca7a853b",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/graph-ui-refinement/graph-320x600.png",
+      "sha256": "sha256:18f556793dce5e65af4a61a0323524dcf4bbb1455e26391389df650eb0bd8330",
+      "kind": "verification",
+      "locator": ""
+    }
+  ]
+}

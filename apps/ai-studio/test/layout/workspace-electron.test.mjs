@@ -32,7 +32,7 @@ test('real sandboxed workspace consumes G02 projections and preserves editor con
   });
   assert.equal(result.code, 0, result.logs + '\nArtifacts: ' + output);
   const evidence = JSON.parse(await readFile(path.join(output, 'result.json'), 'utf8'));
-  assert.deepEqual(evidence.samples.map(item => item.count), [1, 100, 1000]);
+  assert.deepEqual(evidence.samples.map(item => item.count), [1, 100, 1000, 10000]);
   assert.deepEqual([...new Set(evidence.locations.map(location => location.target.source.kind))].sort(), ['declarative-component', 'runtime-adapter', 'script']);
   for (const location of evidence.locations) assert.equal(service.resolveLocation(parseBehaviorContract('editor-location', location)).status, 'current');
   console.log('M14 workspace artifacts: ' + output);

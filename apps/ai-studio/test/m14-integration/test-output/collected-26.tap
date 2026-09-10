@@ -1,40 +1,58 @@
 TAP version 13
-# Subtest: catalog projects frozen four-kind contracts from actual registry and Document without changing History
-ok 1 - catalog projects frozen four-kind contracts from actual registry and Document without changing History
+# Subtest: manual authoring uses the existing prepare / exact approval / execute path
+ok 1 - manual authoring uses the existing prepare / exact approval / execute path
   ---
-  duration_ms: 1715.9568
+  duration_ms: 3.4353
   type: 'test'
   ...
-# Subtest: Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
-ok 2 - Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
+# Subtest: revision and selection changes while awaiting approval prevent both decision and commit
+ok 2 - revision and selection changes while awaiting approval prevent both decision and commit
   ---
-  duration_ms: 2286.9296
+  duration_ms: 9.8995
   type: 'test'
   ...
-# Subtest: unknown usage, partial component references and zero references cannot be confused by unused filtering
-ok 3 - unknown usage, partial component references and zero references cannot be confused by unused filtering
+# Subtest: reopening an identical project invalidates old advanced stamps and resource tokens
+ok 3 - reopening an identical project invalidates old advanced stamps and resource tokens
   ---
-  duration_ms: 3638.5143
+  duration_ms: 0.9357
   type: 'test'
   ...
-# Subtest: forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
-ok 4 - forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
+# Subtest: cancelling or switching project during an approval never commits a late allow
+ok 4 - cancelling or switching project during an approval never commits a late allow
   ---
-  duration_ms: 876.4925
+  duration_ms: 1.1659
   type: 'test'
   ...
-# Subtest: missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
-ok 5 - missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+# Subtest: normalized intents cannot choose a foreign selected entity, tool or stamp extension
+ok 5 - normalized intents cannot choose a foreign selected entity, tool or stamp extension
   ---
-  duration_ms: 935.1784
+  duration_ms: 0.6296
   type: 'test'
   ...
-1..5
-# tests 5
+# Subtest: resource actions accept only the current opaque token and main-owned binding
+ok 6 - resource actions accept only the current opaque token and main-owned binding
+  ---
+  duration_ms: 0.7015
+  type: 'test'
+  ...
+# Subtest: superseded resource queries cannot replace the newest view token
+ok 7 - superseded resource queries cannot replace the newest view token
+  ---
+  duration_ms: 0.5274
+  type: 'test'
+  ...
+# Subtest: late resource factory completion is disposed after a copied project opens
+ok 8 - late resource factory completion is disposed after a copied project opens
+  ---
+  duration_ms: 0.2872
+  type: 'test'
+  ...
+1..8
+# tests 8
 # suites 0
-# pass 5
+# pass 8
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 10672.1707
+# duration_ms 1737.8927

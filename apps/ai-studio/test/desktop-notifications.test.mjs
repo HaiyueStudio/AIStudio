@@ -58,5 +58,5 @@ test('notification IPC is closed: no arbitrary text, sound URL, path or approval
     assert.throws(() => validateStudioIpcRequest(request(channel, { body: 'injected' })));
   }
   assert.equal(validateStudioIpcRequest(request('notifications/set', { preferences: defaults })).channel, 'notifications/set');
-  for (const preferences of [{ ...defaults, sound: 'yes' }, { ...defaults, soundUrl: 'https://example.com' }, { ...defaults, schemaVersion: 2 }, { ...defaults, allowAlways: true }]) assert.throws(() => validateStudioIpcRequest(request('notifications/set', { preferences })));
+  for (const preferences of [{ ...defaults, sound: 'yes' }, { ...defaults, soundUrl: 'https://example.com' }, { ...defaults, schemaVersion: 2 }, { ...defaults, allowAlways: true }, { ...defaults, language: ['en'] }, { ...defaults, language: {} }]) assert.throws(() => validateStudioIpcRequest(request('notifications/set', { preferences })));
 });

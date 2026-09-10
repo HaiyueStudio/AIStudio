@@ -1,0 +1,50 @@
+TAP version 13
+# Subtest: project attention follows real host transitions and project hydration does not replay alerts
+ok 1 - project attention follows real host transitions and project hydration does not replay alerts
+  ---
+  duration_ms: 616.7743
+  type: 'test'
+  ...
+# Subtest: project switches replace replay, preserve full structured tool data and restore the matching project after restart
+not ok 2 - project switches replace replay, preserve full structured tool data and restore the matching project after restart
+  ---
+  duration_ms: 412.7395
+  type: 'test'
+  location: 'D:\\HaiyueStudio\\AIStudio\\packages\\agent-orchestration\\test\\project-conversation.test.mjs:81:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(result.durationMs >= 5)
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///D:/HaiyueStudio/AIStudio/packages/agent-orchestration/test/project-conversation.test.mjs:88:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: switching projects drains a late tool result before replacing its project authority
+ok 3 - switching projects drains a late tool result before replacing its project authority
+  ---
+  duration_ms: 227.5341
+  type: 'test'
+  ...
+# Subtest: reopening an interrupted step preserves its original parameters when marking it cancelled
+ok 4 - reopening an interrupted step preserves its original parameters when marking it cancelled
+  ---
+  duration_ms: 120.4068
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3315.2892

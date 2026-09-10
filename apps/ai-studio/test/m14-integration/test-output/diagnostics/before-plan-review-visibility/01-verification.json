@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "scope": "desktop-notifications-local",
+  "status": "verified",
+  "verifiedAt": "2026-09-09T12:48:31.703Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 615,
+    "sourceDigest": "sha256:545b760840f80ad74f2d389cedb845dbecbea491e585bd64cedacbc2c29808eb",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:1b1c02609914f7c0fd84adfdcc8337d47652dc3917beceac1c6a11c532605d44"
+  },
+  "checks": {
+    "rootCheckExitCode": 0,
+    "finishedAt": "2026-09-09T12:47:52.4840805Z",
+    "focusedCheckExitCode": 0,
+    "capabilityCaptureExitCode": 0,
+    "focusedCases": 26,
+    "capabilityCases": 123,
+    "integrationFiles": 44,
+    "integrationCases": 209
+  },
+  "native": {
+    "checkedAt": "2026-09-09T12:13:04.552Z",
+    "platform": "win32",
+    "electron": "43.5.1",
+    "supported": true,
+    "showEventObserved": true,
+    "systemSoundRequested": true,
+    "manuallyHeard": false,
+    "manuallyClicked": false
+  },
+  "navigation": "Service click callbacks and real DOM card/task focus are tested; no approval or task intent is dispatched by a notification click.",
+  "scopeNotes": [
+    "No live provider task was executed for this feature.",
+    "This feature report does not advance G09 or replace its historical, input-bound completion audit."
+  ],
+  "sources": [
+    {
+      "path": "apps/ai-studio/src/main.ts",
+      "sha256": "sha256:1d62b61f77e31d075f917002dfde4d0074463c84f92e11124be304a019b8aa07",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/desktop-notifications.ts",
+      "sha256": "sha256:9f0d9a18133618a69f85ae41d9ff9bbd43eef8919a0246f3a02a646650bbf41c",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/electron-notifications.ts",
+      "sha256": "sha256:1bf49c2597441f35da6ecb597383fd8c358b1bf2418400cd253bb1f6ddb18a50",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/notification-settings.ts",
+      "sha256": "sha256:d57ee61723b3bffdc709b92ab2da50b910bca091bdd05cbdec123d533c08869a",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/notification-ui.ts",
+      "sha256": "sha256:f171baa78291f9c630ea828099db732e57740b4e54101471b74df3aef6bbfbe3",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/ipc.ts",
+      "sha256": "sha256:8d95a8d2c1c2daf714f196d85a6e449406582610a942ad8cda5cf52956cd5085",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/renderer.ts",
+      "sha256": "sha256:b9045e3e7349abb22ad214410f4a8cf863b282704db3242ef9a83dcf1b278407",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/preload.cjs",
+      "sha256": "sha256:f415f0f8e314b9f9285790efc1f1998a13452b06648498d42ee35a1c7a1b5faa",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/agent-orchestration/src/conversation-attention.ts",
+      "sha256": "sha256:49c514a0204c16bba283b059abafe8b72626cab1708794c1982f02c9dd4ebf16",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/agent-orchestration/src/project-conversation.ts",
+      "sha256": "sha256:439240eb5fcfbabd0079b6a347a0aff0711725776839b23e1530c551420970ec",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/src/panels/chat/index.ts",
+      "sha256": "sha256:429f2c912711a4adee7bbcf42f91b55dca068b7e58d81d3297793542e233639b",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/checks.json",
+      "sha256": "sha256:a1d28b6bed8ec7df848c2f3c3484c9ea7a6665a6470b5330ba4bbb08551c248e",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/focused-check.log",
+      "sha256": "sha256:018104278fb3d4e8b83d9a1da99b0f5bfefcaae17a71a436b5f42b57f9eaefd6",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/root-check.log",
+      "sha256": "sha256:d12567e477c2a1d6d6b50b33349627664d06a386fc81c54cc11b5be4cc5bc6a3",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/capability-capture.log",
+      "sha256": "sha256:15b33a3663ecd29d5dc1011ece932d10d2bee029856a919d321e85772b6056e1",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:d265da25894aa73493f3863ecba768730dab48ee2671460c01a243f46237e9cb",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-14.tap",
+      "sha256": "sha256:30fd5aa49362ede92963b1820d337041be49ca4de8bc6898b9ad43dc20b8d68d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/desktop-notifications/settings.png",
+      "sha256": "sha256:dc9e0e4395cd5f3f3533adddc3ffe5ea887043550c185cf915216ca76378979d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/desktop-notifications/production.json",
+      "sha256": "sha256:259c7834eed4ca03a858c94da676fd90c5019e0cbe334c6fcb9301ab281d90e4",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/desktop-notifications/native.json",
+      "sha256": "sha256:39853221ad4736ba7e6d75b8792d7aea76ebcddaacea62cdcf87c1e4f0c30d95",
+      "kind": "verification",
+      "locator": ""
+    }
+  ]
+}

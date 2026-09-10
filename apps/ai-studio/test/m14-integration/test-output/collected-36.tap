@@ -1,32 +1,32 @@
 TAP version 13
-# Subtest: history projection rejects unknown versions, foreign records, secret metadata and invalid durations
-ok 1 - history projection rejects unknown versions, foreign records, secret metadata and invalid durations
+# Subtest: project records retain complete parameters/results, redact secrets, page by logical record and never mix projects
+ok 1 - project records retain complete parameters/results, redact secrets, page by logical record and never mix projects
   ---
-  duration_ms: 1.5043
+  duration_ms: 344.8341
   type: 'test'
   ...
-# Subtest: a delayed response from the previous project cannot repopulate the current history view
-ok 2 - a delayed response from the previous project cannot repopulate the current history view
+# Subtest: project files reopen with an empty editor data directory and restore nested artifacts without duplicating events
+ok 2 - project files reopen with an empty editor data directory and restore nested artifacts without duplicating events
   ---
-  duration_ms: 4.4626
+  duration_ms: 296.9071
   type: 'test'
   ...
-# Subtest: history pages and expanded details display types, timing and complete parameters/results as plain text
-ok 3 - history pages and expanded details display types, timing and complete parameters/results as plain text
+# Subtest: first save relocates an unsaved project archive while preserving its live log port
+ok 3 - first save relocates an unsaved project archive while preserving its live log port
   ---
-  duration_ms: 2.4044
+  duration_ms: 171.4695
   type: 'test'
   ...
-# Subtest: cancelled tool history distinguishes preserved confirmation pauses from actual cancellations without rewriting raw data
-ok 4 - cancelled tool history distinguishes preserved confirmation pauses from actual cancellations without rewriting raw data
+# Subtest: legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned
+ok 4 - legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned
   ---
-  duration_ms: 1.242
+  duration_ms: 125.7211
   type: 'test'
   ...
-# Subtest: cancelled history detail from a previous project is discarded and failed reads can retry on expansion
-ok 5 - cancelled history detail from a previous project is discarded and failed reads can retry on expansion
+# Subtest: unknown versions, malformed durations, secret-bearing metadata and foreign manifests fail closed
+ok 5 - unknown versions, malformed durations, secret-bearing metadata and foreign manifests fail closed
   ---
-  duration_ms: 1.9798
+  duration_ms: 84.2749
   type: 'test'
   ...
 1..5
@@ -37,4 +37,4 @@ ok 5 - cancelled history detail from a previous project is discarded and failed 
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 225.8159
+# duration_ms 1522.1323

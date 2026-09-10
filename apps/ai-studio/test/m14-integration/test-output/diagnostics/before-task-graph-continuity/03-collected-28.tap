@@ -1,0 +1,44 @@
+TAP version 13
+# Subtest: project attention follows real host transitions and project hydration does not replay alerts
+not ok 1 - project attention follows real host transitions and project hydration does not replay alerts
+  ---
+  duration_ms: 3787.4308
+  type: 'test'
+  location: 'D:\\HaiyueStudio\\AIStudio\\packages\\agent-orchestration\\test\\project-conversation.test.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: 'Timed out waiting for project conversation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    until (file:///D:/HaiyueStudio/AIStudio/packages/agent-orchestration/test/project-conversation.test.mjs:141:175)
+    async Object.run (file:///D:/HaiyueStudio/AIStudio/packages/agent-orchestration/test/project-conversation.test.mjs:77:102)
+    async TestContext.<anonymous> (file:///D:/HaiyueStudio/AIStudio/packages/agent-orchestration/test/project-conversation.test.mjs:17:3)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: project switches replace replay, preserve full structured tool data and restore the matching project after restart
+ok 2 - project switches replace replay, preserve full structured tool data and restore the matching project after restart
+  ---
+  duration_ms: 2031.0923
+  type: 'test'
+  ...
+# Subtest: switching projects drains a late tool result before replacing its project authority
+ok 3 - switching projects drains a late tool result before replacing its project authority
+  ---
+  duration_ms: 364.3364
+  type: 'test'
+  ...
+# Subtest: reopening an interrupted step preserves its original parameters when marking it cancelled
+ok 4 - reopening an interrupted step preserves its original parameters when marking it cancelled
+  ---
+  duration_ms: 402.3201
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9128.6011

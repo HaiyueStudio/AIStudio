@@ -3,6 +3,7 @@ import { AdvancedStudioPanel, type AdvancedStudioSource } from '@haiyue/ai-studi
 import { ResourceExplorerPanel, EMPTY_RESOURCE_PANEL, type ResourcePanelData, type ResourcePanelIntent } from '@haiyue/ai-studio-shell/resources';
 import type { IntentWorkspace } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod } from './ipc.js';
+import type { HYDrawer } from '@haiyue/ui/drawer';
 
 export interface EditorPanelPorts {
   invoke(channel: StudioIpcMethod, payload?: JsonObject, signal?: AbortSignal): Promise<JsonObject>;
@@ -26,6 +27,8 @@ export class IntegratedEditorPanels {
   private request: AbortController | null = null;
   private resourceRequest: AbortController | null = null;
   private opened = false;
+  private advancedGeneration = 0;
+  private advancedClosing: Promise<void> = Promise.resolve();
   private disposed = false;
   private projectionFrame = 0;
   private importDialog: HTMLDialogElement | null = null;
@@ -45,15 +48,31 @@ export class IntegratedEditorPanels {
       else await this.refresh(false);
       if (typeof result.focusEntityId === 'string') this.reveal(result.focusEntityId);
     }, preview: value => ports.preview(value) });
-    const dialog = document.getElementById('workspace-advanced') as HTMLDialogElement;
+    const drawer = document.getElementById('workspace-advanced') as HYDrawer;
+    drawer.setAttribute('aria-busy', 'false');
     this.observer = new MutationObserver(() => {
-      const open = dialog.open && !document.getElementById('workspace-manual-inspect')!.hidden;
+      const open = drawer.open && !document.getElementById('workspace-manual-inspect')!.hidden;
       if (open === this.opened) return;
       this.opened = open;
-      if (open) void this.refresh(false).then(() => { if (this.opened && !this.disposed) return this.advanced.open(); }).catch(error => ports.status(String(error)));
-      else { this.request?.abort(); this.advanced.close(); void ports.invoke('editor/cancel').catch(() => undefined); }
+      const generation = ++this.advancedGeneration;
+      const current = () => !this.disposed && generation === this.advancedGeneration;
+      drawer.setAttribute('aria-busy', 'true');
+      if (open) void this.advancedClosing.then(async () => {
+        if (!current()) return;
+        await this.refresh(false);
+        if (current()) await this.advanced.open();
+      }).catch(error => { if (current()) ports.status(String(error)); })
+        .finally(() => { if (current()) drawer.setAttribute('aria-busy', 'false'); });
+      else {
+        this.request?.abort(); this.advanced.close();
+        // A later open must not race the previous close's asynchronous cancellation.
+        this.advancedClosing = this.advancedClosing.then(async () => {
+          if (!this.disposed) await ports.invoke('editor/cancel');
+        }).catch(error => { if (current()) ports.status(String(error)); })
+          .finally(() => { if (current()) drawer.setAttribute('aria-busy', 'false'); });
+      }
     });
-    this.observer.observe(dialog, { attributes: true, subtree: true, attributeFilter: ['open', 'hidden'] });
+    this.observer.observe(drawer, { attributes: true, subtree: true, attributeFilter: ['open', 'hidden'] });
     const canvas = document.getElementById('viewport')!;
     for (const event of ['pointermove', 'pointerup', 'wheel']) canvas.addEventListener(event, () => this.refreshProjection(), { signal: this.lifetime.signal });
     document.defaultView!.addEventListener('resize', () => this.refreshProjection(), { signal: this.lifetime.signal });

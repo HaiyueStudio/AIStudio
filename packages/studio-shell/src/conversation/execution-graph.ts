@@ -166,6 +166,18 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
   const sortedTranscript = freeze(transcript.sort((left, right) => left.timestamp.localeCompare(right.timestamp) || left.id.localeCompare(right.id)));
   const context = contextModel(latestPressure, latestCompaction, frozenNodes);
   const throughSequence = ops.at(-1)?.sequence ?? -1;
+  const taskByTurn = new Map(ops.filter(op => op.kind === 'turn.started' && op.turnId && stringValue(op.payload.taskId)).map(op => [op.turnId!, stringValue(op.payload.taskId)!]));
+  const taskByOp = new Map<string, string>(); let currentTask: string | null = null;
+  for (const op of ops) {
+    if (op.kind === 'turn.started') currentTask = taskByTurn.get(op.turnId!) ?? null;
+    const taskId = op.turnId ? taskByTurn.get(op.turnId) : currentTask;
+    if (taskId) taskByOp.set(op.id, taskId);
+  }
+  const taskScopes = [...new Set(taskByOp.values())].sort().map(taskId => freeze({
+    taskId,
+    nodeIds: freeze(frozenNodes.filter(node => node.id !== rootId && ((node.turnId && taskByTurn.get(node.turnId) === taskId) || node.sourceOpIds.some(id => taskByOp.get(id) === taskId))).map(node => node.id)),
+    transcriptIds: freeze(sortedTranscript.filter(item => item.sourceOpIds.some(id => taskByOp.get(id) === taskId)).map(item => item.id)),
+  }));
   const semantic = {
     schemaVersion: 1,
     sessionId: input.sessionId,
@@ -180,6 +192,7 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
     context,
     diagnostics: freeze([...diagnostics]),
     throughSequence,
+    ...(taskScopes.length ? { taskScopes: freeze(taskScopes) } : {}),
   } as const;
   return freeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) });
 }
@@ -191,8 +204,9 @@ export function normalizeExecutionGraphs(value: unknown): readonly ExecutionGrap
   for (const item of value.slice(-50)) {
     try {
       const graph = normalizeExecutionGraph(item);
-      if (sessions.has(graph.sessionId)) continue;
-      sessions.add(graph.sessionId); result.push(graph);
+      const identity = executionGraphIdentity(graph);
+      if (sessions.has(identity)) continue;
+      sessions.add(identity); result.push(graph);
     } catch { /* malformed or future projections fail closed */ }
   }
   return freeze(result.sort(compareExecutionGraphs));
@@ -206,7 +220,56 @@ export function compareExecutionGraphs(left: ExecutionGraphReadModel, right: Exe
     for (const item of graph.transcript) if (item.timestamp > timestamp) timestamp = item.timestamp;
     return timestamp;
   };
-  return latest(left).localeCompare(latest(right)) || left.sessionId.localeCompare(right.sessionId);
+  const order = (graph: ExecutionGraphReadModel): string => graph.taskId ? graph.nodes.find(node => node.kind === 'goal')?.startedAt ?? latest(graph) : latest(graph);
+  return order(left).localeCompare(order(right)) || executionGraphIdentity(left).localeCompare(executionGraphIdentity(right));
+}
+
+export function executionGraphIdentity(graph: ExecutionGraphReadModel): M13StableId { return graph.taskId ?? graph.sessionId; }
+
+/** Compose the product task without changing its durable session graphs or context/approval owners. */
+export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadModel[], tasks: readonly Readonly<{ taskId: string; title: string; status: string }>[] = []): readonly ExecutionGraphReadModel[] {
+  const groups = new Map<string, { graph: ExecutionGraphReadModel; nodeIds: readonly string[]; transcriptIds: readonly string[] }[]>();
+  const result: ExecutionGraphReadModel[] = [];
+  for (const graph of graphs) {
+    if (graph.taskId || !graph.taskScopes?.length) { result.push(graph); continue; }
+    for (const scope of graph.taskScopes) { const parts = groups.get(scope.taskId) ?? []; parts.push({ graph, ...scope }); groups.set(scope.taskId, parts); }
+    // Legacy turns without durable task membership remain independently inspectable.
+    const known = new Set(graph.taskScopes.flatMap(scope => scope.nodeIds));
+    const legacy = graph.nodes.filter(node => node.kind !== 'goal' && !known.has(node.id));
+    if (legacy.length) {
+      const ids = new Set([...legacy.map(node => node.id), ...graph.nodes.filter(node => node.kind === 'goal').map(node => node.id)]);
+      const { digest: _digest, taskScopes: _scopes, ...base } = graph;
+      const last = [...legacy].sort(compareNodes).at(-1)!;
+      const semantic = { ...base, status: last.status, nodes: graph.nodes.filter(node => ids.has(node.id)).map(node => node.kind === 'goal' ? freeze({ ...node, status: last.status, completedAt: last.completedAt, summary: 'Earlier session history without task membership.' }) : node), edges: graph.edges.filter(edge => ids.has(edge.from) && ids.has(edge.to)), currentNodeIds: graph.currentNodeIds.filter(id => ids.has(id)), criticalPathNodeIds: graph.criticalPathNodeIds.filter(id => ids.has(id)), transcript: graph.transcript.filter(item => item.graphNodeIds.some(id => ids.has(id) && !known.has(id))) };
+      result.push(deepFreeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) }));
+    }
+  }
+  for (const [taskId, parts] of groups) {
+    const firstTime = (part: typeof parts[number]): string => { const ids = new Set(part.nodeIds); return part.graph.nodes.filter(node => ids.has(node.id)).map(node => node.startedAt).sort()[0] ?? ''; };
+    parts.sort((a, b) => firstTime(a).localeCompare(firstTime(b)) || a.graph.sessionId.localeCompare(b.graph.sessionId));
+    const latest = parts.at(-1)!.graph; const task = tasks.find(item => item.taskId === taskId);
+    const rootId = graphId('task', taskId); const sourceRoot = latest.nodes.find(node => node.kind === 'goal')!;
+    const status = task ? productStatus(task.status === 'waiting-user' ? 'waiting' : task.status) : latest.status;
+    const title = task?.title ?? (parts[0]!.graph.taskScopes?.length === 1 ? parts[0]!.graph.title : 'Agent task');
+    const nodes: ExecutionGraphNodeReadModel[] = [freeze({ ...sourceRoot, id: rootId, title, status, summary: `${parts.length} 个执行阶段`, startedAt: firstTime(parts[0]!), completedAt: terminalStatuses.has(status) ? sourceRoot.completedAt : null, durationMs: null, sourceOpIds: freeze([]), artifactRefs: freeze([]) })];
+    const edges: ExecutionGraphEdgeReadModel[] = []; const transcript: ExecutionTranscriptItemReadModel[] = [];
+    const critical: string[] = []; const diagnostics: ExecutionGraphDiagnosticReadModel[] = [];
+    for (const part of parts) {
+      const membership = new Set(part.nodeIds); const roots = new Set(part.graph.nodes.filter(node => node.kind === 'goal').map(node => node.id));
+      const mapId = (id: string): string => roots.has(id) ? rootId : `${part.graph.sessionId}:${id}`;
+      for (const node of part.graph.nodes) if (membership.has(node.id)) nodes.push(freeze({ ...node, id: mapId(node.id) }));
+      for (const edge of part.graph.edges) if ((membership.has(edge.from) || roots.has(edge.from)) && (membership.has(edge.to) || roots.has(edge.to))) edges.push(freeze({ ...edge, id: `${part.graph.sessionId}:${edge.id}`, from: mapId(edge.from), to: mapId(edge.to) }));
+      const transcriptIds = new Set(part.transcriptIds);
+      for (const item of part.graph.transcript) if (transcriptIds.has(item.id)) transcript.push(freeze({ ...item, id: `${part.graph.sessionId}:${item.id}`, graphNodeIds: freeze(item.graphNodeIds.filter(id => membership.has(id) || roots.has(id)).map(mapId)) }));
+      critical.push(...part.graph.criticalPathNodeIds.filter(id => membership.has(id)).map(mapId));
+      diagnostics.push(...part.graph.diagnostics);
+    }
+    const semantic = { schemaVersion: 1 as const, sessionId: latest.sessionId, taskId, sourceSessionIds: freeze(parts.map(part => part.graph.sessionId)), revision: parts.reduce((sum, part) => sum + part.graph.revision, 0), title, status,
+      nodes: freeze(nodes.sort(compareNodes)), edges: freeze(edges.sort(compareEdges)), criticalPathNodeIds: freeze(critical), currentNodeIds: freeze(nodes.filter(node => activeStatuses.has(node.status)).map(node => node.id)),
+      transcript: freeze(transcript.sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id))), context: latest.context, diagnostics: freeze(diagnostics), throughSequence: latest.throughSequence };
+    result.push(deepFreeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) }));
+  }
+  return freeze(result.sort(compareExecutionGraphs));
 }
 
 export function normalizeExecutionGraph(value: unknown): ExecutionGraphReadModel {
@@ -218,6 +281,20 @@ export function normalizeExecutionGraph(value: unknown): ExecutionGraphReadModel
   for (const node of value.nodes) {
     if (!record(node) || !stringValue(node.id) || nodeIds.has(node.id as string) || !stringValue(node.kind) || !stringValue(node.status) || !stringValue(node.title) || !Array.isArray(node.sourceOpIds) || !Array.isArray(node.artifactRefs) || !record(node.detail)) throw new TypeError('Execution Graph node is invalid.');
     nodeIds.add(node.id as string);
+  }
+  if (value.taskId !== undefined && !stringValue(value.taskId)) throw new TypeError('Execution Graph task identity is invalid.');
+  if (value.sourceSessionIds !== undefined && (!Array.isArray(value.sourceSessionIds) || value.sourceSessionIds.some(id => !stringValue(id)))) throw new TypeError('Execution Graph session membership is invalid.');
+  const transcriptIds = new Set(value.transcript.map(item => record(item) ? item.id : null));
+  if (value.taskScopes !== undefined) {
+    if (!Array.isArray(value.taskScopes) || value.taskScopes.length > 5_000) throw new TypeError('Execution Graph task membership is invalid.');
+    const roots = new Set(value.nodes.filter(node => record(node) && node.kind === 'goal').map(node => (node as Record<string, unknown>).id));
+    const taskIds = new Set<string>();
+    for (const scope of value.taskScopes) {
+      if (roots.size !== 1 || !record(scope) || !stringValue(scope.taskId) || taskIds.has(scope.taskId as string)
+        || !Array.isArray(scope.nodeIds) || !scope.nodeIds.length || scope.nodeIds.some(id => typeof id !== 'string' || !nodeIds.has(id) || roots.has(id))
+        || !Array.isArray(scope.transcriptIds) || scope.transcriptIds.some(id => typeof id !== 'string' || !transcriptIds.has(id))) throw new TypeError('Execution Graph task membership is invalid.');
+      taskIds.add(scope.taskId as string);
+    }
   }
   for (const edge of value.edges) if (!record(edge) || !stringValue(edge.id) || !stringValue(edge.kind) || !stringValue(edge.from) || !stringValue(edge.to) || !nodeIds.has(edge.from as string) || !nodeIds.has(edge.to as string) || !Array.isArray(edge.sourceOpIds)) throw new TypeError('Execution Graph edge is invalid.');
   for (const item of value.transcript) if (!record(item) || !stringValue(item.id) || !stringValue(item.kind) || !stringValue(item.role) || !stringValue(item.timestamp) || !stringValue(item.title) || typeof item.body !== 'string' || !Array.isArray(item.sourceOpIds) || !Array.isArray(item.graphNodeIds)) throw new TypeError('Execution Graph transcript item is invalid.');

@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "sizes": [
+    [
+      360,
+      720
+    ],
+    [
+      320,
+      600
+    ],
+    [
+      720,
+      900
+    ]
+  ],
+  "approveOnce": true,
+  "revisionFeedback": true,
+  "conditionalPanels": true,
+  "completedPlanReadonly": true,
+  "otherBarriersVisible": true
+}

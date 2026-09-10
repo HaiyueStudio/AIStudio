@@ -105,7 +105,10 @@ async function run() {
   assert.equal((await data()).document.entities[0].name, 'Integrated geometry'); checks.push('explicit rejection leaves document unchanged');
   const beforeDrag = await data();
   await waitFor(() => evaluate('document.querySelector("[data-axis=x]")?.getBoundingClientRect().width>0 && !document.querySelector("[data-axis=x]").disabled'), 'projected Gizmo');
+  // Native pointer injection requires input focus; showInactive only presents the test window.
+  window.focus(); await waitFor(() => window.isFocused(), 'native pointer focus'); await settle();
   const point = await evaluate(`(()=>{const r=document.querySelector('[data-axis=x]').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()`);
+  assert.equal(await evaluate(`document.elementFromPoint(${point.x},${point.y})?.closest('[data-axis]')?.getAttribute('data-axis')`), 'x', 'native drag starts on the visible Gizmo handle');
   window.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 }); await settle();
   window.webContents.sendInputEvent({ type: 'mouseMove', x: point.x + 35, y: point.y, button: 'left' }); await settle();
   window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x + 35, y: point.y, button: 'left', clickCount: 1 });
@@ -158,12 +161,18 @@ async function large() {
   window.webContents.debugger.attach('1.3');
   const heap = async () => { await window.webContents.debugger.sendCommand('HeapProfiler.collectGarbage'); return (await window.webContents.debugger.sendCommand('Runtime.getHeapUsage')).usedSize; };
   const initialHeapBytes = await heap();
-  for (let i = 0; i < 5; i++) { await click('#workspace-advanced-close'); await settle(); await click('#workspace-advanced-button'); await waitFor(() => evaluate('document.querySelectorAll(".advanced-authoring-panel").length===1 && document.querySelectorAll(".advanced-transform-gizmo").length===1'), 'single mounted owner'); }
+  for (let i = 0; i < 5; i++) {
+    await click('#workspace-advanced-close'); if (i % 2 === 0) await settle();
+    await click('#workspace-advanced-button');
+    await waitFor(() => evaluate('document.querySelector("#workspace-advanced").getAttribute("aria-busy")==="false" && document.querySelectorAll(".advanced-authoring-panel").length===1 && document.querySelectorAll(".advanced-transform-gizmo").length===1'), 'single mounted owner after reopen');
+    assert.equal(await evaluate('document.querySelector("[data-advanced=error]")?.textContent ?? ""'), '', 'rapid reopen completes without stale cancellation');
+  }
   const finalHeapBytes = await heap(); window.webContents.debugger.detach();
   assert.ok(finalHeapBytes <= budget.maxRendererHeapBytes); assert.ok(finalHeapBytes - initialHeapBytes <= budget.maxRendererHeapGrowthBytesAfterFiveMounts);
   const metrics = app.getAppMetrics().filter(m => m.type === 'Tab'); assert.ok(metrics.length); for (const metric of metrics) assert.ok(metric.memory.workingSetSize <= budget.maxRendererWorkingSetKiB);
   await click('#workspace-advanced-close');
-  // Query once the product refresh is complete; the authoritative controller deliberately supersedes concurrent catalog queries.
+  // Closing cancels the previous advanced request asynchronously. Observe its completion before querying.
+  await waitFor(() => evaluate('document.querySelector("#workspace-advanced").getAttribute("aria-busy") === "false"'), 'advanced close settled');
   let page; await measure('resourceQuery', budget.maxResourceQueryMs, async () => { page = await call('editor/resources', { kind: 'instance', limit: 50 }); });
   assert.ok(Buffer.byteLength(JSON.stringify(page)) <= budget.maxResourceProjectionBytes);
   const gpu = await app.getGPUInfo('complete');

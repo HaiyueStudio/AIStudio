@@ -1,34 +1,106 @@
 TAP version 13
-# Subtest: lazy adapter loads only on open, deduplicates, cancels, unmounts and retries with no late revival
-ok 1 - lazy adapter loads only on open, deduplicates, cancels, unmounts and retries with no late revival
+# Subtest: one Cordis root activates dependency order and owns services, contributions, events and effects
+ok 1 - one Cordis root activates dependency order and owns services, contributions, events and effects
   ---
-  duration_ms: 287.1216
+  duration_ms: 65.4645
   type: 'test'
   ...
-# Subtest: close/cancel during import, project replacement, and close during async mounting reject late ownership
-ok 2 - close/cancel during import, project replacement, and close during async mounting reject late ownership
+# Subtest: partial activation failure rolls every effect back in reverse order
+ok 2 - partial activation failure rolls every effect back in reverse order
   ---
-  duration_ms: 273.4231
+  duration_ms: 10.5154
   type: 'test'
   ...
-# Subtest: module version/getter failure remains retryable and malformed mounted result rolls back
-ok 3 - module version/getter failure remains retryable and malformed mounted result rolls back
+# Subtest: optional provider failure degrades consumer without failing profile
+ok 3 - optional provider failure degrades consumer without failing profile
   ---
-  duration_ms: 257.3436
+  duration_ms: 6.5801
   type: 'test'
   ...
-# Subtest: adapter binds dispatch and preview to latest source, suppresses detached callbacks and never authors previews
-ok 4 - adapter binds dispatch and preview to latest source, suppresses detached callbacks and never authors previews
+# Subtest: invalid config and late async activation fail closed with zero resources
+ok 4 - invalid config and late async activation fail closed with zero resources
   ---
-  duration_ms: 225.4297
+  duration_ms: 34.3641
   type: 'test'
   ...
-1..4
-# tests 4
+# Subtest: profile replacement is deterministic and 100 cycles leave no owned resources
+ok 5 - profile replacement is deterministic and 100 cycles leave no owned resources
+  ---
+  duration_ms: 239.3301
+  type: 'test'
+  ...
+# Subtest: fixed Cordis compatibility and lazy closure remain explicit
+ok 6 - fixed Cordis compatibility and lazy closure remain explicit
+  ---
+  duration_ms: 22.999
+  type: 'test'
+  ...
+# Subtest: pinned Harness agent composition fails closed without a credential and disposes idempotently
+ok 7 - pinned Harness agent composition fails closed without a credential and disposes idempotently
+  ---
+  duration_ms: 64.0941
+  type: 'test'
+  ...
+# Subtest: Harness maps dotted Studio tool ids to provider-safe deterministic names
+ok 8 - Harness maps dotted Studio tool ids to provider-safe deterministic names
+  ---
+  duration_ms: 0.531
+  type: 'test'
+  ...
+# Subtest: Harness requires an existing owner and one live transport is attached to its root
+ok 9 - Harness requires an existing owner and one live transport is attached to its root
+  ---
+  duration_ms: 46.8637
+  type: 'test'
+  ...
+# Subtest: failed Harness composition rolls back already loaded plugins without disposing its owner
+ok 10 - failed Harness composition rolls back already loaded plugins without disposing its owner
+  ---
+  duration_ms: 27.423
+  type: 'test'
+  ...
+# Subtest: root shutdown during Harness initialization drains every partially loaded child
+ok 11 - root shutdown during Harness initialization drains every partially loaded child
+  ---
+  duration_ms: 15.5014
+  type: 'test'
+  ...
+# Subtest: Studio disable owns all Harness descendants
+ok 12 - Studio disable owns all Harness descendants
+  ---
+  duration_ms: 24.7373
+  type: 'test'
+  ...
+# Subtest: Studio replace owns all Harness descendants
+ok 13 - Studio replace owns all Harness descendants
+  ---
+  duration_ms: 20.3279
+  type: 'test'
+  ...
+# Subtest: Studio rollback owns all Harness descendants
+ok 14 - Studio rollback owns all Harness descendants
+  ---
+  duration_ms: 26.0447
+  type: 'test'
+  ...
+# Subtest: root disposal joins concurrent callers and reclaims late activation results
+ok 15 - root disposal joins concurrent callers and reclaims late activation results
+  ---
+  duration_ms: 13.8817
+  type: 'test'
+  ...
+# Subtest: Harness request recovery executes the upstream retry contract with a Studio hard bound
+ok 16 - Harness request recovery executes the upstream retry contract with a Studio hard bound
+  ---
+  duration_ms: 1.006
+  type: 'test'
+  ...
+1..16
+# tests 16
 # suites 0
-# pass 4
+# pass 16
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2023.2008
+# duration_ms 1315.5948

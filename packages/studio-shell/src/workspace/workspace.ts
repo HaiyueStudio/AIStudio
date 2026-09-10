@@ -1,4 +1,6 @@
 import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
+import type { HYTree, HYTreeNodeData } from '@haiyue/ui/tree';
+import type { HYDrawer } from '@haiyue/ui/drawer';
 import type { BehaviorManifestV1, BehaviorNodeV1, BehaviorSourceV1, EditorLocationV1 } from '@haiyue/ai-studio-contracts';
 import { workspaceText, type WorkspaceLanguage } from './copy.js';
 import { loadWorkspacePreferences, saveWorkspacePreferences, workspaceSplitPreferenceKey, WORKSPACE_CATEGORIES, type WorkspaceCategory, type WorkspacePreferences } from './preferences.js';
@@ -12,7 +14,7 @@ const sourceKinds = ['script', 'declarative-component', 'runtime-adapter'] as co
 export class IntentWorkspace {
   private readonly lifetime = new AbortController();
   private readonly root: HTMLElement;
-  private readonly dialog: HTMLDialogElement;
+  private readonly drawer: HYDrawer;
   private readonly parking: HTMLElement;
   private readonly launcher: HTMLButtonElement;
   private readonly modeLabel: HTMLLabelElement;
@@ -34,7 +36,6 @@ export class IntentWorkspace {
   private closed = false;
   private actionGeneration = 0;
   private kind = 'all';
-  private returnFocus: HTMLElement | null = null;
   private readonly splitDefaults = new Map<HTMLElement, Record<string, string>>();
 
   constructor(private readonly document: Document, private readonly port: WorkspacePanelPort, private readonly storage?: WorkspacePreferenceStorage) {
@@ -52,18 +53,19 @@ export class IntentWorkspace {
     this.root = document.createElement('aside'); this.root.id = 'intent-workspace'; this.root.className = 'panel intent-workspace';
     // Static app-owned markup only. All document/model strings below use textContent.
     this.root.innerHTML = `<hy-tabs id="workspace-tabs" data-ws-aria="workspace">
-<section id="workspace-logic" slot="logic"><label class="workspace-label" for="workspace-search" data-ws="search"></label><input id="workspace-search" type="search" maxlength="128" autocomplete="off"><label class="workspace-label" for="workspace-entity" data-ws="entity"></label><select id="workspace-entity" size="6"></select><p id="workspace-entity-status" class="workspace-note" role="status"></p><div id="workspace-source-kinds" class="workspace-badges"></div><div class="workspace-manual-links"><button type="button" id="workspace-inspect" data-ws="manualInspect"></button><button type="button" id="workspace-script" data-ws="manualScript"></button></div><h2 data-ws="events"></h2><p id="workspace-behavior-status" class="workspace-note" role="status"></p><ul id="workspace-events" class="workspace-events"></ul><details id="workspace-source-details" hidden><summary data-ws="sourceDetails"></summary><p data-ws="sourceHint"></p><pre id="workspace-source-reference"></pre></details></section>
+<section id="workspace-logic" slot="logic"><label class="workspace-label" for="workspace-search" data-ws="search"></label><input id="workspace-search" type="search" maxlength="128" autocomplete="off"><span id="workspace-entity-label" class="workspace-label" data-ws="entity"></span><hy-tree id="workspace-entity" aria-labelledby="workspace-entity-label" aria-describedby="workspace-entity-status" aria-multiselectable="false"></hy-tree><p id="workspace-entity-status" class="workspace-note" role="status"></p><div id="workspace-source-kinds" class="workspace-badges"></div><div class="workspace-manual-links"><button type="button" id="workspace-inspect" data-ws="manualInspect"></button><button type="button" id="workspace-script" data-ws="manualScript"></button></div><h2 data-ws="events"></h2><p id="workspace-behavior-status" class="workspace-note" role="status"></p><ul id="workspace-events" class="workspace-events"></ul><details id="workspace-source-details" hidden><summary data-ws="sourceDetails"></summary><p data-ws="sourceHint"></p><pre id="workspace-source-reference"></pre></details></section>
 <section id="workspace-resources" slot="resources" hidden><div class="workspace-filters"><label><span data-ws="category"></span><select id="workspace-category"></select></label><label><span data-ws="kind"></span><select id="workspace-kind"></select></label></div><p id="workspace-catalog-status" class="workspace-note" role="status"></p><ul id="workspace-catalog" class="workspace-catalog"></ul><div id="workspace-existing-resources"></div></section></hy-tabs><p id="workspace-action-status" class="workspace-note" role="status"></p>`;
-    this.dialog = document.createElement('dialog'); this.dialog.id = 'workspace-advanced'; this.dialog.setAttribute('aria-labelledby', 'workspace-advanced-title');
+    this.drawer = document.createElement('hy-drawer') as HYDrawer; this.drawer.id = 'workspace-advanced';
+    this.drawer.placement = 'right'; this.drawer.mask = true; this.drawer.destroyOnHidden = false;
     const sourceHeading = document.createElement('h2'); sourceHeading.dataset.ws = 'sources';
     const sourceList = document.createElement('ul'); sourceList.id = 'workspace-sources'; sourceList.className = 'workspace-events';
     this.root.querySelector('#workspace-source-details')!.before(sourceHeading, sourceList);
-    this.dialog.innerHTML = `<header><strong id="workspace-advanced-title" data-ws="advanced"></strong><button type="button" id="workspace-advanced-close" data-ws="close" autofocus></button></header><div class="workspace-tabs" role="tablist" data-ws-aria="advanced"><button type="button" id="workspace-inspect-tab" role="tab" aria-controls="workspace-manual-inspect" data-advanced="inspect" data-ws="inspect"></button><button type="button" id="workspace-script-tab" role="tab" aria-controls="workspace-manual-script" data-advanced="script" data-ws="script"></button></div><section id="workspace-manual-inspect" role="tabpanel" aria-labelledby="workspace-inspect-tab"></section><section id="workspace-manual-script" role="tabpanel" aria-labelledby="workspace-script-tab" hidden></section>`;
+    this.drawer.innerHTML = `<div class="workspace-advanced-content"><div class="workspace-tabs" role="tablist" data-ws-aria="advanced"><button type="button" id="workspace-inspect-tab" role="tab" aria-controls="workspace-manual-inspect" data-advanced="inspect" data-ws="inspect"></button><button type="button" id="workspace-script-tab" role="tab" aria-controls="workspace-manual-script" data-advanced="script" data-ws="script"></button></div><section id="workspace-manual-inspect" role="tabpanel" aria-labelledby="workspace-inspect-tab"></section><section id="workspace-manual-script" role="tabpanel" aria-labelledby="workspace-script-tab" hidden></section></div><button type="button" id="workspace-advanced-close" slot="footer" data-ws="close"></button>`;
     this.parking = document.createElement('div'); this.parking.id = 'workspace-layout-parking'; this.parking.hidden = true;
-    this.launcher = document.createElement('button'); this.launcher.id = 'workspace-advanced-button'; this.launcher.type = 'button'; this.launcher.dataset.ws = 'advanced'; this.launcher.setAttribute('aria-haspopup', 'dialog'); this.launcher.setAttribute('aria-controls', this.dialog.id);
+    this.launcher = document.createElement('button'); this.launcher.id = 'workspace-advanced-button'; this.launcher.type = 'button'; this.launcher.dataset.ws = 'advanced'; this.launcher.setAttribute('aria-haspopup', 'dialog'); this.launcher.setAttribute('aria-controls', this.drawer.id);
     get('settings-button').before(this.launcher);
     this.modeLabel = document.createElement('label'); this.modeLabel.innerHTML = '<span data-ws="mode"></span><select id="workspace-mode"><option value="intent" data-ws="intent"></option><option value="classic" data-ws="classic"></option></select>';
-    settings.append(this.modeLabel); document.body.append(this.dialog, this.parking); this.parking.append(this.root);
+    settings.append(this.modeLabel); document.body.append(this.drawer, this.parking); this.parking.append(this.root);
     const listen = (element: EventTarget, event: string, callback: EventListener) => element.addEventListener(event, callback, { signal: this.lifetime.signal });
     const tabs = this.get<HYTabs>('workspace-tabs');
     listen(tabs, 'tab-change', event => {
@@ -71,25 +73,41 @@ export class IntentWorkspace {
       const value = (event as CustomEvent<HYTabChangeDetail>).detail?.value;
       if (value === 'logic' || value === 'resources') this.setTab(value);
     });
-    this.keyboardTabs(this.dialog.querySelector('[role="tablist"]')!, '[data-advanced]', button => this.setAdvancedTab(button.dataset.advanced as 'inspect' | 'script'));
-    for (const button of this.dialog.querySelectorAll<HTMLElement>('[data-advanced]')) listen(button, 'click', () => this.setAdvancedTab(button.dataset.advanced as 'inspect' | 'script'));
+    this.keyboardTabs(this.drawer.querySelector('[role="tablist"]')!, '[data-advanced]', button => this.setAdvancedTab(button.dataset.advanced as 'inspect' | 'script'));
+    for (const button of this.drawer.querySelectorAll<HTMLElement>('[data-advanced]')) listen(button, 'click', () => this.setAdvancedTab(button.dataset.advanced as 'inspect' | 'script'));
     listen(this.launcher, 'click', () => this.openAdvanced());
     listen(get('workspace-inspect'), 'click', () => this.openAdvanced('inspect'));
     listen(get('workspace-script'), 'click', () => this.openAdvanced('script'));
-    listen(get('workspace-advanced-close'), 'click', () => this.dialog.close());
-    listen(this.dialog, 'close', () => { this.applyLayout(); this.returnFocus?.focus(); this.returnFocus = null; });
+    listen(get('workspace-advanced-close'), 'click', () => this.drawer.close('action'));
+    listen(this.drawer, 'drawer-close', event => { if (event.target === this.drawer) this.applyLayout(); });
     listen(get('workspace-mode'), 'change', () => this.setMode(get<HTMLSelectElement>('workspace-mode').value as 'intent' | 'classic'));
     listen(get('workspace-category'), 'change', () => { this.patch({ category: get<HTMLSelectElement>('workspace-category').value as WorkspaceCategory }); this.renderResources(); });
     listen(get('workspace-kind'), 'change', () => { this.kind = get<HTMLSelectElement>('workspace-kind').value; this.renderResources(); });
     listen(get('workspace-search'), 'input', () => this.renderEntities());
-    listen(get('workspace-entity'), 'change', () => this.dispatch({ type: 'workspace/select-entity', entityId: get<HTMLSelectElement>('workspace-entity').value || null }));
+    const tree = get<HYTree>('workspace-entity');
+    tree.allowDrag = false;
+    listen(tree, 'selection-change', event => {
+      if (event.target !== tree) return;
+      const detail: unknown = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== 'object' || !('selectedId' in detail)) return;
+      const entityId = detail.selectedId;
+      if (entityId !== null && (typeof entityId !== 'string' || !this.snapshot.entities.some(entity => entity.id === entityId))) return;
+      tree.selectedId = entityId;
+      this.dispatch({ type: 'workspace/select-entity', entityId });
+    });
+    // This tree selects existing objects; component-local clipboard edits are not document commands.
+    tree.addEventListener('keydown', event => {
+      if (event.key === 'Delete' || event.key === 'Backspace' || ((event.ctrlKey || event.metaKey) && ['c', 'x', 'v'].includes(event.key.toLowerCase()))) {
+        event.preventDefault(); event.stopImmediatePropagation();
+      }
+    }, { capture: true, signal: this.lifetime.signal });
     listen(document.defaultView!, 'resize', () => this.adaptWidth());
     this.setLanguage('zh-CN'); this.applyLayout(); this.setTab(this.preferences.tab);
     this.document.body.dataset.workspaceReady = 'true';
   }
   update(snapshot: WorkspacePanelSnapshot): void {
     if (this.closed) return;
-    if (snapshot.entities.length > 10000 || snapshot.entities.some(entity => typeof entity.id !== 'string' || typeof entity.name !== 'string' || entity.name.length > 512 || entity.sources.some(kind => !sourceKinds.includes(kind))) || new Set(snapshot.entities.map(entity => entity.id)).size !== snapshot.entities.length) throw new Error('workspace.invalid-entity-projection');
+    if (snapshot.entities.length > 10000 || snapshot.entities.some(entity => typeof entity.id !== 'string' || typeof entity.name !== 'string' || entity.name.length > 512 || (entity.parentId != null && typeof entity.parentId !== 'string') || entity.sources.some(kind => !sourceKinds.includes(kind))) || new Set(snapshot.entities.map(entity => entity.id)).size !== snapshot.entities.length) throw new Error('workspace.invalid-entity-projection');
     if (snapshot.documentId !== this.snapshot.documentId) {
       this.get<HTMLInputElement>('workspace-search').value = ''; this.kind = 'all'; this.get<HTMLSelectElement>('workspace-kind').value = 'all';
     }
@@ -103,7 +121,8 @@ export class IntentWorkspace {
   setLanguage(language: WorkspaceLanguage): void {
     if (this.closed) return;
     this.language = language;
-    for (const owner of [this.root, this.dialog, this.modeLabel, this.launcher]) {
+    this.drawer.heading = this.text('advanced');
+    for (const owner of [this.root, this.drawer, this.modeLabel, this.launcher]) {
       const nodes = [owner, ...owner.querySelectorAll<HTMLElement>('[data-ws], [data-ws-aria]')];
       for (const node of nodes) {
         if (node.dataset.ws) node.textContent = this.text(node.dataset.ws as Parameters<typeof workspaceText>[1]);
@@ -118,7 +137,7 @@ export class IntentWorkspace {
   }
   setMode(mode: 'intent' | 'classic'): void {
     if (this.closed || !['intent', 'classic'].includes(mode)) return;
-    if (this.dialog.open) this.dialog.close();
+    if (this.drawer.open) this.drawer.close();
     this.patch({ mode }); this.applyLayout(); this.get<HTMLSelectElement>('workspace-mode').value = mode;
   }
   setTab(tab: 'logic' | 'resources'): void {
@@ -130,21 +149,20 @@ export class IntentWorkspace {
 
   openAdvanced(tab: 'inspect' | 'script' = this.preferences.advancedTab): void {
     if (this.closed) return;
-    this.returnFocus = this.document.activeElement as HTMLElement | null;
     this.move(this.manual, this.get('workspace-manual-inspect'));
     this.manual.hidden = this.advancedInspector !== null;
     this.move(this.script, this.get('workspace-manual-script'));
     this.setAdvancedTab(tab);
-    if (!this.dialog.open) this.dialog.showModal();
+    if (!this.drawer.open) this.drawer.show();
   }
-  closeAdvanced(): void { if (!this.closed && this.dialog.open) this.dialog.close(); }
+  closeAdvanced(): void { if (!this.closed && this.drawer.open) this.drawer.close(); }
   /** Public panel is installed by the application after the reviewed package is available. */
   installAdvancedInspector(host: HTMLElement): HTMLElement {
     if (this.closed || this.advancedInspector) throw new Error('workspace.advanced-already-mounted');
     this.advancedInspector = host;
     this.advancedViewport = this.document.createElement('div'); this.advancedViewport.id = 'workspace-advanced-viewport';
     this.get('workspace-manual-inspect').append(this.advancedViewport, host);
-    this.dialog.dataset.publicAdvanced = 'true';
+    this.drawer.dataset.publicAdvanced = 'true';
     return this.advancedViewport;
   }
   installResourceExplorer(host: HTMLElement): void {
@@ -155,9 +173,9 @@ export class IntentWorkspace {
   }
   dispose(): void {
     if (this.closed) return;
-    this.closed = true; this.lifetime.abort(); if (this.dialog.open) this.dialog.close();
+    this.closed = true; this.lifetime.abort(); if (this.drawer.open) this.drawer.close();
     this.applyLayout('classic'); this.scriptHome.appendChild(this.script); this.script.hidden = true; this.script.setAttribute('aria-hidden', 'true');
-    this.root.remove(); this.dialog.remove(); this.parking.remove(); this.launcher.remove(); this.modeLabel.remove();
+    this.root.remove(); this.drawer.remove(); this.parking.remove(); this.launcher.remove(); this.modeLabel.remove();
     delete this.document.body.dataset.workspaceReady; delete this.document.body.dataset.workspaceMode; delete this.document.body.dataset.workspaceNarrow;
   }
   private setAdvancedTab(tab: 'inspect' | 'script'): void {
@@ -172,7 +190,7 @@ export class IntentWorkspace {
   }
   private applyLayout(mode = this.preferences.mode): void {
     this.document.body.dataset.workspaceMode = mode;
-    this.manual.hidden = this.dialog.open && this.advancedInspector !== null;
+    this.manual.hidden = this.drawer.open && this.advancedInspector !== null;
     if (mode === 'intent') {
       this.move(this.manual, this.get('workspace-manual-inspect')); this.move(this.authoring, this.parking);
       this.move(this.root, this.workspace, 'first'); this.move(this.viewport, this.content, 'first');
@@ -184,7 +202,7 @@ export class IntentWorkspace {
       for (const panel of this.panels) { panel.hidden = false; this.move(panel, this.resourceTabs, panel.dataset.workspaceCategory!); }
       this.resourceTabs.hidden = false;
     }
-    if (!this.dialog.open) { this.script.hidden = true; this.script.setAttribute('aria-hidden', 'true'); }
+    if (!this.drawer.open) { this.script.hidden = true; this.script.setAttribute('aria-hidden', 'true'); }
     for (const split of [this.workspace, this.content, this.authoring, this.manual]) {
       const key = split.dataset.layoutKey; if (!key) continue;
       try {
@@ -193,7 +211,7 @@ export class IntentWorkspace {
       } catch { /* A storage failure must not disable the editor. */ }
     }
     this.adaptWidth(mode);
-    this.renderResources();
+    this.renderEntities(true); this.renderResources();
   }
   private adaptWidth(mode = this.preferences.mode): void {
     const narrow = mode === 'intent' && (this.document.defaultView?.innerWidth ?? 1280) < 1000;
@@ -206,12 +224,39 @@ export class IntentWorkspace {
     if (node.parentNode !== parent) parent.append(node);
     if (slot) node.setAttribute('slot', slot); else node.removeAttribute('slot');
   }
-  private renderEntities(): void {
-    const select = this.get<HTMLSelectElement>('workspace-entity'), filter = this.get<HTMLInputElement>('workspace-search').value.trim().toLocaleLowerCase(this.language);
+  private renderEntities(revealSelection = false): void {
+    const tree = this.get<HYTree>('workspace-entity'), filter = this.get<HTMLInputElement>('workspace-search').value.trim().toLocaleLowerCase(this.language);
     const entities = this.snapshot.entities.filter(entity => !filter || entity.name.toLocaleLowerCase(this.language).includes(filter));
-    const selected = entities.some(entity => entity.id === this.snapshot.selectedEntityId) ? this.snapshot.selectedEntityId : '';
-    this.fillSelect('workspace-entity', [['', this.text('choose')], ...entities.map(entity => [entity.id, entity.name] as const)], selected ?? '');
-    select.disabled = entities.length === 0;
+    const nodes = new Map<string, HYTreeNodeData>(this.snapshot.entities.map(entity => [entity.id, { id: entity.id, label: entity.name }]));
+    const parents = new Map(this.snapshot.entities.map(entity => [entity.id, entity.parentId && nodes.has(entity.parentId) ? entity.parentId : null]));
+    // Keep every object reachable even if an incomplete projection contains a missing parent or cycle.
+    const visited = new Set<string>();
+    for (const id of nodes.keys()) {
+      const chain = new Set<string>(); let current: string | null = id;
+      while (current !== null && !visited.has(current)) {
+        if (chain.has(current)) { parents.set(current, null); break; }
+        chain.add(current); current = parents.get(current) ?? null;
+      }
+      for (const ancestor of chain) visited.add(ancestor);
+    }
+    const visible = new Set<string>();
+    for (const entity of entities) {
+      let current: string | null = entity.id;
+      while (current !== null && !visible.has(current)) { visible.add(current); current = parents.get(current) ?? null; }
+    }
+    const roots: HYTreeNodeData[] = [];
+    for (const [id, node] of nodes) {
+      if (!visible.has(id)) continue;
+      const parent = nodes.get(parents.get(id) ?? '');
+      if (parent) { (parent.children ??= []).push(node); if (filter) parent.expanded = true; }
+      else roots.push(node);
+    }
+    const selected = this.snapshot.selectedEntityId !== null && visible.has(this.snapshot.selectedEntityId) ? this.snapshot.selectedEntityId : null;
+    const reveal = selected !== null && (revealSelection || selected !== tree.selectedId);
+    tree.updateData(roots); tree.selectedId = selected;
+    tree.setAttribute('aria-disabled', String(entities.length === 0));
+    tree.tabIndex = entities.length ? 0 : -1;
+    if (reveal && selected !== null) tree.reveal(selected);
     this.get('workspace-entity-status').textContent = !this.snapshot.entities.length ? this.text('noEntities') : !entities.length ? this.text('noMatches') : `${entities.length} / ${this.snapshot.entities.length}`;
     const entity = this.snapshot.entities.find(entity => entity.id === this.snapshot.selectedEntityId);
     this.get<HTMLButtonElement>('workspace-inspect').disabled = !entity;

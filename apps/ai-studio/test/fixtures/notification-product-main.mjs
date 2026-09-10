@@ -1,0 +1,30 @@
+import { app } from 'electron';
+import path from 'node:path';
+import { writeFile } from 'node:fs/promises';
+const directory = process.env.HAIYUE_NOTIFICATION_TEST_ROOT;
+process.env.HAIYUE_ELECTRON_USER_DATA = path.join(directory, 'product-user-data');
+process.env.HAIYUE_STUDIO_DISABLE_NOTIFICATIONS = '1';
+let sequence = 0;
+app.once('browser-window-created', (_event, window) => {
+  const evaluate = code => window.webContents.executeJavaScript(code);
+  const call = (channel, payload = {}) => evaluate(`window.haiyueStudio.invoke(${JSON.stringify({ schemaVersion: 1, id: `notification-test:${++sequence}`, correlationId: 'notification-test:product', channel, payload })}).then(r=>{if(!r.ok)throw Error(JSON.stringify(r.payload));return r.payload;})`);
+  const wait = async predicate => { const deadline = Date.now() + 25_000; while (!await predicate()) { if (Date.now() > deadline) throw Error('notification product timeout'); await new Promise(resolve => setTimeout(resolve, 60)); } };
+  const run = async () => {
+    await wait(() => evaluate('document.body.dataset.status === "ready" && !!document.querySelector("#notification-settings input:not(:disabled)")'));
+    const initial = await call('notifications/get'); if (initial.preferences.sound !== true) throw Error('defaults not mounted');
+    await evaluate('document.querySelector("#settings-button").click()');
+    await wait(() => evaluate('document.querySelector("#settings-dialog").shadowRoot.querySelector("dialog").open && document.querySelector("[data-notification=sound]").getBoundingClientRect().width > 0'));
+    await evaluate('document.querySelector("[data-notification=sound]").click()');
+    await wait(async () => (await call('notifications/get')).preferences.sound === false);
+    const target = await call('notifications/target'); if (target.target !== null) throw Error('unexpected navigation target');
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await writeFile(path.join(directory, 'production-settings.png'), (await window.webContents.capturePage()).toPNG());
+    const loaded = new Promise(resolve => window.webContents.once('did-finish-load', resolve)); window.reload(); await loaded;
+    await wait(() => evaluate('document.body.dataset.status === "ready" && !!document.querySelector("#notification-settings input:not(:disabled)")'));
+    if (await evaluate('document.querySelector("[data-notification=sound]").checked')) throw Error('renderer reload lost mute preference');
+    const final = await call('notifications/get'); await writeFile(path.join(directory, 'production.json'), JSON.stringify({ initial, final, reloaded: true, typedPreload: true, nativeDeliveryDisabledForTest: true }, null, 2));
+    console.log('[notification-product] passed'); app.quit();
+  };
+  window.webContents.once('did-finish-load', () => { run().catch(cause => { console.error(cause); app.exit(1); }); });
+});
+await import('../../dist/main.js');

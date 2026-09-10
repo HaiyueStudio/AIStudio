@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "archivedAt": "2026-09-10T05:17:37.129Z",
+  "priorInputDigest": "sha256:ec7ef750e6208435a069b09777a1761888585912fe3f5833aba89998ce1aae2d",
+  "reason": "Retain execution view verification before replacing the workspace entity selector.",
+  "entries": [
+    {
+      "original": "docs/evidence/execution-view-tabs/verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/01-verification.json",
+      "sha256": "sha256:5abd3f84fad20e24e14c15e0c27418d86a8bd3cebce73c937a3651fc8f1ba181"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/input.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/02-input.json",
+      "sha256": "sha256:96f2a5a481174998f6040dcf2909ad6f9edeb69ab1e2990954ceb80bf2c23e8f"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/input-initial.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/03-input-initial.json",
+      "sha256": "sha256:c7f0c676a7ffa79b90de1ca793a83f94f331edc5d33b6beba3d7843aee127729"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/checks.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/04-checks.json",
+      "sha256": "sha256:1e7a3c3eb50475ead2e66250a0a9f87aaf75fac5bf693ffc6388e1c8ec6d152e"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/focused-check-initial.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/05-focused-check-initial.log",
+      "sha256": "sha256:868d0ae49b15976fdbf20441f4d6baefe7812d96791076e72fd95b05d84de57c"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/focused-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/06-focused-check.log",
+      "sha256": "sha256:4357f89164a19fcce0f4d6798aad1d07da276e4b5b07493f6f2e2401e69c80a4"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/product-recheck.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/07-product-recheck.log",
+      "sha256": "sha256:7f9e11406c89c4ced8a1a9f5198d9eb939a0f55fed79a4336c3ac4a65f86ec8b"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/root-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/08-root-check.log",
+      "sha256": "sha256:bd2f683b5a758ad7160d5ec43402a5f5701374a16cbcd9225c7c3829caffd8a8"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/capability-capture-initial.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/09-capability-capture-initial.log",
+      "sha256": "sha256:31d7438a119daf7f3346049a3ae08a6ff96d67e25c1ec9b676e0eb587679eb9f"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/execution-view-tabs/capability-capture.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/10-capability-capture.log",
+      "sha256": "sha256:8e13fad7003a231c5750a50c206e861e0b81a2a41afa06cbbd10e671ec62ec43"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/11-collected-tests.json",
+      "sha256": "sha256:3360029918d410984f766fb133b079102c95917e60d6a2d7e21b281ddb7176b6"
+    },
+    {
+      "original": "config/contracts/m14-capability-verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/12-m14-capability-verification.json",
+      "sha256": "sha256:05329936663480a298a56a6484177581b201f23c747f8581cca5278893a386e6"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-07.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/13-collected-07.tap",
+      "sha256": "sha256:dda93bea6e36493e97b074c8cd0c977081ce355c9381188d61fcc17aa7919178"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-16.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/14-collected-16.tap",
+      "sha256": "sha256:cd82bdd7c864fb80ead17ae02dd4fa9067e6a28e7a1e8306a3e3649445e1e190"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/result.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/15-result.json",
+      "sha256": "sha256:610fae29d6c4dd91e56cba4d67b7251d44da02a66a662b498c9f56b3e63c4e48"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/usage.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/16-usage.png",
+      "sha256": "sha256:5a7ba210dbd6fe0e2d8ac659694f6824c366b24b98d4e22b91df01c6a4cc6fd2"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/node-detail.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/17-node-detail.png",
+      "sha256": "sha256:ec1553ed040a7970ac579838f15d1e4a06f2c66dd75284495dc4249b3d614490"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/steps-view.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/18-steps-view.png",
+      "sha256": "sha256:f45cad8c9c11a1475e2ec6116f30800ae34512cfec2250173292b3522eaa6e1d"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/graph-760x880.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/19-graph-760x880.png",
+      "sha256": "sha256:35f86be40fa964911c68ad7556fdba64ef88689f0835105a570b8d31c3fc5712"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/graph-320x600.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/20-graph-320x600.png",
+      "sha256": "sha256:1f8cad098b1a5711510995850536a022d9279289759bc8da623b861043d110da"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/task-chain.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/21-task-chain.png",
+      "sha256": "sha256:07117bcbaa8c7e8298e50b091464a86c132ee6c7d7b5e7c046be4c958dacf712"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/plan-steps-360x720.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/22-plan-steps-360x720.png",
+      "sha256": "sha256:c87a0c082eee3f44de977ddd825740436aaa6464222bc0edff62ceffc00acf08"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/plan-steps-320x600.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/23-plan-steps-320x600.png",
+      "sha256": "sha256:ac38b69abc150362a7a2b4bc8ae11e2302318464c698fcfde1b523d2382a30c5"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/plan-steps-720x900.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/24-plan-steps-720x900.png",
+      "sha256": "sha256:09f7036d046c0c39287eb022d6d6f0667490b624202966f2fc02e43dd42767e8"
+    },
+    {
+      "original": "docs/evidence/execution-view-tabs/approval-result.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/25-approval-result.json",
+      "sha256": "sha256:e5fa78c89fa3527fa781855ad09819092a32b68312aa69b977a0e40a3681cde1"
+    },
+    {
+      "original": "config/contracts/m14-capability-census.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-workspace-entity-tree/26-m14-capability-census.json",
+      "sha256": "sha256:ba140ebd540db12d5c8c9f4f5e35f84bdeb310e72db00ba2f71cdc3b723df65a"
+    }
+  ]
+}

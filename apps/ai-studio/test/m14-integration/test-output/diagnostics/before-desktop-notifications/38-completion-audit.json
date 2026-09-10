@@ -1,0 +1,1984 @@
+{
+  "schemaVersion": 1,
+  "owner": "g09-ai-native-editor-integration-acceptance",
+  "purpose": "current-completion-audit-not-final-product-acceptance",
+  "auditedAt": "2026-09-09T11:32:46.869Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 603,
+    "sourceDigest": "sha256:70778bedf5f0aa0a18de08811fea9df758cc7abc31873a2253f46c0553bd8d1e",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:62d037d5e13f492c7b9ecc3c87393c66f3e4dd45921b07dd387f2a06ce894494"
+  },
+  "objectiveSource": "D:\\HaiyueStudio\\milestones\\milestones\\m14-ai-native-intent-graph-editor\\goals\\g09-ai-native-editor-integration-acceptance.md",
+  "objectiveSha256": "sha256:79128a940d45e150865d448b96a98bd7055f555e55c671a215d83c1dd04b3907",
+  "status": "incomplete",
+  "productIntegrated": false,
+  "requirements": [
+    {
+      "id": "shared-entry-and-packages",
+      "requirement": "Versioned public exports, reviewed candidates, lockfile, app mount and IPC are integrated.",
+      "status": "verified",
+      "coverage": "Eight installed public package surfaces match candidate bytes, lock integrity, runtime/declaration exports and installed content; actual production window mounts the advanced panel.",
+      "evidence": [
+        {
+          "path": "config/upstream/editor-candidates.json",
+          "sha256": "sha256:1506c0ad2a113908ece906e480b197d526e1a365c1a7547ae5ee9c4e7fd66d26",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "config/upstream/ui-candidate.json",
+          "sha256": "sha256:af76b0beced5a674855de3936519c0d3478078ee4956052e8a40e8895509ac4c",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "package-lock.json",
+          "sha256": "sha256:5794f57a92824c514c550aa411c7e6955e9190735b67ec8fdac805b16c1479b1",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "scripts/test/editor-candidate-surface.test.mjs",
+          "sha256": "sha256:c9debb5c00132cf484c6a7259c9ad0590f8d46c494740664fc3b778c1175fb55",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "scripts/test/editor-candidate-surface.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-40.tap",
+          "sha256": "sha256:9608fdde0f813cf500302d965b60ad671b49f3c1e1c02949778a34ad4874530b",
+          "kind": "local-check",
+          "locator": "scripts/test/editor-candidate-surface.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+          "sha256": "sha256:4e531733f655497d716d29b887b64decf6af85500835b90696dc6bd7db75ee6c",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/product-electron.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-11.tap",
+          "sha256": "sha256:083eb21028c90fb523bfe6ed78722efda21073cbee800cc72c824101b487f8e3",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/product-electron.test.mjs"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "formal-test-collection",
+      "requirement": "Owned nested test directories are collected and executed with explicit counts.",
+      "status": "verified",
+      "coverage": "41 reviewed files / 194 passing cases; every raw TAP count agrees, with no failures, skips or cancellations.",
+      "evidence": [
+        {
+          "path": "scripts/m14-integration-tests.json",
+          "sha256": "sha256:82216db03ee0d99178b10c08d6545219e6a2a0d7271e8e2668637d7a81e37209",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "contract-and-owner-boundaries",
+      "requirement": "One envelope, one lifecycle root; application composition, orchestration and persistence keep their owners.",
+      "status": "verified",
+      "coverage": "Current contract/schema and import-boundary checks pass; rollback, project replacement, cancellation and lifecycle teardown are exercised.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "[boundaries] headless orchestration, single Harness bridge"
+        },
+        {
+          "path": "scripts/test/orchestration-boundaries.test.mjs",
+          "sha256": "sha256:dab797a3d0ed6725da8d5a4576b67a3aa9c2720265acd04bc7a1d03d9097bb03",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "scripts/test/orchestration-boundaries.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-41.tap",
+          "sha256": "sha256:a51ae270b857722402a188559af27901436b1d0cf0c87c1d6e21369258a50e65",
+          "kind": "local-check",
+          "locator": "scripts/test/orchestration-boundaries.test.mjs"
+        },
+        {
+          "path": "packages/harness-bridge/test/bridge.test.mjs",
+          "sha256": "sha256:01ad7d73dc0a1587720d760b2e30815534948269fc140d577d340a86ac7e21e5",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/harness-bridge/test/bridge.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-30.tap",
+          "sha256": "sha256:db390d20c9f83efc4aaec2a626778def57700696d735836db488c128f733d0b7",
+          "kind": "local-check",
+          "locator": "packages/harness-bridge/test/bridge.test.mjs"
+        },
+        {
+          "path": "packages/agent-orchestration/test/editor-project.test.mjs",
+          "sha256": "sha256:c7ab803d700b6d2c79dd9e52b8539bf5992fd7d39b9938466a2ea1712b10133d",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/agent-orchestration/test/editor-project.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-21.tap",
+          "sha256": "sha256:48b68f601b00a5fec8945bcedbc36d33bf5f0aa23d9b66e17901ba36f40ccd77",
+          "kind": "local-check",
+          "locator": "packages/agent-orchestration/test/editor-project.test.mjs"
+        },
+        {
+          "path": "packages/operation-log/test/project-agent-history.test.mjs",
+          "sha256": "sha256:d863f8f6a81d3c6535b0a47701ab07eca362b3c02c7f6d9e289a5789fe908c38",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/operation-log/test/project-agent-history.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-31.tap",
+          "sha256": "sha256:9f35838691241cb94bcf678bfc30bd75e047686667f6e20cf530070dfaf8d754",
+          "kind": "local-check",
+          "locator": "packages/operation-log/test/project-agent-history.test.mjs"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "seven-games-and-three-sources",
+      "requirement": "Seven fixed seed/replay games, two located flows each, pure script/declarative/mixed sources.",
+      "status": "verified",
+      "coverage": "All seven games repeat the complete sampled state; exact source, manifest and binding references agree. Fresh zero-script and mixed device runs preserve Document/History and stop all resources.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/gameplay-replays.json",
+          "sha256": "sha256:faed6c339837e051f34a34463edf28a13e6ce6a53cb1b51bee0d956a5490ddb4",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs",
+          "sha256": "sha256:a6d0c23fcb29e8ce05c4a1f4e191cf3e2950c7510a2a7867485219a574f0e0ae",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-08.tap",
+          "sha256": "sha256:8f7e293d2073be55242f84008d3d16b3f2a35f6402eb0f3831687d4c64aefe6b",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
+          "sha256": "sha256:eb03acdb17f0cfb31b484d2f10993e4353f2299695e5b84ae5bc12a2e9f3c8aa",
+          "kind": "local-check",
+          "locator": "direction-input-accepted, direction-input-rejected-opposite"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
+          "sha256": "sha256:a58a19d18d769ec789e59fa3ae45cd5bc28f8c38a3f36f17b928b7ee4a1016c5",
+          "kind": "local-check",
+          "locator": "tile-selected, invalid-swap-restored"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
+          "sha256": "sha256:10763220a06737b95c9b43407b9f651bb53461cde8abe1358d76a0eb067edcfb",
+          "kind": "local-check",
+          "locator": "input-moves-piece-left, input-rotates-piece"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
+          "sha256": "sha256:f4ca134d3e6bd4fe63de40ce0ce06231d0dd40ad31bb4343109fcfd912131d8b",
+          "kind": "local-check",
+          "locator": "game-started, reshuffle-accepted"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
+          "sha256": "sha256:942214e31016fa9a72e4b7b12a1a156651ea8cbb4fa94b51292eb3cf1b7c9519",
+          "kind": "local-check",
+          "locator": "move-right-accepted, jump-rejected-airborne"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
+          "sha256": "sha256:01a30e8a53dba60e228a02e0da3f7b80889e132822483a73b101e8fca45f7758",
+          "kind": "local-check",
+          "locator": "accelerate-accepted, brake-accepted"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
+          "sha256": "sha256:2669da6f8590b7380c6b1f4562cb7f7b44ecd39860783e2a816d334e3fbccb7f",
+          "kind": "local-check",
+          "locator": "fire-request-accepted, fire-request-rejected"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-0.png",
+          "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+          "kind": "adapter-acceptance",
+          "locator": "zero-script: blue model and white HUD at tick 20"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-1.png",
+          "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+          "kind": "adapter-acceptance",
+          "locator": "zero-script: blue model and white HUD at tick 20"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script.json",
+          "sha256": "sha256:a5e2fe5dd215d6f610a6ab5dcb9b6560a90f8ab20d46c1d2204a9920c760206f",
+          "kind": "adapter-acceptance",
+          "locator": "zero-script"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-0.png",
+          "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+          "kind": "adapter-acceptance",
+          "locator": "mixed: blue model and white HUD at tick 20"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-1.png",
+          "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+          "kind": "adapter-acceptance",
+          "locator": "mixed: blue model and white HUD at tick 20"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed.json",
+          "sha256": "sha256:fe42e040383ce944cfa2e9634c9cece3e453c41cf5ce2d8b44b29ea126238106",
+          "kind": "adapter-acceptance",
+          "locator": "mixed"
+        }
+      ],
+      "limitations": [
+        "These are the frozen G09 input flows, not historical M12 whole-game acceptance. Trace truncation remains recorded."
+      ]
+    },
+    {
+      "id": "structure-digest-and-invalidation",
+      "requirement": "Full input digest is deterministic and invalidates on structural changes; language/runtime observations do not rewrite structure.",
+      "status": "verified",
+      "coverage": "Tests vary enabled/configured components, dependencies, registry, adapter version/digest and analyzer version, while keeping explanations and runtime overlays separate.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "canonical full input is deterministic; components, dependencies, registry, adapter and config invalidate it"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "worker analysis, bounded queries, independent explanations and source locations use the same contracts"
+        },
+        {
+          "path": "packages/script-preview/test/behavior-analysis.test.mjs",
+          "sha256": "sha256:e8ec2c4a9ef3085354c065563815b899f2ae25ede43f9e388482b1ccdbf75ad0",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "packages/script-preview/test/behavior-service.test.mjs",
+          "sha256": "sha256:5a7234f766d76696f6f80b9c56e78b4f45a047bbe491bed8cc9841ce7723b339",
+          "kind": "source",
+          "locator": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "provenance-and-navigation",
+      "requirement": "Static structure, explanation, trace and unknown remain distinct; source/configuration/adapter/record navigation binds exact versions.",
+      "status": "verified",
+      "coverage": "Current worker, runtime, behavior-project, read-only UI and product-window checks cover forged/stale source rejection and current versus historical overlays.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "original script locations cannot reuse stale or forged ranges"
+        },
+        {
+          "path": "config/contracts/m14-capability-verification.json",
+          "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+          "kind": "local-check",
+          "locator": "behavior-project-flow, behavior-panel-window, behavior-product-window"
+        },
+        {
+          "path": "packages/agent-orchestration/test/behavior-project.test.mjs",
+          "sha256": "sha256:7b60e29e1f16cf0c43dcdf0695fc082893ab0ef71d53365c1088048a0faf53c1",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "packages/script-preview/test/behavior-runtime.test.mjs",
+          "sha256": "sha256:d9e79e74c7f2e96bf73e208c1c2005e06b8bbed14950ff8128610d0d5a145d82",
+          "kind": "source",
+          "locator": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "resource-identities-and-workflow",
+      "requirement": "Four resource identities expose provenance, dependencies, legal actions and unknown states without reissuing assetId or importing lights.",
+      "status": "verified",
+      "coverage": "Schema and catalog tests cover all four kinds; real product creates from a template and imports through the controlled UI, then retains the same asset and entity on restart.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "four resource identities reject mixed references, illegal operations and inappropriate unused semantics"
+        },
+        {
+          "path": "packages/editor-plugins/test/resources/catalog.test.mjs",
+          "sha256": "sha256:28dfa79e9b5fedf9ad0c4f8036a8b99a8a9e50e51962e88f5499441190068407",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/editor-plugins/test/resources/catalog.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-26.tap",
+          "sha256": "sha256:59a996f0be25d59a95a473bd32f3076d73b057521eac9afc17becac11f75359d",
+          "kind": "local-check",
+          "locator": "packages/editor-plugins/test/resources/catalog.test.mjs"
+        },
+        {
+          "path": "packages/editor-plugins/test/resources/workflows.test.mjs",
+          "sha256": "sha256:8dec841ad24fa0b17769e8e5263cee494bf0782e4213dd5fce9299759818501e",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/editor-plugins/test/resources/workflows.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-28.tap",
+          "sha256": "sha256:ac71e55548d4cadd9d71869aebc53a8352179397032a072f73c8e313fe460ef7",
+          "kind": "local-check",
+          "locator": "packages/editor-plugins/test/resources/workflows.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+          "sha256": "sha256:680633624f860f9aaabb105a9e89f3057a30db721a25d23d60f877c1cdc69c3d",
+          "kind": "local-check",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
+          "sha256": "sha256:5edc3485fa5ebc6a0490fa5c54c24384791a72c1a0c99bfb1aa7ddda67fccb0f",
+          "kind": "local-check",
+          "locator": ""
+        }
+      ],
+      "limitations": [
+        "Persisted preset creation is not implemented; those entries explicitly remain unavailable, as allowed by the frozen contract."
+      ]
+    },
+    {
+      "id": "advanced-editor-and-history",
+      "requirement": "Public advanced editing refines the same selection, document and History chain.",
+      "status": "verified",
+      "coverage": "Production IPC and original tools handle rename, explicit rejection, shared Undo/Redo and one native Gizmo gesture as one transform transaction. Public adapter lifecycle checks cover project changes and read-only Play.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+          "sha256": "sha256:4e531733f655497d716d29b887b64decf6af85500835b90696dc6bd7db75ee6c",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/product-electron.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-11.tap",
+          "sha256": "sha256:083eb21028c90fb523bfe6ed78722efda21073cbee800cc72c824101b487f8e3",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/product-electron.test.mjs"
+        },
+        {
+          "path": "packages/studio-shell/test/advanced-editor/adapter.test.mjs",
+          "sha256": "sha256:e2eec53a66c7b548f7341cc2f17249831f8ab2ff875c28989bf24d46c67e9465",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/studio-shell/test/advanced-editor/adapter.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-33.tap",
+          "sha256": "sha256:d31c892e347ffe7240b90648fa9da3485d81e7cee51d1c4d95c9fc900300b6cb",
+          "kind": "local-check",
+          "locator": "packages/studio-shell/test/advanced-editor/adapter.test.mjs"
+        },
+        {
+          "path": "packages/studio-shell/test/advanced-editor/lifecycle.test.mjs",
+          "sha256": "sha256:e6e3104bd5ec02bcf4278d8c477343153c54a21826e17e1c26b5d25a6f3b974c",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/studio-shell/test/advanced-editor/lifecycle.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-35.tap",
+          "sha256": "sha256:cc39f2730dda41c5a95fd4d8a43a19305e5ae2ddac45068321e2d0d7b643bf8e",
+          "kind": "local-check",
+          "locator": "packages/studio-shell/test/advanced-editor/lifecycle.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+          "sha256": "sha256:680633624f860f9aaabb105a9e89f3057a30db721a25d23d60f877c1cdc69c3d",
+          "kind": "local-check",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/author/advanced-desktop.png",
+          "sha256": "sha256:8ac700d42237fcef8488a58c64c4bc1c13be95f56edd766be373313bd5470107",
+          "kind": "local-check",
+          "locator": "current production window"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/author/resources-desktop.png",
+          "sha256": "sha256:6683afac1ee7460970ad237f32711e40cbc7892fda72d89c32433c30c4d8a410",
+          "kind": "local-check",
+          "locator": "current production window"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/author/resources-narrow.png",
+          "sha256": "sha256:9c908d980ad45dbb3323897032c46e149089e5ce84639529d0e790e70d2380cb",
+          "kind": "local-check",
+          "locator": "current production window"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "scale-and-accessibility",
+      "requirement": "1000 entities / 200 scripts meet frozen machine, interaction and memory budgets; keyboard/AX/layout migration remain usable.",
+      "status": "verified",
+      "coverage": "Retained measurements match the frozen budget; product assertions verify bounded visible rows, projection bytes, narrow layout and AX tree. Layout migration and fallback tests passed in the root check.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/performance-budget.json",
+          "sha256": "sha256:e937714fc972fb5ff1b6d614dc623eb9808c7b2534018af9d3e6b598e5d9bad3",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
+          "sha256": "sha256:083cda9d4aece0b64917a6e12ace891e3bff4ad183cb3804c5e10a55f6ff63bc",
+          "kind": "local-check",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+          "sha256": "sha256:680633624f860f9aaabb105a9e89f3057a30db721a25d23d60f877c1cdc69c3d",
+          "kind": "local-check",
+          "locator": "real accessibility tree"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "workspace migration preserves classic split settings and keeps new ratios separate"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "unknown versions, corrupt, oversized and unavailable storage retain a usable workspace"
+        }
+      ],
+      "limitations": [
+        "The scale test covers document, queries and editor interaction, not 200 simultaneously running scripts or 1000 rendered meshes."
+      ]
+    },
+    {
+      "id": "device-recovery-and-records",
+      "requirement": "Real Electron/WebGPU loss/recovery, restart and project record switching are verified.",
+      "status": "verified",
+      "coverage": "The production smoke destroys the actual GPUDevice and waits for recovery; script runtime and reload paths complete. Dedicated persistent-journal and project-controller tests cover project history ownership.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "real Electron loads a sandboxed renderer through the typed preload and closes cleanly"
+        },
+        {
+          "path": "apps/ai-studio/src/renderer.ts",
+          "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
+          "kind": "source",
+          "locator": "exerciseDeviceLoss: GPUDevice.destroy(), device.lost, waitForRecovery"
+        },
+        {
+          "path": "apps/ai-studio/test/electron-smoke.test.mjs",
+          "sha256": "sha256:a99a0d43447484187cf09954f1d8faf15b6303595cf7eecc513495a85e030ee9",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/project-history-electron.test.mjs",
+          "sha256": "sha256:d4bb5865d37c5aba54532263b1bbfebeb9fc63362504b7a8f9eda11b97c6c30e",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/project-history-electron.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-14.tap",
+          "sha256": "sha256:f0cd9806e893b969009dbe6fde49d70446d8b55300acfbda8eaf480f86b7c71e",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/project-history-electron.test.mjs"
+        },
+        {
+          "path": "packages/agent-orchestration/test/project-conversation.test.mjs",
+          "sha256": "sha256:e9da3565f2c5bb09a200c5092ad9f853862fe3b011bd46281a2f3f679899d46b",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/agent-orchestration/test/project-conversation.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-23.tap",
+          "sha256": "sha256:76cb76c4ca9b14d72260a389bc96a63d8bbdcb6bfb028feb5e6398f2085613e4",
+          "kind": "local-check",
+          "locator": "packages/agent-orchestration/test/project-conversation.test.mjs"
+        },
+        {
+          "path": "packages/operation-log/test/project-agent-history.test.mjs",
+          "sha256": "sha256:d863f8f6a81d3c6535b0a47701ab07eca362b3c02c7f6d9e289a5789fe908c38",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/operation-log/test/project-agent-history.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-31.tap",
+          "sha256": "sha256:9f35838691241cb94bcf678bfc30bd75e047686667f6e20cf530070dfaf8d754",
+          "kind": "local-check",
+          "locator": "packages/operation-log/test/project-agent-history.test.mjs"
+        }
+      ],
+      "limitations": [
+        "Controlled GPUDevice destruction exercises real device loss; it does not claim a physical GPU unplug test. Manual product edits do not fabricate Agent records."
+      ]
+    },
+    {
+      "id": "revision-approval-history-discovery",
+      "requirement": "Exact revision, one-shot approvals, shared History, search-to-invocation and initialization rollback remain enforced.",
+      "status": "verified",
+      "coverage": "Current runtime/tool tests reject missing/stale bindings and preserve atomic History, while both production backend adapters with deterministic transports exercise discovered tools and continuation.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+          "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+          "kind": "local-check",
+          "locator": "every revision-bound tool publishes a required version and rejects omission at its input boundary"
+        },
+        {
+          "path": "apps/ai-studio/test/tool-discovery-invocation.test.mjs",
+          "sha256": "sha256:4a799ada6d3cb21410fd0e73bdaf44021e9fea264d8a54d7a966d7419106c363",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-19.tap",
+          "sha256": "sha256:214af4d7e354c351fc4079e84abe331ee0f3faddb4241e4d96b3274eae7b2a77",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/tool-contract-continuation.test.mjs",
+          "sha256": "sha256:2f8a9cb3f1980d35d984f4317f55d8d5dbdd8562e79b27004c9bbbc81a8e728e",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/tool-contract-continuation.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-18.tap",
+          "sha256": "sha256:1a9e2cd654a5d971387e68dda3931025668254cfe9ace98ea874404010a048bf",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/tool-contract-continuation.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/tool-batch-lifecycle.test.mjs",
+          "sha256": "sha256:aa46d5a310888ec1362b39a14e1df4f9b1a731278377395a0617c78c8d4fadc5",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/tool-batch-lifecycle.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-17.tap",
+          "sha256": "sha256:64719f19701b6b70004f613346d206d03e4bef7bb79a286d2405ec71638231e7",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/tool-batch-lifecycle.test.mjs"
+        },
+        {
+          "path": "packages/harness-bridge/test/bridge.test.mjs",
+          "sha256": "sha256:01ad7d73dc0a1587720d760b2e30815534948269fc140d577d340a86ac7e21e5",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "packages/harness-bridge/test/bridge.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-30.tap",
+          "sha256": "sha256:db390d20c9f83efc4aaec2a626778def57700696d735836db488c128f733d0b7",
+          "kind": "local-check",
+          "locator": "packages/harness-bridge/test/bridge.test.mjs"
+        }
+      ],
+      "limitations": [
+        "Deterministic backend transports are local regression evidence and do not satisfy online backend acceptance."
+      ]
+    },
+    {
+      "id": "secret-scan",
+      "requirement": "Generated projects, logs, artifacts, renderer projections and generated crash dumps are scanned.",
+      "status": "verified",
+      "coverage": "The production scan and binary/UTF-16 scanner tests pass. A fresh scan includes the newly captured device evidence and diagnostics.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
+          "sha256": "sha256:a18ba82cbf646d66ba7df41db713d21f3994e035f4490f5ab3e7a6e36d349608",
+          "kind": "local-check",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/secret-scan.test.mjs",
+          "sha256": "sha256:a9cda0d2b4ad85e2c9f6e29f82408dfcbf95c219caf7a72beaad266edfdbc628",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+          "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/secret-scan.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/collected-12.tap",
+          "sha256": "sha256:1961a3e00ade849ee1f4e507c86e984a29e66ef686531a7ab8917d75b86a01cf",
+          "kind": "local-check",
+          "locator": "apps/ai-studio/test/m14-integration/secret-scan.test.mjs"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit-secret-scan.json",
+          "sha256": "sha256:92fae92a0ce5dc8c25ac6cc14e69ff0a99727b246c4202ee43fc1a9c3df58c1b",
+          "kind": "local-check",
+          "locator": ""
+        }
+      ],
+      "limitations": [
+        "No real credential store was read. With no supplied credential, this supplementary pass checks patterns; it does not claim checking an unknown live secret value. Zero crash dumps means none were generated."
+      ]
+    },
+    {
+      "id": "real-dual-backend",
+      "requirement": "Both real online backends complete the same general-tool task on this frozen input.",
+      "status": "missing",
+      "coverage": "No live/checks.json exists. The prepared runner has not provided real online completion evidence.",
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/live-backends.mjs",
+          "sha256": "sha256:a1675ff82cb88d53926432e7d6036b1cee1b3bc93e374251a5c748c8494b40f1",
+          "kind": "source",
+          "locator": ""
+        }
+      ],
+      "blocker": "Explicit data-send authorization for DeepSeek API and OpenAI via Codex App Server remains required; account availability does not authorize transmission."
+    },
+    {
+      "id": "six-layer-final-admission",
+      "requirement": "Link G08 adapter-ready through all six current layers before final product-integrated admission.",
+      "status": "incomplete",
+      "coverage": "1 frozen G08 blocker has current six-layer associations and a re-executed adapter acceptance check; no product acceptance is granted.",
+      "evidence": [
+        {
+          "path": "config/contracts/m14-capability-first-release.json",
+          "sha256": "sha256:ae775974fd05962b26d0ebdbeb2516d29f7c9af92ea0a3c900a0b14b8e99db67",
+          "kind": "source",
+          "locator": ""
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+          "sha256": "sha256:aeb4af10ffcd35bc26257d075ddb5208de2b7982f084b701edd8fdc2e02e7c0f",
+          "kind": "adapter-acceptance",
+          "locator": "g09-current-g08-device"
+        }
+      ],
+      "remaining": [
+        "Complete real-dual-backend on the same input, review all results, then record the explicit G09 product acceptance."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "g09-current-g08-device",
+      "kind": "adapter-acceptance",
+      "capabilityIds": [
+        "play.capture"
+      ],
+      "adapterIds": [
+        "adapter.ui.hud"
+      ],
+      "inputDigest": "sha256:62d037d5e13f492c7b9ecc3c87393c66f3e4dd45921b07dd387f2a06ce894494",
+      "startedAt": "2026-09-09T11:08:33.066Z",
+      "durationMs": 30330,
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs"
+      ],
+      "exitCode": 0,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "log": {
+        "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter.tap",
+        "sha256": "sha256:0407664090a01c651d937496a05861320309821e9940443589da701fba86386c",
+        "kind": "adapter-acceptance",
+        "locator": "two real Electron/WebGPU fixtures"
+      },
+      "evidence": [
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-0.png",
+          "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-1.png",
+          "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-window.png",
+          "sha256": "sha256:1ff1de06760f6692336b44f660b7d7149429e0941fa4628cc2bc37f57d083e1a",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed.json",
+          "sha256": "sha256:fe42e040383ce944cfa2e9634c9cece3e453c41cf5ce2d8b44b29ea126238106",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed.log",
+          "sha256": "sha256:487c2645de4fd8643ddbad84e6e4a6b18293ef2d82718998577b7e703be24622",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-0.png",
+          "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-1.png",
+          "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-window.png",
+          "sha256": "sha256:ffebac61b068a157292384352c57d49f3ec093144d02df2cc7319efaa55080de",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script.json",
+          "sha256": "sha256:a5e2fe5dd215d6f610a6ab5dcb9b6560a90f8ab20d46c1d2204a9920c760206f",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        },
+        {
+          "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script.log",
+          "sha256": "sha256:4613e163d39a286c97a90c6b376307e6b95a6665e4e9c15e8371faf37e17328a",
+          "kind": "adapter-acceptance",
+          "locator": "play.capture / adapter.ui.hud"
+        }
+      ]
+    }
+  ],
+  "records": [
+    {
+      "schemaVersion": 1,
+      "capabilityId": "play.capture",
+      "stage": "adapter-ready",
+      "componentTypes": [
+        "haiyue.ui.hud"
+      ],
+      "toolIds": [
+        "behavior.explain",
+        "behavior.locate",
+        "behavior.query",
+        "component.add",
+        "component.configure",
+        "component.describe",
+        "component.get",
+        "component.remove",
+        "component.set",
+        "diagnostics.query",
+        "engine.capabilities.describe",
+        "play.capture",
+        "play.inspect",
+        "task.evaluate",
+        "tool.search"
+      ],
+      "layers": {
+        "upstream": {
+          "owner": "reviewed-installed-package-owner",
+          "state": "current",
+          "references": [
+            {
+              "path": "node_modules/@haiyue/engine/package.json",
+              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "kind": "public-export",
+              "locator": "./components"
+            },
+            {
+              "path": "config/engine-candidate.json",
+              "sha256": "sha256:6a15f098cff619f56d322903f7f848989a3fe092d2b8da5a3800d86abc2d8c25",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+              "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+              "kind": "local-check",
+              "locator": "current locked package/device checks"
+            }
+          ],
+          "explanation": "Exact installed export surface; semantic coverage is limited to the linked implementation. No claim of full upstream API support. G09 current evidence references are linked here; this audit grants no product acceptance while the online requirement remains unverified."
+        },
+        "document": {
+          "owner": "studio.project-workspace",
+          "state": "current",
+          "references": [
+            {
+              "path": "packages/editor-plugins/src/project/game-document.ts",
+              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "packages/editor-plugins/src/project/repository.ts",
+              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "packages/editor-plugins/src/render/components.ts",
+              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "kind": "source",
+              "locator": "haiyue.ui.hud"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+              "sha256": "sha256:aeb4af10ffcd35bc26257d075ddb5208de2b7982f084b701edd8fdc2e02e7c0f",
+              "kind": "adapter-acceptance",
+              "locator": "round-trip + Document/History unchanged"
+            }
+          ],
+          "explanation": "Source coverage includes document persistence/migration when linked. Registry serialization descriptors alone do not prove round-trip. G09 current evidence references are linked here; this audit grants no product acceptance while the online requirement remains unverified."
+        },
+        "runtime": {
+          "owner": "studio.preview-control",
+          "state": "current",
+          "references": [
+            {
+              "path": "apps/ai-studio/src/preview-runtime.ts",
+              "sha256": "sha256:e061f052ba0fe90c41d7cbfaeff46e80632e586b4fa42fe8d5e1b99e6800d7ee",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "packages/game-authoring-tools/src/runtime.ts",
+              "sha256": "sha256:56d80e2c8f4d0be1c52778de0d343e781cc507925b3748baade92edc35d99f31",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "packages/operation-log/src/project-agent-history.ts",
+              "sha256": "sha256:2d1b3e919ad43a13a545c9c988f6af7026bffba01dbbe226c95ecee3ff60bfb4",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-0.png",
+              "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+              "kind": "adapter-acceptance",
+              "locator": "zero-script: blue model and white HUD at tick 20"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-1.png",
+              "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+              "kind": "adapter-acceptance",
+              "locator": "zero-script: blue model and white HUD at tick 20"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script.json",
+              "sha256": "sha256:a5e2fe5dd215d6f610a6ab5dcb9b6560a90f8ab20d46c1d2204a9920c760206f",
+              "kind": "adapter-acceptance",
+              "locator": "zero-script"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-0.png",
+              "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+              "kind": "adapter-acceptance",
+              "locator": "mixed: blue model and white HUD at tick 20"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-1.png",
+              "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+              "kind": "adapter-acceptance",
+              "locator": "mixed: blue model and white HUD at tick 20"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed.json",
+              "sha256": "sha256:fe42e040383ce944cfa2e9634c9cece3e453c41cf5ce2d8b44b29ea126238106",
+              "kind": "adapter-acceptance",
+              "locator": "mixed"
+            }
+          ],
+          "explanation": "Current source or registry association; no inference of UI, runtime or formal acceptance from file existence. G09 current evidence references are linked here; this audit grants no product acceptance while the online requirement remains unverified."
+        },
+        "tool": {
+          "owner": "studio.game-authoring-tools",
+          "state": "current",
+          "references": [
+            {
+              "path": "packages/game-authoring-tools/src/definitions.ts",
+              "sha256": "sha256:e58ebc45ab45b77cc4b9ec7390dcd565c4010d3af3fe238f062e376f0363f234",
+              "kind": "source",
+              "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,diagnostics.query,engine.capabilities.describe,play.capture,play.inspect,task.evaluate,tool.search"
+            },
+            {
+              "path": "packages/game-authoring-tools/src/catalog/invocation.ts",
+              "sha256": "sha256:1996edfdf822b8d0f0f1ef27634f2ab79c35c969d32da6f9ff2376a97fb68621",
+              "kind": "source",
+              "locator": "studio.tool.invoke"
+            },
+            {
+              "path": "config/contracts/m14-capability-verification.json",
+              "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+              "kind": "local-check",
+              "locator": "observations, tools"
+            },
+            {
+              "path": "apps/ai-studio/test/tool-discovery-invocation.test.mjs",
+              "sha256": "sha256:4a799ada6d3cb21410fd0e73bdaf44021e9fea264d8a54d7a966d7419106c363",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+              "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+              "kind": "local-check",
+              "locator": "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/collected-19.tap",
+              "sha256": "sha256:214af4d7e354c351fc4079e84abe331ee0f3faddb4241e4d96b3274eae7b2a77",
+              "kind": "local-check",
+              "locator": "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+            }
+          ],
+          "explanation": "Current source or registry association; no inference of UI, runtime or formal acceptance from file existence. G09 current evidence references are linked here; this audit grants no product acceptance while the online requirement remains unverified."
+        },
+        "ui": {
+          "owner": "studio.shell",
+          "state": "current",
+          "references": [
+            {
+              "path": "apps/ai-studio/src/renderer.ts",
+              "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "packages/studio-shell/src/index.ts",
+              "sha256": "sha256:e622c27f12881194f21489d4613018fe3e80c5bf3439c405d435c55fd75e4fc5",
+              "kind": "source",
+              "locator": ""
+            },
+            {
+              "path": "config/contracts/m14-capability-verification.json",
+              "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+              "kind": "local-check",
+              "locator": "behavior-product-window"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+              "sha256": "sha256:680633624f860f9aaabb105a9e89f3057a30db721a25d23d60f877c1cdc69c3d",
+              "kind": "local-check",
+              "locator": ""
+            }
+          ],
+          "explanation": "Current source or registry association; no inference of UI, runtime or formal acceptance from file existence. G09 current evidence references are linked here; this audit grants no product acceptance while the online requirement remains unverified."
+        },
+        "verification": {
+          "owner": "g01-capability-surface-census",
+          "state": "current",
+          "references": [
+            {
+              "path": "config/contracts/m14-capability-verification.json",
+              "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+              "kind": "local-check",
+              "locator": "observations"
+            },
+            {
+              "path": "config/contracts/m14-capability-verification.json",
+              "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+              "kind": "local-check",
+              "locator": "simulation"
+            },
+            {
+              "path": "config/contracts/m14-capability-verification.json",
+              "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+              "kind": "local-check",
+              "locator": "behavior-project-flow"
+            },
+            {
+              "path": "config/contracts/m14-capability-verification.json",
+              "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+              "kind": "local-check",
+              "locator": "behavior-panel-window"
+            },
+            {
+              "path": "config/contracts/m14-capability-verification.json",
+              "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+              "kind": "local-check",
+              "locator": "behavior-product-window"
+            },
+            {
+              "path": "config/contracts/m12-capability-census.json",
+              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "kind": "historical",
+              "locator": "play.capture"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+              "sha256": "sha256:aeb4af10ffcd35bc26257d075ddb5208de2b7982f084b701edd8fdc2e02e7c0f",
+              "kind": "adapter-acceptance",
+              "locator": "g09-current-g08-device"
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/local-acceptance.json",
+              "sha256": "sha256:426dc759d4dfd0908b4ef721832d8fa86a9ba568f4391bfe0a1f8eea32a30abe",
+              "kind": "local-check",
+              "locator": ""
+            },
+            {
+              "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+              "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+              "kind": "local-check",
+              "locator": ""
+            }
+          ],
+          "explanation": "Current local regression evidence, when present, is not formal adapter or product acceptance. The M12 census remains historical. G09 current evidence references are linked here; this audit grants no product acceptance while the online requirement remains unverified."
+        }
+      },
+      "acceptance": {
+        "adapterCheckIds": [
+          "g09-current-g08-device"
+        ],
+        "productCheckIds": []
+      },
+      "limitations": [
+        "Current local observation checks do not certify real-backend seven-game acceptance. Structured Agent history and BehaviorTrace are different records.",
+        "Current G09 linkage is limited to the frozen adapter.ui.hud screenshot blocker. It does not certify all play.capture features or other capabilities. Real dual-backend acceptance and final G09 review remain pending."
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-01.tap",
+      "sha256": "sha256:3d3327eb2ee934886ccbcdc9ea39a4a0a3b2b6a0a229d3949906ab6e349372a0",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/canvas-texture-electron.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-02.tap",
+      "sha256": "sha256:b70e3bb26e9bdd2e66590c3ae234b971fc0abf98350718c6d52214761924655a",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/execution-graph-context-ui.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-03.tap",
+      "sha256": "sha256:30631e0d234d91ac330993a471276a6360951261268417c5514d10d594fbc31e",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/execution-graph-electron.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-04.tap",
+      "sha256": "sha256:c610ef2d15de39cd4b3fe4f954982d6115eb8f7be38bba6807e0e7b7cd1e421b",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/g07-barrier-restart.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-05.tap",
+      "sha256": "sha256:6161f5ed5ab5a48a4ac31c4635395172c475d015c60cc60c4a8a76637ef0edbb",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/g10-agent-integration.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-06.tap",
+      "sha256": "sha256:f619a06cbdb2190f0215018bb495f23fe72de15098fc51d2008fab50cb38a813",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/ipc.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-07.tap",
+      "sha256": "sha256:bdf106ed5aed07424dd6145b4de7fe20dce5b31a307533d131dfc734f22538d7",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-g08-adapter-review/adapter-device.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-08.tap",
+      "sha256": "sha256:8f7e293d2073be55242f84008d3d16b3f2a35f6402eb0f3831687d4c64aefe6b",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-09.tap",
+      "sha256": "sha256:97de3292e3dedb4ce12dc2c664c550a00338ebbb321316099d15ba03b6420943",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/ports.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-10.tap",
+      "sha256": "sha256:694552be5326be4130c9cc7ef2e2afd3824cdfcccef9e2f90f27d67717246dbc",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/preview-notification.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-11.tap",
+      "sha256": "sha256:083eb21028c90fb523bfe6ed78722efda21073cbee800cc72c824101b487f8e3",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/product-electron.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-12.tap",
+      "sha256": "sha256:1961a3e00ade849ee1f4e507c86e984a29e66ef686531a7ab8917d75b86a01cf",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/secret-scan.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-13.tap",
+      "sha256": "sha256:160126f091abae7501c44ed7c9e125e9bbc472fa11a584d49d2edd7a86fc77a0",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/plane-geometry.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-14.tap",
+      "sha256": "sha256:f0cd9806e893b969009dbe6fde49d70446d8b55300acfbda8eaf480f86b7c71e",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/project-history-electron.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-15.tap",
+      "sha256": "sha256:a4ebb5755009bf0cb99967500d3791d7d22f4324024155058d801879a49d4a77",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/resources/panel-electron.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-16.tap",
+      "sha256": "sha256:f61d5c03aad0b4a1afd81e6aee6538a54cb0737728403ffae7d28f3e630623a1",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/security.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-17.tap",
+      "sha256": "sha256:64719f19701b6b70004f613346d206d03e4bef7bb79a286d2405ec71638231e7",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/tool-batch-lifecycle.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-18.tap",
+      "sha256": "sha256:1a9e2cd654a5d971387e68dda3931025668254cfe9ace98ea874404010a048bf",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/tool-contract-continuation.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-19.tap",
+      "sha256": "sha256:214af4d7e354c351fc4079e84abe331ee0f3faddb4241e4d96b3274eae7b2a77",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-20.tap",
+      "sha256": "sha256:f1db4ac04d159815a7c5a99c544839ea07ac2cbcf7c367f65315a20d063c2737",
+      "kind": "local-check",
+      "locator": "packages/agent-backends/test/backends.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-21.tap",
+      "sha256": "sha256:48b68f601b00a5fec8945bcedbc36d33bf5f0aa23d9b66e17901ba36f40ccd77",
+      "kind": "local-check",
+      "locator": "packages/agent-orchestration/test/editor-project.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-22.tap",
+      "sha256": "sha256:4c42dc1d474b7d35d1ea82bbcd25a09403a25998eca8fad69361513d12a222da",
+      "kind": "local-check",
+      "locator": "packages/agent-orchestration/test/plan-policy.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-23.tap",
+      "sha256": "sha256:76cb76c4ca9b14d72260a389bc96a63d8bbdcb6bfb028feb5e6398f2085613e4",
+      "kind": "local-check",
+      "locator": "packages/agent-orchestration/test/project-conversation.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-24.tap",
+      "sha256": "sha256:5906b5fefa26e658598c0899a454ef4ff506aed2eb264219ef439c653d66e242",
+      "kind": "local-check",
+      "locator": "packages/agent-runtime/test/g04-prompt-context.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-25.tap",
+      "sha256": "sha256:6876a26b581aee8f4a87733d0d2e806eb1f7cd82c7333d51c4f529e144474317",
+      "kind": "local-check",
+      "locator": "packages/editor-plugins/test/resources/budgets.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-26.tap",
+      "sha256": "sha256:59a996f0be25d59a95a473bd32f3076d73b057521eac9afc17becac11f75359d",
+      "kind": "local-check",
+      "locator": "packages/editor-plugins/test/resources/catalog.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-27.tap",
+      "sha256": "sha256:7cc164a9a61bb35c4e544638fc68dc711600df6bdcdbf4c037fd4bfec0dbf08c",
+      "kind": "local-check",
+      "locator": "packages/editor-plugins/test/resources/lifecycle.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-28.tap",
+      "sha256": "sha256:ac71e55548d4cadd9d71869aebc53a8352179397032a072f73c8e313fe460ef7",
+      "kind": "local-check",
+      "locator": "packages/editor-plugins/test/resources/workflows.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-29.tap",
+      "sha256": "sha256:c6269b01591d179a494e5b31a9e2720b72ad914378459df149c35ceb1049f35d",
+      "kind": "local-check",
+      "locator": "packages/game-authoring-tools/test/canvas-texture.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-30.tap",
+      "sha256": "sha256:db390d20c9f83efc4aaec2a626778def57700696d735836db488c128f733d0b7",
+      "kind": "local-check",
+      "locator": "packages/harness-bridge/test/bridge.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-31.tap",
+      "sha256": "sha256:9f35838691241cb94bcf678bfc30bd75e047686667f6e20cf530070dfaf8d754",
+      "kind": "local-check",
+      "locator": "packages/operation-log/test/project-agent-history.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-32.tap",
+      "sha256": "sha256:7238db6d677625b37f800c7db524bd4687e684a63f01ea54c47287f647ee5901",
+      "kind": "local-check",
+      "locator": "packages/studio-kernel/test/profile.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-33.tap",
+      "sha256": "sha256:d31c892e347ffe7240b90648fa9da3485d81e7cee51d1c4d95c9fc900300b6cb",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/advanced-editor/adapter.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-34.tap",
+      "sha256": "sha256:d0f9764b542e350e7c1a7c4905d6a06a55170e72aec0c05996fdea53199eb06a",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/advanced-editor/boundary.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-35.tap",
+      "sha256": "sha256:cc39f2730dda41c5a95fd4d8a43a19305e5ae2ddac45068321e2d0d7b643bf8e",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/advanced-editor/lifecycle.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-36.tap",
+      "sha256": "sha256:bc17c8d90b67054abed9f686645979ed7db8a3857ca1e68b0dbb946d620ee813",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/agent-history.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-37.tap",
+      "sha256": "sha256:f431cfb92db7320441e5809f6a805f54a7d948c780def9f096e02bb68248773a",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/conversation.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-38.tap",
+      "sha256": "sha256:d83a52c7215584aacc19b448d8d0d18fcdbea0fcfab51c6e3bb5d33205a3c529",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/execution-graph.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-39.tap",
+      "sha256": "sha256:023c19009eec964a07c5447dac292bac6bc4cd33f5297785a8350b6d1a38adf1",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/resources/model.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-40.tap",
+      "sha256": "sha256:9608fdde0f813cf500302d965b60ad671b49f3c1e1c02949778a34ad4874530b",
+      "kind": "local-check",
+      "locator": "scripts/test/editor-candidate-surface.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-41.tap",
+      "sha256": "sha256:a51ae270b857722402a188559af27901436b1d0cf0c87c1d6e21369258a50e65",
+      "kind": "local-check",
+      "locator": "scripts/test/orchestration-boundaries.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-0.png",
+      "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+      "kind": "adapter-acceptance",
+      "locator": "zero-script: blue model and white HUD at tick 20"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script-1.png",
+      "sha256": "sha256:c5aef69e74abbfad08bd04ba34ec99c32b0898f90874b6fcff936d2d272367fc",
+      "kind": "adapter-acceptance",
+      "locator": "zero-script: blue model and white HUD at tick 20"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/zero-script.json",
+      "sha256": "sha256:a5e2fe5dd215d6f610a6ab5dcb9b6560a90f8ab20d46c1d2204a9920c760206f",
+      "kind": "adapter-acceptance",
+      "locator": "zero-script"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-0.png",
+      "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+      "kind": "adapter-acceptance",
+      "locator": "mixed: blue model and white HUD at tick 20"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed-1.png",
+      "sha256": "sha256:33d8e0bb3d411bf687b06211908af31aa8efbb6a644c6fa9dd0ef735ef60c146",
+      "kind": "adapter-acceptance",
+      "locator": "mixed: blue model and white HUD at tick 20"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-review/mixed.json",
+      "sha256": "sha256:fe42e040383ce944cfa2e9634c9cece3e453c41cf5ce2d8b44b29ea126238106",
+      "kind": "adapter-acceptance",
+      "locator": "mixed"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+      "sha256": "sha256:aeb4af10ffcd35bc26257d075ddb5208de2b7982f084b701edd8fdc2e02e7c0f",
+      "kind": "adapter-acceptance",
+      "locator": "g09-current-g08-device"
+    },
+    {
+      "path": "config/upstream/editor-candidates.json",
+      "sha256": "sha256:1506c0ad2a113908ece906e480b197d526e1a365c1a7547ae5ee9c4e7fd66d26",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "config/upstream/ui-candidate.json",
+      "sha256": "sha256:af76b0beced5a674855de3936519c0d3478078ee4956052e8a40e8895509ac4c",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "sha256:5794f57a92824c514c550aa411c7e6955e9190735b67ec8fdac805b16c1479b1",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "scripts/test/editor-candidate-surface.test.mjs",
+      "sha256": "sha256:c9debb5c00132cf484c6a7259c9ad0590f8d46c494740664fc3b778c1175fb55",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+      "sha256": "sha256:4e531733f655497d716d29b887b64decf6af85500835b90696dc6bd7db75ee6c",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "scripts/test/editor-candidate-surface.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/product-electron.test.mjs"
+    },
+    {
+      "path": "scripts/m14-integration-tests.json",
+      "sha256": "sha256:82216db03ee0d99178b10c08d6545219e6a2a0d7271e8e2668637d7a81e37209",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "[boundaries] headless orchestration, single Harness bridge"
+    },
+    {
+      "path": "scripts/test/orchestration-boundaries.test.mjs",
+      "sha256": "sha256:dab797a3d0ed6725da8d5a4576b67a3aa9c2720265acd04bc7a1d03d9097bb03",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/harness-bridge/test/bridge.test.mjs",
+      "sha256": "sha256:01ad7d73dc0a1587720d760b2e30815534948269fc140d577d340a86ac7e21e5",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/agent-orchestration/test/editor-project.test.mjs",
+      "sha256": "sha256:c7ab803d700b6d2c79dd9e52b8539bf5992fd7d39b9938466a2ea1712b10133d",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/operation-log/test/project-agent-history.test.mjs",
+      "sha256": "sha256:d863f8f6a81d3c6535b0a47701ab07eca362b3c02c7f6d9e289a5789fe908c38",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "scripts/test/orchestration-boundaries.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/harness-bridge/test/bridge.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/agent-orchestration/test/editor-project.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/operation-log/test/project-agent-history.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/snake.json",
+      "sha256": "sha256:eb03acdb17f0cfb31b484d2f10993e4353f2299695e5b84ae5bc12a2e9f3c8aa",
+      "kind": "local-check",
+      "locator": "direction-input-accepted, direction-input-rejected-opposite"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/match-3.json",
+      "sha256": "sha256:a58a19d18d769ec789e59fa3ae45cd5bc28f8c38a3f36f17b928b7ee4a1016c5",
+      "kind": "local-check",
+      "locator": "tile-selected, invalid-swap-restored"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/falling-blocks.json",
+      "sha256": "sha256:10763220a06737b95c9b43407b9f651bb53461cde8abe1358d76a0eb067edcfb",
+      "kind": "local-check",
+      "locator": "input-moves-piece-left, input-rotates-piece"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/jigsaw.json",
+      "sha256": "sha256:f4ca134d3e6bd4fe63de40ce0ce06231d0dd40ad31bb4343109fcfd912131d8b",
+      "kind": "local-check",
+      "locator": "game-started, reshuffle-accepted"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/platformer.json",
+      "sha256": "sha256:942214e31016fa9a72e4b7b12a1a156651ea8cbb4fa94b51292eb3cf1b7c9519",
+      "kind": "local-check",
+      "locator": "move-right-accepted, jump-rejected-airborne"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/racing.json",
+      "sha256": "sha256:01a30e8a53dba60e228a02e0da3f7b80889e132822483a73b101e8fca45f7758",
+      "kind": "local-check",
+      "locator": "accelerate-accepted, brake-accepted"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/gameplay/shooter.json",
+      "sha256": "sha256:2669da6f8590b7380c6b1f4562cb7f7b44ecd39860783e2a816d334e3fbccb7f",
+      "kind": "local-check",
+      "locator": "fire-request-accepted, fire-request-rejected"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/gameplay-replays.json",
+      "sha256": "sha256:faed6c339837e051f34a34463edf28a13e6ce6a53cb1b51bee0d956a5490ddb4",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs",
+      "sha256": "sha256:a6d0c23fcb29e8ce05c4a1f4e191cf3e2950c7510a2a7867485219a574f0e0ae",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "canonical full input is deterministic; components, dependencies, registry, adapter and config invalidate it"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "worker analysis, bounded queries, independent explanations and source locations use the same contracts"
+    },
+    {
+      "path": "packages/script-preview/test/behavior-analysis.test.mjs",
+      "sha256": "sha256:e8ec2c4a9ef3085354c065563815b899f2ae25ede43f9e388482b1ccdbf75ad0",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/script-preview/test/behavior-service.test.mjs",
+      "sha256": "sha256:5a7234f766d76696f6f80b9c56e78b4f45a047bbe491bed8cc9841ce7723b339",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+      "kind": "local-check",
+      "locator": "behavior-project-flow, behavior-panel-window, behavior-product-window"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "original script locations cannot reuse stale or forged ranges"
+    },
+    {
+      "path": "packages/agent-orchestration/test/behavior-project.test.mjs",
+      "sha256": "sha256:7b60e29e1f16cf0c43dcdf0695fc082893ab0ef71d53365c1088048a0faf53c1",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/script-preview/test/behavior-runtime.test.mjs",
+      "sha256": "sha256:d9e79e74c7f2e96bf73e208c1c2005e06b8bbed14950ff8128610d0d5a145d82",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/advanced-desktop.png",
+      "sha256": "sha256:8ac700d42237fcef8488a58c64c4bc1c13be95f56edd766be373313bd5470107",
+      "kind": "local-check",
+      "locator": "current production window"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/resources-desktop.png",
+      "sha256": "sha256:6683afac1ee7460970ad237f32711e40cbc7892fda72d89c32433c30c4d8a410",
+      "kind": "local-check",
+      "locator": "current production window"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/resources-narrow.png",
+      "sha256": "sha256:9c908d980ad45dbb3323897032c46e149089e5ce84639529d0e790e70d2380cb",
+      "kind": "local-check",
+      "locator": "current production window"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "four resource identities reject mixed references, illegal operations and inappropriate unused semantics"
+    },
+    {
+      "path": "packages/editor-plugins/test/resources/catalog.test.mjs",
+      "sha256": "sha256:28dfa79e9b5fedf9ad0c4f8036a8b99a8a9e50e51962e88f5499441190068407",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+      "sha256": "sha256:680633624f860f9aaabb105a9e89f3057a30db721a25d23d60f877c1cdc69c3d",
+      "kind": "local-check",
+      "locator": ""
+    },
+    {
+      "path": "packages/editor-plugins/test/resources/workflows.test.mjs",
+      "sha256": "sha256:8dec841ad24fa0b17769e8e5263cee494bf0782e4213dd5fce9299759818501e",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/restart/restart.json",
+      "sha256": "sha256:5edc3485fa5ebc6a0490fa5c54c24384791a72c1a0c99bfb1aa7ddda67fccb0f",
+      "kind": "local-check",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/editor-plugins/test/resources/catalog.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/editor-plugins/test/resources/workflows.test.mjs"
+    },
+    {
+      "path": "packages/studio-shell/test/advanced-editor/adapter.test.mjs",
+      "sha256": "sha256:e2eec53a66c7b548f7341cc2f17249831f8ab2ff875c28989bf24d46c67e9465",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/test/advanced-editor/lifecycle.test.mjs",
+      "sha256": "sha256:e6e3104bd5ec02bcf4278d8c477343153c54a21826e17e1c26b5d25a6f3b974c",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/advanced-editor/adapter.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/studio-shell/test/advanced-editor/lifecycle.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/performance-budget.json",
+      "sha256": "sha256:e937714fc972fb5ff1b6d614dc623eb9808c7b2534018af9d3e6b598e5d9bad3",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/large/large.json",
+      "sha256": "sha256:083cda9d4aece0b64917a6e12ace891e3bff4ad183cb3804c5e10a55f6ff63bc",
+      "kind": "local-check",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/author/author.json",
+      "sha256": "sha256:680633624f860f9aaabb105a9e89f3057a30db721a25d23d60f877c1cdc69c3d",
+      "kind": "local-check",
+      "locator": "real accessibility tree"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "workspace migration preserves classic split settings and keeps new ratios separate"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "unknown versions, corrupt, oversized and unavailable storage retain a usable workspace"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "real Electron loads a sandboxed renderer through the typed preload and closes cleanly"
+    },
+    {
+      "path": "apps/ai-studio/test/electron-smoke.test.mjs",
+      "sha256": "sha256:a99a0d43447484187cf09954f1d8faf15b6303595cf7eecc513495a85e030ee9",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/project-history-electron.test.mjs",
+      "sha256": "sha256:d4bb5865d37c5aba54532263b1bbfebeb9fc63362504b7a8f9eda11b97c6c30e",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/agent-orchestration/test/project-conversation.test.mjs",
+      "sha256": "sha256:e9da3565f2c5bb09a200c5092ad9f853862fe3b011bd46281a2f3f679899d46b",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/renderer.ts",
+      "sha256": "sha256:cba7dfff78ef847d5fc03b0f574fbba168c7095a8f867394e329c9d7a1687d9c",
+      "kind": "source",
+      "locator": "exerciseDeviceLoss: GPUDevice.destroy(), device.lost, waitForRecovery"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/project-history-electron.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "packages/agent-orchestration/test/project-conversation.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-root-check.log",
+      "sha256": "sha256:3dc1e501de14c56d4bacd8863ea3710403944fc2a6ffcecaf18a1dd69656b2d8",
+      "kind": "local-check",
+      "locator": "every revision-bound tool publishes a required version and rejects omission at its input boundary"
+    },
+    {
+      "path": "apps/ai-studio/test/tool-discovery-invocation.test.mjs",
+      "sha256": "sha256:4a799ada6d3cb21410fd0e73bdaf44021e9fea264d8a54d7a966d7419106c363",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/tool-contract-continuation.test.mjs",
+      "sha256": "sha256:2f8a9cb3f1980d35d984f4317f55d8d5dbdd8562e79b27004c9bbbc81a8e728e",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/tool-batch-lifecycle.test.mjs",
+      "sha256": "sha256:aa46d5a310888ec1362b39a14e1df4f9b1a731278377395a0617c78c8d4fadc5",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/tool-discovery-invocation.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/tool-batch-lifecycle.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/tool-contract-continuation.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/product/secret-scan.json",
+      "sha256": "sha256:a18ba82cbf646d66ba7df41db713d21f3994e035f4490f5ab3e7a6e36d349608",
+      "kind": "local-check",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit-secret-scan.json",
+      "sha256": "sha256:92fae92a0ce5dc8c25ac6cc14e69ff0a99727b246c4202ee43fc1a9c3df58c1b",
+      "kind": "local-check",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/secret-scan.test.mjs",
+      "sha256": "sha256:a9cda0d2b4ad85e2c9f6e29f82408dfcbf95c219caf7a72beaad266edfdbc628",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "apps/ai-studio/test/m14-integration/secret-scan.test.mjs"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/live-backends.mjs",
+      "sha256": "sha256:a1675ff82cb88d53926432e7d6036b1cee1b3bc93e374251a5c748c8494b40f1",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "config/engine-candidate.json",
+      "sha256": "sha256:6a15f098cff619f56d322903f7f848989a3fe092d2b8da5a3800d86abc2d8c25",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:2aa93ddd010514c2c59f736f3516568cc36df463e71b4c3a33dcd60ec54b1ebd",
+      "kind": "local-check",
+      "locator": "current locked package/device checks"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/completion-audit/2026-09-09T11-08-25-282Z/adapter-check.json",
+      "sha256": "sha256:aeb4af10ffcd35bc26257d075ddb5208de2b7982f084b701edd8fdc2e02e7c0f",
+      "kind": "adapter-acceptance",
+      "locator": "round-trip + Document/History unchanged"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+      "kind": "local-check",
+      "locator": "observations, tools"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:35a36d75d691c17e17426dd29d28b38f97863b650bbe4fe943006fbdeb2decd7",
+      "kind": "local-check",
+      "locator": "behavior-product-window"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/local-acceptance.json",
+      "sha256": "sha256:426dc759d4dfd0908b4ef721832d8fa86a9ba568f4391bfe0a1f8eea32a30abe",
+      "kind": "local-check",
+      "locator": ""
+    },
+    {
+      "path": "config/contracts/m14-capability-first-release.json",
+      "sha256": "sha256:ae775974fd05962b26d0ebdbeb2516d29f7c9af92ea0a3c900a0b14b8e99db67",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "auditBuilder": {
+    "path": "apps/ai-studio/test/m14-integration/test-output/build-completion-audit.mjs",
+    "sha256": "sha256:326a33352cd1bca7e8f72262289ef8c4892bf6e3a5c0bcdca6e9e508d2fcec9b",
+    "kind": "source",
+    "locator": ""
+  },
+  "preservedHistory": [
+    "G01 census remains implementation-present and is not rewritten by this audit.",
+    "G08 independent acceptance remains historical; current adapter evidence is recorded separately.",
+    "M12 G12 and M13 G11 statuses are not changed."
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "status": "historical-before-plan-review-visibility",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 615,
+    "sourceDigest": "sha256:545b760840f80ad74f2d389cedb845dbecbea491e585bd64cedacbc2c29808eb",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:1b1c02609914f7c0fd84adfdcc8337d47652dc3917beceac1c6a11c532605d44"
+  },
+  "references": [
+    {
+      "path": "docs/evidence/desktop-notifications/verification.json",
+      "sha256": "sha256:5b84079037cd8aba359f084bd5778d8163c499f59411684ea1019519b26e4c01",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/01-verification.json"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/checks.json",
+      "sha256": "sha256:a1d28b6bed8ec7df848c2f3c3484c9ea7a6665a6470b5330ba4bbb08551c248e",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/02-checks.json"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/focused-check.log",
+      "sha256": "sha256:018104278fb3d4e8b83d9a1da99b0f5bfefcaae17a71a436b5f42b57f9eaefd6",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/03-focused-check.log"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/root-check.log",
+      "sha256": "sha256:d12567e477c2a1d6d6b50b33349627664d06a386fc81c54cc11b5be4cc5bc6a3",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/04-root-check.log"
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/desktop-notifications/capability-capture.log",
+      "sha256": "sha256:15b33a3663ecd29d5dc1011ece932d10d2bee029856a919d321e85772b6056e1",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/05-capability-capture.log"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:d265da25894aa73493f3863ecba768730dab48ee2671460c01a243f46237e9cb",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/06-collected-tests.json"
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-14.tap",
+      "sha256": "sha256:30fd5aa49362ede92963b1820d337041be49ca4de8bc6898b9ad43dc20b8d68d",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/07-collected-14.tap"
+    },
+    {
+      "path": "docs/evidence/desktop-notifications/settings.png",
+      "sha256": "sha256:dc9e0e4395cd5f3f3533adddc3ffe5ea887043550c185cf915216ca76378979d",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/08-settings.png"
+    },
+    {
+      "path": "docs/evidence/desktop-notifications/production.json",
+      "sha256": "sha256:259c7834eed4ca03a858c94da676fd90c5019e0cbe334c6fcb9301ab281d90e4",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/09-production.json"
+    },
+    {
+      "path": "docs/evidence/desktop-notifications/native.json",
+      "sha256": "sha256:39853221ad4736ba7e6d75b8792d7aea76ebcddaacea62cdcf87c1e4f0c30d95",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/10-native.json"
+    },
+    {
+      "path": "config/contracts/m14-capability-census.json",
+      "sha256": "sha256:02cb734c868117e1a9831c4bb95071166de382e7a2fcc44af027fc50c2579ea2",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/11-m14-capability-census.json"
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:1f73a523d1de0f81aa980282883c66f46e68c9e91c46baa067ca77b9f628efe2",
+      "archivedPath": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-plan-review-visibility/12-m14-capability-verification.json"
+    }
+  ]
+}

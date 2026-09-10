@@ -24,6 +24,7 @@ import {
   LogViewerController,
   presentChatPanel,
   renderChatPanel,
+  disposeChatPanel,
   revealChatAttention,
   renderLogViewer,
   type ConversationIntent,
@@ -36,6 +37,7 @@ import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
 import { mountNotificationSettings } from './notification-ui.js';
 import { IntegratedEditorPanels } from './editor-panels.js';
+import { ScriptCodeEditor } from '@haiyue/ai-studio-shell/script-editor';
 import {
   PLAY_DEVICE_PROFILES,
   calculatePlayViewportScale,
@@ -60,9 +62,11 @@ import type {
 } from '@haiyue/ai-studio-editor-plugins';
 import { defineBorderBeamComponents } from '@haiyue/ui/border-beam';
 import { defineDialogComponents, type HYDialog } from '@haiyue/ui/dialog';
+import { defineDrawerComponents, type HYDrawer } from '@haiyue/ui/drawer';
 import { defineSelectComponents, type HYSelect } from '@haiyue/ui/select';
 import { defineSplitComponents, type HYSplit, type HYSplitRatioChangeDetail } from '@haiyue/ui/split';
 import { defineTabsComponents, type HYTabs } from '@haiyue/ui/tabs';
+import { defineTreeComponents, type HYTree } from '@haiyue/ui/tree';
 
 let agentHistoryViewer: AgentHistoryViewer | null = null;
 let intentWorkspace: IntentWorkspace | null = null;
@@ -99,7 +103,7 @@ interface ProjectSnapshot {
   readonly logging: Readonly<{ health: string; canPersist: boolean; nextSequence: number; eventCount: number }>;
 }
 interface SelectionSnapshot { readonly activeEntityId: StableId | null; readonly source: string; }
-interface ScriptResourceSnapshot { readonly id: StableId; readonly entityId: StableId; readonly name?: string; readonly text: string; readonly textRevision: number; readonly enabled: boolean; readonly order: number; readonly dirty: boolean; }
+interface ScriptResourceSnapshot { readonly id: StableId; readonly entityId: StableId; readonly name?: string; readonly text: string; readonly textRevision: number; readonly enabled: boolean; readonly order: number; readonly dirty: boolean; readonly capabilities: readonly ScriptCapabilityName[]; }
 interface ScriptCatalogSnapshot { readonly documentRevision: number; readonly resources: readonly ScriptResourceSnapshot[]; }
 interface ScriptProposal { readonly id: StableId; readonly diagnostics: readonly ScriptDiagnostic[]; readonly addedLines: number; readonly removedLines: number; }
 interface ScriptDiagnostic { readonly code: string; readonly severity: 'error' | 'warning'; readonly line: number; readonly column: number; readonly message: string; }
@@ -128,6 +132,8 @@ let logicRequest: AbortController | null = null;
 let focusedScriptId: string | null = null;
 let scripts: ScriptCatalogSnapshot = { documentRevision: 0, resources: [] };
 let pendingScriptProposal: ScriptProposal | null = null;
+let scriptEditor: ScriptCodeEditor | null = null;
+let scriptDraftGeneration = 0;
 let previewDisclosure: PreviewDisclosure | null = null;
 let playing = false;
 let previewPaused = false;
@@ -766,7 +772,9 @@ async function boot(): Promise<void> {
 function setupUiPreferences(): void {
   defineBorderBeamComponents();
   defineTabsComponents();
+  defineTreeComponents();
   defineDialogComponents();
+  defineDrawerComponents();
   defineSelectComponents();
   language = readStoredLanguage();
   theme = readStoredTheme();
@@ -803,6 +811,7 @@ function setupUiPreferences(): void {
 }
 
 function applyLocale(): void {
+  scriptEditor?.setLanguage(language);
   notificationSettings?.refreshLocale();
   document.documentElement.lang = language;
   document.body.dataset.language = language;
@@ -1030,6 +1039,12 @@ function updatePlayControls(): void {
 }
 
 function bindUi(): void {
+  scriptEditor = new ScriptCodeEditor(element('script-source'), () => {
+    scriptDraftGeneration++;
+    pendingScriptProposal = null;
+    element<HTMLButtonElement>('commit-script').disabled = true;
+    element('script-diagnostics').textContent = t('scriptEditHint');
+  }, language);
   setupPlayPageControls();
   element('new-project').addEventListener('click', () => void action(async () => {
     project = await invoke<ProjectSnapshot & JsonObject>('project/new', { name: 'HaiYue Game' });
@@ -1075,6 +1090,8 @@ function bindUi(): void {
   element('run-approve').addEventListener('click', () => void approveProjectRun());
   element('run-fix-agent').addEventListener('click', () => void requestAgentScriptFix());
   window.addEventListener('beforeunload', () => {
+    scriptEditor?.dispose(); scriptEditor = null;
+    disposeChatPanel(element('chat-content'));
     logicRequest?.abort(); logicPanel?.dispose(); logicPanel = null;
     editorPanels?.dispose(); editorPanels = null;
     intentWorkspace?.dispose(); intentWorkspace = null;
@@ -1098,8 +1115,10 @@ async function pollAgent(): Promise<void> {
 
 async function refreshConversation(force: boolean): Promise<boolean> {
   const replay = await invoke<ConversationReplaySnapshot & JsonObject & { projectId?: StableId | null; historyStorage?: string }>('conversation/replay');
-  agentHistoryViewer?.setProject(replay.projectId ?? null, replay.historyStorage);
+  // Push polling, locale refresh and notification navigation may have overlapping IPC requests.
+  if (replay.revision < conversationRevision) return false;
   if (!force && replay.revision === conversationRevision) return false;
+  agentHistoryViewer?.setProject(replay.projectId ?? null, replay.historyStorage);
   conversationRevision = replay.revision;
   const snapshot = conversationProjector.reset(replay);
   if (agentHistoryWasBusy && !snapshot.busy) agentHistoryViewer?.refresh();
@@ -1531,7 +1550,7 @@ function renderIntentWorkspace(): void {
   const behavior = behaviorSnapshot?.manifest as unknown as BehaviorManifestV1 | null ?? null;
   intentWorkspace?.update({
     documentId: scene?.documentId ?? null, documentRevision: documentRevision(), selectedEntityId: selection.activeEntityId,
-    entities: (scene?.entities ?? []).map(entity => ({ id: entity.id, name: entity.name,
+    entities: (scene?.entities ?? []).map(entity => ({ id: entity.id, name: entity.name, parentId: entity.parentId,
       sources: [...(scripts.resources.some(script => script.entityId === entity.id) ? ['script' as const] : []), ...((entity.components?.length ?? 0) > 0 ? ['declarative-component' as const] : [])],
     })),
     sourceBinding: behavior?.binding ?? null, behavior, catalog: null,
@@ -1589,6 +1608,8 @@ async function applyBehaviorLocation(location: EditorLocationV1): Promise<void> 
   } else {
     await selectEntity(source.entityId as StableId, 'system'); if (!current()) throw new Error('behavior.location-historical');
     logicPanel?.closeExpanded(); intentWorkspace?.openAdvanced('inspect');
+    // Let the Drawer place its initial focus before focusing the requested source location.
+    await Promise.resolve(); if (!current()) throw new Error('behavior.location-historical');
     let detail = document.getElementById('logic-source-location');
     if (!detail) { detail = document.createElement('pre'); detail.id = 'logic-source-location'; detail.tabIndex = 0; element('workspace-manual-inspect').prepend(detail); }
     const component = scene?.entities.find(entity => entity.id === source.entityId)?.components?.find(component => component.id === source.componentId);
@@ -1609,8 +1630,10 @@ async function applyScriptSourceLocation(source: Extract<EditorLocationV1['targe
     if (!current() || digest !== source.digest || source.range.end > script.text.length) throw new Error('behavior.location-historical');
     focusedScriptId = script.id; await selectEntity(source.entityId as StableId, 'system'); if (!current()) throw new Error('behavior.location-historical');
     logicPanel?.closeExpanded(); intentWorkspace?.openAdvanced('script');
-    const editor = element<HTMLTextAreaElement>('script-source'); if (editor.value !== script.text) throw new Error('behavior.location-historical');
-    editor.focus(); editor.setSelectionRange(source.range.start, source.range.end); editor.scrollTop = Math.max(0, (source.range.startLine - 3) * 18);
+    // Keep the exact source selection focused after the Drawer's initial focus microtask.
+    await Promise.resolve(); if (!current()) throw new Error('behavior.location-historical');
+    const editor = element('script-source'); if (scriptEditor?.text !== script.text) throw new Error('behavior.location-historical');
+    scriptEditor.focusRange(source.range.start, source.range.end);
     if (nodeId) editor.dataset.behaviorNode = nodeId; else delete editor.dataset.behaviorNode;
 
 }
@@ -1709,16 +1732,18 @@ function renderScriptPanel(
 ): void {
   const primaryScript = selected ? scripts.resources.find((resource) => resource.entityId === selected.id) : undefined;
   const script = scripts.resources.find(resource => resource.entityId === selected?.id && resource.id === focusedScriptId) ?? primaryScript;
-  const identity = `${selected?.id ?? ''}:${script?.id ?? ''}:${script?.textRevision ?? 0}`;
+  const identity = `${scene?.documentId ?? ''}:${selected?.id ?? ''}:${script?.id ?? ''}:${script?.textRevision ?? 0}`;
   if (identity !== loadedScriptIdentity) {
     loadedScriptIdentity = identity;
-    element<HTMLTextAreaElement>('script-source').value = selected ? script?.text ?? DEMO_SCRIPT : '';
+    scriptDraftGeneration++;
+    scriptEditor?.load(identity, selected ? script?.text ?? DEMO_SCRIPT : '');
     pendingScriptProposal = null;
     if (!options.preservePreviewDisclosure) previewDisclosure = null;
     element('script-diagnostics').textContent = t(selected ? 'scriptEditHint' : 'scriptSelectHint');
   }
   element<HTMLButtonElement>('propose-script').disabled = !selected || playing || script?.id !== primaryScript?.id;
-  element<HTMLButtonElement>('commit-script').disabled = !pendingScriptProposal || playing;
+  scriptEditor?.setReadOnly(!selected || playing || script?.id !== primaryScript?.id);
+  element<HTMLButtonElement>('commit-script').disabled = !pendingScriptProposal || pendingScriptProposal.diagnostics.some(item => item.severity === 'error') || playing;
   element<HTMLButtonElement>('prepare-preview').disabled = !script || playing;
   element<HTMLButtonElement>('approve-preview').disabled = !previewDisclosure || playing;
   element<HTMLButtonElement>('stop-preview').disabled = !playing;
@@ -1726,10 +1751,16 @@ function renderScriptPanel(
 
 async function proposeScriptEdit(): Promise<void> {
   const entityId = selection.activeEntityId;
-  if (!entityId) throw new Error('Select an entity before editing a script.');
-  pendingScriptProposal = await invoke<ScriptProposal & JsonObject>('script/propose', {
-    entityId, text: element<HTMLTextAreaElement>('script-source').value, baseRevision: documentRevision(), capabilities: ['read', 'input', 'debug'],
+  if (!entityId || !scriptEditor) throw new Error('Select an entity before editing a script.');
+  const generation = ++scriptDraftGeneration, revision = documentRevision(), documentId = scene?.documentId;
+  pendingScriptProposal = null;
+  element<HTMLButtonElement>('commit-script').disabled = true;
+  const proposal = await invoke<ScriptProposal & JsonObject>('script/propose', {
+    entityId, text: scriptEditor.text, baseRevision: revision,
+    capabilities: [...(scripts.resources.find(resource => resource.entityId === entityId)?.capabilities ?? ['read', 'input', 'debug'])],
   });
+  if (generation !== scriptDraftGeneration || documentId !== scene?.documentId || revision !== documentRevision() || selection.activeEntityId !== entityId || !scriptEditor) return;
+  pendingScriptProposal = proposal;
   const diagnostics = pendingScriptProposal.diagnostics;
   element('script-diagnostics').textContent = diagnostics.length
     ? diagnostics.map((item) => `${item.code} ${item.line}:${item.column} ${item.message}`).join('\n')
@@ -1862,7 +1893,7 @@ async function runSmokeWorkflow(): Promise<void> {
   smokeStage('cube-picked');
   await selectEntity(picked, 'viewport');
   await refresh();
-  if (element<HTMLSelectElement>('workspace-entity').value !== picked) throw new Error('Viewport selection did not reach the logic workspace.');
+  if (element<HYTree>('workspace-entity').selectedId !== picked) throw new Error('Viewport selection did not reach the logic workspace.');
   intentWorkspace?.openAdvanced('inspect');
   const panelDeadline = Date.now() + 4000;
   while (!document.querySelector('#studio-advanced-panel .advanced-authoring-panel') && Date.now() < panelDeadline) await new Promise(resolve => setTimeout(resolve, 20));
@@ -1910,23 +1941,32 @@ async function runSmokeWorkflow(): Promise<void> {
   if (!element('logic-explanation-text').querySelector('[data-explanation-node]')) throw new Error('Independent explanation is missing.');
   logicPanel!.openExpanded(); await smokeBehaviorEvidence('structure');
   await dispatchLogicIntent({ type: 'locate', manifestDigest: behaviorManifest.digest, nodeId: behaviorNode.id });
-  const locatedEditor = element<HTMLTextAreaElement>('script-source');
-  if (!element<HTMLDialogElement>('workspace-advanced').open || locatedEditor.value !== smokeScript.text || locatedEditor.selectionStart !== behaviorNode.source.range.start || locatedEditor.selectionEnd !== behaviorNode.source.range.end || document.activeElement !== locatedEditor) throw new Error('Behavior source navigation did not select the exact current script range.');
+  if (!element<HYDrawer>('workspace-advanced').open || scriptEditor?.text !== smokeScript.text || scriptEditor.selection.from !== behaviorNode.source.range.start || scriptEditor.selection.to !== behaviorNode.source.range.end || document.activeElement !== element('script-source').querySelector('.cm-content')) throw new Error('Behavior source navigation did not select the exact current script range.');
   await smokeBehaviorEvidence('source');
+  await proposeScriptEdit();
+  if (!pendingScriptProposal || element<HTMLButtonElement>('commit-script').disabled) throw new Error('Current script capabilities must survive manual validation.');
+  const beforeFormatRevision = documentRevision();
+  await scriptEditor.format();
+  if (scriptEditor.text === smokeScript.text || pendingScriptProposal || !element<HTMLButtonElement>('commit-script').disabled || documentRevision() !== beforeFormatRevision) throw new Error('Formatting must invalidate the proposal without committing the draft.');
+  const formattedDraft = scriptEditor.text; await refresh();
+  if (scriptEditor.text !== formattedDraft) throw new Error('Project refresh overwrote the formatted draft.');
+  scriptEditor.focusRange(0, 0);
+  element('script-source').querySelector('.cm-content')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true, cancelable: true }));
+  if (scriptEditor.text !== smokeScript.text || pendingScriptProposal) throw new Error('CodeMirror undo must restore the script without resurrecting an old proposal.');
   for (const kind of ['declarative-component', 'runtime-adapter'] as const) {
     const node = behaviorManifest.nodes.find(node => node.source.kind === kind);
     if (!node || node.source.kind === 'script') throw new Error('Component or adapter source is missing.');
     await dispatchLogicIntent({ type: 'locate', manifestDigest: behaviorManifest.digest, nodeId: node.id });
-    if (element('logic-source-location').dataset.componentId !== node.source.componentId || !element<HTMLDialogElement>('workspace-advanced').open) throw new Error('Component source navigation did not reach the actual config.');
+    if (element('logic-source-location').dataset.componentId !== node.source.componentId || !element<HYDrawer>('workspace-advanced').open) throw new Error('Component source navigation did not reach the actual config.');
     await smokeBehaviorEvidence(kind === 'runtime-adapter' ? 'adapter' : 'component');
   }
   const disclosure = await invoke<PreviewDisclosure & JsonObject>('preview/prepare', {});
   const grant = await invoke<PreviewGrant & JsonObject>('preview/authorize', { planId: disclosure.id, approved: true });
   const previewPlan = await invoke<ConsumedPreviewPlan & JsonObject>('preview/consume', { grantId: grant.id });
   intentWorkspace?.openAdvanced('script');
-  if (element<HTMLTextAreaElement>('script-source').value !== smokeScript.text || element('script-panel').hidden || element('script-source').getBoundingClientRect().height < 200) throw new Error('Committed script is not accessible in the advanced workspace.');
+  if (scriptEditor?.text !== smokeScript.text || element('script-panel').hidden || element('script-source').getBoundingClientRect().height < 200) throw new Error('Committed script is not accessible in the advanced workspace.');
   await startPreview(previewPlan);
-  if (element<HTMLDialogElement>('workspace-advanced').open) throw new Error('Advanced drawer blocks the Play page.');
+  if (element<HYDrawer>('workspace-advanced').open) throw new Error('Advanced drawer blocks the Play page.');
   smokeStage('preview-playing');
   if (element('play-page').hidden || !document.querySelector('#play-device-screen > #preview-frame')) throw new Error('Preview did not switch to the standalone play page.');
   applyPlayDevicePreset('iphone-15-pro');

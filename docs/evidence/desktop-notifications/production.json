@@ -1,0 +1,27 @@
+{
+  "initial": {
+    "preferences": {
+      "schemaVersion": 1,
+      "enabled": true,
+      "sound": true,
+      "backgroundOnly": true,
+      "language": "zh-CN"
+    },
+    "supported": false,
+    "delivery": "idle"
+  },
+  "final": {
+    "preferences": {
+      "schemaVersion": 1,
+      "enabled": true,
+      "sound": false,
+      "backgroundOnly": true,
+      "language": "zh-CN"
+    },
+    "supported": false,
+    "delivery": "idle"
+  },
+  "reloaded": true,
+  "typedPreload": true,
+  "nativeDeliveryDisabledForTest": true
+}

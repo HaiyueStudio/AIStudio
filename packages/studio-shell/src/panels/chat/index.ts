@@ -1,8 +1,10 @@
 import type { JsonObject, StableId, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
+import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
 import { approvalFromNode, planFromNode, questionFromNode, safeText } from '../../conversation/validation.js';
 import { layoutExecutionGraph } from '../../conversation/execution-layout.js';
-import { compareExecutionGraphs } from '../../conversation/execution-graph.js';
+import { compareExecutionGraphs, executionGraphIdentity, groupExecutionGraphsByTask } from '../../conversation/execution-graph.js';
 import { attachGraphPan } from '../graph-pan.js';
+import { createHoverPanel } from '../hover-panel.js';
 import type {
   ChatCardAction,
   ChatCardReadModel,
@@ -33,7 +35,7 @@ export function presentChatPanel(snapshot: ConversationReadModel, now = Date.now
   return Object.freeze({
     backendId: snapshot.backendId, backends: snapshot.backends, cards,
     composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : backendBlockedReason(selected)), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
-    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns, executionGraphs: snapshot.executionGraphs ?? Object.freeze([]),
+    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns, executionGraphs: groupExecutionGraphsByTask(snapshot.executionGraphs ?? [], snapshot.taskRuns),
     ariaLive: cards.at(-1)?.body ?? (snapshot.connection === 'connected' ? 'Agent conversation ready.' : 'Agent conversation disconnected.'),
   });
 }
@@ -92,15 +94,21 @@ export function chatFeedIsNearLatest(position: ChatFeedScrollPosition, threshold
 }
 
 export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void): void {
-  executionPanDisposers.get(root)?.(); executionPanDisposers.delete(root);
-  executionViewportUpdates.delete(root);
+  const openPanels = (chatHoverControllers.get(root) ?? []).flatMap(({ className, hover }) => { const state = hover.snapshot(); return state ? [{ className, state }] : []; });
+  disposeChatPanel(root);
   currentChatModels.set(root, model);
   const document = root.ownerDocument;
   for (const image of [...(root.querySelectorAll?.('.chat-evidence-preview') ?? [])] as HTMLImageElement[]) image.removeAttribute('src');
   const previousFeed = root.querySelector?.('.chat-feed') as HTMLElement | null | undefined;
+  const previousTabs = root.querySelector?.('.chat-view-tabs') as HYTabs | null | undefined;
+  const restoreTabFocus = previousTabs != null && document.activeElement === previousTabs;
+  const view = chatViewStates.get(root) ?? { choice: null, followLatest: true, feedScrollTop: 0, stepsScrollTop: 0 };
+  if (previousFeed && previousTabs?.value === 'steps') {
+    view.followLatest = chatFeedIsNearLatest(previousFeed); view.feedScrollTop = previousFeed.scrollTop;
+    view.stepsScrollTop = (root.querySelector?.('.chat-steps-view') as HTMLElement | null)?.scrollTop ?? 0;
+  }
+  chatViewStates.set(root, view);
   const previousInput = root.querySelector?.('.chat-composer textarea') as HTMLTextAreaElement | null | undefined;
-  const followLatest = !previousFeed || chatFeedIsNearLatest(previousFeed);
-  const preservedScrollTop = previousFeed?.scrollTop ?? 0;
   const preservedDraft = previousInput?.value ?? '';
   const restoreInputFocus = previousInput !== undefined && previousInput !== null && document.activeElement === previousInput;
   const preservedSelection = restoreInputFocus
@@ -181,26 +189,49 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     for (const [key, input] of Object.entries(budgetInputs)) settings.append(labelled(document, budgetLabel(key), input));
     backendControls.append(settings);
   }
+  if (!model.executionGraphs?.length && model.taskAccounting) {
+    const usage = chatHoverPanel(root, document, 'execution-usage-popover', '上下文与任务用量');
+    usage.panel.append(renderTaskCostCard(document, model.taskAccounting));
+    backendControls.append(hoverButton(document, usage, '用量', '上下文与任务用量'), usage.panel);
+  }
   fragment.append(backendControls);
-  if (model.executionGraphs?.length) fragment.append(renderExecutionWorkspace(root, document, model.executionGraphs, model.taskAccounting, dispatch));
-  if (model.taskRuns.length) fragment.append(renderTaskWorkspace(document, model.taskRuns, model.taskAccounting, dispatch));
-  if (model.taskAccounting) fragment.append(renderTaskCostCard(document, model.taskAccounting));
+  const pendingCards = model.cards.filter(card => card.status === 'pending'
+    && (card.kind === 'plan' || card.kind === 'question' || (card.kind === 'approval' && card.actions.some(action => action.enabled))));
+  const pendingIds = new Set(pendingCards.map(card => card.id));
+  if (pendingCards.length) {
+    const attention = document.createElement('section'); attention.className = 'chat-attention'; attention.setAttribute('aria-label', '等待你的确认');
+    const heading = document.createElement('h2'); heading.textContent = `等待你的确认 · ${pendingCards.length}`;
+    const list = document.createElement('ol'); list.className = 'chat-attention-list';
+    for (const card of pendingCards) list.append(renderCard(document, card, dispatch));
+    attention.append(heading, list); fragment.append(attention);
+  }
+  const workspace = document.createElement('div'); workspace.className = 'chat-workspace';
+  const tabs = document.createElement('hy-tabs') as HYTabs; tabs.className = 'chat-view-tabs'; tabs.setAttribute('aria-label', '执行展示方式');
+  const hasGraph = Boolean(model.executionGraphs?.length);
+  tabs.options = [{ value: 'graph', label: '拓扑图', disabled: !hasGraph }, { value: 'steps', label: '执行步骤' }];
+  tabs.value = hasGraph ? view.choice ?? 'graph' : 'steps';
+  const graphPanel = document.createElement('section'); graphPanel.className = 'chat-graph-view'; graphPanel.slot = 'graph'; graphPanel.hidden = tabs.value !== 'graph';
+  if (hasGraph) graphPanel.append(renderExecutionWorkspace(root, document, model.executionGraphs, model.taskAccounting, dispatch));
+  const stepsPanel = document.createElement('section'); stepsPanel.className = 'chat-steps-view'; stepsPanel.slot = 'steps'; stepsPanel.hidden = tabs.value !== 'steps';
+  if (model.taskRuns.length) stepsPanel.append(renderTaskWorkspace(document, model.taskRuns, model.taskAccounting, dispatch));
   const status = document.createElement('p');
   status.className = 'chat-connection';
   status.textContent = `Connection: ${model.connection}`;
-  fragment.append(status);
+  stepsPanel.append(status);
   const feed = document.createElement('ol');
   feed.className = 'chat-feed';
   feed.setAttribute('role', 'log');
   feed.setAttribute('aria-live', 'polite');
-  for (const card of model.cards) feed.append(renderCard(document, card, dispatch));
-  fragment.append(feed);
+  for (const card of model.cards) if (!pendingIds.has(card.id)) feed.append(renderCard(document, card, dispatch));
+  stepsPanel.append(feed);
   const jumpLatest = document.createElement('button');
   jumpLatest.type = 'button';
   jumpLatest.className = 'chat-jump-latest';
   jumpLatest.textContent = '↓ Latest';
   jumpLatest.setAttribute('aria-label', 'Jump to latest agent message');
-  fragment.append(jumpLatest);
+  stepsPanel.append(jumpLatest);
+  tabs.append(graphPanel, stepsPanel); workspace.append(tabs);
+  fragment.append(workspace);
   const live = document.createElement('span');
   live.className = 'visually-hidden';
   live.setAttribute('aria-live', 'polite');
@@ -220,6 +251,7 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     input.value = '';
     send.disabled = true;
     feed.scrollTop = feed.scrollHeight;
+    view.followLatest = true;
     dispatch(Object.freeze({ type: 'conversation/send', backendId: model.backendId, prompt }));
   };
   const keyboard = new ChatComposerKeyboardController();
@@ -243,20 +275,47 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const composerStatus = document.createElement('span'); composerStatus.id = 'chat-composer-status'; composerStatus.textContent = model.composer.blockedReason ?? 'Ready to send.'; composer.append(composerStatus);
   fragment.append(composer);
   root.replaceChildren(fragment);
-  executionViewportUpdates.get(root)?.();
   if (restoreInputFocus) {
     input.focus();
     if (preservedSelection) input.setSelectionRange(preservedSelection.start, preservedSelection.end, preservedSelection.direction);
   }
-  const syncLatestButton = (): void => { jumpLatest.hidden = chatFeedIsNearLatest(feed); };
-  if (followLatest) feed.scrollTop = feed.scrollHeight;
-  else feed.scrollTop = Math.min(preservedScrollTop, Math.max(0, feed.scrollHeight - feed.clientHeight));
+  const syncLatestButton = (): void => {
+    if (chatViewActivators.get(root) !== showView || tabs.value !== 'steps' || stepsPanel.hidden) return;
+    view.followLatest = chatFeedIsNearLatest(feed); view.feedScrollTop = feed.scrollTop;
+    jumpLatest.hidden = view.followLatest;
+  };
+  const showView = (value: 'graph' | 'steps', chosen = true): void => {
+    if (chatViewActivators.get(root) !== showView || (value === 'graph' && !hasGraph)) return;
+    if (chosen) view.choice = value;
+    tabs.value = value; graphPanel.hidden = value !== 'graph'; stepsPanel.hidden = value !== 'steps';
+    for (const { hover } of chatHoverControllers.get(root) ?? []) hover.hide();
+    if (value === 'graph') executionViewportUpdates.get(root)?.();
+    else {
+      stepsPanel.scrollTop = view.stepsScrollTop;
+      feed.scrollTop = view.followLatest ? feed.scrollHeight : Math.min(view.feedScrollTop, Math.max(0, feed.scrollHeight - feed.clientHeight));
+      syncLatestButton();
+    }
+  };
+  chatViewActivators.set(root, showView);
+  tabs.addEventListener('tab-change', event => {
+    if (event.target !== tabs) return;
+    const value = (event as CustomEvent<HYTabChangeDetail>).detail?.value;
+    if (value === 'graph' || value === 'steps') showView(value);
+  });
+  stepsPanel.addEventListener('scroll', () => { if (chatViewActivators.get(root) === showView && tabs.value === 'steps') view.stepsScrollTop = stepsPanel.scrollTop; }, { passive: true });
   feed.addEventListener('scroll', syncLatestButton, { passive: true });
   jumpLatest.addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; syncLatestButton(); });
-  syncLatestButton();
+  showView(tabs.value as 'graph' | 'steps', false);
+  if (restoreTabFocus) tabs.shadowRoot?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+  for (const { className, state } of openPanels) if (tabs.value === 'graph' || !hasGraph) chatHoverControllers.get(root)?.find(item => item.className === className)?.hover.restore(state);
 }
 
+interface ChatViewState { choice: 'graph' | 'steps' | null; followLatest: boolean; feedScrollTop: number; stepsScrollTop: number; }
+const chatViewStates = new WeakMap<HTMLElement, ChatViewState>();
+const chatViewActivators = new WeakMap<HTMLElement, (value: 'graph' | 'steps') => void>();
+
 interface ExecutionWorkspaceState {
+  /** Product task identity, falling back to a legacy session identity. */
   sessionId: string | null;
   followLatest: boolean;
   mode: 'graph' | 'transcript';
@@ -284,51 +343,85 @@ export function revealChatAttention(root: HTMLElement, target: Readonly<{ nodeId
     }
   }
   if (!found) return false;
+  if (found.closest('.chat-steps-view')) chatViewActivators.get(root)?.('steps');
   found.tabIndex = -1; found.scrollIntoView({ block: 'center' }); found.focus({ preventScroll: true }); return true;
 }
 const executionViewportUpdates = new WeakMap<HTMLElement, () => void>();
 const executionPanDisposers = new WeakMap<HTMLElement, () => void>();
+const chatHoverControllers = new WeakMap<HTMLElement, { className: string; hover: ReturnType<typeof createHoverPanel> }[]>();
+
+export function disposeChatPanel(root: HTMLElement): void {
+  executionPanDisposers.get(root)?.(); executionPanDisposers.delete(root);
+  for (const { hover } of chatHoverControllers.get(root) ?? []) hover.dispose();
+  chatHoverControllers.delete(root); executionViewportUpdates.delete(root); currentChatModels.delete(root); chatViewActivators.delete(root);
+}
+
+function chatHoverPanel(root: HTMLElement, document: Document, className: string, label: string): ReturnType<typeof createHoverPanel> {
+  const hover = createHoverPanel(document, className, label);
+  const controllers = chatHoverControllers.get(root) ?? []; controllers.push({ className, hover }); chatHoverControllers.set(root, controllers);
+  return hover;
+}
+
+function hoverButton(document: Document, hover: ReturnType<typeof createHoverPanel>, text: string, label: string): HTMLButtonElement {
+  const button = document.createElement('button'); button.type = 'button'; button.className = 'execution-info-button';
+  button.textContent = text; button.setAttribute('aria-label', label); hover.bind(button); return button;
+}
 
 function renderExecutionWorkspace(root: HTMLElement, document: Document, graphs: readonly ExecutionGraphReadModel[], accounting: ConversationReadModel['taskAccounting'], dispatch: (intent: ConversationIntent) => void): HTMLElement {
   const ordered = [...graphs].sort(compareExecutionGraphs);
-  const latest = ordered.at(-1)!;
+  // A provider bootstrap may arrive before its first task-bound turn. Keep following the
+  // known current task until that session can be attached, instead of flashing a lone goal.
+  const latest = ordered.find(graph => graph.taskId === accounting?.taskId) ?? ordered.at(-1)!;
   const prior = executionWorkspaceStates.get(root);
-  const state: ExecutionWorkspaceState = prior ?? { sessionId: latest.sessionId, followLatest: true, mode: 'graph', selectedNodeId: null, query: '', filter: 'all', detailMode: 'overview', scale: 1, fit: true, scrollLeft: 0, scrollTop: 0, revealSelection: false };
-  const selectedGraph = graphs.find((candidate) => candidate.sessionId === state.sessionId);
+  const state: ExecutionWorkspaceState = prior ?? { sessionId: executionGraphIdentity(latest), followLatest: true, mode: 'graph', selectedNodeId: null, query: '', filter: 'all', detailMode: 'overview', scale: 1, fit: true, scrollLeft: 0, scrollTop: 0, revealSelection: false };
+  const selectedGraph = graphs.find((candidate) => executionGraphIdentity(candidate) === state.sessionId);
   if (!selectedGraph) state.followLatest = true;
   const graph = state.followLatest ? latest : selectedGraph!;
-  if (state.sessionId !== graph.sessionId) { state.selectedNodeId = null; state.query = ''; state.filter = 'all'; state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; }
-  state.sessionId = graph.sessionId;
+  if (state.sessionId !== executionGraphIdentity(graph)) { state.selectedNodeId = null; state.query = ''; state.filter = 'all'; state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; }
+  state.sessionId = executionGraphIdentity(graph);
   if (state.selectedNodeId && !graph.nodes.some((node) => node.id === state.selectedNodeId)) state.selectedNodeId = null;
   executionWorkspaceStates.set(root, state);
-  const workspace = document.createElement('section'); workspace.className = 'execution-workspace'; workspace.setAttribute('aria-label', 'Agent execution graph and transcript'); workspace.dataset.sessionId = graph.sessionId;
+  const workspace = document.createElement('section'); workspace.className = 'execution-workspace'; workspace.setAttribute('aria-label', 'Agent execution graph and transcript'); workspace.dataset.sessionId = graph.sessionId; if (graph.taskId) workspace.dataset.taskId = graph.taskId;
   const header = document.createElement('header'); header.className = 'execution-header';
   const heading = document.createElement('div'); const title = document.createElement('strong'); title.textContent = graph.title; const status = document.createElement('span'); status.className = `execution-status status-${graph.status}`; status.textContent = executionStatusLabel(graph.status); heading.append(title, status);
   const sessionSelect = document.createElement('select'); sessionSelect.setAttribute('aria-label', 'Agent session');
-  for (const [index, candidate] of ordered.entries()) { const option = document.createElement('option'); option.value = candidate.sessionId; option.selected = candidate.sessionId === graph.sessionId; option.textContent = `第 ${index + 1} 段 · ${candidate.nodes.length} 个步骤 · ${candidate.title} · ${executionStatusLabel(candidate.status)}`; sessionSelect.append(option); }
+  for (const [index, candidate] of ordered.entries()) { const option = document.createElement('option'); option.value = executionGraphIdentity(candidate); option.selected = executionGraphIdentity(candidate) === executionGraphIdentity(graph); option.textContent = `${candidate.taskId ? '任务' : '第'} ${index + 1}${candidate.taskId ? '' : ' 段'} · ${candidate.nodes.length} 个步骤 · ${candidate.title} · ${executionStatusLabel(candidate.status)}`; sessionSelect.append(option); }
   sessionSelect.addEventListener('change', () => { state.sessionId = sessionSelect.value; state.followLatest = false; state.selectedNodeId = null; state.query = ''; state.filter = 'all'; state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; renderChatPanel(root, currentChatModel(root), dispatch); });
   const follow = document.createElement('button'); follow.type = 'button'; follow.textContent = state.followLatest ? '正在跟随最新' : '跟随最新'; follow.disabled = state.followLatest;
   follow.addEventListener('click', () => { state.followLatest = true; renderChatPanel(root, currentChatModel(root), dispatch); });
-  header.append(heading, sessionSelect, follow); workspace.append(header);
+  const historyLabel = graph.taskId ? '任务历史' : '会话历史';
+  const history = chatHoverPanel(root, document, 'execution-history-popover', historyLabel);
+  history.panel.append(labelled(document, historyLabel, sessionSelect), follow);
+  const usage = chatHoverPanel(root, document, 'execution-usage-popover', '上下文与任务用量');
+  const actions = document.createElement('div'); actions.className = 'execution-header-actions';
+  actions.append(hoverButton(document, history, '历史', historyLabel), hoverButton(document, usage, '用量', '上下文与任务用量'));
+  header.append(heading, actions); workspace.append(header, history.panel, usage.panel);
 
   const summary = document.createElement('div'); summary.className = 'execution-summary';
   const pressure = document.createElement('div'); pressure.className = `execution-pressure pressure-${graph.context.pressure?.state ?? 'unknown'}`;
-  const pressureLabel = document.createElement('span'); const ratio = graph.context.pressure?.ratio; pressureLabel.textContent = `上下文 ${ratio === null || ratio === undefined ? '未知' : `${Math.round(ratio * 100)}%`} · ${contextStateLabel(graph.context.pressure?.state ?? 'unknown')}`;
-  const meter = document.createElement('progress'); meter.max = 100; meter.value = ratio === null || ratio === undefined ? 0 : Math.round(ratio * 100); meter.setAttribute('aria-label', pressureLabel.textContent);
+  const pressureLabel = document.createElement('span'); const ratio = graph.context.pressure?.ratio; pressureLabel.textContent = `所选会话上下文 ${ratio === null || ratio === undefined ? '未知' : `${Math.round(ratio * 100)}%`} · ${contextStateLabel(graph.context.pressure?.state ?? 'unknown')}`;
+  const meter = document.createElement('progress'); meter.max = 100; meter.hidden = ratio === null || ratio === undefined; meter.value = ratio === null || ratio === undefined ? 0 : Math.round(ratio * 100); meter.setAttribute('aria-label', pressureLabel.textContent);
   const compact = document.createElement('button'); compact.type = 'button'; compact.textContent = '压缩上下文'; compact.disabled = !graph.context.compactionAvailable; compact.title = graph.context.compactionBlockedReason ?? (graph.context.pressure ? '在下一个安全边界压缩模型可见上下文；完整记录不会删除。' : '当前模型尚未提供可验证的上下文容量。'); compact.addEventListener('click', () => { if (compact.disabled) return; compact.disabled = true; dispatch(Object.freeze({ type: 'conversation/request-compaction', sessionId: graph.sessionId as StableId, requestId: `compaction-request:${graph.sessionId}:${graph.revision}` as StableId })); });
   pressure.append(pressureLabel, meter, compact);
-  const totals = document.createElement('p'); totals.className = 'execution-totals'; totals.textContent = executionAccountingLabel(graph, accounting);
-  summary.append(pressure, totals); workspace.append(summary);
+  if (graph.context.pressure) {
+    const capacity = document.createElement('small'); const measured = graph.context.pressure;
+    capacity.textContent = `输入 ${measured.usedInputTokens ?? '未知'} / ${measured.maxInputTokens ?? '未知'} tokens · 预留输出 ${measured.reservedOutputTokens} · 安全预留 ${measured.reservedSafetyTokens}`;
+    pressure.append(capacity);
+  }
+  summary.append(pressure); usage.panel.append(summary);
+  if (accounting) usage.panel.append(renderTaskCostCard(document, accounting));
+  else { const totals = document.createElement('p'); totals.className = 'execution-totals'; totals.textContent = executionAccountingLabel(graph, null); usage.panel.append(totals); }
 
   const controls = document.createElement('div'); controls.className = 'execution-controls';
-  const graphTab = tabButton(document, '拓扑图', state.mode === 'graph', () => { state.mode = 'graph'; renderChatPanel(root, currentChatModel(root), dispatch); });
-  const transcriptTab = tabButton(document, `完整记录 ${graph.transcript.length}`, state.mode === 'transcript', () => { state.mode = 'transcript'; renderChatPanel(root, currentChatModel(root), dispatch); });
+  const transcriptToggle = document.createElement('button'); transcriptToggle.type = 'button';
+  transcriptToggle.textContent = state.mode === 'graph' ? `完整记录 ${graph.transcript.length}` : '返回拓扑图';
+  transcriptToggle.addEventListener('click', () => { state.mode = state.mode === 'graph' ? 'transcript' : 'graph'; renderChatPanel(root, currentChatModel(root), dispatch); });
   const search = document.createElement('input'); search.type = 'search'; search.placeholder = '搜索步骤、工具、实体或错误'; search.setAttribute('aria-label', 'Search execution graph'); search.value = state.query;
   search.addEventListener('change', () => { state.query = search.value; state.fit = true; renderChatPanel(root, currentChatModel(root), dispatch); });
   const filter = document.createElement('select'); filter.setAttribute('aria-label', 'Filter execution graph');
   for (const [value, label] of [['all','全部'],['current','当前'],['waiting','等待'],['failed','失败'],['changes','修改'],['validation','验证'],['compaction','压缩'],['approval','审批'],['cost-unknown','成本未知']] as const) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = state.filter === value; filter.append(option); }
   filter.addEventListener('change', () => { state.filter = filter.value as ExecutionWorkspaceState['filter']; state.fit = true; renderChatPanel(root, currentChatModel(root), dispatch); });
-  controls.append(graphTab, transcriptTab, search, filter); workspace.append(controls);
+  controls.append(transcriptToggle, search, filter); workspace.append(controls);
 
   if (state.mode === 'transcript') workspace.append(renderExecutionTranscript(root, document, graph, state, dispatch));
   else workspace.append(renderExecutionGraph(root, document, graph, state, dispatch));
@@ -352,8 +445,11 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
   const count = document.createElement('span'); count.className = 'execution-node-count'; count.textContent = `显示 ${layout.visibleNodeIds.length}/${graph.nodes.length} 个步骤`; toolbar.append(count);
   const visible = new Set(layout.visibleNodeIds); const nodes = new Map(graph.nodes.map((node) => [node.id, node])); const positions = new Map(layout.nodes.map((node) => [node.id, node]));
   const viewport = document.createElement('div'); viewport.className = 'execution-graph-viewport'; viewport.tabIndex = 0; viewport.setAttribute('aria-label', `${layout.visibleNodeIds.length} visible execution nodes. Use Tab or arrow keys to navigate.`);
-  viewport.title = '按住左键或中键拖动查看；单击节点查看详情。';
-  executionPanDisposers.set(root, attachGraphPan(viewport, () => { state.fit = false; state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop; }));
+  viewport.title = '滚轮缩放；按住左键或中键拖动；悬停节点查看详情，单击固定详情。';
+  const nodeHover = chatHoverPanel(root, document, 'execution-detail-popover', '步骤详情');
+  const panDispose = attachGraphPan(viewport, () => { nodeHover.hide(); state.fit = false; state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop; });
+  const lifetime = new AbortController();
+  executionPanDisposers.set(root, () => { lifetime.abort(); panDispose(); });
   const stage = document.createElement('div'); stage.className = 'execution-graph-stage';
   const canvas = document.createElement('div'); canvas.className = 'execution-graph-canvas'; canvas.style.width = `${layout.width}px`; canvas.style.height = `${layout.height}px`;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'execution-edges'); svg.setAttribute('width', String(layout.width)); svg.setAttribute('height', String(layout.height)); svg.setAttribute('aria-hidden', 'true');
@@ -367,13 +463,21 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
   for (const position of layout.nodes) {
     const node = nodes.get(position.id)!; const button = document.createElement('button'); button.type = 'button'; button.id = executionDomId(node.id); button.className = `execution-node kind-${node.kind} status-${node.status}${graph.criticalPathNodeIds.includes(node.id) ? ' is-critical' : ''}${state.selectedNodeId === node.id ? ' is-selected' : ''}`; button.style.left = `${position.x}px`; button.style.top = `${position.y}px`; button.style.width = `${position.width}px`; button.style.height = `${position.height}px`; button.dataset.nodeId = node.id; button.dataset.layer = String(position.layer); button.dataset.order = String(position.order); button.tabIndex = state.selectedNodeId === node.id || (!state.selectedNodeId && node.id === (graph.currentNodeIds[0] ?? layout.visibleNodeIds[0])) ? 0 : -1; button.setAttribute('aria-label', `${node.title}. ${executionStatusLabel(node.status)}. ${node.summary}`);
     const kind = document.createElement('span'); kind.className = 'execution-node-kind'; kind.textContent = executionKindLabel(node.kind); const label = document.createElement('strong'); label.textContent = node.title; const summary = document.createElement('span'); summary.className = 'execution-node-summary'; summary.textContent = node.summary; button.append(kind, label, summary);
-    button.addEventListener('click', () => { state.selectedNodeId = node.id; renderChatPanel(root, currentChatModel(root), dispatch); });
+    if (node.status === 'running') {
+      const beam = document.createElement('hy-border-beam'); beam.className = 'execution-node-beam'; beam.setAttribute('aria-hidden', 'true');
+      beam.setAttribute('thickness', '1.5'); beam.setAttribute('speed', '1.35'); beam.setAttribute('count', '2'); button.append(beam);
+    }
+    nodeHover.bind(button, () => { nodeHover.panel.replaceChildren(renderExecutionNodeDetail(root, document, graph, node, state, dispatch)); });
+    button.addEventListener('click', () => {
+      state.selectedNodeId = node.id;
+      for (const item of canvas.querySelectorAll<HTMLButtonElement>('.execution-node')) { item.classList.toggle('is-selected', item === button); item.tabIndex = item === button ? 0 : -1; }
+    });
     button.addEventListener('keydown', (event) => navigateGraphNode(event, root, graph, layout.nodes, node.id, state, dispatch));
     canvas.append(button);
   }
   stage.append(canvas);
   viewport.append(stage); region.append(viewport);
-  viewport.addEventListener('scroll', () => { state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop; }, { passive: true });
+  viewport.addEventListener('scroll', () => { if (viewport.clientWidth > 0 && viewport.clientHeight > 0) { state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop; } }, { passive: true });
   // Measure after the panel is attached; scale edges, text and hit targets together.
   executionViewportUpdates.set(root, () => {
     if (!(viewport.clientWidth > 0 && viewport.clientHeight > 0)) return;
@@ -385,8 +489,19 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
     viewport.scrollLeft = state.fit ? 0 : state.scrollLeft; viewport.scrollTop = state.fit ? 0 : state.scrollTop;
     state.revealSelection = false;
   });
-  const selected = graph.nodes.find((node) => node.id === state.selectedNodeId) ?? graph.nodes.find((node) => graph.currentNodeIds.includes(node.id)) ?? graph.nodes.at(-1);
-  if (selected) region.append(renderExecutionNodeDetail(root, document, graph, selected, state, dispatch));
+  viewport.addEventListener('wheel', event => {
+    if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return;
+    event.preventDefault(); nodeHover.hide();
+    const bounds = viewport.getBoundingClientRect();
+    const x = Math.max(0, Math.min(viewport.clientWidth, event.clientX - bounds.left - viewport.clientLeft));
+    const y = Math.max(0, Math.min(viewport.clientHeight, event.clientY - bounds.top - viewport.clientTop));
+    const anchorX = (viewport.scrollLeft + x) / state.scale; const anchorY = (viewport.scrollTop + y) / state.scale;
+    const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1);
+    state.fit = false; state.scale = Math.min(1.8, Math.max(Math.min(0.01, state.scale), state.scale * Math.exp(-Math.max(-400, Math.min(400, delta)) * 0.002)));
+    state.scrollLeft = anchorX * state.scale - x; state.scrollTop = anchorY * state.scale - y;
+    executionViewportUpdates.get(root)?.(); state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop;
+  }, { passive: false, signal: lifetime.signal });
+  region.append(nodeHover.panel);
   region.append(renderAccessibleGraphList(root, document, graph, state, dispatch));
   return region;
 }
@@ -450,7 +565,6 @@ function graphFilterOptions(state: ExecutionWorkspaceState): Readonly<{ statuses
   return {};
 }
 
-function tabButton(document: Document, label: string, selected: boolean, action: () => void): HTMLButtonElement { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(selected)); button.className = selected ? 'is-selected' : ''; button.addEventListener('click', action); return button; }
 function executionDomId(id: string): string { return `execution-${id.replace(/[^a-zA-Z0-9_-]/gu, '-')}`; }
 function executionStatusLabel(value: ExecutionGraphNodeReadModel['status']): string { return ({ pending:'待处理', running:'执行中', waiting:'等待用户', completed:'已完成', failed:'失败', cancelled:'已取消', 'outcome-unknown':'结果待核验' } as const)[value]; }
 function executionKindLabel(value: ExecutionGraphNodeReadModel['kind']): string { return ({ goal:'目标', plan:'方案', turn:'回合', 'tool-batch':'工具批次', tool:'工具', transaction:'修改', approval:'审批', question:'问题', compaction:'上下文压缩', evidence:'证据', evaluation:'验证', repair:'修复', result:'结果', unknown:'未知步骤' } as const)[value]; }
@@ -523,7 +637,6 @@ function renderTaskRun(document: Document, run: ConversationTaskRunReadModel, ac
   const timelineList = document.createElement('ol');
   for (const item of visible) { const row = document.createElement('li'); row.className = `timeline-${item.status}`; const label = document.createElement('strong'); label.textContent = item.title; const detail = document.createElement('span'); detail.textContent = `${item.phase} · ${item.detail}${item.turnId ? ` · ${item.turnId}` : ''}${item.toolCallId ? ` · ${item.toolCallId}` : ''}${item.playId ? ` · ${item.playId}` : ''}${item.tick === null ? '' : ` · tick ${item.tick}`}`; row.append(label, detail); timelineList.append(row); }
   timeline.append(timelineList); panel.append(timeline);
-  if (accounting) { const budget = document.createElement('p'); budget.className = 'chat-task-inline-accounting'; budget.textContent = `Budget ${accounting.budgetStatus} · wall ${(accounting.usage.wallTimeMs / 1_000).toFixed(1)}s · cost ${accounting.cost.amountMicros === null || !accounting.cost.currency ? `unknown (${accounting.cost.explanation})` : `${(accounting.cost.amountMicros / 1_000_000).toFixed(6)} ${accounting.cost.currency}`}`; panel.append(budget); }
   return panel;
 }
 
@@ -547,13 +660,28 @@ function modelBudget(value: TaskBudgetV2 | undefined): TaskBudgetV2 {
 }
 function renderTaskCostCard(document: Document, value: NonNullable<ConversationReadModel['taskAccounting']>): HTMLElement {
   const card = document.createElement('section'); card.className = `chat-task-cost chat-task-cost-${value.budgetStatus}`; card.setAttribute('aria-label', 'Task usage and cost');
-  const title = document.createElement('strong'); title.textContent = value.cost.final ? 'Task cost · final' : 'Task cost · current estimate';
+  const title = document.createElement('strong'); title.textContent = value.cost.final ? '当前任务用量 · 最终统计' : '当前任务用量 · 执行中';
   const cost = document.createElement('p'); cost.textContent = value.cost.amountMicros === null || !value.cost.currency ? `Cost unknown — ${value.cost.explanation}` : `${value.cost.status}: ${(value.cost.amountMicros / 1_000_000).toFixed(6)} ${value.cost.currency}`;
   const usage = document.createElement('p'); usage.textContent = `Input ${value.usage.inputTokens ?? 'unknown'} · cached ${value.usage.cachedInputTokens ?? 'unknown'} · output ${value.usage.outputTokens ?? 'unknown'} · reasoning ${value.usage.reasoningTokens ?? 'unknown'} · tools ${value.usage.toolInputBytes + value.usage.toolOutputBytes} B`;
   const contextCache = value.usage.contextCache ? document.createElement('p') : null;
   if (contextCache && value.usage.contextCache) contextCache.textContent = `Context cache: local ${value.usage.contextCache.localArtifactHits} hit / ${value.usage.contextCache.localArtifactMisses} miss · delta reused ${value.usage.contextCache.deltaReuseBytes} B · provider eligible ${value.usage.contextCache.providerCacheEligibleBytes} B · provider hit ${value.usage.contextCache.providerReportedHitTokens ?? 'unknown'}`;
   const budget = document.createElement('p'); budget.textContent = `Budget: ${value.budgetStatus} (${value.budget.enforcement})${value.cost.cacheSavingMicros === null ? '' : ` · cache saved ≈ ${(value.cost.cacheSavingMicros / 1_000_000).toFixed(6)} ${value.cost.currency}`}`;
-  card.append(title, cost, usage); if (contextCache) card.append(contextCache); card.append(budget); return card;
+  card.append(title, cost, usage);
+  const limits = document.createElement('dl'); limits.className = 'execution-budget-limits';
+  // The input limit charges net-new tokens, whereas the usage total includes cache reads/writes.
+  // Keep these distinct instead of displaying a misleading total-input percentage.
+  for (const [label, text] of [
+    ['新增输入预算上限', `${value.budget.limits.inputTokens ?? '未设置'} tokens（输入总量含缓存）`],
+    ['输出预算', `${value.usage.outputTokens ?? '未知'} / ${value.budget.limits.outputTokens ?? '未设置'} tokens`],
+    ['耗时预算', `${(value.usage.wallTimeMs / 1000).toFixed(1)} / ${(value.budget.limits.wallTimeMs / 1000).toFixed(1)} 秒`],
+    ['费用预算上限', value.budget.limits.estimatedCostMicros === null ? '未设置' : `${value.budget.limits.estimatedCostMicros / 1_000_000} ${value.cost.currency ?? '币种未知'}`],
+  ]) { const term = document.createElement('dt'); term.textContent = label!; const detail = document.createElement('dd'); detail.textContent = text!; limits.append(term, detail); }
+  card.append(limits);
+  if (value.usage.outputTokens !== null && value.budget.limits.outputTokens !== null && value.budget.limits.outputTokens > 0) {
+    const meter = document.createElement('progress'); meter.max = value.budget.limits.outputTokens; meter.value = value.usage.outputTokens;
+    meter.setAttribute('aria-label', `输出预算已使用 ${Math.round(value.usage.outputTokens / value.budget.limits.outputTokens * 100)}%`); card.append(meter);
+  }
+  if (contextCache) card.append(contextCache); card.append(budget); return card;
 }
 
 function renderCard(document: Document, card: ChatCardReadModel, dispatch: (intent: ConversationIntent) => void): HTMLElement {

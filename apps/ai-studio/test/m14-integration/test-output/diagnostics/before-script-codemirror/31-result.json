@@ -1,0 +1,101 @@
+{
+  "samples": [
+    {
+      "count": 1,
+      "durationMs": 5.099999904632568
+    },
+    {
+      "count": 100,
+      "durationMs": 8.600000023841858
+    },
+    {
+      "count": 1000,
+      "durationMs": 23.699999928474426
+    },
+    {
+      "count": 10000,
+      "durationMs": 32.39999997615814
+    }
+  ],
+  "locations": [
+    {
+      "schemaVersion": 1,
+      "projectId": "project:test",
+      "documentId": "document:test",
+      "documentRevision": 1,
+      "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+      "target": {
+        "kind": "behavior-node",
+        "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+        "nodeId": "node:005a2d93701019a4ec01395cb5b795e0",
+        "source": {
+          "kind": "script",
+          "entityId": "entity:main",
+          "scriptId": "script:main",
+          "digest": "sha256:d061236f831e671e4f71eeb05bebcdacd2e3b80562b7f0865f1e0b0f47fa7a9d",
+          "path": "scripts/main.ts",
+          "range": {
+            "start": 0,
+            "end": 355,
+            "startLine": 1,
+            "startColumn": 1,
+            "endLine": 10,
+            "endColumn": 2
+          }
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "projectId": "project:test",
+      "documentId": "document:test",
+      "documentRevision": 1,
+      "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+      "target": {
+        "kind": "behavior-node",
+        "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+        "nodeId": "node:6b36f70c0fb042c22ef135a523f3d94e",
+        "source": {
+          "kind": "declarative-component",
+          "entityId": "entity:main",
+          "componentId": "component:0",
+          "componentType": "haiyue.animation.transform-clips",
+          "componentVersion": "1.0.0",
+          "field": ""
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "projectId": "project:test",
+      "documentId": "document:test",
+      "documentRevision": 1,
+      "sourceBindingDigest": "sha256:16436a173a516861363a39f96babb2cbb64754b9da750db2f9cbac3933af52d3",
+      "target": {
+        "kind": "behavior-node",
+        "manifestDigest": "sha256:d9d6020a4bab9ca648d536084a00f7a38cf89f7a2364e8653aed7ad34ded765c",
+        "nodeId": "node:fc73dfbb2194acde364d25f1402555d2",
+        "source": {
+          "kind": "runtime-adapter",
+          "entityId": "entity:main",
+          "componentId": "component:0",
+          "adapter": {
+            "id": "adapter.animation.3d-mixer",
+            "version": "1.0.0",
+            "digest": "sha256:3923ffa379151f24c06182706ffdb55ab1fb63168e2b729d509cba322a83cc0d"
+          },
+          "field": "/runtimeAdapter"
+        }
+      }
+    }
+  ],
+  "desktop": true,
+  "narrow": [
+    900,
+    375
+  ],
+  "keyboard": true,
+  "reload": true,
+  "rollback": true,
+  "teardown": true
+}

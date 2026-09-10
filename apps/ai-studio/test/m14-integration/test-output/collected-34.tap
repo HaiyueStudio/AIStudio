@@ -1,16 +1,22 @@
 TAP version 13
-# Subtest: advanced adapter owns presentation only and consumes frozen M12/SDK types through declared exports
-ok 1 - advanced adapter owns presentation only and consumes frozen M12/SDK types through declared exports
+# Subtest: Canvas recipe schema and runtime agree on bounded drawing data including Chinese text
+ok 1 - Canvas recipe schema and runtime agree on bounded drawing data including Chinese text
   ---
-  duration_ms: 6.2602
+  duration_ms: 6.8517
   type: 'test'
   ...
-1..1
-# tests 1
+# Subtest: Canvas rejects unknown versions, credential fields, executable content, external images and oversized input
+ok 2 - Canvas rejects unknown versions, credential fields, executable content, external images and oversized input
+  ---
+  duration_ms: 2.122
+  type: 'test'
+  ...
+1..2
+# tests 2
 # suites 0
-# pass 1
+# pass 2
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 196.2832
+# duration_ms 2431.3306

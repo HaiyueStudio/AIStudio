@@ -14,6 +14,29 @@ import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 const backendId = 'backend:g09-context';
 const sessionId = 'session:g09-context';
 
+test('late durable snapshot responses cannot replace a newer pending or displayed execution graph', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-graph-order-'));
+  const log = await OperationLog.open({ rootDirectory: root, appVersion: 'graph-order' });
+  const sessions = new DurableSessionRuntime(log);
+  const host = new StudioConversationHost({ runtime: { sessions }, tools: { definitions: () => [] }, operationLog: log, isProjectOpen: () => false });
+  try {
+    const handle = await sessions.create({ id: 'session:ordered', activeGoal: 'Graph ordering', projectId: null, documentId: null, taskBudgetId: null });
+    await handle.append({ kind: 'turn.started', turnId: 'turn:ordered', payload: { taskId: 'task:ordered' } });
+    const early = await handle.snapshot();
+    const full = await handle.append({ kind: 'question.requested', turnId: 'turn:ordered', payload: { questionId: 'question:ordered', barrierKind: 'plan-review' } });
+    // Inject the completion order of overlapping durable reads, using genuine runtime snapshots.
+    host.captureGraphSnapshot(full); host.captureGraphSnapshot(early);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    const expected = host.replay().executionGraphs[0];
+    assert.equal(expected.nodes.length, 3);
+    host.captureGraphSnapshot(early, true);
+    assert.equal(host.replay().executionGraphs[0].digest, expected.digest);
+    const next = await handle.append({ kind: 'question.resolved', turnId: 'turn:ordered', payload: { questionId: 'question:ordered', resolution: 'answered' } });
+    host.captureGraphSnapshot(next, true);
+    assert.ok(host.replay().executionGraphs[0].throughSequence > expected.throughSequence);
+  } finally { await host.dispose(); await sessions.dispose(); await log.close(); }
+});
+
 test('manual context compaction is durable and replayed into the execution graph without deleting Transcript', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g09-context-'));
   const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g09-test', flushPolicy: 'always' });

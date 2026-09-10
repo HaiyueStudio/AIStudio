@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "scope": "plan-review-visibility",
+  "verifiedAt": "2026-09-10T01:15:53.128Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 618,
+    "sourceDigest": "sha256:17e0e8a3044d9a573ffcf3201635526ad822a44173036de606331961a5f0ba94",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:5b9177aa0705950bedaea464d3278c8ca521d06bf2bb053ecdc6c1889136bb17"
+  },
+  "cause": "Conditional graph, task and cost panels occupied a fixed five-row chat grid, pushing the plan card outside the clipped panel.",
+  "behavior": "Actionable plan/question/approval cards have a bounded area above the scrollable workspace. Composer and approval controls remain visible; completed and expired approvals stay in history.",
+  "checks": {
+    "focusedExitCode": 0,
+    "capabilityExitCode": 0,
+    "rootExitCode": 0,
+    "finishedAt": "2026-09-10T01:15:19.9328206Z",
+    "focusedCases": 41,
+    "capabilityCases": 123,
+    "integrationFiles": 45,
+    "integrationCases": 210
+  },
+  "browser": {
+    "status": "passed",
+    "sizes": [
+      [
+        360,
+        720
+      ],
+      [
+        320,
+        600
+      ],
+      [
+        720,
+        900
+      ]
+    ],
+    "approveOnce": true,
+    "revisionFeedback": true,
+    "conditionalPanels": true,
+    "completedPlanReadonly": true,
+    "otherBarriersVisible": true
+  },
+  "scopeNotes": [
+    "Uses actual Electron hit testing and mouse input with isolated fixture data.",
+    "No approval decision was made for the user project; no live provider task was started.",
+    "Existing approval policy and G09 milestone status were not changed."
+  ],
+  "sources": [
+    {
+      "path": "packages/studio-shell/src/panels/chat/index.ts",
+      "sha256": "sha256:140ca309a26c6200b2358f2efdfd44f46ea4efca7c637113fcdd50c12daf067d",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/styles.css",
+      "sha256": "sha256:86f2c82b1fb667c74817cb7984b5afa29ce31b738f2e4b1a748d94496e02c332",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/test/conversation.test.mjs",
+      "sha256": "sha256:ad608988c04bc4a5fdd42a09fb948bdd2c6b8cf87a0dcb784e63efcf16809024",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/plan-review-electron.test.mjs",
+      "sha256": "sha256:26684430efd0c5d466b9b3c6a436e97282a3f542464da2251a6ea3fd0c506eb7",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/plan-review-browser.mjs",
+      "sha256": "sha256:be6ff05b2725203bfcd5c990c886d9646fb149882176af6cd9eefd51135aafbc",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/plan-review-main.mjs",
+      "sha256": "sha256:ca0a239ac088c1cbef173b54e33ad4670b7ef75274a34894b07da5a5402b0df4",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "scripts/m14-integration-tests.json",
+      "sha256": "sha256:1fb0d30467b770efd19d46204024d4fc50b1ef3ceb02490aa8c3cb1950c04d3e",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/checks.json",
+      "sha256": "sha256:1be523ad1b696533f008fd0d0425ca16e08f13814e7971a9813652bcc17aa131",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/focused-check.log",
+      "sha256": "sha256:b0de540ec1ed7b846292198a03d6c158dccbf172a8f4aea787875aaf06cf64a6",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/root-check.log",
+      "sha256": "sha256:3fc759eebccbdec17c836cae1158e746e828c8675f4889cd1b39ffa24dccdd9f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/plan-review-visibility/capability-capture.log",
+      "sha256": "sha256:031b272d1552911b532964b718ea12348a92fde01d10d1b1ff8a6367cf3a88ea",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:e7ce50244159cbb797207946bb4a56a4c5d74f387cb891cef07ccb754349061d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-15.tap",
+      "sha256": "sha256:49e008b0aee83c2c576185d99b082d27f11aeb6be887a127f91c90bc8ddd0326",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/result.json",
+      "sha256": "sha256:e5fa78c89fa3527fa781855ad09819092a32b68312aa69b977a0e40a3681cde1",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/plan-360x720.png",
+      "sha256": "sha256:18feaf81ee1132307eb64402f453ecb9458072bbe1bdaf6260289e493ec1d744",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/plan-320x600.png",
+      "sha256": "sha256:d7279d6e417953ce38ccd7a0f0303f697281978273637235f7237342c25d4814",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/plan-review-visibility/plan-720x900.png",
+      "sha256": "sha256:078d4b87b51abb9a49440bdc2c8fc31e4e1dd42ea9c399ec2ffa079acb8c71e2",
+      "kind": "verification",
+      "locator": ""
+    }
+  ]
+}

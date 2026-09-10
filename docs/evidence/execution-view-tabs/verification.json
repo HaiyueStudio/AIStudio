@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "scope": "execution-view-tabs",
+  "verifiedAt": "2026-09-10T05:08:08.392Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 622,
+    "sourceDigest": "sha256:f01498c63d58e8bd8accad7f98ffc2796688bfc284f7134f5c9d2b04d9f9a79d",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:ec7ef750e6208435a069b09777a1761888585912fe3f5833aba89998ce1aae2d"
+  },
+  "cause": "Topology and the conversation step feed were mounted as vertically stacked regions in one workspace.",
+  "behavior": "Public hy-tabs offers mutually exclusive topology and execution-steps views. The graph fills available height; the transcript remains a graph detail action. View choice, graph pan/zoom/selection, feed position and composer draft/focus survive updates. Pending approvals remain in a shared visible area; notification navigation reveals the target view.",
+  "checks": {
+    "focusedExitCode": 0,
+    "capabilityExitCode": 0,
+    "rootExitCode": 0,
+    "productRecheckExitCode": 0,
+    "finishedAt": "2026-09-10T05:07:33.5306869Z",
+    "focusedCases": 34,
+    "productRecheckCases": 1,
+    "capabilityCases": 123,
+    "integrationFiles": 46,
+    "integrationCases": 215
+  },
+  "browser": {
+    "status": "passed",
+    "presentationTabs": {
+      "libraryComponent": true,
+      "mutuallyExclusive": true,
+      "keyboard": true,
+      "preservesDraftAndSelection": true,
+      "preservesFeedAndGraphPosition": true,
+      "preservesChoiceOnReplay": true,
+      "notificationTarget": true
+    },
+    "wheelCursorAnchor": {
+      "prevented": true,
+      "old": 1.44496,
+      "next": 1.8,
+      "same": true,
+      "error": 0.23837645640325889
+    },
+    "nativeWheel": true,
+    "hoverAndKeyboard": true,
+    "pinAndEscape": true,
+    "runningBeamOnly": true,
+    "narrowBounds": true,
+    "unknownUsage": true,
+    "compactionOnce": true,
+    "cleanup": true,
+    "replayPreservesHover": true,
+    "taskContinuity": {
+      "before": 5,
+      "afterHandoff": 6,
+      "afterExecution": 9,
+      "selectionAndZoomPreserved": true,
+      "separateRequests": true,
+      "historySelection": true
+    },
+    "sizes": [
+      [
+        760,
+        880
+      ],
+      [
+        320,
+        600
+      ]
+    ],
+    "screenshots": [
+      "usage.png",
+      "node-detail.png",
+      "steps-view.png",
+      "graph-760x880.png",
+      "graph-320x600.png",
+      "task-chain.png"
+    ]
+  },
+  "approval": {
+    "status": "passed",
+    "sizes": [
+      [
+        360,
+        720
+      ],
+      [
+        320,
+        600
+      ],
+      [
+        720,
+        900
+      ]
+    ],
+    "approveOnce": true,
+    "revisionFeedback": true,
+    "conditionalPanels": true,
+    "completedPlanReadonly": true,
+    "otherBarriersVisible": true
+  },
+  "initialFocusedRun": {
+    "passed": 33,
+    "failed": 1,
+    "reason": "The old G09 test page had no bounded parent height and relied on the graph fixed minimum height. The fixture now provides viewport height like the product. All original fit, scroll and location assertions pass with the fluid graph layout."
+  },
+  "initialCapabilityRun": {
+    "passed": 122,
+    "failed": 1,
+    "reason": "The product smoke assertion still required exactly three HYTabs instances. The new execution-view tabs bring the actual count to four. The exact assertion was updated to four, the product flow was rerun successfully, and capability capture was then rerun against the updated source binding."
+  },
+  "scopeNotes": [
+    "Uses actual Electron input with isolated fixture data; Tab labels, keyboard switching and mutually exclusive visibility are asserted.",
+    "Approval buttons remain hittable in both views at 320x600, 360x720 and 720x900.",
+    "No live provider task was started, no user approval decision was made, and the running editor was not restarted.",
+    "G09 milestone status and existing approval policy remain unchanged."
+  ],
+  "sources": [
+    {
+      "path": "packages/studio-shell/src/panels/chat/index.ts",
+      "sha256": "sha256:efa20ae793ba0d351e73a88f62f3032e4275b22e35319059f5824b6e0ea9a312",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/styles.css",
+      "sha256": "sha256:42125e2cf00ac25a8a0d9fe6d728b6ecae1162f73114e9349471e96b9a20ead2",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/main.ts",
+      "sha256": "sha256:1c71bda32509e0d5b59845584a7e40cd9ca155a7f42a241736dff74ffc240163",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/graph-ui-browser.mjs",
+      "sha256": "sha256:2b9dc3d10c46f8f98ef71658ffbb5df39be38ffbe80c62c0a15c5e555a97804b",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/graph-ui-main.mjs",
+      "sha256": "sha256:3be032a3c7d15fe0f733fd63b777a45f112d7fae1593ab3d70ad75e910a05477",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/plan-review-browser.mjs",
+      "sha256": "sha256:9172989c1e5bd11e1d850abad485e3cd92903ba5906a635124128a8cd15e046e",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/plan-review-main.mjs",
+      "sha256": "sha256:7cc429ed013b91863d05748b854fe2e0c8351b17baf91fa19d6bfba3e7169b3b",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/fixtures/notification-ui-browser.mjs",
+      "sha256": "sha256:a2449dadd9d3d78bd07508b8df04473de53a8f3f11deaa305426cd1f67659c31",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/execution-graph-electron.test.mjs",
+      "sha256": "sha256:02b210452dd59c6cdee9b0ea3138b04f0bd3256f508e6a343e979680f7c5b1cb",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/input.json",
+      "sha256": "sha256:96f2a5a481174998f6040dcf2909ad6f9edeb69ab1e2990954ceb80bf2c23e8f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/input-initial.json",
+      "sha256": "sha256:c7f0c676a7ffa79b90de1ca793a83f94f331edc5d33b6beba3d7843aee127729",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/checks.json",
+      "sha256": "sha256:1e7a3c3eb50475ead2e66250a0a9f87aaf75fac5bf693ffc6388e1c8ec6d152e",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/focused-check-initial.log",
+      "sha256": "sha256:868d0ae49b15976fdbf20441f4d6baefe7812d96791076e72fd95b05d84de57c",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/focused-check.log",
+      "sha256": "sha256:4357f89164a19fcce0f4d6798aad1d07da276e4b5b07493f6f2e2401e69c80a4",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/product-recheck.log",
+      "sha256": "sha256:7f9e11406c89c4ced8a1a9f5198d9eb939a0f55fed79a4336c3ac4a65f86ec8b",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/root-check.log",
+      "sha256": "sha256:bd2f683b5a758ad7160d5ec43402a5f5701374a16cbcd9225c7c3829caffd8a8",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/capability-capture-initial.log",
+      "sha256": "sha256:31d7438a119daf7f3346049a3ae08a6ff96d67e25c1ec9b676e0eb587679eb9f",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/execution-view-tabs/capability-capture.log",
+      "sha256": "sha256:8e13fad7003a231c5750a50c206e861e0b81a2a41afa06cbbd10e671ec62ec43",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:3360029918d410984f766fb133b079102c95917e60d6a2d7e21b281ddb7176b6",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:05329936663480a298a56a6484177581b201f23c747f8581cca5278893a386e6",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-07.tap",
+      "sha256": "sha256:dda93bea6e36493e97b074c8cd0c977081ce355c9381188d61fcc17aa7919178",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-16.tap",
+      "sha256": "sha256:cd82bdd7c864fb80ead17ae02dd4fa9067e6a28e7a1e8306a3e3649445e1e190",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/result.json",
+      "sha256": "sha256:610fae29d6c4dd91e56cba4d67b7251d44da02a66a662b498c9f56b3e63c4e48",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/usage.png",
+      "sha256": "sha256:5a7ba210dbd6fe0e2d8ac659694f6824c366b24b98d4e22b91df01c6a4cc6fd2",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/node-detail.png",
+      "sha256": "sha256:ec1553ed040a7970ac579838f15d1e4a06f2c66dd75284495dc4249b3d614490",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/steps-view.png",
+      "sha256": "sha256:f45cad8c9c11a1475e2ec6116f30800ae34512cfec2250173292b3522eaa6e1d",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/graph-760x880.png",
+      "sha256": "sha256:35f86be40fa964911c68ad7556fdba64ef88689f0835105a570b8d31c3fc5712",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/graph-320x600.png",
+      "sha256": "sha256:1f8cad098b1a5711510995850536a022d9279289759bc8da623b861043d110da",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/task-chain.png",
+      "sha256": "sha256:07117bcbaa8c7e8298e50b091464a86c132ee6c7d7b5e7c046be4c958dacf712",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/plan-steps-360x720.png",
+      "sha256": "sha256:c87a0c082eee3f44de977ddd825740436aaa6464222bc0edff62ceffc00acf08",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/plan-steps-320x600.png",
+      "sha256": "sha256:ac38b69abc150362a7a2b4bc8ae11e2302318464c698fcfde1b523d2382a30c5",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/plan-steps-720x900.png",
+      "sha256": "sha256:09f7036d046c0c39287eb022d6d6f0667490b624202966f2fc02e43dd42767e8",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/execution-view-tabs/approval-result.json",
+      "sha256": "sha256:e5fa78c89fa3527fa781855ad09819092a32b68312aa69b977a0e40a3681cde1",
+      "kind": "verification",
+      "locator": ""
+    }
+  ]
+}

@@ -836,7 +836,13 @@ export class StudioConversationHost {
   }
 
   private captureGraphSnapshot(snapshot: SessionReplaySnapshotV1, immediate = false): void {
-    this.pendingGraphSnapshots.set(snapshot.session.id as StableId, snapshot);
+    if (this.disposed) return;
+    const id = snapshot.session.id as StableId;
+    const sequence = snapshot.ops.at(-1)?.sequence ?? -1;
+    const pendingSequence = this.pendingGraphSnapshots.get(id)?.ops.at(-1)?.sequence ?? -1;
+    const displayedSequence = this.executionGraphs.get(id)?.throughSequence ?? -1;
+    if (sequence < Math.max(pendingSequence, displayedSequence)) return;
+    this.pendingGraphSnapshots.set(id, snapshot);
     if (immediate) { this.flushGraphProjections(); return; }
     if (this.graphProjectionTimer) return;
     this.graphProjectionTimer = setTimeout(() => { this.graphProjectionTimer = null; this.flushGraphProjections(); }, 16);

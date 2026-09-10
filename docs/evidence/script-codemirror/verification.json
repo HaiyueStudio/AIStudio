@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "scope": "script-codemirror",
+  "verifiedAt": "2026-09-10T07:50:29.189Z",
+  "inputBinding": {
+    "algorithm": "sha256",
+    "fileCount": 625,
+    "sourceDigest": "sha256:678008877a85e29d40615d08b6d00b12e4911cf0e549b691198d1f0df8bd90e4",
+    "packageDigest": "sha256:614ad37e94915dda8570f19851e160b7ff335da9f45dd94cd74cc168a9319ad4",
+    "digest": "sha256:c5b7903fddf1577bd56460825b94b7679d281a1cd46594169650baee56886b89"
+  },
+  "behavior": "The script Drawer mounts CodeMirror 6 with TypeScript highlighting, line numbers, folding, history and accessible focus navigation. Formatting uses locally bundled Prettier, via a button or Shift+Alt+F, and never commits or executes scripts. Formatting is one undoable change; edits invalidate old validation results. Source/revision changes and disposal discard late formatting or validation. Stored CRLF source offsets map correctly to the normalized editor. Existing script capabilities are preserved during manual validation. Ordinary refresh and Drawer reopening retain the draft.",
+  "checks": {
+    "rootExitCode": 0,
+    "finishedAt": "2026-09-10T07:50:13.5930629Z",
+    "capabilityExitCode": 0,
+    "focusedExitCode": 0,
+    "focusedCases": 2,
+    "capabilityCases": 123,
+    "integrationFiles": 46,
+    "integrationCases": 215
+  },
+  "initialFocusedRun": {
+    "passed": 1,
+    "failed": 1,
+    "reason": "The old smoke assertion was initially translated to CodeMirror.hasFocus, which additionally requires a foreground OS window. The hidden smoke window intentionally has no OS focus. The final check asserts the actual contenteditable DOM focus target and exact range, retaining the original assertion semantics. No production focus workaround or test timeout relaxation was introduced."
+  },
+  "browser": {
+    "highlighting": true,
+    "formatting": true,
+    "undo": true,
+    "staleFormat": true,
+    "sourceSwitch": true,
+    "readOnly": true,
+    "largeSource": true,
+    "draftPreservation": true,
+    "dispose": true
+  },
+  "sources": [
+    {
+      "path": "package-lock.json",
+      "sha256": "sha256:e964026d4a49edc4024a5686be0dab5c866fa99528c8a269991befcfa2ffd327",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/package.json",
+      "sha256": "sha256:20bd1ed4c791f1f7b5e18e7ad568cfc367b9c1d94f1b816823471e02856d63bf",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/src/script-editor.ts",
+      "sha256": "sha256:8c6bb1e6ab1d2deca7aa32876ece07bb6a5a1b500863397413a8d5a3d53779ad",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "packages/studio-shell/src/script-format.ts",
+      "sha256": "sha256:f6e20222af44458d079d7730fd1d18efb1f7b83bb04fdce11b1078defbe2f507",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/src/renderer.ts",
+      "sha256": "sha256:19c20599d12018bd3d7f20fc17d099c66ae32e9e770553d63ce8f59e9222df76",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/index.html",
+      "sha256": "sha256:f00d51f658cf1fdb5e71c490cc19aafaaaf32dfe39e810dac5313155a143e749",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/renderer/styles.css",
+      "sha256": "sha256:5cb61d9a12af9a10c11037bdabd1c0a8b73b5abc349877551bacf6da16672c2c",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/script-editor-checks.mjs",
+      "sha256": "sha256:8ebb35d32a91b9745efd093ac6c7248c568b173468dd9643bfb1ec67efb83bcc",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/workspace-browser.mjs",
+      "sha256": "sha256:ba5c8077cb476ebd220dfecea860a915492f1e4e22f6c5a6e308ceb3c84a8907",
+      "kind": "source",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/layout/workspace-main.mjs",
+      "sha256": "sha256:e6976f3c691a2f84027ea0c71731c56a750ba207fcddfefba3eaf9b4efd03640",
+      "kind": "source",
+      "locator": ""
+    }
+  ],
+  "evidence": [
+    {
+      "path": "apps/ai-studio/test/test-output/script-codemirror/input.json",
+      "sha256": "sha256:356e107b63a58fa81537ee5d6720142127394ae0ca254c2a90b8e248982b3346",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/script-codemirror/checks.json",
+      "sha256": "sha256:1758d2ade46e91494c05104ec42080e1f9580bdc458e0c6ff9e75678a23bcd1a",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/script-codemirror/focused-check-initial.log",
+      "sha256": "sha256:f6fb8de245fa17507de686745d82bbc0666e5eb270c7153ff0c83ace7607fb57",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/script-codemirror/focus-recheck.log",
+      "sha256": "sha256:89fa342b69a450df9111361f87fbb96496b9990290ef356945d3d6d4122fefc1",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/script-codemirror/focused-check.log",
+      "sha256": "sha256:cef87df15adecc63f33cc21518733ddd4beb4a04f09c113ab5f3da1055d85a28",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/script-codemirror/root-check.log",
+      "sha256": "sha256:6589081fbf099b229d3f40a597bf42c22de952b4263e4ad7c11d9e3800a52665",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/test-output/script-codemirror/capability-capture.log",
+      "sha256": "sha256:a4e3e0cb571683a79bda216274d51716210fdea8908724b52b4e85d33705c617",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "sha256": "sha256:118b04ab9f4c8d0628db0b01b66e6736b2db6d99f10ef1e2e28cce3e9268fb91",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "config/contracts/m14-capability-verification.json",
+      "sha256": "sha256:663a47fb2b220dd71b5a65f9a74a25dcf65855a3edb5baaae948af7f37c29a6c",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/script-codemirror/result.json",
+      "sha256": "sha256:3efb7886a8cb1e1532af11131659e29fc6fc95251d5d3ef9fefeddc1e8500b06",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/script-codemirror/workspace-script.png",
+      "sha256": "sha256:c8a3a2631ddc69dd2ca5066ca8cfd3cfb44bbe9331df70ffdfe6db4ef7fd507e",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/script-codemirror/workspace-drawer-900.png",
+      "sha256": "sha256:4b55d755f45da4ebfe47d7aa665a7c36c4d98205fcc046e7ee72805f2b71612c",
+      "kind": "verification",
+      "locator": ""
+    },
+    {
+      "path": "docs/evidence/script-codemirror/workspace-drawer-375.png",
+      "sha256": "sha256:c37c1455b263d91d86177f5bb5748b58900ef8a5d3fe3b2d9e5eb356766db76a",
+      "kind": "verification",
+      "locator": ""
+    }
+  ],
+  "limitations": [
+    "No real provider request, user project mutation or milestone status change.",
+    "Formatting changes the local draft and still requires validation and explicit commit."
+  ]
+}

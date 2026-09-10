@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "archivedAt": "2026-09-10T04:33:48.618Z",
+  "priorInputDigest": "sha256:35e8acecce8d97e6cf9dfdf587b642f3905bc739df367422de0185355bb017e7",
+  "reason": "Retain previous task-chain verification before capturing the mutually exclusive execution views.",
+  "entries": [
+    {
+      "original": "docs/evidence/task-graph-continuity/verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/01-verification.json",
+      "sha256": "sha256:e5d9b27b1c66ba848b763a60cb3abb691f2e7d536a572a828727d1000e394364"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/task-graph-continuity/input.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/02-input.json",
+      "sha256": "sha256:24f58301fa652f702286cd9fb8b42f515b4573257b85370af7df443d28b935e5"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/task-graph-continuity/checks.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/03-checks.json",
+      "sha256": "sha256:b37d6301dd472790583a08f6d33b27ae791fb51c911176ca63d3a511c09625df"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/task-graph-continuity/focused-check-initial.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/04-focused-check-initial.log",
+      "sha256": "sha256:1ec5b692c0aaad9174b93d8b5dd3ccb1df8ed5e4ffeba0fc93f4306e269c6b55"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/task-graph-continuity/focused-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/05-focused-check.log",
+      "sha256": "sha256:a2b9168a97a9dac8f4e55faf693786b88d872bdab7a09dc320b9a00070164b6f"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/task-graph-continuity/root-check.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/06-root-check.log",
+      "sha256": "sha256:77f056e9c66e7b90ddd662a95d0acf055fab8ab3971728887a6bf1a1002ea93f"
+    },
+    {
+      "original": "apps/ai-studio/test/test-output/task-graph-continuity/capability-capture.log",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/07-capability-capture.log",
+      "sha256": "sha256:380a7e80a6772392291c501c65e98dca4f160b30c79a5141c00b4990db45413a"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-tests.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/08-collected-tests.json",
+      "sha256": "sha256:2cab911682e29717fb70058948f9c5528afa6062821d697c0585f6428f727930"
+    },
+    {
+      "original": "config/contracts/m14-capability-verification.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/09-m14-capability-verification.json",
+      "sha256": "sha256:ebb7f80f96947bdac0601ef1bde13d98def587f612b730a1a8189292392579e7"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-03.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/10-collected-03.tap",
+      "sha256": "sha256:f4964c1d12866fef0105840fde014bd6ff825fd8dc830892a47b891d9290d320"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-04.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/11-collected-04.tap",
+      "sha256": "sha256:17dd166af0069a040629784f7ff83840e54d9a70e68abf729044bb1ed463ef29"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-07.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/12-collected-07.tap",
+      "sha256": "sha256:eae2e94b369e455a60926667d4930d399a3ec1da384d985780b4af9f513af34d"
+    },
+    {
+      "original": "apps/ai-studio/test/m14-integration/test-output/collected-43.tap",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/13-collected-43.tap",
+      "sha256": "sha256:edae9c7097cefde87e0bae8703e7225630b2550329a88252adfa60e24608224e"
+    },
+    {
+      "original": "docs/evidence/task-graph-continuity/result.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/14-result.json",
+      "sha256": "sha256:c1295ab040be5fadaa91229b62c7020da94f9ec325bb021479040143284c8da1"
+    },
+    {
+      "original": "docs/evidence/task-graph-continuity/usage.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/15-usage.png",
+      "sha256": "sha256:799014d37e5ca683da2823808d58da5c37935570adbd9c125ccb768de5027136"
+    },
+    {
+      "original": "docs/evidence/task-graph-continuity/node-detail.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/16-node-detail.png",
+      "sha256": "sha256:cbf126421c1152051ffefa46695e998a940150ef78b92411ba2a9d2a5d1f979c"
+    },
+    {
+      "original": "docs/evidence/task-graph-continuity/graph-760x880.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/17-graph-760x880.png",
+      "sha256": "sha256:9bcb4515e8a98d85163b3bd00c2a457c023db976bd525b420ccccd9d0b694857"
+    },
+    {
+      "original": "docs/evidence/task-graph-continuity/graph-320x600.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/18-graph-320x600.png",
+      "sha256": "sha256:c87ea3daea5d8fdc2df719db137a1c2926754eaae50507e8c3c9c3b983a49b1b"
+    },
+    {
+      "original": "docs/evidence/task-graph-continuity/task-chain.png",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/19-task-chain.png",
+      "sha256": "sha256:82da5aa95c0a4caa1bb893916245d404fb2bc10e85924b9ff2b7a7d99090004d"
+    },
+    {
+      "original": "config/contracts/m14-capability-census.json",
+      "archived": "apps/ai-studio/test/m14-integration/test-output/diagnostics/before-execution-view-tabs/20-m14-capability-census.json",
+      "sha256": "sha256:4b3eaf870715900af7c3f697fc3e76db257a2984c332466e2f6ecae9edd15039"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "status": "passed",
+  "presentationTabs": {
+    "libraryComponent": true,
+    "mutuallyExclusive": true,
+    "keyboard": true,
+    "preservesDraftAndSelection": true,
+    "preservesFeedAndGraphPosition": true,
+    "preservesChoiceOnReplay": true,
+    "notificationTarget": true
+  },
+  "wheelCursorAnchor": {
+    "prevented": true,
+    "old": 1.44496,
+    "next": 1.8,
+    "same": true,
+    "error": 0.23837645640325889
+  },
+  "nativeWheel": true,
+  "hoverAndKeyboard": true,
+  "pinAndEscape": true,
+  "runningBeamOnly": true,
+  "narrowBounds": true,
+  "unknownUsage": true,
+  "compactionOnce": true,
+  "cleanup": true,
+  "replayPreservesHover": true,
+  "taskContinuity": {
+    "before": 5,
+    "afterHandoff": 6,
+    "afterExecution": 9,
+    "selectionAndZoomPreserved": true,
+    "separateRequests": true,
+    "historySelection": true
+  },
+  "sizes": [
+    [
+      760,
+      880
+    ],
+    [
+      320,
+      600
+    ]
+  ],
+  "screenshots": [
+    "usage.png",
+    "node-detail.png",
+    "steps-view.png",
+    "graph-760x880.png",
+    "graph-320x600.png",
+    "task-chain.png"
+  ]
+}
