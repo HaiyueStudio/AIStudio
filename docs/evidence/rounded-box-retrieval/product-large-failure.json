@@ -1,0 +1,6 @@
+{
+  "phase": "large",
+  "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    arch: 'x64',\n+   cpu: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz',\n+   logicalCpus: 12,\n+   platform: 'darwin',\n+   release: '25.6.0'\n-   cpu: 'Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz',\n-   logicalCpus: 8,\n-   platform: 'win32',\n-   release: '10.0.19045'\n  }\n",
+  "checks": [],
+  "approvals": []
+}

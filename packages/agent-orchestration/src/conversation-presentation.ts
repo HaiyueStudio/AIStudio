@@ -70,7 +70,7 @@ export function toolArgumentSummary(toolId: StableId, args: JsonObject): string 
   if (toolId === PLAN_TOOL_ID) return `准备提交“${typeof raw.title === 'string' ? raw.title : '总体实现方案'}”供用户确认。`;
   if (toolId === 'entity.create') {
     const kind = String(raw.kind ?? 'entity');
-    const category = ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind) ? `几何体 ${kind}` : kind.endsWith('-light') ? `光源 ${kind}` : '逻辑节点';
+    const category = ['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind) ? `几何体 ${kind}` : kind.endsWith('-light') ? `光源 ${kind}` : '逻辑节点';
     return `准备创建${category}${typeof raw.name === 'string' ? `“${raw.name}”` : ''}。`;
   }
   if (toolId === 'transform.set') return '准备更新物体的位置、旋转和缩放。';

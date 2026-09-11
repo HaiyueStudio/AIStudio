@@ -1,3 +1,4 @@
+import { ROUNDED_BOX_PROPERTIES, roundedBoxParameters } from '../render/rounded-box.js';
 import {
   asStableId,
   createStudioServiceToken,
@@ -71,6 +72,9 @@ export class ComponentRegistry {
     const definition = this.get(type, version);
     const value = validateValueAgainstSchema(definition.valueSchema, instance.value, '$value');
     if (type === 'haiyue.render.geometry' && value.plane !== undefined && value.kind !== 'plane') throw new ComponentRegistryError('component.value-invalid', 'plane is valid only for plane geometry.');
+    if (type === 'haiyue.render.geometry') {
+      try { roundedBoxParameters(value.kind, value); } catch (cause) { throw new ComponentRegistryError('component.value-invalid', (cause as Error).message); }
+    }
     if (Buffer.byteLength(canonicalStringify(value)) > definition.validation.maxSerializedBytes) throw new ComponentRegistryError('component.value-oversized', `Component ${id} exceeds ${definition.validation.maxSerializedBytes} bytes.`);
     return deepFreeze({ id, type, version, enabled: instance.enabled, value }) as GameComponentInstanceV2;
   }
@@ -118,7 +122,7 @@ export const BUILTIN_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = O
     objectSchema({ position: vec3Schema(), rotationDegrees: vec3Schema(), scale: vec3Schema(0.000001) }, ['position', 'rotationDegrees', 'scale']),
     { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }),
   definition('haiyue.render.geometry', 'document.v2', 'gpu-owner', 'medium', 'Geometry', 'Rendering', 'inspector.geometry', 'adapter.render.geometry',
-    objectSchema({ kind: { enum: ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] }, plane: { enum: ['xy', 'xz', 'yz'], description: 'For plane geometry: xy faces +Z (default), xz faces +Y (horizontal), yz faces +X. Transform rotation is applied afterwards.' } }, ['kind']), { kind: 'cube' }),
+    objectSchema({ ...ROUNDED_BOX_PROPERTIES, kind: { enum: ['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] }, plane: { enum: ['xy', 'xz', 'yz'], description: 'For plane geometry: xy faces +Z (default), xz faces +Y (horizontal), yz faces +X. Transform rotation is applied afterwards.' } }, ['kind']), { kind: 'cube' }),
   definition('haiyue.render.material', 'material.pbr', 'gpu-owner', 'medium', 'Material', 'Rendering', 'inspector.material', 'adapter.render.material',
     objectSchema({ material: { enum: ['basic', 'pbr', 'blinn-phong', 'normal'] }, color: numberArraySchema(4, 0, 1) }, ['material', 'color']),
     { material: 'basic', color: [0.16, 0.58, 1, 1] }),

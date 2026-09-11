@@ -32,9 +32,9 @@ const resourceLayout = async () => {
   await settle();
   const value = await evaluate(`(() => {
     const panel = document.querySelector('.resource-explorer'), bounds = panel.getBoundingClientRect();
-    const controls = [...panel.querySelectorAll('.resource-filters input, .resource-filters select, .resource-filters button')].map(el => el.getBoundingClientRect());
+    const controls = [...panel.querySelectorAll('.resource-searchbar input, .resource-searchbar button, .resource-filters input, .resource-filters select')].filter(el => el.checkVisibility()).map(el => el.getBoundingClientRect());
     return { viewportWidth: innerWidth, panelWidth: panel.clientWidth, scrollWidth: panel.scrollWidth,
-      controlsVisible: controls.every(r => r.width > 0 && r.left >= bounds.left - 1 && r.right <= bounds.right + 1) };
+      controlsVisible: controls.length > 0 && controls.every(r => r.width > 0 && r.left >= bounds.left - 1 && r.right <= bounds.right + 1) };
   })()`);
   assert.ok(value.panelWidth > 0 && value.scrollWidth <= value.panelWidth + 1, `Resource panel overflows its container: ${JSON.stringify(value)}`);
   assert.equal(value.controlsVisible, true, 'Resource filter controls must remain inside the panel.');
@@ -126,6 +126,7 @@ async function run() {
   // that refresh has finished; opening a dialog during rebinding cancels it.
   await waitFor(() => evaluate('!document.querySelector("#save-project").disabled && document.querySelector("#status").textContent === "项目已保存"'), 'save UI settled');
   await selectWorkspaceTab('resources');
+  await evaluate(`document.querySelector('[data-resource="tabs"]').shadowRoot.querySelector('[data-value="Texture"]').click()`);
   await waitFor(() => evaluate('!document.querySelector("[data-resource=import]").disabled'), 'import available'); await click('[data-resource=import]');
   await evaluate(`(()=>{const f=document.querySelector('.studio-resource-import form');for(const[k,v]of Object.entries({projectPath:'assets/sky.png',provenance:'G09 generated local test image',decodedBytes:'256',width:'2',height:'1'}))f.elements.namedItem(k).value=v;f.requestSubmit();})()`);
   await waitFor(async () => (await call('scene/snapshot')).assets.length === 1 && await evaluate('!document.querySelector(".studio-resource-import")'), 'import committed');

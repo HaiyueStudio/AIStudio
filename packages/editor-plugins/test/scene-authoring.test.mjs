@@ -278,3 +278,18 @@ async function disposeFixture(value) {
   value.resources.projectSession.dispose();
   await value.operationLog.close();
 }
+
+test('manual rounded-box creation uses the same validated persisted component', async () => {
+  const value = await fixture();
+  try {
+    await value.workspace.newProject(value.projectRoot, 'Rounded');
+    const scene = await value.scene.createEntity({ commandId: 'command:rounded', baseRevision: 1, kind: 'rounded-box', radius: 0.18, segments: 5 });
+    const entity = scene.entities[0];
+    assert.equal(entity.kind, 'rounded-box');
+    assert.deepEqual(entity.components.find(c => c.type === 'haiyue.render.geometry').value, { kind: 'rounded-box', radius: 0.18, segments: 5 });
+    for (const params of [{ radius: NaN }, { radius: Infinity }, { segments: 0 }, { radius: 0.6 }]) await assert.rejects(value.scene.createEntity({ commandId: 'command:bad-rounded', baseRevision: 2, kind: 'rounded-box', ...params }), /radius|segments/);
+    assert.equal(value.scene.snapshot().entities.length, 1);
+    await value.workspace.save(); await value.workspace.reopen();
+    assert.deepEqual(value.scene.snapshot().entities[0].components, entity.components);
+  } finally { await disposeFixture(value); }
+});

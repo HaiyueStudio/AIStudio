@@ -1400,3 +1400,31 @@ function minimalBackend(startTurn, submitToolResult = async () => {}) {
 function event(kind, payload) { return { schemaVersion: 1, backendId: 'backend:minimal-tools', sessionId: 'session:minimal-tools', turnId: 'turn:minimal-tools', kind, payload }; }
 function deferred() { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; }
 function pngHeader(width, height) { const bytes = new Uint8Array(24); bytes.set([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82]); const view = new DataView(bytes.buffer); view.setUint32(16, width, false); view.setUint32(20, height, false); return bytes; }
+
+test('rounded boxes support single/batch creation, cube conversion, bounded parameters and durable History', async () => {
+  const value = await fixture();
+  try {
+    const discovery = await executeReady(value.runtime, call('call:rounded-discovery', 'tool.search', { text: '圆角立方体', includeSchemas: true, limit: 5 }));
+    assert.match(JSON.stringify(discovery.value), /rounded-box/);
+    const first = await executeReady(value.runtime, call('call:rounded-single', 'entity.create', { baseRevision: 1, kind: 'rounded-box', radius: 0.12, segments: 6, material: 'pbr' }));
+    assert.equal(first.status, 'completed');
+    const geometry = entity => entity.components.find(c => c.type === 'haiyue.render.geometry').value;
+    assert.deepEqual(geometry(first.value.entity), { kind: 'rounded-box', radius: 0.12, segments: 6 });
+    const batch = await approveAndExecute(value.runtime, call('call:rounded-batch', 'entity.create-many', { baseRevision: 2, entities: [{ kind: 'rounded-box' }, { kind: 'rounded-box', radius: 0.2, segments: 3 }, { kind: 'cube' }] }));
+    assert.equal(batch.status, 'completed');
+    assert.deepEqual(batch.value.entities.map(geometry), [{ kind: 'rounded-box' }, { kind: 'rounded-box', radius: 0.2, segments: 3 }, { kind: 'cube' }]);
+    for (const args of [{ kind: 'cube', radius: 0.1 }, { kind: 'sphere', segments: 4 }, { kind: 'rounded-box', radius: -1 }, { kind: 'rounded-box', radius: 0.51 }, { kind: 'rounded-box', segments: 1.5 }, { kind: 'rounded-box', segments: 17 }]) {
+      await assert.rejects(value.runtime.prepare(call('call:bad-rounded', 'entity.create', { baseRevision: 3, ...args })), /radius|segments/);
+      await assert.rejects(value.runtime.prepare(call('call:bad-rounded-batch', 'entity.create-many', { baseRevision: 3, entities: [args] })), /radius|segments/);
+    }
+    const entityId = batch.value.entities[2].id;
+    const repair = await approveAndExecute(value.runtime, call('call:round-existing', 'component.configure', { baseRevision: 3, action: 'upsert', entityId, type: 'haiyue.render.geometry', patch: { kind: 'rounded-box', radius: 0.1, segments: 4 } }));
+    assert.equal(repair.status, 'completed');
+    const current = () => value.scene.snapshot().entities.find(e => e.id === entityId);
+    assert.equal(current().kind, 'rounded-box'); assert.equal(geometry(current()).radius, 0.1);
+    await value.workspace.undo(4); assert.equal(current().kind, 'cube');
+    await value.workspace.redo(5); assert.equal(current().kind, 'rounded-box');
+    await value.workspace.save(); await value.workspace.reopen();
+    assert.deepEqual(geometry(current()), { kind: 'rounded-box', radius: 0.1, segments: 4 });
+  } finally { await dispose(value); }
+});

@@ -1,3 +1,4 @@
+import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import type { OperationLog, BehaviorArtifactKind } from '@haiyue/ai-studio-operation-log';
 import { validateConversationIntent, type LogQueryIntent } from '@haiyue/ai-studio-shell';
@@ -212,6 +213,7 @@ export class StudioIpcRouter {
         commandId: request.payload.commandId as StableId,
         baseRevision: request.payload.baseRevision as number,
         kind: request.payload.kind as SceneEntityKind,
+        ...roundedBoxParameters(request.payload.kind, request.payload),
         name: request.payload.name as string | undefined,
         parentId: request.payload.parentId as StableId | null | undefined,
         material: request.payload.material as never,
@@ -396,7 +398,8 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     if (!/^asset:[a-f0-9]{24}$/u.test(String(payload.assetId))) throw new IpcDiagnosticError('ipc-payload-rejected', 'asset/read assetId is invalid.');
   }
   else if (channel === 'scene/create') {
-    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId', 'material', 'color']);
+    try { roundedBoxParameters(payload.kind, payload); } catch (cause) { throw new IpcDiagnosticError('ipc-payload-rejected', (cause as Error).message); }
+    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'kind'], ['name', 'parentId', 'material', 'color', 'radius', 'segments']);
     if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || !sceneEntityKinds.has(String(payload.kind))
       || (payload.name !== undefined && typeof payload.name !== 'string')
       || (payload.material !== undefined && !sceneMaterialKinds.has(String(payload.material)))
@@ -547,8 +550,8 @@ const behaviorId = (value: unknown): boolean => typeof value === 'string' && /^[
 type ViewportReportEvent = 'ready' | 'rendered' | 'device-lost' | 'failed' | 'picking-failed';
 const viewportReportEvents = new Set<ViewportReportEvent>(['ready', 'rendered', 'device-lost', 'failed', 'picking-failed']);
 const selectionSources = new Set<SelectionIntentSource>(['hierarchy', 'viewport', 'inspector', 'system']);
-const sceneEntityKinds = new Set(['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light']);
-const sceneGeometryKinds = new Set(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron']);
+const sceneEntityKinds = new Set(['empty', 'cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light']);
+const sceneGeometryKinds = new Set(['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron']);
 const sceneMaterialKinds = new Set(['basic', 'pbr', 'blinn-phong', 'normal']);
 const previewReportEvents = new Set(['started', 'stopped', 'paused', 'resumed', 'hot-reloaded', 'runtime-error', 'cleanup-complete']);
 const scriptCapabilities = new Set(['read', 'scene', 'asset', 'input', 'physics', 'debug']);

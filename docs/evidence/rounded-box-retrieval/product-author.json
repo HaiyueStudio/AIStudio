@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "productionEntry": "apps/ai-studio/dist/main.js",
+  "platformDecisionDriver": "explicit test decisions; real tool approvals",
+  "entityId": "entity:078ff355-337f-4e0a-8c50-f01650465ab8",
+  "assetId": "asset:99e04b58052ef6941b043be0",
+  "approvals": [
+    {
+      "title": "Rename entity",
+      "detail": "Rename Rounded Box to Integrated geometry.\nentity:078ff355-337f-4e0a-8c50-f01650465ab8\n修订 2\n\n- Rounded Box\n+ Integrated geometry",
+      "decision": "allow-once"
+    },
+    {
+      "title": "Rename entity",
+      "detail": "Rename Integrated geometry to Rejected change.\nentity:078ff355-337f-4e0a-8c50-f01650465ab8\n修订 5\n\n- Integrated geometry\n+ Rejected change",
+      "decision": "reject"
+    },
+    {
+      "title": "Batch spatial transform",
+      "detail": "set 1 entities in one History transaction.\ndocument:a55ec4a9-23ad-4c5a-8561-2cfdd989bac7\n修订 5\n\nset · 1 entities",
+      "decision": "allow-once"
+    },
+    {
+      "title": "Register project asset",
+      "detail": "Register texture asset sky.png with project-owned provenance.\ndocument:a55ec4a9-23ad-4c5a-8561-2cfdd989bac7\n修订 6\n\n+ texture image/png (256 decoded bytes)",
+      "decision": "allow-once"
+    }
+  ],
+  "checks": [
+    "resource panel fits its container at desktop and narrow widths",
+    "resource template creates through production IPC and original tool",
+    "public rename exact approval and shared undo/redo",
+    "explicit rejection leaves document unchanged",
+    "native pointer Gizmo commits once through transform.batch",
+    "real accessibility tree",
+    "controlled import UI retains asset identity"
+  ],
+  "resourceLayout": {
+    "desktop": {
+      "viewportWidth": 1440,
+      "panelWidth": 302,
+      "scrollWidth": 302,
+      "controlsVisible": true
+    },
+    "narrow": {
+      "viewportWidth": 1024,
+      "panelWidth": 206,
+      "scrollWidth": 206,
+      "controlsVisible": true
+    }
+  },
+  "versions": {
+    "electron": "43.5.1",
+    "chrome": "150.0.7871.250",
+    "node": "v24.19.0"
+  },
+  "screenshots": [
+    "advanced-desktop.png",
+    "resources-desktop.png",
+    "resources-narrow.png"
+  ]
+}

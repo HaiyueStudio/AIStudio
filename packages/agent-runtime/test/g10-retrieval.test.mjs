@@ -69,3 +69,39 @@ test('content hash updates create tombstones, graph traversal recalls related de
 
 function source(sourceId, uri, sourceKind, text, options = {}) { return { sourceId, source: uri, sourceKind, text, mediaType: sourceKind === 'session-decision' ? 'application/json' : 'text/markdown', packageVersion: options.packageVersion ?? null, projectRevision: options.projectRevision ?? null, permissionScope: options.permissionScope ?? ENGINE, capabilityIds: options.capabilities ?? [], claimKeys: options.claims ?? [], relatedSourceIds: options.related ?? [], authorized: true, verified: sourceKind === 'verified-example' ? true : undefined }; }
 async function openFixture(name) { const root = await mkdtemp(path.join(tmpdir(), `haiyue-g10-retrieval-${name}-`)); const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g10-test', flushPolicy: 'always' }); return { root, log, cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }) }; }
+
+test('long Chinese requests and approved-plan repair continuations keep full model instructions while bounding retrieval', async () => {
+  const fixture = await openFixture('bounded-query');
+  try {
+    const retrieval = new KnowledgeRetrievalRuntime(fixture.log);
+    await retrieval.upsert(source('knowledge-source:rounded', 'engine://rounded-box', 'engine-doc', '圆角立方体 rounded-box radius segments geometry.'));
+    await retrieval.upsert(source('knowledge-source:private-rounded', 'private://rounded-box', 'engine-doc', '圆角立方体 rounded-box radius segments geometry.', { permissionScope: 'knowledge:private' }));
+    const search = retrieval.search.bind(retrieval); const inputs = [];
+    retrieval.search = async input => { inputs.push(input); return search(input); };
+    const context = new PromptContextRuntime(fixture.log, undefined, retrieval);
+    const base = { conversationKey: 'conversation:bounded', backendId: 'backend:bounded', taskId: 'task:bounded', tools: [], project: null };
+    const short = '圆角立方体 rounded-box';
+    const requests = [short, 'a'.repeat(2048), 'a'.repeat(2049), '圆角立方体😀'.repeat(500) + '尾部要求 radius segments', 'Execute the already approved plan.\n' + '圆角方块 PBR '.repeat(110) + '\nFailed acceptance: ' + JSON.stringify(Array.from({ length: 6 }, (_, index) => ({ acceptanceId: `acceptance:repair:${index}`, evidenceIds: [`artifact:sha256:${'a'.repeat(64)}`], diagnostic: '验证截图与圆角 geometry' })))];
+    for (const request of requests) {
+      const prepared = await context.prepare({ ...base, request });
+      assert.equal(prepared.prompt.split('[current-request-tail]\n\n')[1], request, 'retrieval budget must not truncate model instructions');
+      const input = inputs.at(-1);
+      assert.ok(Buffer.byteLength(input.query) <= 2048);
+      assert.ok(input.query.trim()); assert.equal(input.query.isWellFormed(), true, 'never split emoji/surrogate pairs');
+      assert.ok(!input.allowedPermissionScopes.includes('knowledge:private'));
+      if (Buffer.byteLength(request) <= 2048) assert.equal(input.query, request);
+      else { assert.ok(input.query.startsWith(request.slice(0, 32))); assert.ok(input.query.endsWith(request.slice(-32))); }
+      assert.doesNotMatch(prepared.prompt, /private:\/\/rounded-box/);
+      await context.commit({ ...base, projectId: null, sessionId: 'session:bounded', turnId: 'turn:bounded', goals: [short], decisions: [], toolFacts: [], acceptance: [], blockers: [] });
+    }
+    await context.prepare({ ...base, request: ' '.repeat(3000) + short + ' '.repeat(3000) });
+    assert.equal(inputs.at(-1).query, short);
+    const count = inputs.length;
+    await context.prepare({ ...base, request: ' \n\t ' });
+    assert.equal(inputs.length, count, 'empty retrieval query is skipped');
+    const events = await fixture.log.query({ limit: 200 });
+    assert.equal(events.events.filter(e => e.kind === 'knowledge/query-bounded').length, 4);
+    await assert.rejects(search({ query: 'a'.repeat(2049), allowedPermissionScopes: [ENGINE] }), error => error.code === 'knowledge.query-invalid', 'direct API remains bounded');
+    retrieval.dispose(); await fixture.log.close();
+  } finally { await fixture.cleanup(); }
+});

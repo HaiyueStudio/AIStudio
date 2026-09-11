@@ -40,6 +40,8 @@ export type ResourcePanelIntent =
   | Readonly<{ type: 'locate-use'; viewToken: string; entry: ResourceCatalogEntryV1; ref: Extract<ResourceReferenceV1, { kind: 'instance' }>; field: string }>;
 
 export const RESOURCE_KIND_LABELS = Object.freeze({ asset: '文件资产', template: '注册模板', preset: '配置预设', instance: '场景实例' });
+export const RESOURCE_PRIMARY_CATEGORIES = ['Geometry', 'Texture', 'Material', 'Script', 'Model'] as const;
+export const DEFAULT_RESOURCE_QUERY: ResourcePanelQuery = Object.freeze({ category: 'Geometry', limit: 25 });
 export const RESOURCE_ACTION_LABELS = Object.freeze({ 'resource.locate': '定位来源', 'asset.inspect': '检查文件', 'asset.assign': '分配给目标', 'template.create': '创建实例', 'preset.apply': '应用预设', 'instance.inspect': '检查实例' });
 export function resourceCategoryLabel(value: string): string {
   return ({ Lighting: '灯光', Geometry: '几何体', Material: '材质', Texture: '纹理', Model: '模型', Script: '脚本', Animation: '动画', Audio: '音频', Scene: '场景' } as Record<string, string>)[value] ?? value;

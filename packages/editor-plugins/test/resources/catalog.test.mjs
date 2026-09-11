@@ -12,8 +12,8 @@ test('catalog projects frozen four-kind contracts from actual registry and Docum
   for (const { entry } of page.items) { assert.deepEqual(parseBehaviorContract('resource-catalog-entry', entry), entry); assert.equal(entry.artifactId, null); }
   assert.equal(JSON.stringify(f.workspace.gameSnapshot()), before); assert.equal(JSON.stringify(f.workspace.snapshot().history), history);
   const geometry = page.items.filter(item => item.entry.kind === 'template' && item.entry.category === 'Geometry');
-  assert.equal(geometry.length, 7);
-  assert.deepEqual(new Set(geometry.map(item => item.configuration.kind)), new Set(['cube','sphere','cone','cylinder','plane','torus','icosahedron']));
+  assert.equal(geometry.length, 8);
+  assert.deepEqual(new Set(geometry.map(item => item.configuration.kind)), new Set(['cube','rounded-box','sphere','cone','cylinder','plane','torus','icosahedron']));
   const lights = page.items.filter(item => item.entry.kind === 'template' && ['haiyue.light.ambient','haiyue.light.directional','haiyue.light.point'].includes(item.entry.ref.templateId));
   assert.equal(lights.length, 3); assert.ok(lights.every(item => item.entry.category === 'Lighting'));
   const preset = page.items.find(item => item.entry.kind === 'preset' && item.entry.category === 'Lighting');

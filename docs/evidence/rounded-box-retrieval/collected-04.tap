@@ -1,0 +1,43 @@
+TAP version 13
+# Subtest: G09 real Electron renders an accessible replayed graph and bounded large-graph layout
+not ok 1 - G09 real Electron renders an accessible replayed graph and bounded large-graph layout
+  ---
+  duration_ms: 4047.768359
+  type: 'test'
+  location: '/Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/execution-graph-electron.test.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [g09-execution-graph-smoke] drag panning: AssertionError: AssertionError [ERR_ASSERTION]: drag cursor
+    
+    false !== true
+    
+        at drag (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/graph-pan-input.mjs:20:12)
+        at async checkGraphPanning (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/graph-pan-input.mjs:27:3)
+        at async file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/fixtures/g09-execution-graph-main.mjs:35:22
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    drag (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/graph-pan-input.mjs:20:12)
+    async checkGraphPanning (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/graph-pan-input.mjs:27:3)
+    async file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/fixtures/g09-execution-graph-main.mjs:35:22
+    TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/execution-graph-electron.test.mjs:20:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4431.903936

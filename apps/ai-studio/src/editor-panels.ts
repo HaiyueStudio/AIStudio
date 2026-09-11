@@ -1,6 +1,6 @@
 import type { EditorLocationV1, JsonObject, JsonValue } from '@haiyue/ai-studio-contracts';
 import { AdvancedStudioPanel, type AdvancedStudioSource } from '@haiyue/ai-studio-shell/advanced';
-import { ResourceExplorerPanel, EMPTY_RESOURCE_PANEL, type ResourcePanelData, type ResourcePanelIntent } from '@haiyue/ai-studio-shell/resources';
+import { ResourceExplorerPanel, DEFAULT_RESOURCE_QUERY, EMPTY_RESOURCE_PANEL, type ResourcePanelData, type ResourcePanelIntent } from '@haiyue/ai-studio-shell/resources';
 import type { IntentWorkspace } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod } from './ipc.js';
 import type { HYDrawer } from '@haiyue/ui/drawer';
@@ -23,7 +23,7 @@ export class IntegratedEditorPanels {
   private readonly observer: MutationObserver;
   private source: AdvancedStudioSource | null = null;
   private resourceData: ResourcePanelData = EMPTY_RESOURCE_PANEL;
-  private query: JsonObject = {};
+  private query: JsonObject = { ...DEFAULT_RESOURCE_QUERY };
   private request: AbortController | null = null;
   private resourceRequest: AbortController | null = null;
   private opened = false;
@@ -83,7 +83,7 @@ export class IntegratedEditorPanels {
     try {
       const data = await this.ports.invoke('editor/advanced', {}, task.signal) as unknown as AdvancedStudioSource;
       if (task.signal.aborted || this.disposed) return;
-      if (this.source?.epoch !== data.epoch) { this.advanced.close(); this.resourceRequest?.abort(); this.query = {}; this.resources.update(EMPTY_RESOURCE_PANEL); this.importDialog?.close(); }
+      if (this.source?.epoch !== data.epoch) { this.advanced.close(); this.resourceRequest?.abort(); this.query = { ...DEFAULT_RESOURCE_QUERY }; this.resources.update(EMPTY_RESOURCE_PANEL); this.importDialog?.close(); }
       this.source = { ...data, projection: this.ports.projection() };
       if (this.opened) await this.advanced.open();
       if (includeResources) await this.refreshResources();

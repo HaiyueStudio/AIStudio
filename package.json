@@ -19,7 +19,7 @@
     "@haiyue/editor-shell": "file:vendor/haiyue-editor-shell-0.1.1.tgz",
     "@haiyue/engine": "file:vendor/haiyue-engine-0.1.0-orthographic-picking.tgz",
     "@haiyue/extensions": "file:vendor/haiyue-extensions-0.1.0.tgz",
-    "@haiyue/ui": "file:vendor/haiyue-ui-0.1.3.tgz"
+    "@haiyue/ui": "file:vendor/haiyue-ui-0.1.3-scrollable-tabs.tgz"
   },
   "scripts": {
     "start": "npm run start -w @haiyue/ai-studio",

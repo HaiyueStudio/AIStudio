@@ -1,3 +1,4 @@
+import { MAX_KNOWLEDGE_QUERY_BYTES } from './retrieval/runtime.js';
 import { asStableId, type ContextArtifactV2, type JsonObject, type JsonValue, type M12Digest, type M13StableId, type StableId } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, OperationLogError, redactJson, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import type { KnowledgeRetrievalRuntime, KnowledgeSearchResult } from './retrieval/index.js';
@@ -318,9 +319,14 @@ export class PromptContextRuntime {
   }
 
   private async retrieveKnowledge(request: string, conversationKey: StableId, project: ContextProjectSnapshot | null): Promise<KnowledgeSearchResult | null> {
-    if (!this.retrieval) return null;
+    if (!this.retrieval || !request.trim()) return null;
+    const query = boundedKnowledgeQuery(request);
+    if (query !== request) await this.log.append({
+      kind: 'knowledge/query-bounded', severity: 'info', source: CONTEXT_SOURCE,
+      payload: { strategy: 'utf8-head-tail-v1', requestBytes: Buffer.byteLength(request), queryBytes: Buffer.byteLength(query) },
+    });
     const scopes = [asStableId('knowledge:engine-local'), conversationPermission(conversationKey), ...(project ? [projectPermission(project.projectId)] : [])];
-    return this.retrieval.search({ query: request, allowedPermissionScopes: scopes as M13StableId[], projectRevision: project?.revision ?? null, limit: 8, tokenBudget: 2_048 });
+    return this.retrieval.search({ query, allowedPermissionScopes: scopes as M13StableId[], projectRevision: project?.revision ?? null, limit: 8, tokenBudget: 2_048 });
   }
 
   private async put(kind: ContextArtifactV2['kind'], source: StableId, documentRevision: number | null, projection: JsonValue): Promise<StoredContextArtifact> {
@@ -485,3 +491,27 @@ function conversationPermission(conversationKey: StableId): StableId { return as
 function projectPermission(projectId: StableId): StableId { return asStableId(`knowledge:project:${sha256(projectId).slice(0, 24)}`); }
 function unique<T>(values: readonly T[]): T[] { return [...new Set(values)]; }
 function isRecord(value: unknown): value is Record<string, JsonValue> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+
+/** Retrieval gets bounded excerpts; the full sanitized request remains in the model envelope. */
+function boundedKnowledgeQuery(request: string): string {
+  if (Buffer.byteLength(request) <= MAX_KNOWLEDGE_QUERY_BYTES) return request;
+  const trimmed = request.trim();
+  if (Buffer.byteLength(trimmed) <= MAX_KNOWLEDGE_QUERY_BYTES) return trimmed;
+  const characters = Array.from(trimmed);
+  const headBudget = Math.floor((MAX_KNOWLEDGE_QUERY_BYTES - 1) / 2);
+  const tailBudget = MAX_KNOWLEDGE_QUERY_BYTES - 1 - headBudget;
+  let head = ''; let tail = ''; let bytes = 0;
+  for (const character of characters) {
+    bytes += Buffer.byteLength(character);
+    if (bytes > headBudget) break;
+    head += character;
+  }
+  bytes = 0;
+  for (let index = characters.length - 1; index >= 0; index -= 1) {
+    const character = characters[index]!;
+    bytes += Buffer.byteLength(character);
+    if (bytes > tailBudget) break;
+    tail = character + tail;
+  }
+  return `${head} ${tail}`;
+}

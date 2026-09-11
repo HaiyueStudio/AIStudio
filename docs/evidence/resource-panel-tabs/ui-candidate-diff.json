@@ -1,0 +1,10 @@
+{
+  "base": "vendor/haiyue-ui-0.1.3.tgz",
+  "candidate": "vendor/haiyue-ui-0.1.3-scrollable-tabs.tgz",
+  "files": 51,
+  "changed": [
+    "package/dist/tabs.js"
+  ],
+  "declarationsUnchanged": true,
+  "publicApi": "unchanged; horizontal scrolling replaces compressed tab labels"
+}

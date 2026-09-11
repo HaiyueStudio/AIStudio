@@ -12,7 +12,7 @@ test('G06 isolated resource module uses real service, tools and History in sandb
   const directory = await mkdtemp(path.join(tmpdir(), 'haiyue-m14-resources-'));
   await build({ entryPoints: [fileURLToPath(new URL('./browser.mjs', import.meta.url))], outfile: path.join(directory, 'panel.js'), bundle: true, platform: 'browser', format: 'esm' });
   await copyFile(new URL('../../../../packages/studio-shell/src/panels/resources/resources.css', import.meta.url), path.join(directory, 'resources.css'));
-  await writeFile(path.join(directory, 'host.html'), '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'self\'; script-src \'self\'; style-src \'self\'; object-src \'none\'"><link rel="stylesheet" href="resources.css"></head><body><main id="host"></main><script type="module" src="panel.js"></script></body></html>');
+  await writeFile(path.join(directory, 'host.html'), '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'self\'; script-src \'self\'; style-src \'self\' \'unsafe-inline\'; object-src \'none\'"><link rel="stylesheet" href="resources.css"></head><body style="margin:0;background:#151b25"><main id="host"></main><script type="module" src="panel.js"></script></body></html>');
   const result = await new Promise((resolve, reject) => {
     const env = { ...process.env, HAIYUE_RESOURCE_TEST_ROOT: directory }; delete env.ELECTRON_RUN_AS_NODE;
     const child = spawn(electron, [fileURLToPath(new URL('./main.mjs', import.meta.url))], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });

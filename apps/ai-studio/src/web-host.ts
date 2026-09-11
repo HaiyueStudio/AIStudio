@@ -1,3 +1,4 @@
+import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
 import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
 import { validateStudioIpcRequest, type StudioIpcRequest, type StudioIpcResponse } from './ipc.js';
 
@@ -8,9 +9,10 @@ const MAX_LOG_EVENTS = 500;
 
 interface Vec3 { x: number; y: number; z: number; }
 interface Transform { position: Vec3; rotationDegrees: Vec3; scale: Vec3; }
-type WebEntityKind = 'empty' | 'cube' | 'sphere' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'icosahedron' | 'directional-light' | 'point-light' | 'ambient-light';
+type WebEntityKind = 'empty' | 'cube' | 'rounded-box' | 'sphere' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'icosahedron' | 'directional-light' | 'point-light' | 'ambient-light';
 type WebMaterialKind = 'basic' | 'pbr' | 'blinn-phong' | 'normal';
 interface WebEntity {
+  components?: { id: StableId; type: StableId; version: string; enabled: boolean; value: JsonObject }[];
   id: StableId; name: string; kind: WebEntityKind; parentId: StableId | null; order: number; transform: Transform;
   appearance?: { material: WebMaterialKind; color: [number, number, number, number] };
   light?: { color: [number, number, number]; intensity: number; range?: number; direction?: [number, number, number]; castShadow?: boolean };
@@ -130,11 +132,13 @@ export class WebStudioHost {
       case 'scene/create': {
         const project = this.requireRevision(number(payload.baseRevision));
         const kind = payload.kind as WebEntityKind;
+        const rounding = roundedBoxParameters(kind, payload);
         if (!isGeometryKind(kind) && (payload.material !== undefined || payload.color !== undefined)) throw new WebHostError('web-material-target-invalid', 'Only geometry entities can use materials.');
         this.commitMutation(project, true, () => project.entities.push({
           id: id('entity'), name: typeof payload.name === 'string' ? payload.name : entityKindLabel(kind), kind,
           parentId: typeof payload.parentId === 'string' ? payload.parentId as StableId : null, order: project.entities.length,
           transform: identityTransform(),
+          ...(kind === 'rounded-box' ? { components: [{ id: id('component'), type: 'haiyue.render.geometry' as StableId, version: '1.0.0', enabled: true, value: { kind, ...rounding } }] } : {}),
           ...(isGeometryKind(kind) ? { appearance: { material: (payload.material as WebMaterialKind | undefined) ?? 'basic', color: webMaterialColor(payload.color) } } : {}),
           ...(isLightKind(kind) ? { light: defaultWebLight(kind) } : {}),
         }));
@@ -391,9 +395,9 @@ function lineDiff(before: string, after: string): Readonly<{ addedLines: number;
 async function digest(value: string): Promise<string> { const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return [...new Uint8Array(bytes)].map((item) => item.toString(16).padStart(2, '0')).join(''); }
 
 function readProject(key: string): WebProject | null { const value = readStorage(key); if (!value || typeof value !== 'object' || Array.isArray(value)) return null; const project = value as Partial<WebProject>; return project.schemaVersion === 1 && typeof project.projectId === 'string' && typeof project.documentId === 'string' && typeof project.name === 'string' && Number.isSafeInteger(project.revision) && Number.isSafeInteger(project.savedRevision) && Number.isSafeInteger(project.sceneRevision) && Array.isArray(project.entities) && Array.isArray(project.scripts) ? clone(project as WebProject) : null; }
-function isGeometryKind(kind: WebEntityKind): boolean { return ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind); }
+function isGeometryKind(kind: WebEntityKind): boolean { return ['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'].includes(kind); }
 function isLightKind(kind: WebEntityKind): boolean { return kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light'; }
-function entityKindLabel(kind: WebEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<WebEntityKind, string>)[kind]; }
+function entityKindLabel(kind: WebEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', 'rounded-box': 'Rounded Box', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<WebEntityKind, string>)[kind]; }
 function defaultWebLight(kind: WebEntityKind): NonNullable<WebEntity['light']> {
   if (kind === 'directional-light') return { color: [1, 1, 1], intensity: 1, direction: [-0.5, -1, -0.35], castShadow: true };
   if (kind === 'point-light') return { color: [1, 0.9, 0.75], intensity: 2, range: 12 };

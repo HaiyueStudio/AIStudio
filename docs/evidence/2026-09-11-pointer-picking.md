@@ -48,10 +48,13 @@ with texture lines even if the screen conversion were corrected.
   projected world position. It covers center/four corners, 700×450 and 460×760
   canvases, moved/rotated cameras, orthographic and perspective projections.
   Input uses Chromium's trusted dispatch into the sandboxed preview iframe.
-  Evidence: `/private/tmp/haiyue-pointer-placement-8P4vho/results.json`.
+  A final repeat passed all 40 clicks. Durable evidence:
+  [per-click results](pointer-picking/native-clicks.json) and
+  [test log](pointer-picking/native-clicks.log).
 - The repaired five-in-a-row script passed strict validation and **225 cell**
   placement checks, occupied/outside rejection, five-in-a-row victory and reset
-  clearing the rendered instances in the same tick.
+  clearing the rendered instances in the same tick. The final repeat also passed:
+  [rule verification](pointer-picking/gomoku-rules.json).
 - Candidate integrity/export checks, Engine module boundaries and synchronous
   renderer-prepare checks passed.
 - Current-source M14 capability evidence capture: **123 passed** across all 12
@@ -60,6 +63,15 @@ with texture lines even if the screen conversion were corrected.
 
 ## Broader check limitations
 
+- AIStudio `npm run check` reached and completed the final integration collector:
+  **46/46 files executed, 218 tests passed and 2 failed**, with no skipped or
+  cancelled tests. The failures are the graph hover-clear assertion
+  (`collected-07.tap`) and the product test's fixed Windows/i7-7700/8-core host
+  assertion on this macOS/i7-9750H/12-core machine (`collected-13.tap`). Neither
+  failure exercises board picking. Reports are retained in
+  `apps/ai-studio/test/m14-integration/test-output/collected-tests.json` and its
+  adjacent TAP files. The full check is therefore not green; these unrelated
+  assertions were not relaxed.
 - Engine architecture/API checks require the absent sibling `Editor` repository.
 - Engine full example build timed out in the unrelated `gpu-driven-instancing`
   example; the isolated retry timed out building the shared example bundle. The

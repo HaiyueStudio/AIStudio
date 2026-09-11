@@ -812,7 +812,7 @@ function isVec3(value: unknown): value is Vec3 {
 function isCapability(value: unknown): value is ScriptCapabilityName {
   return value === 'read' || value === 'input' || value === 'debug' || value === 'scene' || value === 'physics' || value === 'asset';
 }
-function isSceneEntityKind(value: unknown): value is SceneEntityKind { return value === 'empty' || ['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(value)); }
+function isSceneEntityKind(value: unknown): value is SceneEntityKind { return value === 'empty' || ['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(value)); }
 function isAppearance(value: unknown): boolean { return isRecord(value) && ['basic', 'pbr', 'blinn-phong', 'normal'].includes(String(value.material)) && Array.isArray(value.color) && value.color.length === 4 && value.color.every(Number.isFinite); }
 function isLight(value: unknown): boolean { return isRecord(value) && Array.isArray(value.color) && value.color.length === 3 && value.color.every(Number.isFinite) && Number.isFinite(value.intensity); }
 function finiteNumber(value: unknown, minimum: number, maximum: number, fallback: number): number { return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum ? value : fallback; }

@@ -1,0 +1,86 @@
+TAP version 13
+# Subtest: G09 real Electron renders an accessible replayed graph and bounded large-graph layout
+ok 1 - G09 real Electron renders an accessible replayed graph and bounded large-graph layout
+  ---
+  duration_ms: 2081.309576
+  type: 'test'
+  ...
+# [graph-ui] evidence: /private/tmp/haiyue-graph-ui-01qbr7
+# Subtest: graph supports cursor-anchored wheel zoom, running beams and accessible compact hover panels
+ok 2 - graph supports cursor-anchored wheel zoom, running beams and accessible compact hover panels
+  ---
+  duration_ms: 5123.260425
+  type: 'test'
+  ...
+# Subtest: production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
+not ok 3 - production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
+  ---
+  duration_ms: 42516.201607
+  type: 'test'
+  location: '/Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-electron.test.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [m14-product:large] product ready
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        arch: 'x64',
+    +   cpu: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz',
+    +   logicalCpus: 12,
+    +   platform: 'darwin',
+    +   release: '25.6.0'
+    -   cpu: 'Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz',
+    -   logicalCpus: 8,
+    -   platform: 'win32',
+    -   release: '10.0.19045'
+      }
+    
+        at large (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:145:10) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: [Object],
+      expected: [Object],
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+    [m14-product] large failed
+    
+    Evidence: /private/tmp/haiyue-m14-integrated-product-GJMgUm
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    large (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:145:10) {
+    TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-electron.test.mjs:36:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# [notification-ui] evidence: /private/tmp/haiyue-notification-ui-MZG5zP
+# Subtest: real Electron notification settings, keyboard focus and exact card/task navigation
+ok 4 - real Electron notification settings, keyboard focus and exact card/task navigation
+  ---
+  duration_ms: 1576.866955
+  type: 'test'
+  ...
+# [notification-product] evidence: /private/tmp/haiyue-notification-product-yFJ3VU
+# Subtest: production window connects notification preferences through its real typed preload and preserves mute on reload
+ok 5 - production window connects notification preferences through its real typed preload and preserves mute on reload
+  ---
+  duration_ms: 12584.582333
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 65156.19323

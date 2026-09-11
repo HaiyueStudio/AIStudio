@@ -1,0 +1,23 @@
+diff --git a/src/tabs.ts b/src/tabs.ts
+index 9c74ab4..04e559b 100644
+--- a/src/tabs.ts
++++ b/src/tabs.ts
+@@ -40,6 +40,9 @@ export class HYTabs extends HTMLElement {
+         align-items: end;
+         gap: 2px;
+         min-width: 0;
++        overflow-x: auto;
++        overflow-y: hidden;
++        scrollbar-width: none;
+         padding: 4px 6px 0;
+         border-bottom: 1px solid var(--hy-border-color, #303746);
+         background: var(--hy-tabs-bar-bg-color, var(--hy-menu-bg-color, var(--hy-surface-elevated-color, #1b2230)));
+@@ -47,6 +50,8 @@ export class HYTabs extends HTMLElement {
+       button {
+         height: 28px;
+         min-width: 0;
++        flex-shrink: 0;
++        white-space: nowrap;
+         padding: 0 10px;
+         border: 1px solid transparent;
+         border-bottom: 0;

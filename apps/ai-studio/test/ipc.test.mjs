@@ -266,3 +266,13 @@ test('cancel and renderer disposal invalidate late IPC responses', async () => {
   assert.equal(router.activeCount, 0);
   assert.ok(cancelAll >= 1);
 });
+
+test('rounded-box IPC validates and forwards parameters to the shared scene service', async () => {
+  const payload = { commandId: 'command:round', baseRevision: 1, kind: 'rounded-box', radius: 0.12, segments: 6 };
+  assert.deepEqual(validateStudioIpcRequest(request('scene/create', payload)).payload, payload);
+  for (const patch of [{ kind: 'cube' }, { radius: 0.6 }, { segments: 17 }, { segments: 2.5 }]) assert.throws(() => validateStudioIpcRequest(request('scene/create', { ...payload, ...patch })), /radius|segments/);
+  let intent;
+  const router = new StudioIpcRouter({ ...agentOwners, operationLog: { async append() {} }, scene: { async createEntity(value) { intent = value; return {}; } } });
+  assert.equal((await router.handle(request('scene/create', payload))).ok, true);
+  assert.equal(intent.kind, 'rounded-box'); assert.equal(intent.radius, 0.12); assert.equal(intent.segments, 6);
+});

@@ -1,3 +1,4 @@
+import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
 import { randomUUID } from 'node:crypto';
 import { asStableId, type ComponentDefinitionV2, type GameComponentInstanceV2, type GameDocumentOperationV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, projectCameraFromSettings, PROJECT_CAMERA_SETTING_KEY, type ProjectWorkspace, type SceneAuthoringService, type SceneContextProjection, type SceneContextScope, type SceneDiffInput, type SceneEntityKind, type SceneMaterialColor, type SceneQueryInput, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
@@ -418,7 +419,7 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
       ];
       if (isSceneGeometryKind(kind)) {
         const appearance = Object.freeze({ material: (args.material ?? 'basic') as string, color: (args.color ?? DEFAULT_TRANSACTION_COLOR) as JsonValue }) as unknown as JsonObject;
-        operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', stored.call.id), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind, ...(args.plane ? { plane: args.plane } : {}) } }) });
+        operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', stored.call.id), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind, ...roundedBoxParameters(kind, args), ...(args.plane ? { plane: args.plane } : {}) } }) });
         operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-material', stored.call.id), type: asStableId('haiyue.render.material'), version: '1.0.0', value: appearance }) });
       } else if (kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light') {
         const type = kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient';
@@ -447,7 +448,7 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
         );
         if (isSceneGeometryKind(kind)) {
           const appearance = Object.freeze({ material: (entry.material ?? 'basic') as string, color: (entry.color ?? DEFAULT_TRANSACTION_COLOR) as JsonValue }) as unknown as JsonObject;
-          operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', itemCallId), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind, ...(entry.plane ? { plane: entry.plane } : {}) } }) });
+          operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-geometry', itemCallId), type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind, ...roundedBoxParameters(kind, entry), ...(entry.plane ? { plane: entry.plane } : {}) } }) });
           operations.push({ op: 'component.add', entityId: id, component: options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-material', itemCallId), type: asStableId('haiyue.render.material'), version: '1.0.0', value: appearance }) });
         } else if (kind === 'directional-light' || kind === 'point-light' || kind === 'ambient-light') {
           const type = kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient';
@@ -528,7 +529,7 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
 const DEFAULT_TRANSACTION_TRANSFORM = Object.freeze({ position: Object.freeze({ x: 0, y: 0, z: 0 }), rotationDegrees: Object.freeze({ x: 0, y: 0, z: 0 }), scale: Object.freeze({ x: 1, y: 1, z: 1 }) });
 const DEFAULT_TRANSACTION_COLOR = Object.freeze([0.16, 0.58, 1, 1]);
 function transactionGeneratedId(prefix: string, callId: StableId): StableId { return asStableId(`${prefix}:m13:${sha256(`${prefix}:${callId}`).slice(0, 24)}`); }
-function transactionEntityLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
+function transactionEntityLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', 'rounded-box': 'Rounded Box', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
 function transactionDefaultLight(kind: 'directional-light' | 'point-light' | 'ambient-light'): JsonObject {
   if (kind === 'directional-light') return Object.freeze({ color: Object.freeze([1, 1, 1]), intensity: 1, direction: Object.freeze([-0.5, -1, -0.35]), castShadow: true });
   if (kind === 'point-light') return Object.freeze({ color: Object.freeze([1, 0.9, 0.75]), intensity: 2, range: 12 });
@@ -1013,7 +1014,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'entity.create': {
       const beforeIds = new Set(scene.entities.map((item) => item.id));
-      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as SceneEntityKind, ...(args.plane ? { plane: args.plane as 'xy' | 'xz' | 'yz' } : {}), ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}), ...(args.material ? { material: args.material as never } : {}), ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}), ...(args.transform ? { transform: args.transform as unknown as TransformSnapshot } : {}) }, signal);
+      const next = await options.scene.createEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, kind: args.kind as SceneEntityKind, ...roundedBoxParameters(args.kind, args), ...(args.plane ? { plane: args.plane as 'xy' | 'xz' | 'yz' } : {}), ...(args.name ? { name: args.name as string } : {}), ...('parentId' in args ? { parentId: args.parentId as StableId | null } : {}), ...(args.material ? { material: args.material as never } : {}), ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}), ...(args.transform ? { transform: args.transform as unknown as TransformSnapshot } : {}) }, signal);
       const created = next.entities.find((item) => !beforeIds.has(item.id)); if (!created) throw new GameToolProtocolError('tool.result-invalid', 'Created entity was not projected.'); return Object.freeze({ entity: entitySummary(created), revision: next.revision });
     }
     case 'entity.rename': {
@@ -1258,22 +1259,22 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     }
     case 'camera.author': return normalizeCameraAuthorArguments(raw);
     case 'entity.create': {
-      exact(raw, ['baseRevision', 'kind'], ['name', 'parentId', 'material', 'color', 'transform', 'plane'], toolId);
-      if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
+      exact(raw, ['baseRevision', 'kind'], ['name', 'parentId', 'material', 'color', 'transform', 'plane', 'radius', 'segments'], toolId);
+      if (!['empty', 'cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(raw.kind))) throw invalid('Entity kind is invalid.');
       if (raw.material !== undefined && !isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.');
       if ((raw.material !== undefined || raw.color !== undefined) && !isSceneGeometryKind(raw.kind)) throw invalid('Only geometry entities can select a material appearance.');
-      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), kind: raw.kind as JsonValue, ...normalizedPlane(raw), ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
+      return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), kind: raw.kind as JsonValue, ...normalizedPlane(raw), ...normalizedRoundedBox(raw), ...(raw.name === undefined ? {} : { name: boundedString(raw.name, 'name', 80, true) }), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId === null ? null : stable(raw.parentId, 'parent id') }), ...(raw.material === undefined ? {} : { material: raw.material as JsonValue }), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }), ...(raw.transform === undefined ? {} : { transform: normalizeTransform(raw.transform) as unknown as JsonValue }) });
     }
     case 'entity.create-many': {
       exact(raw, ['baseRevision', 'entities'], [], toolId);
       if (!Array.isArray(raw.entities) || raw.entities.length < 1 || raw.entities.length > 32) throw invalid('entity.create-many entities must contain 1-32 items.');
       const entities = raw.entities.map((item, index) => {
         if (!isRecord(item)) throw invalid(`entity.create-many entities[${index}] must be an object.`);
-        exact(item, ['kind'], ['name', 'parentId', 'material', 'color', 'transform', 'plane'], `entity.create-many entities[${index}]`);
-        if (!['empty', 'cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(item.kind))) throw invalid(`entity.create-many entities[${index}] kind is invalid.`);
+        exact(item, ['kind'], ['name', 'parentId', 'material', 'color', 'transform', 'plane', 'radius', 'segments'], `entity.create-many entities[${index}]`);
+        if (!['empty', 'cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron', 'directional-light', 'point-light', 'ambient-light'].includes(String(item.kind))) throw invalid(`entity.create-many entities[${index}] kind is invalid.`);
         if (item.material !== undefined && !isSceneMaterialKind(item.material)) throw invalid(`entity.create-many entities[${index}] material is invalid.`);
         if ((item.material !== undefined || item.color !== undefined) && !isSceneGeometryKind(item.kind)) throw invalid('Only geometry entities can select a material appearance.');
-        return Object.freeze({ kind: item.kind as JsonValue, ...normalizedPlane(item), ...(item.name === undefined ? {} : { name: boundedString(item.name, `entities[${index}].name`, 80, true) }), ...(item.parentId === undefined ? {} : { parentId: item.parentId === null ? null : stable(item.parentId, `entities[${index}].parentId`) }), ...(item.material === undefined ? {} : { material: item.material as JsonValue }), ...(item.color === undefined ? {} : { color: normalizeMaterialColor(item.color) as unknown as JsonValue }), ...(item.transform === undefined ? {} : { transform: normalizeTransform(item.transform) as unknown as JsonValue }) });
+        return Object.freeze({ kind: item.kind as JsonValue, ...normalizedPlane(item), ...normalizedRoundedBox(item), ...(item.name === undefined ? {} : { name: boundedString(item.name, `entities[${index}].name`, 80, true) }), ...(item.parentId === undefined ? {} : { parentId: item.parentId === null ? null : stable(item.parentId, `entities[${index}].parentId`) }), ...(item.material === undefined ? {} : { material: item.material as JsonValue }), ...(item.color === undefined ? {} : { color: normalizeMaterialColor(item.color) as unknown as JsonValue }), ...(item.transform === undefined ? {} : { transform: normalizeTransform(item.transform) as unknown as JsonValue }) });
       });
       return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entities: Object.freeze(entities) });
     }
@@ -1836,3 +1837,7 @@ function fuseAbort(signal: AbortSignal | undefined, controller: AbortController)
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }
 function errorCode(value: unknown): string { return value instanceof GameToolProtocolError ? value.code : 'tool.execution-failed'; }
 function prefixedDigest(value: string): string { return value.startsWith('sha256:') ? value : `sha256:${value}`; }
+
+function normalizedRoundedBox(raw: Record<string, unknown>): { radius?: number; segments?: number } {
+  try { return roundedBoxParameters(raw.kind, raw); } catch (cause) { throw invalid((cause as Error).message); }
+}

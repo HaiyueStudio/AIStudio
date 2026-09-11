@@ -64,6 +64,12 @@ export async function collectPackages() {
       assert.equal(installed.version, candidate.version);
       assert.equal(locked.integrity, candidate.integrity);
       assert.equal(await fileDigest(candidate.tarball), `sha256:${candidate.sha256}`, `${name} tarball mismatch`);
+      if (candidate.sourcePatch) {
+        const patch = candidate.sourcePatch;
+        assert.equal(await fileDigest(patch.path), `sha256:${patch.sha256}`, `${name} source patch mismatch`);
+        assert.equal(await fileDigest(patch.baseTarball), `sha256:${patch.baseSha256}`, `${name} patch baseline mismatch`);
+        assert.equal(await fileDigest(`${folder}/${patch.compiledModule}`), `sha256:${patch.compiledModuleSha256}`, `${name} patched runtime mismatch`);
+      }
       for (const entry of candidate.requiredExports) assert.ok(Object.hasOwn(installed.exports, entry), `${name} missing export ${entry}`);
     } else assert.equal(app.dependencies[name], installed.version, `${name} app pin mismatch`);
     const exports = await Promise.all(Object.entries(installed.exports).sort(([a], [b]) => a.localeCompare(b, 'en')).map(async ([subpath, conditions]) => ({

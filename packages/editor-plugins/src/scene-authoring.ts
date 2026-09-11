@@ -1,3 +1,4 @@
+import { createAuthoringRoundedBox, roundedBoxParameters } from './render/rounded-box.js';
 import { createAuthoringPlane } from './render/plane.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -31,7 +32,7 @@ import type { ProjectDocumentMutation, ProjectWorkspace } from './history/index.
 import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, type ControlledAssetManifestEntry } from './assets/catalog.js';
 import { normalizeProjectCamera, projectCameraFromSettings, type ProjectCameraSnapshot } from './camera-authoring.js';
 
-export const SCENE_GEOMETRY_KINDS = Object.freeze(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] as const);
+export const SCENE_GEOMETRY_KINDS = Object.freeze(['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] as const);
 export const SCENE_LIGHT_KINDS = Object.freeze(['directional-light', 'point-light', 'ambient-light'] as const);
 export const SCENE_MATERIAL_KINDS = Object.freeze(['basic', 'pbr', 'blinn-phong', 'normal'] as const);
 export type SceneGeometryKind = typeof SCENE_GEOMETRY_KINDS[number];
@@ -71,6 +72,8 @@ export interface SceneSnapshot {
 }
 export interface CreateSceneEntityIntent {
   readonly plane?: 'xy' | 'xz' | 'yz';
+  readonly radius?: number;
+  readonly segments?: number;
   readonly commandId: StableId;
   readonly baseRevision: number;
   readonly kind: SceneEntityKind;
@@ -260,6 +263,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     try {
       if (!isSceneEntityKind(intent.kind)) throw new TypeError(`Unsupported entity kind ${intent.kind}.`);
       if (intent.plane !== undefined && (intent.kind !== 'plane' || !['xy', 'xz', 'yz'].includes(intent.plane))) throw new TypeError('plane requires plane geometry and xy, xz or yz.');
+      roundedBoxParameters(intent.kind, intent);
       if (intent.material !== undefined && !isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
       if ((intent.material !== undefined || intent.color !== undefined) && !isSceneGeometryKind(intent.kind)) throw new TypeError('Only geometry entities can use materials.');
       const before = this.current;
@@ -283,7 +287,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
       ];
       if (isSceneGeometryKind(entity.kind)) {
         const geometryId = asStableId(`component:geometry:${randomUUID()}`); const materialId = asStableId(`component:material:${randomUUID()}`);
-        operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: geometryId, type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind: entity.kind, ...(intent.plane ? { plane: intent.plane } : {}) } }) });
+        operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: geometryId, type: asStableId('haiyue.render.geometry'), version: '1.0.0', value: { kind: entity.kind, ...roundedBoxParameters(entity.kind, intent), ...(intent.plane ? { plane: intent.plane } : {}) } }) });
         operations.push({ op: 'component.add', entityId: entity.id, component: this.workspace.componentRegistry.create({ id: materialId, type: asStableId('haiyue.render.material'), version: '1.0.0', value: entity.appearance as unknown as JsonObject }) });
       } else if (isSceneLightKind(entity.kind)) {
         const lightId = asStableId(`component:light:${randomUUID()}`);
@@ -712,6 +716,7 @@ function freezeLight(kind: SceneLightKind, value: NonNullable<SceneEntitySnapsho
 }
 function createGeometry(kind: SceneGeometryKind, components?: SceneEntitySnapshot['components']) {
   switch (kind) {
+    case 'rounded-box': return createAuthoringRoundedBox(components?.find(item => item.type === 'haiyue.render.geometry')?.value);
     case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();
     case 'plane': { const plane = components?.find(item => item.type === 'haiyue.render.geometry')?.value.plane; return createAuthoringPlane(plane); } case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
   }
@@ -736,5 +741,5 @@ function freezeComponentInstance(value: GameComponentInstanceV2): GameComponentI
 function freezeJsonObject(value: Readonly<Record<string, JsonValue>>): Readonly<Record<string, JsonValue>> { return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, child]) => [key, freezeJsonValue(child)]))); }
 function freezeJsonValue(value: JsonValue): JsonValue { if (Array.isArray(value)) return Object.freeze(value.map(freezeJsonValue)) as unknown as JsonValue; if (value && typeof value === 'object') return freezeJsonObject(value as Readonly<Record<string, JsonValue>>) as JsonValue; return value; }
 function componentLightType(kind: SceneLightKind): string { return kind === 'directional-light' ? 'haiyue.light.directional' : kind === 'point-light' ? 'haiyue.light.point' : 'haiyue.light.ambient'; }
-function entityKindLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
+function entityKindLabel(kind: SceneEntityKind): string { return ({ empty: 'Empty', cube: 'Cube', 'rounded-box': 'Rounded Box', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', 'directional-light': 'Directional Light', 'point-light': 'Point Light', 'ambient-light': 'Ambient Light' } as Record<SceneEntityKind, string>)[kind]; }
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }

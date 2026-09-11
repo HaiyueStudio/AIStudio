@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scope": "isolated-real-resource-module",
+  "productIntegrated": false,
+  "entityCounts": [
+    0,
+    1,
+    100,
+    1000
+  ],
+  "scripts": 200,
+  "sandbox": true,
+  "axTree": "accessibility.json",
+  "keyboard": true,
+  "narrowWidth": 375,
+  "cases": [
+    "light-template-create",
+    "light-instance-inspect-locate",
+    "environment-asset-assign",
+    "proven-use-location",
+    "reopen",
+    "file-digest",
+    "import-failure",
+    "missing-file",
+    "unsupported-preset",
+    "pagination",
+    "search",
+    "literal-long-name",
+    "late-result",
+    "dispose"
+  ],
+  "screenshots": [
+    "resource-desktop.png",
+    "resource-missing.png",
+    "resource-narrow.png"
+  ]
+}

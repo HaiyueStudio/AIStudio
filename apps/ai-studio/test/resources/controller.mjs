@@ -7,7 +7,7 @@ import { seedResourceProject } from '../../../../packages/editor-plugins/test/re
 /** G06 isolated module harness. G09 must replace this with lifecycle-owned app wiring. */
 export async function createResourceTestController() {
   const f = await resourceFixture(), texture = await f.importTexture();
-  let page, target = { entityId: f.entityId, label: 'Controller' }, query = { limit: 25 }, error = [], last = null;
+  let page, target = { entityId: f.entityId, label: 'Controller' }, query = { category: 'Geometry', limit: 25 }, error = [], last = null;
   const intents = [];
   const display = () => ({ projectKey: page.binding ? `${page.binding.projectId}/${page.binding.documentId}` : null, viewToken: page.binding?.digest ?? null, state: 'ready', items: page.items.map(item => ({
     entry: item.entry, health: item.health, diagnostics: item.diagnostics, locations: item.locations, target: item.target, assignments: item.assignments,

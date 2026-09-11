@@ -306,8 +306,10 @@ function validateSourceInput(input: KnowledgeSourceInput): void {
   if ((input.claimKeys ?? []).length > 64 || (input.claimKeys ?? []).some((key) => !/^[a-z0-9][a-z0-9._:-]{0,127}$/u.test(key))) throw new KnowledgeRetrievalError('knowledge.claim-key-invalid', 'Knowledge claim keys are invalid.');
 }
 
+export const MAX_KNOWLEDGE_QUERY_BYTES = 2_048;
+
 function validateSearchInput(input: KnowledgeSearchInput): void {
-  if (typeof input.query !== 'string' || !input.query.trim() || Buffer.byteLength(input.query) > 2_048) throw new KnowledgeRetrievalError('knowledge.query-invalid', 'Knowledge query is invalid.');
+  if (typeof input.query !== 'string' || !input.query.trim() || Buffer.byteLength(input.query) > MAX_KNOWLEDGE_QUERY_BYTES) throw new KnowledgeRetrievalError('knowledge.query-invalid', 'Knowledge query is invalid.');
   if (!Array.isArray(input.allowedPermissionScopes) || input.allowedPermissionScopes.length < 1 || input.allowedPermissionScopes.length > 64 || new Set(input.allowedPermissionScopes).size !== input.allowedPermissionScopes.length) throw new KnowledgeRetrievalError('knowledge.permission-required', 'At least one unique permission scope is required.');
   const limit = input.limit ?? 8; if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SEARCH_LIMIT) throw new KnowledgeRetrievalError('knowledge.limit-invalid', `Knowledge result limit must be 1-${MAX_SEARCH_LIMIT}.`);
   const budget = input.tokenBudget ?? 2_048; if (!Number.isSafeInteger(budget) || budget < 64 || budget > MAX_TOKEN_BUDGET) throw new KnowledgeRetrievalError('knowledge.token-budget-invalid', `Knowledge token budget must be 64-${MAX_TOKEN_BUDGET}.`);

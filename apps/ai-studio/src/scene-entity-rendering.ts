@@ -1,3 +1,4 @@
+import { createAuthoringRoundedBox } from '@haiyue/ai-studio-editor-plugins/render';
 import { createAuthoringPlane } from '@haiyue/ai-studio-editor-plugins/render';
 import {
   BasicMaterial, createBox3D, createSphere3D,
@@ -15,7 +16,7 @@ export interface RenderableSceneEntity {
 }
 
 
-const GEOMETRY_KINDS = new Set<SceneEntityKind>(['cube', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron']);
+const GEOMETRY_KINDS = new Set<SceneEntityKind>(['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron']);
 const LIGHT_KINDS = new Set<SceneEntityKind>(['directional-light', 'point-light', 'ambient-light']);
 
 export function isRenderableSceneKind(kind: SceneEntityKind): boolean { return GEOMETRY_KINDS.has(kind); }
@@ -43,6 +44,7 @@ export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEn
 
 function createGeometry(kind: SceneEntityKind, components?: RenderableSceneEntity['components']) {
   switch (kind) {
+    case 'rounded-box': return createAuthoringRoundedBox(components?.find(item => item.type === 'haiyue.render.geometry')?.value);
     case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();
     case 'plane': { const plane = components?.find(item => item.type === 'haiyue.render.geometry')?.value.plane; return createAuthoringPlane(plane); } case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
     default: throw new Error(`Entity kind ${kind} has no geometry.`);

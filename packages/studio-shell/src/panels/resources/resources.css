@@ -1,32 +1,42 @@
-.resource-explorer { color: #e3e8f1; background: #151b25; padding: 18px; box-sizing: border-box; font: 14px/1.55 system-ui, sans-serif; min-width: 0; container: resource-explorer / inline-size; }
+.resource-explorer { color: var(--hy-text-color, #e3e8f1); background: var(--hy-panel-bg-color, #151b25); padding: 10px; box-sizing: border-box; font: 13px/1.5 system-ui, sans-serif; min-width: 0; container: resource-explorer / inline-size; }
 .resource-explorer * { box-sizing: border-box; min-width: 0; }
-.resource-explorer header, .resource-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.resource-explorer header > div { flex: 1 1 100%; }
-.resource-explorer h2, .resource-explorer h3 { margin: 0 0 6px; }
-.resource-explorer p { margin: 8px 0; overflow-wrap: anywhere; }
-.resource-explorer button, .resource-explorer input, .resource-explorer select { font: inherit; color: inherit; border: 1px solid #63718a; background: #212c3d; border-radius: 6px; padding: 7px 10px; max-width: 100%; }
+.resource-explorer [hidden] { display: none !important; }
+.resource-explorer .resource-header { display: flex; align-items: center; gap: 8px; padding: 0 0 8px; margin: 0; border: 0; background: transparent; min-height: 0; }
+.resource-explorer .resource-header h2 { flex: 1; position: static; padding: 0; border: 0; background: transparent; font-size: 13px; font-weight: 600; margin: 0; letter-spacing: normal; text-transform: none; color: var(--hy-secondary-text-color, #b8c6da); }
+.resource-explorer h3 { font-size: 14px; margin: 0 0 6px; }
+.resource-explorer p { margin: 6px 0; overflow-wrap: anywhere; }
+.resource-explorer button, .resource-explorer input, .resource-explorer select { font: inherit; color: inherit; border: 1px solid var(--hy-border-color, #384357); background: var(--hy-input-bg-color, #212c3d); border-radius: 5px; padding: 5px 8px; max-width: 100%; }
 .resource-explorer button { cursor: pointer; text-align: start; white-space: normal; overflow-wrap: anywhere; }
+.resource-explorer button:hover:not(:disabled) { background: var(--hy-hover-bg-color, #29364b); }
 .resource-explorer button:disabled { opacity: .48; cursor: default; }
-.resource-explorer :focus-visible { outline: 3px solid #87c7ff; outline-offset: 2px; }
+.resource-explorer :focus-visible { outline: 2px solid #87c7ff; outline-offset: 2px; }
 .resource-explorer label { display: flex; flex-direction: column; gap: 4px; }
 .resource-explorer .resource-unused { flex-direction: row; align-items: center; grid-column: 1 / -1; }
-.resource-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid #384357; }
-.resource-hint, .resource-list span, .resource-explorer dt { color: #b8c6da; }
-.resource-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 12px; }
-.resource-list { display: grid; gap: 7px; list-style: none; padding: 0; margin: 10px 0; max-height: 310px; overflow: auto; scrollbar-gutter: stable; }
-.resource-list button { width: 100%; display: grid; gap: 4px; }
-.resource-list button[aria-pressed="true"] { border-color: #94cdff; background: #263d58; }
-.resource-detail { border: 1px solid #4a5870; border-radius: 8px; padding: 14px; align-self: start; overflow-wrap: anywhere; }
+.resource-explorer .resource-tabs { height: auto; min-height: 0; }
+.resource-explorer [data-resource="content"] { padding-top: 10px; }
+.resource-searchbar { display: flex; gap: 6px; align-items: center; }
+.resource-searchbar input { flex: 1; width: 0; }
+.resource-searchbar button { flex: 0 0 auto; }
+.resource-more { margin-top: 8px; color: var(--hy-secondary-text-color, #b8c6da); }
+.resource-more > summary { cursor: pointer; width: fit-content; padding: 2px 0; }
+.resource-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px 0; }
+.resource-list span, .resource-explorer dt { color: var(--hy-secondary-text-color, #a6b5ca); font-size: 12px; }
+.resource-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 8px; }
+.resource-list-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; color: var(--hy-secondary-text-color, #a6b5ca); font-size: 12px; }
+.resource-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.resource-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 6px; list-style: none; padding: 0; margin: 8px 0 0; max-height: 520px; overflow: auto; scrollbar-gutter: stable; }
+.resource-list button { width: 100%; height: 100%; display: grid; align-content: start; gap: 3px; padding: 9px; border-color: var(--hy-border-color, #303b4e); }
+.resource-list strong { font-size: 13px; font-weight: 500; }
+.resource-list button[aria-pressed="true"] { border-color: #94cdff; background: var(--hy-selected-bg-color, #263d58); }
+.resource-empty { grid-column: 1 / -1; padding: 24px 8px; text-align: center; color: var(--hy-secondary-text-color, #a6b5ca); }
+.resource-detail { border: 1px solid var(--hy-border-color, #384357); border-radius: 6px; padding: 12px; align-self: start; overflow-wrap: anywhere; }
 .resource-detail > button { display: block; margin: 7px 0; }
 .resource-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; font-size: 12px; }
 .resource-detail dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 12px; }
 .resource-detail dd { margin: 0; }
 .resource-detail summary { cursor: pointer; padding: 5px 0; }
 .resource-diagnostic, .resource-explorer [role="alert"] { color: #ffcb9a; white-space: pre-wrap; }
-/* A desktop side pane can be narrow even when the application window is wide. */
 @container resource-explorer (min-width: 650px) {
-  .resource-explorer header > div { flex: 1; }
-  .resource-filters { grid-template-columns: minmax(160px, 1fr) auto repeat(3, minmax(90px, .6fr)); }
-  .resource-columns { grid-template-columns: minmax(220px, 1fr) minmax(250px, 1.15fr); }
-  .resource-list { max-height: 540px; }
+  .resource-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .has-resource-selection .resource-columns { grid-template-columns: minmax(240px, 1fr) minmax(250px, .85fr); }
 }

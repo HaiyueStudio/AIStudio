@@ -17,9 +17,25 @@ app.whenReady().then(async () => {
   ipcMain.handle('g06-resource-current', event => { sender(event); return controller.display(); });
   ipcMain.handle('g06-resource-intent', async (event, input) => { sender(event); return controller.dispatch(input); });
   await window.loadFile(path.join(directory, 'host.html'));
-  const evaluate = code => window.webContents.executeJavaScript(`(async()=>{const {panel,get,assert,intents,idle,query,select,action,update}=window.resourceTest;${code}})()`);
+  const evaluate = code => window.webContents.executeJavaScript(`(async()=>{const {panel,get,assert,intents,idle,query,tab,select,action,update}=window.resourceTest;${code}})()`);
   const update = async data => evaluate(`update(${JSON.stringify(data)});await idle();`);
   const screenshot = async name => { await evaluate('await idle();'); await writeFile(path.join(directory, name), (await window.webContents.capturePage()).toPNG()); };
+  await evaluate(`assert(JSON.stringify(get('tabs').options.map(o=>o.label))===JSON.stringify(['几何体','纹理','材质','脚本','模型']),'five primary tabs in requested order');assert(get('tabs').value==='Geometry','default geometry tab');assert(window.resourceTest.data.items.every(item=>item.entry.category==='Geometry'),'initial query matches tab');assert(!get('more').open && get('import').hidden,'compact initial controls');
+    for(const category of ['Texture','Material','Script','Model','Geometry']) { await tab(category);assert(intents.at(-1).query.category===category && !intents.at(-1).query.cursor,'tab queries category at first page');assert(window.resourceTest.data.items.every(item=>item.entry.category===category),'server filtered tab results');assert(get('content').slot===category,'active content in tab panel');assert(get('detail').hidden,'selection clears across tabs'); }
+    await tab('Texture');assert(get('import').textContent==='导入纹理' && get('import-kind').value==='texture','texture import context');await tab('Model');assert(get('import').textContent==='导入模型' && get('import-kind').value==='model','model import context');
+    await query('kind','asset');get('unused').checked=true;await tab('Geometry');assert(!intents.at(-1).query.kind && !intents.at(-1).query.unused,'tab clears incompatible filters');
+    get('tabs').shadowRoot.querySelector('[data-value="Geometry"]').focus();`);
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
+  await evaluate(`await idle();assert(get('tabs').value==='Texture','native arrow key switches tab');assert(get('tabs').shadowRoot.activeElement?.dataset.value==='Texture','tab keyboard focus retained');await tab('Geometry');`);
+  await screenshot('resource-tabs-desktop.png');
+  window.setContentSize(375, 850);
+  await evaluate(`await idle();assert(document.documentElement.scrollWidth<=innerWidth,'five tabs fit narrow panel');const tabs=get('tabs').shadowRoot.querySelector('[role="tablist"]');assert(tabs.scrollWidth<=tabs.clientWidth,'all five tabs visible without horizontal overflow');assert(get('list').getBoundingClientRect().top<300,'resources visible near top');`);
+  await screenshot('resource-tabs-narrow.png');
+  window.setContentSize(206, 850);
+  await evaluate(`await idle();const bar=get('tabs').shadowRoot.querySelector('[role="tablist"]');assert(bar.scrollWidth>bar.clientWidth,'extreme narrow tabs scroll');for(const button of bar.querySelectorAll('button'))assert(getComputedStyle(button).whiteSpace==='nowrap' && button.scrollWidth<=button.clientWidth,'tab labels stay on one line');assert(panel.root.scrollWidth<=panel.root.clientWidth,'only tab bar scrolls');get('tabs').shadowRoot.querySelector('[data-value="Geometry"]').focus();`);
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'End' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'End' });
+  await evaluate(`await idle();assert(get('tabs').value==='Model','End selects last category');const bar=get('tabs').shadowRoot.querySelector('[role="tablist"]'),selected=bar.querySelector('[aria-selected="true"]');assert(bar.scrollLeft>0 && selected.getBoundingClientRect().right<=bar.getBoundingClientRect().right+1,'keyboard selection scrolls into view');`);
+  await screenshot('resource-tabs-206.png'); window.setContentSize(1060, 940);
   await evaluate(`assert(typeof process==='undefined','renderer sandbox');await query('kind','template');await query('category','Lighting');select(item=>item.entry.ref.templateId==='haiyue.light.point');assert(!panel.root.querySelector('[data-resource-action="asset.assign"]'),'light template is not asset');`);
   const before = controller.f.workspace.gameSnapshot().entities.length;
   await evaluate(`await action('template.create');`);
@@ -38,6 +54,7 @@ app.whenReady().then(async () => {
   await screenshot('resource-missing.png');
   for (const count of [0, 1, 100, 1000]) {
     await update(await controller.seed(count, count === 1000 ? 200 : 0));
+    await evaluate(`await query('kind','instance');await query('category','');`);
     await evaluate(`assert(window.resourceTest.data.total===${count * 2 + (count === 1000 ? 200 : 0)},'real entity/script total');assert(get('list').querySelectorAll('button').length<=25,'bounded DOM');assert(!panel.root.querySelector('img'),'project text never HTML');`);
     if (!count) await evaluate(`assert(get('list').textContent.includes('没有匹配资源'),'empty project');`);
     if (count === 1) await evaluate(`get('list').querySelector('button').focus();`);
@@ -50,7 +67,7 @@ app.whenReady().then(async () => {
   window.webContents.debugger.attach('1.3');
   const tree = await window.webContents.debugger.sendCommand('Accessibility.getFullAXTree');
   const names = tree.nodes.filter(node => !node.ignored).map(node => node.name?.value);
-  for (const name of ['项目资源', '搜索资源', '分类', '种类', '状态', '导入项目资源', '资源列表']) assert.ok(names.includes(name), `AX name ${name}`);
+  for (const name of ['项目资源', '搜索资源', '资源分类', '几何体', '纹理', '材质', '脚本', '模型', '更多筛选', '资源列表']) assert.ok(names.includes(name), `AX name ${name}`);
   await writeFile(path.join(directory, 'accessibility.json'), JSON.stringify(tree, null, 2)); window.webContents.debugger.detach();
   await evaluate(`get('list').querySelector('button').focus();`);
   const key = keyCode => { window.webContents.sendInputEvent({ type: 'keyDown', keyCode }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode }); };

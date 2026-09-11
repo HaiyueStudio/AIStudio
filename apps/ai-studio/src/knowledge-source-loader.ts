@@ -20,6 +20,10 @@ interface ReviewedEngineGuide {
  * they deliberately do not contain game-specific prompt patches. */
 const ENGINE_GUIDES: readonly ReviewedEngineGuide[] = Object.freeze([
   Object.freeze({
+    id: 'rounded-box', capabilityIds: ['document.v2'], title: '圆角立方体 / rounded box geometry',
+    text: 'For rounded cubes, beveled cubies and rounded blocks (圆角立方体、倒角方块), use entity.create or entity.create-many with kind rounded-box. This uses Engine createRoundedBox3D. radius defaults to 0.075 local units (0..0.5), segments defaults to 4 (1..16). Geometry is centered at the local origin with size 1 x 1 x 1 before Transform. Use uniform scale to preserve a circular corner radius. Use component.configure on haiyue.render.geometry to change kind, radius and segments; keep material configuration separate. PBR requires scene lighting. Never substitute ordinary cube for an explicit rounded-box requirement. Verify the rendered corners, including after save/reopen and in Play.',
+  }),
+  Object.freeze({
     id: 'camera-framing', capabilityIds: ['camera.2d', 'camera.3d', 'camera.follow'], title: 'Camera framing and projection',
     text: 'Use a persisted gameplay camera as the shared authoring and Play authority. Inspect the current camera before editing it. Orthographic projection is appropriate when parallel board edges must remain parallel; perspective is appropriate when depth cues matter. A straight top-down 3D camera has 90 degrees elevation. camera.set orthographicSize is the full visible vertical world span; horizontal span also depends on aspect. Input conversion must still use engine picking rather than duplicating these projection formulas. Frame or follow an explicit target and verify the result with a Play screenshot.',
   }),

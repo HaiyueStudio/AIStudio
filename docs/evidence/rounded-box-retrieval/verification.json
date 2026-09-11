@@ -1,0 +1,32 @@
+{
+  "scope": "rounded-box authoring and bounded knowledge query",
+  "workspaceBuild": "passed",
+  "capabilityChecks": {
+    "passed": 123,
+    "failed": 0,
+    "suites": 12
+  },
+  "repositoryCheck": {
+    "command": "TMPDIR=/private/tmp npm --ignore-scripts run check",
+    "status": "failed",
+    "integrationFiles": 48,
+    "integrationPassed": 223,
+    "integrationFailed": 4,
+    "integrationSkipped": 0,
+    "integrationCancelled": 0
+  },
+  "isolatedWindowRetry": {
+    "passed": 4,
+    "failed": 1,
+    "resolved": [
+      "execution graph drag",
+      "graph hover/click",
+      "notification product window",
+      "product author and restart phases"
+    ],
+    "remaining": "Product large-scene acceptance requires Windows 10 / Intel i7-7700 / 8 logical CPUs; actual host is macOS 25.6.0 / Intel i7-9750H / 12 logical CPUs."
+  },
+  "sourceBinding": "verified",
+  "runningUserAppRestarted": false,
+  "userProjectModified": false
+}
