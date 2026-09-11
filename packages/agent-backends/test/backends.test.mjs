@@ -339,7 +339,7 @@ test('the opt-in Codex real smoke covers auth, text, dynamic tool, question and 
 function fakeHarnessTransport() {
   const sessions = new Map();
   const capabilities = { maxInputTokens: null, nativeCompaction: false, parallelToolCalls: false, codeMode: false, providerUsage: 'reported', providerCache: 'reported', nativeCompactionTransport: 'unavailable', nativeCompactionMirror: 'fallback-required', diagnostic: { code: 'harness.compaction-driver-unavailable', message: 'Studio fallback required.' } };
-  return { upstream: { tag: 'dsh-v0.1.0-rc.7', commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' }, configured: async () => true,
+  return { upstream: { tag: 'dsh-v0.1.5-rc.2', commit: 'fb2c4b9e698e30edb738bca4cf0618587db7d203' }, configured: async () => true,
     modelCatalog: () => [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', description: 'fixture', maxTokens: 384_000 }],
     sessionCapabilities: () => capabilities,
     openSession: async (value) => { const sessionId = value.sessionId ?? `thread:session:${sessions.size + 1}`; sessions.set(sessionId, { model: value.model, boundary: value.lastConfirmedOpId }); return { sessionId, capabilities }; },

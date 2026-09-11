@@ -2,12 +2,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Context, Fiber } from '@deepseek-ai/cordis';
 import type { StudioKernelHost, StudioPluginActivationContext } from '@haiyue/ai-studio-contracts';
 import { harnessOwnerContext } from './ownership.js';
-import AgentRegistry, { installModelSelection, type Agent, type AgentHandle, type ModelSelectionRef } from '@deepseek-ai/dsh-agent';
+import AgentRegistry, { installModelSelection, type Agent, type AgentHandle, type AssistantStreamFrame, type ModelSelectionRef } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id';
 import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
-import { DeepSeekAdapter, resolveAdapterOptions } from '@deepseek-ai/dsh-llm-deepseek';
+import { DeepSeekAdapter, DEFAULT_MAX_TOKENS, PUBLIC_BASE_URL, resolveAdapterOptions } from '@deepseek-ai/dsh-llm-deepseek';
 import SessionStore, { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session';
+import SessionProjections from '@deepseek-ai/dsh-session-projection';
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import ToolRuntime, { type ToolDefinition } from '@deepseek-ai/dsh-tools';
 
@@ -47,7 +48,7 @@ export type HarnessBridgeEvent =
   | Readonly<{ type: 'turn-end'; sessionId: string; turnId: string; status: 'completed' | 'cancelled' | 'failed' | 'interrupted'; finishReason: 'stop' | 'length' | 'cancelled' | 'error' | 'unknown'; diagnostic?: Readonly<{ code: string; message: string }> }>;
 
 export interface HarnessAgentTransport {
-  readonly upstream: Readonly<{ tag: 'dsh-v0.1.0-rc.7'; commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' }>;
+  readonly upstream: Readonly<{ tag: 'dsh-v0.1.5-rc.2'; commit: 'fb2c4b9e698e30edb738bca4cf0618587db7d203' }>;
   modelCatalog(): readonly Readonly<{ id: string; name: string; description: string; maxTokens: number }>[];
   configured(): Promise<boolean>;
   sessionCapabilities(model: string): HarnessBridgeSessionCapabilities;
@@ -79,8 +80,8 @@ interface HarnessRequestRetryPolicy {
 }
 
 const STUDIO_MAX_HARNESS_REQUEST_RETRIES = 2;
-// Pinned AgentRegistry declares a root-wide `agent` accessor. A profile selects
-// one backend; reject a second live Harness runtime before loading any plugins.
+// A profile selects one backend; keep all Harness services in its owned scope
+// and reject a second live transport before loading any plugins.
 const transportRoots = new WeakSet<Context>();
 
 /** Resolve one bounded, deterministic retry delay from the provider-owned Harness policy. */
@@ -105,13 +106,14 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
     context.effect(() => () => { transportRoots.delete(root); }, 'studio.harness-transport-owner');
     await context.plugin(AgentRegistry);
     await context.plugin(SessionStore);
+    await context.plugin(SessionProjections);
     await context.plugin(LlmRuntime);
     await context.plugin(SystemPrompt, { includeRuntimeContext: false });
     await context.plugin(ToolRuntime, { mode: 'native', maxParallelSubCalls: 1 });
     const selectedModel = options.model ?? 'deepseek-v4-flash';
     const resolved = resolveAdapterOptions({
       apiKeyEnv: 'HAIYUE_STUDIO_DEEPSEEK_SECRET', baseURL: options.baseURL, thinking: 'enabled', reasoningEffort: 'high',
-      maxTokens: 384_000,
+      maxTokens: DEFAULT_MAX_TOKENS,
     });
     const adapter = new DeepSeekAdapter({
       options: () => resolved,
@@ -122,6 +124,9 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
         return value;
       },
       resolveUserId: () => randomUUID() as AnonymousUserId,
+      // Studio owns its logs and credentials. No optional Harness upload or
+      // plugin metadata services are mounted into this transport.
+      prepareExtensions: async () => ({ fields: {}, accept: async () => {} }),
     });
     await context.plugin({
       name: 'studio:harness-agent-adapter', inject: ['llm'],
@@ -131,7 +136,7 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
     let transport: PinnedHarnessTransport | undefined;
     await context.plugin({
       name: 'studio:harness-agent-client', inject: ['agents', 'sessions', 'llm', 'systemPrompt', 'tools', 'agentLoop'],
-      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, options.resolveApiKey, () => disposeHarnessScope(scope)); },
+      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, resolved.baseURL === PUBLIC_BASE_URL, options.resolveApiKey, () => disposeHarnessScope(scope)); },
     });
     harnessOwnerContext(options.owner);
     if (!transport) throw new Error('Harness transport did not activate.');
@@ -149,7 +154,7 @@ async function disposeHarnessScope(scope: Fiber): Promise<void> {
 }
 
 class PinnedHarnessTransport implements HarnessAgentTransport {
-  readonly upstream = Object.freeze({ tag: 'dsh-v0.1.0-rc.7' as const, commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' as const });
+  readonly upstream = Object.freeze({ tag: 'dsh-v0.1.5-rc.2' as const, commit: 'fb2c4b9e698e30edb738bca4cf0618587db7d203' as const });
   private readonly handles = new Map<string, AgentHandle>();
   private readonly selections = new Map<string, ModelSelectionRef>();
   private readonly sessionModels = new Map<string, string>();
@@ -159,19 +164,25 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   private readonly results = new Map<string, Deferred<Readonly<Record<string, unknown>>>>();
   private disposed = false;
   private disposal?: Promise<void>;
-  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number }>[], private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>) {
+  private readonly assistantAttempts = new Map<string, Readonly<{ attemptId: string; revision: number; turn: number }>>();
+  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number; contextWindow?: number }>[], private readonly officialEndpoint: boolean, private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>) {
+    if (!models.some((entry) => entry.id === model)) throw new Error(`Harness default model ${model} is not in the pinned catalog.`);
     context.effect(() => () => this.release(), 'studio.harness-transport.dispose');
     context.on('session/event', (session, event) => this.onSessionEvent(String(session.id), event));
+    context.on('agent/assistant-stream', ({ agent, frame }) => this.onAssistantStream(String(agent.id), frame));
   }
   modelCatalog(): readonly Readonly<{ id: string; name: string; description: string; maxTokens: number }>[] {
-    return Object.freeze(this.models.map((entry) => Object.freeze({ id: entry.id, name: entry.name ?? entry.id, description: entry.description ?? entry.name ?? entry.id, maxTokens: entry.maxTokens ?? 384_000 })));
+    // The backend uses the first entry as its default. Keep the Studio-selected
+    // model stable when upstream adds or reorders catalog entries.
+    const ordered = [...this.models.filter((entry) => entry.id === this.model), ...this.models.filter((entry) => entry.id !== this.model)];
+    return Object.freeze(ordered.map((entry) => Object.freeze({ id: entry.id, name: entry.name ?? entry.id, description: entry.description ?? entry.name ?? entry.id, maxTokens: entry.maxTokens ?? DEFAULT_MAX_TOKENS })));
   }
   async configured(): Promise<boolean> { return Boolean(await this.resolveApiKey()); }
   sessionCapabilities(model: string): HarnessBridgeSessionCapabilities {
-    const catalog = this.modelCatalog().find((entry) => entry.id === model);
+    const catalog = this.models.find((entry) => entry.id === model);
     if (!catalog) throw new Error(`Harness model ${model} is not in the pinned catalog.`);
     return Object.freeze({
-      maxInputTokens: null,
+      maxInputTokens: this.officialEndpoint ? catalog.contextWindow ?? null : null,
       nativeCompaction: false,
       parallelToolCalls: false,
       codeMode: false,
@@ -179,7 +190,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
       providerCache: 'reported',
       nativeCompactionTransport: 'unavailable',
       nativeCompactionMirror: 'fallback-required',
-      diagnostic: Object.freeze({ code: 'harness.compaction-driver-unavailable', message: 'Pinned Harness exposes an output-token cap but no authoritative input Context Window or public compaction driver; model capacity remains unknown and Studio compaction is required.' }),
+      diagnostic: Object.freeze({ code: 'harness.compaction-driver-unavailable', message: 'Harness native compaction is not mounted; use Studio compaction. Context capacity comes from the pinned official model catalog and remains unknown for custom endpoints.' }),
     });
   }
   async openSession(input: HarnessBridgeSessionOpenInput, signal?: AbortSignal): Promise<Readonly<{ sessionId: string; capabilities: HarnessBridgeSessionCapabilities }>> {
@@ -204,7 +215,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   async compactSession(sessionId: string): Promise<Readonly<{ status: 'unavailable'; diagnostic: Readonly<{ code: string; message: string }> }>> {
     this.assertActive();
     if (!this.handles.has(sessionId)) throw new Error(`Harness Session ${sessionId} is not live.`);
-    return Object.freeze({ status: 'unavailable', diagnostic: Object.freeze({ code: 'harness.compaction-driver-unavailable', message: 'Pinned Harness has no public compaction driver; use Studio compaction.' }) });
+    return Object.freeze({ status: 'unavailable', diagnostic: Object.freeze({ code: 'harness.compaction-driver-unavailable', message: 'Harness native compaction is not mounted; use Studio compaction.' }) });
   }
   async closeSession(sessionId: string): Promise<void> {
     this.assertActive();
@@ -212,6 +223,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     if (!handle) return;
     handle.agent.cancel({ kind: 'disposed' });
     await handle.dispose();
+    this.assistantAttempts.delete(sessionId);
     this.handles.delete(sessionId); this.selections.delete(sessionId); this.sessionModels.delete(sessionId); this.sessionBoundaries.delete(sessionId); this.sessionToolSignatures.delete(sessionId);
   }
   async *start(input: HarnessBridgeTurnInput, signal?: AbortSignal): AsyncIterable<HarnessBridgeEvent> {
@@ -228,7 +240,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
     handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: input.prompt }], source: { kind: 'user' } }));
     try { yield* queue; }
-    finally { signal?.removeEventListener('abort', abort); if (this.streams.get(sessionId) === queue) this.streams.delete(sessionId); }
+    finally { signal?.removeEventListener('abort', abort); if (this.streams.get(sessionId) === queue) { this.streams.delete(sessionId); this.assistantAttempts.delete(sessionId); } }
   }
   async submitToolResult(toolCallId: string, result: Readonly<Record<string, unknown>>, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw signal.reason; const pending = this.results.get(toolCallId); if (!pending) throw new Error(`Harness tool call ${toolCallId} is not pending.`); this.results.delete(toolCallId); pending.resolve(Object.freeze({ ...result }));
@@ -245,6 +257,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     this.results.clear();
     this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.')));
     this.streams.clear(); this.handles.clear(); this.selections.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear();
+    this.assistantAttempts.clear();
   }
   private async ensureHandle(sessionId: string, input: Pick<HarnessBridgeSessionOpenInput, 'model' | 'reasoningEffort' | 'maxTokens' | 'tools'>, signal?: AbortSignal): Promise<AgentHandle> {
     let handle = this.handles.get(sessionId);
@@ -292,13 +305,29 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   private onSessionEvent(sessionId: string, event: SessionEvent): void {
     const queue = this.streams.get(sessionId); if (!queue) return;
     if (event.type === 'turn/start') queue.push(Object.freeze({ type: 'turn-start', sessionId, turnId: turnId(sessionId, event.data.turn) }));
-    else if (event.type === 'assistant/chunk' && event.data.chunk.type === 'text-delta') queue.push(Object.freeze({ type: 'text-delta', sessionId, turnId: turnId(sessionId, event.data.turn), text: event.data.chunk.text }));
     else if (event.type === 'assistant/message' && event.data.usage) queue.push(Object.freeze({ type: 'usage', sessionId, turnId: turnId(sessionId, event.data.turn), ...event.data.usage }));
     else if (event.type === 'turn/end') {
       const reason = event.data.reason; const status = reason.kind === 'completed' || reason.kind === 'max-tokens' ? 'completed' : reason.kind === 'aborted' ? 'cancelled' : reason.kind === 'interrupted' ? 'interrupted' : 'failed';
       const diagnostic = reason.kind === 'error' ? Object.freeze({ code: reason.error.code, message: reason.error.message }) : undefined;
       const finishReason = reason.kind === 'completed' ? 'stop' : reason.kind === 'max-tokens' ? 'length' : reason.kind === 'aborted' ? 'cancelled' : reason.kind === 'error' ? 'error' : 'unknown';
+      this.assistantAttempts.delete(sessionId);
       queue.push(Object.freeze({ type: 'turn-end', sessionId, turnId: turnId(sessionId, event.data.turn), status, finishReason, ...(diagnostic ? { diagnostic } : {}) })); queue.close();
+    }
+  }
+  private onAssistantStream(sessionId: string, frame: AssistantStreamFrame): void {
+    const queue = this.streams.get(sessionId); if (!queue || this.disposed) return;
+    if (frame.type === 'start') {
+      const previous = this.assistantAttempts.get(sessionId);
+      if (previous && frame.revision <= previous.revision) return;
+      this.assistantAttempts.set(sessionId, { attemptId: String(frame.attemptId), revision: frame.revision, turn: frame.turn });
+      return;
+    }
+    const attempt = this.assistantAttempts.get(sessionId);
+    if (!attempt || attempt.attemptId !== String(frame.attemptId) || frame.revision <= attempt.revision) return;
+    if (frame.type === 'end') this.assistantAttempts.delete(sessionId);
+    else {
+      this.assistantAttempts.set(sessionId, { ...attempt, revision: frame.revision });
+      if (frame.chunk.type === 'text-delta') queue.push(Object.freeze({ type: 'text-delta', sessionId, turnId: turnId(sessionId, attempt.turn), text: frame.chunk.text }));
     }
   }
   private assertActive(): void { if (this.disposed || this.context.fiber.uid === null) throw new Error('Harness transport is disposed.'); }
@@ -319,7 +348,7 @@ class AsyncEventQueue<T> implements AsyncIterable<T> {
 interface Deferred<T> { readonly promise: Promise<T>; resolve(value: T): void; reject(cause: unknown): void; }
 function deferred<T>(): Deferred<T> { let resolve!: (value: T) => void; let reject!: (cause?: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 function turnId(sessionId: string, turn: number): string { return `${sessionId}:turn:${turn}`; }
-function latestTurn(agent: Agent | undefined): number { const events = agent?.session.events ?? []; for (let i = events.length - 1; i >= 0; i -= 1) { const event = events[i]!; if (event.type === 'turn/start') return event.data.turn; } return 1; }
+function latestTurn(agent: Agent | undefined): number { const events = agent?.session.snapshotEvents() ?? []; for (let i = events.length - 1; i >= 0; i -= 1) { const event = events[i]!; if (event.type === 'turn/start') return event.data.turn; } return 1; }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function harnessToolSetSignature(tools: readonly HarnessBridgeTool[]): string { return createHash('sha256').update(stableJson(tools.map((tool) => ({ id: tool.id, description: tool.description, inputSchema: tool.inputSchema })))).digest('hex'); }
 function stableJson(value: unknown): string { if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'; if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`; return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`).join(',')}}`; }

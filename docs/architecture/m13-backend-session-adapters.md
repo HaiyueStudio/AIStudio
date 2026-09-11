@@ -33,11 +33,11 @@ Studio Session replay/checkpoint
 
 ## Pinned provider capability matrix
 
-| Capability | Harness `dsh-v0.1.0-rc.7` | Codex App Server `0.148.0` |
+| Capability | Harness `dsh-v0.1.5-rc.2` | Codex App Server `0.148.0` |
 | --- | --- | --- |
 | remote identity | process-local Harness Session | ephemeral Codex thread |
-| input Context Window | `unknown`；上游 `maxTokens` 是输出上限，不能冒充输入容量 | 初始 `unknown`；收到 `thread/tokenUsage/updated.modelContextWindow` 后升级 |
-| native compact transport | 无公开 driver | 有 `thread/compact/start` |
+| input Context Window | 官方端点读取 pinned catalog 的 `contextWindow`（1,000,000，含输入/输出）；自定义端点为 `unknown`。`maxTokens` 仍只是输出上限 | 初始 `unknown`；收到 `thread/tokenUsage/updated.modelContextWindow` 后升级 |
+| native compact transport | Studio 未挂载原生压缩 driver | 有 `thread/compact/start` |
 | safe Studio mirror | 不支持 | 不支持；RPC 返回空对象且通知没有摘要/覆盖范围 |
 | binding `nativeCompaction` | `false` | `false` |
 | parallel tool transport | 当前配置为 1，因此 `false` | provider transport 可并行，报告 `true`；实际调度仍由 G06 决定 |

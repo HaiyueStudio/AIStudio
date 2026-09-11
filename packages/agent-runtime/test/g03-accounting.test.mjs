@@ -93,8 +93,13 @@ test('pricing handles cache discounts, rounding, subscription separation and unk
   const usage = Object.freeze({ schemaVersion: 2, id: asStableId('usage:pricing'), taskId: asStableId('task:pricing'), sessionId: asStableId('session:pricing'), turnId: asStableId('turn:pricing'), inputTokens: 1_000_000, cachedInputTokens: 400_000, cacheWriteTokens: 0, outputTokens: 100_000, reasoningTokens: 50_000, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 1_000, providerRequestDigest: null, final: true });
   const estimated = engine.estimate({ provider: 'deepseek', model: 'deepseek-v4-flash', usage, billingMode: 'api' });
   assert.equal(estimated.record.status, 'estimated');
-  assert.equal(estimated.record.amountMicros, 113_120);
-  assert.equal(estimated.cacheSavingMicros, 54_880);
+  assert.equal(estimated.record.amountMicros, 302_400);
+  assert.equal(estimated.cacheSavingMicros, 117_600);
+  for (const model of ['deepseek-flash', 'deepseek-v4-flash-vision-exp']) {
+    const alias = engine.estimate({ provider: 'deepseek', model, usage, billingMode: 'api' });
+    assert.equal(alias.record.amountMicros, 302_400, 'V4.1 and its Flash aliases use conservative peak estimates');
+    assert.equal(alias.record.status, 'estimated');
+  }
   assert.equal(engine.estimate({ provider: 'deepseek', model: 'missing', usage, billingMode: 'api' }).record.status, 'unknown');
   const subscription = engine.estimate({ provider: 'openai', model: 'gpt-5.6-sol', usage, billingMode: 'subscription' });
   assert.equal(subscription.record.amountMicros, null);

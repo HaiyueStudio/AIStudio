@@ -17,7 +17,9 @@ test('project attention follows real host transitions and project hydration does
   await value.run('A notification regression');
   await until(() => changes.some(c => c.type === 'show'));
   assert.equal(changes.filter(c => c.type === 'show').length, 1);
-  assert.equal(changes.find(c => c.type === 'show').notice.kind, 'blocked');
+  assert.equal(changes.find(c => c.type === 'show').notice.kind, 'turn-completed');
+  assert.equal(value.controller.replay().busy, false);
+  assert.equal(value.controller.replay().taskRuns[0].status, 'blocked', 'a turn reminder must not change task acceptance');
   await value.change('b'); await value.change('a');
   assert.equal(changes.filter(c => c.type === 'show').length, 1);
   assert.ok(changes.some(c => c.type === 'withdraw')); subscription.dispose();

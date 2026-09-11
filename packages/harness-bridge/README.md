@@ -11,6 +11,13 @@ rollback, and resource accounting. The M03 editor foundations are installed as
 one scoped provider in the same root; they do not create another plugin host or
 History owner.
 
+## Current upstream
+
+The runtime now uses Harness `dsh-v0.1.5-rc.2` and Cordis `4.0.2`.
+See [the upgrade record](../../docs/upstream/deepseek-harness/README.md) for the exact pin,
+stream/session adaptations, model capacities, pricing assumptions and regression coverage.
+The G02 record below describes the original milestone baseline.
+
 ## G02 verification
 
 Verified on 2026-08-19 with the pinned Cordis `4.0.1` and DeepSeek Harness

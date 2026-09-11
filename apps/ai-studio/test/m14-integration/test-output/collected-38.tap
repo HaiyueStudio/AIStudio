@@ -2,31 +2,31 @@ TAP version 13
 # Subtest: actual M12 document and registry project complete hierarchy, components and the same public Selection/History
 ok 1 - actual M12 document and registry project complete hierarchy, components and the same public Selection/History
   ---
-  duration_ms: 688.6975
+  duration_ms: 486.542202
   type: 'test'
   ...
 # Subtest: manual component edits, rename, hierarchy and Transform use actual tools and exactly one existing History transaction each
 ok 2 - manual component edits, rename, hierarchy and Transform use actual tools and exactly one existing History transaction each
   ---
-  duration_ms: 915.5016
+  duration_ms: 2394.733262
   type: 'test'
   ...
 # Subtest: unknown authority, versions, component owners, exact revisions, selection and reopen epoch fail closed
 ok 3 - unknown authority, versions, component owners, exact revisions, selection and reopen epoch fail closed
   ---
-  duration_ms: 513.8778
+  duration_ms: 500.818395
   type: 'test'
   ...
 # Subtest: registry validation and withheld approval reject edits without changing Document or History
 ok 4 - registry validation and withheld approval reject edits without changing Document or History
   ---
-  duration_ms: 439.1992
+  duration_ms: 522.257682
   type: 'test'
   ...
 # Subtest: runtime inspection projects persisted ObservationArtifactV2 and separates previous run/revision/project without authoring writes
 ok 5 - runtime inspection projects persisted ObservationArtifactV2 and separates previous run/revision/project without authoring writes
   ---
-  duration_ms: 100.9865
+  duration_ms: 415.968665
   type: 'test'
   ...
 1..5
@@ -37,4 +37,4 @@ ok 5 - runtime inspection projects persisted ObservationArtifactV2 and separates
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 5074.1167
+# duration_ms 5671.253853

@@ -6,7 +6,7 @@ defineTabsComponents();
 const assert = (value, message) => { if (!value) throw new Error(message); };
 window.testResult = (async () => {
   let preferences = { ...DEFAULT_NOTIFICATION_PREFERENCES }, language = 'zh-CN'; const calls = [];
-  const invoke = async (method, payload) => { calls.push(method); if (method === 'notifications/set') preferences = payload.preferences; return { preferences, supported: true, delivery: 'requested' }; };
+  const invoke = async (method, payload) => { calls.push(method); if (method === 'notifications/set') preferences = payload.preferences; return { preferences, supported: true, delivery: 'shown' }; };
   const settings = document.getElementById('settings'), mounted = mountNotificationSettings(document, settings, { desktop: true, language: () => language, invoke });
   await mounted.ready;
   const sound = settings.querySelector('[data-notification=sound]'); sound.focus(); assert(document.activeElement === sound, 'checkbox keyboard focus');
@@ -24,5 +24,15 @@ window.testResult = (async () => {
   assert(!revealChatAttention(chat, { nodeId: 'node:missing', taskId: 'task:missing' }), 'missing target ignored'); assert(mutations === 0, 'navigation never approves or resumes');
   mounted.dispose(); assert(!settings.querySelector('#notification-settings'), 'settings released');
   const reloaded = mountNotificationSettings(document, settings, { desktop: true, language: () => language, invoke }); await reloaded.ready; assert(!settings.querySelector('[data-notification=sound]').checked, 'settings reload preserved mute');
+  reloaded.dispose();
+  let requested = false;
+  const asynchronous = mountNotificationSettings(document, settings, { desktop: true, language: () => 'en', invoke: async method => {
+    if (method === 'notifications/test') { requested = true; return { supported: true, delivery: 'requested' }; }
+    return { preferences: { ...preferences, language: 'en' }, supported: true, delivery: requested ? 'failed' : 'idle' };
+  } });
+  await asynchronous.ready; settings.querySelector('#notification-test').click();
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert(settings.querySelector('[role=status]').textContent.includes('system delivery failed'), 'late native failure is visible, not reported as successful delivery');
+  asynchronous.dispose();
   return 'passed';
 })().catch(cause => ({ error: cause.message, stack: cause.stack }));

@@ -8,13 +8,13 @@ export interface ConversationAttentionTarget {
 }
 export interface ConversationAttention extends ConversationAttentionTarget {
   readonly id: string;
-  readonly kind: 'approval' | 'question' | 'plan' | 'completed' | 'failed' | 'blocked';
+  readonly kind: 'approval' | 'question' | 'plan' | 'completed' | 'turn-completed' | 'failed' | 'blocked';
   readonly expiresAt: number | null;
 }
 export type ConversationAttentionChange = Readonly<{ type: 'show'; notice: ConversationAttention }> | Readonly<{ type: 'withdraw'; id: string }>;
 
 /** Observes existing read models only. Hydration establishes a silent baseline;
- * model turn completion, tool failures and busy=false never imply task success. */
+ * A settled model turn has its own reminder and never implies task acceptance. */
 export class ConversationAttentionTracker {
   private initialized = false;
   private sequence = -1;
@@ -33,14 +33,31 @@ export class ConversationAttentionTracker {
     for (const event of snapshot.events) {
       if (event.sequence <= this.sequence) continue;
       const node = normalizeConversationNode(event.node);
-      if (['approval', 'question', 'plan'].includes(node.kind)) this.nodes.set(node.id, node);
+      if (['approval', 'question', 'plan', 'completion'].includes(node.kind)) this.nodes.set(node.id, node);
       this.sequence = event.sequence;
     }
     // A retained projection may evict old nodes; do not retain their reminders.
     const retained = new Set(snapshot.events.map(event => (event.node as { id?: unknown } | null)?.id));
     for (const id of this.nodes.keys()) if (!retained.has(id)) this.nodes.delete(id);
     const runs = normalizeTaskRuns(snapshot.taskRuns), next = new Map<string, ConversationAttention>();
+    const completedTurns = new Set<string>();
     for (const [id, node] of this.nodes) {
+      if (node.kind === 'completion') {
+        const run = runs.find(run => run.sessionId === node.provenance.sessionId && run.turnId === node.provenance.turnId);
+        if (node.status !== 'completed' || node.content.terminalStatus !== 'completed' || run?.status === 'cancelled' || !node.provenance.sessionId || !node.provenance.turnId) continue;
+        // Completion can be projected before final journal/accounting work.
+        // Hydration still seeds a silent baseline, including a busy reload.
+        const key = `${node.provenance.sessionId}/${node.provenance.turnId}`;
+        if (snapshot.busy && !initial) {
+          const previous = this.active.get(`${projectId}/${documentId}/turn/${key}`);
+          if (previous) next.set(previous.id, previous);
+          continue;
+        }
+        completedTurns.add(key);
+        const notice: ConversationAttention = { id: `${projectId}/${documentId}/turn/${key}`, projectId, documentId, nodeId: id, taskId: run?.taskId ?? null, kind: run?.status === 'completed' ? 'completed' : 'turn-completed', expiresAt: null };
+        next.set(notice.id, notice);
+        continue;
+      }
       if (node.status !== 'pending') { this.nodes.delete(id); continue; }
       const approval = node.kind === 'approval' ? approvalFromNode(node) : null;
       const expiresAt = approval?.expiresAt ? Date.parse(approval.expiresAt) : null;
@@ -51,7 +68,9 @@ export class ConversationAttentionTracker {
     }
     for (const run of runs) {
       if (!['completed', 'failed', 'blocked'].includes(run.status)) continue;
+      if (completedTurns.has(`${run.sessionId}/${run.turnId}`)) continue;
       const notice: ConversationAttention = { id: `${projectId}/${documentId}/task/${run.taskId}/${run.status}`, projectId, documentId, nodeId: null, taskId: run.taskId, kind: run.status as 'completed' | 'failed' | 'blocked', expiresAt: null };
+      if (snapshot.busy && !initial) { const previous = this.active.get(notice.id); if (previous) next.set(notice.id, previous); continue; }
       // Include historical terminal states in the baseline without notifying.
       if (initial || this.tasks.has(run.taskId)) next.set(notice.id, notice);
     }

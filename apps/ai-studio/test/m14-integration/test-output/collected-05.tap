@@ -2,37 +2,37 @@ TAP version 13
 # Subtest: an approval barrier remains actionable after process restart and resumes from its durable checkpoint
 ok 1 - an approval barrier remains actionable after process restart and resumes from its durable checkpoint
   ---
-  duration_ms: 180.6838
+  duration_ms: 748.273622
   type: 'test'
   ...
 # Subtest: trusted script and runtime start barriers survive a real Electron process restart
 ok 2 - trusted script and runtime start barriers survive a real Electron process restart
   ---
-  duration_ms: 2893.5014
+  duration_ms: 5675.801136
   type: 'test'
   ...
 # Subtest: a long durable plan releases the provider call and selects real catalog tools for its approved continuation
 ok 3 - a long durable plan releases the provider call and selects real catalog tools for its approved continuation
   ---
-  duration_ms: 330.5962
+  duration_ms: 2118.753378
   type: 'test'
   ...
 # Subtest: durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
 ok 4 - durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
   ---
-  duration_ms: 403.2421
+  duration_ms: 3127.2045
   type: 'test'
   ...
 # Subtest: durable backend question cancels the old provider turn and continues from the persisted answer
 ok 5 - durable backend question cancels the old provider turn and continues from the persisted answer
   ---
-  duration_ms: 123.2862
+  duration_ms: 1274.884152
   type: 'test'
   ...
 # Subtest: durable budget continuation releases the completed provider tranche and preserves prior output
 ok 6 - durable budget continuation releases the completed provider tranche and preserves prior output
   ---
-  duration_ms: 199.1248
+  duration_ms: 2162.54722
   type: 'test'
   ...
 1..6
@@ -43,4 +43,4 @@ ok 6 - durable budget continuation releases the completed provider tranche and p
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 6204.4966
+# duration_ms 17282.020639

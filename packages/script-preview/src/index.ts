@@ -231,9 +231,9 @@ export function studioScriptRuntimeDeclarations(capabilities: readonly ScriptCap
 interface HaiyueStudioPointerEvent {
   readonly type: 'move' | 'down' | 'up' | 'cancel' | 'wheel';
   readonly pointerId: number;
-  /** Viewport-normalized horizontal coordinate from 0 to 1. */
+  /** Canvas-normalized x: 0 at left, 1 at right. Not a world coordinate. */
   readonly x: number;
-  /** Viewport-normalized vertical coordinate from 0 to 1. */
+  /** Canvas-normalized y: 0 at top, 1 at bottom. Not a world coordinate. */
   readonly y: number;
   readonly button?: number;
   readonly wheelX?: number;
@@ -242,7 +242,8 @@ interface HaiyueStudioPointerEvent {
 interface HaiyueScriptInputApi {
   /** Convenience alias for isPressed(action); true on every tick while held. */
   isDown(action: string): boolean;
-  /** Pointer-only events with phase exposed as type and normalized x/y coordinates. */
+  /** Raw canvas input. For scene placement use interactions(): hit.point is world [x,y,z].
+   * Configure haiyue.interaction.pointer on the hit surface and filter type/entityId. */
   pointerEvents(): readonly HaiyueStudioPointerEvent[];
 }
 interface HaiyueStudioInstanceVector { readonly x: number; readonly y: number; readonly z: number; }

@@ -1,9 +1,9 @@
 TAP version 13
-# History screenshot: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-project-history-ui-dAAzp5\\project-history.png
+# History screenshot: /private/tmp/haiyue-project-history-ui-5lXh7m/project-history.png
 # Subtest: real Electron history viewer expands complete details, pages and switches projects
 ok 1 - real Electron history viewer expands complete details, pages and switches projects
   ---
-  duration_ms: 3377.4839
+  duration_ms: 1595.469683
   type: 'test'
   ...
 1..1
@@ -14,4 +14,4 @@ ok 1 - real Electron history viewer expands complete details, pages and switches
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3803.4438
+# duration_ms 1812.73319

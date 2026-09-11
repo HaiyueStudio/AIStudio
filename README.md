@@ -7,7 +7,10 @@ workspaces with one lifecycle owner.
 Current status: the M06 POC is complete. The Electron product is the full local Agent experience; an additional browser shell
 supports local scene authoring with browser storage and explicitly disables process-owned Agent backends.
 
-Run the desktop app with `npm run test:electron -w ./apps/ai-studio`. Open Electron DevTools from **View → Toggle Developer
+Build with `npm run build -w @haiyue/ai-studio`, then run the desktop app with `npm start`.
+On macOS the launcher creates a locally signed development app in `.cache/desktop` so native notifications work;
+allow HaiYue AIStudio notifications in System Settings when prompted. This is local development signing, not a distribution release.
+`npm run test:electron -w ./apps/ai-studio` builds and uses the same launcher. Open Electron DevTools from **View → Toggle Developer
 Tools** (F12), or set `HAIYUE_OPEN_DEVTOOLS=1` to detach DevTools after startup.
 
 Run the browser shell with `npm run dev:web -w ./apps/ai-studio`, then open `http://127.0.0.1:4173/web.html`. The Web shell

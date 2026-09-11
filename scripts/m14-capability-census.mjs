@@ -18,7 +18,7 @@ export function canonical(value) {
 }
 export function localPath(relative) {
   assert.equal(typeof relative, 'string');
-  assert.ok(relative.length && !relative.includes('\\') && !path.isAbsolute(relative) && !relative.split('/').some(p => p === '..' || p === '.'), `non-local path: ${relative}`);
+  assert.ok(relative.length && !relative.includes('\\') && !path.isAbsolute(relative) && !path.win32.isAbsolute(relative) && !relative.split('/').some(p => p === '..' || p === '.'), `non-local path: ${relative}`);
   return path.join(root, relative);
 }
 export const readJson = async relative => JSON.parse(await readFile(localPath(relative), 'utf8'));
@@ -131,7 +131,7 @@ export function checkReport(report, binding, checks) {
   for (const check of checks) {
     const result = report.checks.find(c => c.id === check.id);
     assert.equal(result.kind, 'local-check', 'G01 does not grant adapter/product acceptance');
-    assert.deepEqual(result.args, ['--test', '--test-reporter=tap', ...check.files]);
+    assert.deepEqual(result.args, ['--test', '--test-concurrency=1', '--test-reporter=tap', ...check.files]);
     assert.equal(result.exitCode, 0, `${check.id} failed`);
     assert.ok(Number.isInteger(result.passed) && result.passed > 0, `${check.id} has no executed tests`);
     assert.equal(result.failed, 0);

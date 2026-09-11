@@ -2,27 +2,27 @@
   "schemaVersion": 1,
   "productionEntry": "apps/ai-studio/dist/main.js",
   "platformDecisionDriver": "explicit test decisions; real tool approvals",
-  "entityId": "entity:2c18ee7e-c4b4-4d19-b9ae-e03c360426ed",
+  "entityId": "entity:38e706e4-7ca3-4e1e-a48c-662f0419eb3d",
   "assetId": "asset:99e04b58052ef6941b043be0",
   "approvals": [
     {
       "title": "Rename entity",
-      "detail": "Rename Cone to Integrated geometry.\nentity:2c18ee7e-c4b4-4d19-b9ae-e03c360426ed\n修订 2\n\n- Cone\n+ Integrated geometry",
+      "detail": "Rename Cone to Integrated geometry.\nentity:38e706e4-7ca3-4e1e-a48c-662f0419eb3d\n修订 2\n\n- Cone\n+ Integrated geometry",
       "decision": "allow-once"
     },
     {
       "title": "Rename entity",
-      "detail": "Rename Integrated geometry to Rejected change.\nentity:2c18ee7e-c4b4-4d19-b9ae-e03c360426ed\n修订 5\n\n- Integrated geometry\n+ Rejected change",
+      "detail": "Rename Integrated geometry to Rejected change.\nentity:38e706e4-7ca3-4e1e-a48c-662f0419eb3d\n修订 5\n\n- Integrated geometry\n+ Rejected change",
       "decision": "reject"
     },
     {
       "title": "Batch spatial transform",
-      "detail": "set 1 entities in one History transaction.\ndocument:3977a462-1720-4243-b32f-b7d003af29a0\n修订 5\n\nset · 1 entities",
+      "detail": "set 1 entities in one History transaction.\ndocument:0c74eebd-1d8d-484a-9b85-646603d30af4\n修订 5\n\nset · 1 entities",
       "decision": "allow-once"
     },
     {
       "title": "Register project asset",
-      "detail": "Register texture asset sky.png with project-owned provenance.\ndocument:3977a462-1720-4243-b32f-b7d003af29a0\n修订 6\n\n+ texture image/png (256 decoded bytes)",
+      "detail": "Register texture asset sky.png with project-owned provenance.\ndocument:0c74eebd-1d8d-484a-9b85-646603d30af4\n修订 6\n\n+ texture image/png (256 decoded bytes)",
       "decision": "allow-once"
     }
   ],
@@ -37,15 +37,15 @@
   ],
   "resourceLayout": {
     "desktop": {
-      "viewportWidth": 1424,
-      "panelWidth": 283,
-      "scrollWidth": 283,
+      "viewportWidth": 1440,
+      "panelWidth": 302,
+      "scrollWidth": 302,
       "controlsVisible": true
     },
     "narrow": {
-      "viewportWidth": 1008,
-      "panelWidth": 188,
-      "scrollWidth": 188,
+      "viewportWidth": 1024,
+      "panelWidth": 206,
+      "scrollWidth": 206,
       "controlsVisible": true
     }
   },

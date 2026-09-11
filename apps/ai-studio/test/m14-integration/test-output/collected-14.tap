@@ -2,7 +2,7 @@ TAP version 13
 # Subtest: generated evidence scan detects configured values across chunks and binary dumps without disclosing them
 ok 1 - generated evidence scan detects configured values across chunks and binary dumps without disclosing them
   ---
-  duration_ms: 73.5475
+  duration_ms: 29.029635
   type: 'test'
   ...
 1..1
@@ -13,4 +13,4 @@ ok 1 - generated evidence scan detects configured values across chunks and binar
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 376.336
+# duration_ms 248.056901

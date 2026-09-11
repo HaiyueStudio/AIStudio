@@ -162,7 +162,7 @@ test('profile replacement is deterministic and 100 cycles leave no owned resourc
 test('fixed Cordis compatibility and lazy closure remain explicit', async () => {
   const result = await runHarnessBridgeUpstreamConformance();
   assert.deepEqual(result.disposed, ['second', 'first']);
-  assert.deepEqual(result.identity, { cordis: '4.0.1', harness: '0.1.0-rc.7' });
+  assert.deepEqual(result.identity, { cordis: '4.0.2', harness: '0.1.5-rc.2' });
   const source = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /dsh-agent|dsh-llm|dsh-tools|agent-backends/);
   const declarations = await readFile(new URL('../dist/index.d.ts', import.meta.url), 'utf8');
@@ -178,13 +178,15 @@ test('pinned Harness agent composition fails closed without a credential and dis
   assert.deepEqual(
     transport.modelCatalog().map(({ id, maxTokens }) => ({ id, maxTokens })),
     [
-      { id: 'deepseek-v4-flash', maxTokens: 384_000 },
-      { id: 'deepseek-v4-pro', maxTokens: 384_000 },
+      { id: 'deepseek-v4-flash', maxTokens: 256_000 },
+      { id: 'deepseek-flash', maxTokens: 256_000 },
+      { id: 'deepseek-v4-pro', maxTokens: 256_000 },
+      { id: 'deepseek-v4-flash-vision-exp', maxTokens: 256_000 },
     ],
   );
   assert.equal(await transport.configured(), false);
   const capabilities = transport.sessionCapabilities('deepseek-v4-flash');
-  assert.deepEqual({ maxInputTokens: capabilities.maxInputTokens, nativeCompaction: capabilities.nativeCompaction, transport: capabilities.nativeCompactionTransport, mirror: capabilities.nativeCompactionMirror }, { maxInputTokens: null, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
+  assert.deepEqual({ maxInputTokens: capabilities.maxInputTokens, nativeCompaction: capabilities.nativeCompaction, transport: capabilities.nativeCompactionTransport, mirror: capabilities.nativeCompactionMirror }, { maxInputTokens: 1_000_000, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
   const opened = await transport.openSession({ model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8_192, tools: [], lastConfirmedOpId: 'op:harness-root' });
   assert.equal((await transport.inspectSession(opened.sessionId)).lastConfirmedOpId, 'op:harness-root');
   await transport.confirmSessionBoundary(opened.sessionId, 'op:harness-next');
@@ -193,7 +195,7 @@ test('pinned Harness agent composition fails closed without a credential and dis
   await transport.closeSession(opened.sessionId);
   assert.equal((await transport.inspectSession(opened.sessionId)).state, 'missing');
   const events = [];
-  for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [] })) events.push(event);
+  for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [], model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8_192 })) events.push(event);
   assert.deepEqual(events.map((event) => event.type), ['turn-start', 'turn-end']);
   assert.equal(events.at(-1).status, 'failed');
   assert.ok(events.at(-1).diagnostic?.code);

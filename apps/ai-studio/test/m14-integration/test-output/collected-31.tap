@@ -2,31 +2,31 @@ TAP version 13
 # Subtest: catalog projects frozen four-kind contracts from actual registry and Document without changing History
 ok 1 - catalog projects frozen four-kind contracts from actual registry and Document without changing History
   ---
-  duration_ms: 934.2638
+  duration_ms: 1187.654696
   type: 'test'
   ...
 # Subtest: Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
 ok 2 - Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
   ---
-  duration_ms: 1891.6543
+  duration_ms: 4579.269463
   type: 'test'
   ...
 # Subtest: unknown usage, partial component references and zero references cannot be confused by unused filtering
 ok 3 - unknown usage, partial component references and zero references cannot be confused by unused filtering
   ---
-  duration_ms: 2088.6171
+  duration_ms: 4810.772367
   type: 'test'
   ...
 # Subtest: forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
 ok 4 - forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
   ---
-  duration_ms: 651.2209
+  duration_ms: 1618.665513
   type: 'test'
   ...
 # Subtest: missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
 ok 5 - missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
   ---
-  duration_ms: 1027.0606
+  duration_ms: 2594.78512
   type: 'test'
   ...
 1..5
@@ -37,4 +37,4 @@ ok 5 - missing and replaced bytes retain manifest identity, show failure, block 
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 9162.31
+# duration_ms 16193.930774

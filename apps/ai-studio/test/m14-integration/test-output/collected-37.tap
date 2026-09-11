@@ -2,25 +2,25 @@ TAP version 13
 # Subtest: profile composition is dependency ordered, patched and deterministic
 ok 1 - profile composition is dependency ordered, patched and deterministic
   ---
-  duration_ms: 47.832
+  duration_ms: 29.537717
   type: 'test'
   ...
 # Subtest: missing, conflicting versions and cycles produce stable diagnostics
 ok 2 - missing, conflicting versions and cycles produce stable diagnostics
   ---
-  duration_ms: 5.0052
+  duration_ms: 1.923362
   type: 'test'
   ...
 # Subtest: version matcher is deliberately small and fail-closed
 ok 3 - version matcher is deliberately small and fail-closed
   ---
-  duration_ms: 2.9646
+  duration_ms: 0.451911
   type: 'test'
   ...
 # Subtest: Editor foundations are one provider plugin, not a nested EditorPlatform host
 ok 4 - Editor foundations are one provider plugin, not a nested EditorPlatform host
   ---
-  duration_ms: 2.1621
+  duration_ms: 0.400465
   type: 'test'
   ...
 1..4
@@ -31,4 +31,4 @@ ok 4 - Editor foundations are one provider plugin, not a nested EditorPlatform h
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 637.812
+# duration_ms 258.753164

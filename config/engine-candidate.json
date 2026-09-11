@@ -2,10 +2,38 @@
   "schemaVersion": 1,
   "package": "@haiyue/engine",
   "version": "0.1.0",
-  "tarball": "vendor/haiyue-engine-0.1.0.tgz",
-  "sha256": "ac46cb07eb24fbb6f141e76bd28265a9d69675cfd42cb6ccca4fa80193ad0a04",
-  "integrity": "sha512-dIHSWJVPygbgEL7QyDuVfO7J+3MISvPfG44T5ZBvzuPdGMI5XbDIXREWgUpHrJCYEKKCEnTk2qJajElutJvSRg==",
+  "tarball": "vendor/haiyue-engine-0.1.0-orthographic-picking.tgz",
+  "sha256": "cedb14fca3b9d663ea7dc47230cbf2697cfba3320a9d2dfe8841d9e47ccba6a2",
+  "integrity": "sha512-oRFHDLfR3G6aaTGQ9klJ40uUE0fTxUoMdspfCbMhuucpRtAwkFXatyPwDLtoMKe4rm+Ms3AU+OoEXYoHGMixnA==",
   "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
-  "requiredExports": ["./components", "./systems", "./assets", "./lighting", "./material", "./postprocess", "./experimental/simulation", "./physics", "./physics/backend"],
-  "requiredDeclarationMarkers": ["bindCanvas?: boolean", "interface ScriptRuntimeInputApi", "interactions(): readonly unknown[]", "interface ScriptRuntimePhysicsApi", "Physics2DContactEvent", "Physics3DContactEvent", "resourceSnapshot(): Physics2DResourceSnapshot", "resourceSnapshot(): Physics3DResourceSnapshot"]
+  "requiredExports": [
+    "./components",
+    "./systems",
+    "./assets",
+    "./lighting",
+    "./material",
+    "./postprocess",
+    "./experimental/simulation",
+    "./physics",
+    "./physics/backend"
+  ],
+  "requiredDeclarationMarkers": [
+    "bindCanvas?: boolean",
+    "interface ScriptRuntimeInputApi",
+    "interactions(): readonly unknown[]",
+    "interface ScriptRuntimePhysicsApi",
+    "Physics2DContactEvent",
+    "Physics3DContactEvent",
+    "resourceSnapshot(): Physics2DResourceSnapshot",
+    "resourceSnapshot(): Physics3DResourceSnapshot"
+  ],
+  "sourcePatch": {
+    "baseRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
+    "path": "vendor/patches/engine-orthographic-picking.patch",
+    "sha256": "e6b142d5820c9c8ab6ebbdab6c2df160fd8b8d7dadf1bb78a709415d90a65f8b",
+    "baseTarball": "vendor/haiyue-engine-0.1.0.tgz",
+    "baseSha256": "ac46cb07eb24fbb6f141e76bd28265a9d69675cfd42cb6ccca4fa80193ad0a04",
+    "compiledModule": "dist/chunks/Ray-CP4e_jYU.js",
+    "compiledModuleSha256": "5fc1265b9948b0cd2a34a51676206bc3c82e4436136d4f24747e6ddf10b21017"
+  }
 }

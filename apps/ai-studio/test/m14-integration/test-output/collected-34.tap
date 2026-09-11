@@ -2,13 +2,13 @@ TAP version 13
 # Subtest: Canvas recipe schema and runtime agree on bounded drawing data including Chinese text
 ok 1 - Canvas recipe schema and runtime agree on bounded drawing data including Chinese text
   ---
-  duration_ms: 6.8517
+  duration_ms: 7.833474
   type: 'test'
   ...
 # Subtest: Canvas rejects unknown versions, credential fields, executable content, external images and oversized input
 ok 2 - Canvas rejects unknown versions, credential fields, executable content, external images and oversized input
   ---
-  duration_ms: 2.122
+  duration_ms: 2.039963
   type: 'test'
   ...
 1..2
@@ -19,4 +19,4 @@ ok 2 - Canvas rejects unknown versions, credential fields, executable content, e
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2431.3306
+# duration_ms 1492.655646

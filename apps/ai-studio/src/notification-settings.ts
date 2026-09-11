@@ -5,7 +5,7 @@ export interface NotificationPreferences {
   readonly backgroundOnly: boolean;
   readonly language: 'zh-CN' | 'en';
 }
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = Object.freeze({ schemaVersion: 1, enabled: true, sound: true, backgroundOnly: true, language: 'zh-CN' });
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = Object.freeze({ schemaVersion: 1, enabled: true, sound: true, backgroundOnly: false, language: 'zh-CN' });
 export function parseNotificationPreferences(value: unknown): NotificationPreferences {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid notification preferences.');
   const v = value as Record<string, unknown>;

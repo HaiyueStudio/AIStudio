@@ -19,10 +19,45 @@ test('historical hydration is silent and a new pending approval notifies once wi
   assert.deepEqual(update(tracker, events, [task('completed')]), []);
   assert.equal(update(tracker, [...events, node(3, 'approval', 'completed', { ...approval(), decision: 'allow-once' })], [task('completed')])[0].type, 'withdraw');
 });
-test('completed model turns, busy=false, single tool errors and manual cancellations are not task completion', () => {
+test('a completed turn has a distinct reminder; idle/tool errors/cancellation never imply success', () => {
   const tracker = new ConversationAttentionTracker(); update(tracker, [], [task('running')]);
-  assert.deepEqual(update(tracker, [node(1, 'completion', 'completed'), node(2, 'tool-result', 'failed')], [task('running')]), []);
-  assert.deepEqual(update(tracker, [], [task('cancelled')]), []);
+  assert.deepEqual(update(tracker, [node(1, 'tool-result', 'failed')], [task('running')]), []);
+  const changes = update(tracker, [node(2, 'completion', 'completed', { terminalStatus: 'completed' })], [task('running')]);
+  assert.equal(changes.length, 1); assert.equal(changes[0].notice.kind, 'turn-completed');
+  assert.equal(changes[0].notice.nodeId, 'node:completion');
+  assert.ok(update(tracker, [], [task('cancelled')]).every(change => change.type === 'withdraw'));
+});
+
+test('turn reminders wait for final drain and coalesce with accepted task completion', () => {
+  const tracker = new ConversationAttentionTracker(); update(tracker, [], [task('running')]);
+  const events = [node(1, 'completion', 'completed', { terminalStatus: 'completed' })];
+  const active = { ...snapshot(events, [task('completed')]), busy: true };
+  assert.deepEqual(tracker.update('project:test', 'document:test', active), []);
+  const changes = update(tracker, events, [task('completed')]);
+  assert.equal(changes.length, 1); assert.equal(changes[0].notice.kind, 'completed');
+  assert.deepEqual(update(tracker, events, [task('completed')]), []);
+});
+
+test('ordinary completed turns notify without inventing task acceptance, including repeated turns', () => {
+  const tracker = new ConversationAttentionTracker(); update(tracker, [], [task('running')]);
+  const completion = node(1, 'completion', 'completed', { terminalStatus: 'completed' });
+  const blocked = { ...task('blocked'), terminalDiagnostic: 'task.acceptance-criteria-missing' };
+  assert.equal(update(tracker, [completion], [blocked])[0].notice.kind, 'turn-completed');
+  assert.equal(blocked.status, 'blocked');
+  const second = node(2, 'completion', 'completed', { terminalStatus: 'completed' });
+  second.node.id = 'node:completion-2'; second.node.provenance = { ...provenance, turnId: 'turn:second' };
+  assert.equal(update(tracker, [completion, second], [blocked]).filter(c => c.type === 'show').length, 1);
+});
+
+test('hydrated completion remains silent through a busy reload and cancellation has no completion alert', () => {
+  const tracker = new ConversationAttentionTracker();
+  const events = [node(1, 'completion', 'completed', { terminalStatus: 'completed' })];
+  const active = { ...snapshot(events), busy: true };
+  assert.deepEqual(tracker.update('project:test', 'document:test', active), []);
+  assert.deepEqual(tracker.update('project:test', 'document:test', active), []);
+  assert.deepEqual(update(tracker, events), []);
+  tracker.reset(); update(tracker);
+  assert.deepEqual(update(tracker, [node(1, 'completion', 'cancelled', { terminalStatus: 'cancelled' })]), []);
 });
 for (const status of ['completed', 'blocked', 'failed']) test(`task ${status} notifies on its transition and a retry can notify again`, () => {
   const tracker = new ConversationAttentionTracker(); update(tracker, [], [task('running')]);

@@ -2,45 +2,63 @@ TAP version 13
 # Subtest: historical hydration is silent and a new pending approval notifies once without payload text
 ok 1 - historical hydration is silent and a new pending approval notifies once without payload text
   ---
-  duration_ms: 4.1667
+  duration_ms: 8.649571
   type: 'test'
   ...
-# Subtest: completed model turns, busy=false, single tool errors and manual cancellations are not task completion
-ok 2 - completed model turns, busy=false, single tool errors and manual cancellations are not task completion
+# Subtest: a completed turn has a distinct reminder; idle/tool errors/cancellation never imply success
+ok 2 - a completed turn has a distinct reminder; idle/tool errors/cancellation never imply success
   ---
-  duration_ms: 0.5279
+  duration_ms: 1.372621
+  type: 'test'
+  ...
+# Subtest: turn reminders wait for final drain and coalesce with accepted task completion
+ok 3 - turn reminders wait for final drain and coalesce with accepted task completion
+  ---
+  duration_ms: 0.800313
+  type: 'test'
+  ...
+# Subtest: ordinary completed turns notify without inventing task acceptance, including repeated turns
+ok 4 - ordinary completed turns notify without inventing task acceptance, including repeated turns
+  ---
+  duration_ms: 0.634047
+  type: 'test'
+  ...
+# Subtest: hydrated completion remains silent through a busy reload and cancellation has no completion alert
+ok 5 - hydrated completion remains silent through a busy reload and cancellation has no completion alert
+  ---
+  duration_ms: 0.644258
   type: 'test'
   ...
 # Subtest: task completed notifies on its transition and a retry can notify again
-ok 3 - task completed notifies on its transition and a retry can notify again
+ok 6 - task completed notifies on its transition and a retry can notify again
   ---
-  duration_ms: 0.4417
+  duration_ms: 0.44
   type: 'test'
   ...
 # Subtest: task blocked notifies on its transition and a retry can notify again
-ok 4 - task blocked notifies on its transition and a retry can notify again
+ok 7 - task blocked notifies on its transition and a retry can notify again
   ---
-  duration_ms: 0.2081
+  duration_ms: 0.337488
   type: 'test'
   ...
 # Subtest: task failed notifies on its transition and a retry can notify again
-ok 5 - task failed notifies on its transition and a retry can notify again
+ok 8 - task failed notifies on its transition and a retry can notify again
   ---
-  duration_ms: 0.4024
+  duration_ms: 0.312622
   type: 'test'
   ...
 # Subtest: questions and plans notify, resolved and expired approvals withdraw, reset suppresses old records
-ok 6 - questions and plans notify, resolved and expired approvals withdraw, reset suppresses old records
+ok 9 - questions and plans notify, resolved and expired approvals withdraw, reset suppresses old records
   ---
-  duration_ms: 2.402
+  duration_ms: 2.931663
   type: 'test'
   ...
-1..6
-# tests 6
+1..9
+# tests 9
 # suites 0
-# pass 6
+# pass 9
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1746.6113
+# duration_ms 1497.091258

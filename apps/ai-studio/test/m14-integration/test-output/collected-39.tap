@@ -2,7 +2,7 @@ TAP version 13
 # Subtest: advanced adapter owns presentation only and consumes frozen M12/SDK types through declared exports
 ok 1 - advanced adapter owns presentation only and consumes frozen M12/SDK types through declared exports
   ---
-  duration_ms: 10.9701
+  duration_ms: 11.578036
   type: 'test'
   ...
 1..1
@@ -13,4 +13,4 @@ ok 1 - advanced adapter owns presentation only and consumes frozen M12/SDK types
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 354.7951
+# duration_ms 207.235884

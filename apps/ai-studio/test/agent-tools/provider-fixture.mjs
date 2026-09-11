@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { setTimeout as delay } from 'node:timers/promises';
 
 /** Provider edges are simulated; backend adapters, context, budget, host and durable replay are real. */
 export class ProviderFixture {
@@ -72,4 +73,4 @@ class AsyncQueue {
   next() { if (this.values.length) return Promise.resolve({ value: this.values.shift(), done: false }); if (this.closed) return Promise.resolve({ done: true }); return new Promise(resolve => this.readers.push(resolve)); }
 }
 export function nodes(host) { return host.replay().events.map(event => event.node); }
-export async function waitFor(predicate) { for (let count = 0; count < 1500; count += 1) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for discovery integration'); }
+export async function waitFor(predicate, signal) { while (!predicate()) await delay(5, undefined, { signal }); }

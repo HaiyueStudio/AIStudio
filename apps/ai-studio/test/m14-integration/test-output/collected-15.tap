@@ -1,16 +1,16 @@
 TAP version 13
-# [notification-ui] evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-notification-ui-0tYeg2
+# [notification-ui] evidence: /private/tmp/haiyue-notification-ui-f9wmke
 # Subtest: real Electron notification settings, keyboard focus and exact card/task navigation
 ok 1 - real Electron notification settings, keyboard focus and exact card/task navigation
   ---
-  duration_ms: 2170.5462
+  duration_ms: 2179.659801
   type: 'test'
   ...
-# [notification-product] evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-notification-product-CCGoQi
+# [notification-product] evidence: /private/tmp/haiyue-notification-product-ia2Bu7
 # Subtest: production window connects notification preferences through its real typed preload and preserves mute on reload
 ok 2 - production window connects notification preferences through its real typed preload and preserves mute on reload
   ---
-  duration_ms: 8056.1309
+  duration_ms: 13274.368337
   type: 'test'
   ...
 1..2
@@ -21,4 +21,4 @@ ok 2 - production window connects notification preferences through its real type
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 10539.6304
+# duration_ms 15710.541902

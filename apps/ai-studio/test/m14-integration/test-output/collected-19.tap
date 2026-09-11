@@ -1,9 +1,9 @@
 TAP version 13
-# G06 resource module evidence: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\haiyue-m14-resources-SlwA3A
+# G06 resource module evidence: /private/tmp/haiyue-m14-resources-ksUaFv
 # Subtest: G06 isolated resource module uses real service, tools and History in sandboxed Electron with bounded accessible UI
 ok 1 - G06 isolated resource module uses real service, tools and History in sandboxed Electron with bounded accessible UI
   ---
-  duration_ms: 54490.0574
+  duration_ms: 21831.916216
   type: 'test'
   ...
 1..1
@@ -14,4 +14,4 @@ ok 1 - G06 isolated resource module uses real service, tools and History in sand
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 54838.5801
+# duration_ms 22037.403723

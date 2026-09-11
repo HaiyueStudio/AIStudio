@@ -2,31 +2,31 @@ TAP version 13
 # Subtest: project records retain complete parameters/results, redact secrets, page by logical record and never mix projects
 ok 1 - project records retain complete parameters/results, redact secrets, page by logical record and never mix projects
   ---
-  duration_ms: 344.8341
+  duration_ms: 543.812585
   type: 'test'
   ...
 # Subtest: project files reopen with an empty editor data directory and restore nested artifacts without duplicating events
 ok 2 - project files reopen with an empty editor data directory and restore nested artifacts without duplicating events
   ---
-  duration_ms: 296.9071
+  duration_ms: 402.151527
   type: 'test'
   ...
 # Subtest: first save relocates an unsaved project archive while preserving its live log port
 ok 3 - first save relocates an unsaved project archive while preserving its live log port
   ---
-  duration_ms: 171.4695
+  duration_ms: 397.903256
   type: 'test'
   ...
 # Subtest: legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned
 ok 4 - legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned
   ---
-  duration_ms: 125.7211
+  duration_ms: 330.100769
   type: 'test'
   ...
 # Subtest: unknown versions, malformed durations, secret-bearing metadata and foreign manifests fail closed
 ok 5 - unknown versions, malformed durations, secret-bearing metadata and foreign manifests fail closed
   ---
-  duration_ms: 84.2749
+  duration_ms: 204.527471
   type: 'test'
   ...
 1..5
@@ -37,4 +37,4 @@ ok 5 - unknown versions, malformed durations, secret-bearing metadata and foreig
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1522.1323
+# duration_ms 2102.03437

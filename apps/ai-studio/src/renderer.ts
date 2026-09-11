@@ -1951,7 +1951,8 @@ async function runSmokeWorkflow(): Promise<void> {
   const formattedDraft = scriptEditor.text; await refresh();
   if (scriptEditor.text !== formattedDraft) throw new Error('Project refresh overwrote the formatted draft.');
   scriptEditor.focusRange(0, 0);
-  element('script-source').querySelector('.cm-content')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true, cancelable: true }));
+  const macUndo = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  element('script-source').querySelector('.cm-content')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', ctrlKey: !macUndo, metaKey: macUndo, bubbles: true, cancelable: true }));
   if (scriptEditor.text !== smokeScript.text || pendingScriptProposal) throw new Error('CodeMirror undo must restore the script without resurrecting an old proposal.');
   for (const kind of ['declarative-component', 'runtime-adapter'] as const) {
     const node = behaviorManifest.nodes.find(node => node.source.kind === kind);

@@ -2,43 +2,43 @@ TAP version 13
 # Subtest: G09 snake acceptance copy: fixed inputs and real source-bound event flows
 ok 1 - G09 snake acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 11696.8008
+  duration_ms: 27330.092427
   type: 'test'
   ...
 # Subtest: G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
 ok 2 - G09 match-3 acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 13438.7907
+  duration_ms: 45787.23468
   type: 'test'
   ...
 # Subtest: G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
 ok 3 - G09 falling-blocks acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 14183.0079
+  duration_ms: 43439.163481
   type: 'test'
   ...
 # Subtest: G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
 ok 4 - G09 jigsaw acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 11865.0276
+  duration_ms: 25932.086686
   type: 'test'
   ...
 # Subtest: G09 platformer acceptance copy: fixed inputs and real source-bound event flows
 ok 5 - G09 platformer acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 10524.8014
+  duration_ms: 20711.279628
   type: 'test'
   ...
 # Subtest: G09 racing acceptance copy: fixed inputs and real source-bound event flows
 ok 6 - G09 racing acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 12605.4702
+  duration_ms: 22621.714932
   type: 'test'
   ...
 # Subtest: G09 shooter acceptance copy: fixed inputs and real source-bound event flows
 ok 7 - G09 shooter acceptance copy: fixed inputs and real source-bound event flows
   ---
-  duration_ms: 12702.0889
+  duration_ms: 26860.410588
   type: 'test'
   ...
 1..7
@@ -49,4 +49,4 @@ ok 7 - G09 shooter acceptance copy: fixed inputs and real source-bound event flo
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 89126.5544
+# duration_ms 215211.145006

@@ -1,6 +1,6 @@
 {
   "phase": "large",
-  "error": "AssertionError [ERR_ASSERTION]: {\"schemaVersion\":1,\"id\":\"request:driver-5\",\"correlationId\":\"correlation:g09-window\",\"ok\":false,\"payload\":{\"diagnostic\":{\"code\":\"ipc-operation-failed\",\"severity\":\"error\",\"message\":\"resource.query-superseded\"}}}\n\nfalse !== true\n",
+  "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    arch: 'x64',\n+   cpu: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz',\n+   logicalCpus: 12,\n+   platform: 'darwin',\n+   release: '24.6.0'\n-   cpu: 'Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz',\n-   logicalCpus: 8,\n-   platform: 'win32',\n-   release: '10.0.19045'\n  }\n",
   "checks": [],
   "approvals": []
 }

@@ -8,7 +8,8 @@ export interface DesktopNotificationPort {
   focused(): boolean;
   show(options: { title: string; body: string; silent: boolean }, callbacks: { shown(): void; click(): void; close(): void; failed(): void }): { close(): void };
   focus(): void;
-  flash(): void;
+  attention(): { close(): void };
+  beep(): void;
   navigate(): void;
 }
 
@@ -61,31 +62,34 @@ export class DesktopNotificationService {
     const id = notice?.id ?? 'notification:test';
     if (this.notices.has(id)) return;
     if (notice?.expiresAt !== null && notice?.expiresAt !== undefined && notice.expiresAt <= Date.now()) return;
-    if (!this.port.supported()) { this.delivery = 'unsupported'; this.port.flash(); return; }
     while (this.notices.size >= 4) this.notices.values().next().value!.close();
     const zh = this.preferences.language === 'zh-CN';
-    const titles = { approval: ['需要审批', 'Approval required'], plan: ['需要确认计划', 'Plan confirmation required'], question: ['需要补充信息', 'Your input is needed'], completed: ['任务已完成', 'Task completed'], failed: ['任务执行失败', 'Task failed'], blocked: ['任务需要关注', 'Task needs attention'] };
+    const titles = { approval: ['需要审批', 'Approval required'], plan: ['需要确认计划', 'Plan confirmation required'], question: ['需要补充信息', 'Your input is needed'], completed: ['任务已完成', 'Task completed'], 'turn-completed': ['本轮执行已结束', 'Turn finished'], failed: ['任务执行失败', 'Task failed'], blocked: ['任务需要关注', 'Task needs attention'] };
     const title = notice ? titles[notice.kind][zh ? 0 : 1] : zh ? '测试通知' : 'Test notification';
     // Fixed text only: project names, prompts, tool arguments and paths never
     // appear on the lock screen or enter the OS notification history.
     const body = notice ? (zh ? '点击返回 AIStudio 查看详情。' : 'Click to view details in AIStudio.') : (zh ? '系统通知已触发，提示音遵循当前开关和系统设置。' : 'Notification requested. Sound follows your app and system settings.');
-    let native: { close(): void } | undefined, timer: ReturnType<typeof setTimeout> | undefined, closed = false;
-    const close = () => { if (closed) return; closed = true; if (timer) clearTimeout(timer); this.notices.delete(id); native?.close(); };
+    let native: { close(): void } | undefined, attention: { close(): void } | undefined, timer: ReturnType<typeof setTimeout> | undefined, closed = false, shown = false, failed = false;
+    const close = () => { if (closed) return; closed = true; if (timer) clearTimeout(timer); this.notices.delete(id); native?.close(); attention?.close(); };
+    const fallbackSound = () => { if (this.preferences.sound && !shown) { try { this.port.beep(); } catch { /* Optional OS effect. */ } } };
     this.notices.set(id, { close });
     this.delivery = 'requested';
+    timer = setTimeout(close, Math.max(1, Math.min(300_000, (notice?.expiresAt ?? Infinity) - Date.now())));
+    // Dock/taskbar attention is a normal reminder, not just an error fallback.
+    try { attention = this.port.attention(); } catch { /* A banner may still work. */ }
+    if (!this.port.supported()) { this.delivery = 'unsupported'; fallbackSound(); return; }
     try {
       native = this.port.show({ title: `AIStudio · ${title}`, body, silent: !this.preferences.sound }, {
-        shown: () => { if (!closed && !this.disposed) this.delivery = 'shown'; },
+        shown: () => { if (!closed && !this.disposed) { shown = true; this.delivery = 'shown'; } },
         click: () => {
-          if (closed || this.disposed || (notice?.expiresAt != null && notice.expiresAt <= Date.now())) return;
+          if (closed || failed || this.disposed || (notice?.expiresAt != null && notice.expiresAt <= Date.now())) return;
           this.target = notice ? { projectId: notice.projectId, documentId: notice.documentId, taskId: notice.taskId, nodeId: notice.nodeId } : null;
           close(); this.port.focus(); this.port.navigate();
         },
         close,
-        failed: () => { if (closed || this.disposed) return; this.delivery = 'failed'; close(); this.port.flash(); },
+        failed: () => { if (closed || this.disposed || failed) return; failed = true; this.delivery = 'failed'; native?.close(); native = undefined; fallbackSound(); },
       });
-      if (closed) native.close();
-      else timer = setTimeout(close, Math.max(1, Math.min(300_000, (notice?.expiresAt ?? Infinity) - Date.now())));
-    } catch { this.delivery = 'failed'; close(); this.port.flash(); }
+      if (closed || failed) { native.close(); native = undefined; }
+    } catch { this.delivery = 'failed'; fallbackSound(); }
   }
 }

@@ -28,9 +28,11 @@ export async function behaviorFixture(options = {}) {
   const preview = { starts: 0, async start() { this.starts++; throw Error('No live Play in this headless fixture'); }, async stop() {}, snapshot: () => ({ state: 'stopped', instanceId: null }) };
   const f = { directory, workspace, scene, validator, projectScripts, operationLog, scripts, preview, sequence: 0, sourceReads: 0, sourceHook: null };
   f.input = () => ({ schemaVersion: 1, projectId: workspace.snapshot().document.projectId, document: workspace.gameSnapshot(), registry: { version: '1.0.0', definitions: workspace.componentRegistry.snapshot().definitions }, adapters: corpus.mixed.adapters, config: DEFAULT_BEHAVIOR_CONFIG });
-  f.runtime = new GameAuthoringToolRuntime({ workspace, scene, scripts, operationLog, diagnostics: operationLog.diagnosticsService(), preview,
+  const runtimeOptions = { workspace, scene, scripts, operationLog, diagnostics: operationLog.diagnosticsService(), preview,
     ...(options.noSource ? {} : { behaviorSource: signal => { const input = JSON.parse(JSON.stringify(f.input())); f.sourceReads++; return f.sourceHook ? f.sourceHook(input, signal, f.sourceReads) : input; } }), ...options.runtimeOptions,
-  });
+  };
+  // A test's short operation deadline must not time out project/entity setup.
+  f.runtime = new GameAuthoringToolRuntime({ ...runtimeOptions, timeoutCeilingMs: undefined });
   f.close = async () => {
     await f.runtime.dispose(); scene.dispose(); projectScripts.dispose(); await validator.dispose(); await workspace.dispose(); resources.tasks.dispose(); await resources.documents.dispose(); resources.history.dispose(); resources.projectSession.dispose(); await operationLog.close();
     const resolved = path.resolve(directory); assert.ok(resolved.startsWith(path.resolve(tmpdir(), 'haiyue-behavior-tools-'))); await rm(resolved, { recursive: true, force: true, maxRetries: 3 });
@@ -42,6 +44,10 @@ export async function behaviorFixture(options = {}) {
   if (options.script) {
     const proposed = await execute(f, 'script.propose', { baseRevision: workspace.snapshot().document.revision, entityId: f.entityId, text: options.script, capabilities: ['read','input','debug'] });
     await execute(f, 'script.apply', { baseRevision: workspace.snapshot().document.revision, proposalId: proposed.value.proposalId });
+  }
+  if (options.runtimeOptions?.timeoutCeilingMs !== undefined) {
+    await f.runtime.dispose();
+    f.runtime = new GameAuthoringToolRuntime(runtimeOptions);
   }
   return f;
   } catch (error) { await f.close(); throw error; }

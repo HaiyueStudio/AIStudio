@@ -20,6 +20,16 @@ assert.equal(lock.packages['node_modules/@haiyue/engine'].integrity, candidate.i
 assert.equal(installed.name, candidate.package);
 assert.equal(installed.version, candidate.version);
 assert.equal(createHash('sha256').update(tarball).digest('hex'), candidate.sha256);
+if (candidate.sourcePatch) {
+  assert.equal(candidate.sourcePatch.baseRevision, candidate.sourceRevision);
+  assert.match(candidate.sourcePatch.path, /^vendor\/patches\/[a-z0-9-]+\.patch$/);
+  const patch = await readFile(path.join(root, candidate.sourcePatch.path));
+  assert.equal(createHash('sha256').update(patch).digest('hex'), candidate.sourcePatch.sha256);
+  assert.match(candidate.sourcePatch.baseTarball, /^vendor\/haiyue-engine-[a-z0-9.-]+\.tgz$/);
+  assert.equal(createHash('sha256').update(await readFile(path.join(root, candidate.sourcePatch.baseTarball))).digest('hex'), candidate.sourcePatch.baseSha256);
+  assert.match(candidate.sourcePatch.compiledModule, /^dist\/chunks\/Ray-[A-Za-z0-9_-]+\.js$/);
+  assert.equal(createHash('sha256').update(await readFile(path.join(installedRoot, candidate.sourcePatch.compiledModule))).digest('hex'), candidate.sourcePatch.compiledModuleSha256);
+}
 for (const exportName of candidate.requiredExports) assert.ok(installed.exports[exportName], `Engine candidate is missing export ${exportName}.`);
 const declarations = [
   await readFile(path.join(installedRoot, 'dist', 'systems', 'InteractionSystem.d.ts'), 'utf8'),

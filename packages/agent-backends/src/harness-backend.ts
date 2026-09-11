@@ -22,8 +22,8 @@ import { backendEvent, toolSetSignature, TurnChannel } from './shared.js';
 
 export interface HarnessApiKeyBackendOptions { readonly transport: HarnessAgentTransport; readonly clearApiKey: () => Promise<void>; }
 export class HarnessApiKeyBackend implements AgentBackend, BackendSessionAdapter {
-  readonly upstream = Object.freeze({ tag: 'dsh-v0.1.0-rc.7', commit: '99f6f02fecdb7dff40c3fbc9470f5907c29f74ca' });
-  readonly descriptor: AgentBackendDescriptor = Object.freeze({ schemaVersion: 1, id: asStableId('backend:harness-api-key'), kind: 'harness-api-key', protocolVersion: 'dsh-v0.1.0-rc.7', capabilities: Object.freeze({ resume: true, questions: false, structuredTools: true, backendApprovals: false, usage: true, rateLimits: false }) });
+  readonly upstream = Object.freeze({ tag: 'dsh-v0.1.5-rc.2', commit: 'fb2c4b9e698e30edb738bca4cf0618587db7d203' });
+  readonly descriptor: AgentBackendDescriptor = Object.freeze({ schemaVersion: 1, id: asStableId('backend:harness-api-key'), kind: 'harness-api-key', protocolVersion: 'dsh-v0.1.5-rc.2', capabilities: Object.freeze({ resume: true, questions: false, structuredTools: true, backendApprovals: false, usage: true, rateLimits: false }) });
   private readonly turns = new Map<StableId, TurnChannel>();
   private readonly sessionToolSignatures = new Map<StableId, string>();
   private disposed = false;

@@ -6,13 +6,21 @@
       "@deepseek-ai/cordis",
       "@deepseek-ai/dsh-agent",
       "@deepseek-ai/dsh-agent-loop",
+      "@deepseek-ai/dsh-anonymous-user-id",
       "@deepseek-ai/dsh-llm",
       "@deepseek-ai/dsh-llm-deepseek",
       "@deepseek-ai/dsh-session",
+      "@deepseek-ai/dsh-system-prompt",
       "@deepseek-ai/dsh-tools",
-      "@deepseek-ai/dsh-user-approval"
+      "@deepseek-ai/dsh-user-approval",
+      "@deepseek-ai/dsh-session-projection"
     ],
-    "requiredPackageFields": ["name", "version", "license", "exports"]
+    "requiredPackageFields": [
+      "name",
+      "version",
+      "license",
+      "exports"
+    ]
   },
   "codexAppServer": {
     "adapterOnly": true,
@@ -51,6 +59,11 @@
       "turn/completed",
       "dynamicToolCall"
     ],
-    "deniedBuiltinEffects": ["shell", "network", "package-install", "arbitrary-filesystem"]
+    "deniedBuiltinEffects": [
+      "shell",
+      "network",
+      "package-install",
+      "arbitrary-filesystem"
+    ]
   }
 }

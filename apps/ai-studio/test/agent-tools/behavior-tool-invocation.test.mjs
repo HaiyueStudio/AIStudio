@@ -9,7 +9,8 @@ import { ProviderFixture, nodes, waitFor } from './provider-fixture.mjs';
 
 // Only provider transports are simulated. Search, policy, tools, analysis workers,
 // project storage, Document/History and durable execution records are production services.
-for (const kind of ['harness', 'codex']) test(`${kind}: discovered behavior tools execute real analysis with approval, provenance and replay`, { timeout: 30_000 }, async t => {
+// Multiple compiler analyses and journal writes share one bounded test lifetime.
+for (const kind of ['harness', 'codex']) test(`${kind}: discovered behavior tools execute real analysis with approval, provenance and replay`, { timeout: 60_000 }, async t => {
   const f = await behaviorFixture({ declarative: true, script: kind === 'harness' ? 'if (api.input.isDown("ArrowUp")) Math.sin(time);' : '' });
   const fixture = new ProviderFixture(kind), log = f.operationLog;
   const backend = kind === 'harness' ? new HarnessApiKeyBackend({ transport: fixture.harnessTransport(), clearApiKey: async () => {} }) : new CodexAppServerBackend({ transport: fixture, isolatedCwd: f.directory });
@@ -68,18 +69,18 @@ for (const kind of ['harness', 'codex']) test(`${kind}: discovered behavior tool
   };
   await host.initialize();
   await host.dispatch({ type: 'conversation/send', backendId: backend.descriptor.id, prompt: 'Inspect this project, explain the timer, then change its duration to 20 ticks.' });
-  await waitFor(() => fixture.error || nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+  await waitFor(() => fixture.error || nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'), t.signal);
   if (fixture.error) throw fixture.error;
   const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
   await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-  await waitFor(() => fixture.error || nodes(host).some(node => node.kind === 'approval' && node.status === 'pending'));
+  await waitFor(() => fixture.error || nodes(host).some(node => node.kind === 'approval' && node.status === 'pending'), t.signal);
   if (fixture.error) throw fixture.error;
   assert.equal(JSON.stringify(f.workspace.gameSnapshot()), initialDocument);
   const approval = nodes(host).find(node => node.kind === 'approval' && node.status === 'pending');
   const record = f.runtime.approval(approval.content.approvalId);
   assert.equal(record.toolId, 'entity.rename'); assert.equal(record.effect, 'reversible-edit');
   await host.dispatch({ type: 'conversation/resolve-approval', approvalId: record.approvalId, decision: 'allow-once' });
-  await waitFor(() => fixture.error || host.replay().busy === false);
+  await waitFor(() => fixture.error || host.replay().busy === false, t.signal);
   if (fixture.error) throw fixture.error;
   assert.equal(fixture.finished, true); assert.equal(fixture.starts, 1); assert.equal(f.preview.starts, 0);
   assert.ok(['behavior.query','behavior.locate','behavior.explain'].every(id => !fixture.toolIds.includes(id)));

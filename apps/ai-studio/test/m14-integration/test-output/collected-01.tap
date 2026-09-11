@@ -2,7 +2,7 @@ TAP version 13
 # Subtest: real isolated Canvas renders and exports PNG without leaking windows
 ok 1 - real isolated Canvas renders and exports PNG without leaking windows
   ---
-  duration_ms: 1993.6172
+  duration_ms: 4002.74737
   type: 'test'
   ...
 1..1
@@ -13,4 +13,4 @@ ok 1 - real isolated Canvas renders and exports PNG without leaking windows
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2185.5972
+# duration_ms 4303.334272

@@ -2,25 +2,25 @@ TAP version 13
 # Subtest: lazy adapter loads only on open, deduplicates, cancels, unmounts and retries with no late revival
 ok 1 - lazy adapter loads only on open, deduplicates, cancels, unmounts and retries with no late revival
   ---
-  duration_ms: 430.0709
+  duration_ms: 603.985103
   type: 'test'
   ...
 # Subtest: close/cancel during import, project replacement, and close during async mounting reject late ownership
 ok 2 - close/cancel during import, project replacement, and close during async mounting reject late ownership
   ---
-  duration_ms: 328.3303
+  duration_ms: 416.778626
   type: 'test'
   ...
 # Subtest: module version/getter failure remains retryable and malformed mounted result rolls back
 ok 3 - module version/getter failure remains retryable and malformed mounted result rolls back
   ---
-  duration_ms: 332.1341
+  duration_ms: 402.614973
   type: 'test'
   ...
 # Subtest: adapter binds dispatch and preview to latest source, suppresses detached callbacks and never authors previews
 ok 4 - adapter binds dispatch and preview to latest source, suppresses detached callbacks and never authors previews
   ---
-  duration_ms: 303.656
+  duration_ms: 423.615157
   type: 'test'
   ...
 1..4
@@ -31,4 +31,4 @@ ok 4 - adapter binds dispatch and preview to latest source, suppresses detached 
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3649.3234
+# duration_ms 3193.155906

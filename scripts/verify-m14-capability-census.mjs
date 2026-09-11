@@ -27,7 +27,9 @@ if (mode === '--capture') {
   const { checks } = await readJson(sourcesFile);
   const results = [];
   for (const check of checks) {
-    const args = ['--test', '--test-reporter=tap', ...check.files];
+    // These integration fixtures launch compiler workers and use bounded
+    // deadlines. Run files serially so unrelated suites cannot consume them.
+    const args = ['--test', '--test-concurrency=1', '--test-reporter=tap', ...check.files];
     const startedAt = new Date().toISOString();
     const result = await run(process.execPath, args);
     const count = key => Number(result.output.match(new RegExp(`^# ${key} (\\d+)$`, 'm'))?.[1] ?? NaN);

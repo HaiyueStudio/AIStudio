@@ -2,45 +2,57 @@ TAP version 13
 # Subtest: background notification uses OS sound once, click returns a typed target without executing an approval
 ok 1 - background notification uses OS sound once, click returns a typed target without executing an approval
   ---
-  duration_ms: 12.899
+  duration_ms: 29.325515
   type: 'test'
   ...
 # Subtest: sound/background settings persist across restart and disabled notifications suppress delivery
 ok 2 - sound/background settings persist across restart and disabled notifications suppress delivery
   ---
-  duration_ms: 16.8695
+  duration_ms: 22.536592
   type: 'test'
   ...
 # Subtest: withdraw, project disposal, expiry and OS closure prevent stale click actions and release handles
 ok 3 - withdraw, project disposal, expiry and OS closure prevent stale click actions and release handles
   ---
-  duration_ms: 31.8622
+  duration_ms: 40.415133
   type: 'test'
   ...
-# Subtest: notification failure degrades to taskbar attention and does not throw into the task
-ok 4 - notification failure degrades to taskbar attention and does not throw into the task
+# Subtest: icon attention is independent of delivery, and failure beeps once with lifecycle cleanup
+ok 4 - icon attention is independent of delivery, and failure beeps once with lifecycle cleanup
   ---
-  duration_ms: 2.4618
+  duration_ms: 3.477303
+  type: 'test'
+  ...
+# Subtest: foreground and background turns notify by default; mute also suppresses fallback sound
+ok 5 - foreground and background turns notify by default; mute also suppresses fallback sound
+  ---
+  duration_ms: 6.184277
   type: 'test'
   ...
 # Subtest: test notification works in foreground, is rate limited and follows mute
-ok 5 - test notification works in foreground, is rate limited and follows mute
+ok 6 - test notification works in foreground, is rate limited and follows mute
   ---
-  duration_ms: 7.2346
+  duration_ms: 9.010699
   type: 'test'
   ...
 # Subtest: notification IPC is closed: no arbitrary text, sound URL, path or approval decision
-ok 6 - notification IPC is closed: no arbitrary text, sound URL, path or approval decision
+ok 7 - notification IPC is closed: no arbitrary text, sound URL, path or approval decision
   ---
-  duration_ms: 1.6297
+  duration_ms: 2.967619
   type: 'test'
   ...
-1..6
-# tests 6
+# Subtest: Electron adapter uses macOS sound/Dock bounce and Windows flash with focus/close cleanup
+ok 8 - Electron adapter uses macOS sound/Dock bounce and Windows flash with focus/close cleanup
+  ---
+  duration_ms: 168.337707
+  type: 'test'
+  ...
+1..8
+# tests 8
 # suites 0
-# pass 6
+# pass 8
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 430.7047
+# duration_ms 791.154912

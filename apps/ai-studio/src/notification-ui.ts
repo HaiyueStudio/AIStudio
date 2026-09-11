@@ -13,7 +13,11 @@ export function mountNotificationSettings(document: Document, parent: HTMLElemen
   parent.append(root);
   const status = root.querySelector('p')!, button = root.querySelector('button')!;
   const inputs = [...root.querySelectorAll<HTMLInputElement>('input')];
-  let message: 'ready' | 'unsupported' | 'sent' | 'failed' | 'saved' = 'ready';
+  let message: 'ready' | 'unsupported' | 'sent' | 'shown' | 'failed' | 'saved' = 'ready';
+  const pause = () => new Promise<void>(resolve => {
+    const done = () => { clearTimeout(timer); lifetime.signal.removeEventListener('abort', done); resolve(); };
+    const timer = setTimeout(done, 200); lifetime.signal.addEventListener('abort', done, { once: true });
+  });
   function render(): void {
     if (closed) return;
     const zh = ports.language() === 'zh-CN';
@@ -25,8 +29,8 @@ export function mountNotificationSettings(document: Document, parent: HTMLElemen
       input.disabled = busy || !preferences || !ports.desktop || (index > 0 && !preferences.enabled);
     });
     button.textContent = zh ? '测试通知' : 'Test notification'; button.disabled = busy || !preferences?.enabled || !supported;
-    const labelsByState = zh ? { ready: '遵循系统通知、勿扰和声音设置。', unsupported: '当前环境不支持桌面通知。', sent: '已请求系统通知；请检查桌面通知和声音设置。', failed: '通知设置或发送失败，请重试。', saved: '通知偏好已保存在当前设备。' }
-      : { ready: 'Follows system notification, Do Not Disturb and sound settings.', unsupported: 'Desktop notifications are unavailable here.', sent: 'System notification requested; check your notification and sound settings.', failed: 'Could not save settings or send the notification. Please retry.', saved: 'Notification preferences saved on this device.' };
+    const labelsByState = zh ? { ready: '审批和本轮执行结束时提醒；后台会提醒 Dock 或任务栏。系统通知受系统权限与勿扰设置控制。', unsupported: '当前环境不支持系统通知；后台图标仍可提醒。', sent: '系统尚未确认显示通知，请检查系统通知权限与勿扰设置。', shown: '系统已显示测试通知，提示音遵循声音开关与系统音量。', failed: '通知设置或系统投递失败。请检查系统通知权限与勿扰设置。', saved: '通知偏好已保存在当前设备。' }
+      : { ready: 'Alerts for approvals and finished turns; Dock or taskbar attention in background. Banners follow system permissions and Do Not Disturb.', unsupported: 'System notifications are unavailable; background icon attention can still work.', sent: 'Display is not confirmed. Check system notification permissions and Do Not Disturb.', shown: 'The system displayed the test notification. Sound follows your preference and system volume.', failed: 'Settings or system delivery failed. Check system notification permissions and Do Not Disturb.', saved: 'Notification preferences saved on this device.' };
     status.textContent = labelsByState[message];
   }
   async function save(next: NotificationPreferences): Promise<void> {
@@ -41,7 +45,13 @@ export function mountNotificationSettings(document: Document, parent: HTMLElemen
   }, { signal: lifetime.signal });
   button.addEventListener('click', () => { void (async () => {
     busy = true; render();
-    try { const result = await ports.invoke('notifications/test'); message = result.delivery === 'failed' ? 'failed' : result.supported === false ? 'unsupported' : 'sent'; }
+    try {
+      let result = await ports.invoke('notifications/test');
+      for (let attempt = 0; attempt < 15 && result.delivery === 'requested' && !closed; attempt++) {
+        await pause(); if (closed) return; result = await ports.invoke('notifications/get');
+      }
+      message = result.delivery === 'failed' ? 'failed' : result.supported === false ? 'unsupported' : result.delivery === 'shown' ? 'shown' : 'sent';
+    }
     catch { message = 'failed'; } finally { busy = false; render(); }
   })(); }, { signal: lifetime.signal });
   const ready = (async () => {

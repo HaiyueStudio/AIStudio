@@ -2,7 +2,7 @@ TAP version 13
 # Subtest: resource presentation preserves authoritative kind, unsupported presets and proven zero versus unknown
 ok 1 - resource presentation preserves authoritative kind, unsupported presets and proven zero versus unknown
   ---
-  duration_ms: 838.9355
+  duration_ms: 1650.798918
   type: 'test'
   ...
 1..1
@@ -13,4 +13,4 @@ ok 1 - resource presentation preserves authoritative kind, unsupported presets a
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2925.862
+# duration_ms 3040.993363

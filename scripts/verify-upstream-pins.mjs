@@ -16,8 +16,10 @@ const packageKey = (name) => `node_modules/${name}`;
 
 assert.match(pins.deepseekHarness.tag, /^dsh-v\d+\.\d+\.\d+-rc\.\d+$/);
 assert.match(pins.deepseekHarness.commit, /^[0-9a-f]{40}$/);
-assert.equal(pins.deepseekHarness.commit.startsWith('99f6f02'), true);
+assert.equal(pins.deepseekHarness.commit, 'fb2c4b9e698e30edb738bca4cf0618587db7d203');
 assert.equal(pins.deepseekHarness.license, 'MIT');
+assert.deepEqual(new Set(compatibility.deepseekHarness.requiredPackages), new Set(pins.deepseekHarness.packages.map(({ name }) => name)));
+assert.deepEqual(new Set(pins.deepseekHarness.packages.map(({ name }) => name)), new Set(Object.keys(bridgePackage.dependencies).filter((name) => name.startsWith('@deepseek-ai/'))));
 
 for (const snapshot of pins.deepseekHarness.snapshots) {
   const contents = await readFile(path.join(root, snapshot.path));
@@ -30,11 +32,25 @@ for (const packagePin of pins.deepseekHarness.packages) {
   assert.ok(installed, `${packagePin.name} is absent from package-lock.json`);
   assert.equal(installed.version, packagePin.version, `${packagePin.name} lock version changed`);
   assert.equal(installed.integrity, packagePin.integrity, `${packagePin.name} integrity changed`);
+  assert.equal(rootPackage.overrides[packagePin.name], packagePin.version, `${packagePin.name} override is not exact`);
   const manifest = JSON.parse(await readFile(path.join(root, packageKey(packagePin.name), 'package.json'), 'utf8'));
+  assert.equal(manifest.version, packagePin.version, `${packagePin.name} installed version changed`);
+  assert.equal(manifest.license, 'MIT', `${packagePin.name} license requires review`);
   for (const field of compatibility.deepseekHarness.requiredPackageFields) {
     if (packagePin.name === '@deepseek-ai/cordis' && field === 'exports') continue;
     assert.ok(manifest[field], `${packagePin.name} is missing ${field}`);
   }
+}
+
+// Check the full Harness closure, including optional peers: npm can otherwise
+// retain a nested old prerelease even when every direct dependency was updated.
+for (const [location, installed] of Object.entries(lock.packages)) {
+  const match = location.match(/(?:^|\/)node_modules\/(@deepseek-ai\/(?:dsh-[^/]+|cordis))$/);
+  if (!match) continue;
+  const name = match[1];
+  assert.equal(location, packageKey(name), `${name} has a second runtime instance`);
+  assert.equal(installed.version, rootPackage.overrides[name], `${name} transitive version is not pinned`);
+  assert.equal(installed.version, name === '@deepseek-ai/cordis' ? '4.0.2' : pins.deepseekHarness.tag.slice(5));
 }
 
 assert.equal(rootPackage.devDependencies[pins.codex.package], pins.codex.version);

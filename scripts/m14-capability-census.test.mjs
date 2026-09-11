@@ -23,7 +23,7 @@ test('local regression cannot promote a capability to product or adapter accepta
 test('wrong-source, failed, skipped, empty and stale verification reports are rejected', () => {
   const checks = [{ id: 'unit', files: ['unit.test.mjs'] }];
   const binding = { digest: digest('current') };
-  const valid = { schemaVersion: 1, inputDigest: binding.digest, checks: [{ id: 'unit', kind: 'local-check', args: ['--test', '--test-reporter=tap', 'unit.test.mjs'], exitCode: 0, passed: 1, failed: 0, skipped: 0, cancelled: 0, durationMs: 1, outputDigest: digest('ok') }] };
+  const valid = { schemaVersion: 1, inputDigest: binding.digest, checks: [{ id: 'unit', kind: 'local-check', args: ['--test', '--test-concurrency=1', '--test-reporter=tap', 'unit.test.mjs'], exitCode: 0, passed: 1, failed: 0, skipped: 0, cancelled: 0, durationMs: 1, outputDigest: digest('ok') }] };
   checkReport(valid, binding, checks);
   for (const edit of [r => r.inputDigest = digest('old'), r => r.checks[0].args.pop(), r => r.checks[0].passed = 0, r => r.checks[0].failed = 1, r => r.checks[0].skipped = 1, r => r.checks[0].cancelled = 1, r => r.checks[0].exitCode = 1, r => r.checks[0].kind = 'product-acceptance', r => r.checks = []]) {
     const bad = structuredClone(valid); edit(bad);
