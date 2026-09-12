@@ -1,0 +1,20 @@
+✔ G10 conversation host runs typed tools through scoped approval and replay (43.496672ms)
+✔ failure before provider startup records visible facts without making the synthetic session reusable (5.648169ms)
+✔ an approved plan that ends without edits continues once and executes without asking for the same plan again (14.051434ms)
+✔ plan review pauses hard wall time so a user can return later, approve, and continue editing (175.468086ms)
+✔ cancelling while a plan is pending terminalizes the plan so the composer can recover (14.365236ms)
+✔ composer queues a new message while a plan barrier waits and supersedes only the live wait (29.963369ms)
+✔ project Run prefers a current controller script over an incidentally selected board script (0.591676ms)
+✔ G10 conversation host gives project-missing turns recovery instructions that work across independent turns (6.404681ms)
+✔ hard task budget releases the live tool call and continues in a fresh turn after a bounded user grant (12.882654ms)
+✔ declining a budget continuation stops without rolling back completed tool output (14.351768ms)
+✔ G10 renderer preview broker uses one pending command and rejects stale acknowledgements (2.980459ms)
+✔ desktop composition sends one bounded Scene baseline and exact revision deltas without script text (4347.866695ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4821.709042

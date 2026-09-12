@@ -26,6 +26,8 @@ export interface ContextProjectSnapshot {
   readonly documentId: StableId;
   readonly revision: number;
   readonly manifest: JsonObject;
+  /** Trusted editor selection; a discovery hint, never an authorization or impact boundary. */
+  readonly focusEntityIds?: readonly StableId[];
   readonly exact?: ExactProjectContextSource;
 }
 
@@ -98,7 +100,8 @@ interface TaskSummaryProjection {
   readonly blockers: readonly string[];
 }
 
-const PROFILE_VERSION = '3.5.0';
+const PROFILE_VERSION = '3.6.0';
+const MAX_PROJECT_CONTEXT_BYTES = 16 * 1024;
 const MAX_MODEL_CONTEXT_BYTES = 96 * 1024;
 const MAX_SUMMARY_ITEMS = 12;
 const MAX_SUMMARY_ITEM_BYTES = 512;
@@ -115,7 +118,8 @@ export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] =
     'Inspect before editing. Propose a user-readable plan before mutation. Re-read the current project revision before every edit and use only structured tool calls.',
     'A plan approval does not approve later high-risk effects. Report unavailable capabilities explicitly instead of inventing an implementation seam.',
   ]),
-  module('prompt.workflow.general-authoring', '1.1.0', 'workflow', [
+  module('prompt.workflow.general-authoring', '1.2.0', 'workflow', [
+    'Context is demand-driven. The initial scene is a bounded discovery slice, not the complete scene or the task impact boundary. Editor selection is only a hint; resolve the user target before editing. For self-contained behavior, query only that entity with hierarchy/components/scripts, then script.get for the relevant source. Expand scope.entityIds to referenced objects, parents or shared motion owners only when their data is needed; inspect behavior relationships for cross-object effects. Discover unknown targets through small hierarchy pages or componentTypes, then fetch details for matching IDs. Request camera/render/settings/assets projections only for relevant system-wide dependencies. Omitted data is unknown, not absent. Re-query at the current revision before mutation and verify all affected responsibilities; never default to all projections or hard-code a whole-scene snapshot.',
     'Derive entities, state, input, simulation, presentation, audio and verification from the current request and project facts. Keep authored responsibilities explicit and composable.',
     'Treat appearance words as visible requirements, not a mandate to use a single primitive. Before choosing geometry, decompose the object by silhouette, independently colored surfaces, moving parts, interaction roles and repetition. Record the parts, materials, local transforms and shared motion owner in the plan. Build and inspect one representative assembly before capturing its subtree with prefab.manage and instantiating repeats. A single material color covers the whole primitive. Preserve explicit implementation constraints, but choose composition when one primitive cannot express the requested appearance.',
     'Verification must exercise real scene/camera transforms and resulting state, not just counters, event labels or HUD text. Use the actual inspected gameplay[index].value payload paths in assertions. play.capture returns a same-tick screenshot/state evidence bundle; evaluate its observations together. Do not invent fps or visual-analysis signals that no available tool produces.',
@@ -175,7 +179,8 @@ export class PromptContextRuntime {
   private readonly metadata = new Map<StableId, ContextArtifactV2>();
   private readonly projectStates = new Map<StableId, ContextProjectSnapshot>();
   private readonly indexes = new Map<string, ConversationIndex>();
-  private readonly liveSessions = new Map<string, Readonly<{ sessionId: StableId; toolSignature: string }>>();
+  private readonly liveSessions = new Map<string, Readonly<{ sessionId: StableId; toolSignature: string; artifactIds: ReadonlySet<string>; baseline?: ProjectBaseline }>>();
+  private readonly pendingContexts = new Map<string, Readonly<{ taskId: StableId; toolSignature: string; reusedSessionId: StableId | null; artifactIds: readonly StableId[]; baseline?: ProjectBaseline }>>();
   private initialized = false;
 
   constructor(private readonly log: OperationLog, prompts = new PromptModuleRegistry(), private readonly retrieval?: KnowledgeRetrievalRuntime) { this.prompts = prompts; }
@@ -201,7 +206,9 @@ export class PromptContextRuntime {
   }>): Promise<PreparedTurnContext> {
     await this.initialize();
     const request = sanitizeText(input.request, 32_768);
-    const liveSession = this.liveSessions.get(indexKey(input.conversationKey, input.backendId));
+    const key = indexKey(input.conversationKey, input.backendId);
+    this.pendingContexts.delete(key);
+    const liveSession = this.liveSessions.get(key);
     const toolSignature = toolSetSignature(input.tools);
     const reuseSessionId = liveSession?.toolSignature === toolSignature ? liveSession.sessionId : null;
     const knowledge = await this.retrieveKnowledge(request, input.conversationKey, input.project);
@@ -220,36 +227,60 @@ export class PromptContextRuntime {
     }
 
     let deltaReuseBytes = 0;
+    let baseline: ProjectBaseline | undefined;
     if (!input.project) {
       puts.push(await this.put('project-manifest', asStableId('studio.project-context'), null, { state: 'not-required', reason: 'No Studio project is currently open.' }));
     } else {
-      const previous = this.projectStates.get(input.project.projectId);
-      const sessionHasPriorProject = reuseSessionId !== null && previous?.documentId === input.project.documentId;
-      if (previous && previous.revision !== input.project.revision && sessionHasPriorProject) {
-        let delta: JsonValue;
-        try {
-          delta = input.project.exact
-            ? await input.project.exact.diff({ fromRevision: previous.revision, toRevision: input.project.revision, request: Object.freeze({ projection: ['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'], limit: 1_000 }) })
-            : projectDelta(previous, input.project);
-        } catch (cause) {
-          if (!recoverableExactFailure(cause) || !input.project.exact) throw cause;
-          delta = Object.freeze({ schemaVersion: 1, mode: 'snapshot-recovery', diagnostic: { code: cause.code, message: cause instanceof Error ? cause.message : 'Scene diff unavailable.' }, scene: await input.project.exact.query({ revision: input.project.revision, request: Object.freeze({ projection: ['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'], limit: 1_000 }) }) });
+      const project = input.project;
+      const sceneRequest = initialSceneRequest(project);
+      const scopeDigest = digest(canonicalStringify(sceneRequest));
+      const previous = reuseSessionId ? liveSession?.baseline : undefined;
+      const canDiff = previous?.complete && previous.project.projectId === project.projectId
+        && previous.project.documentId === project.documentId && previous.scopeDigest === scopeDigest;
+      let kind: ContextArtifactV2['kind'] = 'project-manifest';
+      let projection: JsonValue;
+      let complete = true;
+      if (project.exact) {
+        let scene: JsonValue | undefined;
+        let recovery: string | undefined;
+        if (canDiff && previous.project.revision !== project.revision) {
+          try {
+            scene = await project.exact.diff({ fromRevision: previous.project.revision, toRevision: project.revision, request: sceneRequest });
+            if (jsonBytes(scene) > MAX_PROJECT_CONTEXT_BYTES - 2048 || !completeScene(scene)) {
+              recovery = 'context.delta-requires-snapshot'; scene = undefined;
+            } else kind = 'document-delta';
+          } catch (cause) {
+            if (!recoverableExactFailure(cause)) throw cause;
+            recovery = cause.code;
+          }
         }
-        deltaReuseBytes = unchangedJsonBytes(previous.manifest, input.project.manifest);
-        puts.push(await this.put('document-delta', asStableId('studio.project-context'), input.project.revision, delta));
+        const snapshot = scene === undefined ? await boundedSceneQuery(project, sceneRequest) : undefined;
+        scene ??= snapshot!.scene;
+        complete = completeScene(scene);
+        projection = { identity: project.manifest, context: {
+          mode: recovery ? 'snapshot-recovery' : kind === 'document-delta' ? 'scoped-delta' : 'discovery-slice',
+          ...(recovery ? { diagnostic: recovery } : {}),
+          selectionIsHint: true, impactScope: 'unresolved', request: snapshot?.request ?? sceneRequest,
+          instruction: 'Resolve task targets and expand through scene.query only as needed. This slice does not prove other objects or dependencies absent.',
+        }, scene };
       } else {
-        const manifest: JsonValue = input.project.exact
-          ? Object.freeze({ identity: input.project.manifest, scene: await input.project.exact.query({ revision: input.project.revision, request: Object.freeze({ projection: ['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'], limit: 1_000 }) }) })
-          : input.project.manifest;
-        puts.push(await this.put('project-manifest', asStableId('studio.project-context'), input.project.revision, manifest));
+        projection = canDiff && previous.project.revision !== project.revision ? projectDelta(previous.project, project) : project.manifest;
+        if (canDiff && previous.project.revision !== project.revision) {
+          kind = 'document-delta'; deltaReuseBytes = unchangedJsonBytes(previous.project.manifest, project.manifest);
+        }
       }
-      this.projectStates.set(input.project.projectId, freezeProject(input.project));
+      if (jsonBytes(projection) > MAX_PROJECT_CONTEXT_BYTES) {
+        projection = deferredProject(project, sceneRequest, 'context.project-byte-budget');
+        kind = 'project-manifest'; complete = false;
+      }
+      puts.push(await this.put(kind, asStableId('studio.project-context'), project.revision, projection));
+      baseline = { project: freezeProject(project), scopeDigest, complete };
     }
 
     const transmissions = [] as JsonValue[];
     let eligibleBytes = 0;
     for (const stored of puts) {
-      const isReusableArtifact = reuseSessionId !== null && stored.localHit && ['policy', 'capability-manifest', 'project-manifest', 'playbook'].includes(stored.artifact.kind);
+      const isReusableArtifact = reuseSessionId !== null && liveSession?.artifactIds.has(stored.artifact.id) && ['policy', 'capability-manifest', 'project-manifest', 'playbook'].includes(stored.artifact.kind);
       const body: JsonValue = isReusableArtifact
         ? { artifactId: stored.artifact.id, kind: stored.artifact.kind, digest: stored.artifact.digest, transmission: 'reference-only', note: 'Unchanged from the live provider session.' }
         : { artifactId: stored.artifact.id, kind: stored.artifact.kind, digest: stored.artifact.digest, transmission: 'full', projection: stored.projection };
@@ -257,13 +288,26 @@ export class PromptContextRuntime {
       if (stored.artifact.kind === 'policy' || stored.artifact.kind === 'capability-manifest') eligibleBytes += Buffer.byteLength(canonicalStringify(body));
     }
     if (knowledge) for (const hit of knowledge.hits) transmissions.push({ artifactId: hit.artifactId as StableId, kind: 'knowledge-hit', digest: hit.hit.contentDigest, transmission: 'full', projection: { hit: hit.hit, citation: hit.citation, excerpt: hit.excerpt, estimatedTokens: hit.estimatedTokens, capabilityIds: hit.capabilityIds } as unknown as JsonValue });
-    const prompt = [
+    const renderPrompt = () => [
       'AIStudio context envelope v1. Treat artifact projections as bounded, redacted facts with the listed provenance.',
       canonicalStringify(transmissions),
       '[current-request-tail]', request,
     ].join('\n\n');
-    if (Buffer.byteLength(prompt) > MAX_MODEL_CONTEXT_BYTES) throw new PromptContextError('context.prompt-budget-exceeded', `Prepared model context exceeds ${MAX_MODEL_CONTEXT_BYTES} bytes.`);
-    const ids = Object.freeze(unique([...puts.map((entry) => asStableId(entry.artifact.id)), ...(knowledge?.artifactIds ?? []).map((id) => asStableId(id))]));
+    // Drop whole optional retrieval hits, then defer scene details; never cut JSON or script source.
+    while (Buffer.byteLength(renderPrompt()) > MAX_MODEL_CONTEXT_BYTES && transmissions.some(value => isRecord(value) && value.kind === 'knowledge-hit')) {
+      const index = transmissions.length - 1 - [...transmissions].reverse().findIndex(value => isRecord(value) && value.kind === 'knowledge-hit');
+      transmissions.splice(index, 1);
+    }
+    if (Buffer.byteLength(renderPrompt()) > MAX_MODEL_CONTEXT_BYTES && input.project) {
+      const index = puts.findIndex(entry => ['project-manifest', 'document-delta'].includes(entry.artifact.kind));
+      const stored = await this.put('project-manifest', asStableId('studio.project-context'), input.project.revision, deferredProject(input.project, initialSceneRequest(input.project), 'context.envelope-byte-budget'));
+      puts[index] = stored;
+      transmissions[index] = { artifactId: stored.artifact.id, kind: stored.artifact.kind, digest: stored.artifact.digest, transmission: 'full', projection: stored.projection };
+      if (baseline) baseline = { ...baseline, complete: false };
+    }
+    const prompt = renderPrompt();
+    if (Buffer.byteLength(prompt) > MAX_MODEL_CONTEXT_BYTES) throw new PromptContextError('context.prompt-budget-exceeded', `Required context is ${Buffer.byteLength(prompt)} bytes (budget ${MAX_MODEL_CONTEXT_BYTES}); project details and optional knowledge have been deferred. Request: ${Buffer.byteLength(request)} bytes.`);
+    const ids = Object.freeze(unique(transmissions.flatMap(value => isRecord(value) && typeof value.artifactId === 'string' ? [asStableId(value.artifactId)] : [])));
     const cache = Object.freeze({
       localArtifactHits: puts.filter((entry) => entry.localHit).length,
       localArtifactMisses: puts.filter((entry) => !entry.localHit).length,
@@ -275,6 +319,8 @@ export class PromptContextRuntime {
       payload: { taskId: input.taskId, backendId: input.backendId, conversationKey: input.conversationKey, contextArtifactIds: ids, contextDigest, promptDigest: digest(prompt), promptBytes: Buffer.byteLength(prompt), reusedSessionId: reuseSessionId, sessionReuse: reuseSessionId ? 'same-tool-contract' : liveSession ? 'tool-contract-changed' : 'no-live-contract', toolSignature, cache },
       artifactRefs: ids,
     });
+    if (input.project) this.projectStates.set(input.project.projectId, freezeProject(input.project));
+    this.pendingContexts.set(key, { taskId: input.taskId, toolSignature, reusedSessionId: reuseSessionId, artifactIds: ids, ...(baseline ? { baseline } : {}) });
     return Object.freeze({ prompt, promptDigest: digest(prompt), promptProfile: this.prompts.profile, contextArtifactIds: ids, contextDigest, cache, reusedSessionId: reuseSessionId });
   }
 
@@ -305,8 +351,14 @@ export class PromptContextRuntime {
     });
     this.indexes.set(indexKey(input.conversationKey, input.backendId), index);
     const key = indexKey(input.conversationKey, input.backendId);
-    if (input.tools) this.liveSessions.set(key, Object.freeze({ sessionId: input.sessionId, toolSignature: toolSetSignature(input.tools) }));
-    else this.liveSessions.delete(key);
+    const pending = this.pendingContexts.get(key);
+    const signature = input.tools ? toolSetSignature(input.tools) : null;
+    if (pending?.taskId === input.taskId && signature === pending.toolSignature) {
+      const prior = this.liveSessions.get(key);
+      const inherited = pending.reusedSessionId === input.sessionId && prior?.sessionId === input.sessionId ? [...prior.artifactIds] : [];
+      this.liveSessions.set(key, Object.freeze({ sessionId: input.sessionId, toolSignature: signature!, artifactIds: new Set([...inherited, ...pending.artifactIds]), ...(pending.baseline ? { baseline: pending.baseline } : {}) }));
+    } else this.liveSessions.delete(key);
+    this.pendingContexts.delete(key);
     await this.log.append({
       kind: 'agent/conversation-indexed', severity: 'info', source: CONTEXT_SOURCE,
       correlation: { sessionId: input.sessionId, turnId: input.turnId, ...(input.projectId ? { projectId: input.projectId } : {}) },
@@ -388,6 +440,39 @@ export class PromptContextRuntime {
       }
     }
   }
+}
+
+interface ProjectBaseline {
+  readonly project: ContextProjectSnapshot;
+  readonly scopeDigest: M12Digest;
+  readonly complete: boolean;
+}
+
+function initialSceneRequest(project: ContextProjectSnapshot): JsonObject {
+  const focus = unique(project.focusEntityIds ?? []).sort().slice(0, 8);
+  return focus.length ? { scope: { entityIds: focus }, projection: ['hierarchy', 'components', 'scripts'], limit: 64 }
+    : { projection: ['hierarchy'], limit: 32 };
+}
+function jsonBytes(value: JsonValue): number { return Buffer.byteLength(canonicalStringify(value)); }
+function completeScene(value: JsonValue): boolean {
+  if (!isRecord(value) || value.deferred === true) return false;
+  const page = isRecord(value.diff) ? value.diff : value;
+  return page.truncated !== true && !page.nextCursor;
+}
+async function boundedSceneQuery(project: ContextProjectSnapshot, initial: JsonObject): Promise<{ scene: JsonValue; request: JsonObject }> {
+  let request = initial;
+  for (;;) {
+    const scene = await project.exact!.query({ revision: project.revision, request });
+    if (jsonBytes(scene) <= MAX_PROJECT_CONTEXT_BYTES - 2048) return { scene, request };
+    const limit = request.limit as number;
+    if (limit <= 1) return { scene: { deferred: true, reason: 'context.single-item-byte-budget', documentId: project.documentId, revision: project.revision,
+      instruction: 'Query hierarchy or scripts metadata first, then only the required componentTypes or script.get. No items were supplied; restart with this request and a narrower projection, not its nextCursor.' }, request };
+    request = { ...request, limit: Math.max(1, Math.floor(limit / 2)) };
+  }
+}
+function deferredProject(project: ContextProjectSnapshot, request: JsonObject, reason: string): JsonObject {
+  return { projectId: project.projectId, documentId: project.documentId, revision: project.revision, deferred: true, reason, request,
+    instruction: 'Scene details were omitted, not empty. Use project.snapshot for identity and scene.query with this revision, narrowed scope/projection and a small page; fetch script source only via script.get.' };
 }
 
 export class PromptContextError extends Error { constructor(readonly code: string, message: string) { super(message); this.name = 'PromptContextError'; } }

@@ -16,16 +16,16 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   const second = new PromptModuleRegistry().profile;
   assert.deepEqual(first, second);
   assert.equal(first.id, 'prompt:game-authoring-general');
-  assert.equal(first.version, '3.5.0');
+  assert.equal(first.version, '3.6.0');
   assert.deepEqual(first.modules.map(({ id, version, layer }) => ({ id, version, layer })), [
     { id: 'prompt.policy.safe-authoring', version: '1.0.0', layer: 'policy' },
     { id: 'prompt.tools.structured-effects', version: '1.0.0', layer: 'tool-contract' },
-    { id: 'prompt.workflow.general-authoring', version: '1.1.0', layer: 'workflow' },
+    { id: 'prompt.workflow.general-authoring', version: '1.2.0', layer: 'workflow' },
     { id: 'prompt.workflow.bounded-tool-batch', version: '1.0.0', layer: 'workflow' },
   ]);
   const production = first.modules.map((entry) => entry.content).join('\n').toLowerCase();
   for (const genrePatch of ['snake', 'snakebody', 'tetris', 'match-3', 'platformer', 'racing', 'shooter', 'rubik', '魔方', '贪吃蛇', '俄罗斯方块', '消消乐']) assert.doesNotMatch(production, new RegExp(escapeRegExp(genrePatch), 'iu'));
-  assert.equal(first.digest, 'sha256:042007d5b9f90c5005341c47f077d489270971ca676632e647ef0ecf85b598d0');
+  assert.equal(first.digest, 'sha256:b65d27ae691f00cac6dfadfdf500bfd4c61c6e1b9c1c95b28f10ed16a93f1802');
 });
 
 test('same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest', async () => {
@@ -94,7 +94,7 @@ test('exact project source replaces legacy full manifests with bounded scene sna
     const secondProject = { ...firstProject, revision: 21, manifest: { schemaVersion: 1, project: { id: 'project:context-fixture', revision: 21, counts: { entities: 1, scripts: 1 } } } };
     const second = await runtime.prepare({ conversationKey, backendId, taskId: 'task:exact-second', request: 'Continue with exact deltas.', tools, project: secondProject });
     assert.match(second.prompt, /"kind":"document-delta"/u); assert.match(second.prompt, /"fromRevision":20/u); assert.match(second.prompt, /"toRevision":21/u);
-    assert.deepEqual(calls.map((entry) => entry.kind), ['query', 'diff']); assert.equal(calls[0].request.limit, 1_000); assert.ok(calls[1].request.projection.includes('components'));
+    assert.deepEqual(calls.map((entry) => entry.kind), ['query', 'diff']); assert.equal(calls[0].request.limit, 32); assert.deepEqual(calls[1].request.projection, ['hierarchy']);
     await fixture.log.close();
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 });
@@ -200,6 +200,7 @@ test('tool contract changes start with full context while preserving approved de
       assert.equal(changed.cache.deltaReuseBytes, 0);
     }
     const changedTools = variants[1];
+    await runtime.prepare({ conversationKey, backendId, taskId: 'task:changed:1', request: 'Execute the approved plan.', tools: changedTools, project: after });
     await runtime.commit({ conversationKey, backendId, taskId: 'task:changed:1', tools: changedTools, sessionId: 'session:contract-b', turnId: 'turn:b', projectId: after.projectId });
     const same = await runtime.prepare({ conversationKey, backendId, taskId: 'task:same-b', request: 'Continue.', tools: changedTools, project: after });
     assert.equal(same.reusedSessionId, 'session:contract-b'); assert.match(same.prompt, /reference-only/);
@@ -237,3 +238,111 @@ function project(revision, scriptText, entities) {
 async function openFixture(overrides = {}) { const root = await mkdtemp(path.join(tmpdir(), 'haiyue-prompt-context-')); return { root, log: await OperationLog.open({ rootDirectory: root, appVersion: 'test', ...overrides }) }; }
 async function readTree(root) { const values = []; for (const entry of await readdir(root, { withFileTypes: true })) { const target = path.join(root, entry.name); if (entry.isDirectory()) values.push(await readTree(target)); else values.push(await readFile(target, 'utf8').catch(() => '')); } return values.join('\n'); }
 function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+test('impact slices stay bounded across a large scene, focus changes, and provider contract changes', async () => {
+  const fixture = await openFixture();
+  try {
+    const calls = []; const runtime = new PromptContextRuntime(fixture.log);
+    const entities = Array.from({ length: 1000 }, (_, i) => ({ kind: 'entity', id: `entity:${i}`, value: { name: `Object ${i}`, parentId: i === 10 ? 'entity:9' : null, componentIds: [`component:${i}`] } }));
+    const exact = {
+      query({ revision, request }) {
+        calls.push({ revision, request });
+        const selected = request.scope?.entityIds ? entities.filter(e => request.scope.entityIds.includes(e.id)) : entities;
+        const items = [...selected, ...(request.projection.includes('components') ? selected.map(e => ({ kind: 'component', id: e.value.componentIds[0], value: { entityId: e.id, type: 'transform', value: { marker: `DETAIL_${e.id}`, targetId: e.id === 'entity:10' ? 'entity:11' : null } } })) : [])];
+        return { revision, items: items.slice(0, request.limit), totalItems: items.length, truncated: items.length > request.limit, nextCursor: items.length > request.limit ? `cursor:${request.limit}` : null };
+      },
+      diff() { throw new Error('Incomplete or changed scopes must receive a fresh snapshot.'); },
+    };
+    const project = { projectId: 'project:large', documentId: 'document:large', revision: 1, manifest: { counts: { entities: 1000 } }, exact };
+    const prepare = (taskId, project, suppliedTools = tools) => runtime.prepare({ conversationKey, backendId, taskId, request: '给目标对象添加自身逻辑；根据引用确认影响范围。', tools: suppliedTools, project });
+    const first = await prepare('task:discover', project);
+    assert.deepEqual(calls[0].request, { projection: ['hierarchy'], limit: 32 });
+    assert.doesNotMatch(first.prompt, /DETAIL_entity/);
+    assert.match(first.prompt, /"truncated":true/); assert.ok(Buffer.byteLength(first.prompt) < 24 * 1024);
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:discover', tools, sessionId: 'session:large', turnId: 'turn:discover', projectId: project.projectId });
+    const scoped = { ...project, focusEntityIds: ['entity:10'] };
+    const focused = await prepare('task:focus', scoped);
+    assert.deepEqual(calls.at(-1).request.scope, { entityIds: ['entity:10'] });
+    assert.match(focused.prompt, /DETAIL_entity:10/); assert.doesNotMatch(focused.prompt, /DETAIL_entity:11/);
+    assert.match(focused.prompt, /"parentId":"entity:9"/); assert.match(focused.prompt, /"targetId":"entity:11"/);
+    assert.match(focused.prompt, /"impactScope":"unresolved"/);
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:focus', tools, sessionId: 'session:large', turnId: 'turn:focus', projectId: project.projectId });
+    // Preparing another target without starting/committing it does not establish a provider baseline.
+    await prepare('task:unsent', { ...scoped, focusEntityIds: ['entity:11'] });
+    const retry = await prepare('task:retry', { ...scoped, focusEntityIds: ['entity:11'] });
+    assert.match(retry.prompt, /DETAIL_entity:11/);
+    const changed = await prepare('task:changed', scoped, [{ ...tools[0], description: 'Changed tool contract' }]);
+    assert.equal(changed.reusedSessionId, null); assert.match(changed.prompt, /DETAIL_entity:10/);
+    assert.doesNotMatch(changed.prompt, /DETAIL_entity:11|reference-only/);
+    const revised = await prepare('task:revised', { ...project, revision: 2 });
+    assert.match(revised.prompt, /"kind":"project-manifest"/);
+    // The model expands through the SAME public query seam, requesting only dependencies it discovered.
+    const expanded = exact.query({ revision: 2, request: { scope: { entityIds: ['entity:9', 'entity:11'] }, projection: ['hierarchy', 'components'], limit: 16 } });
+    assert.equal(expanded.items.length, 4);
+  } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('oversized pages keep authentic cursors; oversized single items and incomplete diffs are deferred safely', async () => {
+  const fixture = await openFixture();
+  try {
+    const runtime = new PromptContextRuntime(fixture.log); const limits = []; let huge = false; let diffMode = 'large';
+    const exact = {
+      query({ revision, request }) {
+        limits.push(request.limit);
+        const count = huge ? 1 : Math.min(20, request.limit);
+        return { revision, items: Array.from({ length: count }, (_, i) => ({ kind: 'component', id: `component:${i}`, value: { text: huge ? 'LARGE_SINGLE_ITEM'.repeat(40000) : 'x'.repeat(1400) } })), totalItems: huge ? 1 : 20, truncated: !huge && count < 20, nextCursor: !huge && count < 20 ? `authentic:${count}` : null };
+      },
+      diff() { return diffMode === 'large' ? { changes: 'OVERSIZED_DIFF'.repeat(50000) } : { diff: { truncated: true, nextCursor: 'unconsumed:1' } }; },
+    };
+    const project = { projectId: 'project:budget', documentId: 'document:budget', revision: 1, focusEntityIds: ['entity:one'], manifest: {}, exact };
+    const prepare = (taskId, value) => runtime.prepare({ conversationKey, backendId, taskId, request: 'Inspect target.', tools, project: value });
+    const page = await prepare('task:page', project);
+    assert.deepEqual(limits, [64, 32, 16, 8]);
+    assert.match(page.prompt, /authentic:8/); assert.match(page.prompt, /"limit":8/);
+    assert.ok(Buffer.byteLength(page.prompt) < 96 * 1024);
+    huge = true;
+    const deferred = await prepare('task:huge', project);
+    assert.match(deferred.prompt, /context.single-item-byte-budget/); assert.doesNotMatch(deferred.prompt, /LARGE_SINGLE_ITEM/);
+    for (const id of deferred.contextArtifactIds) assert.ok((await fixture.log.readArtifact(id)).bytes < 32 * 1024);
+    huge = false;
+    exact.query = ({ revision }) => ({ revision, items: [], truncated: false, nextCursor: null });
+    await prepare('task:baseline', project);
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:baseline', tools, sessionId: 'session:budget', turnId: 'turn:budget', projectId: project.projectId });
+    for (const mode of ['large', 'partial']) {
+      diffMode = mode;
+      const repaired = await prepare(`task:delta-${mode}`, { ...project, revision: 2 });
+      assert.match(repaired.prompt, /snapshot-recovery/); assert.doesNotMatch(repaired.prompt, /OVERSIZED_DIFF|unconsumed:1/);
+    }
+  } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('failed preparations and commits for different tasks cannot establish cached provider facts', async () => {
+  const fixture = await openFixture();
+  try {
+    const runtime = new PromptContextRuntime(fixture.log);
+    const input = { conversationKey, backendId, taskId, request: 'Inspect.', tools, project: project(1, 'UNSENT_SOURCE', []) };
+    await runtime.prepare(input);
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:different', tools, sessionId: 'session:wrong', turnId: 'turn:wrong', projectId: input.project.projectId });
+    const retry = await runtime.prepare(input);
+    assert.equal(retry.reusedSessionId, null); assert.match(retry.prompt, /UNSENT_SOURCE/);
+    await assert.rejects(runtime.prepare({ ...input, tools: Array.from({ length: 150 }, (_, i) => ({ ...tools[0], id: `tool:${i}`, description: 'required '.repeat(120) })) }), error => error.code === 'context.prompt-budget-exceeded');
+    await runtime.commit({ conversationKey, backendId, taskId, tools, sessionId: 'session:failed', turnId: 'turn:failed', projectId: input.project.projectId });
+    assert.equal((await runtime.prepare(input)).reusedSessionId, null);
+  } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('the envelope budget defers a bounded scene when request and visible history use the remaining space', async () => {
+  const fixture = await openFixture();
+  try {
+    const runtime = new PromptContextRuntime(fixture.log);
+    const facts = Array.from({ length: 12 }, (_, i) => `${i}:` + 'v'.repeat(495));
+    await runtime.commit({ conversationKey, backendId, taskId: 'task:history', sessionId: 'session:history', turnId: 'turn:history', projectId: null, goals: facts, decisions: facts, toolFacts: facts, acceptance: facts, blockers: facts });
+    const longTools = Array.from({ length: 22 }, (_, i) => ({ ...tools[0], id: `tool:long-${i}`, description: 'd'.repeat(1000) }));
+    const prepared = await runtime.prepare({ conversationKey, backendId, taskId, request: 'r'.repeat(32000), tools: longTools,
+      project: { projectId: 'project:envelope', documentId: 'document:envelope', revision: 4, manifest: {}, exact: { query: ({ revision }) => ({ revision, items: [{ id: 'entity:one', value: { name: 'SCENE_DETAIL'.repeat(1000) } }], truncated: false }), diff() { throw new Error('unexpected diff'); } } } });
+    assert.ok(Buffer.byteLength(prepared.prompt) <= 98304);
+    assert.match(prepared.prompt, /context.envelope-byte-budget/); assert.doesNotMatch(prepared.prompt, /SCENE_DETAIL/);
+    assert.ok(prepared.prompt.endsWith('r'.repeat(32000)));
+    assert.match(prepared.prompt, /Work only through the supplied Studio tools/);
+  } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
+});

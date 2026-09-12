@@ -24,6 +24,28 @@ test('desktop composition sends one bounded Scene baseline and exact revision de
     const second = await context.prepare({ conversationKey: 'conversation:g05-app', backendId: 'backend:g05-app', taskId: 'task:g05-app-2', request: 'Continue from the revision delta.', tools, project: projectContext(workspace) });
     assert.match(second.prompt, /"kind":"document-delta"/u); assert.match(second.prompt, /"fromRevision":1/u); assert.match(second.prompt, /"toRevision":2/u); assert.match(second.prompt, /entity:g05-app/u);
     assert.doesNotMatch(second.prompt, /script source/u);
+    const operations = [];
+    for (let i = 0; i < 200; i++) {
+      const entityId = `entity:impact-${i}`;
+      operations.push({ op: 'entity.add', entity: { id: entityId, sceneId: workspace.primarySceneId(), name: `Impact object ${i} ${"detail ".repeat(14)}`, parentId: null, order: i, componentIds: [] } });
+      operations.push({ op: 'component.add', entityId, component: workspace.componentRegistry.create({ id: `component:impact-${i}`, type: 'haiyue.transform.3d', version: '1.0.0' }) });
+    }
+    for (let i = 0; i < operations.length; i += 200) await workspace.executeBatch({ id: `command:impact-${i}`, label: 'Large scene fixture', baseRevision: workspace.snapshot().document.revision, operations: operations.slice(i, i + 200) });
+    const current = projectContext(workspace);
+    const full = workspace.queryScene({ revision: current.revision, limit: 1000 });
+    assert.ok(Buffer.byteLength(JSON.stringify(full)) > 98304, 'fixture reproduces the original full-scene budget failure');
+    const focused = await context.prepare({ conversationKey: 'conversation:g05-app', backendId: 'backend:g05-app', taskId: 'task:impact', request: 'Add self-contained behavior to the selected object.', tools, project: { ...current, focusEntityIds: ['entity:impact-199'] } });
+    const manifest = await Promise.all(focused.contextArtifactIds.map(id => operationLog.readArtifact(id)));
+    const slice = manifest.find(record => record.value?.scene)?.value.scene;
+    assert.equal(slice.items.length, 2);
+    assert.deepEqual(slice.items.map(item => item.id), ['entity:impact-199', 'component:impact-199']);
+    assert.ok(Buffer.byteLength(focused.prompt) < 24 * 1024);
+    assert.doesNotMatch(focused.prompt, /entity:impact-198/);
+    const cold = await context.prepare({ conversationKey: 'conversation:g05-app', backendId: 'backend:g05-app', taskId: 'task:impact-cold', request: 'Inspect the selected object.', tools: [{ ...tools[0], description: 'Updated exact query contract.' }], project: { ...current, focusEntityIds: ['entity:impact-199'] } });
+    assert.equal(cold.reusedSessionId, null); assert.doesNotMatch(cold.prompt, /reference-only/);
+    assert.ok(Buffer.byteLength(cold.prompt) < 24 * 1024);
+    console.log(`impact context: full scene ${Buffer.byteLength(JSON.stringify(full))} bytes -> cold prompt ${Buffer.byteLength(cold.prompt)} bytes; slice ${Buffer.byteLength(JSON.stringify(slice))} bytes`);
+
   } finally {
     await workspace.dispose(); resources.tasks.dispose(); await resources.documents.dispose(); resources.history.dispose(); resources.projectSession.dispose(); await operationLog.close();
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });

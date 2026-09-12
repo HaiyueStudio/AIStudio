@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "focused": {
+    "passed": 15,
+    "failed": 0
+  },
+  "runtime": {
+    "passed": 87,
+    "failed": 0
+  },
+  "host": {
+    "passed": 12,
+    "failed": 0
+  },
+  "realScene": {
+    "passed": 1,
+    "failed": 0,
+    "fullSceneBytes": 112154,
+    "focusedSceneBytes": 964,
+    "coldPromptBytes": 12068
+  },
+  "capabilityCapture": {
+    "passed": 124,
+    "failed": 0
+  },
+  "fullCheck": {
+    "exitCode": 1,
+    "evaluationPassed": 59,
+    "behaviorPassed": 33,
+    "workspacePassed": 5,
+    "agentToolsPassed": 111,
+    "logicPassed": 23,
+    "integrationFiles": 48,
+    "integrationPassed": 233,
+    "integrationFailed": 1,
+    "failures": [
+      {
+        "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+        "log": "collected-14.tap",
+        "reason": "Timed out: native pointer focus; also recorded in preceding project-log-isolation evidence"
+      }
+    ]
+  },
+  "applicationRestarted": false
+}

@@ -143,6 +143,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
             if (!project || project.projectId !== binding.projectId || project.documentId !== binding.documentId) return null;
             return Object.freeze({
               projectId: project.projectId, documentId: project.documentId, revision: project.revision,
+              focusEntityIds: selection.snapshot().entityIds,
               manifest: Object.freeze({
                 schemaVersion: 1, project: Object.freeze({ id: project.projectId, documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.dirty, counts: project.counts, registryDigest: project.registryDigest }),
               }) as unknown as JsonObject,

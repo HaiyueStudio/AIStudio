@@ -1,0 +1,23 @@
+✔ prompt profile is deterministic, versioned and genre neutral (5.498736ms)
+✔ same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest (1113.130495ms)
+✔ exact project source replaces legacy full manifests with bounded scene snapshot then revision diff (441.758769ms)
+✔ restart rebuilds context metadata and conversation indexes through bounded sequence windows (804.800675ms)
+✔ secret canaries are absent from artifacts, summaries, prompt logs and exported bug bundles (440.62943ms)
+✔ usage ledger distinguishes provider cache eligibility from reported cache evidence (1.244671ms)
+✔ summary compaction keeps bounded visible facts and ignores hidden-reasoning-shaped input (274.476834ms)
+✔ all seven canonical game requests use one profile without cross-genre prompt leakage (1086.160074ms)
+✔ tool contract changes start with full context while preserving approved decisions and current project state (1320.503992ms)
+✔ unknown turn contracts retain visible history but cannot authorize provider session reuse (386.759007ms)
+✔ tool contract fingerprint ignores object key order but preserves descriptions, schemas and ordered tool identities (0.448623ms)
+✔ impact slices stay bounded across a large scene, focus changes, and provider contract changes (934.368884ms)
+✔ oversized pages keep authentic cursors; oversized single items and incomplete diffs are deferred safely (786.953394ms)
+✔ failed preparations and commits for different tasks cannot establish cached provider facts (668.134635ms)
+✔ the envelope budget defers a bounded scene when request and visible history use the remaining space (340.319949ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8801.259633
