@@ -70,12 +70,8 @@ const DEFAULTS = Object.freeze({
 const INDEX_CHECKPOINT_INTERVAL = 32;
 const ATOMIC_RENAME_RETRY_DELAYS_MS = Object.freeze([5, 15, 40, 100]);
 
-export class OperationLogError extends Error {
-  constructor(readonly code: string, message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = 'OperationLogError';
-  }
-}
+import { OperationLogError } from './errors.js';
+export { OperationLogError } from './errors.js';
 
 export class OperationLog {
   private readonly appendObservers = new Set<(event: DurableOperationEvent) => Promise<void>>();
@@ -102,6 +98,10 @@ export class OperationLog {
   private readonly faultInjector?: OperationLogOptions['faultInjector'];
   private readonly diagnostics: OperationLogDiagnostic[] = [];
   private readonly events: StoredEvent[] = [];
+  private readonly projectEvents = new Map<StableId, StoredEvent[]>();
+  private readonly projectBytes = new Map<StableId, number>();
+  private readonly projectSegments = new Map<StableId, Set<string>>();
+  private readonly coordinateProjects = new Map<string, StableId | null>();
   private readonly segments: SegmentState[] = [];
   private appendTail: Promise<void> = Promise.resolve();
   private health: OperationLogHealth = 'healthy';
@@ -269,15 +269,16 @@ export class OperationLog {
     const queryDigest = sha256(canonicalStringify(normalizedForDigest));
     const cursor = query.cursor ? decodeCursor(query.cursor, queryDigest) : undefined;
     const after = Math.max(query.afterSequence ?? -1, cursor?.afterSequence ?? -1);
-    const start = firstIndexAfterSequence(this.events, after);
+    const scopedEvents = query.projectId ? this.projectEvents.get(query.projectId) ?? [] : this.events;
+    const start = firstIndexAfterSequence(scopedEvents, after);
     const before = query.beforeSequence;
-    const end = before === undefined ? this.events.length : Math.max(start, firstIndexAtOrAfterSequence(this.events, before));
+    const end = before === undefined ? scopedEvents.length : Math.max(start, firstIndexAtOrAfterSequence(scopedEvents, before));
     const scanned = end - start;
     if (scanned > this.maxQueryScan) {
       throw new OperationLogError('query-scan-budget-exceeded', `Query window contains ${scanned} retained events; scan budget is ${this.maxQueryScan}. Add a sequence window.`);
     }
-    let candidates = this.events.slice(start, end).map((entry) => entry.event);
-    const direct = candidates.filter((event) => matchesQuery(event, query));
+    let candidates = scopedEvents.slice(start, end).map((entry) => entry.event);
+    const direct = candidates.filter((event) => matchesQuery(event, query, this.eventProject(event)));
     if (query.traverseCorrelation && hasCorrelationFilter(query)) {
       const related = new Set(direct);
       const ids = new Set(direct.flatMap((event) => Object.values(event.correlation)));
@@ -304,6 +305,15 @@ export class OperationLog {
     return Object.freeze({ events: Object.freeze(pageEvents), nextCursor, scanned });
   }
 
+  projectStatus(projectId: StableId | null): OperationLogStatus {
+    const entries = projectId ? this.projectEvents.get(projectId) ?? [] : [];
+    return Object.freeze({ ...this.status(), eventCount: entries.length,
+      retainedFromSequence: entries[0]?.event.sequence ?? this.nextSequence,
+      bytes: projectId ? this.projectBytes.get(projectId) ?? 0 : 0,
+      segmentCount: projectId ? this.projectSegments.get(projectId)?.size ?? 0 : 0,
+    });
+  }
+
   async logViewer(query: OperationLogQuery): Promise<LogViewerReadModel> {
     const page = await this.query(query);
     const counts = { debug: 0, info: 0, warning: 0, error: 0 };
@@ -312,7 +322,7 @@ export class OperationLog {
       events: Object.freeze(page.events.map(toSafeSummary)),
       counts: Object.freeze(counts),
       nextCursor: page.nextCursor,
-      status: this.status(),
+      status: query.projectId ? this.projectStatus(query.projectId) : this.status(),
     });
   }
 
@@ -430,6 +440,8 @@ export class OperationLog {
       await writeFile(path.join(this.journalDirectory, name), '', { flag: 'wx' });
       this.segments.push({ name, bytes: 0 });
     }
+    for (const { event } of this.events) this.learnProjectCoordinates(event);
+    this.rebuildProjectIndex();
     this.indexDirty = true;
     await this.checkpointIndex('index-rebuild-failed', 'Derived index rebuild failed');
   }
@@ -458,7 +470,9 @@ export class OperationLog {
       kind: input.kind,
       severity: input.severity,
       source: input.source,
-      correlation: Object.freeze(normalizeCorrelation(input.correlation ?? {})),
+      correlation: Object.freeze(normalizeCorrelation({ ...input.correlation,
+        ...(this.eventProject(input) ? { projectId: this.eventProject(input)! } : {}),
+      })),
       payload: Object.freeze(redacted.value),
       payloadDigest: sha256(payloadBody),
       redactedFields: redacted.redactedFields,
@@ -487,7 +501,10 @@ export class OperationLog {
       throw new OperationLogError('journal-write-failed', 'Durable journal append failed; protected operations are disabled.', { cause });
     }
     segment.bytes += bytes;
-    this.events.push({ segment: segment.name, event });
+    const stored = { segment: segment.name, event };
+    this.events.push(stored);
+    if (this.learnProjectCoordinates(event)) this.rebuildProjectIndex();
+    else this.indexProjectEvent(stored);
     this.nextSequence += 1;
     this.indexDirty = true;
     if (this.nextSequence % INDEX_CHECKPOINT_INTERVAL === 0) {
@@ -535,7 +552,47 @@ export class OperationLog {
     for (let index = this.events.length - 1; index >= 0; index -= 1) {
       if (this.events[index]!.segment === oldest.name) this.events.splice(index, 1);
     }
+    this.rebuildProjectIndex();
     this.addDiagnostic('segment-retired', 'warning', `Segment ${oldest.name} was retired by ${reason}.`, undefined, oldest.name);
+  }
+
+  /** Legacy facts inherit only unambiguous session/document ownership.
+   * Entity names and other reusable identities cannot establish project ownership. */
+  private eventProject(event: OperationEventInput): StableId | undefined {
+    const explicit = explicitProject(event);
+    if (explicit) return explicit;
+    const projects = projectCoordinates(event).map(key => this.coordinateProjects.get(key)).filter(id => id !== undefined);
+    return projects.length > 0 && projects[0] !== null && projects.every(id => id === projects[0]) ? projects[0] : undefined;
+  }
+
+  private learnProjectCoordinates(event: OperationEventInput): boolean {
+    const projectId = explicitProject(event);
+    if (!projectId) return false;
+    let changed = false;
+    for (const key of projectCoordinates(event)) {
+      const previous = this.coordinateProjects.get(key);
+      if (previous === null || previous === projectId) continue;
+      this.coordinateProjects.set(key, previous === undefined ? projectId : null);
+      changed = true;
+    }
+    return changed;
+  }
+
+  private indexProjectEvent(stored: StoredEvent): void {
+    const projectId = this.eventProject(stored.event);
+    if (!projectId) return;
+    let entries = this.projectEvents.get(projectId);
+    if (!entries) { entries = []; this.projectEvents.set(projectId, entries); }
+    entries.push(stored);
+    this.projectBytes.set(projectId, (this.projectBytes.get(projectId) ?? 0) + Buffer.byteLength(canonicalStringify(stored.event as unknown as JsonValue)));
+    let segments = this.projectSegments.get(projectId);
+    if (!segments) { segments = new Set(); this.projectSegments.set(projectId, segments); }
+    segments.add(stored.segment);
+  }
+
+  private rebuildProjectIndex(): void {
+    this.projectEvents.clear(); this.projectBytes.clear(); this.projectSegments.clear();
+    for (const stored of this.events) this.indexProjectEvent(stored);
   }
 
   private async writeIndex(): Promise<void> {
@@ -695,7 +752,7 @@ function firstIndexAtOrAfterSequence(events: readonly StoredEvent[], sequence: n
   return low;
 }
 
-function matchesQuery(event: DurableOperationEvent, query: OperationLogQuery): boolean {
+function matchesQuery(event: DurableOperationEvent, query: OperationLogQuery, projectId?: StableId): boolean {
   if (query.beforeSequence !== undefined && event.sequence >= query.beforeSequence) return false;
   if (query.afterTime && event.timestamp <= query.afterTime) return false;
   if (query.beforeTime && event.timestamp >= query.beforeTime) return false;
@@ -703,7 +760,7 @@ function matchesQuery(event: DurableOperationEvent, query: OperationLogQuery): b
   if (query.kinds && !query.kinds.includes(event.kind)) return false;
   for (const key of correlationQueryKeys) {
     const expected = query[key];
-    if (expected !== undefined && event.correlation[key] !== expected) return false;
+    if (expected !== undefined && (key === 'projectId' ? projectId : event.correlation[key]) !== expected) return false;
   }
   return true;
 }
@@ -826,3 +883,21 @@ function isQuotaError(value: unknown): boolean {
     || (value instanceof Error && 'code' in value && (value as NodeJS.ErrnoException).code === 'ENOSPC');
 }
 function errorMessage(value: unknown): string { return value instanceof Error ? value.message : String(value); }
+
+
+function explicitProject(event: OperationEventInput): StableId | undefined {
+  if (event.correlation?.projectId) return event.correlation.projectId;
+  const op = event.payload.sessionOp;
+  if (event.kind !== 'agent/session-op' || !isProjectRecord(op) || op.kind !== 'session.created') return undefined;
+  const payload = op.payload;
+  if (!isProjectRecord(payload) || typeof payload.projectId !== 'string') return undefined;
+  try { return asStableId(payload.projectId); } catch { return undefined; }
+}
+
+function isProjectRecord(value: JsonValue | undefined): value is JsonObject {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function projectCoordinates(event: OperationEventInput): string[] {
+  return (['sessionId', 'documentId'] as const).flatMap(key => event.correlation?.[key] ? [`${key}:${event.correlation[key]}`] : []);
+}

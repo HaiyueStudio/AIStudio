@@ -492,3 +492,7 @@ body[data-page="play"] #app { display: none; }
   #workspace-advanced .vector { flex-wrap: wrap; }
   #workspace-advanced .vector input { min-width: 0; }
 }
+
+.execution-current-activity { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0; font-size: 12px; color: var(--studio-text-muted); }
+.execution-current-activity button { font-size: 12px; padding: 4px 8px; }
+.execution-node.status-waiting > .execution-node-beam { --hy-accent-color: #eebd67; }

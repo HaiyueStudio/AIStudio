@@ -52,6 +52,8 @@ export interface GamePlayObservation {
 }
 
 export interface GamePlayCapture extends Omit<GamePlayObservation, 'value'> {
+  /** State copied with the rendered frame, before asynchronous PNG encoding. */
+  readonly state?: JsonObject;
   readonly mediaType: 'image/png';
   readonly byteLength: number;
   /** Transport-only payload. The tool runtime persists it before returning and never exposes it in a tool result or log. */

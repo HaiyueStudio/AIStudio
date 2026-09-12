@@ -88,6 +88,7 @@ test('G11 restores retained projections through bounded sequence windows when th
 
 function runtimeFixture(options = {}) {
   const releases = new Map();
+  let starts = 0;
   const usage = new UsageLedgerStore();
   const backend = {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'g11-fixture', capabilities: { resume: true, questions: true, structuredTools: true, backendApprovals: false, usage: true, rateLimits: true } },
@@ -104,13 +105,20 @@ function runtimeFixture(options = {}) {
     turns: {
       async *start() {
         if (options.empty) { yield event('completed', { status: 'completed' }); return; }
+        starts += 1;
         for (const request of [
           { id: 'tool:g11-plan', toolId: 'studio.plan.propose', arguments: { title: 'Score interaction', summary: 'Create, run and verify one score interaction.', items: [{ label: 'Author score controller', details: 'Create the controller and observable score state.' }], acceptance: [{ label: 'Score becomes one', required: true, category: 'functional', assertion: 'evidence state signal score equals 1' }] } },
           { id: 'tool:g11-edit', toolId: 'entity.create', arguments: { baseRevision: 7, kind: 'cube', name: 'ScoreTarget' } },
           { id: 'tool:g11-inspect', toolId: 'play.inspect', arguments: {} },
           { id: 'tool:g11-evaluate', toolId: 'task.evaluate', arguments: { taskSpec: { schemaVersion: 2, id: 'task:spoofed', request: 'spoofed', visibleConstraints: [], budgetId: 'budget:spoofed', requiredCapabilities: [], acceptance: [{ id: 'acceptance:spoofed', required: true, visibility: 'agent', category: 'functional', assertion: 'evidence state' }] }, observationIds: [evidenceId] } },
         ]) {
+          if (options.stopAfterEdit && ['play.inspect', 'task.evaluate'].includes(request.toolId)) continue;
+          if (options.repair && starts > 1 && ['studio.plan.propose', 'entity.create'].includes(request.toolId)) continue;
           const released = waitForResult(request.id); yield event('tool-request', { toolCallId: request.id, toolId: request.toolId, arguments: request.arguments }); await released;
+          if (options.retryEdit && request.toolId === 'entity.create') {
+            const id = `${request.id}:retry`; const retried = waitForResult(id);
+            yield event('tool-request', { toolCallId: id, toolId: request.toolId, arguments: request.arguments }); await retried;
+          }
         }
         yield event('completed', { status: 'completed' });
       },
@@ -119,10 +127,11 @@ function runtimeFixture(options = {}) {
   };
 }
 
-function toolsFixture() {
+function toolsFixture(options = {}) {
   const preparations = new Map();
   const fixture = {
     evaluationTaskSpec: null,
+    evaluations: 0,
     definitions: () => [
       { id: 'entity.create', description: 'Create entity', effect: 'reversible-edit', risk: 'medium', inputSchema: {} },
       { id: 'play.inspect', description: 'Inspect Play', effect: 'observe', risk: 'low', inputSchema: {} },
@@ -131,12 +140,15 @@ function toolsFixture() {
     async prepare(call) { const preparation = { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: call.toolId === 'entity.create' ? 'reversible-edit' : 'observe', risk: 'low', documentId: 'document:g11', baseRevision: 7, argumentsDigest: digest('d'), previewDigest: digest('f'), preview: { title: call.toolId, target: 'Current project', summary: call.toolId, diff: '' }, status: 'ready', arguments: call.arguments, taskId: call.taskId }; preparations.set(preparation.id, preparation); return preparation; },
     async execute(id) {
       const prepared = preparations.get(id); if (!prepared) throw new Error('missing preparation');
+      if (prepared.toolId === 'entity.create' && options.editFailure && !prepared.callId.endsWith(':retry')) throw Object.assign(new Error('Query window contains 31784 retained events; scan budget is 10000.'), { code: 'query-scan-budget-exceeded' });
       if (prepared.toolId === 'entity.create') return result(prepared, { entityId: 'entity:score-target', revision: 7 }, 7, 7);
       if (prepared.toolId === 'play.inspect') return result(prepared, { observation: observation(prepared.taskId) }, 7, 7);
       if (prepared.toolId === 'task.evaluate') {
         fixture.evaluationTaskSpec = prepared.arguments.taskSpec;
+        fixture.evaluations += 1;
+        const diagnostic = options.recoverOnce && fixture.evaluations === 1 ? 'evaluation.screenshot-state-tick-mismatch' : options.diagnostic;
         const acceptanceId = prepared.arguments.taskSpec.acceptance[0].id;
-        return result(prepared, { schemaVersion: 2, id: 'evaluation:g11', taskId: prepared.taskId, evaluatorVersion: 'g11-fixture', status: 'pass', acceptanceResults: [{ acceptanceId, status: 'pass', evidenceIds: [evidenceId], diagnostic: null }], budgetStatus: 'within', usageRecordIds: [], costRecordIds: [], turns: [], tools: [], completedAt: '2026-08-29T00:00:30.000Z' }, 7, 7);
+        return result(prepared, { schemaVersion: 2, id: 'evaluation:g11', taskId: prepared.taskId, evaluatorVersion: 'g11-fixture', status: diagnostic ? 'blocked' : 'pass', acceptanceResults: [{ acceptanceId, status: diagnostic ? 'blocked' : 'pass', evidenceIds: [evidenceId], diagnostic: diagnostic ?? null }], budgetStatus: 'within', usageRecordIds: [], costRecordIds: [], turns: [], tools: [], completedAt: '2026-08-29T00:00:30.000Z' }, 7, 7);
       }
       throw new Error(`unexpected tool ${prepared.toolId}`);
     },
@@ -153,3 +165,78 @@ function projectContext() { return { projectId: 'project:g11', documentId: 'docu
 function nodes(host) { return host.replay().events.map((item) => item.node); }
 function openLog(root, options = {}) { return OperationLog.open({ rootDirectory: root, appVersion: 'g11-test', flushPolicy: 'always', ...options }); }
 async function waitFor(predicate) { for (let index = 0; index < 400; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for G11 task state.'); }
+
+ test('turn completion preserves the specific terminal evaluation diagnostic', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-terminal-diagnostic-'));
+  const log = await openLog(root);
+  const host = new StudioConversationHost({ runtime: runtimeFixture(), tools: toolsFixture({ diagnostic: 'evaluation.evidence-provenance-mismatch' }), operationLog: log, projectContext });
+  try {
+    await host.initialize();
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Verify the composite object.' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'completion'));
+    const run = host.replay().taskRuns.at(-1);
+    assert.equal(run.status, 'blocked');
+    assert.equal(run.terminalDiagnostic, 'evaluation.evidence-provenance-mismatch');
+    assert.equal(run.resumable, false);
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+ test('same-tick mismatch triggers bounded recapture and completes the original approved task', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-recapture-'));
+  const log = await openLog(root); const tools = toolsFixture({ recoverOnce: true });
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ repair: true }), tools, operationLog: log, projectContext });
+  try {
+    await host.initialize();
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Verify the composite object.' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => host.replay().taskRuns.at(-1)?.status === 'completed');
+    const run = host.replay().taskRuns.at(-1);
+    assert.equal(tools.evaluations, 2);
+    assert.equal(run.repairIteration, 1);
+    assert.equal(run.terminalDiagnostic, null);
+    assert.ok(run.timeline.some(item => item.phase === 'repairing'));
+    assert.equal(host.replay().taskRuns.length, 1);
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+test('unfinished acceptance reports the actual failed authoring tool instead of a generic evidence error', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-tool-blocker-'));
+  const log = await openLog(root);
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ stopAfterEdit: true }), tools: toolsFixture({ editFailure: true }), operationLog: log, projectContext });
+  try {
+    await host.initialize();
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create an interactive object.' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => !host.replay().busy);
+    const run = host.replay().taskRuns.at(-1);
+    assert.equal(run.status, 'blocked');
+    assert.equal(run.terminalDiagnostic, 'query-scan-budget-exceeded');
+    assert.match(run.timeline.at(-1).detail, /entity.create.*query-scan-budget-exceeded.*31784/);
+    assert.equal(run.acceptance[0].status, 'pending');
+    assert.deepEqual(run.evidence, []);
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+test('a successful tool retry clears its failure so missing acceptance is not blamed on a resolved error', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-resolved-tool-'));
+  const log = await openLog(root);
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ stopAfterEdit: true, retryEdit: true }), tools: toolsFixture({ editFailure: true }), operationLog: log, projectContext });
+  try {
+    await host.initialize();
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create an interactive object.' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => !host.replay().busy);
+    assert.equal(host.replay().taskRuns.at(-1).terminalDiagnostic, 'task.acceptance-evidence-incomplete');
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});

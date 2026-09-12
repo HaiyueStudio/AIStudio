@@ -1,0 +1,4 @@
+
+> @haiyue/ai-studio@0.0.0 build
+> node scripts/promote-tsc-output.mjs --clean && tsc -p tsconfig.json --outDir dist/.tsc && node scripts/promote-tsc-output.mjs && node scripts/copy-assets.mjs && node scripts/build-renderer.mjs && node scripts/verify-renderer-bundle.mjs
+

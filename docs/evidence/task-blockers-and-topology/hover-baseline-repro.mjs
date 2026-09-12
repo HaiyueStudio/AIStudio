@@ -1,0 +1,15 @@
+import { readFile, writeFile, mkdtemp } from 'node:fs/promises';
+import { execFileSync, spawn } from 'node:child_process';
+import path from 'node:path';
+import { build } from '/Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/esbuild/lib/main.js';
+const repo='/Users/qingque/Desktop/HaiyueStudio/AIStudio';
+const baseline=process.argv.includes('--baseline');
+const directory=await mkdtemp('/private/tmp/haiyue-frontier-hover-');
+const source=baseline?execFileSync('git',['show','HEAD:packages/studio-shell/src/panels/chat/index.ts'],{cwd:repo,encoding:'utf8'}):null;
+await build({entryPoints:[path.join(repo,'apps/ai-studio/test/fixtures/graph-ui-browser.mjs')],outfile:path.join(directory,'app.js'),bundle:true,platform:'browser',format:'esm',target:'chrome132',plugins:baseline?[{name:'baseline-chat',setup(b){b.onLoad({filter:/studio-shell\/dist\/panels\/chat\/index\.js$/},()=>({contents:source,loader:'ts',resolveDir:path.join(repo,'packages/studio-shell/src/panels/chat')}));}}]:[]});
+let css=await readFile(path.join(repo,'apps/ai-studio/renderer/styles.css'),'utf8');
+if(baseline)css=execFileSync('git',['show','HEAD:apps/ai-studio/renderer/styles.css'],{cwd:repo,encoding:'utf8'});
+await writeFile(path.join(directory,'index.html'),`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>${css}html,body{height:100%;display:block}#chat{height:100vh;width:100%;box-sizing:border-box}</style></head><body><main id="chat" class="chat-content"></main><script type="module" src="app.js"></script></body></html>`);
+console.log({baseline,directory});
+const child=spawn(path.join(repo,'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'),[path.join(repo,'apps/ai-studio/test/fixtures/graph-ui-main.mjs')],{env:{...process.env,HAIYUE_GRAPH_UI_ROOT:directory},stdio:'inherit'});
+child.on('exit',code=>{process.exitCode=code??1;});

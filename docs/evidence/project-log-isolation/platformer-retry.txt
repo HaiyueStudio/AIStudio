@@ -1,0 +1,10 @@
+{"genre":"platformer","source":"2390a58d9a64207df5c367968ce7d4be3be8006915968b70f2fa2af9f3931cff","nodes":350,"edges":386,"instrumented":183,"mainSource":"scripts/a4509b4a-4b5d-4054-90b9-2bd29def9d1f.ts"}
+✔ preserved M12 platformer: main gameplay structure, source ranges and executable observation plan (10168.911734ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15370.916133

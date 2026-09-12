@@ -1,0 +1,11 @@
+✔ production source/IPC/approved Play/portable artifacts: zero-script (9623.292929ms)
+✔ production source/IPC/approved Play/portable artifacts: mixed (13799.456539ms)
+✔ behavior IPC cannot select filesystem paths or inject additional authority (1.427933ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25146.102789

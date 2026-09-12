@@ -22,10 +22,10 @@ export function canonicalPlan(plan: ApprovedPlanExecution): string {
   return JSON.stringify({ title: plan.title, summary: plan.summary, items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
 }
 export const PLAN_TOOL_ID = asStableId('studio.plan.propose');
-const ASSERTION_GUIDANCE = 'Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Types: state, event-trace, runtime-errors, performance, screenshot, visual-analysis, lifecycle. Examples: evidence runtime-errors signal count equals 0; evidence state signal score gte 1; evidence state signal phase equals "ready". Signal paths must match the observation payload you will produce and inspect. Put human-readable requirements in label. Preserve each requirement when correcting its assertion; do not omit criteria to bypass validation. Bare evidence <type> checks presence only, not correctness; visual correctness requires visual-analysis evidence.';
+const ASSERTION_GUIDANCE = 'Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Types: state, event-trace, runtime-errors, performance, screenshot, visual-analysis, lifecycle. Examples: evidence runtime-errors signal count equals 0; evidence state signal gameplay.0.value.metrics.score gte 1; evidence state signal gameplay.0.value.phase equals "ready". Signal paths must match the observation payload you will produce and inspect. Put human-readable requirements in label. Preserve each requirement when correcting its assertion; do not omit criteria to bypass validation. Bare evidence <type> checks presence only, not correctness; visual correctness requires a real visual verifier. Current Play tools produce no visual-analysis evidence and no fps measurement. Performance exposes finite, tick, frame and timeMs. Screenshot presence cannot prove colors or shape: pair it with explicit structural/behavior assertions and state any remaining visual review limitation.';
 export const PLAN_TOOL_DEFINITION = Object.freeze({
   id: PLAN_TOOL_ID,
-  description: 'Submit the complete implementation plan and machine-checkable acceptance criteria for user review before any project mutation. Include authored entities, responsibilities, scripts, dynamic state ownership, rendering strategy, and fixed evidence assertions. The result blocks until the user approves or requests a revision.',
+  description: 'Submit the complete implementation plan and machine-checkable acceptance criteria for user review before any project mutation. Include authored entities, responsibilities, scripts, dynamic state ownership, rendering strategy, and fixed evidence assertions. Distinguish appearance requirements from explicit implementation constraints. For repeated composite objects specify parts, materials, parent-local transforms, motion owner, prototype checks and prefab reuse; do not equate an object name with one primitive. The result blocks until the user approves or requests a revision.',
   effect: 'observe' as const,
   risk: 'low' as const,
   inputSchema: Object.freeze({
@@ -70,6 +70,9 @@ export function validatePlanProposal(value: JsonObject): Readonly<{ title: strin
       }
       if (typeof entry.assertion !== 'string' || entry.assertion.length > 2_000 || !isSupportedEvidenceAssertion(entry.assertion)) {
         throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}].assertion is not executable (maximum 2000 characters). ${ASSERTION_GUIDANCE}`);
+      }
+      if (/^evidence\s+visual-analysis(?:\s|$)/u.test(entry.assertion.trim()) || /^evidence\s+performance\s+signal\s+(?!finite\s|tick\s|frame\s|timeMs\s)/u.test(entry.assertion.trim())) {
+        throw new PlanProtocolError('plan.evidence-producer-unavailable', `acceptance[${index}] requires evidence the current Play tools cannot produce. ${ASSERTION_GUIDANCE}`);
       }
       return Object.freeze({ label: entry.label.trim(), required: entry.required, category: entry.category as PlanAcceptanceProposal['category'], assertion: entry.assertion.trim() });
     });

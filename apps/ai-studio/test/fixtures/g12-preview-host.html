@@ -79,7 +79,7 @@
     if (active.command.kind === 'start' && data.type === 'paused') return settle(null, snapshot(runtimeErrors.length ? 'faulted' : 'playing'));
     if (active.command.kind === 'step' && data.type === 'stepped' && data.requestId === `${active.command.id}:step`) { post({ type: 'inspect', requestId: `${active.command.id}:step-inspect` }); return; }
     if ((active.command.kind === 'step' || active.command.kind === 'input' || active.command.kind === 'inspect') && data.type === 'inspection' && String(data.requestId).startsWith(active.command.id)) return settle(null, observation(data.value));
-    if (active.command.kind === 'capture' && data.type === 'capture' && data.requestId === `${active.command.id}:capture`) return settle(null, { ...observation({ tick: data.tick, frame: data.frame }), mediaType: 'image/png', byteLength: data.byteLength, base64: data.base64 });
+    if (active.command.kind === 'capture' && data.type === 'capture' && data.requestId === `${active.command.id}:capture`) return settle(null, { ...observation({ tick: data.tick, frame: data.frame }), mediaType: 'image/png', byteLength: data.byteLength, base64: data.base64, state: data.state });
     if (active.command.kind === 'stop' && data.type === 'cleanup-complete') { const value = snapshot('stopped'); current = null; return settle(null, value); }
   });
 })();

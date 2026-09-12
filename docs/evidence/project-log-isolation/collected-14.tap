@@ -1,0 +1,57 @@
+TAP version 13
+# Subtest: production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
+not ok 1 - production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
+  ---
+  duration_ms: 37017.439368
+  type: 'test'
+  location: '/Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-electron.test.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [m14-product:author] product ready
+    [m14-product:author] resource catalog
+    [m14-product:author] geometry catalog
+    [m14-product:author] resource creates geometry
+    [m14-product:author] resource action settled
+    [m14-product:author] public lazy advanced panel
+    [m14-product:author] public selection
+    [m14-product:author] rename ready
+    [m14-product:author] rename approved
+    [m14-product:author] history ready
+    [m14-product:author] public undo
+    [m14-product:author] redo ready
+    [m14-product:author] public redo
+    [m14-product:author] reject ready
+    [m14-product:author] rejection visible
+    [m14-product:author] projected Gizmo
+    [m14-product:author] native pointer focus
+    Error: Timed out: native pointer focus
+    {"dataset":{"status":"ready","theme":"dark","language":"zh-CN","startupStage":"ready","splitLayout":"ready","workspaceMode":"intent","workspaceNarrow":"false","workspaceReady":"true","playPage":"standalone-device-simulation","agentSync":"push-single-flight","agentUi":"ready","agentBackend":"backend:codex-app-server","agentBackendState":"ready","webgpu":"ready"},"status":"AIStudio 场景编辑器已就绪","advanced":"","resources":""}
+        at waitFor (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:24:236)
+        at async run (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:109:19)
+    [m14-product] author failed
+    
+    Evidence: /private/tmp/haiyue-m14-integrated-product-TtnYi3
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    waitFor (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:24:236)
+    async run (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:109:19)
+    TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-electron.test.mjs:36:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 37874.463697

@@ -65,18 +65,18 @@ export class BoundedPlaytestTask {
       const evidence = [...new Set(evaluation.acceptanceResults.filter((item) => this.task.acceptance.find((acceptance) => acceptance.id === item.acceptanceId)?.required).flatMap((item) => item.evidenceIds))].sort();
       if (!evidence.length) throw new PlaytestLoopError('task.completion-without-evidence', 'A passing task must cite persisted evidence.');
       this.phaseValue = 'complete'; this.completionEvidenceIdsValue = Object.freeze(evidence.map((id) => asStableId(id))); this.terminalEvidenceIdsValue = this.completionEvidenceIdsValue; this.diagnosticValue = null;
-    } else if (evaluation.status === 'blocked') {
-      this.phaseValue = 'blocked'; this.diagnosticValue = 'task.evaluation-blocked';
+    } else if (evaluation.status === 'blocked' && !recoverableObservationFailure(evaluation)) {
+      this.phaseValue = 'blocked'; this.diagnosticValue = evaluation.acceptanceResults.find((item) => item.status === 'blocked')?.diagnostic ?? 'task.evaluation-blocked';
     }
     return this.snapshot();
   }
 
   beginRepair(input: Readonly<{ turnId: StableId; arguments: JsonValue; evidenceIds: readonly StableId[]; usageRecordIds?: readonly StableId[]; costRecordIds?: readonly StableId[] }>): PlaytestTaskSnapshot {
     this.assertMutable();
-    if (this.phaseValue !== 'evaluating' || this.evaluationValue?.status !== 'fail') throw new PlaytestLoopError('task.repair-unavailable', 'Repair requires a failed evaluation.');
+    if (this.phaseValue !== 'evaluating' || (!this.evaluationValue || this.evaluationValue.status !== 'fail' && !recoverableObservationFailure(this.evaluationValue))) throw new PlaytestLoopError('task.repair-unavailable', 'Repair requires a failed evaluation.');
     if (this.attemptsValue.length >= this.repairLimit) return this.block('task.repair-budget-exhausted', this.evaluationValue.acceptanceResults.flatMap((item) => item.evidenceIds).map((id) => asStableId(id)));
     const cited = new Set(input.evidenceIds);
-    const failedEvidence = new Set(this.evaluationValue.acceptanceResults.filter((item) => item.status === 'fail').flatMap((item) => item.evidenceIds));
+    const failedEvidence = new Set(this.evaluationValue.acceptanceResults.filter((item) => item.status !== 'pass').flatMap((item) => item.evidenceIds));
     if (!input.evidenceIds.length || !input.evidenceIds.some((id) => failedEvidence.has(id))) throw new PlaytestLoopError('task.repair-evidence-required', 'Repair must cite evidence from the latest failed evaluation.');
     if (cited.size !== input.evidenceIds.length) throw new PlaytestLoopError('task.repair-evidence-invalid', 'Repair evidence ids must be unique.');
     const argumentsDigest = sha256(canonicalStringify(input.arguments));
@@ -104,3 +104,9 @@ export class PlaytestLoopError extends Error {
 }
 
 export function createTaskSpecId(seed: string): StableId { return asStableId(`task:${sha256(seed).slice(7, 31)}`); }
+
+/** Only recapturable evidence errors enter the existing bounded repair budget. */
+function recoverableObservationFailure(evaluation: EvaluationResultV2): boolean {
+  const blocked = evaluation.acceptanceResults.filter((item) => item.status === 'blocked');
+  return evaluation.status === 'blocked' && blocked.length > 0 && blocked.every((item) => item.diagnostic === 'evaluation.screenshot-state-tick-mismatch' || item.diagnostic === 'evaluation.evidence-stale-revision');
+}

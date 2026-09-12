@@ -1,0 +1,73 @@
+✔ G11 projects an approved evidence-backed task and replays the same terminal summary after restart (1804.285199ms)
+✔ G11 converts a crash-interrupted task into an explicit resumable checkpoint (568.024601ms)
+✔ G11 restores retained projections through bounded sequence windows when the journal exceeds the scan budget (322.772712ms)
+✔ turn completion preserves the specific terminal evaluation diagnostic (1807.847018ms)
+✔ same-tick mismatch triggers bounded recapture and completes the original approved task (2518.972962ms)
+✔ unfinished acceptance reports the actual failed authoring tool instead of a generic evidence error (1090.281214ms)
+✔ a successful tool retry clears its failure so missing acceptance is not blamed on a resolved error (1402.243015ms)
+✖ Conversation Host overlaps safe bodies, honors an exclusive barrier, and commits in provider order (262.007696ms)
+✔ Conversation Host commits an all-mutation batch once and records one durable transaction receipt (40.648115ms)
+✔ history projection rejects unknown versions, foreign records, secret metadata and invalid durations (8.83337ms)
+✔ a delayed response from the previous project cannot repopulate the current history view (28.144447ms)
+✔ history pages and expanded details display types, timing and complete parameters/results as plain text (13.571644ms)
+✔ cancelled tool history distinguishes preserved confirmation pauses from actual cancellations without rewriting raw data (8.937613ms)
+✔ cancelled history detail from a previous project is discarded and failed reads can retry on expansion (9.574835ms)
+✔ live and replay use the same projector and stale read models cannot regress terminal nodes (77.036176ms)
+✔ unknown, oversized and injection-shaped nodes get bounded safe presentation fallbacks (17.257686ms)
+✔ controller keeps the composer available across durable barriers, keeps plan acceptance separate, and makes approval one-shot (11.675931ms)
+✔ auth handoff carries backend identity only and IME Enter never sends prematurely (5.754068ms)
+✔ chat feed follows new content only while the reader is near the latest message (0.712695ms)
+✔ composer keeps an editable focused draft while sending is temporarily blocked (3.720912ms)
+✔ model controls and task cost card expose effective settings, cache savings and unknown explanations safely (10.634187ms)
+✔ a connected conversation can refresh failed backend state, retain the draft and send after recovery (5.561413ms)
+✔ missing login and model configuration keep sending blocked with distinct recovery instructions (1.969355ms)
+✔ task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields (18.640843ms)
+✔ unknown task versions and pass claims without retained evidence fail closed (1.190148ms)
+✔ user messages are projected as conversation input rather than assistant output (2.512708ms)
+✔ pending implementation plans put an explicit approval action before the detailed item list (3.048674ms)
+✔ tool results show a readable step and keep raw structured output collapsed (1.412806ms)
+✔ approval cards expose a validated project-session Allow always action (1.551514ms)
+✔ trusted-code and runtime-start approvals expose one-shot decisions only (1.597633ms)
+✔ approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed (2.191845ms)
+✔ expired approval read models are visible but cannot block the composer or dispatch another decision (6.674205ms)
+✔ a cancelled plan no longer blocks the composer after its turn terminates (1.244921ms)
+✔ execution workspace renders a replayed topology and dispatches one durable manual compaction request (43.280872ms)
+✔ projects a deterministic graph, transcript and modification evidence chain (124.669339ms)
+✔ shows actual overlapping tool intervals as parallel and preserves dependency order (5.124596ms)
+✔ keeps barriers, compaction and outcome-unknown visible in graph and transcript (9.238719ms)
+✔ reports sequence gaps and dangling references without crashing (2.357022ms)
+✔ projects a 1000-tool graph within a bounded unit-test budget (475.145433ms)
+✔ session history orders actual execution time instead of unrelated operation counts (15.31952ms)
+✔ a task retains its full chain when an approval continuation starts a two-node provider session (22.422622ms)
+✔ task membership separates different requests that reuse one provider session, even with identical titles (16.219722ms)
+✔ legacy sessions stay inspectable and invalid task membership is rejected (5.593865ms)
+✔ current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors (14.776335ms)
+✔ workspace layout exposes the asset-centric panel arrangement and hides script by default (6.787686ms)
+✔ logic graph keeps explicit relations, filtering, bounds, unknown sources and historical overlays separate (12.35854ms)
+✔ cross-entity rule targets are shown only through actual source-backed edges (42.745031ms)
+✔ log filters are bounded, pages dedupe, and copied summaries exclude raw payloads (20.410136ms)
+✔ stale query results and late completion after dispose cannot write back (3.462596ms)
+ℹ tests 49
+ℹ suites 0
+ℹ pass 48
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12280.695241
+
+✖ failing tests:
+
+test at apps/ai-studio/test/tool-batch-conversation.test.mjs:10:1
+✖ Conversation Host overlaps safe bodies, honors an exclusive barrier, and commits in provider order (262.007696ms)
+  AssertionError [ERR_ASSERTION]: batch unexpectedly took 252ms
+      at TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/tool-batch-conversation.test.mjs:70:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

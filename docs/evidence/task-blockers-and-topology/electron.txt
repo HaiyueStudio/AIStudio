@@ -1,0 +1,9 @@
+✔ G09 real Electron renders an accessible replayed graph and bounded large-graph layout (5037.612188ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5340.351062

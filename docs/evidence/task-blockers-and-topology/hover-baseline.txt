@@ -1,0 +1,16 @@
+{
+  baseline: true,
+  directory: '/private/tmp/haiyue-frontier-hover-P10q5Q'
+}
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+true !== false
+
+    at file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/fixtures/graph-ui-main.mjs:43:108 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: true,
+  expected: false,
+  operator: 'strictEqual',
+  diff: 'simple'
+}

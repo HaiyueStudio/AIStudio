@@ -573,6 +573,7 @@ export class IsolatedTrustedPreviewRuntime {
   private readonly planByComponent = new Map<ScriptComponent, PreviewScriptPlan>();
   private scriptSetDigest: `sha256:${string}` | null = null;
   private instanceId: StableId | null = null;
+  private documentId: StableId | null = null;
   private errors: PreviewRuntimeSnapshot['errors'] = Object.freeze([]);
   private lifecycleTail: Promise<void> = Promise.resolve();
 
@@ -614,7 +615,7 @@ export class IsolatedTrustedPreviewRuntime {
         entity.addComponent(component);
         this.owners.push(Object.freeze({ plan: script, resource, component, entity }));
       }
-      this.world = world; this.scriptSetDigest = plan.scriptSetDigest;
+      this.world = world; this.scriptSetDigest = plan.scriptSetDigest; this.documentId = plan.documentId;
       this.instanceId = asStableId(`preview-instance:${randomUUID()}`);
       await this.log.append({ kind: 'preview/started', severity: 'info', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId, previewId: this.instanceId }, payload: { scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, scriptIds: plan.scripts.map((script) => script.scriptId), capabilities: plan.capabilities, runtimeConfig: plan.runtimeConfig as unknown as JsonObject, risk: plan.risk } });
       return this.snapshot();
@@ -623,7 +624,7 @@ export class IsolatedTrustedPreviewRuntime {
       world.destroy();
       ScriptComponent.resetRuntimeApiFactory();
       ScriptComponent.resetExecutionOptions();
-      this.world = null; this.scriptSetDigest = null; this.instanceId = null;
+      this.world = null; this.scriptSetDigest = null; this.instanceId = null; this.documentId = null;
       await this.log.append({ kind: 'preview/start-failed', severity: 'error', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId }, payload: { scriptSetDigest: plan.scriptSetDigest, message: cause instanceof Error ? cause.message : String(cause) } }).catch(() => {});
       throw cause;
     }
@@ -670,15 +671,15 @@ export class IsolatedTrustedPreviewRuntime {
 
   private async stopNow(reason: string): Promise<PreviewRuntimeSnapshot> {
     if (!this.world) return this.snapshot();
-    const instanceId = this.instanceId;
+    const instanceId = this.instanceId; const documentId = this.documentId;
     const disposableCount = this.owners.reduce((sum, owner) => sum + owner.component.disposableCount, 0);
     const scriptCount = this.owners.length;
     this.releaseScriptOwners();
     this.world.destroy();
     ScriptComponent.resetRuntimeApiFactory();
     ScriptComponent.resetExecutionOptions();
-    this.world = null; this.scriptSetDigest = null; this.instanceId = null;
-    await this.log.append({ kind: 'preview/stopped', severity: 'info', source: asStableId('studio.preview'), correlation: { previewId: instanceId ?? undefined }, payload: { reason, scriptCount, disposedSideEffects: disposableCount } });
+    this.world = null; this.scriptSetDigest = null; this.instanceId = null; this.documentId = null;
+    await this.log.append({ kind: 'preview/stopped', severity: 'info', source: asStableId('studio.preview'), correlation: { documentId: documentId ?? undefined, previewId: instanceId ?? undefined }, payload: { reason, scriptCount, disposedSideEffects: disposableCount } });
     return this.snapshot();
   }
 
@@ -704,7 +705,7 @@ export class IsolatedTrustedPreviewRuntime {
       message: event.error.message,
     });
     this.errors = Object.freeze([...this.errors, error]);
-    void this.log.append({ kind: 'preview/runtime-error', severity: 'error', source: asStableId('studio.preview'), correlation: { entityId: plan.entityId, scriptId: plan.scriptId, previewId: this.instanceId ?? undefined }, payload: error }).catch(() => {});
+    void this.log.append({ kind: 'preview/runtime-error', severity: 'error', source: asStableId('studio.preview'), correlation: { documentId: this.documentId ?? undefined, entityId: plan.entityId, scriptId: plan.scriptId, previewId: this.instanceId ?? undefined }, payload: error }).catch(() => {});
   }
 
   private releaseScriptOwners(): void {

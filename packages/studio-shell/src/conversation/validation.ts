@@ -266,13 +266,13 @@ export function validateConversationIntent(value: unknown): ConversationIntent {
 
 function validateLogQuery(value: unknown): import('./types.js').LogQueryIntent {
   if (!isRecord(value)) throw new ConversationReadModelError('conversation.intent-invalid', 'Log query must be an object.');
-  exactKeys(value, ['severity', 'kinds', 'sessionId', 'turnId', 'toolCallId', 'entityId', 'pluginId', 'afterSequence', 'beforeSequence', 'limit', 'traverseCorrelation', 'cursor'], ['severity', 'kinds', 'sessionId', 'turnId', 'toolCallId', 'entityId', 'pluginId', 'afterSequence', 'beforeSequence', 'cursor']);
+  exactKeys(value, ['projectId', 'severity', 'kinds', 'sessionId', 'turnId', 'toolCallId', 'entityId', 'pluginId', 'afterSequence', 'beforeSequence', 'limit', 'traverseCorrelation', 'cursor'], ['projectId', 'severity', 'kinds', 'sessionId', 'turnId', 'toolCallId', 'entityId', 'pluginId', 'afterSequence', 'beforeSequence', 'cursor']);
   if (!Number.isInteger(value.limit) || (value.limit as number) < 1 || (value.limit as number) > 200 || typeof value.traverseCorrelation !== 'boolean') throw new ConversationReadModelError('conversation.intent-invalid', 'Log query budget is invalid.');
   const severity = value.severity === undefined ? undefined : arrayOfEnum(value.severity, ['debug', 'info', 'warning', 'error'], 4);
   const kinds = value.kinds === undefined ? undefined : arrayOfStrings(value.kinds, 32, 96).filter((item) => /^[a-z][a-z0-9./-]{2,95}$/.test(item));
   return Object.freeze({
     ...(severity?.length ? { severity } : {}), ...(kinds?.length ? { kinds } : {}),
-    ...intentOptionalId('sessionId', value.sessionId), ...intentOptionalId('turnId', value.turnId), ...intentOptionalId('toolCallId', value.toolCallId),
+    ...intentOptionalId('projectId', value.projectId), ...intentOptionalId('sessionId', value.sessionId), ...intentOptionalId('turnId', value.turnId), ...intentOptionalId('toolCallId', value.toolCallId),
     ...intentOptionalId('entityId', value.entityId), ...intentOptionalId('pluginId', value.pluginId),
     ...sequenceField('afterSequence', value.afterSequence), ...sequenceField('beforeSequence', value.beforeSequence),
     limit: value.limit as number, traverseCorrelation: value.traverseCorrelation,
@@ -414,5 +414,5 @@ function arrayOfStrings(value: unknown, maximum: number, length: number): readon
   if (!Array.isArray(value) || value.length > maximum || value.some((item) => typeof item !== 'string' || item.length > length)) throw new ConversationReadModelError('conversation.intent-invalid', 'Intent string list is invalid.');
   return Object.freeze([...new Set(value.map((item) => safeText(item, length)))]);
 }
-function intentOptionalId<K extends 'sessionId' | 'turnId' | 'toolCallId' | 'entityId' | 'pluginId'>(key: K, value: unknown): Partial<Record<K, StableId>> { return value === undefined ? {} : { [key]: stable(value, key) } as Record<K, StableId>; }
+function intentOptionalId<K extends 'projectId' | 'sessionId' | 'turnId' | 'toolCallId' | 'entityId' | 'pluginId'>(key: K, value: unknown): Partial<Record<K, StableId>> { return value === undefined ? {} : { [key]: stable(value, key) } as Record<K, StableId>; }
 function sequenceField<K extends 'afterSequence' | 'beforeSequence'>(key: K, value: unknown): Partial<Record<K, number>> { if (value === undefined) return {}; if (!Number.isInteger(value) || (value as number) < 0) throw new ConversationReadModelError('conversation.intent-invalid', `${key} is invalid.`); return { [key]: value as number } as Record<K, number>; }

@@ -7,7 +7,8 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./plugin": { "types": "./dist/plugin.d.ts", "import": "./dist/plugin.js" }
+    "./plugin": { "types": "./dist/plugin.d.ts", "import": "./dist/plugin.js" },
+    "./project-query": { "types": "./dist/project-query.d.ts", "import": "./dist/project-query.js" }
   },
   "engines": { "node": ">=22.19.0" },
   "scripts": {

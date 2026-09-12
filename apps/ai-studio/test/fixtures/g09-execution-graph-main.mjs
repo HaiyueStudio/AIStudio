@@ -29,6 +29,9 @@ app.whenReady().then(async () => {
     stage = 'product assertions';
     const result = await window.webContents.executeJavaScript(`new Promise((resolve, reject) => { const until = Date.now() + 30000; const poll = () => { if (document.body.dataset.g09Status === 'passed') resolve(JSON.parse(document.body.dataset.g09Result)); else if (document.body.dataset.g09Status === 'failed' || Date.now() > until) reject(new Error(document.body.dataset.g09Error || 'execution graph UI timeout')); else setTimeout(poll, 40); }; poll(); })`);
     const screenshotPath = process.env.HAIYUE_G09_SCREENSHOT_OUT;
+    stage = 'live tool and approval beams';
+    window.showInactive();
+    result.liveFrontier = await window.webContents.executeJavaScript('window.runLiveFrontierCheck()');
     stage = 'drag panning';
     window.showInactive();
     await window.webContents.executeJavaScript('window.prepareGraphPanCheck()');

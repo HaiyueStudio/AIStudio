@@ -58,3 +58,19 @@ function fakeLogPort(responses) {
   };
 }
 function deferred() { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; }
+
+test('project switching clears visible logs, filters and cursors and ignores old in-flight replies', async () => {
+  const old = deferred(); const port = fakeLogPort([page([summary(1)], 'cursor:a'), old.promise, page([summary(2)])]);
+  const viewer = new LogViewerController(port);
+  viewer.setProject('project:a'); await viewer.refresh(); viewer.toggleCorrelation('event:1');
+  const pending = viewer.loadMore();
+  viewer.setProject('project:b');
+  assert.deepEqual(viewer.snapshot().events, []); assert.equal(viewer.snapshot().nextCursor, undefined);
+  assert.deepEqual(viewer.snapshot().expandedEventIds, []);
+  await viewer.refresh(); old.resolve(page([summary(99)])); await pending;
+  assert.deepEqual(viewer.snapshot().events.map(item => item.sequence), [2]);
+  assert.equal(port.queries.at(-1).projectId, 'project:b'); assert.equal(port.queries.at(-1).cursor, undefined);
+  await viewer.exportBugBundle(); assert.equal(port.intents.at(-1).query.projectId, 'project:b');
+  viewer.setProject(null); await viewer.refresh(); assert.deepEqual(viewer.snapshot().events, []);
+  viewer.dispose();
+});

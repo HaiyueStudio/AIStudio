@@ -226,3 +226,27 @@ function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
 }
+
+
+test('current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors', () => {
+  const ops = linearFixture().slice(0, 7);
+  let graph = projectExecutionGraph({ sessionId: SESSION, ops });
+  assert.deepEqual(graph.currentNodeIds, ['tool:node:read']);
+  ops.push(op(7, 'tool.started', { batchId: 'batch:1', nodeId: 'node:parallel', payload: { toolId: 'diagnostics.query' } }));
+  graph = projectExecutionGraph({ sessionId: SESSION, ops });
+  assert.deepEqual(new Set(graph.currentNodeIds), new Set(['tool:node:read', 'tool:node:parallel']));
+  ops.push(op(8, 'approval.requested', { nodeId: 'approval:test', payload: { approvalId: 'approval:test', reason: 'Allow edit' } }));
+  graph = projectExecutionGraph({ sessionId: SESSION, ops });
+  assert.deepEqual(graph.currentNodeIds, ['barrier:approval:test']);
+  ops.push(op(9, 'approval.resolved', { nodeId: 'approval:test', payload: { approvalId: 'approval:test', resolution: 'allow-once' } }),
+    op(10, 'tool.completed', { batchId: 'batch:1', nodeId: 'node:read', payload: { toolId: 'scene.query', status: 'completed' } }),
+    op(11, 'tool.completed', { batchId: 'batch:1', nodeId: 'node:parallel', payload: { toolId: 'diagnostics.query', status: 'failed', diagnostic: 'query-scan-budget-exceeded', summary: 'Window too large' } }),
+    op(12, 'tool-batch.completed', { batchId: 'batch:1', payload: { status: 'failed' } }));
+  graph = projectExecutionGraph({ sessionId: SESSION, ops });
+  assert.deepEqual(graph.currentNodeIds, [`turn:${TURN}`]);
+  assert.equal(graph.nodes.find(node => node.id === `turn:${TURN}`).title, '模型生成下一步');
+  assert.match(graph.nodes.find(node => node.id === `turn:${TURN}`).summary, /diagnostics.query.*失败/);
+  assert.equal(graph.nodes.find(node => node.id === 'tool:node:parallel').detail.diagnostic, 'query-scan-budget-exceeded');
+  ops.push(op(13, 'turn.completed', { payload: { status: 'completed' } }));
+  assert.deepEqual(projectExecutionGraph({ sessionId: SESSION, ops }).currentNodeIds, []);
+});

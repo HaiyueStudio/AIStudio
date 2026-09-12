@@ -98,7 +98,7 @@ interface TaskSummaryProjection {
   readonly blockers: readonly string[];
 }
 
-const PROFILE_VERSION = '3.4.0';
+const PROFILE_VERSION = '3.5.0';
 const MAX_MODEL_CONTEXT_BYTES = 96 * 1024;
 const MAX_SUMMARY_ITEMS = 12;
 const MAX_SUMMARY_ITEM_BYTES = 512;
@@ -115,8 +115,10 @@ export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] =
     'Inspect before editing. Propose a user-readable plan before mutation. Re-read the current project revision before every edit and use only structured tool calls.',
     'A plan approval does not approve later high-risk effects. Report unavailable capabilities explicitly instead of inventing an implementation seam.',
   ]),
-  module('prompt.workflow.general-authoring', '1.0.0', 'workflow', [
+  module('prompt.workflow.general-authoring', '1.1.0', 'workflow', [
     'Derive entities, state, input, simulation, presentation, audio and verification from the current request and project facts. Keep authored responsibilities explicit and composable.',
+    'Treat appearance words as visible requirements, not a mandate to use a single primitive. Before choosing geometry, decompose the object by silhouette, independently colored surfaces, moving parts, interaction roles and repetition. Record the parts, materials, local transforms and shared motion owner in the plan. Build and inspect one representative assembly before capturing its subtree with prefab.manage and instantiating repeats. A single material color covers the whole primitive. Preserve explicit implementation constraints, but choose composition when one primitive cannot express the requested appearance.',
+    'Verification must exercise real scene/camera transforms and resulting state, not just counters, event labels or HUD text. Use the actual inspected gameplay[index].value payload paths in assertions. play.capture returns a same-tick screenshot/state evidence bundle; evaluate its observations together. Do not invent fps or visual-analysis signals that no available tool produces.',
     'After changes, run the strongest available repeatable and visual checks, diagnose failures from new evidence, and stop unchanged retries when the repair budget is exhausted.',
     'For api.scene.instances, allocate a fixed maximum capacity from literals or const-only numeric expressions; change only the active setCount during Play because pool capacity is immutable.',
     'When world gameplay bounds and a target viewport size are known, use camera.author frame-bounds with width and height so Studio deterministically fits both axes with padding instead of estimating an orthographic size or ratio.',

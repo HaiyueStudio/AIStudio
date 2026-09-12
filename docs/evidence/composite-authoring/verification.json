@@ -1,0 +1,51 @@
+{
+  "status": "targeted-regressions-passed-full-check-has-unresolved-failures",
+  "inputDigest": "sha256:86aa60a86eed682b51bcea0c6fada683ca84344bb8ef9ab4360750cc845d54f3",
+  "workspaceBuild": "passed",
+  "focusedTests": {
+    "passed": 71,
+    "failed": 0
+  },
+  "taskRecoveryTests": {
+    "passed": 5,
+    "failed": 0
+  },
+  "promptProfileTests": {
+    "passed": 11,
+    "failed": 0
+  },
+  "nativeSameTickCapture": {
+    "passed": 1,
+    "failed": 0,
+    "modes": [
+      "paused",
+      "running"
+    ]
+  },
+  "capabilityChecks": {
+    "suites": 12,
+    "passed": 124,
+    "failed": 0
+  },
+  "fullCheck": {
+    "command": "TMPDIR=/private/tmp npm --ignore-scripts run check",
+    "exitCode": 1,
+    "precondition": "Full workspace build ran with lifecycle scripts before this check.",
+    "toolTestsPassed": 110,
+    "logicTestsPassed": 23,
+    "integrationFiles": 48,
+    "integrationPassed": 226,
+    "integrationFailed": 2,
+    "failures": [
+      "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+      "apps/ai-studio/test/plan-review-electron.test.mjs"
+    ]
+  },
+  "limitations": [
+    "Large product test requires win32 10.0.19045 / i7-7700 / 8 logical CPUs; current machine is Darwin 25.6.0 / i7-9750H / 12 logical CPUs. Performance assertions after that gate were not reached.",
+    "Original plan-review window test still fails after isolated retries with a renderer execution error. Diagnostic wrapper run passed. Its bundled dependency graph includes none of the app/runtime/tool modules changed here; exact window failure remains unresolved.",
+    "No fresh live-model generation was run. Existing generated projects and approved acceptance criteria were not rewritten.",
+    "No production FPS meter or visual-analysis verifier was added; unsupported producer assertions are rejected during plan validation.",
+    "The running user application was not restarted."
+  ]
+}

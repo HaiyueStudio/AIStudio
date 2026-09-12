@@ -36,6 +36,7 @@ interface ActiveTurn {
   readonly decisions: string[];
   readonly toolFacts: string[];
   readonly blockers: string[];
+  toolFailures?: Map<StableId, Readonly<{ toolId: StableId; code: string; message: string; retryable: boolean }>>;
   contextCommitted: boolean;
   suspendedBarrierId: StableId | null;
 }
@@ -658,12 +659,12 @@ export class StudioConversationHost {
         }
       }
       const approvedPlan = this.active?.sessionId === event.sessionId && this.active.turnId === event.turnId ? this.active.approvedPlan : null;
-      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && approvedPlan.attempts < 1) {
+      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && !this.active?.toolFailures?.size && approvedPlan.attempts < 1) {
         approvedPlan.attempts += 1;
         if (this.active) this.active.continuationRequested = true;
         return;
       }
-      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0) {
+      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && !this.active?.toolFailures?.size) {
         this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'failed', provenance, Object.freeze({
           code: 'plan.execution-not-started', message: 'Agent 在已批准方案下仍未执行任何编辑操作。请重新发送需求；Studio 不会把该方案误报为已执行。', severity: 'error', retryable: false,
         }));
@@ -673,8 +674,10 @@ export class StudioConversationHost {
       if (status === 'cancelled' && this.active) this.updateTaskRun(this.active.taskId, { status: 'cancelled', phase: 'cancelled', terminalDiagnostic: 'task.cancelled', resumable: true }, { phase: 'cancelled', status: 'warning', title: '任务已取消', detail: '已完成产物和现有证据均已保留。', turnId: event.turnId });
       else if (status !== 'completed' && this.active) this.updateTaskRun(this.active.taskId, { status: 'failed', phase: 'blocked', terminalDiagnostic: `turn.${status}`, resumable: status === 'interrupted' }, { phase: 'blocked', status: 'error', title: '任务执行中断', detail: `Backend turn ended with ${status}.`, turnId: event.turnId });
       else if (status === 'completed' && taskRun?.status !== 'completed' && this.active) {
-        const diagnostic = taskRun?.acceptance.length ? 'task.acceptance-evidence-incomplete' : 'task.acceptance-criteria-missing';
-        this.updateTaskRun(this.active.taskId, { status: 'blocked', phase: 'blocked', terminalDiagnostic: diagnostic, resumable: true }, { phase: 'blocked', status: 'error', title: '不能标记任务完成', detail: taskRun?.acceptance.length ? 'Agent 回合已经结束，但必需验收项没有全部通过并引用持久化证据。' : 'Agent 回合已经结束，但没有经过用户批准的可验证验收标准。', turnId: event.turnId });
+        const failures = [...(this.active.toolFailures?.values() ?? [])];
+        const failure = failures.filter(item => item.toolId !== 'diagnostics.query').at(-1) ?? failures.at(-1);
+        const diagnostic = taskRun?.terminalDiagnostic ?? failure?.code ?? (taskRun?.acceptance.length ? 'task.acceptance-evidence-incomplete' : 'task.acceptance-criteria-missing');
+        this.updateTaskRun(this.active.taskId, { status: 'blocked', phase: 'blocked', terminalDiagnostic: diagnostic, resumable: taskRun?.terminalDiagnostic ? taskRun.resumable : failure?.retryable ?? true }, { phase: 'blocked', status: 'error', title: failure && !taskRun?.terminalDiagnostic ? '工具失败，任务尚未完成' : '不能标记任务完成', detail: failure && !taskRun?.terminalDiagnostic ? `${failure.toolId}：${failure.code}。${failure.message} 验收尚未完成。` : taskRun?.acceptance.length ? 'Agent 回合已经结束，但必需验收项没有全部通过并引用持久化证据。' : 'Agent 回合已经结束，但没有经过用户批准的可验证验收标准。', turnId: event.turnId });
       }
       const textId = this.internalNodeId('text', event.turnId);
       if (this.nodes.has(textId)) this.finishNode(textId, status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed');
@@ -1219,6 +1222,15 @@ export class StudioConversationHost {
       this.updateTaskRun(this.active.taskId, { documentRevision: original.backendResult.afterRevision as number });
     }
     if (this.active && body.resultValue) await this.captureProductToolResult(this.active.taskId, context.toolId, body.resultValue, context.event.turnId, context.toolCallId);
+    if (this.active) {
+      this.active.toolFailures ??= new Map();
+      if (body.status === 'completed') this.active.toolFailures.delete(context.toolId);
+      else if (body.status === 'failed') {
+        const error = isRecord(body.backendResult.error) ? body.backendResult.error : isRecord(body.backendResult.value) ? body.backendResult.value : {};
+        this.active.toolFailures.delete(context.toolId);
+        this.active.toolFailures.set(context.toolId, Object.freeze({ toolId: context.toolId, code: stringField(error.code, 'tool.failed'), message: stringField(error.message, '工具执行失败。').slice(0, 600), retryable: error.retryable === true }));
+      }
+    }
     if (this.active && body.fact) this.active.toolFacts.push(body.fact);
     if (this.active && body.blocker) this.active.blockers.push(body.blocker);
     if (body.mutation && this.active?.sessionId === context.event.sessionId && this.active.turnId === context.event.turnId && this.active.approvedPlan) this.active.approvedPlan.mutationCount += 1;
@@ -1244,7 +1256,7 @@ export class StudioConversationHost {
     if (account) await this.recordTaskAccounting(account, context.event.sessionId, context.event.turnId);
     const usageRecord = this.options.runtime.usage?.get(context.event.turnId)?.snapshot().record;
     const costRecord = account && typeof account.latestCostRecord === 'function' ? account.latestCostRecord(context.event.turnId) : account && typeof account.costRecords === 'function' ? account.costRecords().at(-1) : undefined;
-    await this.appendToolSessionOp(batch, context, 'tool.completed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, status: body.status, latencyMs: body.latencyMs, outputBytes: Buffer.byteLength(canonicalStringify(body.backendResult)), resultDigest: sha256(canonicalStringify(body.backendResult)), ...(transaction ?? {}), ...(usageRecord ? { usageRecordId: usageRecord.id } : {}), ...(costRecord ? { costRecordId: costRecord.id, costAttribution: 'turn-shared' } : { costAttribution: 'unavailable' }) }));
+    await this.appendToolSessionOp(batch, context, 'tool.completed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, status: body.status, ...(body.status === 'failed' ? { diagnostic: this.active?.toolFailures?.get(context.toolId)?.code ?? 'tool.failed', summary: this.active?.toolFailures?.get(context.toolId)?.message ?? '工具执行失败。' } : {}), latencyMs: body.latencyMs, outputBytes: Buffer.byteLength(canonicalStringify(body.backendResult)), resultDigest: sha256(canonicalStringify(body.backendResult)), ...(transaction ?? {}), ...(usageRecord ? { usageRecordId: usageRecord.id } : {}), ...(costRecord ? { costRecordId: costRecord.id, costAttribution: 'turn-shared' } : { costAttribution: 'unavailable' }) }));
     if (body.cancelTurnAfterCommit) await this.options.runtime.turns.cancel(context.event.backendId, context.event.sessionId, context.event.turnId).catch(() => undefined);
     this.changed();
     return body;
@@ -1820,11 +1832,11 @@ export class StudioConversationHost {
       this.updateTaskRun(taskId, { status: 'blocked', phase: 'blocked', acceptance: Object.freeze(acceptance), terminalDiagnostic: snapshot.diagnostic, resumable: false }, { phase: 'blocked', status: 'error', title: '验收被阻塞', detail: snapshot.diagnostic ?? '证据来源不兼容。', turnId, toolCallId });
       return;
     }
-    const failedEvidence = evaluation.acceptanceResults.filter((item) => item.status === 'fail').flatMap((item) => item.evidenceIds).map((id) => asStableId(id));
+    const failedEvidence = evaluation.acceptanceResults.filter((item) => item.status !== 'pass').flatMap((item) => item.evidenceIds).map((id) => asStableId(id));
     try {
       const account = this.active?.taskId === taskId ? this.active.account : null;
       if (account) assertBudgetAllowed(account.repair());
-      const repair = playtest.beginRepair({ turnId, arguments: Object.freeze({ failedAcceptance: evaluation.acceptanceResults.filter((item) => item.status === 'fail').map((item) => item.acceptanceId) }) as JsonValue, evidenceIds: Object.freeze([...new Set(failedEvidence)]), usageRecordIds: Object.freeze(evaluation.usageRecordIds.map((id) => asStableId(id))), costRecordIds: Object.freeze(evaluation.costRecordIds.map((id) => asStableId(id))) });
+      const repair = playtest.beginRepair({ turnId, arguments: Object.freeze({ failedAcceptance: evaluation.acceptanceResults.filter((item) => item.status !== 'pass').map((item) => item.acceptanceId) }) as JsonValue, evidenceIds: Object.freeze([...new Set(failedEvidence)]), usageRecordIds: Object.freeze(evaluation.usageRecordIds.map((id) => asStableId(id))), costRecordIds: Object.freeze(evaluation.costRecordIds.map((id) => asStableId(id))) });
       if (repair.phase === 'blocked') {
         this.updateTaskRun(taskId, { status: 'blocked', phase: 'blocked', acceptance: Object.freeze(acceptance), repairIteration: repair.attempts.length, terminalDiagnostic: repair.diagnostic, resumable: false }, { phase: 'blocked', status: 'error', title: '修复循环已停止', detail: repair.diagnostic ?? '修复预算已耗尽。', turnId, toolCallId });
       } else {

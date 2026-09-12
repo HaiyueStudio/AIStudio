@@ -446,6 +446,12 @@ test('G10 renderer preview broker uses one pending command and rejects stale ack
   const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   broker.resolve(captureCommand.id, { playId: 'preview:test', documentRevision: 1, scriptDigests: [scriptSetDigest], tick: 12, frame: 9, viewport: { width: 393, height: 852 }, device: 'iphone-15', capturedAt: '2026-08-29T00:00:00.000Z', mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') });
   assert.equal((await captured).byteLength, 8);
+  const bundled = broker.capture();
+  const bundledCommand = broker.command().command;
+  const frame = { playId: 'preview:test', documentRevision: 1, scriptDigests: [scriptSetDigest], tick: 3726, frame: 3700, viewport: null, device: null, capturedAt: '2026-08-29T00:00:00.000Z', mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') };
+  assert.throws(() => broker.resolve(bundledCommand.id, { ...frame, state: { tick: 3238, frame: 3700 } }), /does not match its frame/);
+  broker.resolve(bundledCommand.id, { ...frame, state: { tick: 3726, frame: 3700, state: { score: 4 } } });
+  assert.deepEqual((await bundled).state.state, { score: 4 });
   const stopped = broker.stop();
   const stopCommand = broker.command().command;
   broker.resolve(stopCommand.id, { instanceId: null, state: 'stopped', scriptSetDigest: null, scriptCount: 0, scripts: [], entityId: null, position: null, disposableCount: 0, errors: [] });

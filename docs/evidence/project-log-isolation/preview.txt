@@ -1,0 +1,45 @@
+[ScriptComponent entity=3:Cube script=6 lifecycle=onUpdate] EngineError: runtime boom
+    at ScriptComponent._handleError (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:788:23)
+    at ScriptComponent._run (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:743:18)
+    at ScriptComponent.onUpdate (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:671:49)
+    ... 5 lines matching cause stack trace ...
+    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+  cause: Error: runtime boom
+      at eval (haiyue-script://scripts/script:a1d308f5-69c0-4415-a5a4-a3cc88e854c2.ts?resource=3&lifecycle=onUpdate:3:7)
+      at Object.defaultScriptExecutor [as executor] (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:879:12)
+      at ScriptComponent._run (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:740:21)
+      at ScriptComponent.onUpdate (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/ScriptComponent-DnPJqWnP.js:671:49)
+      at World._updateComponents (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/World-NSjwM1ON.js:1147:27)
+      at World.update (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/node_modules/@haiyue/engine/dist/chunks/World-NSjwM1ON.js:1084:14)
+      at IsolatedTrustedPreviewRuntime.tick (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/packages/script-preview/dist/index.js:532:20)
+      at TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/packages/script-preview/test/script-preview.test.mjs:198:27)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3),
+  domain: 'script',
+  code: 'E_COMPONENT_SCRIPT_FAILED',
+  recoverable: true,
+  recovery: 'ignore',
+  context: {
+    scriptResourceId: 3,
+    scriptResourceName: 'script:a1d308f5-69c0-4415-a5a4-a3cc88e854c2',
+    entityId: 3,
+    entityName: 'Cube',
+    componentId: 6,
+    lifecycle: 'onUpdate',
+    source: 'haiyue-script://scripts/script:a1d308f5-69c0-4415-a5a4-a3cc88e854c2.ts?resource=3&lifecycle=onUpdate',
+    line: 1,
+    column: 7
+  },
+  path: 'scripts[3].onUpdate',
+  hint: undefined,
+  docsPath: 'errors/E_COMPONENT_SCRIPT_FAILED'
+}
+✔ authorization is explicit, one-shot and stale-safe; runtime is isolated and cleans hot-reload disposers (8633.247668ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10712.68886

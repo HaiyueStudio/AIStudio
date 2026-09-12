@@ -440,6 +440,16 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
   const zoomIn = document.createElement('button'); zoomIn.type = 'button'; zoomIn.textContent = '+'; zoomIn.setAttribute('aria-label', 'Zoom in execution graph'); zoomIn.addEventListener('click', () => { state.fit = false; state.scale = Math.min(1.8, state.scale * 1.25); renderChatPanel(root, currentChatModel(root), dispatch); });
   const fit = document.createElement('button'); fit.type = 'button'; fit.textContent = '适应视图'; fit.addEventListener('click', () => { state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; renderChatPanel(root, currentChatModel(root), dispatch); });
   toolbar.append(detail, zoomOut, zoomIn, fit); region.append(toolbar);
+  const activity = document.createElement('div'); activity.className = 'execution-current-activity'; activity.setAttribute('role', 'status');
+  const current = graph.nodes.filter(node => graph.currentNodeIds.includes(node.id));
+  if (current.length) {
+    for (const node of current) {
+      const locate = document.createElement('button'); locate.type = 'button'; locate.textContent = `${executionStatusLabel(node.status)}：${node.title}`;
+      locate.addEventListener('click', () => { state.query = ''; state.filter = 'current'; selectExecutionNode(state, node.id); renderChatPanel(root, currentChatModel(root), dispatch); });
+      activity.append(locate);
+    }
+  } else activity.textContent = `当前任务：${executionStatusLabel(graph.status)}`;
+  toolbar.append(activity);
   const options = graphFilterOptions(state);
   const layout = layoutExecutionGraph(graph, { mode: state.detailMode, query: state.query, ...options });
   const count = document.createElement('span'); count.className = 'execution-node-count'; count.textContent = `显示 ${layout.visibleNodeIds.length}/${graph.nodes.length} 个步骤`; toolbar.append(count);
@@ -462,8 +472,8 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
   canvas.append(svg);
   for (const position of layout.nodes) {
     const node = nodes.get(position.id)!; const button = document.createElement('button'); button.type = 'button'; button.id = executionDomId(node.id); button.className = `execution-node kind-${node.kind} status-${node.status}${graph.criticalPathNodeIds.includes(node.id) ? ' is-critical' : ''}${state.selectedNodeId === node.id ? ' is-selected' : ''}`; button.style.left = `${position.x}px`; button.style.top = `${position.y}px`; button.style.width = `${position.width}px`; button.style.height = `${position.height}px`; button.dataset.nodeId = node.id; button.dataset.layer = String(position.layer); button.dataset.order = String(position.order); button.tabIndex = state.selectedNodeId === node.id || (!state.selectedNodeId && node.id === (graph.currentNodeIds[0] ?? layout.visibleNodeIds[0])) ? 0 : -1; button.setAttribute('aria-label', `${node.title}. ${executionStatusLabel(node.status)}. ${node.summary}`);
-    const kind = document.createElement('span'); kind.className = 'execution-node-kind'; kind.textContent = executionKindLabel(node.kind); const label = document.createElement('strong'); label.textContent = node.title; const summary = document.createElement('span'); summary.className = 'execution-node-summary'; summary.textContent = node.summary; button.append(kind, label, summary);
-    if (node.status === 'running') {
+    const kind = document.createElement('span'); kind.className = 'execution-node-kind'; kind.textContent = `${executionKindLabel(node.kind)} · ${executionStatusLabel(node.status)}`; const label = document.createElement('strong'); label.textContent = node.title; const summary = document.createElement('span'); summary.className = 'execution-node-summary'; summary.textContent = node.summary; button.append(kind, label, summary);
+    if (graph.currentNodeIds.includes(node.id) && (node.status === 'running' || node.status === 'waiting')) {
       const beam = document.createElement('hy-border-beam'); beam.className = 'execution-node-beam'; beam.setAttribute('aria-hidden', 'true');
       beam.setAttribute('thickness', '1.5'); beam.setAttribute('speed', '1.35'); beam.setAttribute('count', '2'); button.append(beam);
     }

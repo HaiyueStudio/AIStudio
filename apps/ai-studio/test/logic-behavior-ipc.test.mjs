@@ -39,8 +39,13 @@ for (const scripted of [false, true]) test(`production source/IPC/approved Play/
   const trigger = analysis.manifest.nodes.find(n => n.kind === 'trigger');
   const location = await invoke('behavior/locate', { manifestDigest: analysis.manifest.digest, nodeId: trigger.id }); assert.equal(location.target.source.kind, 'declarative-component');
   const fact = await f.operationLog.append({ kind: 'document/transaction', severity: 'info', source: 'test:logic', correlation: { projectId, documentId: analysis.project.documentId, entityId: trigger.source.entityId, transactionId: 'transaction:actual-fixture' }, payload: { revision: revision(), result: 'committed' } });
-  const related = await invoke('behavior/related', { manifestDigest: analysis.manifest.digest, nodeId: trigger.id });
-  assert.ok(related.events.some(event => event.eventId === fact.eventId && event.correlation.transactionId === 'transaction:actual-fixture'));
+  let related = await invoke('behavior/related', { manifestDigest: analysis.manifest.digest, nodeId: trigger.id });
+  const relatedEvents = [...related.events];
+  for (let page = 0; related.nextCursor && page < 20; page += 1) {
+    related = await invoke('behavior/related', { manifestDigest: analysis.manifest.digest, nodeId: trigger.id, cursor: related.nextCursor });
+    relatedEvents.push(...related.events);
+  }
+  assert.ok(relatedEvents.some(event => event.eventId === fact.eventId && event.correlation.transactionId === 'transaction:actual-fixture'));
   await invoke('behavior/explain', { manifestDigest: analysis.manifest.digest, nodeIds: [trigger.id], language: 'zh-CN' });
   const plan = await invoke('preview/prepare');
   await invoke('preview/consume', { grantId: 'grant:unapproved' }, false);

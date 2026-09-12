@@ -56,6 +56,17 @@ export class PlayObservationRepository {
     return this.persist(taskId, envelope, observation.value);
   }
 
+  async persistInspection(call: GameToolCall, observation: GamePlayObservation): Promise<readonly PersistedObservation[]> {
+    const value = observation.value;
+    // Keep each derived record bound to exactly the same runtime snapshot.
+    return [
+      await this.persistState(call, observation),
+      await this.persistState(call, { ...observation, value: Object.freeze({ trace: value.trace ?? [], physicsEvents: value.physicsEvents ?? [] }) }, 'event-trace'),
+      await this.persistState(call, { ...observation, value: Object.freeze({ count: typeof value.runtimeErrorCount === 'number' ? value.runtimeErrorCount : 0 }) }, 'runtime-errors'),
+      await this.persistState(call, { ...observation, value: Object.freeze({ finite: Number.isFinite(observation.tick) && Number.isFinite(observation.frame), tick: observation.tick, frame: observation.frame, timeMs: typeof value.timeMs === 'number' ? value.timeMs : null }) }, 'performance'),
+    ];
+  }
+
   async persistCapture(call: GameToolCall, capture: GamePlayCapture): Promise<PersistedObservation> {
     if (capture.mediaType !== 'image/png' || capture.byteLength < 8 || capture.byteLength > MAX_SCREENSHOT_BYTES) {
       throw new GameToolProtocolError('observation.screenshot-too-large', `Screenshot must be a PNG between 8 and ${MAX_SCREENSHOT_BYTES} bytes.`);
@@ -113,7 +124,7 @@ export class DeterministicTaskEvaluator {
       return Object.freeze({
         schemaVersion: 2, id: asStableId(`evaluation:${randomUUID()}`), taskId: task.id,
         evaluatorVersion: 'haiyue-fixed-evaluator/2.0.0', status: 'blocked',
-        acceptanceResults: Object.freeze(task.acceptance.map((acceptance) => Object.freeze({ acceptanceId: acceptance.id, status: 'blocked' as const, evidenceIds: Object.freeze([]), diagnostic: provenanceDiagnostic }))),
+        acceptanceResults: Object.freeze(task.acceptance.map((acceptance) => Object.freeze({ acceptanceId: acceptance.id, status: 'blocked' as const, evidenceIds: Object.freeze(provenanceDiagnostic === 'evaluation.screenshot-state-tick-mismatch' ? observations.map((item) => item.artifact.id) : []), diagnostic: provenanceDiagnostic }))),
         budgetStatus: input.budgetStatus, usageRecordIds: input.usageRecordIds, costRecordIds: input.costRecordIds,
         turns: Object.freeze([]), tools: Object.freeze([]), completedAt: new Date().toISOString(),
       });

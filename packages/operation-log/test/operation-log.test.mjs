@@ -323,3 +323,58 @@ async function readTreeText(root) {
   await walk(root);
   return chunks.join('\n');
 }
+
+test('project queries isolate scan budgets, correlation traversal, cursors, status and exported events across restart', async () => {
+  const root = await tempRoot('project-log-isolation');
+  let log = await OperationLog.open(options(root, { maxQueryScan: 4, maxTotalBytes: 1_000_000 }));
+  const a = 'project:a'; const b = 'project:b';
+  try {
+    for (let i = 0; i < 20; i++) await log.append(event(i, { correlation: { projectId: a, pluginId: 'plugin:shared' } }));
+    await log.append(event(20, { kind: 'agent/session-op', correlation: { sessionId: 'session:b' }, payload: { sessionOp: { kind: 'session.created', payload: { projectId: b } } } }));
+    const implicit = await log.append(event(21, { correlation: { sessionId: 'session:b', pluginId: 'plugin:shared' } }));
+    assert.equal(implicit.correlation.projectId, b, 'new session events persist their project identity');
+    await log.append(event(22, { correlation: {}, payload: { message: 'legacy app-only log' } }));
+    const query = { ...allQuery, projectId: b, pluginId: 'plugin:shared', traverseCorrelation: true, limit: 1 };
+    const first = await log.query(query);
+    assert.equal(first.scanned, 2);
+    assert.equal(first.events[0].correlation.projectId, b);
+    assert.ok(first.nextCursor);
+    await assert.rejects(log.query({ ...query, projectId: a, cursor: first.nextCursor }), /cursor/i);
+    const second = await log.query({ ...query, cursor: first.nextCursor });
+    assert.equal(second.events.length, 1);
+    assert.ok(second.events.every(item => item.correlation.projectId === b));
+    assert.equal((await log.logViewer({ ...allQuery, projectId: b })).status.eventCount, 2);
+    assert.equal(log.projectStatus(null).eventCount, 0);
+    assert.deepEqual((await log.query({ ...allQuery, projectId: 'project:new-unsaved' })).events, []);
+    const bundle = await log.exportBugBundle({ destinationRoot: await tempRoot('project-log-bundle'), query: { ...allQuery, projectId: b }, versions: { app: 'test', schema: '1', upstream: {} } });
+    const exported = (await readFile(path.join(bundle.directory, 'events.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
+    assert.equal(exported.length, 2); assert.ok(exported.every(item => item.correlation.projectId === b));
+    await log.close(); log = await OperationLog.open(options(root, { maxQueryScan: 4 }));
+    assert.equal((await log.query({ ...allQuery, projectId: b })).events.length, 2);
+    assert.equal((await log.query({ ...allQuery, projectId: 'project:new-unsaved' })).scanned, 0);
+  } finally { await log.close(); }
+});
+
+test('legacy session-only rows get an isolated project index without rewriting their durable journal', async () => {
+  const root = await tempRoot('legacy-project-log');
+  let log = await OperationLog.open(options(root));
+  await log.append(event(0, { kind: 'agent/session-op', correlation: { sessionId: 'session:legacy' }, payload: { sessionOp: { kind: 'session.created', payload: { projectId: 'project:legacy' } } } }));
+  await log.append(event(1, { correlation: { sessionId: 'session:legacy' } }));
+  await log.append(event(2, { correlation: {} }));
+  await log.close();
+  const segment = path.join(root, 'journal', 'segment-000001.jsonl');
+  const legacy = (await readFile(segment, 'utf8')).trim().split('\n').map(line => {
+    const { event } = JSON.parse(line); delete event.correlation.projectId;
+    const record = { recordVersion: 1, event };
+    return canonicalStringify({ ...record, checksum: sha256(canonicalStringify(record)) });
+  }).join('\n') + '\n';
+  await writeFile(segment, legacy);
+  log = await OperationLog.open(options(root, { maxQueryScan: 2 }));
+  try {
+    const page = await log.query({ ...allQuery, projectId: 'project:legacy' });
+    assert.deepEqual(page.events.map(item => item.sequence), [0, 1]);
+    assert.equal(page.scanned, 2);
+    assert.deepEqual((await log.query({ ...allQuery, projectId: 'project:new' })).events, []);
+    assert.equal(await readFile(segment, 'utf8'), legacy);
+  } finally { await log.close(); }
+});

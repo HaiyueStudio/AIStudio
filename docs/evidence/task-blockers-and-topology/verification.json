@@ -1,0 +1,55 @@
+{
+  "status": "completed-with-check-failures",
+  "scope": "task blocker diagnosis, transaction receipt scan windows, execution graph frontier",
+  "checks": {
+    "build": "passed",
+    "newRegressionTests": "passed",
+    "electronAnimatedFrontier": "passed",
+    "focusedSuite": {
+      "passed": 27,
+      "failed": 1,
+      "failure": "Existing Windows-drive path assertion in project-workspace.test.mjs on macOS"
+    },
+    "shellAndHostSuite": {
+      "passed": 48,
+      "failed": 1,
+      "failure": "tool-batch-conversation elapsed time exceeded 220ms; concurrency and order assertions passed"
+    },
+    "capabilityCapture": {
+      "suites": 12,
+      "passed": 124,
+      "failed": 0
+    },
+    "fullCheck": {
+      "exitCode": 1,
+      "typesBoundariesAndCapabilityBinding": "passed",
+      "evalTests": 59,
+      "behaviorTests": 33,
+      "workspaceTests": 5,
+      "agentToolTests": 110,
+      "logicTests": 23,
+      "integration": {
+        "filesExecuted": 48,
+        "passed": 227,
+        "failed": 2,
+        "skipped": 0,
+        "cancelled": 0,
+        "failures": [
+          {
+            "test": "graph-ui-electron.test.mjs",
+            "reason": "Hover detail remains open after rerender and mouse exit at graph-ui-main.mjs:43; original HEAD chat panel and CSS reproduce the same failure in an isolated window."
+          },
+          {
+            "test": "m14-integration/product-electron.test.mjs",
+            "reason": "Fixed Windows/i7-7700 machine declaration differs from this macOS/i7-9750H host."
+          }
+        ]
+      }
+    }
+  },
+  "appRestarted": false,
+  "liveModelGenerationRun": false,
+  "inputDigest": "sha256:1970c9be82fa2b9661b73d1941453e5ea7a5b45c53ef9b0e20146fa2e7e7ca77",
+  "baselineRevision": "3c9e56a675e1fbea5d75959bd2c2a154e9bdbe6b",
+  "generatedTestArtifacts": "Restored 111 changed tracked output files to exact pre-task bytes after retaining current evidence."
+}

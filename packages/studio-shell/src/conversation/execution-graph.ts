@@ -156,12 +156,21 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
   }
   connectParallelIntervals(toolIntervals, edges);
 
+  for (const node of nodes.values()) {
+    if (node.kind !== 'turn' || node.status !== 'running') continue;
+    const tools = [...nodes.values()].filter(child => child.turnId === node.turnId && child.kind === 'tool');
+    const latest = tools.at(-1);
+    if (latest && !tools.some(child => activeStatuses.has(child.status))) {
+      node.title = '模型生成下一步';
+      node.summary = `上一工具：${latest.toolId ?? latest.title}（${latest.status === 'failed' ? '失败' : latest.status === 'cancelled' ? '已取消' : '已完成'}）。等待模型返回下一步操作或回复。`;
+    }
+  }
   const root = nodes.get(rootId);
   if (root) root.status = sessionStatus(input.status, ops);
 
   const frozenNodes = freeze([...nodes.values()].map(freezeNode).sort(compareNodes));
   const frozenEdges = freeze([...edges.values()].map((edge) => freeze({ ...edge, sourceOpIds: freeze(unique(edge.sourceOpIds).sort()) })).sort(compareEdges));
-  const currentNodeIds = freeze(frozenNodes.filter((node) => activeStatuses.has(node.status)).map((node) => node.id));
+  const currentNodeIds = freeze(currentExecutionNodeIds(frozenNodes, frozenEdges));
   const criticalPathNodeIds = freeze(calculateCriticalPath(frozenNodes, frozenEdges));
   const sortedTranscript = freeze(transcript.sort((left, right) => left.timestamp.localeCompare(right.timestamp) || left.id.localeCompare(right.id)));
   const context = contextModel(latestPressure, latestCompaction, frozenNodes);
@@ -195,6 +204,21 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
     ...(taskScopes.length ? { taskScopes: freeze(taskScopes) } : {}),
   } as const;
   return freeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) });
+}
+
+/** Show the active frontier, not every enclosing goal/turn. Human barriers take
+ * precedence over tools waiting for their resolution. Keep concurrent tools. */
+function currentExecutionNodeIds(nodes: readonly Pick<ExecutionGraphNodeReadModel, 'id' | 'status' | 'kind' | 'turnId'>[], edges: readonly Pick<ExecutionGraphEdgeReadModel, 'kind' | 'from' | 'to'>[]): string[] {
+  const active = nodes.filter(node => activeStatuses.has(node.status));
+  const waitingTurns = new Set(active.filter(node => node.status === 'waiting' && ['approval', 'question', 'plan'].includes(node.kind)).map(node => node.turnId));
+  const candidates = new Set(active.filter(node => node.status !== 'running' || !waitingTurns.has(node.turnId)).map(node => node.id));
+  const parents = new Map<string, string[]>();
+  for (const edge of edges) if (edge.kind === 'contains') parents.set(edge.to, [...(parents.get(edge.to) ?? []), edge.from]);
+  for (const node of active) {
+    const visited = new Set<string>(); const queue = [...(parents.get(node.id) ?? [])];
+    while (queue.length) { const id = queue.pop()!; if (visited.has(id)) continue; visited.add(id); candidates.delete(id); queue.push(...(parents.get(id) ?? [])); }
+  }
+  return active.filter(node => candidates.has(node.id)).map(node => node.id);
 }
 
 export function normalizeExecutionGraphs(value: unknown): readonly ExecutionGraphReadModel[] {
@@ -265,7 +289,7 @@ export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadMo
       diagnostics.push(...part.graph.diagnostics);
     }
     const semantic = { schemaVersion: 1 as const, sessionId: latest.sessionId, taskId, sourceSessionIds: freeze(parts.map(part => part.graph.sessionId)), revision: parts.reduce((sum, part) => sum + part.graph.revision, 0), title, status,
-      nodes: freeze(nodes.sort(compareNodes)), edges: freeze(edges.sort(compareEdges)), criticalPathNodeIds: freeze(critical), currentNodeIds: freeze(nodes.filter(node => activeStatuses.has(node.status)).map(node => node.id)),
+      nodes: freeze(nodes.sort(compareNodes)), edges: freeze(edges.sort(compareEdges)), criticalPathNodeIds: freeze(critical), currentNodeIds: freeze(currentExecutionNodeIds(nodes, edges)),
       transcript: freeze(transcript.sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id))), context: latest.context, diagnostics: freeze(diagnostics), throughSequence: latest.throughSequence };
     result.push(deepFreeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) }));
   }
@@ -337,7 +361,7 @@ function describeOp(op: SessionOpV1, activeGoal: string | null): Readonly<{ kind
     case 'backend.detached': return freeze({ kind: 'goal', status: 'waiting', title: safeText(activeGoal, 'Agent task'), summary: 'Backend session disconnected.' });
     case 'turn.started': return freeze({ kind: 'turn', status: 'running', title: safeText(op.payload.title, 'Agent turn'), summary: safeText(op.payload.summary, 'Agent is working on the request.') });
     case 'turn.completed': return freeze({ kind: 'result', status: productStatus(payloadStatus), title: `Turn ${payloadStatus ?? 'completed'}`, summary: safeText(op.payload.summary, 'Agent turn finished.') });
-    case 'user.message': return freeze({ kind: 'turn', status: 'running', title: 'User request', summary: 'User supplied additional direction.' });
+    case 'user.message': return freeze({ kind: 'turn', status: 'running', title: '模型处理请求', summary: '模型正在生成方案或下一步工具调用。' });
     case 'assistant.message': return freeze({ kind: 'turn', status: 'running', title: 'Agent response', summary: 'Agent produced a response.' });
     case 'tool-batch.planned': return freeze({ kind: op.nodeId ? 'tool' : 'tool-batch', status: 'pending', title: op.nodeId ? toolTitle(op) : 'Tool batch', summary: op.nodeId ? toolSummary(op) : 'Tool work was planned.' });
     case 'tool-batch.started': return freeze({ kind: 'tool-batch', status: 'running', title: 'Tool batch', summary: 'Independent ready tools are being scheduled.' });

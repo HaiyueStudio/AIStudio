@@ -13,3 +13,4 @@ export {
 export type { OperationLogService } from './plugin.js';
 export type * from './types.js';
 export * from './behavior-history.js';
+export { projectLogQuery } from './project-query.js';

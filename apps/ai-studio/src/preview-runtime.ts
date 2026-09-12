@@ -332,8 +332,12 @@ function loadReplay(replay: InputReplayV1): void {
 
 function publishInspection(requestId: string): void {
   if (!simulation) { requestFailed(requestId, new Error('Preview is not playing.')); return; }
-  const snapshot = simulation.snapshot();
-  send('inspection', { requestId, value: { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount } });
+  send('inspection', { requestId, value: inspectionSnapshot() });
+}
+
+function inspectionSnapshot() {
+  const snapshot = simulation!.snapshot();
+  return { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount };
 }
 
 function publishPhysicsQuery(requestId: string, query: Readonly<Record<string, unknown>>): void {
@@ -350,11 +354,13 @@ async function capture(requestId: string): Promise<void> {
   const generation = lifecycleGeneration, ownedEngine = engine, tick = simulation.clock.tick, frame = renderedFrame;
   try {
     if (!capturedFrame) throw new Error('No rendered Play frame is available yet.');
+    // Copy state and pixels in the same JS task; PNG encoding may finish later.
+    const state = structuredClone(inspectionSnapshot());
     const blob = await captureCompositePng(canvas);
     if (blob.size < 8 || blob.size > 376 * 1024) throw new Error('Screenshot exceeds the 376 KiB observation limit.');
     const bytes = new Uint8Array(await blob.arrayBuffer());
     if (generation !== lifecycleGeneration || ownedEngine !== engine) throw new Error('Play stopped or restarted during screenshot capture.');
-    send('capture', { requestId, base64: bytesToBase64(bytes), byteLength: bytes.byteLength, tick, frame });
+    send('capture', { requestId, base64: bytesToBase64(bytes), byteLength: bytes.byteLength, tick, frame, state });
   } catch (cause) { requestFailed(requestId, cause); }
 }
 

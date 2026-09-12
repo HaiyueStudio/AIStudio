@@ -36,8 +36,12 @@ app.whenReady().then(async () => {
     const stepped = await control.step(1);
     const inspected = await control.inspect();
     const captured = await control.capture();
+    if (captured.state?.tick !== captured.tick || captured.state?.frame !== captured.frame || captured.state?.state.entities.find(entry => entry.id === 'entity:g12-player')?.position?.[0] !== 1) throw new Error('Capture must contain matching authoritative state and transformed entity.');
     const replayProgram = compileG12ReplayProgram({ driver: 'fixed', steps: [{ id: 'semantic-input', at: 'play-ready', action: 'scripted-aim-and-fire', parameters: { target: 'nearest-visible-enemy', shots: 1 } }] }, { baseTick: inspected.tick });
     const replay = await executeG12ReplayProgram(control, replayProgram, { capture: true, maxTriggerWaitTicks: 30 });
+    await window.webContents.executeJavaScript(`document.querySelector('iframe').contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'resume' }, '*'); new Promise(resolve => setTimeout(resolve, 120));`);
+    const liveCapture = await control.capture();
+    if (liveCapture.tick <= replay.capture.tick || liveCapture.state?.paused !== false || liveCapture.state?.tick !== liveCapture.tick || liveCapture.state?.frame !== liveCapture.frame) throw new Error('Running capture must retain same-tick state while the simulation advances.');
     const stopped = await control.stop();
     const captureImage = nativeImage.createFromBuffer(Buffer.from(replay.capture.base64, 'base64'));
     const captureSize = captureImage.getSize(), captureBitmap = captureImage.toBitmap();

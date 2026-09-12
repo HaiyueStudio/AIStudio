@@ -136,7 +136,8 @@ function validatePlayObservation(value: unknown): GamePlayObservation {
 function validatePlayCapture(value: unknown): GamePlayCapture {
   const base = validateObservationBase(value);
   if (!isRecord(value) || value.mediaType !== 'image/png' || !Number.isSafeInteger(value.byteLength) || Number(value.byteLength) < 8 || Number(value.byteLength) > 376 * 1024 || typeof value.base64 !== 'string' || value.base64.length > 513_376) throw new Error('Renderer Play capture is invalid.');
-  return Object.freeze({ ...base, mediaType: 'image/png', byteLength: Number(value.byteLength), base64: value.base64 });
+  if (value.state !== undefined && (!isJsonObject(value.state) || value.state.tick !== base.tick || value.state.frame !== base.frame)) throw new Error('Renderer capture state does not match its frame.');
+  return Object.freeze({ ...base, mediaType: 'image/png', byteLength: Number(value.byteLength), base64: value.base64, ...(value.state === undefined ? {} : { state: value.state as JsonObject }) });
 }
 
 function validateObservationBase(value: unknown): Omit<GamePlayObservation, 'value'> {

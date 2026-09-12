@@ -10,7 +10,7 @@ test('plan schema explains executable assertions and the difference between evid
   assert.match(schema.description, /JSON value/);
   assert.match(schema.description, /Signal paths must match the observation payload/);
   assert.match(schema.description, /presence only, not correctness/);
-  for (const example of ['evidence runtime-errors signal count equals 0', 'evidence state signal score gte 1', 'evidence state signal phase equals "ready"']) {
+  for (const example of ['evidence runtime-errors signal count equals 0', 'evidence state signal gameplay.0.value.metrics.score gte 1', 'evidence state signal gameplay.0.value.phase equals "ready"']) {
     assert.ok(schema.description.includes(example));
     assert.match(example, new RegExp(schema.pattern, 'u'));
     assert.equal(isSupportedEvidenceAssertion(example), true);
@@ -38,4 +38,11 @@ test('plan validation preserves corrected requirements and still rejects invalid
   }
   const { acceptance, ...legacy } = input;
   assert.deepEqual(validatePlanProposal(legacy).acceptance, []);
+});
+
+ test('plans reject evidence with no production producer before user approval', () => {
+  for (const assertion of ['evidence visual-analysis signal visible equals true', 'evidence performance signal fps gte 30']) {
+    assert.throws(() => validatePlanProposal(proposal(assertion)), error => error.code === 'plan.evidence-producer-unavailable');
+  }
+  assert.doesNotThrow(() => validatePlanProposal(proposal('evidence performance signal finite equals true')));
 });

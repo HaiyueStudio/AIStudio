@@ -1,0 +1,41 @@
+✖ graph supports cursor-anchored wheel zoom, running beams and accessible compact hover panels (4062.308451ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4372.936536
+
+✖ failing tests:
+
+test at apps/ai-studio/test/graph-ui-electron.test.mjs:11:1
+✖ graph supports cursor-anchored wheel zoom, running beams and accessible compact hover panels (4062.308451ms)
+  AssertionError [ERR_ASSERTION]: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/fixtures/graph-ui-main.mjs:43:108 {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+  
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/graph-ui-electron.test.mjs:22:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

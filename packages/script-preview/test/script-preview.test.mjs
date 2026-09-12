@@ -221,6 +221,11 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
     assert.equal(kinds.has(kind), true, `missing operation log event ${kind}`);
   }
   assert.equal(JSON.stringify(facts.events).includes(movementScript), false, 'operation log must not retain script source');
+  const projectId = value.workspace.snapshot().document.projectId;
+  const projectFaults = await value.operationLog.query({ projectId, kinds: ['preview/runtime-error', 'preview/stopped'], limit: 200, traverseCorrelation: false });
+  assert.ok(projectFaults.events.some(event => event.kind === 'preview/runtime-error'));
+  assert.ok(projectFaults.events.some(event => event.kind === 'preview/stopped'));
+  assert.ok(projectFaults.events.every(event => event.correlation.projectId === projectId));
   await value.workspace.closeProject();
   assert.equal(value.scripts.snapshot().resources.length, 0);
   const replacementRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-script-replacement-'));

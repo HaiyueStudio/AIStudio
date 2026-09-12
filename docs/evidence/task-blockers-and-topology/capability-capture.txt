@@ -1,0 +1,22 @@
+
+> @haiyue/ai-studio-repository@0.0.0 m14:capability:capture
+> node scripts/verify-m14-capability-census.mjs --capture
+
+[m14-capability] Building current public workspace exports before collecting evidence.
+
+> @haiyue/ai-studio@0.0.0 build
+> node scripts/promote-tsc-output.mjs --clean && tsc -p tsconfig.json --outDir dist/.tsc && node scripts/promote-tsc-output.mjs && node scripts/copy-assets.mjs && node scripts/build-renderer.mjs && node scripts/verify-renderer-bundle.mjs
+
+[m14-capability] documents: 10 passed, 3098 ms
+[m14-capability] tools: 19 passed, 155098 ms
+[m14-capability] camera: 3 passed, 1440 ms
+[m14-capability] simulation: 6 passed, 1044 ms
+[m14-capability] physics: 10 passed, 2947 ms
+[m14-capability] render: 13 passed, 2476 ms
+[m14-capability] scripts: 6 passed, 36852 ms
+[m14-capability] observations: 9 passed, 3572 ms
+[m14-capability] census-guards: 16 passed, 4509 ms
+[m14-capability] behavior-project-flow: 30 passed, 128072 ms
+[m14-capability] behavior-panel-window: 1 passed, 12260 ms
+[m14-capability] behavior-product-window: 1 passed, 73514 ms
+[m14-capability] verified: packages=8, capabilities=35, components=44, tools=51, product-integrated=0

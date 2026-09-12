@@ -39,6 +39,7 @@ const defaultFilters: LogViewerFilters = Object.freeze({ severity: Object.freeze
 
 export class LogViewerController implements StudioDisposable {
   private readonly abort = new AbortController();
+  private projectId: StableId | null | undefined;
   private readonly listeners = new Set<(snapshot: LogViewerReadModel) => void>();
   private readonly expanded = new Set<StableId>();
   private filters = defaultFilters;
@@ -67,6 +68,21 @@ export class LogViewerController implements StudioDisposable {
   subscribe(listener: (snapshot: LogViewerReadModel) => void): StudioDisposable {
     this.assertActive(); this.listeners.add(listener); listener(this.snapshot()); let active = true;
     return Object.freeze({ dispose: () => { if (active) { active = false; this.listeners.delete(listener); } } });
+  }
+
+  setProject(projectId: StableId | null): void {
+    this.assertActive();
+    if (this.projectId === projectId) return;
+    this.projectId = projectId;
+    this.requestGeneration += 1;
+    this.filters = defaultFilters; this.events = Object.freeze([]); this.nextCursor = undefined;
+    this.expanded.clear(); this.loading = false; this.error = null;
+    this.health = 'unknown'; this.canPersist = false; this.diagnosticCount = 0;
+    this.revision += 1; this.emit();
+  }
+
+  private query(cursor?: string): LogQueryIntent {
+    return Object.freeze({ ...toQuery(this.filters, cursor), ...(this.projectId ? { projectId: this.projectId } : {}) });
   }
 
   async setFilters(value: Partial<LogViewerFilters>): Promise<void> {
@@ -98,7 +114,8 @@ export class LogViewerController implements StudioDisposable {
 
   async exportBugBundle(): Promise<void> {
     this.assertActive();
-    await this.port.dispatch(Object.freeze({ type: 'logs/export-bug-bundle', query: toQuery(this.filters) }), this.abort.signal);
+    if (this.projectId === null) return;
+    await this.port.dispatch(Object.freeze({ type: 'logs/export-bug-bundle', query: this.query() }), this.abort.signal);
     this.assertActive();
   }
 
@@ -112,9 +129,10 @@ export class LogViewerController implements StudioDisposable {
 
   private async load(append: boolean): Promise<void> {
     this.assertActive();
+    if (this.projectId === null) return;
     const generation = ++this.requestGeneration;
     this.loading = true; this.error = null; this.revision += 1; this.emit();
-    const query = toQuery(this.filters, append ? this.nextCursor : undefined);
+    const query = this.query(append ? this.nextCursor : undefined);
     try {
       const page = await this.port.query(query, this.abort.signal);
       if (this.disposed || generation !== this.requestGeneration) return;

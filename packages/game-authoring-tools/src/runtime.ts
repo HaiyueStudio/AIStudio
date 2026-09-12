@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { asStableId, type ComponentDefinitionV2, type GameComponentInstanceV2, type GameDocumentOperationV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import { isSceneGeometryKind, isSceneMaterialKind, normalizeProjectCamera, projectCameraFromSettings, PROJECT_CAMERA_SETTING_KEY, type ProjectWorkspace, type SceneAuthoringService, type SceneContextProjection, type SceneContextScope, type SceneDiffInput, type SceneEntityKind, type SceneMaterialColor, type SceneQueryInput, type TransformSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, ControlledAssetError, type ControlledAssetKind, type ControlledAssetLicense } from '@haiyue/ai-studio-editor-plugins/assets';
-import { canonicalStringify, sha256, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
+import { canonicalStringify, sha256, projectLogQuery, type DiagnosticsQueryService, type OperationEventInput, type OperationLog, type OperationLogQuery } from '@haiyue/ai-studio-operation-log';
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { normalizeCanvasTextureRecipe, type CanvasTextureRenderer } from './canvas-texture.js';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
@@ -116,6 +116,8 @@ export class GameAuthoringToolRuntime {
   async prepare(value: unknown, signal?: AbortSignal): Promise<GameToolPreparation> {
     this.assertActive();
     const call = validateToolCall(value);
+    const project = this.options.workspace.snapshot().document;
+    if (project) callProjects.set(call, { projectId: project.projectId, documentId: project.documentId });
     let definition = GAME_AUTHORING_TOOL_BY_ID.get(call.toolId);
     if (!definition || call.toolVersion !== definition.version) {
       await this.options.operationLog.append({
@@ -968,7 +970,8 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return Object.freeze({ documentId: catalog.documentId, revision: catalog.documentRevision, scriptId: resource.id, entityId: resource.entityId, textRevision: resource.textRevision, digest: resource.digest, symbols: extractScriptSymbols(resource.text) });
     }
     case 'diagnostics.query': {
-      const query = args as unknown as OperationLogQuery; const page = await options.diagnostics.query(query);
+      if (requireDocument(options.workspace).documentId !== stored.view.documentId) throw new GameToolProtocolError('tool.stale', 'Project changed before diagnostics query.');
+      const query = projectLogQuery(args as unknown as OperationLogQuery, requireDocument(options.workspace).projectId); const page = await options.diagnostics.query(query);
       const events = Object.freeze(page.events.map((item) => Object.freeze({ sequence: item.sequence, eventId: item.eventId, timestamp: item.timestamp, kind: item.kind, severity: item.severity, source: item.source, correlation: item.correlation as JsonObject, payloadDigest: prefixedDigest(item.payloadDigest), redactedFieldCount: item.redactedFields.length })));
       return Object.freeze({
         events, count: events.length, scanned: page.scanned,
@@ -1190,17 +1193,14 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'play.inspect': {
       const observation = await options.preview.inspect(signal);
-      const persisted = await observations.persistState(stored.call, observation);
-      const value = observation.value as Record<string, JsonValue>;
-      const eventTrace = await observations.persistState(stored.call, { ...observation, value: Object.freeze({ trace: value.trace ?? Object.freeze([]), physicsEvents: value.physicsEvents ?? Object.freeze([]) }) }, 'event-trace');
-      const runtimeErrors = await observations.persistState(stored.call, { ...observation, value: Object.freeze({ count: typeof value.runtimeErrorCount === 'number' ? value.runtimeErrorCount : 0 }) }, 'runtime-errors');
-      const performance = await observations.persistState(stored.call, { ...observation, value: Object.freeze({ finite: Number.isFinite(observation.tick) && Number.isFinite(observation.frame), tick: observation.tick, frame: observation.frame, timeMs: typeof value.timeMs === 'number' ? value.timeMs : null }) }, 'performance');
-      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, observations: [persisted.artifact, eventTrace.artifact, runtimeErrors.artifact, performance.artifact] as unknown as JsonValue, projection: persisted.projection as JsonValue });
+      const bundle = await observations.persistInspection(stored.call, observation);
+      return Object.freeze({ observation: bundle[0]!.artifact as unknown as JsonValue, observations: bundle.map((item) => item.artifact) as unknown as JsonValue, projection: bundle[0]!.projection as JsonValue });
     }
     case 'play.capture': {
       const capture = await options.preview.capture(signal);
       const persisted = await observations.persistCapture(stored.call, capture);
-      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+      const bundle = capture.state ? await observations.persistInspection(stored.call, { ...capture, value: capture.state }) : [];
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, observations: [persisted, ...bundle].map((item) => item.artifact) as unknown as JsonValue, projection: persisted.projection as JsonValue });
     }
     case 'task.evaluate': return evaluator.evaluate(args, stored.call.taskId ?? asStableId(`task:${stored.call.sessionId}`)) as unknown as JsonObject;
     default: throw new GameToolProtocolError('tool.not-found', `Tool ${stored.definition.id} has no handler.`);
@@ -1760,10 +1760,11 @@ function normalizedPlane(raw: Record<string, unknown>): JsonObject {
   return { plane: raw.plane as string };
 }
 function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.generate-texture': 'Draw PNG Texture', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+const callProjects = new WeakMap<GameToolCall, { projectId: StableId; documentId: StableId }>();
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;
   return Object.freeze({
-    sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id,
+    ...callProjects.get(call), sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id,
     ...(approvalId ? { approvalId } : {}),
     ...(historyLabel(call.toolId) ? { commandId: commandId(call.id) } : {}),
     ...optionalCorrelationId('entityId', args.entityId),

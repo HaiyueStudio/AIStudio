@@ -151,3 +151,30 @@ function evaluationInput(taskSpecValue, observationIds) { return Object.freeze({
 function evaluation(task, status, evidenceId) { return Object.freeze({ schemaVersion: 2, id: asStableId(`evaluation:${status}`), taskId: task.id, evaluatorVersion: 'fixture', status, acceptanceResults: Object.freeze([{ acceptanceId: task.acceptance[0].id, status, evidenceIds: Object.freeze([evidenceId]), diagnostic: status === 'pass' ? null : 'seeded' }]), budgetStatus: 'within', usageRecordIds: Object.freeze([]), costRecordIds: Object.freeze([]), turns: Object.freeze([]), tools: Object.freeze([]), completedAt: new Date().toISOString() }); }
 function hasCode(code) { return (cause) => cause?.code === code; }
 async function createFixture(t) { const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g10-')); t.after(() => rm(root, { recursive: true, force: true })); const log = await OperationLog.open({ rootDirectory: root, appVersion: 'test', maxArtifactBytes: 512 * 1024 }); t.after(() => log.close()); return { root, log, repository: new PlayObservationRepository(log) }; }
+
+test('same-tick capture bundles repair the real screenshot/state mismatch without weakening provenance', async (t) => {
+  const { repository } = await createFixture(t);
+  const evaluator = new DeterministicTaskEvaluator(repository, () => 7);
+  const task = taskSpec([{ id: 'acceptance:score', category: 'functional', assertion: 'evidence state signal score equals 4' }]);
+  const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const stale = await repository.persistState(call, observation({ score: 0 }, 3238));
+  const screenshot = await repository.persistCapture(call, { ...observation({}, 3726), mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') });
+  const failed = await evaluator.evaluate(evaluationInput(task, [stale.artifact.id, screenshot.artifact.id]));
+  assert.equal(failed.status, 'blocked');
+  assert.equal(failed.acceptanceResults[0].diagnostic, 'evaluation.screenshot-state-tick-mismatch');
+  assert.deepEqual(failed.acceptanceResults[0].evidenceIds, [stale.artifact.id, screenshot.artifact.id]);
+  const lifecycle = new BoundedPlaytestTask(task, 2);
+  lifecycle.advance('editing'); lifecycle.advance('validating'); lifecycle.advance('playing'); lifecycle.advance('evaluating');
+  assert.equal(lifecycle.recordEvaluation(failed).phase, 'evaluating');
+  assert.equal(lifecycle.beginRepair({ turnId: call.turnId, arguments: { recapture: true }, evidenceIds: failed.acceptanceResults[0].evidenceIds }).phase, 'repairing');
+  const bundle = await repository.persistInspection(call, observation({ score: 4, runtimeErrorCount: 0, timeMs: 62100 }, 3726));
+  assert.deepEqual(bundle.map(item => item.artifact.type), ['state', 'event-trace', 'runtime-errors', 'performance']);
+  assert.ok(bundle.every(item => item.artifact.tick === screenshot.artifact.tick));
+  lifecycle.advance('editing'); lifecycle.advance('validating'); lifecycle.advance('playing'); lifecycle.advance('evaluating');
+  const passed = await evaluator.evaluate(evaluationInput(task, [screenshot.artifact.id, ...bundle.map(item => item.artifact.id)]));
+  assert.equal(lifecycle.recordEvaluation(passed).phase, 'complete');
+  const terminal = new BoundedPlaytestTask(task, 1);
+  terminal.advance('editing'); terminal.advance('validating'); terminal.advance('playing'); terminal.advance('evaluating');
+  assert.equal(terminal.recordEvaluation({ ...failed, acceptanceResults: failed.acceptanceResults.map(item => ({ ...item, diagnostic: 'evaluation.evidence-task-mismatch' })) }).diagnostic, 'evaluation.evidence-task-mismatch');
+  assert.throws(() => terminal.advance('playing'), hasCode('task.terminal'));
+});

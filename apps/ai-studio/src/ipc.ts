@@ -1,6 +1,7 @@
 import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
 import { asStableId, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import type { OperationLog, BehaviorArtifactKind } from '@haiyue/ai-studio-operation-log';
+import { projectLogQuery } from '@haiyue/ai-studio-operation-log/project-query';
 import { validateConversationIntent, type LogQueryIntent } from '@haiyue/ai-studio-shell';
 import type { ScriptPreviewStudioService, PreviewPlan } from '@haiyue/ai-studio-script-preview';
 import type {
@@ -106,25 +107,28 @@ export class StudioIpcRouter {
     if (this.disposed) return failure(request.id, request.correlationId, 'ipc-router-disposed', 'Desktop request router is disposed.');
     const controller = new AbortController();
     const generation = this.generation;
+    const document = this.options.workspace.snapshot().document;
+    const requestCorrelation = { commandId: request.id, ...(document ? { projectId: document.projectId, documentId: document.documentId } : {}) };
     this.active.set(request.id, controller);
     try {
       await this.options.operationLog.append({
         kind: 'ipc/requested', severity: 'info', source: asStableId('studio.electron'),
-        correlation: { commandId: request.id }, payload: { channel: request.channel, correlationId: request.correlationId },
+        correlation: requestCorrelation, payload: { channel: request.channel, correlationId: request.correlationId },
       }, { signal: controller.signal });
-      const payload = await this.dispatch(request, controller.signal);
+      const payload = await this.dispatch(request, controller.signal, document?.projectId);
+      if (request.channel === 'logs/query' || request.channel === 'logs/export') projectLogQuery({ limit: 1, traverseCorrelation: false, projectId: document?.projectId }, this.options.workspace.snapshot().document?.projectId);
       if (this.disposed || generation !== this.generation || controller.signal.aborted) {
         return failure(request.id, request.correlationId, 'ipc-cancelled', 'Desktop request was cancelled before response delivery.');
       }
       await this.options.operationLog.append({
         kind: 'ipc/completed', severity: 'info', source: asStableId('studio.electron'),
-        correlation: { commandId: request.id }, payload: { channel: request.channel },
+        correlation: requestCorrelation, payload: { channel: request.channel },
       });
       return Object.freeze({ schemaVersion: 1, id: request.id, correlationId: request.correlationId, ok: true, payload });
     } catch (cause) {
       await this.options.operationLog.append({
         kind: 'ipc/failed', severity: 'error', source: asStableId('studio.electron'),
-        correlation: { commandId: request.id }, payload: { channel: request.channel, code: errorCode(cause), message: errorMessage(cause) },
+        correlation: requestCorrelation, payload: { channel: request.channel, code: errorCode(cause), message: errorMessage(cause) },
       }).catch(() => {});
       return failure(request.id, request.correlationId, errorCode(cause), errorMessage(cause));
     } finally {
@@ -156,7 +160,8 @@ export class StudioIpcRouter {
 
   get activeCount(): number { return this.active.size; }
 
-  private async dispatch(request: StudioIpcRequest, signal: AbortSignal): Promise<JsonObject> {
+  private async dispatch(request: StudioIpcRequest, signal: AbortSignal, projectId?: StableId): Promise<JsonObject> {
+    if (request.channel === 'logs/query' || request.channel === 'logs/export') projectLogQuery({ limit: 1, traverseCorrelation: false, projectId }, this.options.workspace.snapshot().document?.projectId);
     switch (request.channel) {
       case 'notifications/get': return toJson(this.options.notifications?.snapshot() ?? { supported: false, preferences: null, delivery: 'unsupported' });
       case 'notifications/set': {
@@ -242,7 +247,7 @@ export class StudioIpcRouter {
         await this.options.operationLog.append({
           kind: `viewport/${event}`, severity: event === 'ready' || event === 'rendered' ? 'info' : 'error',
           source: asStableId('studio.viewport.renderer'), correlation: {
-            commandId: request.id,
+            projectId, commandId: request.id,
             entityId: request.payload.entityId as StableId | undefined,
           },
           payload: { message: request.payload.message as string, sceneRevision: request.payload.sceneRevision as number },
@@ -278,7 +283,7 @@ export class StudioIpcRouter {
         const event = request.payload.event as string;
         await this.options.operationLog.append({
           kind: `preview/${event}`, severity: event === 'runtime-error' ? 'error' : 'info', source: asStableId('studio.preview.renderer'),
-          correlation: { previewId: request.payload.previewId as StableId | undefined, entityId: request.payload.entityId as StableId | undefined },
+          correlation: { projectId, previewId: request.payload.previewId as StableId | undefined, entityId: request.payload.entityId as StableId | undefined },
           payload: { message: request.payload.message as string, disposableCount: request.payload.disposableCount as number },
         });
         return Object.freeze({ recorded: true });
@@ -333,10 +338,10 @@ export class StudioIpcRouter {
         if (!this.options.conversation.readHistory) throw new Error('项目执行记录不可用。');
         return toJson(await this.options.conversation.readHistory(request.payload.projectId as StableId, request.payload.id as StableId));
       }
-      case 'logs/query': return toJson(await this.options.operationLog.logViewer(logQuery(request.payload.query)));
+      case 'logs/query': return toJson(await this.options.operationLog.logViewer(projectLogQuery(logQuery(request.payload.query), projectId)));
       case 'logs/export': return toJson(await this.options.operationLog.exportBugBundle({
         destinationRoot: this.options.bugBundleRoot,
-        query: logQuery(request.payload.query),
+        query: projectLogQuery(logQuery(request.payload.query), projectId),
         versions: this.options.versions,
       }));
     }

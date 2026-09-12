@@ -142,6 +142,7 @@ test('new-project IPC stays untitled until first save selects a directory', asyn
 test('project replacement clears project-scoped Agent work without cancelling a dismissed picker', async () => {
   const calls = [];
   const workspace = {
+    snapshot: () => ({ document: null }),
     cancelAll() {},
     snapshot: () => ({ projectRoot: 'D:\\old-project', document: { revision: 1 } }),
     async newProject() { calls.push('workspace:new'); return { document: { revision: 1 } }; },
@@ -175,7 +176,7 @@ test('history IPC is project-bound, paged and preserves complete structured deta
     async queryHistory(projectId, input) { calls.push([projectId, input]); return { schemaVersion: 1, projectId, records: [], total: 0, nextCursor: null, storage: 'project' }; },
     async readHistory(projectId, id) { if (projectId !== 'project:a') throw new Error('项目已切换'); return { schemaVersion: 1, projectId, record: { id }, data }; },
   };
-  const router = new StudioIpcRouter({ workspace: { cancelAll() {} }, operationLog: { append: async () => ({}) }, ...agentOwners, conversation, selectProjectRoot: async () => null });
+  const router = new StudioIpcRouter({ workspace: { snapshot: () => ({ document: null }), cancelAll() {} }, operationLog: { append: async () => ({}) }, ...agentOwners, conversation, selectProjectRoot: async () => null });
   assert.equal((await router.handle(request('conversation/history', { projectId: 'project:a', limit: 25, cursor: 'cursor:a' }))).ok, true);
   assert.deepEqual(calls, [['project:a', { limit: 25, cursor: 'cursor:a' }]]);
   assert.deepEqual((await router.handle(request('conversation/history-detail', { projectId: 'project:a', id: 'record:1' }))).payload.data, data);
@@ -194,7 +195,8 @@ test('project IPC drains the old conversation before Document replacement and re
     async prepareProjectChange() { calls.push('drain'); await new Promise(resolve => { finishDrain = resolve; }); calls.push('drained'); },
     async syncProject() { calls.push('sync'); },
   };
-  const workspace = { cancelAll() {}, snapshot: () => ({ projectRoot: null }),
+  const workspace = {
+    snapshot: () => ({ document: null }), cancelAll() {}, snapshot: () => ({ projectRoot: null }),
     async openProject() { calls.push('open'); return {}; },
     async saveAs() { calls.push('save'); return {}; },
   };
@@ -225,7 +227,8 @@ test('script preview IPC discloses risk before one-shot code delivery and logs n
     async decide(planId, approved) { return approved ? { id: 'preview-grant:test', planId, expiresAt: 9_999 } : null; },
     consume() { return plan; },
   };
-  const workspace = { snapshot: () => ({ document: { revision: 4 } }), cancelAll() {} };
+  const workspace = {
+    snapshot: () => ({ document: null }), snapshot: () => ({ document: { revision: 4 } }), cancelAll() {} };
   const operationLog = { async append(event) { events.push(event); return {}; } };
   const router = new StudioIpcRouter({ workspace, scripts, operationLog, ...agentOwners, selectProjectRoot: async () => null });
 
@@ -272,7 +275,32 @@ test('rounded-box IPC validates and forwards parameters to the shared scene serv
   assert.deepEqual(validateStudioIpcRequest(request('scene/create', payload)).payload, payload);
   for (const patch of [{ kind: 'cube' }, { radius: 0.6 }, { segments: 17 }, { segments: 2.5 }]) assert.throws(() => validateStudioIpcRequest(request('scene/create', { ...payload, ...patch })), /radius|segments/);
   let intent;
-  const router = new StudioIpcRouter({ ...agentOwners, operationLog: { async append() {} }, scene: { async createEntity(value) { intent = value; return {}; } } });
+  const router = new StudioIpcRouter({ ...agentOwners, workspace: { snapshot: () => ({ document: null }) }, operationLog: { async append() {} }, scene: { async createEntity(value) { intent = value; return {}; } } });
   assert.equal((await router.handle(request('scene/create', payload))).ok, true);
   assert.equal(intent.kind, 'rounded-box'); assert.equal(intent.radius, 0.12); assert.equal(intent.segments, 6);
+});
+
+test('log IPC binds reads and exports to the current project and keeps late facts with their request owner', async () => {
+  let document = { projectId: 'project:a', documentId: 'document:a' }; const facts = []; const queries = [];
+  let release; let entered;
+  const gate = new Promise(resolve => { release = resolve; }); const started = new Promise(resolve => { entered = resolve; });
+  const operationLog = {
+    async append(event) { facts.push(event); },
+    async logViewer(query) { queries.push(query); entered(); await gate; return { events: [] }; },
+    async exportBugBundle(options) { queries.push(options.query); return {}; },
+  };
+  const router = new StudioIpcRouter({ ...agentOwners, workspace: { snapshot: () => ({ document }), cancelAll() {} }, operationLog });
+  const pending = router.handle(request('logs/query', { query: { limit: 2, traverseCorrelation: true, projectId: 'project:a' } }));
+  await started; document = { projectId: 'project:b', documentId: 'document:b' }; release();
+  assert.equal((await pending).ok, false);
+  assert.equal(queries[0].projectId, 'project:a');
+  assert.ok(facts.slice(0, 2).every(event => event.correlation.projectId === 'project:a'));
+  const stale = await router.handle(request('logs/query', { query: { limit: 2, traverseCorrelation: true, projectId: 'project:a' } }));
+  assert.equal(stale.ok, false); assert.match(JSON.stringify(stale), /project-log-scope-mismatch/);
+  assert.equal((await router.handle(request('logs/export', { query: { limit: 2, traverseCorrelation: false } }))).ok, true);
+  assert.equal(queries.at(-1).projectId, 'project:b');
+  document = null;
+  const empty = await router.handle(request('logs/query', { query: { limit: 2, traverseCorrelation: false } }));
+  assert.equal(empty.ok, false); assert.match(JSON.stringify(empty), /project-log-unavailable/);
+  router.dispose();
 });

@@ -98,7 +98,7 @@ interface SceneEntitySnapshot {
 interface SceneSnapshot { readonly revision: number; readonly documentId: StableId; readonly entities: readonly SceneEntitySnapshot[]; readonly assets?: readonly PreviewAssetManifestEntry[]; readonly camera?: ProjectCameraSnapshot; }
 interface ProjectSnapshot {
   readonly smoke?: boolean;
-  readonly document: Readonly<{ revision: number; savedRevision: number; dirty: boolean; name: string; settings: JsonObject }> | null;
+  readonly document: Readonly<{ projectId: StableId; revision: number; savedRevision: number; dirty: boolean; name: string; settings: JsonObject }> | null;
   readonly history: Readonly<{ canUndo: boolean; canRedo: boolean }>;
   readonly logging: Readonly<{ health: string; canPersist: boolean; nextSequence: number; eventCount: number }>;
 }
@@ -488,7 +488,7 @@ class SandboxedPreviewFrame {
   private readonly behaviorRequests = new Map<string, ReturnType<typeof deferred<JsonObject>>>();
   private behaviorWrites: Promise<void> = Promise.resolve();
   private readonly stepRequests = new Map<string, ReturnType<typeof deferred<void>>>();
-  private readonly captureRequests = new Map<string, ReturnType<typeof deferred<Readonly<{ base64: string; byteLength: number; tick: number; frame: number }>>>>();
+  private readonly captureRequests = new Map<string, ReturnType<typeof deferred<Readonly<{ base64: string; byteLength: number; tick: number; frame: number; state: JsonObject }>>>>();
   private documentRevision = 0;
   private scriptDigests: readonly string[] = Object.freeze([]);
 
@@ -577,10 +577,10 @@ class SandboxedPreviewFrame {
 
   async capture(): Promise<JsonObject> {
     const requestId = this.nextRequestId('capture');
-    const request = deferred<Readonly<{ base64: string; byteLength: number; tick: number; frame: number }>>(); this.captureRequests.set(requestId, request);
+    const request = deferred<Readonly<{ base64: string; byteLength: number; tick: number; frame: number; state: JsonObject }>>(); this.captureRequests.set(requestId, request);
     this.post({ type: 'capture', requestId });
     const value = await withTimeout(request.promise, 8_000, 'Preview screenshot timed out.').finally(() => this.captureRequests.delete(requestId));
-    return Object.freeze({ ...this.provenance(value.tick, value.frame), mediaType: 'image/png', byteLength: value.byteLength, base64: value.base64 });
+    return Object.freeze({ ...this.provenance(value.tick, value.frame), mediaType: 'image/png', byteLength: value.byteLength, base64: value.base64, state: value.state });
   }
 
   latestPosition(): Readonly<{ x: number; y: number; z: number }> | null { return this.position; }
@@ -667,8 +667,9 @@ class SandboxedPreviewFrame {
       this.stepRequests.get(message.requestId)?.resolve();
     } else if (message.type === 'capture' && typeof message.requestId === 'string' && typeof message.base64 === 'string'
       && Number.isSafeInteger(message.byteLength) && Number(message.byteLength) >= 8 && Number(message.byteLength) <= 376 * 1024
-      && Number.isSafeInteger(message.tick) && Number.isSafeInteger(message.frame)) {
-      this.captureRequests.get(message.requestId)?.resolve(Object.freeze({ base64: message.base64, byteLength: Number(message.byteLength), tick: Number(message.tick), frame: Number(message.frame) }));
+      && Number.isSafeInteger(message.tick) && Number.isSafeInteger(message.frame) && isJsonObject(message.state)
+      && message.state.tick === message.tick && message.state.frame === message.frame) {
+      this.captureRequests.get(message.requestId)?.resolve(Object.freeze({ base64: message.base64, byteLength: Number(message.byteLength), tick: Number(message.tick), frame: Number(message.frame), state: message.state }));
     } else if (message.type === 'request-failed' && typeof message.requestId === 'string') {
       const cause = new Error(typeof message.message === 'string' ? message.message : 'Preview observation request failed.');
       this.observationRequests.get(message.requestId)?.reject(cause); this.stepRequests.get(message.requestId)?.reject(cause); this.captureRequests.get(message.requestId)?.reject(cause);
@@ -1186,6 +1187,7 @@ function setupLogViewer(): void {
       setStatus(t('bugExported', { digest: String(result.contentDigest ?? '') }));
     },
   });
+  viewer.setProject(project?.document?.projectId ?? null);
   logViewer = viewer;
   logViewerSubscription = viewer.subscribe((model) => renderProductLogViewer(model, viewer));
 }
@@ -1297,6 +1299,7 @@ async function applyTransform(): Promise<void> {
 
 async function refresh(): Promise<void> {
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
+  logViewer?.setProject(project.document?.projectId ?? null);
   scene = await invoke<SceneSnapshot & JsonObject>('scene/snapshot');
   scripts = await invoke<ScriptCatalogSnapshot & JsonObject>('script/snapshot');
   if (document.body.dataset.shell !== 'web') behaviorSnapshot = await invoke('behavior/snapshot').catch(() => null);

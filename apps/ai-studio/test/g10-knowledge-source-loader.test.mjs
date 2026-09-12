@@ -22,25 +22,28 @@ test('production source loader indexes registry truth, refreshes project metadat
     await loader.initialize();
     const rounded = await knowledge.search({ query: '圆角立方体 rounded-box radius', allowedPermissionScopes: ['knowledge:engine-local'], limit: 8 });
     assert.ok(rounded.hits.some(hit => hit.excerpt.includes('kind rounded-box') && hit.excerpt.includes('radius')), 'rounded geometry guidance is available through production retrieval');
-    assert.equal(knowledge.snapshot().sourceCount, 8, 'two component schemas plus six reviewed engine guides');
+    assert.equal(knowledge.snapshot().sourceCount, 9, 'two component schemas plus seven reviewed engine guides');
+
+    const composite = await knowledge.search({ query: '组合对象 预制体 prefab appearance decomposition', allowedPermissionScopes: ['knowledge:engine-local'], limit: 8 });
+    assert.ok(composite.hits.some(hit => hit.excerpt.includes('prefab.manage') && hit.excerpt.includes('Appearance-first')));
 
     const project3 = project(3);
     await loader.refresh(project3);
-    assert.equal(knowledge.snapshot().sourceCount, 9);
+    assert.equal(knowledge.snapshot().sourceCount, 10);
     const camera = await knowledge.search({ query: '俯视相机 camera top down', allowedPermissionScopes: ['knowledge:engine-local', projectPermission()], projectRevision: 3, limit: 5, tokenBudget: 1024 });
     assert.ok(camera.hits.some((hit) => hit.hit.source.includes('camera')));
     assert.ok(camera.hits.every((hit) => hit.hit.stale === false));
 
     documents.current = gameDocument(4, [{ id: 'asset:fixture', kind: 'texture', digest: digest('asset'), source: 'project' }]);
     await loader.refresh(project(4));
-    assert.equal(knowledge.snapshot().sourceCount, 10);
+    assert.equal(knowledge.snapshot().sourceCount, 11);
     assert.ok(knowledge.snapshot().tombstoneCount >= 1);
     const current = await knowledge.search({ query: 'board root asset texture', allowedPermissionScopes: [projectPermission()], projectRevision: 4, limit: 8, tokenBudget: 1024 });
     assert.ok(current.hits.length > 0);
     assert.ok(current.hits.every((hit) => hit.hit.projectRevision === 4));
 
     await loader.refresh(null);
-    assert.equal(knowledge.snapshot().sourceCount, 8, 'closing a project removes both active project sources');
+    assert.equal(knowledge.snapshot().sourceCount, 9, 'closing a project removes both active project sources');
     knowledge.dispose();
   } finally {
     await log.close();

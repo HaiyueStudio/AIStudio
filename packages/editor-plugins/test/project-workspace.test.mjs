@@ -26,7 +26,7 @@ async function fixture(options = {}) {
   const projectRoot = await temp('project');
   const userDataRoot = await temp('userdata');
   const operationLog = await OperationLog.open({
-    rootDirectory: path.join(userDataRoot, 'operation-log'), appVersion: '0.0.0-test',
+    rootDirectory: path.join(userDataRoot, 'operation-log'), appVersion: '0.0.0-test', ...(options.logOptions ?? {}),
     clock: () => new Date('2026-08-19T01:00:00.000Z'), eventId: (sequence) => asStableId(`event:workspace:${sequence}`),
   });
   const resources = {
@@ -293,3 +293,28 @@ async function disposeFixture(value) {
   value.resources.projectSession.dispose();
   await value.operationLog.close();
 }
+
+
+test('transaction receipt checks cross sparse scan windows and retain idempotency and recovery after reopen', async () => {
+  const value = await fixture({ logOptions: { maxQueryScan: 3 } });
+  try {
+    await value.workspace.newProject(value.projectRoot, 'Windowed receipts');
+    const filler = async () => { for (let i = 0; i < 11; i++) await value.operationLog.append({ kind: 'test/unrelated', severity: 'info', source: 'test:window', correlation: {}, payload: { i } }); };
+    const input = { id: 'command:windowed', transactionId: 'transaction:windowed', idempotencyKey: 'idempotency:windowed', label: 'Windowed transaction', baseRevision: 1, memberNodeIds: ['node:windowed'], operations: [{ op: 'setting.set', key: 'fixture.windowed', value: true }] };
+    await filler();
+    const committed = await value.workspace.executeTransaction(input);
+    await filler();
+    assert.equal((await value.workspace.executeTransaction(input)).replayed, true);
+    assert.equal((await value.workspace.reconcileTransactionMember('node:windowed', 1)).receipt.artifactId, committed.receipt.artifactId);
+    assert.equal((await value.workspace.reconcileTransactionMember('node:absent', 2)).status, 'not-committed');
+    await assert.rejects(value.workspace.executeTransaction({ ...input, id: 'command:duplicate', transactionId: 'transaction:duplicate', baseRevision: 2 }), error => error.code === 'transaction-idempotency-conflict');
+    const next = { ...input, id: 'command:next', transactionId: 'transaction:next', idempotencyKey: 'idempotency:next', baseRevision: 2, memberNodeIds: ['node:next'] };
+    assert.equal((await value.workspace.executeTransaction(next)).snapshot.document.revision, 3);
+    await value.operationLog.close();
+    value.operationLog = await OperationLog.open({ rootDirectory: path.join(value.userDataRoot, 'operation-log'), appVersion: 'test', maxQueryScan: 3 });
+    value.resources.operationLog = value.operationLog;
+    assert.equal((await value.workspace.reconcileTransactionIdentity({ ...input, operationDigest: committed.receipt.operationDigest, memberDigest: committed.receipt.memberDigest })).status, 'committed');
+    await assert.rejects(value.workspace.executeTransaction({ ...input, id: 'command:late-duplicate', transactionId: 'transaction:late-duplicate', baseRevision: 3 }), error => error.code === 'transaction-idempotency-conflict');
+    assert.equal(value.workspace.snapshot().document.revision, 3);
+  } finally { await disposeFixture(value); }
+});

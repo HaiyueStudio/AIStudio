@@ -582,13 +582,15 @@ test('script proposal, trusted apply and runtime start preserve separate approva
     assert.match(inspected.value.observation.id, /^artifact:sha256:/);
     const captured = await executeReady(value.runtime, call('call:play-capture', 'play.capture', {}));
     assert.equal(captured.value.projection.byteLength, 8);
+    assert.deepEqual(captured.value.observations.map(item => item.type), ['screenshot', 'state', 'event-trace', 'runtime-errors', 'performance']);
+    assert.ok(captured.value.observations.every(item => item.tick === captured.value.observation.tick));
     assert.equal('base64' in captured.value, false);
     const evaluated = await executeReady(value.runtime, call('call:task-evaluate', 'task.evaluate', {
       taskSpec: { schemaVersion: 2, id: 'task:session:fixture', request: 'Verify score', visibleConstraints: [], budgetId: 'budget:fixture', requiredCapabilities: ['play.inspect'], acceptance: [{ id: 'acceptance:score', required: true, visibility: 'agent', category: 'functional', assertion: 'evidence state signal score equals 4' }] },
-      observationIds: [inspected.value.observation.id],
+      observationIds: captured.value.observations.map(item => item.id),
     }));
     assert.equal(evaluated.value.status, 'pass');
-    assert.deepEqual(evaluated.value.acceptanceResults[0].evidenceIds, [inspected.value.observation.id]);
+    assert.deepEqual(evaluated.value.acceptanceResults[0].evidenceIds, [captured.value.observations.find(item => item.type === 'state').id]);
     const stopped = await executeReady(value.runtime, call('call:stop', 'play.stop', {}));
     assert.equal(stopped.value.state, 'stopped');
     assert.equal(stopped.value.projection.cleanupComplete, true);
@@ -1073,7 +1075,7 @@ test('agent queries a pre-restart runtime fault and applies one approved repair 
     await beforeRestart.workspace.save();
     await beforeRestart.operationLog.append({
       kind: 'preview/runtime-error', severity: 'error', source: asStableId('studio.preview'),
-      correlation: { entityId, scriptId: applied.value.scriptId, previewId: asStableId('preview:repair-fixture') },
+      correlation: { projectId: beforeRestart.workspace.snapshot().document.projectId, entityId, scriptId: applied.value.scriptId, previewId: asStableId('preview:repair-fixture') },
       payload: { code: 'fixture.runtime-error', message: 'fixture runtime failure', source: runtimeFailureScript, line: 1, column: 1 },
     });
     const restartState = { projectRoot: beforeRestart.projectRoot, userDataRoot: beforeRestart.userDataRoot, time: beforeRestart.time };
@@ -1329,7 +1331,7 @@ async function fixture(runtimeOptions = {}, restartState = null) {
     async start(scene, plan) { assert.ok(scene.entities.some((entity) => entity.kind === 'cube')); this.starts += 1; this.state = { ...this.state, instanceId: 'preview:fixture', state: 'playing', scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, scripts: plan.scripts.map((script) => ({ scriptId: script.scriptId, entityId: script.entityId, order: script.order, state: 'playing', position: null, disposableCount: 0, errorCount: 0 })), entityId: plan.scripts[0]?.entityId ?? null }; return this.state; },
     async stop() { this.stops += 1; this.state = { ...this.state, state: 'stopped', instanceId: null, entityId: null }; return this.state; },
     async step(count) { return this.observation({ stepped: count }); }, async input(event) { return this.observation({ input: event }); }, async physicsQuery(query) { return this.observation({ query: { kind: query.kind, result: query.kind === 'raycast' ? { entityId: 'entity:ground', distance: 2 } : null } }); }, async inspect() { return this.observation({ score: 4 }); },
-    async capture() { const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]); return { ...this.observation({}), mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') }; },
+    async capture() { const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]); return { ...this.observation({}), state: { tick: 12, frame: 9, score: 4, runtimeErrorCount: 0 }, mediaType: 'image/png', byteLength: png.length, base64: png.toString('base64') }; },
     observation(value) { return { playId: 'preview:fixture', documentRevision: 3, scriptDigests: [`sha256:${'a'.repeat(64)}`], tick: 12, frame: 9, viewport: { width: 393, height: 852 }, device: 'fixture', capturedAt: '2026-08-29T00:00:00.000Z', value }; },
     snapshot() { return this.state; },
   };
@@ -1426,5 +1428,52 @@ test('rounded boxes support single/batch creation, cube conversion, bounded para
     await value.workspace.redo(5); assert.equal(current().kind, 'rounded-box');
     await value.workspace.save(); await value.workspace.reopen();
     assert.deepEqual(geometry(current()), { kind: 'rounded-box', radius: 0.1, segments: 4 });
+  } finally { await dispose(value); }
+});
+
+test('composite prefab preserves six independent rounded face parts through replication and History/reopen', async () => {
+  const value = await fixture();
+  try {
+    const root = await executeReady(value.runtime, call('call:assembly-body', 'entity.create', { baseRevision: 1, kind: 'rounded-box', radius: 0.1, name: 'Composite Body', color: [0.03, 0.03, 0.03, 1] }));
+    const colors = [[1,0,0,1], [1,0.5,0,1], [1,1,1,1], [1,1,0,1], [0,0,1,1], [0,1,0,1]];
+    const parts = colors.map((color, index) => {
+      const axis = ['x', 'y', 'z'][Math.floor(index / 2)];
+      return { kind: 'rounded-box', radius: 0.1, segments: 4, name: `Face ${index}`, parentId: root.value.entity.id, color,
+        transform: { position: { x: 0, y: 0, z: 0, [axis]: index % 2 ? -0.505 : 0.505 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 0.85, y: 0.85, z: 0.85, [axis]: 0.02 } } };
+    });
+    await approveAndExecute(value.runtime, call('call:assembly-parts', 'entity.create-many', { baseRevision: 2, entities: parts }));
+    const captured = await approveAndExecute(value.runtime, call('call:assembly-capture', 'prefab.manage', { baseRevision: 3, action: 'capture', prefabId: 'prefab:colored-assembly', entityId: root.value.entity.id }));
+    assert.equal(captured.value.prefab.entityCount, 7);
+    const copy = await approveAndExecute(value.runtime, call('call:assembly-copy', 'prefab.manage', { baseRevision: 4, action: 'instantiate', prefabId: 'prefab:colored-assembly' }));
+    const verify = () => {
+      const entities = value.scene.snapshot().entities;
+      const children = entities.filter(entity => entity.parentId === copy.value.rootEntityId);
+      assert.equal(children.length, 6);
+      assert.deepEqual(children.map(entity => entity.appearance.color), colors);
+      assert.deepEqual(children.map(entity => entity.transform), parts.map(part => part.transform));
+      assert.ok(children.every(entity => entity.kind === 'rounded-box'));
+      assert.equal(new Set(copy.value.instantiatedEntityIds).size, 7);
+      assert.ok(copy.value.instantiatedEntityIds.every(id => id !== root.value.entity.id));
+    };
+    verify();
+    await value.workspace.undo(5);
+    assert.equal(value.scene.snapshot().entities.filter(entity => copy.value.instantiatedEntityIds.includes(entity.id)).length, 0);
+    await value.workspace.redo(value.workspace.gameSnapshot().revision); verify();
+    await value.workspace.save(); await value.workspace.reopen(); verify();
+  } finally { await dispose(value); }
+});
+
+test('AI diagnostics excludes other projects and application facts even with correlation traversal', async () => {
+  const value = await fixture();
+  try {
+    const projectId = value.workspace.snapshot().document.projectId;
+    await value.operationLog.append({ kind: 'test/other-project', severity: 'error', source: 'studio.test', correlation: { projectId: 'project:foreign', pluginId: 'plugin:shared' }, payload: {} });
+    await value.operationLog.append({ kind: 'test/application', severity: 'error', source: 'studio.test', correlation: {}, payload: {} });
+    await value.operationLog.append({ kind: 'test/current-project', severity: 'error', source: 'studio.test', correlation: { projectId, pluginId: 'plugin:shared' }, payload: {} });
+    const result = await executeReady(value.runtime, call('call:project-diagnostics', 'diagnostics.query', { limit: 100, traverseCorrelation: true }));
+    assert.equal(result.status, 'completed');
+    assert.ok(result.value.events.some(item => item.kind === 'test/current-project'));
+    assert.ok(result.value.events.every(item => item.correlation.projectId === projectId));
+    assert.ok(!result.value.events.some(item => ['test/other-project', 'test/application'].includes(item.kind)));
   } finally { await dispose(value); }
 });

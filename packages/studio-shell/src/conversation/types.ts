@@ -191,6 +191,7 @@ export type ConversationUiEvent =
   | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; taskAccounting?: unknown; taskRuns?: readonly unknown[]; executionGraphs?: readonly unknown[] }>;
 
 export interface LogQueryIntent {
+  readonly projectId?: StableId;
   readonly severity?: readonly ('debug' | 'info' | 'warning' | 'error')[];
   readonly kinds?: readonly string[];
   readonly sessionId?: StableId;

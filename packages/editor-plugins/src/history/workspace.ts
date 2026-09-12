@@ -10,7 +10,7 @@ import type {
 import type { EditorDocumentHost } from '@haiyue/editor-platform';
 import type { EditorCommand, EditorHistorySnapshot } from '@haiyue/editor-plugin-sdk';
 import { asStableId, type GameDocumentDeltaV2, type GameDocumentOperationV2, type GameDocumentQueryResultV2, type GameDocumentQueryV2, type GameDocumentV2, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
-import { canonicalStringify, OperationLog, OperationLogError, sha256 } from '@haiyue/ai-studio-operation-log';
+import { canonicalStringify, OperationLog, OperationLogError, sha256, type DurableOperationEvent } from '@haiyue/ai-studio-operation-log';
 import { ProjectDocument, type ProjectDocumentReadModel, type ProjectMigrationReport } from '../project/document.js';
 import { ProjectRepository, RecentProjectStore } from '../project/repository.js';
 import { ComponentRegistry } from '../components/registry.js';
@@ -120,7 +120,7 @@ export class ProjectWorkspace {
       documents: this.resources.documents.snapshot(),
       history: this.resources.history.snapshot(),
       session: this.resources.projectSession.snapshot(),
-      logging: this.resources.operationLog.status(),
+      logging: this.resources.operationLog.projectStatus(this.document?.projectId ?? null),
       activeTasks: this.resources.tasks.activeCount,
       migration: this.migration,
       disposed: this.disposed,
@@ -397,18 +397,13 @@ export class ProjectWorkspace {
     this.assertActive();
     const document = this.requireDocument();
     const matches: ProjectTransactionReceipt[] = [];
-    let cursor: string | undefined; let scanned = 0;
-    do {
-      const page = await this.resources.operationLog.query({ kinds: ['document/transaction-receipt-written', 'document/transaction-committed'], limit: 200, traverseCorrelation: false, ...(cursor ? { cursor } : {}) });
-      for (const event of page.events) {
-        const artifactId = event.artifactRefs[0]; if (!artifactId) continue;
-        const receipt = parseTransactionReceipt((await this.resources.operationLog.readArtifact(artifactId)).value, artifactId);
-        if (receipt.sceneDiffArtifactId) assertSceneDiffMatchesReceipt((await this.resources.operationLog.readArtifact(receipt.sceneDiffArtifactId)).value, receipt);
-        if (receipt.memberNodeIds.includes(memberNodeId) && !matches.some((candidate) => candidate.artifactId === receipt.artifactId)) matches.push(receipt);
-        scanned += 1;
-      }
-      cursor = page.nextCursor;
-    } while (cursor && scanned < 5_000 && matches.length < 2);
+    for await (const event of this.transactionReceiptEvents()) {
+      const artifactId = event.artifactRefs[0]; if (!artifactId) continue;
+      const receipt = parseTransactionReceipt((await this.resources.operationLog.readArtifact(artifactId)).value, artifactId);
+      if (receipt.sceneDiffArtifactId) assertSceneDiffMatchesReceipt((await this.resources.operationLog.readArtifact(receipt.sceneDiffArtifactId)).value, receipt);
+      if (receipt.memberNodeIds.includes(memberNodeId) && !matches.some((candidate) => candidate.artifactId === receipt.artifactId)) matches.push(receipt);
+      if (matches.length > 1) break;
+    }
     if (matches.length === 1) {
       const receipt = matches[0]!;
       if (receipt.documentId !== document.documentId || receipt.baseRevision !== baseRevision) return Object.freeze({ status: 'ambiguous', documentId: document.documentId, revision: document.revision, reason: `Member ${memberNodeId} matched a receipt with different document or base revision coordinates.` });
@@ -582,9 +577,15 @@ export class ProjectWorkspace {
   }
 
   private async readTransactionReceipt(transactionId: StableId): Promise<ProjectTransactionReceipt | null> {
-    const page = await this.resources.operationLog.query({ transactionId, kinds: ['document/transaction-receipt-written', 'document/transaction-committed'], limit: 4, traverseCorrelation: false });
-    if (page.events.length === 0) return null;
-    const artifactIds = [...new Set(page.events.map((event) => event.artifactRefs[0]).filter((id): id is StableId => Boolean(id)))];
+    const ids = new Set<StableId>(); let found = false;
+    for await (const event of this.transactionReceiptEvents(transactionId)) {
+      found = true;
+      if (!event.artifactRefs[0]) throw new OperationLogError('transaction-receipt-duplicate', `Transaction ${transactionId} is missing a receipt artifact.`);
+      ids.add(event.artifactRefs[0]);
+      if (ids.size > 1) break;
+    }
+    if (!found) return null;
+    const artifactIds = [...ids];
     if (artifactIds.length !== 1) throw new OperationLogError('transaction-receipt-duplicate', `Transaction ${transactionId} has missing or conflicting receipt artifacts.`);
     const artifactId = artifactIds[0]!;
     const artifact = await this.resources.operationLog.readArtifact(artifactId);
@@ -597,19 +598,41 @@ export class ProjectWorkspace {
   }
 
   private async findTransactionReceiptByIdempotencyKey(idempotencyKey: StableId): Promise<ProjectTransactionReceipt | null> {
-    const seen = new Set<StableId>(); let cursor: string | undefined; let scanned = 0;
-    do {
-      const page = await this.resources.operationLog.query({ kinds: ['document/transaction-receipt-written', 'document/transaction-committed'], limit: 200, traverseCorrelation: false, ...(cursor ? { cursor } : {}) });
-      for (const event of page.events) {
-        const artifactId = event.artifactRefs[0]; if (!artifactId || seen.has(artifactId)) continue;
-        seen.add(artifactId); scanned += 1;
-        const receipt = parseTransactionReceipt((await this.resources.operationLog.readArtifact(artifactId)).value, artifactId);
-        if (receipt.sceneDiffArtifactId) assertSceneDiffMatchesReceipt((await this.resources.operationLog.readArtifact(receipt.sceneDiffArtifactId)).value, receipt);
-        if (receipt.idempotencyKey === idempotencyKey) return receipt;
-      }
-      cursor = page.nextCursor;
-    } while (cursor && scanned < 5_000);
+    const seen = new Set<StableId>();
+    for await (const event of this.transactionReceiptEvents()) {
+      const artifactId = event.artifactRefs[0]; if (!artifactId || seen.has(artifactId)) continue;
+      seen.add(artifactId);
+      const receipt = parseTransactionReceipt((await this.resources.operationLog.readArtifact(artifactId)).value, artifactId);
+      if (receipt.sceneDiffArtifactId) assertSceneDiffMatchesReceipt((await this.resources.operationLog.readArtifact(receipt.sceneDiffArtifactId)).value, receipt);
+      if (receipt.idempotencyKey === idempotencyKey) return receipt;
+    }
     return null;
+  }
+
+  /** A result limit does not bound the journal scan. Walk a fixed retained prefix
+   * in sequence windows, including empty windows, without dropping old receipts. */
+  private async *transactionReceiptEvents(transactionId?: StableId): AsyncGenerator<DurableOperationEvent> {
+    const log = this.resources.operationLog;
+    const status = log.status();
+    const { projectId, documentId } = this.requireDocument();
+    let start = status.retainedFromSequence; let windowSize = 5_000;
+    while (start < status.nextSequence) {
+      const end = Math.min(status.nextSequence, start + windowSize);
+      let cursor: string | undefined;
+      try {
+        do {
+          const page = await log.query({ projectId, documentId, kinds: ['document/transaction-receipt-written', 'document/transaction-committed'],
+            ...(transactionId ? { transactionId } : {}), ...(start > 0 ? { afterSequence: start - 1 } : {}), beforeSequence: end,
+            limit: 200, traverseCorrelation: false, ...(cursor ? { cursor } : {}) });
+          for (const event of page.events) yield event;
+          cursor = page.nextCursor;
+        } while (cursor);
+      } catch (cause) {
+        if (!(cause instanceof OperationLogError) || cause.code !== 'query-scan-budget-exceeded' || windowSize === 1) throw cause;
+        windowSize = Math.max(1, Math.floor(windowSize / 2)); continue;
+      }
+      start = end;
+    }
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {

@@ -1,0 +1,59 @@
+TAP version 13
+# Subtest: production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
+not ok 1 - production window uses public resource / advanced entries, real tools, exact approvals, Gizmo History, restart and accessibility
+  ---
+  duration_ms: 49041.171477
+  type: 'test'
+  location: '/Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-electron.test.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [m14-product:large] product ready
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        arch: 'x64',
+    +   cpu: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz',
+    +   logicalCpus: 12,
+    +   platform: 'darwin',
+    +   release: '25.6.0'
+    -   cpu: 'Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz',
+    -   logicalCpus: 8,
+    -   platform: 'win32',
+    -   release: '10.0.19045'
+      }
+    
+        at large (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:145:10) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: [Object],
+      expected: [Object],
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+    [m14-product] large failed
+    
+    Evidence: /private/tmp/haiyue-m14-integrated-product-J62gr0
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    large (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-main.mjs:145:10) {
+    TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/apps/ai-studio/test/m14-integration/product-electron.test.mjs:36:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 50193.856746

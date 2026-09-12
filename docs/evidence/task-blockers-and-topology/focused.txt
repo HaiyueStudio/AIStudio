@@ -1,0 +1,51 @@
+✔ G11 projects an approved evidence-backed task and replays the same terminal summary after restart (3146.280914ms)
+✔ G11 converts a crash-interrupted task into an explicit resumable checkpoint (1120.805734ms)
+✔ G11 restores retained projections through bounded sequence windows when the journal exceeds the scan budget (316.601705ms)
+✔ turn completion preserves the specific terminal evaluation diagnostic (1742.298843ms)
+✔ same-tick mismatch triggers bounded recapture and completes the original approved task (2451.513009ms)
+✔ unfinished acceptance reports the actual failed authoring tool instead of a generic evidence error (1053.198014ms)
+✔ scene transaction commits one revision and History entry and replays the durable receipt idempotently (369.840432ms)
+✔ transaction undo and redo retain the authoritative receipt and Scene diff provenance (328.578849ms)
+✔ missing and corrupt transaction receipt artifacts fail closed (185.247928ms)
+✔ scene transaction rolls back partial apply and classifies a crash after History write as ambiguous (177.635344ms)
+✔ receipt written before acknowledgement proves committed state without a second History write (232.611269ms)
+✔ new, command, stale rejection, undo/redo, save and reopen share one revision/history path (750.368003ms)
+✔ untitled projects edit in memory and bind a directory on first save (414.861326ms)
+✔ group cancel rolls document state back while appending a new revision fact (302.88245ms)
+✔ command failure does not enter History and save failure preserves the previous authoritative file (500.775625ms)
+✖ project paths reject traversal and crash temp files are cleaned on reopen (39.95907ms)
+✔ document replacement cancels active tasks and leaves no task or document owner behind (528.774955ms)
+✔ transaction receipt checks cross sparse scan windows and retain idempotency and recovery after reopen (1521.102054ms)
+✔ projects a deterministic graph, transcript and modification evidence chain (79.69232ms)
+✔ shows actual overlapping tool intervals as parallel and preserves dependency order (5.50532ms)
+✔ keeps barriers, compaction and outcome-unknown visible in graph and transcript (5.727298ms)
+✔ reports sequence gaps and dangling references without crashing (1.538073ms)
+✔ projects a 1000-tool graph within a bounded unit-test budget (343.808278ms)
+✔ session history orders actual execution time instead of unrelated operation counts (11.116783ms)
+✔ a task retains its full chain when an approval continuation starts a two-node provider session (21.538836ms)
+✔ task membership separates different requests that reuse one provider session, even with identical titles (11.131901ms)
+✔ legacy sessions stay inspectable and invalid task membership is rejected (6.234248ms)
+✔ current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors (8.312175ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 27
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12058.069508
+
+✖ failing tests:
+
+test at packages/editor-plugins/test/project-workspace.test.mjs:256:1
+✖ project paths reject traversal and crash temp files are cleaned on reopen (39.95907ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/packages/editor-plugins/test/project-workspace.test.mjs:262:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    operator: 'throws',
+    diff: 'simple'
+  }

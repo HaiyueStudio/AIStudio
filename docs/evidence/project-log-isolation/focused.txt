@@ -1,0 +1,35 @@
+✔ scene IPC exposes immutable JSON projections and routes typed intents through shared services (14.957915ms)
+✔ new-project IPC stays untitled until first save selects a directory (2.233179ms)
+✔ project replacement clears project-scoped Agent work without cancelling a dismissed picker (1.617216ms)
+✔ history IPC is project-bound, paged and preserves complete structured details (1.85778ms)
+✔ project IPC drains the old conversation before Document replacement and relocates on first save (6.79785ms)
+✔ log IPC binds reads and exports to the current project and keeps late facts with their request owner (2.069843ms)
+✔ Canvas late results cannot write into a changed or cancelled project (2364.755048ms)
+✔ Canvas rolls back newly staged bytes on command failure and rejects unsaved projects before drawing (1513.107649ms)
+✔ main project camera persists through History and supports a distortion-free top-down board view (1211.400229ms)
+✔ scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary (945.947631ms)
+✔ controlled project assets import, search, assign, undo and survive project reopen (1333.573223ms)
+✔ diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload (507.425027ms)
+✔ allow always auto-approves only the same tool, version, target and project session scope (934.914032ms)
+✔ registry-driven component tools preserve schema, risk, Scene projection and History (1656.523997ms)
+✔ agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam (3493.887011ms)
+✔ AI diagnostics excludes other projects and application facts even with correlation traversal (297.689142ms)
+✔ concurrent append is monotonic and restart replay equals the live projection (1834.716461ms)
+✔ derived index failure stays writable and the journal rebuilds the projection on restart (146.342535ms)
+✔ derived index checkpoints are amortized instead of rewriting the full projection per event (1447.667534ms)
+✔ legacy schema migrates on read and bounded correlation traversal plus cursors are deterministic (315.719773ms)
+✔ project queries isolate scan budgets, correlation traversal, cursors, status and exported events across restart (1533.118829ms)
+✔ legacy session-only rows get an isolated project index without rewriting their durable journal (379.380817ms)
+✔ project records retain complete parameters/results, redact secrets, page by logical record and never mix projects (1447.007079ms)
+✔ project files reopen with an empty editor data directory and restore nested artifacts without duplicating events (1795.575534ms)
+✔ first save relocates an unsaved project archive while preserving its live log port (1438.75141ms)
+✔ legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned (1044.190049ms)
+✔ project switching clears visible logs, filters and cursors and ignores old in-flight replies (4.770395ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15383.752072
