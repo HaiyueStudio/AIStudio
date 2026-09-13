@@ -368,7 +368,7 @@ test('blocked acceptance keeps the goal active while its current turn works, the
   const task = { taskId: 'task:acceptance', title: 'Verify the game', status: 'blocked', sessionId: active.sessionId, turnId: `${active.sessionId}:turn`, terminalDiagnostic: 'task.repair-no-change-repeat', timeline: [{ status: 'error', detail: 'Repeated evaluation has no changed project or new evidence.' }] };
   const graph = groupExecutionGraphsByTask([old, active], [task])[0]; const goal = graph.nodes.find(node => node.kind === 'goal');
   assert.equal(graph.status, 'running'); assert.equal(goal.status, 'running'); assert.equal(goal.completedAt, null);
-  assert.equal(goal.detail.reason, null); assert.equal(goal.detail.diagnostic, task.terminalDiagnostic); assert.match(goal.summary, /验收尚未完成/);
+  assert.equal(goal.detail.reason, null); assert.equal(goal.detail.diagnostic, task.terminalDiagnostic); assert.match(goal.summary, /验收处理中/);
   assert.ok(graph.currentNodeIds.some(id => graph.nodes.find(node => node.id === id)?.kind === 'turn'));
   const finished = taskSession('session:acceptance', 'task:acceptance', 60);
   const stopped = groupExecutionGraphsByTask([old, finished], [task])[0];
@@ -394,8 +394,72 @@ test('old or unrelated active turns cannot revive a stopped task, and explicit h
   const unrelated = taskSession('session:other', 'task:other', 120, true);
   const task = { taskId: 'task:stopped', title: 'Stopped', status: 'blocked', sessionId: ended.sessionId, turnId: `${ended.sessionId}:turn`, terminalDiagnostic: 'task.acceptance-evidence-incomplete' };
   const graph = groupExecutionGraphsByTask([stale, ended, unrelated], [task]).find(item => item.taskId === task.taskId);
-  assert.equal(graph.status, 'failed'); assert.equal(graph.nodes.find(node => node.kind === 'goal').detail.reason, task.terminalDiagnostic);
+  assert.equal(graph.status, 'outcome-unknown'); assert.match(graph.nodes.find(node => node.kind === 'goal').detail.reason, /当前回合已结束/);
+  assert.match(graph.nodes.find(node => node.kind === 'goal').summary, /待继续验收/);
   const raw = taskSession('session:failure', 'task:host-failure', 180, true);
   const failed = groupExecutionGraphsByTask([raw], [{ taskId: 'task:host-failure', title: 'Failed', status: 'failed', terminalDiagnostic: 'agent.resume-missing' }])[0];
   assert.equal(failed.status, 'failed');
+});
+
+
+test('persisted confirmation checkpoints project waiting, approved continuation, completion and rejection', () => {
+  for (const barrierKind of ['plan-review', 'budget-continuation', 'tool-approval']) {
+    const approval = barrierKind === 'tool-approval';
+    const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started', { payload: { taskId: 'task:checkpoint' } }),
+      op(2, approval ? 'approval.requested' : 'question.requested', { nodeId: 'node:checkpoint', payload: { [approval ? 'approvalId' : 'questionId']: 'checkpoint:1', barrierKind } }),
+      op(3, 'tool.completed', { nodeId: 'node:pause-tool', batchId: 'batch:pause', payload: { toolId: 'studio.plan.propose', status: 'cancelled', diagnostic: 'barrier.waiting-user' } }),
+      op(4, 'tool-batch.completed', { batchId: 'batch:pause', payload: { status: 'cancelled', cancelled: 1 } }),
+      op(5, 'turn.completed', { payload: { status: 'cancelled', suspendedBarrierId: 'node:checkpoint', summary: 'cancelled. Completed tools.' } })];
+    const pending = projectExecutionGraph({ sessionId: SESSION, status: 'cancelled', ops: source });
+    for (const kind of ['turn', 'tool', 'tool-batch', 'result']) {
+      const node = pending.nodes.find(node => node.kind === kind);
+      assert.equal(node.status, 'waiting', kind); assert.equal(node.completedAt, null);
+      assert.match(node.detail.reason, /等待用户确认/); assert.doesNotMatch(node.summary, /cancelled/);
+    }
+    assert.equal(pending.status, 'waiting');
+    assert.ok(pending.currentNodeIds.every(id => ['plan','question','approval'].includes(pending.nodes.find(node => node.id === id).kind)));
+    assert.ok(pending.transcript.filter(item => item.kind === 'result').every(item => item.status === 'waiting'));
+    assert.equal(pending.digest, projectExecutionGraph({ sessionId: SESSION, status: 'cancelled', ops: [...source].reverse() }).digest);
+    const resolve = (denied) => op(6, approval ? 'approval.resolved' : 'question.resolved', { nodeId: 'node:checkpoint', payload: { [approval ? 'approvalId' : 'questionId']: 'checkpoint:1', resolution: denied ? 'cancelled' : 'answered', denied } });
+    const answered = [...source, resolve(false), op(7, 'user.message')];
+    let graph = projectExecutionGraph({ sessionId: SESSION, ops: answered });
+    assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'completed'); assert.deepEqual(graph.currentNodeIds, []);
+    const fresh = projectExecutionGraph({ sessionId: SESSION, ops: [...answered, op(8, 'turn.started', { turnId: 'turn:continuation' })] });
+    assert.equal(fresh.nodes.find(node => node.id === `turn:${TURN}`).status, 'completed');
+    assert.equal(fresh.nodes.find(node => node.id === 'turn:turn:continuation').status, 'running');
+    assert.deepEqual(fresh.currentNodeIds, ['turn:turn:continuation']);
+    graph = projectExecutionGraph({ sessionId: SESSION, ops: [...answered, op(8, 'turn.started', { payload: { resumedFrom: 'op:5' } })] });
+    assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'running'); assert.deepEqual(graph.currentNodeIds, [`turn:${TURN}`]);
+    graph = projectExecutionGraph({ sessionId: SESSION, ops: [...answered, op(8, 'turn.started'), op(9, 'turn.completed', { payload: { status: 'completed' } })] });
+    assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'completed'); assert.deepEqual(graph.currentNodeIds, []);
+    graph = projectExecutionGraph({ sessionId: SESSION, ops: [...source, resolve(true)] });
+    assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'cancelled'); assert.match(graph.nodes.find(node => node.kind === 'turn').detail.reason, /用户未确认/); assert.deepEqual(graph.currentNodeIds, []);
+  }
+});
+
+test('legacy checkpoint marker requires a correlated barrier and never masks an explicit cancellation or failure', () => {
+  const reason = '已保存用户确认检查点并释放当前调用，确认后可继续；已完成的修改保留。';
+  const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started'),
+    op(2, 'question.requested', { nodeId: 'node:review', payload: { questionId: 'question:review', barrierKind: 'plan-review' } })];
+  const status = (ops) => projectExecutionGraph({ sessionId: SESSION, ops }).nodes.find(node => node.kind === 'turn').status;
+  assert.equal(status([...source, op(3, 'turn.completed', { payload: { status: 'cancelled', reason } })]), 'waiting');
+  assert.equal(status([...source.slice(0, 2), op(3, 'turn.completed', { payload: { status: 'cancelled', reason } })]), 'cancelled');
+  assert.equal(status([...source, op(3, 'turn.completed', { payload: { status: 'cancelled', reason: 'User stopped task.' } })]), 'cancelled');
+  assert.equal(status([...source, op(3, 'turn.completed', { payload: { status: 'failed', reason, suspendedBarrierId: 'node:review' } })]), 'failed');
+  assert.equal(status([...source, op(3, 'turn.completed', { payload: { status: 'cancelled', suspendedBarrierId: 'node:other' } })]), 'cancelled');
+});
+
+
+test('PNG storage errors keep their concrete cause while active acceptance stays in progress', () => {
+  const ended = taskSession('session:texture-failed', 'task:texture-failed');
+  const task = { taskId: 'task:texture-failed', title: 'Draw a board', status: 'blocked', phase: 'blocked', sessionId: ended.sessionId, turnId: `${ended.sessionId}:turn`, terminalDiagnostic: 'texture.project-unsaved', timeline: [{ status: 'error', detail: 'asset.generate-texture: texture.project-unsaved. Save the project before generating PNG assets. 验收尚未完成。' }] };
+  const stopped = groupExecutionGraphsByTask([ended], [task])[0];
+  assert.equal(stopped.status, 'failed');
+  const goal = stopped.nodes.find(node => node.kind === 'goal');
+  assert.equal(goal.detail.reason, '当前项目尚未保存到项目目录，无法保存生成的 PNG 贴图。');
+  assert.doesNotMatch(goal.detail.reason, /验收/);
+  const active = taskSession('session:texture-failed', 'task:texture-failed', 0, true);
+  const evaluating = groupExecutionGraphsByTask([active], [{ ...task, status: 'running', phase: 'evaluating', terminalDiagnostic: null }])[0];
+  assert.equal(evaluating.status, 'running');
+  assert.match(evaluating.nodes.find(node => node.kind === 'goal').summary, /验收处理中/);
 });

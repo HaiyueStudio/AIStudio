@@ -1,5 +1,7 @@
 // Bind to entity:drag-target, with haiyue.interaction.pointer events down/move/up/drag/cancel,
-// capturePointer=true and draggable=true. Initial transforms belong in the Document.
+// capturePointer=true and draggable=true on the body AND selectable child surfaces.
+// Initial transforms belong in the Document. A missing interaction is only background
+// after confirming coverage; this example scene has no unconfigured visible blockers.
 // This example uses the preview's spherical camera; inspect the active camera component
 // before adapting it to a project with a Cartesian gameplay camera.
 type GestureState = { mode?: 'object' | 'camera' | ''; pointerId?: number; x?: number; y?: number; changes?: number; cancels?: number };
@@ -12,7 +14,9 @@ const camera = cameraEntity?.getComponent('SphericalTransform3D') as unknown as 
 for (const event of api.input.pointerEvents()) {
   if (event.type === 'down') {
     const hit = api.input.interactions().find((hit: { type: string; entityId: string; pointerId: number }) => hit.type === 'down' && hit.pointerId === event.pointerId);
-    state.mode = hit?.entityId === 'entity:drag-target' ? 'object' : !hit ? 'camera' : '';
+    let hitOwner: Entity | null = hit ? api.read.find(hit.entityId) : null;
+    while (hitOwner && hitOwner !== object) hitOwner = hitOwner.parent;
+    state.mode = hitOwner === object ? 'object' : !hit ? 'camera' : '';
     state.pointerId = event.pointerId; state.x = event.x; state.y = event.y;
   }
   if (event.pointerId !== state.pointerId) continue;

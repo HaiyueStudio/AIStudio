@@ -12,7 +12,7 @@ import type { EditorCommand, EditorHistorySnapshot } from '@haiyue/editor-plugin
 import { asStableId, type GameDocumentDeltaV2, type GameDocumentOperationV2, type GameDocumentQueryResultV2, type GameDocumentQueryV2, type GameDocumentV2, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, OperationLog, OperationLogError, sha256, type DurableOperationEvent } from '@haiyue/ai-studio-operation-log';
 import { ProjectDocument, type ProjectDocumentReadModel, type ProjectMigrationReport } from '../project/document.js';
-import { ProjectRepository, RecentProjectStore } from '../project/repository.js';
+import { ProjectPathError, ProjectRepository, RecentProjectStore } from '../project/repository.js';
 import { ComponentRegistry } from '../components/registry.js';
 import { SceneContextRuntime, type SceneDiffInput, type SceneDiffResult, type SceneQueryInput, type SceneQueryResult } from '../project/scene-context.js';
 
@@ -101,6 +101,9 @@ export interface ProjectWorkspaceResources {
 
 export class ProjectWorkspace {
   private repository: ProjectRepository | null = null;
+  // Document-owned immutable PNG bytes; retained across Undo for Redo until first save.
+  private readonly draftTextures = new Map<string, Uint8Array>();
+  private draftTextureBytes = 0;
   private document: ProjectDocument | null = null;
   private mutationTail: Promise<void> = Promise.resolve();
   private listeners = new Set<(snapshot: ProjectWorkspaceSnapshot) => void>();
@@ -151,6 +154,12 @@ export class ProjectWorkspace {
   async readControlledAsset(relativePath: string, maxBytes: number, signal?: AbortSignal): Promise<Uint8Array> {
     this.assertActive();
     throwIfAborted(signal);
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 128 * 1024 * 1024) throw new ProjectPathError('project-asset-budget-invalid', 'Controlled asset read budget is invalid.');
+    const draft = this.draftTextures.get(relativePath);
+    if (draft) {
+      if (draft.byteLength > maxBytes) throw new ProjectPathError('project-asset-source-budget', 'Generated texture exceeds the requested read budget.');
+      return new Uint8Array(draft);
+    }
     const bytes = await this.requireRepository().readControlledAsset(relativePath, maxBytes);
     throwIfAborted(signal);
     return bytes;
@@ -218,7 +227,7 @@ export class ProjectWorkspace {
   async importGeneratedTexture(input: Readonly<{ id: StableId; documentId: StableId; baseRevision: number; bytes: Uint8Array; width: number; height: number; recipeDigest: string }>, signal?: AbortSignal): Promise<Readonly<{ revision: number; asset: ControlledAssetManifestEntry }>> {
     return this.serialize(async () => {
       this.assertActive(); throwIfAborted(signal);
-      const document = this.requireDocument(); const repository = this.requireRepository();
+      const document = this.requireDocument();
       if (document.documentId !== input.documentId) throw new Error('Generated texture belongs to a different project document.');
       assertBaseRevision(document, input.baseRevision);
       if (!/^sha256:[a-f0-9]{64}$/u.test(input.recipeDigest)) throw new TypeError('Texture recipe digest is invalid.');
@@ -227,7 +236,7 @@ export class ProjectWorkspace {
       const digest = createHash('sha256').update(bytes).digest('hex');
       const catalog = ControlledAssetCatalog.fromManifest(document.gameSnapshot().settings[CONTROLLED_ASSET_CATALOG_SETTING_KEY]);
       const asset = catalog.import({ projectPath: `assets/generated/${digest}.png`, bytes, kind: 'texture', mimeType: 'image/png', license: 'project-owned', provenance: `Canvas 2D recipe v1 ${input.recipeDigest}`, width: input.width, height: input.height, decodedBytes: Math.max(bytes.byteLength, input.width * input.height * 4) });
-      const staged = await repository.stageGeneratedTexture(bytes, signal);
+      const staged = this.repository ? await this.repository.stageGeneratedTexture(bytes, signal) : this.stageDraftTexture(asset.projectPath, bytes);
       try {
         this.assertActive(); throwIfAborted(signal);
         const result = await this.executeBatchNow({ id: input.id, label: 'Draw PNG Texture', baseRevision: input.baseRevision, operations: [
@@ -241,6 +250,19 @@ export class ProjectWorkspace {
         throw cause;
       }
     });
+  }
+
+  private stageDraftTexture(projectPath: string, bytes: Uint8Array): Readonly<{ rollback(): Promise<void> }> {
+    if (bytes.byteLength < 1 || bytes.byteLength > 20 * 1024 * 1024) throw new ProjectPathError('texture.source-budget', 'Generated PNG exceeds the texture byte budget.');
+    const existing = this.draftTextures.has(projectPath);
+    if (!existing) {
+      if (this.draftTextureBytes + bytes.byteLength > 64 * 1024 * 1024) throw new ProjectPathError('texture.draft-budget', 'Save the project to persist generated textures before creating more.');
+      this.draftTextures.set(projectPath, bytes);
+      this.draftTextureBytes += bytes.byteLength;
+    }
+    return { rollback: async () => {
+      if (!existing && this.draftTextures.delete(projectPath)) this.draftTextureBytes -= bytes.byteLength;
+    } };
   }
 
   private async executeBatchNow(input: ProjectBatchCommandInput, signal?: AbortSignal): Promise<ProjectWorkspaceSnapshot> {
@@ -472,9 +494,9 @@ export class ProjectWorkspace {
       this.assertActive();
       const document = this.requireDocument();
       const repository = await ProjectRepository.open(selectedRoot);
-      this.repository = repository;
+      const result = await this.persist(repository, document);
       await this.remember(repository.root);
-      return this.persist(repository, document);
+      return result;
     });
   }
 
@@ -483,7 +505,18 @@ export class ProjectWorkspace {
       kind: 'project/save-requested', severity: 'info', source: asStableId('studio.project'),
       correlation: { projectId: document.projectId, documentId: document.documentId }, payload: { revision: document.revision },
     });
-    await repository.save(document.serializeForSave());
+    const staged: Readonly<{ rollback(): Promise<void> }>[] = [];
+    try {
+      // Include undone assets: their History entries can still be redone after saving.
+      for (const bytes of this.draftTextures.values()) staged.push(await repository.stageGeneratedTexture(bytes));
+      await repository.save(document.serializeForSave());
+    } catch (cause) {
+      for (const entry of staged.reverse()) await entry.rollback();
+      throw cause;
+    }
+    this.repository = repository;
+    this.draftTextures.clear();
+    this.draftTextureBytes = 0;
     document.markSaved();
     this.resources.projectSession.markSaved(document.revision);
     await this.resources.operationLog.append({
@@ -567,6 +600,8 @@ export class ProjectWorkspace {
     this.resources.history.clear();
     await this.resources.documents.close(id);
     this.document = null;
+    this.draftTextures.clear();
+    this.draftTextureBytes = 0;
     this.sceneContext.reset(null);
     this.emitMutation(Object.freeze({ kind: 'replace', documentId: null, revision: 0 }));
   }

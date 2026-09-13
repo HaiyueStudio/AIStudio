@@ -178,3 +178,19 @@ test('same-tick capture bundles repair the real screenshot/state mismatch withou
   assert.equal(terminal.recordEvaluation({ ...failed, acceptanceResults: failed.acceptanceResults.map(item => ({ ...item, diagnostic: 'evaluation.evidence-task-mismatch' })) }).diagnostic, 'evaluation.evidence-task-mismatch');
   assert.throws(() => terminal.advance('playing'), hasCode('task.terminal'));
 });
+
+
+test('array-index evidence signals use persisted full payloads and distinguish missing from failed conditions', async (t) => {
+  const fixture = await createFixture(t);
+  const evaluator = new DeterministicTaskEvaluator(fixture.repository, () => 7);
+  const value = { gameplay: [{ value: { metrics: { cubieCount: 27, moveCount: 0 } } }], state: { entities: Array.from({length: 100}, (_, i) => ({id: 'entity:'+i, position: [i, 0, 0]})) }, trace: Array.from({length:100}, ()=>({detail:'evidence '.repeat(100)})) };
+  const stored = await fixture.repository.persistState(call, observation(value));
+  assert.equal(stored.projectionTruncated, true);
+  assert.ok(Buffer.byteLength(JSON.stringify(stored.projection)) <= 8192);
+  assert.deepEqual((await fixture.repository.read(stored.artifact.id)).payload, value);
+  const assertions = ['gameplay.0.value.metrics.cubieCount equals 27', 'state.entities.99.position.0 equals 99', 'gameplay.0.value.metrics.moveCount gte 1', 'gameplay.1.value.metrics.cubieCount equals 27', 'gameplay.length equals 1', 'gameplay.01.value.metrics.cubieCount equals 27', 'gameplay.__proto__ equals null'];
+  const result = await evaluator.evaluate(evaluationInput(taskSpec(assertions.map((assertion,i)=>({id:'acceptance:array-'+i,category:'functional',assertion:'evidence state signal '+assertion}))), [stored.artifact.id]));
+  assert.deepEqual(result.acceptanceResults.map(item=>item.status), ['pass','pass','fail','fail','fail','fail','fail']);
+  assert.match(result.acceptanceResults[2].diagnostic, /condition-failed/);
+  for (const item of result.acceptanceResults.slice(3)) assert.match(item.diagnostic, /signal-missing/);
+});

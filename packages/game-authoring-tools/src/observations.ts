@@ -38,6 +38,7 @@ interface StoredObservationEnvelope extends JsonObject {
 export interface PersistedObservation {
   readonly artifact: ObservationArtifactV2;
   readonly projection: JsonObject | null;
+  readonly projectionTruncated: boolean;
 }
 
 export class PlayObservationRepository {
@@ -107,7 +108,8 @@ export class PlayObservationRepository {
       correlation: { turnId: envelope.turnId, previewId: envelope.playId },
       payload: { artifactId: artifact.id, type: artifact.type, digest: artifact.digest, documentRevision: artifact.documentRevision, tick: artifact.tick, frame: artifact.frame, byteLength: artifact.byteLength, localHit: stored.localHit },
     });
-    return Object.freeze({ artifact, projection });
+    const bounded = observationProjection(projection);
+    return Object.freeze({ artifact, ...bounded });
   }
 }
 
@@ -206,12 +208,38 @@ function compare(actual: JsonValue, operator: 'equals' | 'gte' | 'lte', expected
   return typeof actual === 'number' && typeof expected === 'number' && (operator === 'gte' ? actual >= expected : actual <= expected);
 }
 
+// Full evidence stays in the artifact. Model-facing projections have an independent
+// budget so a baseline/final pair cannot overflow the gesture tool result limit.
+function observationProjection(value: JsonObject | null): Readonly<{ projection: JsonObject | null; projectionTruncated: boolean }> {
+  const bytes = (item: JsonValue): number => new TextEncoder().encode(canonicalStringify(item)).byteLength;
+  if (value === null || bytes(value) <= 8_192) return { projection: value, projectionTruncated: false };
+  const priority = ['gameplay', 'state', 'camera', 'entities', 'input', 'interactions', 'runtimeErrorCount', 'tick', 'frame'];
+  const compact = (item: JsonValue, width: number, depth = 0): JsonValue => {
+    if (typeof item === 'string') return item.slice(0, 256);
+    if (item === null || typeof item !== 'object') return item;
+    if (depth >= 10) return null;
+    if (Array.isArray(item)) return item.slice(0, width).map(child => compact(child, width, depth + 1));
+    const keys = Object.keys(item).sort((a, b) => (priority.indexOf(a) < 0 ? 99 : priority.indexOf(a)) - (priority.indexOf(b) < 0 ? 99 : priority.indexOf(b)));
+    return Object.fromEntries(keys.slice(0, 24).map(key => [key, compact((item as JsonObject)[key]!, width, depth + 1)]));
+  };
+  for (const width of [8, 4, 2, 1]) {
+    const projection = compact(value, width) as JsonObject;
+    if (bytes(projection) <= 8_192) return { projection, projectionTruncated: true };
+  }
+  return { projection: null, projectionTruncated: true };
+}
+
 const MISSING = Symbol('missing');
 function readPath(value: JsonValue, path: string): JsonValue | typeof MISSING {
   let current: unknown = value;
   for (const segment of path.split('.')) {
-    if (!isRecord(current) || !Object.hasOwn(current, segment)) return MISSING;
-    current = current[segment];
+    if (Array.isArray(current)) {
+      if (!/^(0|[1-9][0-9]*)$/u.test(segment) || !Number.isSafeInteger(Number(segment)) || !Object.hasOwn(current, segment)) return MISSING;
+      current = current[Number(segment)];
+    } else {
+      if (!isRecord(current) || !Object.hasOwn(current, segment)) return MISSING;
+      current = current[segment];
+    }
   }
   return isJsonValue(current) ? current : MISSING;
 }

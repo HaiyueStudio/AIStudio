@@ -3,7 +3,7 @@ import type { HYExpandable, HYExpandableChangeDetail } from '@haiyue/ui/expandab
 import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
 import { approvalFromNode, planFromNode, questionFromNode, safeText } from '../../conversation/validation.js';
 import { layoutExecutionGraph } from '../../conversation/execution-layout.js';
-import { compareExecutionGraphs, executionGraphIdentity, groupExecutionGraphsByTask } from '../../conversation/execution-graph.js';
+import { compareExecutionGraphs, executionFailureReason, executionGraphIdentity, groupExecutionGraphsByTask } from '../../conversation/execution-graph.js';
 import { attachGraphPan } from '../graph-pan.js';
 import { createHoverPanel } from '../hover-panel.js';
 import type {
@@ -549,8 +549,8 @@ function renderExecutionNodeDetail(root: HTMLElement, document: Document, graph:
   const heading = document.createElement('h3'); heading.textContent = node.title; const summary = document.createElement('p'); summary.textContent = node.summary; aside.append(heading, summary);
   const facts = document.createElement('dl');
   for (const [label, value] of [['状态', executionStatusLabel(node.status)], ['类型', executionKindLabel(node.kind)], ['耗时', node.durationMs === null ? 'unknown' : `${node.durationMs} ms`], ['项目修订', node.projectRevisionBefore === null && node.projectRevisionAfter === null ? 'unknown' : `r${node.projectRevisionBefore ?? '?'} → r${node.projectRevisionAfter ?? '?'}`], ['工具', node.detail.toolId ? `${node.detail.toolId}${node.detail.toolVersion ? `@${node.detail.toolVersion}` : ''}` : 'none'], ['执行类别', node.detail.executionClass ?? 'unknown'], ['事务', node.detail.transactionId ?? 'none'], ['诊断', node.detail.diagnostic ?? 'none']] as const) { const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value; facts.append(term, description); }
-  if (node.status === 'failed' || node.status === 'cancelled' || node.status === 'outcome-unknown') {
-    const term = document.createElement('dt'); term.textContent = node.status === 'cancelled' ? '取消原因' : '失败原因';
+  if (node.status === 'failed' || node.status === 'cancelled' || node.status === 'outcome-unknown' || (node.status === 'waiting' && node.detail.reason)) {
+    const term = document.createElement('dt'); term.textContent = node.status === 'waiting' ? '等待原因' : node.status === 'cancelled' ? '取消原因' : node.status === 'outcome-unknown' ? '待核验原因' : '失败原因';
     const reason = document.createElement('dd'); reason.className = 'execution-node-reason';
     reason.textContent = safeText(node.detail.reason ?? node.detail.diagnostic ?? '该记录未保存具体原因，请查看对应记录或日志。', 2048);
     facts.prepend(term, reason);
@@ -595,7 +595,7 @@ function graphFilterOptions(state: ExecutionWorkspaceState): Readonly<{ statuses
 }
 
 function executionDomId(id: string): string { return `execution-${id.replace(/[^a-zA-Z0-9_-]/gu, '-')}`; }
-function executionStatusLabel(value: ExecutionGraphNodeReadModel['status']): string { return ({ pending:'待处理', running:'执行中', waiting:'等待用户', completed:'已完成', failed:'失败', cancelled:'已取消', 'outcome-unknown':'结果待核验' } as const)[value]; }
+function executionStatusLabel(value: ExecutionGraphNodeReadModel['status']): string { return ({ pending:'待处理', running:'执行中', waiting:'待确认', completed:'已完成', failed:'失败', cancelled:'已取消', 'outcome-unknown':'结果待核验' } as const)[value]; }
 function executionKindLabel(value: ExecutionGraphNodeReadModel['kind']): string { return ({ goal:'目标', plan:'方案', turn:'回合', 'tool-batch':'工具批次', tool:'工具', transaction:'修改', approval:'审批', question:'问题', compaction:'上下文压缩', evidence:'证据', evaluation:'验证', repair:'修复', result:'结果', unknown:'未知步骤' } as const)[value]; }
 function contextStateLabel(value: string): string { return ({ normal:'正常', warning:'接近上限', preparing:'准备压缩', 'compact-required':'需要压缩', emergency:'紧急', unknown:'容量未知' } as Record<string,string>)[value] ?? value; }
 function executionAccountingLabel(graph: ExecutionGraphReadModel, accounting: ConversationReadModel['taskAccounting']): string { const usageRefs = new Set(graph.nodes.flatMap((node) => node.detail.usageRecordIds)); const costRefs = new Set(graph.nodes.flatMap((node) => node.detail.costRecordIds)); if (!accounting) return `Usage ${usageRefs.size || 'unknown'} records · Cost ${costRefs.size || 'unknown'} records`; const cost = accounting.cost.amountMicros === null || !accounting.cost.currency ? `unknown (${accounting.cost.explanation})` : `${(accounting.cost.amountMicros / 1_000_000).toFixed(6)} ${accounting.cost.currency}`; return `Input ${accounting.usage.inputTokens ?? 'unknown'} · Cached ${accounting.usage.cachedInputTokens ?? 'unknown'} · Output ${accounting.usage.outputTokens ?? 'unknown'} · Cost ${cost}`; }
@@ -616,15 +616,15 @@ function renderTaskWorkspace(document: Document, runs: readonly ConversationTask
 }
 
 function renderTaskRun(document: Document, run: ConversationTaskRunReadModel, accounting: ConversationReadModel['taskAccounting'], dispatch: (intent: ConversationIntent) => void): HTMLElement {
-  const panel = document.createElement('article'); panel.className = `chat-task-run task-status-${run.status}`; panel.dataset.taskId = run.taskId;
+  const panel = document.createElement('article'); panel.className = `chat-task-run task-status-${run.status === 'blocked' && run.terminalDiagnostic === 'task.acceptance-evidence-incomplete' ? 'awaiting-acceptance' : run.status}`; panel.dataset.taskId = run.taskId;
   const summary = document.createElement('div'); summary.className = 'chat-task-summary';
-  const status = document.createElement('strong'); status.textContent = `${taskStatusLabel(run.status)} · ${taskPhaseLabel(run.phase)}`;
+  const status = document.createElement('strong'); status.textContent = run.status === 'blocked' && run.terminalDiagnostic === 'task.acceptance-evidence-incomplete' ? '待继续验收' : `${taskStatusLabel(run.status)} · ${taskPhaseLabel(run.phase)}`;
   const repair = document.createElement('span'); repair.textContent = `修复 ${run.repairIteration}/${run.repairLimit}`;
   summary.append(status, repair);
   const request = document.createElement('p'); request.textContent = run.requestSummary;
   const config = document.createElement('p'); config.className = 'chat-task-config'; config.textContent = `Model ${run.model.id} · reasoning ${run.model.reasoningEffort} · max output ${run.model.outputTokenLimit} · prompt ${run.promptProfile.id}@${run.promptProfile.version} · r${run.documentRevision ?? 'unknown'}`;
   panel.append(summary, request, config);
-  if (run.terminalDiagnostic) { const diagnostic = document.createElement('p'); diagnostic.className = 'chat-task-diagnostic'; diagnostic.textContent = run.terminalDiagnostic === 'task.acceptance-evidence-incomplete' ? `尚未完成验收：${run.acceptance.filter(item => item.required && (item.status !== 'pass' || item.evidenceIds.length === 0)).length} 项必需标准待验证，已保留 ${run.evidence.length} 份证据。继续后将开启新回合补齐。` : `原因：${run.terminalDiagnostic}`; panel.append(diagnostic); }
+  if (run.terminalDiagnostic) { const diagnostic = document.createElement('p'); diagnostic.className = 'chat-task-diagnostic'; diagnostic.textContent = run.terminalDiagnostic === 'task.acceptance-evidence-incomplete' ? `尚未完成验收：${run.acceptance.filter(item => item.required && (item.status !== 'pass' || item.evidenceIds.length === 0)).length} 项必需标准待验证，已保留 ${run.evidence.length} 份证据。继续后将开启新回合补齐。` : `原因：${executionFailureReason(run.terminalDiagnostic, run.timeline.filter(item => item.status === 'error').at(-1)?.detail ?? null)}`; panel.append(diagnostic); }
   if (run.resumable && run.sessionId && run.turnId) {
     const resume = document.createElement('button'); resume.type = 'button'; resume.textContent = '从安全检查点继续';
     resume.addEventListener('click', () => { resume.disabled = true; dispatch(Object.freeze({ type: 'conversation/retry', backendId: run.backendId, sessionId: run.sessionId!, turnId: run.turnId! })); }); panel.append(resume);

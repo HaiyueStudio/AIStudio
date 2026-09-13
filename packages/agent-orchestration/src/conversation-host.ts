@@ -724,7 +724,7 @@ export class StudioConversationHost {
         const failures = [...(this.active.toolFailures?.values() ?? [])];
         const failure = failures.filter(item => item.toolId !== 'diagnostics.query').at(-1) ?? failures.at(-1);
         const diagnostic = taskRun?.terminalDiagnostic ?? failure?.code ?? (taskRun?.acceptance.length ? 'task.acceptance-evidence-incomplete' : 'task.acceptance-criteria-missing');
-        this.updateTaskRun(this.active.taskId, { status: 'blocked', phase: 'blocked', terminalDiagnostic: diagnostic, resumable: taskRun?.terminalDiagnostic ? taskRun.resumable : failure?.retryable ?? true }, { phase: 'blocked', status: 'error', title: failure && !taskRun?.terminalDiagnostic ? '工具失败，任务尚未完成' : '不能标记任务完成', detail: failure && !taskRun?.terminalDiagnostic ? `${failure.toolId}：${failure.code}。${failure.message} 验收尚未完成。` : taskRun?.acceptance.length ? incompleteAcceptanceDetail(taskRun) : 'Agent 回合已经结束，但没有经过用户批准的可验证验收标准。', turnId: event.turnId });
+        this.updateTaskRun(this.active.taskId, { status: 'blocked', phase: 'blocked', terminalDiagnostic: diagnostic, resumable: taskRun?.terminalDiagnostic ? taskRun.resumable : failure?.retryable ?? true }, { phase: 'blocked', status: 'error', title: failure && !taskRun?.terminalDiagnostic ? '工具失败，任务尚未完成' : '不能标记任务完成', detail: failure && !taskRun?.terminalDiagnostic ? `${failure.toolId}：${failure.code}。${failure.message}` : taskRun?.acceptance.length ? incompleteAcceptanceDetail(taskRun) : 'Agent 回合已经结束，但没有经过用户批准的可验证验收标准。', turnId: event.turnId });
       }
       this.project(this.nextNodeId('completion'), 'completion', status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed', provenance,
         Object.freeze({ terminalStatus: status, summary: completionSummary(status, this.active?.toolFacts ?? [], this.active?.blockers ?? []) }));
@@ -1087,7 +1087,7 @@ export class StudioConversationHost {
       : this.active?.suspendedBarrierId ? '已保存用户确认检查点并释放当前调用，确认后可继续；已完成的修改保留。'
       : this.active?.controller.signal.aborted ? errorMessage(this.active.controller.signal.reason)
       : stringField(payload.reason, stringField(payload.message, stringField(terminalDiagnostic?.content.message, '')));
-    await handle.append({ kind: 'turn.completed', turnId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { status, summary: completionSummary(status, this.active?.toolFacts ?? [], this.active?.blockers ?? []), ...(reason ? redactObject({ reason: reason.slice(0, 2048) }).value : {}), ...(typeof payload.diagnostic === 'string' ? { diagnostic: payload.diagnostic } : {}) } });
+    await handle.append({ kind: 'turn.completed', turnId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { status, ...(this.active?.suspendedBarrierId && (status === 'cancelled' || status === 'interrupted') ? { suspendedBarrierId: this.active.suspendedBarrierId } : {}), summary: completionSummary(status, this.active?.toolFacts ?? [], this.active?.blockers ?? []), ...(reason ? redactObject({ reason: reason.slice(0, 2048) }).value : {}), ...(typeof payload.diagnostic === 'string' ? { diagnostic: payload.diagnostic } : {}) } });
     if (typeof handle.checkpoint === 'function') await handle.checkpoint();
     this.finalizedSessionTurns.add(key);
   }

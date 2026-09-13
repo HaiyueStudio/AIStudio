@@ -1,0 +1,141 @@
+{
+  "inputDigest": "sha256:091ad35c3a8bdc46bed16b5ae0066d75b9c20091b0c52535ba71412d689f36da",
+  "formal": {
+    "groups": 18,
+    "passed": 279,
+    "checks": [
+      {
+        "id": "documents",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "tools",
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "camera",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "simulation",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "physics",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "render",
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "scripts",
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "observations",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "census-guards",
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "behavior-project-flow",
+        "passed": 30,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "behavior-panel-window",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "behavior-product-window",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "expandable-window",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "task-checkpoint-continuation",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "agent-preview-handoff",
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "budget-checkpoint-recovery",
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "execution-status",
+        "passed": 25,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "id": "pointer-gestures",
+        "passed": 76,
+        "failed": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "focused": {
+    "canvasTools": 4,
+    "graphModel": 22,
+    "projectWorkspace": 13,
+    "nativeCanvas": 1,
+    "nativeGraph": 1,
+    "taskProduct": 10
+  },
+  "liveApplicationRestarted": false,
+  "userProjectModified": false,
+  "rootCheck": {
+    "status": "failed-existing-baseline",
+    "file": "apps/ai-studio/test/split-layout.test.mjs",
+    "line": 69,
+    "reason": "UI dependency is 0.1.4 but existing test expects 0.1.3",
+    "workspacePassed": 4,
+    "workspaceFailed": 1,
+    "behaviorPassed": 33,
+    "unreached": [
+      "m14:agent-tools:test",
+      "m14:logic:test",
+      "m14:integration:test"
+    ]
+  }
+}

@@ -318,3 +318,25 @@ test('transaction receipt checks cross sparse scan windows and retain idempotenc
     assert.equal(value.workspace.snapshot().document.revision, 3);
   } finally { await disposeFixture(value); }
 });
+
+test('draft PNG storage enforces its aggregate budget including undone assets and releases it with the project', async () => {
+  const value = await fixture();
+  try {
+    await value.workspace.newProject(null, 'Bounded draft');
+    const bytes = new Uint8Array(16 * 1024 * 1024);
+    bytes.set([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82]);
+    new DataView(bytes.buffer).setUint32(16, 2); new DataView(bytes.buffer).setUint32(20, 2);
+    const input = () => ({ id: 'command:bounded-png', documentId: value.workspace.snapshot().document.documentId, baseRevision: value.workspace.snapshot().document.revision, bytes, width: 2, height: 2, recipeDigest: 'sha256:' + '0'.repeat(64) });
+    for (let i = 0; i < 4; i++) { bytes[24] = i; await value.workspace.importGeneratedTexture(input()); }
+    bytes[24] = 4;
+    await assert.rejects(value.workspace.importGeneratedTexture(input()), error => error.code === 'texture.draft-budget');
+    assert.equal(value.workspace.snapshot().document.revision, 5);
+    await value.workspace.undo(5);
+    await assert.rejects(value.workspace.importGeneratedTexture(input()), error => error.code === 'texture.draft-budget');
+    await value.workspace.newProject(null, 'Fresh draft');
+    const { asset } = await value.workspace.importGeneratedTexture(input());
+    assert.equal((await value.workspace.readControlledAsset(asset.projectPath, bytes.byteLength))[24], 4);
+    await value.workspace.closeProject();
+    await assert.rejects(value.workspace.readControlledAsset(asset.projectPath, bytes.byteLength));
+  } finally { await disposeFixture(value); }
+});

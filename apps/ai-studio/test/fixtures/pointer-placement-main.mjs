@@ -131,6 +131,20 @@ try {
   await control.input({kind:'reset',source:'system',tick:3,reason:'blur'});
   const reset = await control.step(1); assert.ok(reset.value.interactions.some(hit=>hit.type==='cancel'));
   await control.stop();
+  // A selectable child must resolve to its composite owner, not fall into camera control.
+  const child = { ...dragScene.entities[0], id:'entity:face-tile', name:'Child surface', parentId:'entity:drag-target', order:1, transform:{position:{x:0,y:0,z:.55},rotationDegrees:{x:0,y:0,z:0},scale:{x:.75,y:.75,z:.05}}, appearance:{material:'basic',color:[1,.2,.1,1]}, components:[{...dragScene.entities[0].components[0],id:'component:tile-pointer'}] };
+  await control.start({...dragScene,entities:[...dragScene.entities,child]},dragPlan); await control.step(1);
+  const tileDown = await nativePointer('mousePressed',.5,.5);
+  assert.ok(tileDown.value.interactions.some(hit=>hit.type==='down' && hit.entityId===child.id), JSON.stringify(tileDown.value.interactions));
+  const beforeOrbit = tileDown.value.state.camera.theta;
+  const tileMoved = await nativePointer('mouseMoved',.92,.5);
+  const tileReleased = await nativePointer('mouseReleased',.92,.5);
+  assert.ok(tileMoved.value.state.entities.find(item=>item.id==='entity:drag-target').rotation[1]>1);
+  assert.equal(tileReleased.value.state.camera.theta,beforeOrbit);
+  assert.ok(tileReleased.value.interactions.some(hit=>hit.type==='up' && hit.entityId===child.id));
+  assert.equal(tileReleased.value.runtimeErrorCount,0);
+  await control.stop();
+  results.push({compositeChildHit:child.id,ownerRotated:true,cameraUnchanged:true});
   console.log('[pointer-placement] native object/background drags, capture outside target, same-tick gesture and blur cancellation passed');
   await writeFile(path.join(output, 'results.json'), JSON.stringify({ clicks, results }, null, 2));
   console.log(`[pointer-placement] ${JSON.stringify({ clicks, output })}`);

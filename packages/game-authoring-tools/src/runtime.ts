@@ -889,6 +889,14 @@ function resolveScriptResource(catalog: ReturnType<ScriptPreviewStudioService['s
   if (!resource) throw new GameToolProtocolError('tool.script-missing', 'Requested script does not exist.');
   return resource;
 }
+function gestureEffects(before: JsonObject, after: JsonObject): JsonObject {
+  const state = (value: JsonObject): JsonObject => isRecord(value.state) ? value.state as JsonObject : {};
+  const entities = (value: JsonObject): Map<string, JsonValue> => new Map((Array.isArray(state(value).entities) ? state(value).entities as JsonValue[] : []).filter((item): item is JsonObject => isRecord(item) && typeof item.id === 'string').map(item => [item.id as string, item]));
+  const previous = entities(before), current = entities(after);
+  const changed = [...new Set([...previous.keys(), ...current.keys()])].filter(id => canonicalStringify(previous.get(id) ?? null) !== canonicalStringify(current.get(id) ?? null)).sort();
+  return Object.freeze({ changedEntityCount: changed.length, changedEntityIds: changed.slice(0, 32).map(id => id.slice(0, 200)), changedEntityIdsTruncated: changed.length > 32, cameraChanged: canonicalStringify(state(before).camera ?? null) !== canonicalStringify(state(after).camera ?? null) });
+}
+
 function scriptProposalResult(proposal: ScriptEditProposal): JsonObject {
   const diagnostics = Object.freeze(proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })));
   const authoringHints = /\bset(?:Position|Rotation|Scale)\s*\(/u.test(proposal.text) && !/\b(?:time|delta)\b|api\.input|api\.scene\.observe/u.test(proposal.text)
@@ -1076,7 +1084,6 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'asset.generate-texture': {
       if (!options.textureRenderer) throw new GameToolProtocolError('texture.canvas-unavailable', 'Canvas texture rendering is unavailable on this host.');
-      if (!options.workspace.snapshot().projectRoot) throw new GameToolProtocolError('texture.project-unsaved', 'Save the project before generating PNG assets.');
       const recipe = normalizeCanvasTextureRecipe(args.recipe);
       const bytes = await options.textureRenderer.render(recipe, signal);
       signal.throwIfAborted();
@@ -1168,6 +1175,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
         planId: plan.id, documentId: plan.documentId, documentRevision: plan.documentRevision,
         selection: plan.selection, scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length,
         scripts: plan.scripts.map((script) => Object.freeze({ scriptId: script.scriptId, entityId: script.entityId, textRevision: script.textRevision, digest: script.digest, capabilities: script.capabilities })),
+        pointerTargets: { count: scene.entities.filter(item => item.components?.some(component => component.enabled && component.type === 'haiyue.interaction.pointer')).length, entities: scene.entities.filter(item => item.components?.some(component => component.enabled && component.type === 'haiyue.interaction.pointer')).slice(0, 16).map(item => ({ id: item.id, name: item.name, kind: item.kind })), sampleLimit: 16 },
         capabilities: plan.capabilities, runtimeConfig: plan.runtimeConfig as unknown as JsonValue, risk: plan.risk,
         diagnostics: plan.diagnostics.map((item) => Object.freeze({ scriptId: item.scriptId, entityId: item.entityId, code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })),
       });
@@ -1185,47 +1193,52 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const before = await options.preview.inspect(signal);
       const runtime = await options.preview.stop(signal);
       const lifecycle = await observations.persistState(stored.call, { ...before, value: Object.freeze({ state: runtime.state, disposedSideEffects: runtime.disposableCount, cleanupComplete: runtime.state === 'stopped' }) }, 'lifecycle');
-      return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount, observation: lifecycle.artifact as unknown as JsonValue, projection: lifecycle.projection as JsonValue });
+      return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount, observation: lifecycle.artifact as unknown as JsonValue, projection: lifecycle.projection as JsonValue, projectionTruncated: lifecycle.projectionTruncated });
     }
     case 'play.step': {
       const observation = await options.preview.step(args.count as number, signal);
       const persisted = await observations.persistState(stored.call, observation);
-      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue, projectionTruncated: persisted.projectionTruncated });
     }
     case 'play.pointer-gesture': {
       // step() pauses before advancing, so queued events cannot race display frames.
       const before = await options.preview.step(1, signal);
       const baseline = await observations.persistState(stored.call, before);
       let current = before;
+      const steps: JsonObject[] = [];
       for (const point of args.points as readonly JsonObject[]) {
         if (signal?.aborted) throw signal.reason;
         await options.preview.input({ kind: 'pointer', source: 'synthetic', tick: current.tick + 1, pointerId: args.pointerId as number, button: 0, phase: point.phase as 'down' | 'move' | 'up' | 'cancel', x: point.x as number, y: point.y as number }, signal);
         current = await options.preview.step(1, signal);
+        const interactions = Array.isArray(current.value.interactions) ? current.value.interactions.filter(item => isRecord(item) && item.pointerId === args.pointerId) as JsonObject[] : [];
+        const hit = interactions.find(item => item.type === point.phase) ?? interactions[0];
+        const vector = (value: JsonValue | undefined): JsonValue => Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every(item => typeof item === 'number' && Number.isFinite(item)) ? value.slice(0, 3) : null;
+        steps.push(Object.freeze({ phase: point.phase!, tick: current.tick, x: point.x!, y: point.y!, interactionTargetId: typeof hit?.entityId === 'string' ? hit.entityId.slice(0, 200) : null, point: vector(hit?.point), normal: vector(hit?.normal), interactionCount: interactions.length }));
       }
       if (Number(args.settleTicks) > 0) current = await options.preview.step(Number(args.settleTicks), signal);
       const after = await observations.persistInspection(stored.call, current);
-      return Object.freeze({ baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick });
+      return Object.freeze({ baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, baselineProjectionTruncated: baseline.projectionTruncated, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, projectionTruncated: after[0]!.projectionTruncated, steps, effects: gestureEffects(before.value, current.value), executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick });
     }
     case 'play.input': {
       const observation = await options.preview.input(args.event as never, signal);
       const persisted = await observations.persistState(stored.call, observation);
-      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue, projectionTruncated: persisted.projectionTruncated });
     }
     case 'play.physics-query': {
       const observation = await options.preview.physicsQuery(args as never, signal);
       const persisted = await observations.persistState(stored.call, observation);
-      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue, projectionTruncated: persisted.projectionTruncated });
     }
     case 'play.inspect': {
       const observation = await options.preview.inspect(signal);
       const bundle = await observations.persistInspection(stored.call, observation);
-      return Object.freeze({ observation: bundle[0]!.artifact as unknown as JsonValue, observations: bundle.map((item) => item.artifact) as unknown as JsonValue, projection: bundle[0]!.projection as JsonValue });
+      return Object.freeze({ observation: bundle[0]!.artifact as unknown as JsonValue, observations: bundle.map((item) => item.artifact) as unknown as JsonValue, projection: bundle[0]!.projection as JsonValue, projectionTruncated: bundle[0]!.projectionTruncated });
     }
     case 'play.capture': {
       const capture = await options.preview.capture(signal);
       const persisted = await observations.persistCapture(stored.call, capture);
       const bundle = capture.state ? await observations.persistInspection(stored.call, { ...capture, value: capture.state }) : [];
-      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, observations: [persisted, ...bundle].map((item) => item.artifact) as unknown as JsonValue, projection: persisted.projection as JsonValue });
+      return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, observations: [persisted, ...bundle].map((item) => item.artifact) as unknown as JsonValue, projection: persisted.projection as JsonValue, projectionTruncated: persisted.projectionTruncated });
     }
     case 'task.evaluate': return evaluator.evaluate(args, stored.call.taskId ?? asStableId(`task:${stored.call.sessionId}`)) as unknown as JsonObject;
     default: throw new GameToolProtocolError('tool.not-found', `Tool ${stored.definition.id} has no handler.`);

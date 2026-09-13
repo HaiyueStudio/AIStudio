@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile, readFile, readdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EditorDocumentHost, EditorHistoryService, EditorProjectSessionState, EditorTaskCoordinator } from '@haiyue/editor-platform';
@@ -119,10 +119,11 @@ test('Canvas texture discovery, approval, PNG persistence, material assignment a
 });
 
 test('Canvas late results cannot write into a changed or cancelled project', async () => {
-  for (const action of ['revision', 'project', 'cancel']) {
+  for (const saved of [true, false]) for (const action of ['revision', 'project', 'cancel']) {
     const entered = deferred(), release = deferred();
     const value = await fixture({ textureRenderer: { async render() { entered.resolve(); await release.promise; return pngHeader(2, 2); } } });
     try {
+      if (!saved) await value.workspace.newProject(null, 'Unsaved');
       const prepared = await value.runtime.prepare(call(`call:texture-${action}`, 'asset.generate-texture', { baseRevision: 1, recipe: { schemaVersion: 1, width: 2, height: 2, commands: [] } }));
       await value.runtime.decide(prepared.approvalId, 'allow-once');
       const running = value.runtime.execute(prepared.id); await entered.promise;
@@ -137,7 +138,7 @@ test('Canvas late results cannot write into a changed or cancelled project', asy
   }
 });
 
-test('Canvas rolls back newly staged bytes on command failure and rejects unsaved projects before drawing', async () => {
+test('Canvas rolls back newly staged bytes on command failure in saved and unsaved projects', async () => {
   let draws = 0;
   const value = await fixture({ textureRenderer: { async render() { draws++; return pngHeader(2, 2); } } });
   try {
@@ -148,7 +149,10 @@ test('Canvas rolls back newly staged bytes on command failure and rejects unsave
     assert.equal(draws, 1);
     assert.equal(value.workspace.gameSnapshot().assets.length, 0); assert.deepEqual(await readdir(path.join(value.projectRoot, 'assets/generated')), []);
     await value.workspace.newProject(null, 'Unsaved');
-    await assert.rejects(approveAndExecute(value.runtime, call('call:texture-unsaved', 'asset.generate-texture', { baseRevision: 1, recipe })), /Save the project/); assert.equal(draws, 1);
+    value.resources.history.execute = () => { throw new Error('Injected History failure'); };
+    try { await assert.rejects(approveAndExecute(value.runtime, call('call:texture-unsaved', 'asset.generate-texture', { baseRevision: 1, recipe })), /Injected History failure/); } finally { value.resources.history.execute = execute; }
+    assert.equal(draws, 2); assert.equal(value.workspace.gameSnapshot().assets.length, 0);
+    await value.workspace.saveAs(value.projectRoot); assert.deepEqual(await readdir(path.join(value.projectRoot, 'assets/generated')), []);
   } finally { await dispose(value); }
 });
 
@@ -1507,5 +1511,67 @@ test('initialization-only script proposals recommend persisted properties withou
     const proposed = await executeReady(value.runtime, call('call:initial-transform-script', 'script.propose', { baseRevision: created.afterRevision, entityId: created.value.entity.id, text: repairedRuntimeScript }));
     assert.match(proposed.value.authoringHints.join(' '), /transform.set/);
     assert.equal(value.scripts.snapshot().resources.length, 0);
+  } finally { await dispose(value); }
+});
+
+
+test('large-scene pointer gesture returns bounded evidence, hit targets and real effects without losing persisted state', async () => {
+  const value = await fixture(); let tick = 10, rotation = 0, queued = null;
+  const entities = () => Array.from({length: 400}, (_, i) => ({id:'entity:large-'+i,position:[i,0,0],rotation:[0,i===399?rotation:0,0],scale:[1,1,1]}));
+  const observe = (interactions=[]) => ({...value.preview.observation({state:{entities:entities(),camera:{position:[0,0,10],rotation:[0,0,0]}},gameplay:[{value:{metrics:{moves:rotation}}}],interactions,trace:Array.from({length:150},()=>({detail:'trace '.repeat(80)})),runtimeErrorCount:0}),tick,documentRevision:1});
+  value.preview.input = async event => { queued=event; return observe(); };
+  value.preview.step = async count => { let interactions=[]; for(let i=0;i<count;i++){tick++;if(queued?.tick===tick){if(queued.phase==='move')rotation++;interactions=[{pointerId:1,type:queued.phase,entityId:'entity:large-399',point:[1,2,3],normal:[0,0,1]}];queued=null;}}return observe(interactions); };
+  try {
+    assert.ok(Buffer.byteLength(JSON.stringify(observe().value))>65536);
+    const result = await executeReady(value.runtime, call('call:large-gesture','play.pointer-gesture',{points:[{phase:'down',x:.5,y:.5},{phase:'move',x:.7,y:.5},{phase:'up',x:.7,y:.5}]}));
+    assert.equal(result.status,'completed');assert.ok(Buffer.byteLength(JSON.stringify(result.value))<65536);
+    assert.equal(result.value.baselineProjectionTruncated,true);assert.equal(result.value.projectionTruncated,true);
+    assert.deepEqual(result.value.steps.map(step=>step.interactionTargetId),['entity:large-399','entity:large-399','entity:large-399']);
+    assert.deepEqual(result.value.effects,{changedEntityCount:1,changedEntityIds:['entity:large-399'],changedEntityIdsTruncated:false,cameraChanged:false});
+    const final = await value.operationLog.readArtifact(result.value.observations.find(item=>item.type==='state').id);
+    assert.equal(final.value.payload.state.entities.length,400);assert.equal(final.value.payload.state.entities[399].rotation[1],1);
+    assert.equal(final.value.payload.trace.length,150);
+  } finally { await dispose(value); }
+});
+
+
+test('unsaved Canvas textures preview immediately, survive failed save and Undo/Redo across first save, and stay project-scoped', async () => {
+  const bytes = pngHeader(2, 2);
+  const value = await fixture({ textureRenderer: { async render() { return bytes; } } });
+  try {
+    await value.workspace.newProject(null, 'Draft board');
+    const generated = await approveAndExecute(value.runtime, call('call:draft-texture', 'asset.generate-texture', { baseRevision: 1, recipe: { schemaVersion: 1, width: 2, height: 2, commands: [] } }));
+    assert.equal(generated.status, 'completed');
+    const asset = generated.value.asset;
+    assert.equal(value.workspace.snapshot().projectRoot, null);
+    const copy = await value.workspace.readControlledAsset(asset.projectPath, 1024); copy[0] = 0;
+    assert.deepEqual(await value.workspace.readControlledAsset(asset.projectPath, 1024), bytes);
+    await assert.rejects(value.workspace.readControlledAsset(asset.projectPath, 1), /read budget/);
+    await assert.rejects(value.workspace.readControlledAsset(asset.projectPath, NaN), /budget/);
+    const entity = await executeReady(value.runtime, call('call:draft-board', 'entity.create', { baseRevision: 2, kind: 'plane', plane: 'xz', material: 'pbr' }));
+    const assigned = await approveAndExecute(value.runtime, call('call:draft-assign', 'asset.assign', { baseRevision: 3, entityId: entity.value.entity.id, assetId: asset.id, usage: 'texture.base-color' }));
+    assert.equal(assigned.status, 'completed');
+    assert.equal(value.scene.snapshot().entities[0].components.find(c => c.type === 'haiyue.material.pbr').value.baseColorAssetId, asset.id);
+    // A destination conflict must leave the draft readable and without a new project root.
+    await mkdir(path.join(value.projectRoot, '.haiyue-project.json'));
+    await assert.rejects(value.workspace.saveAs(value.projectRoot), /project save failed/);
+    assert.equal(value.workspace.snapshot().projectRoot, null);
+    assert.deepEqual(await value.workspace.readControlledAsset(asset.projectPath, 1024), bytes);
+    assert.deepEqual(await readdir(path.join(value.projectRoot, 'assets/generated')), []);
+    await rm(path.join(value.projectRoot, '.haiyue-project.json'), { recursive: true });
+    await value.workspace.undo(4); await value.workspace.undo(5); await value.workspace.undo(6);
+    assert.equal(value.workspace.gameSnapshot().assets.length, 0);
+    await value.workspace.saveAs(value.projectRoot);
+    assert.deepEqual(new Uint8Array(await readFile(path.join(value.projectRoot, asset.projectPath))), bytes);
+    await value.workspace.redo(7); await value.workspace.redo(8); await value.workspace.redo(9);
+    await value.workspace.save(); await value.workspace.reopen();
+    assert.equal(value.scene.snapshot().entities[0].components.find(c => c.type === 'haiyue.material.pbr').value.baseColorAssetId, asset.id);
+    assert.deepEqual(await value.workspace.readControlledAsset(asset.projectPath, 1024), bytes);
+    await value.workspace.newProject(null, 'Other draft');
+    await assert.rejects(value.workspace.readControlledAsset(asset.projectPath, 1024));
+    const another = await approveAndExecute(value.runtime, call('call:other-draft-texture', 'asset.generate-texture', { baseRevision: 1, recipe: { schemaVersion: 1, width: 2, height: 2, commands: [] } }));
+    assert.equal(another.status, 'completed');
+    await value.workspace.newProject(null, 'Replacement');
+    await assert.rejects(value.workspace.readControlledAsset(asset.projectPath, 1024));
   } finally { await dispose(value); }
 });

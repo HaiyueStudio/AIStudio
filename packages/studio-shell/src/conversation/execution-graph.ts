@@ -179,6 +179,8 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
     if (result) node.summary = result.summary;
   }
 
+  projectConfirmationCheckpoints(ops, nodes, edges, opToGraphNode, turnLifecycle, transcript);
+
   for (const node of nodes.values()) {
     if (node.kind !== 'turn' || node.status !== 'running') continue;
     const tools = [...nodes.values()].filter(child => child.turnId === node.turnId && child.kind === 'tool');
@@ -189,7 +191,12 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
     }
   }
   const root = nodes.get(rootId);
-  if (root) root.status = sessionStatus(input.status, ops);
+  if (root) {
+    root.status = sessionStatus(input.status, ops);
+    const latestTurn = [...turnLifecycle.values()].at(-1);
+    const turnStatus = latestTurn ? nodes.get(graphId('turn', latestTurn.turnId!))?.status : null;
+    if (latestTurn?.kind === 'turn.completed' && turnStatus && turnStatus !== productStatus(stringValue(latestTurn.payload.status))) root.status = turnStatus;
+  }
 
   summarizeTerminalReasons(nodes, edges);
 
@@ -236,7 +243,7 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
 function currentExecutionNodeIds(nodes: readonly Pick<ExecutionGraphNodeReadModel, 'id' | 'status' | 'kind' | 'turnId'>[], edges: readonly Pick<ExecutionGraphEdgeReadModel, 'kind' | 'from' | 'to'>[]): string[] {
   const active = nodes.filter(node => activeStatuses.has(node.status));
   const waitingTurns = new Set(active.filter(node => node.status === 'waiting' && ['approval', 'question', 'plan'].includes(node.kind)).map(node => node.turnId));
-  const candidates = new Set(active.filter(node => node.status !== 'running' || !waitingTurns.has(node.turnId)).map(node => node.id));
+  const candidates = new Set(active.filter(node => !waitingTurns.has(node.turnId) || ['approval', 'question', 'plan'].includes(node.kind)).map(node => node.id));
   const parents = new Map<string, string[]>();
   for (const edge of edges) if (edge.kind === 'contains') parents.set(edge.to, [...(parents.get(edge.to) ?? []), edge.from]);
   for (const node of active) {
@@ -244,6 +251,58 @@ function currentExecutionNodeIds(nodes: readonly Pick<ExecutionGraphNodeReadMode
     while (queue.length) { const id = queue.pop()!; if (visited.has(id)) continue; visited.add(id); candidates.delete(id); queue.push(...(parents.get(id) ?? [])); }
   }
   return active.filter(node => candidates.has(node.id)).map(node => node.id);
+}
+
+/** Provider cancellation at a persisted human checkpoint is a pause in the product.
+ * Keep the journal intact, use an explicit checkpoint identity, and support the
+ * exact historical host marker only when a matching request exists in this turn. */
+function projectConfirmationCheckpoints(ops: readonly SessionOpV1[], nodes: Map<string, MutableNode>, edges: Map<string, MutableEdge>, opNodes: Map<string, string>, lifecycle: Map<string, SessionOpV1>, transcript: ExecutionTranscriptItemReadModel[]): void {
+  const kinds = new Map(ops.map(op => [op.id, op.kind]));
+  const legacyReason = '已保存用户确认检查点并释放当前调用，确认后可继续；已完成的修改保留。';
+  for (const end of ops) {
+    if (end.kind !== 'turn.completed' || !end.turnId || !['cancelled', 'interrupted'].includes(String(end.payload.status))) continue;
+    const checkpointId = stringValue(end.payload.suspendedBarrierId);
+    if (!checkpointId && end.payload.reason !== legacyReason) continue;
+    const start = ops.filter(op => op.turnId === end.turnId && op.kind === 'turn.started' && op.sequence < end.sequence).at(-1);
+    const request = ops.filter(op => op.turnId === end.turnId && op.sequence > (start?.sequence ?? -1) && op.sequence < end.sequence
+      && ['question.requested', 'approval.requested'].includes(op.kind)
+      && (!checkpointId || [op.nodeId, op.payload.questionId, op.payload.approvalId].includes(checkpointId))).at(-1);
+    const barrier = request ? nodes.get(opNodes.get(request.id)!) : null;
+    if (!barrier || !['waiting', 'completed', 'cancelled'].includes(barrier.status)) continue;
+    const status = barrier.status;
+    const reason = status === 'waiting' ? '等待用户确认，进度已保存；确认后继续执行。'
+      : status === 'completed' ? '用户已确认，检查点已释放。' : '用户未确认继续，任务已取消。';
+    const changed = new Set<string>();
+    const update = (node: MutableNode | undefined) => {
+      if (!node) return;
+      node.status = status; node.reason = reason; node.diagnostic = null;
+      node.barrierKind = barrier.barrierKind;
+      node.summary = reason;
+      node.completedAt = status === 'waiting' ? null : barrier.completedAt ?? end.timestamp;
+      changed.add(node.id);
+    };
+    const result = nodes.get(graphId('result', end.id));
+    update(result);
+    if (result) result.title = status === 'waiting' ? '等待用户确认' : status === 'completed' ? '确认已完成' : '用户已取消';
+    if (lifecycle.get(end.turnId) === end) update(nodes.get(graphId('turn', end.turnId)));
+    for (const op of ops) {
+      if (op.kind !== 'tool.completed' || op.turnId !== end.turnId || op.sequence <= (start?.sequence ?? -1) || op.sequence > end.sequence) continue;
+      const tool = nodes.get(opNodes.get(op.id)!);
+      if (tool?.status === 'cancelled' && tool.diagnostic === 'barrier.waiting-user') update(tool);
+    }
+    for (const batch of nodes.values()) {
+      if (batch.kind !== 'tool-batch' || batch.turnId !== end.turnId || batch.status !== 'cancelled') continue;
+      const children = [...edges.values()].filter(edge => edge.kind === 'contains' && edge.from === batch.id).map(edge => nodes.get(edge.to)!);
+      if (children.some(child => changed.has(child.id)) && children.every(child => changed.has(child.id) || child.status === 'completed')) update(batch);
+    }
+    // Transcript summaries are product projections too; raw facts remain in the log.
+    for (let i = 0; i < transcript.length; i++) {
+      const item = transcript[i]!;
+      if (!['turn.completed', 'tool.completed', 'tool-batch.completed'].includes(kinds.get(item.sourceOpIds[0]!) ?? '')) continue;
+      const node = nodes.get(item.graphNodeIds[0]!);
+      if (node && changed.has(node.id)) transcript[i] = freeze({ ...item, status, title: node.title, body: reason });
+    }
+  }
 }
 
 export function normalizeExecutionGraphs(value: unknown): readonly ExecutionGraphReadModel[] {
@@ -276,7 +335,7 @@ export function compareExecutionGraphs(left: ExecutionGraphReadModel, right: Exe
 export function executionGraphIdentity(graph: ExecutionGraphReadModel): M13StableId { return graph.taskId ?? graph.sessionId; }
 
 /** Compose the product task without changing its durable session graphs or context/approval owners. */
-export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadModel[], tasks: readonly (Pick<ConversationTaskRunReadModel, 'taskId' | 'title' | 'status'> & Partial<Pick<ConversationTaskRunReadModel, 'sessionId' | 'turnId' | 'terminalDiagnostic' | 'timeline'>>)[] = []): readonly ExecutionGraphReadModel[] {
+export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadModel[], tasks: readonly (Pick<ConversationTaskRunReadModel, 'taskId' | 'title' | 'status'> & Partial<Pick<ConversationTaskRunReadModel, 'sessionId' | 'turnId' | 'terminalDiagnostic' | 'timeline' | 'phase'>>)[] = []): readonly ExecutionGraphReadModel[] {
   const groups = new Map<string, { graph: ExecutionGraphReadModel; nodeIds: readonly string[]; transcriptIds: readonly string[] }[]>();
   const result: ExecutionGraphReadModel[] = [];
   for (const graph of graphs) {
@@ -313,11 +372,13 @@ export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadMo
         else if (current.node.status === 'running') status = 'running';
       }
     }
+    const pendingAcceptance = task?.status === 'blocked' && task.terminalDiagnostic === 'task.acceptance-evidence-incomplete';
+    if (pendingAcceptance && status === 'failed') status = 'outcome-unknown';
     const terminal = status === 'failed' || status === 'cancelled';
     const diagnostic = task?.terminalDiagnostic ?? (terminal ? sourceRoot.detail.diagnostic : null);
-    const reason = terminal ? task?.timeline?.filter(item => item.status === 'error').at(-1)?.detail ?? diagnostic ?? sourceRoot.detail.reason ?? null : null;
+    const reason = terminal ? executionFailureReason(diagnostic, task?.timeline?.filter(item => item.status === 'error').at(-1)?.detail ?? sourceRoot.detail.reason ?? null) : status === 'outcome-unknown' && pendingAcceptance ? '当前回合已结束，验收证据尚未补齐，可从检查点继续验收。' : null;
     const title = task?.title ?? (parts[0]!.graph.taskScopes?.length === 1 ? parts[0]!.graph.title : 'Agent task');
-    const nodes: ExecutionGraphNodeReadModel[] = [freeze({ ...sourceRoot, id: rootId, title, status, summary: `${parts.length} 个执行阶段${task?.status === 'blocked' && status === 'running' ? ' · 执行中，验收尚未完成' : ''}`, detail: freeze({ ...sourceRoot.detail, reason, diagnostic }), startedAt: firstTime(parts[0]!), completedAt: terminalStatuses.has(status) ? sourceRoot.completedAt : null, durationMs: null, sourceOpIds: freeze([]), artifactRefs: freeze([]) })];
+    const nodes: ExecutionGraphNodeReadModel[] = [freeze({ ...sourceRoot, id: rootId, title, status, summary: `${parts.length} 个执行阶段${status === 'running' && (task?.status === 'blocked' || ['playing', 'evaluating', 'repairing'].includes(task?.phase ?? '')) ? ' · 验收处理中' : pendingAcceptance && status === 'outcome-unknown' ? ' · 待继续验收' : ''}`, detail: freeze({ ...sourceRoot.detail, reason, diagnostic }), startedAt: firstTime(parts[0]!), completedAt: terminalStatuses.has(status) ? sourceRoot.completedAt : null, durationMs: null, sourceOpIds: freeze([]), artifactRefs: freeze([]) })];
     const edges: ExecutionGraphEdgeReadModel[] = []; const transcript: ExecutionTranscriptItemReadModel[] = [];
     const critical: string[] = []; const diagnostics: ExecutionGraphDiagnosticReadModel[] = [];
     for (const part of parts) {
@@ -336,6 +397,12 @@ export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadMo
     result.push(deepFreeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) }));
   }
   return freeze(result.sort(compareExecutionGraphs));
+}
+
+/** Present the actionable cause without relabeling an execution error as missing acceptance. */
+export function executionFailureReason(diagnostic: string | null, detail: string | null): string | null {
+  if (diagnostic === 'texture.project-unsaved') return '当前项目尚未保存到项目目录，无法保存生成的 PNG 贴图。';
+  return detail?.replace(/\s*验收尚未完成。$/u, '') || diagnostic;
 }
 
 export function normalizeExecutionGraph(value: unknown): ExecutionGraphReadModel {

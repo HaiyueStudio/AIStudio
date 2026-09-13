@@ -4,9 +4,9 @@
   "binding": {
     "algorithm": "sha256",
     "fileCount": 655,
-    "sourceDigest": "sha256:97ce7049cb9ff6d16d0cd038a5d06d1f492c808cbb84cb71c97b2622353e5ba5",
+    "sourceDigest": "sha256:89a71414f47b41fd20834b81eca251535386854fe750a4bc56bdc52f6d3c6a95",
     "packageDigest": "sha256:1aca9d2240c993739cc2219a7c041a581ccfb1dc126690581940966a850c0200",
-    "digest": "sha256:116b4fdc505b091bb30d5085b122a967f2092d300770f1d7cccba6ff3bc4819c"
+    "digest": "sha256:091ad35c3a8bdc46bed16b5ae0066d75b9c20091b0c52535ba71412d689f36da"
   },
   "packages": [
     {
@@ -1998,7 +1998,7 @@
         "requiredCapabilities": [
           "studio.project-workspace"
         ],
-        "definitionDigest": "sha256:c88b91ca17ab3edf332955a815669bb5f7b2cb18c3923e70b2371f8740dda9a3",
+        "definitionDigest": "sha256:b48b0d694865dfbe9870e3d7a334920d515ce1a0fdc605e9426586a2a26f57c0",
         "timeoutMs": 20000,
         "maxResultBytes": 32768
       },
@@ -2365,7 +2365,7 @@
         "requiredCapabilities": [
           "play.inspect"
         ],
-        "definitionDigest": "sha256:5135a1f6dc4c67a4ff7220e147c3ad2fe027371a5161654322edf26197afce56",
+        "definitionDigest": "sha256:f5091a7c189c3eb1c11a770ea16d3b6a2e24b8c1f2d8292343e9a64ab186ea8b",
         "timeoutMs": 20000,
         "maxResultBytes": 65536
       },
@@ -3081,7 +3081,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -3119,7 +3119,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,tool.search"
             },
@@ -3157,13 +3157,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -3246,7 +3246,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -3284,7 +3284,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,tool.search"
             },
@@ -3322,13 +3322,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -3411,7 +3411,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -3461,7 +3461,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "asset.assign,asset.dependencies,asset.generate-texture,asset.import,asset.search,behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,prefab.manage,tool.search"
             },
@@ -3499,13 +3499,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -3589,7 +3589,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -3627,7 +3627,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,tool.search"
             },
@@ -3665,13 +3665,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -3750,7 +3750,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -3782,7 +3782,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,camera.author,camera.get,camera.set,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,tool.search"
             },
@@ -3820,7 +3820,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "camera"
             },
@@ -3899,7 +3899,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -3931,7 +3931,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,camera.author,camera.get,camera.set,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,tool.search"
             },
@@ -3969,7 +3969,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "camera"
             },
@@ -4048,7 +4048,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -4080,7 +4080,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,camera.author,camera.get,camera.set,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,tool.search"
             },
@@ -4118,7 +4118,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "camera"
             },
@@ -4186,7 +4186,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -4218,7 +4218,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "entity.create,entity.create-many,entity.get,entity.hierarchy,entity.rename,history.query,project.snapshot,scene.diff,scene.get-many,scene.list-entities,scene.query,transform.batch,transform.set"
             },
@@ -4256,13 +4256,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -4321,7 +4321,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -4340,7 +4340,7 @@
             },
             {
               "path": "packages/game-authoring-tools/src/runtime.ts",
-              "sha256": "sha256:e9e9172db28f71e2cb3496b2b677b560c3f1db713e481b3cc4ce5984e20e022e",
+              "sha256": "sha256:8ec863b29e98950727a070757f3a8d41cea562562dbf2d22056ea14b32babef2",
               "kind": "source",
               "locator": ""
             },
@@ -4359,7 +4359,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "diagnostics.query,play.capture,play.inspect,task.evaluate"
             },
@@ -4397,31 +4397,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
@@ -4505,7 +4505,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -4543,7 +4543,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,entity.create,entity.create-many,entity.get,entity.hierarchy,entity.rename,history.query,project.snapshot,scene.diff,scene.get-many,scene.list-entities,scene.query,tool.search,transform.batch,transform.set"
             },
@@ -4581,13 +4581,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -4650,7 +4650,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -4682,7 +4682,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "play.input,play.step"
             },
@@ -4720,7 +4720,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -4798,7 +4798,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -4836,7 +4836,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.input,play.step,tool.search"
             },
@@ -4874,7 +4874,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -4937,7 +4937,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -4969,7 +4969,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "play.input,play.step"
             },
@@ -5007,7 +5007,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -5085,7 +5085,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -5123,7 +5123,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.input,play.step,tool.search"
             },
@@ -5161,7 +5161,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -5248,7 +5248,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -5292,7 +5292,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,material.set,tool.search"
             },
@@ -5330,13 +5330,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5421,7 +5421,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -5465,7 +5465,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,material.set,tool.search"
             },
@@ -5503,13 +5503,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5592,7 +5592,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -5630,7 +5630,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,material.set,tool.search"
             },
@@ -5668,13 +5668,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5757,7 +5757,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -5795,7 +5795,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,material.set,tool.search"
             },
@@ -5833,13 +5833,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -5920,7 +5920,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -5952,7 +5952,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.physics-query,tool.search"
             },
@@ -5990,7 +5990,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "physics"
             },
@@ -6071,7 +6071,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -6103,7 +6103,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.physics-query,tool.search"
             },
@@ -6141,7 +6141,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "physics"
             },
@@ -6218,7 +6218,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -6250,7 +6250,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.physics-query,tool.search"
             },
@@ -6288,7 +6288,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "physics"
             },
@@ -6362,7 +6362,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -6387,7 +6387,7 @@
             },
             {
               "path": "packages/game-authoring-tools/src/runtime.ts",
-              "sha256": "sha256:e9e9172db28f71e2cb3496b2b677b560c3f1db713e481b3cc4ce5984e20e022e",
+              "sha256": "sha256:8ec863b29e98950727a070757f3a8d41cea562562dbf2d22056ea14b32babef2",
               "kind": "source",
               "locator": ""
             },
@@ -6406,7 +6406,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,diagnostics.query,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.capture,play.inspect,task.evaluate,tool.search"
             },
@@ -6444,31 +6444,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
@@ -6548,7 +6548,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -6573,7 +6573,7 @@
             },
             {
               "path": "packages/game-authoring-tools/src/runtime.ts",
-              "sha256": "sha256:e9e9172db28f71e2cb3496b2b677b560c3f1db713e481b3cc4ce5984e20e022e",
+              "sha256": "sha256:8ec863b29e98950727a070757f3a8d41cea562562dbf2d22056ea14b32babef2",
               "kind": "source",
               "locator": ""
             },
@@ -6592,7 +6592,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,diagnostics.query,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.capture,play.input,play.inspect,play.physics-query,play.pointer-gesture,play.start,play.step,play.stop,task.evaluate,tool.search"
             },
@@ -6630,31 +6630,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
@@ -6740,7 +6740,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -6778,7 +6778,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.start,play.stop,preview.start,preview.stop,preview.validate,script.apply,script.get,script.patch,script.propose,script.symbols,tool.search"
             },
@@ -6816,13 +6816,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "scripts"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -6905,7 +6905,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -6943,7 +6943,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,material.set,tool.search"
             },
@@ -6981,13 +6981,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -7069,7 +7069,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -7119,7 +7119,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "asset.assign,asset.dependencies,asset.generate-texture,asset.import,asset.search,behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,prefab.manage,tool.search"
             },
@@ -7157,13 +7157,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -7231,7 +7231,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -7263,7 +7263,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "entity.create,entity.create-many,entity.get,entity.hierarchy,entity.rename,history.query,project.snapshot,scene.diff,scene.get-many,scene.list-entities,scene.query,transform.batch,transform.set"
             },
@@ -7301,13 +7301,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "tools"
             },
@@ -7375,7 +7375,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -7407,7 +7407,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "material.set"
             },
@@ -7445,13 +7445,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "documents"
             },
@@ -7531,7 +7531,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             },
@@ -7575,7 +7575,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "behavior.explain,behavior.locate,behavior.query,component.add,component.configure,component.describe,component.get,component.remove,component.set,engine.capabilities.describe,engine.docs.read,engine.docs.search,play.input,play.step,tool.search"
             },
@@ -7613,7 +7613,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -7676,7 +7676,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -7708,7 +7708,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "play.input,play.step"
             },
@@ -7746,7 +7746,7 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
@@ -7805,7 +7805,7 @@
             },
             {
               "path": "packages/editor-plugins/src/project/repository.ts",
-              "sha256": "sha256:4f25afe6711a2d940b362d241965021203f874205c86fe6cec7bf45e66d7efc9",
+              "sha256": "sha256:1e59846fdf7e29be2ed74840125c5a3fbe019c4cfc7930a8486e486dd61bd20d",
               "kind": "source",
               "locator": ""
             }
@@ -7824,7 +7824,7 @@
             },
             {
               "path": "packages/game-authoring-tools/src/runtime.ts",
-              "sha256": "sha256:e9e9172db28f71e2cb3496b2b677b560c3f1db713e481b3cc4ce5984e20e022e",
+              "sha256": "sha256:8ec863b29e98950727a070757f3a8d41cea562562dbf2d22056ea14b32babef2",
               "kind": "source",
               "locator": ""
             },
@@ -7843,7 +7843,7 @@
           "references": [
             {
               "path": "packages/game-authoring-tools/src/definitions.ts",
-              "sha256": "sha256:a6deab12ea1217dbd692bbc1672c495b73c2449dbf9ce94105aa17e489ccd4bd",
+              "sha256": "sha256:3e1613c96b750cc5c6b634218d0aedaeb0eab6078c9bb051a6528aea902f869a",
               "kind": "source",
               "locator": "diagnostics.query,play.capture,play.inspect,task.evaluate"
             },
@@ -7881,31 +7881,31 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:6dca4824648d661e3d5c9fb3de69109f38175c683dcc7f72b0bd382324c2e1f5",
+              "sha256": "sha256:c495960fe99e95eb7c271a1166b0bbf9d60366afdf2d219e58a94f2e731b7f9e",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },

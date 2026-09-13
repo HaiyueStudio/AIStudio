@@ -85,6 +85,9 @@ test('a long durable plan releases the provider call and selects real catalog to
     const pending = host.replay().events.map((event) => event.node).filter((node) => node.kind === 'plan' && node.status === 'pending').at(-1);
     const suspended = (await sessions.replay(sessionId)).ops.find(op => op.kind === 'tool.completed' && op.payload.status === 'cancelled');
     assert.equal(suspended.payload.diagnostic, 'barrier.waiting-user');
+    const pausedTurn = (await sessions.replay(sessionId)).ops.find(op => op.kind === 'turn.completed');
+    assert.equal(pausedTurn.payload.suspendedBarrierId, pending.id);
+    assert.equal(host.replay().executionGraphs.flatMap(graph => graph.nodes).find(node => node.kind === 'turn').status, 'waiting');
     assert.match(suspended.payload.reason, /等待用户确认/);
     assert.match(host.replay().executionGraphs.flatMap(graph => graph.nodes).find(node => node.detail.toolId === 'studio.plan.propose').detail.reason, /等待用户确认/);
 
@@ -440,5 +443,6 @@ function approvalTools() {
 
 function latestNode(host, kind, status) { return host.replay().events.map((event) => event.node).filter((node) => node.kind === kind && node.status === status).at(-1); }
 
-async function waitFor(predicate) { for (let index = 0; index < 300; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for recovered barrier.'); }
+// Durable checkpoints flush files; use an elapsed-time bound that tolerates a busy test host.
+async function waitFor(predicate) { const deadline = performance.now() + 10_000; do { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 10)); } while (performance.now() < deadline); throw new Error('Timed out waiting for recovered barrier.'); }
 function runElectron(fixture, root, phase) { return new Promise((resolve, reject) => { const child = spawn(electronPath, ['--in-process-gpu', '--disable-gpu', '--disable-gpu-compositing', '--disable-software-rasterizer', fixture], { env: { ...process.env, HAIYUE_G07_BARRIER_ROOT: root, HAIYUE_G07_BARRIER_PHASE: phase, HAIYUE_G07_USER_DATA: path.join(root, `user-data-${phase}`) }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }); let output = ''; child.stdout.on('data', (chunk) => { output += chunk; }); child.stderr.on('data', (chunk) => { output += chunk; }); child.once('error', reject); child.once('exit', (code) => resolve({ code, output })); }); }

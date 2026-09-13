@@ -1,0 +1,124 @@
+{
+  "inputDigest": "sha256:965fe1bc714a734a681c89d13c7fa0965b42f0ef1d6d9f064736a33c6a429119",
+  "passed": 275,
+  "checks": [
+    {
+      "id": "documents",
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "tools",
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "camera",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "simulation",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "physics",
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "render",
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "scripts",
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "observations",
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "census-guards",
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "behavior-project-flow",
+      "passed": 30,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "behavior-panel-window",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "behavior-product-window",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "expandable-window",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "task-checkpoint-continuation",
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "agent-preview-handoff",
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "budget-checkpoint-recovery",
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "execution-status",
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "pointer-gestures",
+      "passed": 74,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "rootCheck": {
+    "exitCode": 1,
+    "failure": "Existing split-layout.test.mjs:69 expects @haiyue/ui 0.1.3; app already uses 0.1.4. These files are unchanged by this fix.",
+    "passed": "contracts, type checks, boundaries, candidates, quick evaluations, capability census, builds, engine docs, 33 behavior tests, 4 of 5 workspace tests",
+    "notReached": [
+      "m14:agent-tools:test",
+      "m14:logic:test",
+      "m14:integration:test"
+    ]
+  }
+}

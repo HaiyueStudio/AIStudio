@@ -1,0 +1,55 @@
+{
+  "mode": "read-only replay of persisted revision 9 evidence; no project edits",
+  "status": "fail",
+  "repairIteration": 5,
+  "repairLimit": 5,
+  "results": [
+    {
+      "assertion": "evidence runtime-errors signal count equals 0",
+      "before": "pass",
+      "after": "pass",
+      "diagnostic": null
+    },
+    {
+      "assertion": "evidence state signal gameplay.0.value.metrics.cubieCount equals 27",
+      "before": "fail",
+      "after": "pass",
+      "diagnostic": null
+    },
+    {
+      "assertion": "evidence state signal gameplay.0.value.metrics.stickerCount equals 54",
+      "before": "fail",
+      "after": "pass",
+      "diagnostic": null
+    },
+    {
+      "assertion": "evidence state signal gameplay.0.value.metrics.moveCount gte 1",
+      "before": "fail",
+      "after": "fail",
+      "diagnostic": "evaluation.condition-failed:gameplay.0.value.metrics.moveCount:gte"
+    },
+    {
+      "assertion": "evidence state signal gameplay.0.value.metrics.cameraDragCount gte 1",
+      "before": "fail",
+      "after": "pass",
+      "diagnostic": null
+    },
+    {
+      "assertion": "evidence screenshot",
+      "before": "fail",
+      "after": "fail",
+      "diagnostic": "evaluation.evidence-missing:screenshot"
+    },
+    {
+      "assertion": "evidence performance signal finite equals true",
+      "before": "fail",
+      "after": "fail",
+      "diagnostic": "evaluation.evidence-missing:performance"
+    }
+  ],
+  "limitations": [
+    "Game counters are script-reported; passing a counter assertion is not proof of correct layer rotation.",
+    "Screenshot and performance were omitted from the final evaluated evidence set.",
+    "Existing game script and scene hierarchy were not modified."
+  ]
+}

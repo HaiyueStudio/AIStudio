@@ -161,7 +161,7 @@ pre { margin: 0; color: #87d6a6; white-space: pre-wrap; font-size: 11px; max-hei
 .execution-header select { min-width: 140px; max-width: 100%; flex: 1 1 260px; }
 .execution-status { padding: 2px 7px; border: 1px solid var(--studio-border); border-radius: 999px; color: var(--studio-text-secondary); font-size: 10px; }
 .execution-status.status-running, .execution-status.status-waiting { border-color: var(--studio-accent); color: var(--studio-text); }
-.execution-status.status-failed, .execution-status.status-outcome-unknown { border-color: #dd6f91; color: #ffafc6; }
+.execution-status.status-failed { border-color: #dd6f91; color: #ffafc6; }
 .execution-pressure { flex: 1 1 260px; flex-wrap: wrap; }
 .execution-pressure progress { width: min(160px, 32vw); accent-color: var(--studio-accent); }
 .execution-pressure.pressure-emergency progress, .execution-pressure.pressure-compact-required progress { accent-color: #dd6f91; }
@@ -189,9 +189,9 @@ pre { margin: 0; color: #87d6a6; white-space: pre-wrap; font-size: 11px; max-hei
 .execution-node.is-critical { box-shadow: 0 0 0 1px color-mix(in srgb, var(--studio-accent) 65%, transparent), 0 5px 18px rgb(0 0 0 / 30%); }
 .execution-node.status-waiting, .execution-node.status-running { border-left-color: #8e83ff; }
 .execution-node > .execution-node-beam { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none; --hy-border-beam-color: var(--studio-accent); }
-.execution-node.status-failed, .execution-node.status-outcome-unknown { border-left-color: #ff8291; background: #522630; color: #fff0f2; }
+.execution-node.status-failed { border-left-color: #ff8291; background: #522630; color: #fff0f2; }
 .execution-node.status-cancelled { border-left-color: #ffffff; border-color: #b7c2d0; background: #dce2e9; color: #202b3b; }
-.execution-node.status-failed :is(.execution-node-kind, .execution-node-summary), .execution-node.status-outcome-unknown :is(.execution-node-kind, .execution-node-summary) { color: #f5c4cb; }
+.execution-node.status-failed :is(.execution-node-kind, .execution-node-summary) { color: #f5c4cb; }
 .execution-node.status-cancelled :is(.execution-node-kind, .execution-node-summary) { color: #475569; }
 .execution-node:is(.status-failed, .status-cancelled, .status-outcome-unknown):is(:hover, :focus-visible, .is-selected) { border-color: var(--studio-accent); }
 .execution-node-reason { white-space: pre-wrap; }
@@ -214,7 +214,7 @@ pre { margin: 0; color: #87d6a6; white-space: pre-wrap; font-size: 11px; max-hei
 .transcript-item > div { display: flex; justify-content: space-between; gap: 8px; }
 .transcript-item time { color: var(--studio-text-secondary); font-size: 9px; }
 .transcript-item p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.transcript-item.status-failed, .transcript-item.status-outcome-unknown { border-color: #dd6f91; }
+.transcript-item.status-failed { border-color: #dd6f91; }
 @media (prefers-reduced-motion: reduce) { .execution-workspace *, .execution-workspace *::before, .execution-workspace *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 #logs-panel { margin: 8px; border-top: 1px solid #263447; color: #9eb4ca; }
@@ -518,3 +518,11 @@ body[data-page="play"] #app { display: none; }
 #play-agent-progress li { margin-top: 6px; overflow-wrap: anywhere; }
 #play-agent-progress [data-status="failed"], #play-agent-progress [data-status="fail"] { color: #ffabb9; }
 #play-agent-progress [data-status="pass"] { color: #83dfae; }
+
+/* Awaiting evidence/reconciliation is attention, not an execution failure. */
+.task-status-awaiting-acceptance { box-shadow: inset 3px 0 #e1b952; }
+.task-status-awaiting-acceptance .chat-task-diagnostic { background: #3c3420; color: #f5d98a !important; }
+.execution-status.status-outcome-unknown { border-color: #e1b952; color: #f5d98a; }
+.execution-node.status-outcome-unknown { border-left-color: #e1b952; background: #3c3420; color: #fff5cf; }
+.execution-node.status-outcome-unknown :is(.execution-node-kind, .execution-node-summary) { color: #f5d98a; }
+.transcript-item.status-outcome-unknown { border-color: #e1b952; }

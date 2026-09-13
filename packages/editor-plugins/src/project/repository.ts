@@ -28,7 +28,7 @@ export class ProjectRepository {
   }
 
   resolveProjectPath(relativePath: string): string {
-    if (!relativePath || path.isAbsolute(relativePath) || relativePath.includes('\0')) {
+    if (!relativePath || path.isAbsolute(relativePath) || path.win32.isAbsolute(relativePath) || relativePath.includes('\0')) {
       throw new ProjectPathError('project-path-invalid', 'Project-relative path is invalid.');
     }
     const target = path.resolve(this.root, relativePath);

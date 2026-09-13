@@ -25,7 +25,7 @@ test('G09 real Electron renders an accessible replayed graph and bounded large-g
 });
 
 function appSource(shellEntry) { return `
-import { ConversationProjector, layoutExecutionGraph, presentChatPanel, projectExecutionGraph, renderChatPanel } from ${JSON.stringify(shellEntry.replaceAll('\\', '/'))};
+import { ConversationProjector, layoutExecutionGraph, presentChatPanel, projectExecutionGraph, groupExecutionGraphsByTask, renderChatPanel } from ${JSON.stringify(shellEntry.replaceAll('\\', '/'))};
 import { defineBorderBeamComponents, HYBorderBeam } from '@haiyue/ui/border-beam';
 import { defineTabsComponents } from '@haiyue/ui/tabs';
 defineTabsComponents();
@@ -108,16 +108,33 @@ window.runLiveFrontierCheck=async()=>{
   if(root.querySelector('.execution-node.kind-tool hy-border-beam')||!root.querySelector('.execution-current-activity').textContent.includes('模型生成下一步'))throw new Error('Completed tool still appears active');
   liveOps.push(makeOp(14,'turn.completed',{payload:{status:'completed'}}));renderLive();await settle();
   if(root.querySelector('.execution-node hy-border-beam'))throw new Error('Terminal graph has a live beam');
-  const reviewOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started'),makeOp(2,'question.requested',{nodeId:'node:review',payload:{questionId:'question:review',barrierKind:'plan-review',reason:'Review the requested interaction.'}})];
+  const reviewOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started'),makeOp(2,'question.requested',{nodeId:'node:review',payload:{questionId:'question:review',barrierKind:'plan-review',reason:'Review the requested interaction.'}}),makeOp(3,'turn.completed',{payload:{status:'cancelled',suspendedBarrierId:'node:review',summary:'cancelled.'}})];
   const renderReview=()=>show([projectExecutionGraph({sessionId,ops:reviewOps})]);
   renderReview();await settle();
   const planCard=root.querySelector('.execution-node.kind-plan');planCard.click();await settle();
-  if(!root.querySelector('.execution-node-detail').textContent.includes('等待用户'))throw new Error('Pending plan does not show its real waiting state');
-  reviewOps.push(makeOp(3,'question.resolved',{nodeId:'node:review',payload:{questionId:'question:review',resolution:'answered'}}),makeOp(4,'assistant.message'));
+  if(!root.querySelector('.execution-node-detail').textContent.includes('待确认'))throw new Error('Pending plan does not show its real waiting state');
+  root.querySelector('.execution-node.kind-turn').click();await settle();
+  const pausedDetail=root.querySelector('.execution-node-detail').textContent;
+  if(!pausedDetail.includes('待确认')||!pausedDetail.includes('等待原因')||pausedDetail.includes('取消原因')||root.querySelector('.execution-node.status-cancelled'))throw new Error('Released approval turn is presented as cancellation');
+  root.querySelector('.execution-node.kind-plan').click();
+  reviewOps.push(makeOp(4,'question.resolved',{nodeId:'node:review',payload:{questionId:'question:review',resolution:'answered'}}),makeOp(5,'assistant.message'),makeOp(6,'turn.started'));
   renderReview();await settle();
   const detail=root.querySelector('.execution-node-detail');
-  if(!detail||detail.textContent.includes('等待用户')||!detail.textContent.includes('已完成'))throw new Error('Selected plan detail kept the stale waiting state');
+  if(!detail||detail.textContent.includes('待确认')||!detail.textContent.includes('已完成'))throw new Error('Selected plan detail kept the stale waiting state');
   if(root.querySelectorAll('.execution-node.kind-plan').length!==1||root.querySelector('.execution-node.kind-plan hy-border-beam')||!root.querySelector('.execution-node.kind-turn hy-border-beam'))throw new Error('Answered plan still blocks the running Agent highlight');
+  reviewOps.push(makeOp(7,'turn.completed',{payload:{status:'completed'}}));renderReview();await settle();
+  if(root.querySelector('.execution-node hy-border-beam'))throw new Error('Approved continuation remained active after completion');
+  const taskOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started',{payload:{taskId:'task:awaiting-evidence'}}),makeOp(2,'turn.completed',{payload:{status:'completed'}})];
+  const endedGraph=projectExecutionGraph({sessionId,ops:taskOps});
+  const task={taskId:'task:awaiting-evidence',title:'Verify board',status:'blocked',sessionId,turnId,terminalDiagnostic:'task.acceptance-evidence-incomplete'};
+  show(groupExecutionGraphsByTask([endedGraph],[task]));await settle();
+  const awaiting=root.querySelector('.execution-node.kind-goal');
+  if(!awaiting.classList.contains('status-outcome-unknown')||getComputedStyle(awaiting).backgroundColor!=='rgb(60, 52, 32)'||root.querySelector('.execution-node hy-border-beam'))throw new Error('Pending acceptance retained failure colors or fabricated running activity');
+  awaiting.click();await settle();
+  if(!root.querySelector('.execution-node-detail').textContent.includes('待核验原因')||root.querySelector('.execution-node-detail').textContent.includes('失败原因'))throw new Error('Pending acceptance detail is labeled failure');
+  show(groupExecutionGraphsByTask([endedGraph],[{...task,terminalDiagnostic:'texture.project-unsaved'}]));await settle();
+  const failedGoal=root.querySelector('.execution-node.kind-goal');failedGoal.click();await settle();
+  if(!failedGoal.classList.contains('status-failed')||getComputedStyle(failedGoal).backgroundColor!=='rgb(82, 38, 48)'||!root.querySelector('.execution-node-detail').textContent.includes('当前项目尚未保存到项目目录'))throw new Error('PNG failure lost its concrete reason or failure style');
   show([graph,shortGraph,nextGraph]);return true;
 };
 window.graphComponentErrors=componentErrors;

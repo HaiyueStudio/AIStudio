@@ -226,6 +226,7 @@ test('unfinished acceptance reports the actual failed authoring tool instead of 
     assert.equal(run.status, 'blocked');
     assert.equal(run.terminalDiagnostic, 'query-scan-budget-exceeded');
     assert.match(run.timeline.at(-1).detail, /entity.create.*query-scan-budget-exceeded.*31784/);
+    assert.doesNotMatch(run.timeline.at(-1).detail, /验收尚未完成/);
     assert.equal(run.acceptance[0].status, 'pending');
     assert.deepEqual(run.evidence, []);
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
