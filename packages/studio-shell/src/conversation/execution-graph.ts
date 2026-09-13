@@ -1,4 +1,5 @@
 import type { CompactionRecordV1, ContextPressureV1, JsonValue, M13StableId, SessionOpV1 } from '@haiyue/ai-studio-contracts';
+import type { ConversationTaskRunReadModel } from './types.js';
 import type {
   ExecutionGraphContextReadModel,
   ExecutionGraphDiagnosticReadModel,
@@ -34,6 +35,7 @@ interface MutableNode {
   transactionId: M13StableId | null;
   usageRecordIds: M13StableId[];
   costRecordIds: M13StableId[];
+  reason: string | null;
   diagnostic: string | null;
   validation: string | null;
 }
@@ -56,6 +58,7 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
   const nodes = new Map<M13StableId, MutableNode>();
   const edges = new Map<M13StableId, MutableEdge>();
   const opToGraphNode = new Map<M13StableId, M13StableId>();
+  const questionNodes = new Map<string, M13StableId>();
   const sourceNodeToGraphNode = new Map<M13StableId, M13StableId>();
   const transcriptByOp = new Map((input.transcript ?? []).map((entry) => [entry.opId, entry]));
   const transcript: ExecutionTranscriptItemReadModel[] = [];
@@ -75,7 +78,11 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
   const toolIntervals = new Map<M13StableId, Readonly<{ batchId: M13StableId; startedAt: number; completedAt: number | null }>>();
 
   for (const op of ops) {
-    const graphNodeId = graphNodeIdFor(op, input.sessionId);
+    // Resolution events identify the question but need not repeat its barrier kind.
+    // Reuse the request coordinate so plan reviews and their answers are one node.
+    const questionId = op.kind.startsWith('question.') ? stringValue(op.payload.questionId) ?? op.nodeId ?? op.id : null;
+    const graphNodeId = (questionId ? questionNodes.get(questionId) : null) ?? graphNodeIdFor(op, input.sessionId);
+    if (questionId && graphNodeId && op.kind === 'question.requested') questionNodes.set(questionId, graphNodeId);
     if (!graphNodeId) {
       diagnostics.push(freeze({ code: 'graph.coordinate-missing', message: `Session operation ${op.id} has no graph coordinate.`, sourceOpId: op.id }));
       continue;
@@ -99,6 +106,8 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
       const turnNode = nodes.get(graphId('turn', op.turnId));
       if (turnNode) {
         turnNode.status = descriptor.status;
+        turnNode.reason = node.reason;
+        turnNode.diagnostic = node.diagnostic;
         turnNode.summary = descriptor.summary;
         turnNode.completedAt = op.timestamp;
         turnNode.sourceOpIds.push(op.id);
@@ -156,6 +165,20 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
   }
   connectParallelIntervals(toolIntervals, edges);
 
+  // Barrier answers can be appended to an already released turn. Messages are
+  // transcript facts; only a subsequent turn.started may reopen that execution.
+  const turnLifecycle = new Map(ops.filter(op => op.turnId && (op.kind === 'turn.started' || op.kind === 'turn.completed')).map(op => [op.turnId!, op]));
+  for (const [turnId, lifecycle] of turnLifecycle) {
+    const node = nodes.get(graphId('turn', turnId));
+    if (!node) continue;
+    const result = lifecycle.kind === 'turn.completed' ? nodes.get(graphId('result', lifecycle.id)) : null;
+    node.status = result?.status ?? 'running';
+    node.completedAt = result ? lifecycle.timestamp : null;
+    node.reason = result?.reason ?? null;
+    node.diagnostic = result?.diagnostic ?? null;
+    if (result) node.summary = result.summary;
+  }
+
   for (const node of nodes.values()) {
     if (node.kind !== 'turn' || node.status !== 'running') continue;
     const tools = [...nodes.values()].filter(child => child.turnId === node.turnId && child.kind === 'tool');
@@ -167,6 +190,8 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
   }
   const root = nodes.get(rootId);
   if (root) root.status = sessionStatus(input.status, ops);
+
+  summarizeTerminalReasons(nodes, edges);
 
   const frozenNodes = freeze([...nodes.values()].map(freezeNode).sort(compareNodes));
   const frozenEdges = freeze([...edges.values()].map((edge) => freeze({ ...edge, sourceOpIds: freeze(unique(edge.sourceOpIds).sort()) })).sort(compareEdges));
@@ -251,7 +276,7 @@ export function compareExecutionGraphs(left: ExecutionGraphReadModel, right: Exe
 export function executionGraphIdentity(graph: ExecutionGraphReadModel): M13StableId { return graph.taskId ?? graph.sessionId; }
 
 /** Compose the product task without changing its durable session graphs or context/approval owners. */
-export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadModel[], tasks: readonly Readonly<{ taskId: string; title: string; status: string }>[] = []): readonly ExecutionGraphReadModel[] {
+export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadModel[], tasks: readonly (Pick<ConversationTaskRunReadModel, 'taskId' | 'title' | 'status'> & Partial<Pick<ConversationTaskRunReadModel, 'sessionId' | 'turnId' | 'terminalDiagnostic' | 'timeline'>>)[] = []): readonly ExecutionGraphReadModel[] {
   const groups = new Map<string, { graph: ExecutionGraphReadModel; nodeIds: readonly string[]; transcriptIds: readonly string[] }[]>();
   const result: ExecutionGraphReadModel[] = [];
   for (const graph of graphs) {
@@ -273,9 +298,26 @@ export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadMo
     parts.sort((a, b) => firstTime(a).localeCompare(firstTime(b)) || a.graph.sessionId.localeCompare(b.graph.sessionId));
     const latest = parts.at(-1)!.graph; const task = tasks.find(item => item.taskId === taskId);
     const rootId = graphId('task', taskId); const sourceRoot = latest.nodes.find(node => node.kind === 'goal')!;
-    const status = task ? productStatus(task.status === 'waiting-user' ? 'waiting' : task.status) : latest.status;
+    let status = task ? productStatus(task.status) : latest.status;
+    if (task?.status === 'blocked') {
+      // Acceptance can be blocked while this task's provider turn is still
+      // collecting evidence or repairing. Do not borrow activity from other tasks
+      // or from an older, unreconciled session.
+      const turns = parts.flatMap(part => part.graph.nodes.filter(node => part.nodeIds.includes(node.id) && node.kind === 'turn').map(node => ({ part, node })));
+      const current = task.sessionId && task.turnId
+        ? turns.find(({ part, node }) => part.graph.sessionId === task.sessionId && node.turnId === task.turnId)
+        : turns.sort((a, b) => a.node.startedAt.localeCompare(b.node.startedAt) || a.node.id.localeCompare(b.node.id)).at(-1);
+      if (current) {
+        const waiting = current.part.graph.nodes.some(node => current.part.nodeIds.includes(node.id) && node.turnId === current.node.turnId && node.status === 'waiting' && ['approval', 'question', 'plan'].includes(node.kind));
+        if (waiting) status = 'waiting';
+        else if (current.node.status === 'running') status = 'running';
+      }
+    }
+    const terminal = status === 'failed' || status === 'cancelled';
+    const diagnostic = task?.terminalDiagnostic ?? (terminal ? sourceRoot.detail.diagnostic : null);
+    const reason = terminal ? task?.timeline?.filter(item => item.status === 'error').at(-1)?.detail ?? diagnostic ?? sourceRoot.detail.reason ?? null : null;
     const title = task?.title ?? (parts[0]!.graph.taskScopes?.length === 1 ? parts[0]!.graph.title : 'Agent task');
-    const nodes: ExecutionGraphNodeReadModel[] = [freeze({ ...sourceRoot, id: rootId, title, status, summary: `${parts.length} 个执行阶段`, startedAt: firstTime(parts[0]!), completedAt: terminalStatuses.has(status) ? sourceRoot.completedAt : null, durationMs: null, sourceOpIds: freeze([]), artifactRefs: freeze([]) })];
+    const nodes: ExecutionGraphNodeReadModel[] = [freeze({ ...sourceRoot, id: rootId, title, status, summary: `${parts.length} 个执行阶段${task?.status === 'blocked' && status === 'running' ? ' · 执行中，验收尚未完成' : ''}`, detail: freeze({ ...sourceRoot.detail, reason, diagnostic }), startedAt: firstTime(parts[0]!), completedAt: terminalStatuses.has(status) ? sourceRoot.completedAt : null, durationMs: null, sourceOpIds: freeze([]), artifactRefs: freeze([]) })];
     const edges: ExecutionGraphEdgeReadModel[] = []; const transcript: ExecutionTranscriptItemReadModel[] = [];
     const critical: string[] = []; const diagnostics: ExecutionGraphDiagnosticReadModel[] = [];
     for (const part of parts) {
@@ -388,8 +430,10 @@ function describeOp(op: SessionOpV1, activeGoal: string | null): Readonly<{ kind
 function foldNode(node: MutableNode, op: SessionOpV1, descriptor: ReturnType<typeof describeOp>): void {
   node.kind = node.kind === 'unknown' ? descriptor.kind : node.kind;
   node.status = descriptor.status;
-  node.title = descriptor.title;
-  node.summary = descriptor.summary;
+  if (op.kind !== 'question.resolved' || node.kind !== 'plan') {
+    node.title = descriptor.title;
+    node.summary = descriptor.summary;
+  }
   node.turnId ??= op.turnId;
   node.batchId ??= op.batchId;
   node.sourceNodeId ??= op.nodeId;
@@ -407,7 +451,43 @@ function foldNode(node: MutableNode, op: SessionOpV1, descriptor: ReturnType<typ
   const usage = stringValue(op.payload.usageRecordId); if (usage) node.usageRecordIds.push(usage);
   const cost = stringValue(op.payload.costRecordId); if (cost) node.costRecordIds.push(cost);
   node.diagnostic = stringValue(op.payload.diagnostic) ?? stringValue(op.payload.code) ?? node.diagnostic;
+  if (descriptor.status === 'failed' || descriptor.status === 'cancelled' || descriptor.status === 'outcome-unknown') {
+    const diagnostic = record(op.payload.diagnostic) ? op.payload.diagnostic : record(op.payload.error) ? op.payload.error : null;
+    const compaction = record(op.payload.compaction) ? op.payload.compaction : null;
+    node.diagnostic = stringValue(diagnostic?.code) ?? stringValue(compaction?.diagnostic) ?? node.diagnostic;
+    node.reason = safeText(op.payload.reason, '') || safeText(diagnostic?.message, '') || safeText(op.payload.message, '') || null;
+    // Completion summaries contain the original tool error in older journals.
+    if (!node.reason && op.kind === 'tool.completed') node.reason = safeText(op.payload.summary, '') || null;
+    if (!node.reason && op.kind === 'approval.resolved') node.reason = `审批未通过（${safeText(op.payload.resolution, 'denied')}），操作未继续。`;
+    if (!node.reason && op.kind === 'question.resolved') node.reason = '用户输入流程已取消，操作未继续。';
+  } else {
+    node.reason = null;
+    node.diagnostic = stringValue(op.payload.diagnostic) ?? stringValue(op.payload.code);
+  }
   node.validation = stringValue(op.payload.validation) ?? node.validation;
+}
+
+/** Aggregate only structural descendants, never unrelated earlier failures in a session. */
+function summarizeTerminalReasons(nodes: Map<M13StableId, MutableNode>, edges: Map<M13StableId, MutableEdge>): void {
+  const children = new Map<M13StableId, M13StableId[]>();
+  for (const edge of edges.values()) if (edge.kind === 'contains') {
+    const ids = children.get(edge.from) ?? []; ids.push(edge.to); children.set(edge.from, ids);
+  }
+  const visited = new Set<M13StableId>();
+  const visit = (node: MutableNode): void => {
+    if (visited.has(node.id)) return;
+    visited.add(node.id);
+    const descendants = (children.get(node.id) ?? []).map(id => nodes.get(id)!).filter(Boolean);
+    for (const child of descendants) visit(child);
+    if (!['failed', 'cancelled', 'outcome-unknown'].includes(node.status) || node.reason) return;
+    const causes = descendants.filter(child => child.status === node.status && (child.reason || child.diagnostic));
+    if (causes.length) node.reason = safeText(causes.slice(0, 3).map(child => `${child.title}：${child.reason ?? child.diagnostic}`).join('；') + (causes.length > 3 ? `；另有 ${causes.length - 3} 项，请查看子节点。` : ''), '');
+  };
+  for (const node of nodes.values()) visit(node);
+  for (const node of nodes.values()) if (node.kind === 'result' && node.turnId && !node.reason) {
+    const turn = nodes.get(graphId('turn', node.turnId));
+    if (turn?.status === node.status) node.reason = turn.reason;
+  }
 }
 
 function ensureStructuralParents(op: SessionOpV1, sessionId: M13StableId, rootId: M13StableId, nodes: Map<M13StableId, MutableNode>, edges: Map<M13StableId, MutableEdge>): M13StableId {
@@ -533,7 +613,7 @@ function calculateCriticalPath(nodes: readonly ExecutionGraphNodeReadModel[], ed
 }
 
 function mutableNode(input: Partial<MutableNode> & Pick<MutableNode, 'id' | 'kind' | 'status' | 'title' | 'summary' | 'startedAt'>): MutableNode {
-  return { turnId: null, batchId: null, sourceNodeId: null, sourceOpIds: [], artifactRefs: [], projectRevisionBefore: null, projectRevisionAfter: null, completedAt: null, toolId: null, toolVersion: null, executionClass: null, barrierKind: null, transactionId: null, usageRecordIds: [], costRecordIds: [], diagnostic: null, validation: null, ...input };
+  return { turnId: null, batchId: null, sourceNodeId: null, sourceOpIds: [], artifactRefs: [], projectRevisionBefore: null, projectRevisionAfter: null, completedAt: null, toolId: null, toolVersion: null, executionClass: null, barrierKind: null, transactionId: null, usageRecordIds: [], costRecordIds: [], reason: null, diagnostic: null, validation: null, ...input };
 }
 
 function freezeNode(node: MutableNode): ExecutionGraphNodeReadModel {
@@ -542,7 +622,7 @@ function freezeNode(node: MutableNode): ExecutionGraphNodeReadModel {
     id: node.id, kind: node.kind, status: node.status, title: safeText(node.title, 'Untitled step'), summary: safeText(node.summary, ''), turnId: node.turnId, batchId: node.batchId, sourceNodeId: node.sourceNodeId,
     sourceOpIds: freeze(unique(node.sourceOpIds).sort()), artifactRefs: freeze(unique(node.artifactRefs).sort()), projectRevisionBefore: node.projectRevisionBefore, projectRevisionAfter: node.projectRevisionAfter,
     startedAt: node.startedAt, completedAt: node.completedAt, durationMs: Number.isFinite(started) && Number.isFinite(completed) ? Math.max(0, completed - started) : null,
-    detail: freeze({ toolId: node.toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, barrierKind: node.barrierKind, transactionId: node.transactionId, usageRecordIds: freeze(unique(node.usageRecordIds).sort()), costRecordIds: freeze(unique(node.costRecordIds).sort()), diagnostic: node.diagnostic, validation: node.validation }),
+    detail: freeze({ toolId: node.toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, barrierKind: node.barrierKind, transactionId: node.transactionId, usageRecordIds: freeze(unique(node.usageRecordIds).sort()), costRecordIds: freeze(unique(node.costRecordIds).sort()), reason: node.reason, diagnostic: node.diagnostic, validation: node.validation }),
   });
 }
 

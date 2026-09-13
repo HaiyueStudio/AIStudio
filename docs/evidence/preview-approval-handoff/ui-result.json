@@ -1,0 +1,198 @@
+{
+  "agent": {
+    "owner": "agent",
+    "notice": true,
+    "text": "Agent 正在操作预览，请勿直接关闭或操作画面。测试结束或需要你确认时会自动返回编辑器。",
+    "exit": "停止任务并退出",
+    "pauseDisabled": true,
+    "resizeDisabled": true,
+    "input": "none",
+    "stageHeight": 676,
+    "toolbarBottom": 52.5,
+    "stageTop": 92
+  },
+  "manual": {
+    "owner": "user",
+    "notice": false,
+    "text": "Agent 正在操作预览，请勿直接关闭或操作画面。测试结束或需要你确认时会自动返回编辑器。",
+    "exit": "退出运行",
+    "pauseDisabled": false,
+    "resizeDisabled": false,
+    "input": "auto",
+    "stageHeight": 715.5,
+    "toolbarBottom": 52.5,
+    "stageTop": 52.5
+  },
+  "handoff": {
+    "display": "none",
+    "editorDisplay": "grid",
+    "playing": false,
+    "page": "authoring",
+    "hidden": true,
+    "owned": false,
+    "taskStatus": "waiting-user",
+    "disposed": 1,
+    "restored": 1,
+    "refreshError": null,
+    "reports": [
+      {
+        "event": "stopped",
+        "message": "Preview stopped.",
+        "disposableCount": 3,
+        "previewId": "preview:approval"
+      }
+    ],
+    "cancelledTask": false
+  },
+  "manualHandoff": {
+    "display": "grid",
+    "editorDisplay": "none",
+    "playing": true,
+    "page": "play",
+    "hidden": false,
+    "owned": false,
+    "taskStatus": "waiting-user",
+    "disposed": 0,
+    "restored": 0,
+    "refreshError": null,
+    "reports": [],
+    "cancelledTask": false
+  },
+  "refreshFailure": {
+    "display": "none",
+    "editorDisplay": "grid",
+    "playing": false,
+    "page": "authoring",
+    "hidden": true,
+    "owned": false,
+    "taskStatus": "waiting-user",
+    "disposed": 1,
+    "restored": 1,
+    "refreshError": "Fixture refresh failure",
+    "reports": [
+      {
+        "event": "stopped",
+        "message": "Preview stopped.",
+        "disposableCount": 3,
+        "previewId": "preview:approval"
+      }
+    ],
+    "cancelledTask": false
+  },
+  "exits": {
+    "stale": {
+      "exitEnabled": true,
+      "beforeCancel": {
+        "playing": false,
+        "page": "authoring",
+        "display": "none",
+        "disposed": 1
+      },
+      "disposed": 1,
+      "status": "预览已退出，但未能确认任务停止。请在任务面板检查状态并重试停止。",
+      "cancels": [
+        {
+          "type": "conversation/cancel",
+          "backendId": "backend:test",
+          "sessionId": "session:test",
+          "turnId": "turn:test"
+        }
+      ],
+      "reports": [
+        {
+          "event": "stopped",
+          "message": "Preview stopped.",
+          "disposableCount": 2,
+          "previewId": "preview:manual-exit"
+        }
+      ]
+    },
+    "delayed": {
+      "exitEnabled": true,
+      "beforeCancel": {
+        "playing": false,
+        "page": "authoring",
+        "display": "none",
+        "disposed": 1
+      },
+      "disposed": 1,
+      "status": "就绪",
+      "cancels": [
+        {
+          "type": "conversation/cancel",
+          "backendId": "backend:test",
+          "sessionId": "session:test",
+          "turnId": "turn:test"
+        }
+      ],
+      "reports": [
+        {
+          "event": "stopped",
+          "message": "Preview stopped.",
+          "disposableCount": 2,
+          "previewId": "preview:manual-exit"
+        }
+      ]
+    },
+    "waiting": {
+      "exitEnabled": true,
+      "beforeCancel": {
+        "playing": false,
+        "page": "authoring",
+        "display": "none",
+        "disposed": 1
+      },
+      "disposed": 1,
+      "status": "就绪",
+      "cancels": [],
+      "reports": [
+        {
+          "event": "stopped",
+          "message": "Preview stopped.",
+          "disposableCount": 2,
+          "previewId": "preview:manual-exit"
+        }
+      ]
+    },
+    "manual": {
+      "exitEnabled": true,
+      "beforeCancel": {
+        "playing": false,
+        "page": "authoring",
+        "display": "none",
+        "disposed": 1
+      },
+      "disposed": 1,
+      "status": "就绪",
+      "cancels": [],
+      "reports": [
+        {
+          "event": "stopped",
+          "message": "Preview stopped.",
+          "disposableCount": 2,
+          "previewId": "preview:manual-exit"
+        }
+      ]
+    },
+    "missing": {
+      "exitEnabled": true,
+      "beforeCancel": {
+        "playing": false,
+        "page": "authoring",
+        "display": "none",
+        "disposed": 1
+      },
+      "disposed": 1,
+      "status": "预览已退出，但未能确认任务停止。请在任务面板检查状态并重试停止。",
+      "cancels": [],
+      "reports": [
+        {
+          "event": "stopped",
+          "message": "Preview stopped.",
+          "disposableCount": 2,
+          "previewId": "preview:manual-exit"
+        }
+      ]
+    }
+  }
+}

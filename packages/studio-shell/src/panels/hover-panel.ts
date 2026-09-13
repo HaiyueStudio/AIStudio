@@ -21,6 +21,7 @@ export function createHoverPanel(document: Document, className: string, label: s
   };
   const scheduleClose = (): void => {
     cancelClose(); timer = setTimeout(() => {
+      timer = undefined;
       const underPointer = pointer ? document.elementFromPoint(pointer.x, pointer.y) : null;
       if (!pinned && !panel.contains(underPointer) && !anchor?.contains(underPointer)
         && !panel.contains(document.activeElement) && document.activeElement !== anchor) hide();
@@ -74,7 +75,11 @@ export function createHoverPanel(document: Document, className: string, label: s
     if (!panel.hidden && !panel.contains(event.target as Node)) hide();
   }, { ...options, capture: true, passive: true });
   document.defaultView?.addEventListener('resize', hide, options);
-  document.defaultView?.addEventListener('pointermove', trackPointer, { ...options, passive: true });
+  document.defaultView?.addEventListener('pointermove', event => {
+    trackPointer(event);
+    // After a streamed rerender, the replacement panel may never receive pointerleave.
+    if (!panel.hidden && !pinned && timer === undefined && !panel.contains(event.target as Node) && !anchor?.contains(event.target as Node)) scheduleClose();
+  }, { ...options, passive: true });
   return {
     panel, bind, hide,
     snapshot(): HoverState | null { return anchor && !panel.hidden ? { key: keyOf(anchor), pinned, pointer } : null; },

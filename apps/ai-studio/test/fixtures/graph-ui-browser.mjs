@@ -1,3 +1,5 @@
+import { defineExpandableComponents } from '@haiyue/ui/expandable';
+defineExpandableComponents();
 import { renderChatPanel, disposeChatPanel, presentChatPanel, ConversationProjector, projectExecutionGraph, revealChatAttention } from '@haiyue/ai-studio-shell';
 import { defineBorderBeamComponents } from '@haiyue/ui/border-beam';
 import { defineTabsComponents } from '@haiyue/ui/tabs';
@@ -5,11 +7,11 @@ defineBorderBeamComponents();
 defineTabsComponents();
 const root = document.getElementById('chat');
 const nodes = Array.from({ length: 24 }, (_, i) => ({
-  id: `node:${i}`, kind: 'tool', status: i === 0 ? 'running' : i === 1 ? 'waiting' : 'completed',
+  id: `node:${i}`, kind: 'tool', status: i === 0 ? 'running' : i === 1 ? 'waiting' : i === 2 ? 'failed' : i === 3 || i === 4 ? 'cancelled' : 'completed',
   title: i === 0 ? '正在绘制棋盘纹理' : `创建游戏步骤 ${i}`, summary: '创建素材并检查对应的游戏表现。',
   turnId: 'turn:ui', batchId: null, sourceNodeId: null, sourceOpIds: [], artifactRefs: ['artifact:ui'],
   projectRevisionBefore: 1, projectRevisionAfter: 2, startedAt: '2026-09-10T00:00:00Z', completedAt: null, durationMs: 518,
-  detail: { toolId: 'asset.texture', toolVersion: '1.0', executionClass: 'write', barrierKind: null, transactionId: null, usageRecordIds: [], costRecordIds: [], diagnostic: null, validation: null },
+  detail: { toolId: 'asset.texture', toolVersion: '1.0', executionClass: 'write', barrierKind: null, transactionId: null, usageRecordIds: [], costRecordIds: [], diagnostic: i === 2 ? 'script.compile-failed' : null, reason: i === 2 ? '脚本编译失败：未知标识符。' : i === 3 ? '已保存用户确认检查点，确认后继续。' : null, validation: null },
 }));
 const graph = { schemaVersion: 1, sessionId: 'session:ui', revision: 4, title: '创建一个五子棋游戏，支持黑白双方轮流下棋', status: 'running', nodes,
   edges: nodes.slice(4).map((node, i) => ({ id: `edge:${i}`, kind: 'depends-on', from: nodes[i].id, to: node.id, sourceOpIds: [] })),

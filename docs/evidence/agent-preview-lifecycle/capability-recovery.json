@@ -1,0 +1,12 @@
+{
+  "captureExitCode": 124,
+  "reason": "600 second deadline during final census generation, after all check results and their report were persisted",
+  "completedChecks": 12,
+  "passed": 124,
+  "inputDigest": "sha256:bdfffd18dba122be8112beb269aa3416d5e6e7e9bc962c82dd08b9f09b28905c",
+  "recovery": "Resumed generateCensus(report) and writeFile using the official implementation; it validates exact input binding and every recorded check.",
+  "officialCheck": {
+    "command": "npm --ignore-scripts run m14:capability:check",
+    "exitCode": 0
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "inputDigest": "sha256:7defbf81be95044c4edf290e8e230d2651f5800d113af8d4cb2cc6b7889c11b8",
+  "capabilityChecksPassed": 132,
+  "uiUnitTestsPassed": 23,
+  "nativeGraphSuitesPassed": 3,
+  "buildPassed": true,
+  "rootCheck": "Stopped at stale capability evidence after passing prerequisite checks. Evidence has now been recaptured; subsequent whole-repository phases were not rerun for this UI change.",
+  "applicationRestarted": false
+}

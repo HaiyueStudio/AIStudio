@@ -1,0 +1,347 @@
+
+> @haiyue/ai-studio-repository@0.0.0 check
+> npm run contracts:check && npm run typecheck && npm run typecheck -w @haiyue/ai-studio-agent-orchestration && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run render:candidate:check && npm run spike:check && npm run m12:g12:quick && npm run m14:capability:check && npm run build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts && npm run build -w @haiyue/ai-studio --ignore-scripts && npm run m14:behavior:test && npm run m14:workspace:test && npm run m14:agent-tools:test && npm run m14:logic:test && npm run m14:integration:test
+
+
+> @haiyue/ai-studio-repository@0.0.0 contracts:check
+> node scripts/verify-contracts.mjs
+
+[contracts] schemas=53 fixtureFiles=8 valid=53 invalid=82
+
+> @haiyue/ai-studio-repository@0.0.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> @haiyue/ai-studio-agent-orchestration@0.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+> @haiyue/ai-studio-repository@0.0.0 boundaries:check
+> node --test scripts/test/orchestration-boundaries.test.mjs && node scripts/check-boundaries.mjs
+
+✔ orchestration allows public service ports and local policies, but rejects platform and implementation imports (19.147222ms)
+✔ headless editor read models cannot pull panels into orchestration (1.79992ms)
+✔ reverse imports and production dependencies cannot recreate the application layer cycle (1.188018ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 605.946565
+[boundaries] headless orchestration, single Harness bridge, Codex adapter, M12 contract ownership, private workspace, and cross-repository rules passed
+
+> @haiyue/ai-studio-repository@0.0.0 upstream:check
+> node scripts/verify-upstream-pins.mjs
+
+[upstream] DSH dsh-v0.1.5-rc.2@fb2c4b9e698e, Codex 0.148.0, schemas=380, types=752
+
+> @haiyue/ai-studio-repository@0.0.0 engine:candidate:check
+> node scripts/verify-engine-candidate.mjs
+
+[engine-candidate] @haiyue/engine@0.1.0 sha256=cedb14fca3b9d663 source=10a21e64b323
+
+> @haiyue/ai-studio-repository@0.0.0 render:candidate:check
+> node scripts/verify-render-extension-candidates.mjs
+
+[render-candidate] @haiyue/animation-spec@0.1.0 sha256=f2bc618a079bae84 source=10a21e64b323
+[render-candidate] @haiyue/extensions@0.1.0 sha256=112db9547c4f2f66 source=10a21e64b323
+
+> @haiyue/ai-studio-repository@0.0.0 spike:check
+> node scripts/verify-protocol-spikes.mjs
+
+[spike] Harness and Codex fake tool/cancel flows normalize identically; teardown is idempotent; Document writes=0
+
+> @haiyue/ai-studio-repository@0.0.0 m12:g12:quick
+> node --test evals/test/*.test.mjs
+
+✔ suite covers seven genres with variants, budgets, declared capabilities and corroborated screenshots (3.722554ms)
+✔ schema rejects invalid budgets (104.079844ms)
+✔ relationship validator rejects unknown capabilities, duplicate IDs and unordered ticks (2.366327ms)
+✔ formal G12 manifest requires all seven genres, both independent backends, repairs and lifecycle gates (27.502318ms)
+✔ G12 is fail-closed for dirty revisions, shared projects, missing evidence, low first-pass rate and genre prompt patches (5.335491ms)
+✔ test fixtures and cross-revision evidence cannot be promoted into formal acceptance (2.094925ms)
+✔ formal decision cannot hide failed seeded repair or budget-stop semantics (2.44218ms)
+✔ snake evidence is derived from the full authoritative trace and correlated screenshot pixels (35.384582ms)
+✔ snake evidence accepts authoritative XZ coordinates (17.654535ms)
+✔ snake evidence derives enum-backed direction changes from consecutive head positions (2.649681ms)
+✔ snake evidence accepts flat XZ telemetry fields (2.038589ms)
+✔ snake evidence accepts col-row point aliases (0.724931ms)
+✔ snake evidence consumes the shared actors targets metrics telemetry shape (1.456647ms)
+✔ snake evidence consumes nested player head, direction and lifecycle telemetry (1.168477ms)
+✔ shared trace analyzers derive authoritative signals for every non-snake genre (6.71934ms)
+✔ falling-block evidence retains cumulative nested metrics and derives board safety across restart (7.300727ms)
+✔ non-snake visual analyzers correlate named scene roles with real bitmap colors (6.311999ms)
+✔ gameplay contract requires state plus an authoritative event channel without genre knowledge (81.914938ms)
+✔ gameplay contract recognizes typed scene receivers and named payloads without weakening exact channel keys (4.537636ms)
+✔ gameplay contract rejects incomplete canonical state even when legacy lifecycle channels exist (0.811338ms)
+✔ real cold matrix runner enumerates independent backend/genre cases and checkpoints each result (1212.352539ms)
+✔ real case runner separates model-visible request from hidden replay and persists all evidence classes (8.321883ms)
+✔ parent timeout fallback preserves fail-closed state, PNG, evaluator, usage and cost evidence (210.35271ms)
+✔ replay executor prequeues fixed input, runs semantic drivers and resolves observed triggers (49.174749ms)
+✔ a fixed-input-only replay consumes both press and release before accepting observations (2.399825ms)
+✔ trigger wait consumes fixed ticks and fails closed without an authoritative event (1.715768ms)
+✔ replay execution rejects stale base ticks and runtime errors (0.894871ms)
+✔ terminal status aliases are normalized but HUD text is never treated as a trigger (0.473788ms)
+✔ physical replay controls resolve through the project action map for direct and semantic input (1.452657ms)
+✔ failed semantic replay retains bounded observations and injected inputs for repair (1.224563ms)
+✔ all seven hidden replays compile and declare every semantic driver explicitly (22.194364ms)
+✔ real iframe startup ticks rebase absolute suite ticks and play-ready input (4.031306ms)
+✔ press, hold and sequence expand to deterministic down/up pairs (0.599169ms)
+✔ hidden lifecycle replay explicitly exercises platform restart and racing brake plus restart (0.339597ms)
+✔ semantic replay is fail-closed when a real adapter omits or invents a driver (1.070737ms)
+✔ unknown semantic actions cannot silently pass through the runner (0.302069ms)
+✔ reviewed semantic registry exactly covers every hidden replay action (4.976263ms)
+✔ every semantic driver executes bounded real preview-control operations (119.091301ms)
+✔ semantic pointer drivers consume only normalized, exact-role replay targets (0.952847ms)
+✔ wrong jigsaw drop injects a bounded pointer cancel before later recovery checks (0.546567ms)
+✔ falling-block driver retains a same-tick active-and-locked visual checkpoint (6.932828ms)
+✔ semantic drivers fail closed for missing registration and tick-budget overflow (1.225438ms)
+✔ snake verification accepts XZ gameplay state and maps vertical direction semantics (8.519828ms)
+✔ snake verification starts a ready game before testing reverse input (1.056035ms)
+✔ snake verification restarts a terminal handoff before replay (0.979564ms)
+✔ snake verification maps increasing board rows to the down control (2.271287ms)
+✔ snake verification accepts flat XZ telemetry fields (1.13875ms)
+✔ snake verification accepts col-row point aliases (0.788136ms)
+✔ snake verification consumes the shared actors targets metrics telemetry shape (4.657677ms)
+✔ snake verification consumes nested player head, direction and lifecycle telemetry (2.252208ms)
+✔ snake verification calibrates cell XY controls instead of assuming row sign (11.348551ms)
+✔ agent projection contains only request fields and production prompts do not leak hidden oracle data (658.818183ms)
+✔ isolation guard rejects a hidden replay or acceptance string in production model text (1.189718ms)
+✔ seven-game exact-only A/B keeps success while hybrid retrieval cuts schema and input tokens (8758.420852ms)
+✔ enumeration is stable across three modes and all request variants (3.280857ms)
+✔ reference fixture passes all cases and blank implementation fails all cases (85.098464ms)
+✔ every seeded defect fails exactly its declared stable acceptance IDs (20.09229ms)
+✔ runner resets to a deterministic blank document and emits canonical deterministic reports (14.731228ms)
+✔ replay schedules use fixed ticks or named triggers without wall-clock sleeps (0.591492ms)
+ℹ tests 59
+ℹ suites 0
+ℹ pass 59
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10962.640529
+
+> @haiyue/ai-studio-repository@0.0.0 m14:capability:check
+> node scripts/verify-m14-capability-census.mjs --check
+
+[m14-capability] verified: packages=8, capabilities=35, components=44, tools=51, product-integrated=0
+
+> @haiyue/ai-studio-agent-orchestration@0.0.0 build
+> tsc -p tsconfig.json
+
+
+> @haiyue/ai-studio@0.0.0 build
+> node scripts/promote-tsc-output.mjs --clean && tsc -p tsconfig.json --outDir dist/.tsc && node scripts/promote-tsc-output.mjs && node scripts/copy-assets.mjs && node scripts/build-renderer.mjs && node scripts/verify-renderer-bundle.mjs
+
+
+> @haiyue/ai-studio-repository@0.0.0 m14:behavior:test
+> node --test packages/script-preview/test/behavior-*.test.mjs apps/ai-studio/test/m14-behavior-contract.test.mjs
+
+✔ G03/G04 consume public private-package exports and the provider-neutral read port (3112.973182ms)
+✔ all six envelopes and the input reject each checked-in invalid, unknown-version and secret-bearing fixture (309.786594ms)
+✔ checked-in pure script, declarative, physics/animation and mixed inputs reproduce valid manifests (213.062547ms)
+✔ declarative field relationships agree with the existing real headless Play adapter (45.469718ms)
+✔ script control flow preserves branches, loops, awaiting, explicit aggregate lanes and dynamic gaps (380.479588ms)
+✔ serial calls do not become concurrent and return/throw do not fall through (26.820154ms)
+✔ Promise shadowing disables intrinsic concurrency recognition (51.101728ms)
+✔ finally preserves return and normal completion paths without false fall-through (21.897721ms)
+✔ pointer/custom callbacks preserve source entries and cross-entity declarative targets (42.291455ms)
+✔ declarative timers and rules retain component fields without script generation (62.643595ms)
+✔ disabled components and missing/changed adapter semantics stay honest (42.972885ms)
+✔ canonical full input is deterministic; components, dependencies, registry, adapter and config invalidate it (634.461152ms)
+✔ source ranges refer to original UTF-16 text including CRLF and Unicode (18.746217ms)
+✔ AST and output budgets yield explicit truncation with no dangling edges (47.603161ms)
+✔ input rejects unknown versions, secrets, accessors, live objects and malformed authority (86.761362ms)
+✔ four resource identities reject mixed references, illegal operations and inappropriate unused semantics (323.444998ms)
+✔ resource projection keeps existing asset identity/license/budgets and distinguishes missing knowledge (164.606177ms)
+✔ trace association reuses ObservationArtifactV2 and checks source, play, generation and exact bytes (307.437854ms)
+✔ trace bounds retain omission metadata, exceptions and cancellation; malformed or secret rows cannot hide in the tail (4261.843053ms)
+✔ trace byte budget truncates large state/error rows independently of the event-count limit (1053.675682ms)
+✔ observation script selection reuses explicit Play subsets and excludes disabled resources (10.734849ms)
+✔ instrumented execution preserves receivers, assignments, short circuit, directives, arguments and actual branches (852.132647ms)
+✔ real asynchronous resumes, thrown expressions and late callbacks retain execution semantics and Play ownership (97.676713ms)
+✔ ambiguous static finally copies do not select an invented completion path (115.243227ms)
+✔ overlapping async calls do not invent per-invocation durations when completion order differs (58.098208ms)
+✔ reached call expressions do not claim completion when an argument throws; Engine failures retain a redacted owner (30.149225ms)
+✔ actual declarative result snapshots map timers, rules and state to config fields without script or adapter inventions (149.49182ms)
+✔ bounded captures, rejected values, exact approved text and clock reset are explicit (219.403728ms)
+✔ repetitive sites leave room for later events without rewriting captures or inventing full counts (6184.933797ms)
+✔ trusted ingress seals actual captures into the existing observation contract and rejects rewritten or foreign ownership (68.2625ms)
+✔ worker analysis, bounded queries, independent explanations and source locations use the same contracts (3547.833373ms)
+✔ original script locations cannot reuse stale or forged ranges (2159.578283ms)
+✔ abort, replacement, invalidate and repeated disposal terminate workers and prevent late publication (983.748073ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9227.226468
+
+> @haiyue/ai-studio-repository@0.0.0 m14:workspace:test
+> node --test --test-concurrency=1 apps/ai-studio/test/layout/*.test.mjs apps/ai-studio/test/split-layout.test.mjs apps/ai-studio/test/electron-smoke.test.mjs
+
+✔ real Electron loads a sandboxed renderer through the typed preload and closes cleanly (81009.367611ms)
+✔ workspace migration preserves classic split settings and keeps new ratios separate (5.849178ms)
+✔ unknown versions, corrupt, oversized and unavailable storage retain a usable workspace (1.228985ms)
+M14 workspace artifacts: /private/tmp/haiyue-m14-workspace-OkbZte
+✔ real sandboxed workspace consumes G02 projections and preserves editor controls at desktop and narrow sizes (13033.904808ms)
+✔ editor panels use public HaiYue UI layout, tabs, dialog, select, and theme seams (24.775106ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 96735.175239
+
+> @haiyue/ai-studio-repository@0.0.0 m14:agent-tools:test
+> node --test --test-concurrency=1 packages/game-authoring-tools/test/*.test.mjs apps/ai-studio/test/agent-tools/*.test.mjs apps/ai-studio/test/tool-discovery-invocation.test.mjs
+
+✔ harness: discovered behavior tools execute real analysis with approval, provenance and replay (26811.410644ms)
+✔ codex: discovered behavior tools execute real analysis with approval, provenance and replay (21085.074432ms)
+✔ harness: omitted tools execute after search through the real backend adapter and retain policy/replay (9282.499267ms)
+✔ codex: omitted tools execute after search through the real backend adapter and retain policy/replay (8564.392853ms)
+✔ resource kinds keep their legal creation/component/location paths without a catalog UI or behavior source (1845.51292ms)
+✔ script: real behavior tools preserve source binding and read-only History (7089.901873ms)
+✔ declarative: real behavior tools preserve source binding and read-only History (9405.517396ms)
+✔ mixed: real behavior tools preserve source binding and read-only History (14898.09482ms)
+✔ schema fuzz, exact invocation versions and registry-owned risk reject unsupported behavior requests (2695.493441ms)
+✔ component edits, project identity, registry/config changes and in-flight drift invalidate behavior results (7390.491204ms)
+✔ result pages adapt to byte budget without dropping provenance or skipping nodes (4668.651114ms)
+✔ missing source, secret-bearing inputs and provider errors are explicit and redacted (1666.096636ms)
+✔ timeout, cancellation and disposal terminate behavior work without late results or document writes (1718.747622ms)
+✔ Canvas recipe schema and runtime agree on bounded drawing data including Chinese text (4.922309ms)
+✔ Canvas rejects unknown versions, credential fields, executable content, external images and oversized input (1.809591ms)
+✔ effect locks allow disjoint owners, serialize conflicts fairly and release idempotently (3.035165ms)
+✔ global lock conflicts with every key and cancelled wait leaves no lease (1.083726ms)
+✔ execution classes expand to safe canonical lock sets (0.303622ms)
+✔ cross-batch and cross-turn owners share exact component, script, runtime and global barriers (0.83213ms)
+✔ seven game cases consume only registered genre-neutral tools and component capabilities (2.961954ms)
+✔ high-value semantic tools retain bounded schemas, explicit effects and safe result budgets (0.345463ms)
+✔ G10 persists bounded state and PNG observations before returning references (214.387326ms)
+✔ G10 rejects oversized, missing, stale and mixed-provenance evidence fail closed (333.320769ms)
+✔ G10 deterministic evaluator fails seeded compile/runtime/physics/interaction/visual defects then passes fresh evidence (621.479779ms)
+✔ G10 screenshot presence cannot satisfy a semantic visual assertion without verifier analysis (64.821575ms)
+✔ G10 screenshot projection hides secret bytes, CAS tamper fails closed and quota isolates tasks (236.391357ms)
+✔ G10 repair state machine requires failed evidence, stops no-change repeats and completes only with cited evidence (1.561272ms)
+✔ same-tick capture bundles repair the real screenshot/state mismatch without weakening provenance (518.840738ms)
+✔ registry-owned hybrid catalog finds semantic capabilities across Chinese and English queries (166.065566ms)
+✔ task-aware schema expansion keeps stable core tools and materially reduces fixed schema bytes (424.176255ms)
+✔ explicit screenshot intent deterministically retains capture under a tight schema limit (55.281908ms)
+✔ explicit interaction intent deterministically retains Play input (53.662137ms)
+✔ complete long requests select tools without applying the short search argument limit or dropping the tail (228.434962ms)
+✔ bounded tool catalog exposes registry-driven component authoring (5.414181ms)
+✔ entity.create-many creates mixed scene roles in one revision and rejects material on non-geometry (712.361222ms)
+✔ plane creation, batch creation and repair persist local geometry orientation through Undo/Redo and reopen (2005.354516ms)
+✔ Canvas texture discovery, approval, PNG persistence, material assignment and Undo/Redo share document history (2025.171632ms)
+✔ Canvas late results cannot write into a changed or cancelled project (1631.389927ms)
+✔ Canvas rolls back newly staged bytes on command failure and rejects unsaved projects before drawing (864.178107ms)
+✔ camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically (4291.433275ms)
+✔ tool.search and component.configure expose registry defaults as partial semantic upserts (2461.87652ms)
+✔ asset.dependencies and script symbols/patch provide exact incremental context without whole-script retransmission (4612.828494ms)
+✔ scene.get-many and recoverable hierarchy operations clone, reparent and restore complete subtrees (1526.384788ms)
+✔ prefab.manage captures, instantiates and removes reusable subtrees while history.query stays bounded and source-redacted (3791.071282ms)
+✔ transform.batch applies set, align, distribute, snap and look-at as bounded single-revision edits (2568.653756ms)
+✔ main project camera persists through History and supports a distortion-free top-down board view (1139.427488ms)
+✔ runtime executes a prepared mutation batch through one Scene transaction and one undoable History entry (886.804693ms)
+✔ scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary (1800.293261ms)
+✔ planned entity creation is low risk while later scoped edits retain one-shot approval and History (1032.15759ms)
+✔ controlled project assets import, search, assign, undo and survive project reopen (2067.38431ms)
+✔ controlled asset import rejects decode-budget and kind/format violations without mutation (682.93678ms)
+✔ diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload (801.570472ms)
+✔ allow always auto-approves only the same tool, version, target and project session scope (1650.157411ms)
+✔ script proposal, trusted apply and runtime start preserve separate approvals (1805859.061335ms)
+✔ AI-generated engine imports and update wrappers are normalized before apply (2172.323708ms)
+✔ unsupported module entry points remain fail closed (2977.906658ms)
+✔ scene capability is inferred from api.scene source and survives proposal and preview validation (2963.068959ms)
+✔ preview validation rejects scenes that contain only logic entities (3872.881908ms)
+✔ preview validation rejects lit materials without a light and recovers after lighting is added (8807.577529ms)
+✔ Agent tools create Engine primitives and lights and can change built-in materials (1654.58373ms)
+✔ registry-driven component tools preserve schema, risk, Scene projection and History (2958.078892ms)
+✔ Agent can author distinct material colors for snake, food and board entities (1399.43105ms)
+✔ model-facing mutations require the observed revision and create with an initial Transform (1019.890815ms)
+✔ every revision-bound tool publishes a required version and rejects omission at its input boundary (2204.832252ms)
+✔ missing, invalid and stale revisions never adopt a newer manual edit (1637.001632ms)
+✔ manual UI service and Agent tool serialize the same entity, revision and undoable History state (1201.176137ms)
+✔ schema spoof, rejection and revision drift fail closed without mutation (1340.071869ms)
+✔ schema fuzz rejects duplicate, nested unknown, non-finite and malformed structured fields before mutation (1143.174427ms)
+✔ same-document mutations serialize and a queued stale preparation never enters the editor service (1322.703638ms)
+✔ tool, approval, Document and History correlation remains traversable after the journal restarts (1129.90354ms)
+✔ cancelled calls reject a late result even when the injected runtime ignores AbortSignal (961.857578ms)
+✔ tool timeout aborts execution, emits a terminal failure and cannot produce a late completion (910.43435ms)
+✔ observe tools degrade when journal append fails while every mutation remains fail closed (284.474642ms)
+✔ pending approvals have no wall-clock expiry while revision drift still invalidates them (1082.627906ms)
+✔ fake backend deterministic E2E creates, transforms, scripts and starts preview through one tool seam (7220.526726ms)
+✖ coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval (1057351.860156ms)
+✔ agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam (4008.774604ms)
+✔ coordinator rejects malformed provider arguments instead of coercing them to an empty observe call (177.114097ms)
+✔ coordinator can route backend turns and tool output accounting through AgentTurnRuntime (355.810896ms)
+✔ coordinator can expose a bounded tool profile and compact only the provider-facing result (431.110734ms)
+✔ a search-only coordinator invokes a discovered edit through real Document History without exposing all schemas (909.191803ms)
+✔ coordinator automatically takes over backend questions through an explicit policy (217.86604ms)
+✔ coordinator cancels a non-converging turn at its tool request boundary (520.448937ms)
+✔ coordinator preserves completed tool results when the host budget observer blocks the next request (338.192074ms)
+✔ coordinator can preserve completed tool results when a bounded host timebox aborts the caller (430.931593ms)
+✔ disposing the coordinator aborts an active backend turn and is idempotent (222.514892ms)
+✔ rounded boxes support single/batch creation, cube conversion, bounded parameters and durable History (2768.59037ms)
+✔ composite prefab preserves six independent rounded face parts through replication and History/reopen (2082.64213ms)
+✔ AI diagnostics excludes other projects and application facts even with correlation traversal (818.547781ms)
+✔ registry classification only parallelizes explicitly safe observations and fails closed (6.063801ms)
+✔ normalization ignores spoofed scheduling metadata and keeps contract ids bounded (11.647098ms)
+✔ parallel reads use a rolling pool and wall time follows the slowest body (98.115954ms)
+✔ exclusive barriers do not overlap reads and later reads wait for the barrier (66.880858ms)
+✔ cycle validation includes model dependencies and implicit barrier ordering (2.116836ms)
+✔ body completion may be out of order while committed outcomes and digest remain deterministic (104.899139ms)
+✔ failure cancels transitive dependents but independent work continues (3.908622ms)
+✔ stop-batch failure aborts active peers and cancels pending nodes (3.403827ms)
+✔ external cancellation and node timeout settle with bounded outcomes (27.645958ms)
+✔ batch output limit is enforced and digest-only projection remains bounded (3.147242ms)
+✔ an exact tool id outranks descriptions that reference that tool (5871.337167ms)
+✔ search returns an exact executable route for tools omitted from the initial native surface (572.840662ms)
+✔ invocation rejects unregistered, recursive, stale, malformed and policy-forging targets (3.696884ms)
+✔ resolved calls retain target revision, trusted-code/runtime barriers and immutable arguments (10.51824ms)
+✔ coordinator prepares without mutation and commits 7 members as one idempotent History transaction (669.864512ms)
+✔ coordinator commits the 100-member boundary as one revision and one History entry (501.818437ms)
+✔ disjoint entity transactions prepare concurrently from one frozen revision without acquiring commit locks (208.808561ms)
+✔ stale revision introduced between prepare and commit rejects without a partial transaction (236.85108ms)
+✔ stale base is rejected during prepare before any plan, mutation or History entry exists (221.501296ms)
+✔ coordinator synthesizes committed-no-ack and never submits the transaction twice (399.223885ms)
+✔ failure before History write preserves prepared artifacts and leaves the document untouched (242.584494ms)
+✔ invalid member operations fail during prepare and leave no partial Scene state or History entry (138.741034ms)
+ℹ tests 111
+ℹ suites 0
+ℹ pass 110
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3110350.724204
+
+✖ failing tests:
+
+test at packages/game-authoring-tools/test/runtime.test.mjs:1030:1
+✖ coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval (1057351.860156ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + []
+  - [
+  -   'script.propose'
+  - ]
+  
+      at TestContext.<anonymous> (file:///Users/qingque/Desktop/HaiyueStudio/AIStudio/packages/game-authoring-tools/test/runtime.test.mjs:1044:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'script.propose' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

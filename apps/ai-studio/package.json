@@ -31,7 +31,7 @@
     "@haiyue/editor-app-kit": "0.1.0",
     "@haiyue/editor-platform": "0.1.0",
     "@haiyue/engine": "0.1.0",
-    "@haiyue/ui": "0.1.3",
+    "@haiyue/ui": "0.1.4",
     "@haiyue/ai-studio-agent-orchestration": "0.0.0",
     "@haiyue/editor-shell": "0.1.1"
   },

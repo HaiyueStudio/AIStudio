@@ -19,7 +19,7 @@
     "@haiyue/editor-shell": "file:vendor/haiyue-editor-shell-0.1.1.tgz",
     "@haiyue/engine": "file:vendor/haiyue-engine-0.1.0-orthographic-picking.tgz",
     "@haiyue/extensions": "file:vendor/haiyue-extensions-0.1.0.tgz",
-    "@haiyue/ui": "file:vendor/haiyue-ui-0.1.3-scrollable-tabs.tgz"
+    "@haiyue/ui": "file:vendor/haiyue-ui-0.1.4-expandable.tgz"
   },
   "scripts": {
     "start": "npm run start -w @haiyue/ai-studio",
@@ -31,7 +31,7 @@
     "render:candidate:check": "node scripts/verify-render-extension-candidates.mjs",
     "spike:check": "node scripts/verify-protocol-spikes.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "npm run contracts:check && npm run typecheck && npm run typecheck -w @haiyue/ai-studio-agent-orchestration && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run render:candidate:check && npm run spike:check && npm run m12:g12:quick && npm run m14:capability:check && npm run build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts && npm run build -w @haiyue/ai-studio --ignore-scripts && npm run m14:behavior:test && npm run m14:workspace:test && npm run m14:agent-tools:test && npm run m14:logic:test && npm run m14:integration:test",
+    "check": "npm run contracts:check && npm run typecheck && npm run typecheck -w @haiyue/ai-studio-agent-orchestration && npm run boundaries:check && npm run upstream:check && npm run engine:candidate:check && npm run render:candidate:check && npm run spike:check && npm run m12:g12:quick && npm run m14:capability:check && npm run build -w @haiyue/ai-studio-agent-orchestration --ignore-scripts && npm run build -w @haiyue/ai-studio --ignore-scripts && npm run engine:docs:check && npm run m14:behavior:test && npm run m14:workspace:test && npm run m14:agent-tools:test && npm run m14:logic:test && npm run m14:integration:test",
     "g01:check": "npm run check && npm run editor:candidate:check",
     "m12:g01:check": "npm run contracts:check && npm run typecheck -w @haiyue/ai-studio-contracts && npm run boundaries:check && node scripts/verify-m12-g01.mjs",
     "m12:g02:check": "node --test evals/test/*.test.mjs && node scripts/verify-m12-g02.mjs",
@@ -73,7 +73,8 @@
     "m14:agent-tools:check": "npm run build -w @haiyue/ai-studio && npm run m14:agent-tools:test",
     "m14:logic:test": "node --test --test-concurrency=1 packages/operation-log/test/behavior-history.test.mjs packages/agent-orchestration/test/behavior-project.test.mjs packages/studio-shell/test/logic-model.test.mjs apps/ai-studio/test/logic-*.test.mjs",
     "m14:integration:inventory": "node scripts/run-m14-integration-tests.mjs --inventory",
-    "m14:integration:test": "node scripts/run-m14-integration-tests.mjs"
+    "m14:integration:test": "node scripts/run-m14-integration-tests.mjs",
+    "engine:docs:check": "node scripts/build-engine-docs.mjs --check && node --test packages/game-authoring-tools/test/engine-docs.test.mjs"
   },
   "devDependencies": {
     "@openai/codex": "0.148.0",

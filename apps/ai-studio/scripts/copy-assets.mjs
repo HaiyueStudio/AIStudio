@@ -1,8 +1,10 @@
-import { copyFile } from 'node:fs/promises';
+import { copyFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(import.meta.dirname, '..');
+await mkdir(path.join(root, 'dist', 'engine-docs'), { recursive: true });
 await Promise.all([
+  ...['bundle.json', 'binding.json'].map(name => copyFile(fileURLToPath(import.meta.resolve(`@haiyue/ai-studio-game-authoring-tools/engine-docs/${name}`)), path.join(root, 'dist', 'engine-docs', name))),
   copyFile(fileURLToPath(import.meta.resolve('@haiyue/ai-studio-shell/resources.css')), path.join(root, 'dist', 'resource-explorer.css')),
   copyFile(fileURLToPath(import.meta.resolve('@haiyue/editor-shell/advanced-authoring.css')), path.join(root, 'dist', 'advanced-authoring.css')),
   copyFile(path.join(root, 'renderer', 'index.html'), path.join(root, 'dist', 'index.html')),

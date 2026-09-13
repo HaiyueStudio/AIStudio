@@ -1,0 +1,14 @@
+{
+  "scope": "execution-graph terminal colors and causes",
+  "inputDigest": "sha256:3e58a9242f4fdce8ec13c79ecb5a6e8e1ad707b8d8989cd8b8702058e93d4507",
+  "capabilityPassed": 143,
+  "focusedFunctionalPassed": 22,
+  "remainingFailure": {
+    "file": "apps/ai-studio/test/tool-batch-conversation.test.mjs",
+    "assertion": "batch wall time < 220 ms",
+    "finalObservedMs": 227
+  },
+  "appBuilt": true,
+  "userAppRestarted": false,
+  "userProjectModified": false
+}

@@ -1,3 +1,4 @@
+import { taskContinuationRequest, incompleteAcceptanceDetail } from './task-continuation.js';
 import { stringField, isRecord, errorCode, errorMessage } from './value-utils.js';
 import { budgetMetricLabel, budgetContinuationRequest, DEFAULT_TASK_BUDGET, assertBudgetAllowed, armWallTimeBudget, type WallTimeBudget } from './budget-policy.js';
 import { approvedPlanRequest, PLAN_TOOL_ID, PLAN_TOOL_DEFINITION, validatePlanProposal, PlanProtocolError, type ApprovedPlanExecution, type PlanAcceptanceProposal } from './plan-policy.js';
@@ -275,7 +276,7 @@ export class StudioConversationHost {
       }
       case 'conversation/retry':
         if (this.active) throw new Error('An Agent turn is already active.');
-        this.track(this.resume(intent.backendId, intent.sessionId, intent.turnId).catch((cause) => this.captureFailure(intent.backendId, cause, intent.sessionId, intent.turnId)));
+        this.track(this.retryTask(intent.backendId, intent.sessionId, intent.turnId).catch((cause) => this.captureFailure(intent.backendId, cause, intent.sessionId, intent.turnId)));
         return;
       case 'conversation/reconnect': await this.refreshBackends(); return;
       case 'conversation/answer-question': {
@@ -442,42 +443,48 @@ export class StudioConversationHost {
     const localSessionId = this.localId(`session:approved-plan:${this.nodeSequence + 1}`);
     const localTurnId = this.localId(`turn:approved-plan:${this.nodeSequence + 1}`);
     const initialProgressNodeId = this.nextNodeId('approved-plan-progress');
-    let beginDecision = account.beginTurn();
-    if (!beginDecision.allowed && beginDecision.status === 'hard-exceeded') {
-      const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
-      const continued = await this.awaitBudgetContinuation(beginDecision, provenance, controller.signal);
-      if (continued === 'suspended') return;
-      if (!continued) {
-        if (this.active) this.active.decisions.push('User stopped before the approved-plan execution tranche; prior project work was preserved.');
-        this.project(this.nextNodeId('completion'), 'completion', 'completed', provenance, Object.freeze({ terminalStatus: 'completed', summary: '用户选择不增加预算；已批准方案未继续执行，此前已经生成并提交的项目产物均已保留。' }));
-        return;
-      }
-      assertBudgetAllowed(account.authorizeContinuation());
-      beginDecision = account.beginTurn();
-    }
-    assertBudgetAllowed(beginDecision);
-    const wallTimeBudget = armWallTimeBudget(controller, account);
     const project = this.options.projectContext?.() ?? null;
     const request = [
       plan ? approvedPlanRequest(plan, project !== null) : budgetContinuationRequest(goal, project !== null),
+      this.taskRuns.get(taskId)?.acceptance.length ? taskContinuationRequest(this.taskRuns.get(taskId)!) : null,
       continuationInstruction,
     ].filter((value): value is string => Boolean(value)).join('\n\n');
     const tools = this.modelTools(request);
-    await this.prepareKnowledge(project, controller.signal);
-    const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project });
-    if (this.stopping) { wallTimeBudget.dispose(); return; }
-    const playtest = this.playtestTasks.get(taskId);
-    if (playtest?.snapshot().phase === 'repairing') playtest.advance('editing');
-    this.updateTaskRun(taskId, { status: 'running', phase: playtest?.snapshot().phase ?? (plan ? 'editing' : 'planning'), terminalDiagnostic: null, resumable: false }, { phase: playtest?.snapshot().phase ?? 'editing', status: 'active', title: plan ? '继续执行已批准方案' : '继续预算分段', detail: continuationInstruction ?? '从权威项目状态恢复。' });
+    const wallTimeBudget = armWallTimeBudget(controller, account);
+    wallTimeBudget.pause();
     this.active = { backendId, taskId, config, tools, providerStarted: false, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal, decisions: plan ? [`Approved plan: ${plan.title}. ${plan.summary}`] : ['User approved continuation after a completed budget checkpoint.'], toolFacts: [], blockers: [], contextCommitted: false, suspendedBarrierId: null };
-    this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId }), Object.freeze({
-      label: plan ? '正在执行已批准方案' : '正在恢复任务', message: plan ? '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。' : '预算续期已确认，Agent 正在从安全检查点恢复任务。', phase: plan ? 'approved-plan-execution' : 'budget-continuation',
-    }));
-    await this.options.operationLog.append({
-      kind: 'conversation/approved-plan-continuing', severity: 'info', source: asStableId('studio.conversation-host'), correlation: {},
-      payload: { titleDigest: sha256(plan?.title ?? goal), itemCount: plan?.items.length ?? 0, attempt: plan?.attempts ?? 0, reason: continuationInstruction ? 'budget-checkpoint' : 'approved-plan' },
-    }).catch(() => undefined);
+    this.updateTaskRun(taskId, { sessionId: localSessionId, turnId: localTurnId });
     try {
+      let beginDecision = account.beginTurn();
+      if (!beginDecision.allowed && beginDecision.status === 'hard-exceeded') {
+        const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
+        const continued = await this.awaitBudgetContinuation(beginDecision, provenance, controller.signal);
+        if (continued === 'suspended') return;
+        await this.finalizeSessionTurn(localSessionId, localTurnId, continued ? 'completed' : 'cancelled', { reason: '用户停止续期，已完成修改保留。' });
+        if (!continued) {
+          this.updateTaskRun(taskId, { status: 'cancelled', phase: 'cancelled', resumable: false, terminalDiagnostic: 'budget.stopped' });
+          if (this.active) this.active.decisions.push('User stopped before the approved-plan execution tranche; prior project work was preserved.');
+          this.project(this.nextNodeId('completion'), 'completion', 'completed', provenance, Object.freeze({ terminalStatus: 'completed', summary: '用户选择不增加预算；已批准方案未继续执行，此前已经生成并提交的项目产物均已保留。' }));
+          return;
+        }
+        assertBudgetAllowed(account.authorizeContinuation());
+        beginDecision = account.beginTurn();
+      }
+      assertBudgetAllowed(beginDecision);
+      wallTimeBudget.resetAfterContinuation(); wallTimeBudget.resume();
+      await this.prepareKnowledge(project, controller.signal);
+      const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project });
+      if (this.stopping) { wallTimeBudget.dispose(); return; }
+      const playtest = this.playtestTasks.get(taskId);
+      if (playtest?.snapshot().phase === 'repairing') playtest.advance('editing');
+      this.updateTaskRun(taskId, { status: 'running', phase: playtest?.snapshot().phase ?? (plan ? 'editing' : 'planning'), terminalDiagnostic: null, resumable: false }, { phase: playtest?.snapshot().phase ?? 'editing', status: 'active', title: plan ? '继续执行已批准方案' : '继续预算分段', detail: continuationInstruction ?? '从权威项目状态恢复。' });
+      this.project(initialProgressNodeId, 'progress', 'pending', Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId }), Object.freeze({
+        label: plan ? '正在执行已批准方案' : '正在恢复任务', message: plan ? '规划阶段已结束，Agent 正在按已批准步骤调用编辑器工具。' : '预算续期已确认，Agent 正在从安全检查点恢复任务。', phase: plan ? 'approved-plan-execution' : 'budget-continuation',
+      }));
+      await this.options.operationLog.append({
+        kind: 'conversation/approved-plan-continuing', severity: 'info', source: asStableId('studio.conversation-host'), correlation: {},
+        payload: { titleDigest: sha256(plan?.title ?? goal), itemCount: plan?.items.length ?? 0, attempt: plan?.attempts ?? 0, reason: continuationInstruction ? 'budget-checkpoint' : 'approved-plan' },
+      }).catch(() => undefined);
       await this.consume(backendId, this.options.runtime.turns.start(backendId, {
         taskId, config, ...(context.reusedSessionId ? { sessionId: context.reusedSessionId } : {}), prompt: context.prompt, contextArtifactIds: context.contextArtifactIds, contextCache: context.cache, tools,
       }, controller.signal), controller.signal);
@@ -496,7 +503,30 @@ export class StudioConversationHost {
     }
   }
 
+  private async retryTask(backendId: StableId, sessionId: StableId, turnId: StableId): Promise<void> {
+    if (this.active || this.queuedPromptDrainActive || this.hasPendingHumanBarrier()) throw new Error('Resolve the active turn or pending approval before continuing.');
+    const run = this.taskRunFor(sessionId, turnId);
+    if (!run) {
+      const priorTask = this.options.runtime.usage.get(turnId)?.snapshot().taskId;
+      const ended = [...this.nodes.values()].some(node => node.kind === 'completion' && node.provenance.sessionId === sessionId && node.provenance.turnId === turnId);
+      if (ended || priorTask && this.taskRuns.has(priorTask)) throw new Error('This turn is no longer the current task checkpoint. Continue from the latest task state.');
+      await this.resume(backendId, sessionId, turnId); return;
+    }
+    if (run.backendId !== backendId || !run.resumable || !['blocked', 'failed', 'cancelled'].includes(run.status)) throw new Error('Task checkpoint is stale or is not resumable.');
+    const plan = this.recoveredApprovedPlan({ backendId, sessionId, turnId });
+    this.acceptanceContinuations.set(run.taskId, 0);
+    this.queuedPromptDrainActive = true;
+    try {
+      await this.startRecoveredContinuation(backendId, { taskId: run.taskId, plan, budgetGranted: false,
+        instruction: run.acceptance.length ? 'The user requested continuation of the unfinished task. Start a fresh execution turn from the checkpoint below.' : 'Resume the visible request from the current project. Establish user-approved acceptance criteria before further mutation; do not replay the old turn.' });
+    } finally { this.queuedPromptDrainActive = false; this.changed(); this.drainQueuedPrompts(); }
+  }
+
+  private readonly acceptanceContinuations = new Map<StableId, number>();
+
   private async resume(backendId: StableId, sessionId: StableId, turnId: StableId): Promise<void> {
+    this.initializedSessionTurns.delete(turnKey(sessionId, turnId));
+    this.finalizedSessionTurns.delete(turnKey(sessionId, turnId));
     const controller = new AbortController();
     const initialProgressNodeId = this.nextNodeId('progress');
     const priorTaskId = this.options.runtime.usage.get(turnId)?.snapshot().taskId ?? [...this.taskRuns.values()].find((item) => item.sessionId === sessionId && item.turnId === turnId)?.taskId;
@@ -534,6 +564,8 @@ export class StudioConversationHost {
       wallTimeBudget.dispose();
       const progress = this.nodes.get(initialProgressNodeId);
       if (progress && (progress.status === 'pending' || progress.status === 'streaming')) this.finishNode(initialProgressNodeId, controller.signal.aborted ? 'cancelled' : 'completed');
+      const owned = this.active?.controller === controller ? this.active : null;
+      if (owned?.continuationRequested && owned.suspendedBarrierId === null) await this.continueTask(backendId, owned.approvedPlan, owned.taskId, owned.config, owned.account, owned.conversationKey, owned.goal, owned.continuationInstruction).catch(cause => this.captureFailure(backendId, cause));
       if (this.active?.controller === controller) { this.active = null; this.changed(); }
       this.drainQueuedPrompts();
     }
@@ -568,7 +600,7 @@ export class StudioConversationHost {
         if (batch) { await this.drainToolBatch(batch); batch = null; }
         if (!signal.aborted) await this.captureEvent(backend, event, signal);
         else if (event.kind === 'completed') await this.commitContext(event, terminalStatus(event.payload.status));
-        if (event.kind === 'completed') await this.finalizeSessionTurn(event.sessionId, event.turnId, terminalStatus(event.payload.status));
+        if (event.kind === 'completed') await this.finalizeSessionTurn(event.sessionId, event.turnId, terminalStatus(event.payload.status), event.payload);
         if ((event.kind === 'usage' || event.kind === 'completed') && this.active) { await this.recordTaskAccounting(this.active.account, event.sessionId, event.turnId); this.changed(); }
       }
     } catch (cause) {
@@ -578,10 +610,10 @@ export class StudioConversationHost {
       try {
         if (batch) await this.drainToolBatch(batch);
       } catch (cause) {
-        if (!streamFailed) throw cause;
+        if (!streamFailed) { streamFailed = true; throw cause; }
         await this.options.operationLog.append({ kind: 'conversation/batch-cleanup-failed', severity: 'error', source: asStableId('studio.conversation-host'), correlation: lastCoordinates ?? {}, payload: { code: errorCode(cause), message: errorMessage(cause) } }).catch(() => undefined);
       } finally {
-        if (lastCoordinates && !this.finalizedSessionTurns.has(turnKey(lastCoordinates.sessionId, lastCoordinates.turnId))) await this.finalizeSessionTurn(lastCoordinates.sessionId, lastCoordinates.turnId, 'interrupted').catch(() => undefined);
+        if (!streamFailed && lastCoordinates && !this.finalizedSessionTurns.has(turnKey(lastCoordinates.sessionId, lastCoordinates.turnId))) await this.finalizeSessionTurn(lastCoordinates.sessionId, lastCoordinates.turnId, 'interrupted').catch(() => undefined);
       }
     }
   }
@@ -633,6 +665,8 @@ export class StudioConversationHost {
     if (event.kind === 'completed') {
       const status = terminalStatus(event.payload.status);
       await this.commitContext(event, status);
+      const textId = this.internalNodeId('text', event.turnId);
+      if (this.nodes.has(textId)) this.finishNode(textId, status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed');
       if (this.active?.suspendedBarrierId) {
         await this.options.operationLog.append({ kind: 'conversation/barrier-provider-released', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId }, payload: { barrierId: this.active.suspendedBarrierId, terminalStatus: status, providerActiveCalls: 0 } }).catch(() => undefined);
         return;
@@ -658,29 +692,40 @@ export class StudioConversationHost {
           active.toolFacts.push('Budget checkpoint: stopped by user after the active backend turn was safely released.');
         }
       }
+      const taskRun = this.active ? this.taskRuns.get(this.active.taskId) : null;
       const approvedPlan = this.active?.sessionId === event.sessionId && this.active.turnId === event.turnId ? this.active.approvedPlan : null;
-      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && !this.active?.toolFailures?.size && approvedPlan.attempts < 1) {
+      if (status === 'completed' && !taskRun?.acceptance.length && approvedPlan && approvedPlan.mutationCount === 0 && !this.active?.toolFailures?.size && approvedPlan.attempts < 1) {
         approvedPlan.attempts += 1;
         if (this.active) this.active.continuationRequested = true;
         return;
       }
-      if (status === 'completed' && approvedPlan && approvedPlan.mutationCount === 0 && !this.active?.toolFailures?.size) {
+      if (status === 'completed' && !taskRun?.acceptance.length && approvedPlan && approvedPlan.mutationCount === 0 && !this.active?.toolFailures?.size) {
         this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'failed', provenance, Object.freeze({
           code: 'plan.execution-not-started', message: 'Agent 在已批准方案下仍未执行任何编辑操作。请重新发送需求；Studio 不会把该方案误报为已执行。', severity: 'error', retryable: false,
         }));
       }
       if (this.active?.continuationRequested) return;
-      const taskRun = this.active ? this.taskRuns.get(this.active.taskId) : null;
+      if (status === 'completed' && this.active && !signal.aborted && !this.stopping &&
+          taskRun?.status === 'running' && !taskRun.terminalDiagnostic &&
+          taskRun.acceptance.some(item => item.required && (item.status !== 'pass' || item.evidenceIds.length === 0)) &&
+          !this.active.toolFailures?.size && !this.active.blockers.length && !this.hasPendingHumanBarrier()) {
+        const attempts = this.acceptanceContinuations.get(taskRun.taskId) ?? taskRun.timeline.filter(item => item.title === '继续补齐任务与验收').length;
+        if (attempts < 2) {
+          this.acceptanceContinuations.set(taskRun.taskId, attempts + 1);
+          this.active.continuationRequested = true;
+          this.active.continuationInstruction = 'The preceding turn ended before the approved task was verified. Continue missing implementation and collect actual acceptance evidence; a predicted approval is not an active barrier.';
+          this.updateTaskRun(taskRun.taskId, { status: 'running', resumable: false }, { phase: taskRun.phase, status: 'active', title: '继续补齐任务与验收', detail: `第 ${attempts + 1}/2 次有界补全。${incompleteAcceptanceDetail(taskRun)}`, turnId: event.turnId });
+          return;
+        }
+      }
       if (status === 'cancelled' && this.active) this.updateTaskRun(this.active.taskId, { status: 'cancelled', phase: 'cancelled', terminalDiagnostic: 'task.cancelled', resumable: true }, { phase: 'cancelled', status: 'warning', title: '任务已取消', detail: '已完成产物和现有证据均已保留。', turnId: event.turnId });
       else if (status !== 'completed' && this.active) this.updateTaskRun(this.active.taskId, { status: 'failed', phase: 'blocked', terminalDiagnostic: `turn.${status}`, resumable: status === 'interrupted' }, { phase: 'blocked', status: 'error', title: '任务执行中断', detail: `Backend turn ended with ${status}.`, turnId: event.turnId });
       else if (status === 'completed' && taskRun?.status !== 'completed' && this.active) {
         const failures = [...(this.active.toolFailures?.values() ?? [])];
         const failure = failures.filter(item => item.toolId !== 'diagnostics.query').at(-1) ?? failures.at(-1);
         const diagnostic = taskRun?.terminalDiagnostic ?? failure?.code ?? (taskRun?.acceptance.length ? 'task.acceptance-evidence-incomplete' : 'task.acceptance-criteria-missing');
-        this.updateTaskRun(this.active.taskId, { status: 'blocked', phase: 'blocked', terminalDiagnostic: diagnostic, resumable: taskRun?.terminalDiagnostic ? taskRun.resumable : failure?.retryable ?? true }, { phase: 'blocked', status: 'error', title: failure && !taskRun?.terminalDiagnostic ? '工具失败，任务尚未完成' : '不能标记任务完成', detail: failure && !taskRun?.terminalDiagnostic ? `${failure.toolId}：${failure.code}。${failure.message} 验收尚未完成。` : taskRun?.acceptance.length ? 'Agent 回合已经结束，但必需验收项没有全部通过并引用持久化证据。' : 'Agent 回合已经结束，但没有经过用户批准的可验证验收标准。', turnId: event.turnId });
+        this.updateTaskRun(this.active.taskId, { status: 'blocked', phase: 'blocked', terminalDiagnostic: diagnostic, resumable: taskRun?.terminalDiagnostic ? taskRun.resumable : failure?.retryable ?? true }, { phase: 'blocked', status: 'error', title: failure && !taskRun?.terminalDiagnostic ? '工具失败，任务尚未完成' : '不能标记任务完成', detail: failure && !taskRun?.terminalDiagnostic ? `${failure.toolId}：${failure.code}。${failure.message} 验收尚未完成。` : taskRun?.acceptance.length ? incompleteAcceptanceDetail(taskRun) : 'Agent 回合已经结束，但没有经过用户批准的可验证验收标准。', turnId: event.turnId });
       }
-      const textId = this.internalNodeId('text', event.turnId);
-      if (this.nodes.has(textId)) this.finishNode(textId, status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed');
       this.project(this.nextNodeId('completion'), 'completion', status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed', provenance,
         Object.freeze({ terminalStatus: status, summary: completionSummary(status, this.active?.toolFacts ?? [], this.active?.blockers ?? []) }));
     }
@@ -865,6 +910,7 @@ export class StudioConversationHost {
   private async restoreExecutionGraphs(): Promise<void> {
     const sessions = this.options.runtime.sessions;
     if (!sessions) return;
+    const failures = this.projectionPersistenceAvailable() ? await queryRetainedOperationEvents(this.options.operationLog, ['conversation/host-failed'], 5_000) : [];
     const candidates = new Map(this.restoredGraphSessions);
     const remember = (id: StableId, timestamp: string): void => { if (timestamp > (candidates.get(id) ?? '')) candidates.set(id, timestamp); };
     for (const run of this.taskRuns.values()) if (run.sessionId) remember(run.sessionId, run.updatedAt);
@@ -876,7 +922,17 @@ export class StudioConversationHost {
         const base = existing ? await existing : await sessions.open(sessionId, { repairOpenOperations: false });
         if (!isCompleteDurableSessionHandle(base)) continue;
         const observed = existing ? base : this.observeDurableSession(base); this.durableSessions.set(sessionId, Promise.resolve(observed));
-        this.captureGraphSnapshot(await observed.snapshot(), true);
+        let snapshot = await observed.snapshot();
+        for (const failure of failures.filter(event => event.correlation.sessionId === sessionId && event.correlation.turnId && (event.payload.executionFailure === true || event.payload.executionFailure === undefined && event.payload.code === 'agent.resume-missing'))) {
+          const turnId = failure.correlation.turnId!;
+          const last = snapshot.ops.filter(op => op.turnId === turnId).at(-1);
+          if (!last || last.kind === 'turn.completed' || last.timestamp > failure.timestamp) continue;
+          // Append a repair fact; preserve the original journal and any newer attempt.
+          if (!snapshot.recovery.openTurnIds.includes(turnId)) await observed.append({ kind: 'turn.started', turnId, payload: { origin: 'host-failure-recovery', recoveredFromSequence: failure.sequence } });
+          await observed.append({ kind: 'turn.completed', turnId, payload: { status: failure.payload.status === 'cancelled' ? 'cancelled' : 'failed', reason: stringField(failure.payload.message, 'Host execution failed.').slice(0, 2048), diagnostic: stringField(failure.payload.code, 'conversation.host-failed'), recoveredFromSequence: failure.sequence } });
+          snapshot = await observed.checkpoint();
+        }
+        this.captureGraphSnapshot(snapshot, true);
       } catch { /* Legacy task projections without a durable M13 session remain available through the Transcript fallback. */ }
     }
   }
@@ -1018,14 +1074,20 @@ export class StudioConversationHost {
     if (result.status !== 'completed') throw new Error(`Context compaction ${result.status}: ${result.preview.decision}.`);
   }
 
-  private async finalizeSessionTurn(sessionId: StableId, turnId: StableId, status: 'completed' | 'cancelled' | 'failed' | 'interrupted'): Promise<void> {
+  private async finalizeSessionTurn(sessionId: StableId, turnId: StableId, status: 'completed' | 'cancelled' | 'failed' | 'interrupted', payload: JsonObject = {}): Promise<void> {
     const key = turnKey(sessionId, turnId);
     if (this.finalizedSessionTurns.has(key)) return;
     const handle = await this.ensureDurableSession(sessionId);
+    if (isCompleteDurableSessionHandle(handle) && !(await handle.snapshot()).recovery.openTurnIds.includes(turnId)) await handle.append({ kind: 'turn.started', turnId, payload: { taskId: this.active?.taskId ?? null, origin: 'host-terminal' } });
     const textNode = this.nodes.get(this.internalNodeId('text', turnId));
     const text = typeof textNode?.content.text === 'string' ? textNode.content.text.trim() : '';
     if (text && typeof handle.appendMessage === 'function') await handle.appendMessage({ role: 'assistant', content: text, turnId, projectRevision: this.options.projectContext?.()?.revision ?? null });
-    await handle.append({ kind: 'turn.completed', turnId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { status, summary: completionSummary(status, this.active?.toolFacts ?? [], this.active?.blockers ?? []) } });
+    const terminalDiagnostic = [...this.nodes.values()].filter(node => node.kind === 'diagnostic' && node.provenance.sessionId === sessionId && node.provenance.turnId === turnId && node.content.severity === 'error').at(-1);
+    const reason = status === 'completed' ? null
+      : this.active?.suspendedBarrierId ? '已保存用户确认检查点并释放当前调用，确认后可继续；已完成的修改保留。'
+      : this.active?.controller.signal.aborted ? errorMessage(this.active.controller.signal.reason)
+      : stringField(payload.reason, stringField(payload.message, stringField(terminalDiagnostic?.content.message, '')));
+    await handle.append({ kind: 'turn.completed', turnId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { status, summary: completionSummary(status, this.active?.toolFacts ?? [], this.active?.blockers ?? []), ...(reason ? redactObject({ reason: reason.slice(0, 2048) }).value : {}), ...(typeof payload.diagnostic === 'string' ? { diagnostic: payload.diagnostic } : {}) } });
     if (typeof handle.checkpoint === 'function') await handle.checkpoint();
     this.finalizedSessionTurns.add(key);
   }
@@ -1256,7 +1318,18 @@ export class StudioConversationHost {
     if (account) await this.recordTaskAccounting(account, context.event.sessionId, context.event.turnId);
     const usageRecord = this.options.runtime.usage?.get(context.event.turnId)?.snapshot().record;
     const costRecord = account && typeof account.latestCostRecord === 'function' ? account.latestCostRecord(context.event.turnId) : account && typeof account.costRecords === 'function' ? account.costRecords().at(-1) : undefined;
-    await this.appendToolSessionOp(batch, context, 'tool.completed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, status: body.status, ...(body.status === 'failed' ? { diagnostic: this.active?.toolFailures?.get(context.toolId)?.code ?? 'tool.failed', summary: this.active?.toolFailures?.get(context.toolId)?.message ?? '工具执行失败。' } : {}), latencyMs: body.latencyMs, outputBytes: Buffer.byteLength(canonicalStringify(body.backendResult)), resultDigest: sha256(canonicalStringify(body.backendResult)), ...(transaction ?? {}), ...(usageRecord ? { usageRecordId: usageRecord.id } : {}), ...(costRecord ? { costRecordId: costRecord.id, costAttribution: 'turn-shared' } : { costAttribution: 'unavailable' }) }));
+    // Keep the terminal explanation independently of the model-facing result projection.
+    const diagnosticResult = body === original ? original.backendResult : body.backendResult;
+    const terminalError = isRecord(diagnosticResult.error) ? diagnosticResult.error : isRecord(diagnosticResult.value) ? diagnosticResult.value : {};
+    const originalError = isRecord(original.backendResult.error) ? original.backendResult.error : isRecord(original.backendResult.value) ? original.backendResult.value : {};
+    const terminalDetail = body.status === 'failed' || body.status === 'cancelled' ? redactObject({
+      diagnostic: deliveryFailure ? 'tool.outcome-unknown' : stringField(terminalError.code, stringField(originalError.code, body.status === 'failed' ? 'tool.failed' : 'tool.cancelled')),
+      reason: (deliveryFailure || originalError.code === 'barrier.waiting-user'
+        ? stringField(body.resultContent.summary, '该工具调用已结束。')
+        : stringField(terminalError.message, stringField(originalError.message, stringField(body.resultContent.summary, '该工具调用已结束，未提供具体原因。')))).slice(0, 2048),
+      summary: stringField(body.resultContent.summary, '工具调用已结束。').slice(0, 2048),
+    }).value : {};
+    await this.appendToolSessionOp(batch, context, 'tool.completed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, status: body.status, ...terminalDetail, latencyMs: body.latencyMs, outputBytes: Buffer.byteLength(canonicalStringify(body.backendResult)), resultDigest: sha256(canonicalStringify(body.backendResult)), ...(transaction ?? {}), ...(usageRecord ? { usageRecordId: usageRecord.id } : {}), ...(costRecord ? { costRecordId: costRecord.id, costAttribution: 'turn-shared' } : { costAttribution: 'unavailable' }) }));
     if (body.cancelTurnAfterCommit) await this.options.runtime.turns.cancel(context.event.backendId, context.event.sessionId, context.event.turnId).catch(() => undefined);
     this.changed();
     return body;
@@ -1285,6 +1358,7 @@ export class StudioConversationHost {
       ? decision.violations.map((item) => `${budgetMetricLabel(item.metric)} ${item.projected}/${item.limit}`).join('，')
       : '任务预算已达到当前上限';
     const content = Object.freeze({
+      taskId: this.active?.taskId ?? null,
       prompt: `当前任务已达到预算检查点（${violations}）。继续将增加一个与初始任务相同的预算额度，并从当前步骤继续；停止不会回滚已经完成的场景、资源或脚本修改，当前脚本提案也会保留。`,
       options: Object.freeze([
         Object.freeze({ id: continueOptionId, label: '继续处理', description: '批准一个有界的额外预算额度，并从当前工具调用继续。' }),
@@ -1293,6 +1367,10 @@ export class StudioConversationHost {
       allowFreeform: false,
       multiple: false,
     });
+    if (this.active && this.active.sessionId === null) {
+      const handle = await this.ensureDurableSession(provenance.sessionId);
+      await handle.append({ kind: 'turn.started', turnId: provenance.turnId, payload: { taskId: this.active.taskId, origin: 'budget-checkpoint' } });
+    }
     await this.requestQuestionBarrier({
       sessionId: provenance.sessionId, turnId: provenance.turnId, nodeId, kind: 'budget-continuation', reason: violations,
       scopeDigest: sha256(canonicalStringify({ taskId: this.active?.taskId ?? null, violations: decision.violations })),
@@ -1449,8 +1527,9 @@ export class StudioConversationHost {
     await handle.checkpoint(); this.finishNode(nodeId, 'completed');
     const optionIds = Array.isArray(answer.optionIds) ? answer.optionIds : [];
     const stop = optionIds.some((id) => typeof id === 'string' && id.includes('budget-stop'));
-    const run = this.taskRunFor(node.provenance.sessionId, node.provenance.turnId);
+    const run = this.barrierTaskRunFor(node.provenance);
     if (run) this.updateTaskRun(run.taskId, stop ? { status: 'cancelled', phase: 'cancelled', resumable: false, terminalDiagnostic: 'budget.stopped-after-restart' } : { status: 'running', resumable: true, terminalDiagnostic: null }, { phase: stop ? 'cancelled' : run.phase, status: stop ? 'warning' : 'complete', title: stop ? '已停止并保留结果' : '恢复后的问题已回答', detail: stop ? '所有已提交 transaction、产物和证据均已保留。' : 'Studio 将从持久检查点恢复。', turnId: node.provenance.turnId });
+    if (run && /(?:^|:)turn:approved-plan:\d+$/u.test(node.provenance.turnId)) await this.finalizeSessionTurn(node.provenance.sessionId, node.provenance.turnId, stop ? 'cancelled' : 'completed', { reason: '用户停止续期，已完成修改保留。' });
     if (!stop) this.scheduleRecoveredContinuation(node, `The user answered the durable ${String(node.content.prompt ?? 'Studio question')}: ${answerText}. Continue from the authoritative project and Session checkpoint without repeating completed edits.`, this.recoveredApprovedPlan(node.provenance), Array.isArray(node.content.options) && node.content.options.some((option) => isRecord(option) && typeof option.id === 'string' && option.id.includes('budget-continue')));
   }
 
@@ -1475,21 +1554,34 @@ export class StudioConversationHost {
 
   private taskRunFor(sessionId: StableId, turnId: StableId): ConversationTaskRunReadModel | undefined { return [...this.taskRuns.values()].find((run) => run.sessionId === sessionId && run.turnId === turnId); }
 
+  private barrierTaskRunFor(provenance: ConversationNodeReadModel['provenance']): ConversationTaskRunReadModel | undefined {
+    const current = this.taskRunFor(provenance.sessionId, provenance.turnId);
+    if (current) return current;
+    const budget = [...this.nodes.values()].find(node => node.kind === 'question' && node.provenance.backendId === provenance.backendId && node.provenance.sessionId === provenance.sessionId && node.provenance.turnId === provenance.turnId && Array.isArray(node.content.options) && node.content.options.some(option => isRecord(option) && typeof option.id === 'string' && option.id.includes('budget-continue')));
+    if (!budget) return undefined;
+    // Older between-turn checkpoints kept the provider coordinates on the task.
+    // Recover only the recorded budget checkpoint owner, never the latest task by guesswork.
+    return [...this.taskRuns.values()].find(run => run.backendId === provenance.backendId && (run.taskId === budget.content.taskId || run.timeline.some(item => item.turnId === provenance.turnId && item.title === '预算检查点')));
+  }
+
   private scheduleRecoveredResume(provenance: ConversationNodeReadModel['provenance']): void {
     if (this.active) return;
     this.track(this.resume(provenance.backendId, provenance.sessionId, provenance.turnId).catch((cause) => this.captureFailure(provenance.backendId, cause, provenance.sessionId, provenance.turnId)));
   }
 
   private scheduleRecoveredContinuation(node: ConversationNodeReadModel, instruction: string, plan: ApprovedPlanExecution | null, budgetGranted: boolean): void {
-    const run = this.taskRunFor(node.provenance.sessionId, node.provenance.turnId);
-    if (!run) { this.scheduleRecoveredResume(node.provenance); return; }
+    const run = this.barrierTaskRunFor(node.provenance);
+    if (!run) {
+      if (budgetGranted) throw new Error('Budget checkpoint task is unavailable. Continue from the latest task checkpoint.');
+      this.scheduleRecoveredResume(node.provenance); return;
+    }
     this.queuedPrompts.unshift(Object.freeze({ backendId: node.provenance.backendId, prompt: instruction, recovered: Object.freeze({ taskId: run.taskId, instruction, plan, budgetGranted }) }));
     this.changed(); this.drainQueuedPrompts();
   }
 
   private recoveredApprovedPlan(provenance: ConversationNodeReadModel['provenance']): ApprovedPlanExecution | null {
     const plan = [...this.nodes.values()].filter((candidate) => candidate.kind === 'plan' && candidate.status === 'completed' && candidate.provenance.sessionId === provenance.sessionId && candidate.content.decision === 'approved').at(-1);
-    const run = this.taskRunFor(provenance.sessionId, provenance.turnId);
+    const run = this.barrierTaskRunFor(provenance);
     if (!plan && !run?.acceptance.length) return null;
     const items = Array.isArray(plan?.content.items) ? plan.content.items.filter(isRecord).filter((item) => item.status === 'accepted').map((item, index) => Object.freeze({ id: typeof item.id === 'string' ? asStableId(item.id) : asStableId(`plan-item:recovered:${index + 1}`), label: typeof item.label === 'string' ? item.label.slice(0, 256) : `Recovered step ${index + 1}`, ...(typeof item.details === 'string' ? { details: item.details.slice(0, 2_048) } : {}) })) : [];
     return { title: typeof plan?.content.title === 'string' ? plan.content.title : run?.title ?? 'Recovered approved plan', summary: typeof plan?.content.summary === 'string' ? plan.content.summary : 'Restored from the durable approved plan and acceptance checkpoint.', items: Object.freeze(items), ...(typeof plan?.content.note === 'string' ? { note: plan.content.note } : {}), attempts: 0, mutationCount: 0 };
@@ -1614,12 +1706,28 @@ export class StudioConversationHost {
 
   private async captureFailure(backendId: StableId, cause: unknown, sessionId?: StableId, turnId?: StableId): Promise<void> {
     if (this.disposed) return;
-    const session = sessionId ?? this.active?.sessionId ?? asStableId('session:unavailable');
-    const turn = turnId ?? this.active?.turnId ?? asStableId('turn:unavailable');
-    this.project(this.nextNodeId('diagnostic'), 'diagnostic', this.active?.controller.signal.aborted ? 'cancelled' : 'failed', Object.freeze({ backendId, sessionId: session, turnId: turn }),
-      Object.freeze({ code: errorCode(cause), message: errorMessage(cause), severity: 'error', retryable: false }));
-    if (this.active) this.updateTaskRun(this.active.taskId, { status: this.active.controller.signal.aborted ? 'cancelled' : 'failed', phase: this.active.controller.signal.aborted ? 'cancelled' : 'blocked', terminalDiagnostic: errorCode(cause), resumable: !this.active.controller.signal.aborted }, { phase: this.active.controller.signal.aborted ? 'cancelled' : 'blocked', status: 'error', title: '任务执行失败', detail: errorMessage(cause), turnId: turn });
-    await this.options.operationLog.append({ kind: 'conversation/host-failed', severity: 'error', source: asStableId('studio.conversation-host'), correlation: { sessionId: session, turnId: turn }, payload: { code: errorCode(cause), message: errorMessage(cause) } }).catch(() => undefined);
+    const active = this.active && (!sessionId || [this.active.sessionId, this.active.localSessionId].includes(sessionId)) && (!turnId || [this.active.turnId, this.active.localTurnId].includes(turnId)) ? this.active : null;
+    const session = sessionId ?? active?.sessionId ?? active?.localSessionId ?? asStableId('session:unavailable');
+    const turn = turnId ?? active?.turnId ?? active?.localTurnId ?? asStableId('turn:unavailable');
+    const status = active?.controller.signal.aborted ? 'cancelled' : 'failed';
+    const reason = redactObject({ message: errorMessage(cause).slice(0, 2048) }).value.message;
+    const provenance = Object.freeze({ backendId, sessionId: session, turnId: turn });
+    this.project(this.nextNodeId('diagnostic'), 'diagnostic', status, provenance,
+      Object.freeze({ code: errorCode(cause), message: reason, severity: 'error', retryable: false }));
+    if (active) {
+      active.continuationRequested = false;
+      this.updateTaskRun(active.taskId, { sessionId: session, turnId: turn, status, phase: status === 'cancelled' ? 'cancelled' : 'blocked', terminalDiagnostic: errorCode(cause), resumable: status === 'failed' }, { phase: status === 'cancelled' ? 'cancelled' : 'blocked', status: 'error', title: '任务执行失败', detail: String(reason), turnId: turn });
+      for (const node of this.nodes.values()) {
+        if ((node.id === active.initialProgressNodeId || node.provenance.sessionId === session && node.provenance.turnId === turn && node.kind === 'text') && (node.status === 'pending' || node.status === 'streaming')) this.project(node.id, node.kind, status, node.provenance, { ...node.content, reason });
+      }
+    }
+    await this.options.operationLog.append({ kind: 'conversation/host-failed', severity: 'error', source: asStableId('studio.conversation-host'), correlation: { sessionId: session, turnId: turn }, payload: { code: errorCode(cause), message: reason, status, executionFailure: active !== null } }).catch(() => undefined);
+    // Start/resume may reject before emitting any provider event. Persist a terminal
+    // Session fact so both live topology and replay stop showing model activity.
+    if (active && !this.finalizedSessionTurns.has(turnKey(session, turn))) {
+      await this.finalizeSessionTurn(session, turn, status, { reason, diagnostic: errorCode(cause) });
+      this.project(this.nextNodeId('completion'), 'completion', status, provenance, { terminalStatus: status, summary: reason });
+    }
   }
 
   private project(id: StableId, kind: string, status: ConversationNodeReadModel['status'], provenance: ConversationNodeReadModel['provenance'], content: JsonObject): void {

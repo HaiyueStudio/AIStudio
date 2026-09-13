@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "artifact": "vendor/haiyue-engine-reference-docs.json",
+  "digest": "sha256:1fda889d1086ed68db810c917196a8fe96c7fb78838de891390851f39391db38",
+  "engineIntegrity": "sha512-oRFHDLfR3G6aaTGQ9klJ40uUE0fTxUoMdspfCbMhuucpRtAwkFXatyPwDLtoMKe4rm+Ms3AU+OoEXYoHGMixnA==",
+  "review": "Native reference only. Callable Studio signatures come from studioScriptRuntimeDeclarations; native signatures come from the installed candidate."
+}

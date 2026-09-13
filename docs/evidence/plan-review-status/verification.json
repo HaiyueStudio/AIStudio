@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "focusedPassed": 32,
+  "electronPassed": 1,
+  "capabilityPassed": 124,
+  "fullCheck": {
+    "exitCode": 1,
+    "evaluationPassed": 59,
+    "behaviorPassed": 33,
+    "workspacePassed": 5,
+    "toolsPassed": 110,
+    "toolsFailed": 1,
+    "failedTest": "coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval",
+    "isolatedRetryPassed": 1
+  },
+  "remainingChecks": {
+    "logicPassed": 23,
+    "integrationFiles": 48,
+    "integrationPassed": 235,
+    "integrationFailed": 1,
+    "failure": {
+      "file": "apps/ai-studio/test/m14-integration/product-main.mjs",
+      "line": 145,
+      "reason": "Performance baseline requires frozen Windows hardware; current machine is macOS."
+    }
+  },
+  "applicationRestarted": false
+}

@@ -83,6 +83,11 @@ test('a long durable plan releases the provider call and selects real catalog to
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create a durable plan and wait for approval.' });
     await waitFor(() => host.replay().busy === false && runtime.activeCalls === 0 && host.replay().events.some((event) => event.node.kind === 'plan' && event.node.status === 'pending'));
     const pending = host.replay().events.map((event) => event.node).filter((node) => node.kind === 'plan' && node.status === 'pending').at(-1);
+    const suspended = (await sessions.replay(sessionId)).ops.find(op => op.kind === 'tool.completed' && op.payload.status === 'cancelled');
+    assert.equal(suspended.payload.diagnostic, 'barrier.waiting-user');
+    assert.match(suspended.payload.reason, /等待用户确认/);
+    assert.match(host.replay().executionGraphs.flatMap(graph => graph.nodes).find(node => node.detail.toolId === 'studio.plan.propose').detail.reason, /等待用户确认/);
+
     assert.equal(runtime.startCalls, 1); assert.equal(runtime.cancelCalls, 1); assert.equal(runtime.submitted.length, 1);
     assert.equal(runtime.submitted[0].result.value.code, 'barrier.waiting-user');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: pending.id, acceptedItemIds: pending.content.items.map((item) => item.id), mode: 'approve' });
@@ -165,6 +170,170 @@ test('durable budget continuation releases the completed provider tranche and pr
     await waitFor(() => runtime.startCalls === 2 && tools.executeCalls === 2); await waitFor(() => host.replay().busy === false);
     assert.equal(runtime.activeCalls, 0); assert.equal(runtime.submitted.length, 3); assert.equal(runtime.submitted[2].result.status, 'completed');
   } finally { await host?.dispose().catch(() => undefined); await sessions.dispose().catch(() => undefined); await log.close().catch(() => undefined); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
+});
+
+for (const mode of ['live', 'input-tokens', 'restart', 'legacy-restart', 'stop']) test(`between-turn budget checkpoint keeps its task owner (${mode})`, async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g07-between-turns-'));
+  let log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
+  let sessions = new DurableSessionRuntime(log); let host;
+  try {
+    let runtime = providerReleaseRuntime(sessions);
+    host = new StudioConversationHost({ idPrefix: mode === 'input-tokens' ? 'scope:g07-input' : undefined, runtime, tools: observeTools(), operationLog: log, sessionRecovery: { async recover() {} } });
+    await host.initialize();
+    await host.dispatch({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: { schemaVersion: 2, id: 'budget:g07-between-turns', enforcement: 'hard', limits: { inputTokens: 200_000, outputTokens: 10_000, estimatedCostMicros: 1_000_000, wallTimeMs: 60_000, turns: mode === 'input-tokens' ? 100 : 1, toolCalls: 100, repairIterations: 1, observationBytes: 100_000 } } });
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Build and verify the approved interactive object.' });
+    await waitFor(() => !host.replay().busy && latestNode(host, 'plan', 'pending'));
+    const plan = latestNode(host, 'plan', 'pending'); const original = host.replay().taskRuns.at(-1);
+    if (mode === 'input-tokens') {
+      const now = Date.now();
+      const ledger = runtime.usage.open({ taskId: original.taskId, sessionId, turnId, providerRequestDigest: null, startedAtMs: now });
+      ledger.reconcile({ eventId: 'usage:g07-input', sequence: 1, mode: 'cumulative', inputTokens: 201_498, outputTokens: 100, observedAtMs: now, final: true });
+      runtime.accounting.get(original.taskId).reconcile();
+    }
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => !host.replay().busy && latestNode(host, 'question', 'pending'));
+    const question = latestNode(host, 'question', 'pending');
+    assert.match(question.provenance.turnId, /(?:^|:)turn:approved-plan:/);
+    assert.equal(runtime.startCalls, 1, 'no provider turn exists for the budget checkpoint');
+    assert.equal(question.content.taskId, original.taskId);
+    assert.equal(host.replay().taskRuns.at(-1).turnId, question.provenance.turnId);
+    assert.equal(host.replay().taskRuns.at(-1).status, 'waiting-user');
+    await host.flushRecords();
+    if (mode.endsWith('restart')) {
+      if (mode === 'legacy-restart') {
+        // Reproduce the old persisted shape: no task id on the barrier, task still
+        // points at the prior provider turn; its budget timeline owns the local turn.
+        const { taskId: _taskId, ...content } = question.content;
+        const node = { ...question, content };
+        const artifact = await log.putArtifact(node, { schemaVersion: 'conversation-node/1' });
+        await log.append({ kind: 'conversation/node-projected', severity: 'info', source: 'studio.conversation-host', correlation: { sessionId: question.provenance.sessionId, turnId: question.provenance.turnId }, payload: {}, artifactRefs: [artifact.id] });
+        const run = { ...host.replay().taskRuns.at(-1), revision: host.replay().taskRuns.at(-1).revision + 1, sessionId: original.sessionId, turnId: original.turnId };
+        const taskArtifact = await log.putArtifact(run, { schemaVersion: 'conversation-task/1' });
+        await log.append({ kind: 'conversation/task-projected', severity: 'info', source: 'studio.conversation-host', correlation: {}, payload: {}, artifactRefs: [taskArtifact.id] });
+      }
+      await host.dispose(); await sessions.dispose(); await log.close();
+      log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
+      sessions = new DurableSessionRuntime(log); runtime = runtimeFixture(sessions);
+      host = new StudioConversationHost({ idPrefix: mode === 'input-tokens' ? 'scope:g07-input' : undefined, runtime, tools: observeTools(), operationLog: log, sessionRecovery: { async recover() {} } });
+      await host.initialize();
+    }
+    const inputs = []; let resumes = 0;
+    runtime.turns.start = async function* (_backend, input) {
+      inputs.push(input);
+      yield { schemaVersion: 1, backendId, sessionId, turnId: 'turn:g07-fresh-budget', kind: 'question', payload: { nodeId: 'question:g07-next-step', questions: [] } };
+      yield { schemaVersion: 1, backendId, sessionId, turnId: 'turn:g07-fresh-budget', kind: 'completed', payload: { status: 'cancelled' } };
+    };
+    runtime.turns.resume = async function* () { resumes++; throw new Error('Local checkpoint must never reach provider resume'); };
+    const option = question.content.options.find(option => option.id.includes(mode === 'stop' ? 'budget-stop' : 'budget-continue'));
+    await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [option.id] } });
+    await waitFor(() => !host.replay().busy);
+    assert.equal(resumes, 0); assert.equal(inputs.length, mode === 'stop' ? 0 : 1);
+    assert.equal(host.replay().taskRuns.length, 1);
+    assert.equal(host.replay().taskRuns[0].taskId, original.taskId);
+    assert.deepEqual(host.replay().taskRuns[0].acceptance.map(item => item.assertion), original.acceptance.map(item => item.assertion));
+    if (mode !== 'stop') { assert.equal(inputs[0].taskId, original.taskId); assert.match(inputs[0].prompt, /evidence runtime-errors signal count equals 0/); }
+    if (mode === 'live') assert.equal(runtime.accounting.get(original.taskId).snapshot().budget.limits.turns, 2, 'one answer grants exactly one tranche');
+    if (mode === 'input-tokens') assert.equal(runtime.accounting.get(original.taskId).snapshot().budget.limits.inputTokens, 401_498, 'one tranche adds bounded headroom to reported usage');
+    if (mode === 'stop') assert.equal(host.replay().taskRuns[0].status, 'cancelled');
+    const checkpoint = await sessions.replay(question.provenance.sessionId);
+    assert.deepEqual(checkpoint.recovery.openTurnIds, []); assert.deepEqual(checkpoint.recovery.unresolvedBarrierIds, []);
+    await waitFor(() => host.replay().executionGraphs.find(graph => graph.sessionId === question.provenance.sessionId)?.currentNodeIds.length === 0);
+  } finally { await host?.dispose().catch(() => undefined); await sessions.dispose().catch(() => undefined); await log.close().catch(() => undefined); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
+});
+
+for (const phase of ['start', 'resume', 'stream']) test(`host failure closes the durable topology (${phase})`, async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g07-host-failure-'));
+  const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
+  let sessions = new DurableSessionRuntime(log); let host;
+  try {
+    const runtime = runtimeFixture(sessions);
+    const fail = async function* () {
+      if (phase === 'stream') yield { schemaVersion: 1, backendId, sessionId, turnId, kind: 'conversation-node', payload: { delta: 'Working…' } };
+      throw Object.assign(new Error('Codex turn fixture is unavailable.'), { code: 'agent.resume-missing' });
+    };
+    runtime.turns.start = fail; runtime.turns.resume = fail;
+    host = new StudioConversationHost({ runtime, tools: observeTools(), operationLog: log });
+    await host.initialize();
+    await host.dispatch(phase === 'resume' ? { type: 'conversation/retry', backendId, sessionId, turnId } : { type: 'conversation/send', backendId, prompt: 'Inspect the current project.' });
+    await waitFor(() => !host.replay().busy && latestNode(host, 'diagnostic', 'failed'));
+    const failure = latestNode(host, 'diagnostic', 'failed');
+    const snapshot = await sessions.replay(failure.provenance.sessionId);
+    const terminal = snapshot.ops.filter(op => op.kind === 'turn.completed');
+    assert.equal(terminal.length, 1); assert.equal(terminal[0].payload.status, 'failed');
+    assert.match(terminal[0].payload.reason, /unavailable/); assert.equal(terminal[0].payload.diagnostic, 'agent.resume-missing');
+    assert.deepEqual(snapshot.recovery.openTurnIds, []);
+    await waitFor(() => host.replay().executionGraphs.find(graph => graph.sessionId === failure.provenance.sessionId)?.nodes.some(node => node.kind === 'result' && node.status === 'failed'));
+    const graph = host.replay().executionGraphs.find(graph => graph.sessionId === failure.provenance.sessionId);
+    assert.deepEqual(graph.currentNodeIds, []); assert.ok(graph.nodes.every(node => node.status !== 'running'));
+    const latest = new Map(host.replay().events.map(event => [event.node.id, event.node]));
+    assert.ok([...latest.values()].filter(node => node.kind === 'progress').every(node => node.status === (phase === 'stream' ? 'completed' : 'failed')));
+    if (phase === 'stream') assert.ok([...latest.values()].some(node => node.kind === 'text' && node.status === 'failed' && node.content.text === 'Working…'));
+    if (phase !== 'resume') assert.equal(host.replay().taskRuns.at(-1).status, 'failed');
+    await host.flushRecords(); await host.dispose(); await sessions.dispose();
+    sessions = new DurableSessionRuntime(log);
+    host = new StudioConversationHost({ runtime: runtimeFixture(sessions), tools: observeTools(), operationLog: log }); await host.initialize();
+    assert.deepEqual(host.replay().executionGraphs.find(graph => graph.sessionId === failure.provenance.sessionId).currentNodeIds, []);
+    assert.equal((await sessions.replay(failure.provenance.sessionId)).ops.filter(op => op.kind === 'turn.completed').length, 1, 'reload does not duplicate terminal facts');
+  } finally { await host?.dispose().catch(() => undefined); await sessions.dispose().catch(() => undefined); await log.close().catch(() => undefined); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
+});
+
+for (const newerAttempt of [false, true]) test(`legacy host failure repairs missing terminal topology without overriding a newer attempt (${newerAttempt})`, async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g07-legacy-failure-'));
+  const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
+  const sessions = new DurableSessionRuntime(log); let host;
+  try {
+    const session = await sessions.create({ id: sessionId, projectId: 'project:g07', documentId: null, taskBudgetId: null, activeGoal: 'Recover budget checkpoint' });
+    await session.appendMessage({ role: 'user', content: 'Continue after budget approval', turnId });
+    const node = { schemaVersion: 1, id: 'node:g07-host-failure', kind: 'diagnostic', status: 'failed', createdAt: new Date().toISOString(), provenance: { backendId, sessionId, turnId }, content: { code: 'agent.resume-missing', message: 'Codex turn fixture is unavailable.', severity: 'error' } };
+    const artifact = await log.putArtifact(node, { schemaVersion: 'conversation-node/1' });
+    await log.append({ kind: 'conversation/node-projected', severity: 'error', source: 'studio.conversation-host', correlation: { sessionId, turnId }, payload: {}, artifactRefs: [artifact.id] });
+    await log.append({ kind: 'conversation/host-failed', severity: 'error', source: 'studio.conversation-host', correlation: { sessionId, turnId }, payload: node.content });
+    if (newerAttempt) {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      await session.append({ kind: 'turn.started', turnId, payload: { status: 'running' } });
+    }
+    host = new StudioConversationHost({ runtime: runtimeFixture(sessions), tools: observeTools(), operationLog: log }); await host.initialize();
+    const graph = host.replay().executionGraphs.find(graph => graph.sessionId === sessionId);
+    const terminal = (await sessions.replay(sessionId)).ops.filter(op => op.kind === 'turn.completed');
+    assert.equal(terminal.length, newerAttempt ? 0 : 1);
+    if (newerAttempt) assert.ok(graph.currentNodeIds.length > 0);
+    else { assert.deepEqual(graph.currentNodeIds, []); assert.equal(terminal[0].payload.status, 'failed'); assert.match(graph.nodes.find(node => node.kind === 'result').detail.reason, /unavailable/); }
+  } finally { await host?.dispose().catch(() => undefined); await sessions.dispose().catch(() => undefined); await log.close().catch(() => undefined); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
+});
+
+test('between-turn inline budget approval excludes user wait and rearms the renewed wall-time budget', async () => {
+  const runtime = providerReleaseRuntime(undefined); const originalStart = runtime.turns.start;
+  let turnInputs = []; let beforeWork; let afterWork;
+  runtime.turns.start = async function* (backend, input) {
+    turnInputs.push(input);
+    if (turnInputs.length === 1) {
+      for await (const event of originalStart(backend, input)) yield event.kind === 'completed' ? { ...event, payload: { status: 'completed' } } : event;
+    } else {
+      beforeWork = runtime.accounting.get(input.taskId).snapshot().budgetDecision.status;
+      yield { schemaVersion: 1, backendId, sessionId, turnId: 'turn:g07-inline-budget', kind: 'status', payload: { status: 'running' } };
+      await new Promise(resolve => setTimeout(resolve, 300));
+      afterWork = runtime.accounting.get(input.taskId).snapshot().budgetDecision.status;
+      yield { schemaVersion: 1, backendId, sessionId, turnId: 'turn:g07-inline-budget', kind: 'completed', payload: { status: 'failed' } };
+    }
+  };
+  const host = new StudioConversationHost({ runtime, tools: observeTools(), operationLog: { async append() {} } });
+  try {
+    await host.initialize();
+    await host.dispatch({ type: 'agent/configure', backendId, model: 'fixture-model', reasoningEffort: 'high', outputTokenLimit: 4096, budget: { schemaVersion: 2, id: 'budget:g07-inline', enforcement: 'hard', limits: { inputTokens: 200_000, outputTokens: 10_000, estimatedCostMicros: 1_000_000, wallTimeMs: 100, turns: 1, toolCalls: 100, repairIterations: 1, observationBytes: 100_000 } } });
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Build the approved object.' });
+    await waitFor(() => latestNode(host, 'plan', 'pending'));
+    const plan = latestNode(host, 'plan', 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => latestNode(host, 'question', 'pending'));
+    const question = latestNode(host, 'question', 'pending');
+    assert.match(question.provenance.turnId, /(?:^|:)turn:approved-plan:/);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    assert.equal(turnInputs.length, 1, 'human wait cannot start provider work');
+    await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(option => option.id.includes('budget-continue')).id] } });
+    await waitFor(() => !host.replay().busy);
+    assert.equal(turnInputs.length, 2); assert.equal(turnInputs[0].taskId, turnInputs[1].taskId);
+    assert.equal(beforeWork, 'within'); assert.equal(afterWork, 'hard-exceeded', 'the renewed execution deadline must still be enforced');
+  } finally { await host.dispose(); }
 });
 
 function runtimeFixture(sessions) {

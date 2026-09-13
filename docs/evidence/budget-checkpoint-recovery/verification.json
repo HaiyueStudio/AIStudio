@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "inputDigest": "sha256:a2bf3b57ac67b23f7934afb2158af7370e4cea93d784836d021d4b54b80a8f85",
+  "focused": {
+    "passed": 64,
+    "failed": 0,
+    "log": "regression.log"
+  },
+  "capability": {
+    "passed": 176,
+    "failed": 0,
+    "log": "capability.log",
+    "bindingCheck": "passed",
+    "budgetCheckpointRecoveryPassed": 17
+  },
+  "build": "passed",
+  "rootCheck": "Passed through quick evaluation; stopped on previous evidence digest. Recaptured final evidence and passed capability check. Later root-check stages were not rerun.",
+  "liveCodexGeneration": false,
+  "applicationRestarted": false,
+  "userProjectModified": false
+}

@@ -15,7 +15,7 @@ export function approvedPlanRequest(plan: ApprovedPlanExecution, projectOpen: bo
   return [
     projectOpen ? 'Execute the already approved plan against the current project.' : 'The project closed after approval; report that execution cannot continue.',
     canonicalPlan(plan),
-    'Do not request the same plan approval again. Re-inspect the current revision, execute accepted reversible steps, and report any scoped approval or capability that still blocks execution.',
+    'Do not request the same plan approval again. Re-inspect the current revision, execute accepted steps, and invoke the next tool to request any required scoped approval. Do not stop merely because a future operation may need approval. Report actual policy or capability failures.',
   ].join('\n\n');
 }
 export function canonicalPlan(plan: ApprovedPlanExecution): string {

@@ -54,6 +54,8 @@ export interface ExecutionGraphNodeReadModel {
     readonly transactionId: M13StableId | null;
     readonly usageRecordIds: readonly M13StableId[];
     readonly costRecordIds: readonly M13StableId[];
+    /** Human-readable terminal cause; optional for older persisted projections. */
+    readonly reason?: string | null;
     readonly diagnostic: string | null;
     readonly validation: string | null;
   }>;

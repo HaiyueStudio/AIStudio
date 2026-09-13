@@ -1,0 +1,26 @@
+{
+  "agent": {
+    "owner": "agent",
+    "notice": true,
+    "text": "Agent 正在操作预览，请勿直接关闭或操作画面。测试结束后会自动返回编辑器。",
+    "exit": "停止任务并退出",
+    "pauseDisabled": true,
+    "resizeDisabled": true,
+    "input": "none",
+    "stageHeight": 676,
+    "toolbarBottom": 52.5,
+    "stageTop": 92
+  },
+  "manual": {
+    "owner": "user",
+    "notice": false,
+    "text": "Agent 正在操作预览，请勿直接关闭或操作画面。测试结束后会自动返回编辑器。",
+    "exit": "退出运行",
+    "pauseDisabled": false,
+    "resizeDisabled": false,
+    "input": "auto",
+    "stageHeight": 715.5,
+    "toolbarBottom": 52.5,
+    "stageTop": 52.5
+  }
+}

@@ -34,6 +34,7 @@ import {
   type SafeLogPage,
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
+import { AgentPreviewOwnership } from './agent-preview-ownership.js';
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
 import { mountNotificationSettings } from './notification-ui.js';
 import { IntegratedEditorPanels } from './editor-panels.js';
@@ -60,6 +61,7 @@ import type {
   SceneMaterialKind,
   SelectionIntentSource,
 } from '@haiyue/ai-studio-editor-plugins';
+import { defineExpandableComponents } from '@haiyue/ui/expandable';
 import { defineBorderBeamComponents } from '@haiyue/ui/border-beam';
 import { defineDialogComponents, type HYDialog } from '@haiyue/ui/dialog';
 import { defineDrawerComponents, type HYDrawer } from '@haiyue/ui/drawer';
@@ -72,6 +74,8 @@ let agentHistoryViewer: AgentHistoryViewer | null = null;
 let intentWorkspace: IntentWorkspace | null = null;
 let editorPanels: IntegratedEditorPanels | null = null;
 let agentHistoryWasBusy = false;
+const agentPreviewOwnership = new AgentPreviewOwnership();
+let previewStop: Promise<void> | null = null;
 let notificationSettings: ReturnType<typeof mountNotificationSettings> | null = null;
 let disposeNotificationClicked: (() => void) | null = null;
 
@@ -171,7 +175,7 @@ let currentStatusKey: string | null = document.body.dataset.shell === 'web' ? 's
 const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>> = Object.freeze({
   'zh-CN': Object.freeze({
     newProject: '新建', openProject: '打开', saveProject: '保存', run: '▶ 运行', stop: '■ 停止', runTitle: '运行项目', stopTitle: '停止运行', undo: '撤销', redo: '重做', settings: '设置',
-    playPage: '独立运行预览', playRunning: '运行中', playPaused: '已暂停', playStarting: '正在启动…', device: '设备', devicePreset: '设备预设', responsive: '自适应', custom: '自定义', width: '宽', height: '高', customWidth: '自定义宽度', customHeight: '自定义高度', applySize: '应用', rotateDevice: '旋转设备', pause: '⏸ 暂停', resume: '▶ 继续', fullscreen: '全屏', exitFullscreen: '退出全屏', exitPlay: '退出运行',
+    agentPreviewNotice: 'Agent 正在操作预览，请勿直接关闭或操作画面。测试结束或需要你确认时会自动返回编辑器。', agentPreviewRunning: 'Agent 测试中', stopAgentPreview: '停止任务并退出', playPage: '独立运行预览', playRunning: '运行中', playPaused: '已暂停', playStarting: '正在启动…', device: '设备', devicePreset: '设备预设', responsive: '自适应', custom: '自定义', width: '宽', height: '高', customWidth: '自定义宽度', customHeight: '自定义高度', applySize: '应用', rotateDevice: '旋转设备', pause: '⏸ 暂停', resume: '▶ 继续', fullscreen: '全屏', exitFullscreen: '退出全屏', exitPlay: '退出运行',
     scene: '场景', createEmpty: '+ 空物体', createCube: '+ 立方体', inspector: '检查器', noSelection: '未选择物体',
     transformHistory: 'Transform 修改会通过历史记录提交。', position: '位置', rotation: '旋转', scale: '缩放', applyTransform: '应用 Transform',
     noRenderables: '没有可渲染物体', noRenderablesHint: '创建一个基础几何体即可显示。', authoring: '编辑', assets: '资源库',
@@ -191,7 +195,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
   }),
   en: Object.freeze({
     newProject: 'New', openProject: 'Open', saveProject: 'Save', run: '▶ Run', stop: '■ Stop', runTitle: 'Run project', stopTitle: 'Stop project', undo: 'Undo', redo: 'Redo', settings: 'Settings',
-    playPage: 'Standalone play preview', playRunning: 'Running', playPaused: 'Paused', playStarting: 'Starting…', device: 'Device', devicePreset: 'Device preset', responsive: 'Responsive', custom: 'Custom', width: 'W', height: 'H', customWidth: 'Custom width', customHeight: 'Custom height', applySize: 'Apply', rotateDevice: 'Rotate device', pause: '⏸ Pause', resume: '▶ Resume', fullscreen: 'Fullscreen', exitFullscreen: 'Exit fullscreen', exitPlay: 'Exit play',
+    agentPreviewNotice: 'Agent is testing this preview. Please leave it open and avoid interacting. It will return to the editor automatically when testing finishes or your approval is needed.', agentPreviewRunning: 'Agent testing', stopAgentPreview: 'Stop task and exit', playPage: 'Standalone play preview', playRunning: 'Running', playPaused: 'Paused', playStarting: 'Starting…', device: 'Device', devicePreset: 'Device preset', responsive: 'Responsive', custom: 'Custom', width: 'W', height: 'H', customWidth: 'Custom width', customHeight: 'Custom height', applySize: 'Apply', rotateDevice: 'Rotate device', pause: '⏸ Pause', resume: '▶ Resume', fullscreen: 'Fullscreen', exitFullscreen: 'Exit fullscreen', exitPlay: 'Exit play',
     scene: 'Scene', createEmpty: '+ Empty', createCube: '+ Cube', inspector: 'Inspector', noSelection: 'No entity selected',
     transformHistory: 'Transform values are committed through History.', position: 'Position', rotation: 'Rotation', scale: 'Scale', applyTransform: 'Apply Transform',
     noRenderables: 'No renderable entities', noRenderablesHint: 'Create a primitive geometry to render the scene.', authoring: 'Authoring', assets: 'Assets',
@@ -772,6 +776,7 @@ async function boot(): Promise<void> {
 
 function setupUiPreferences(): void {
   defineBorderBeamComponents();
+  defineExpandableComponents();
   defineTabsComponents();
   defineTreeComponents();
   defineDialogComponents();
@@ -931,7 +936,7 @@ function setupPlayPageControls(): void {
     input.addEventListener('keydown', (event) => { if (event.key === 'Enter') applyCustomPlayViewport(); });
   }
   element('play-pause').addEventListener('click', () => void action(togglePreviewPause));
-  element('play-exit').addEventListener('click', () => void action(async () => { await stopPreview(); setStatus('Project stopped'); }));
+  element('play-exit').addEventListener('click', () => void action(exitPreviewFromUser));
   element('play-fullscreen').addEventListener('click', () => void action(togglePlayFullscreen));
   document.addEventListener('fullscreenchange', () => { updatePlayControls(); updatePlayViewportScale(); });
   playStageResizeObserver = new ResizeObserver(() => updatePlayViewportScale());
@@ -1001,6 +1006,26 @@ function showPlayPage(): void {
   requestAnimationFrame(() => updatePlayViewportScale());
 }
 
+async function exitPreviewFromUser(): Promise<void> {
+  const task = agentPreviewOwnership.task;
+  // A persisted human barrier has no live provider turn to cancel. Keep it actionable.
+  const cancelTask = agentPreviewOwnership.active && task?.status !== 'waiting-user';
+  element<HTMLButtonElement>('play-exit').disabled = true;
+  const cancellation = cancelTask
+    ? task?.sessionId && task.turnId
+      ? dispatchConversation({ type: 'conversation/cancel', backendId: task.backendId, sessionId: task.sessionId, turnId: task.turnId })
+      : Promise.resolve(false)
+    : Promise.resolve(true);
+  try {
+    // Never gate the local exit on an IPC error, stale turn or delayed backend cancellation.
+    await hidePlayPage();
+    await stopPreview();
+    if (!await cancellation) throw new Error(language === 'zh-CN'
+      ? '预览已退出，但未能确认任务停止。请在任务面板检查状态并重试停止。'
+      : 'Preview closed, but task cancellation was not confirmed. Check the task panel and retry stopping.');
+  } finally { updatePlayControls(); }
+}
+
 async function hidePlayPage(): Promise<void> {
   const page = element('play-page');
   if (document.fullscreenElement === page) await document.exitFullscreen().catch(() => undefined);
@@ -1030,10 +1055,20 @@ async function togglePlayFullscreen(): Promise<void> {
 
 function updatePlayControls(): void {
   const state = element('play-state');
-  state.textContent = !playing ? t('playStarting') : previewPaused ? t('playPaused') : t('playRunning');
+  const agentOwned = agentPreviewOwnership.active;
+  element('play-agent-notice').hidden = !agentOwned;
+  element('play-agent-notice').textContent = t('agentPreviewNotice');
+  element('play-page').dataset.owner = agentOwned ? 'agent' : 'user';
+  element('play-device-screen').inert = agentOwned;
+  element('play-exit').textContent = t(agentOwned ? 'stopAgentPreview' : 'exitPlay');
+  element<HTMLButtonElement>('play-exit').disabled = agentOwned && !playing;
+  for (const id of ['play-device-preset', 'play-custom-width', 'play-custom-height', 'play-apply-size', 'play-rotate']) {
+    element<HTMLInputElement>(id).disabled = agentOwned;
+  }
+  state.textContent = agentOwned ? t('agentPreviewRunning') : !playing ? t('playStarting') : previewPaused ? t('playPaused') : t('playRunning');
   state.classList.toggle('is-paused', previewPaused);
   const pause = element<HTMLButtonElement>('play-pause');
-  pause.disabled = !playing;
+  pause.disabled = !playing || agentOwned;
   pause.textContent = t(previewPaused ? 'resume' : 'pause');
   const fullscreen = element<HTMLButtonElement>('play-fullscreen');
   fullscreen.textContent = t(document.fullscreenElement === element('play-page') ? 'exitFullscreen' : 'fullscreen');
@@ -1109,9 +1144,14 @@ function bindUi(): void {
 }
 
 async function pollAgent(): Promise<void> {
-  const editorChanged = await refreshConversation(false);
-  if (editorChanged) await refresh();
-  await processAgentPreviewCommand();
+  try {
+    const editorChanged = await refreshConversation(false);
+    if (editorChanged) await refresh();
+    await processAgentPreviewCommand();
+  } finally {
+    // A human handoff must reveal approval UI even if a scene/command refresh fails.
+    if (agentPreviewOwnership.shouldClose) await stopPreview();
+  }
 }
 
 async function refreshConversation(force: boolean): Promise<boolean> {
@@ -1122,6 +1162,7 @@ async function refreshConversation(force: boolean): Promise<boolean> {
   agentHistoryViewer?.setProject(replay.projectId ?? null, replay.historyStorage);
   conversationRevision = replay.revision;
   const snapshot = conversationProjector.reset(replay);
+  agentPreviewOwnership.update(replay.projectId ?? null, snapshot.taskRuns);
   if (agentHistoryWasBusy && !snapshot.busy) agentHistoryViewer?.refresh();
   agentHistoryWasBusy = snapshot.busy;
   conversationBackendId = snapshot.backendId;
@@ -1211,12 +1252,24 @@ async function processAgentPreviewCommand(): Promise<void> {
   try {
     if (command.kind === 'start') {
       if (!command.plan) throw new Error('Agent preview start command has no plan.');
+      if (playing && !agentPreviewOwnership.active) throw new Error('The current preview belongs to the user. Stop it before Agent testing.');
       if (playing) await stopPreview();
       if (!command.scene) await refresh();
-      await startPreview(command.plan, command.scene ?? scene);
-    } else if (command.kind === 'stop') await stopPreview();
+      const source = command.scene ?? scene;
+      if (!source) throw new Error('No scene is available for Agent preview.');
+      if (!project?.document || source.documentId !== scene?.documentId) throw new Error('Agent preview project changed.');
+      agentPreviewOwnership.claim(project.document.projectId);
+      try { await startPreview(command.plan, source); }
+      catch (cause) { agentPreviewOwnership.release(); updatePlayControls(); throw cause; }
+    } else if (command.kind === 'stop') {
+      if (playing && !agentPreviewOwnership.active) throw new Error('The current preview belongs to the user.');
+      await stopPreview();
+    }
     else {
-      if (!playing || !previewFrame) throw new Error('Play is not active.');
+      // The public runtime inspector shares this broker with Agent tools.
+      // Read-only inspection of a user preview does not claim or control it.
+      const controlsTimeline = command.kind === 'step' || command.kind === 'input';
+      if (!playing || !previewFrame || (controlsTimeline && !agentPreviewOwnership.active) || agentPreviewOwnership.shouldClose) throw new Error('Agent Play is not active.');
       const result = command.kind === 'step' ? await previewFrame.step(Number(command.count))
         : command.kind === 'input' ? await previewFrame.input(command.event ?? Object.freeze({}))
           : command.kind === 'physics-query' ? await previewFrame.physicsQuery(command.query ?? Object.freeze({}))
@@ -1800,6 +1853,7 @@ async function approveAndStartPreview(): Promise<void> {
 }
 
 async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapshot | null = scene): Promise<void> {
+  if (previewStop) await previewStop;
   if (!sourceScene) throw new Error('No scene is available for preview.');
   if (!sourceScene.entities.some((entity) => isRenderableSceneKind(entity.kind))) {
     throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
@@ -1854,14 +1908,21 @@ function sameCamera(left: ProjectCameraSnapshot, right: ProjectCameraSnapshot): 
 }
 
 async function stopPreview(): Promise<void> {
-  if (!playing) return;
+  if (previewStop) return previewStop;
+  if (!playing) { agentPreviewOwnership.release(); return; }
+  previewStop = disposePreview();
+  try { await previewStop; } finally { previewStop = null; }
+}
+
+async function disposePreview(): Promise<void> {
+  agentPreviewOwnership.release();
   document.body.dataset.smokeStage = 'preview-cleanup-requested';
   const old = previewFrame;
   const previewId = old?.previewId;
   const disposedSideEffects = await old?.dispose() ?? 0;
   document.body.dataset.smokeStage = 'preview-realm-disposed';
   previewFrame = null;
-  await reportPreview('stopped', 'Preview stopped.', disposedSideEffects, previewId, selection.activeEntityId);
+  await reportPreview('stopped', 'Preview stopped.', disposedSideEffects, previewId, selection.activeEntityId).catch(cause => setStatus(errorMessage(cause)));
   playing = false;
   renderLogicPanel();
   previewPaused = false;

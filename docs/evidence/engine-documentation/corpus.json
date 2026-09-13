@@ -1,0 +1,235 @@
+{
+  "bundleDigest": "sha256:753d51aeb7e89e50d0e6e5385f396463dbf4afb04bb02dbd6254eef64267fb45",
+  "binding": {
+    "engineVersion": "0.1.0",
+    "engineIntegrity": "sha512-oRFHDLfR3G6aaTGQ9klJ40uUE0fTxUoMdspfCbMhuucpRtAwkFXatyPwDLtoMKe4rm+Ms3AU+OoEXYoHGMixnA==",
+    "scriptContractDigest": "sha256:11487af6b1cb71a1634c5ccfaca6cb222b4504b897d50628a9d8781b45b30ab5",
+    "guidesDigest": "sha256:1fda889d1086ed68db810c917196a8fe96c7fb78838de891390851f39391db38"
+  },
+  "documents": 11507,
+  "bytes": 8653611,
+  "surfaces": {
+    "studio-script": 203,
+    "authoring": 104,
+    "engine-native": 11200
+  },
+  "measurements": [
+    {
+      "query": "棋盘 点击 命中",
+      "searchBytes": 2616,
+      "readBytes": 2767,
+      "matches": [
+        {
+          "id": "doc:eab47b649a59f3feae3c85f9",
+          "title": "棋盘命中点吸附 / grid placement with engine picking",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:0919236100316a633fe6cda0",
+          "title": "api.input.snapshot",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:0a9cb68b9e8bfc3d76beb4f7",
+          "title": "api.input.action",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:0ed78b842e81f7b9068ffcd1",
+          "title": "HaiyueStudioPointerEvent",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:127ca40f211d75ceab404af5",
+          "title": "HaiyueStudioPointerEvent.x",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:25942d38a367860e763cba69",
+          "title": "api.input.wasKeyReleased",
+          "surface": "studio-script"
+        }
+      ]
+    },
+    {
+      "query": "圆角 立方体",
+      "searchBytes": 2933,
+      "readBytes": 2065,
+      "matches": [
+        {
+          "id": "doc:20f7cd93de776561974f83b8",
+          "title": "haiyue.render.geometry",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:a6e825e945f84c9f2edaa022",
+          "title": "圆角立方体 / rounded box geometry",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:bcb80d7e9fc2c74b2328ce41",
+          "title": "api.physics.grounded",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:9556317a75e22e8045b84215",
+          "title": "entity.create",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:fd9dc5bd7d42f65c710bc129",
+          "title": "entity.create-many",
+          "surface": "authoring"
+        }
+      ]
+    },
+    {
+      "query": "相机 轨道",
+      "searchBytes": 2865,
+      "readBytes": 4271,
+      "matches": [
+        {
+          "id": "doc:0511de4e0e78e29387565b63",
+          "title": "haiyue.camera.follow",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:35ea4bee2ee56df50c3921f1",
+          "title": "haiyue.camera.2d",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:7682ca75f16ee511ac91b883",
+          "title": "camera.author",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:7b39c4e09f355e978b2c3478",
+          "title": "camera.get",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:8d11f35da005c071cf4f72b8",
+          "title": "camera.set",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:d96079f15e20fe1e6478f9ea",
+          "title": "haiyue.camera.3d",
+          "surface": "authoring"
+        }
+      ]
+    },
+    {
+      "query": "预制体 组合",
+      "searchBytes": 2892,
+      "readBytes": 1091,
+      "matches": [
+        {
+          "id": "doc:28de726f2a72d9b33e17fb47",
+          "title": "api.scene.spawnPrefab",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:2c8f1cffb7785701a40a54bf",
+          "title": "api.asset.prefabs",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:440d45b0d24fc381c9aacf35",
+          "title": "World.notifyEntityHierarchyChanged",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:9845cae7e79f1ee041a7eea8",
+          "title": "entity.hierarchy",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:98ac3f545df9156bbca3e7f5",
+          "title": "api.asset.findPrefab",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:b6369f194779755d62360b67",
+          "title": "prefab.manage",
+          "surface": "authoring"
+        }
+      ]
+    },
+    {
+      "query": "纹理",
+      "searchBytes": 2528,
+      "readBytes": 922,
+      "matches": [
+        {
+          "id": "doc:1f540a5b14e0a069e6c87292",
+          "title": "api.asset.load",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:270a304da59a47d7225b074b",
+          "title": "haiyue.animation.transform-clips",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:2c8f1cffb7785701a40a54bf",
+          "title": "api.asset.prefabs",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:613f0c513a37c59224657898",
+          "title": "api.runtime.asset",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:6af966c9f41961da27b5c7ed",
+          "title": "haiyue.animation.state",
+          "surface": "authoring"
+        },
+        {
+          "id": "doc:8648a54730fbec72362c9d47",
+          "title": "asset.dependencies",
+          "surface": "authoring"
+        }
+      ]
+    },
+    {
+      "query": "api.input.interactions",
+      "searchBytes": 2847,
+      "readBytes": 1433,
+      "matches": [
+        {
+          "id": "doc:b8bc778cac52416244755a66",
+          "title": "api.input.interactions",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:95a5f2fd545a2d262a6a0d01",
+          "title": "api.input.pointerEvents",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:0919236100316a633fe6cda0",
+          "title": "api.input.snapshot",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:0a9cb68b9e8bfc3d76beb4f7",
+          "title": "api.input.action",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:25942d38a367860e763cba69",
+          "title": "api.input.wasKeyReleased",
+          "surface": "studio-script"
+        },
+        {
+          "id": "doc:4338c7d73c7a95d798caad62",
+          "title": "api.input.wasPressed",
+          "surface": "studio-script"
+        }
+      ]
+    }
+  ]
+}

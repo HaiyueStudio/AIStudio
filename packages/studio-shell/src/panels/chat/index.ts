@@ -1,4 +1,5 @@
 import type { JsonObject, StableId, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
+import type { HYExpandable, HYExpandableChangeDetail } from '@haiyue/ui/expandable';
 import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
 import { approvalFromNode, planFromNode, questionFromNode, safeText } from '../../conversation/validation.js';
 import { layoutExecutionGraph } from '../../conversation/execution-layout.js';
@@ -318,6 +319,7 @@ interface ExecutionWorkspaceState {
   /** Product task identity, falling back to a legacy session identity. */
   sessionId: string | null;
   followLatest: boolean;
+  expanded: boolean;
   mode: 'graph' | 'transcript';
   selectedNodeId: string | null;
   query: string;
@@ -373,7 +375,7 @@ function renderExecutionWorkspace(root: HTMLElement, document: Document, graphs:
   // known current task until that session can be attached, instead of flashing a lone goal.
   const latest = ordered.find(graph => graph.taskId === accounting?.taskId) ?? ordered.at(-1)!;
   const prior = executionWorkspaceStates.get(root);
-  const state: ExecutionWorkspaceState = prior ?? { sessionId: executionGraphIdentity(latest), followLatest: true, mode: 'graph', selectedNodeId: null, query: '', filter: 'all', detailMode: 'overview', scale: 1, fit: true, scrollLeft: 0, scrollTop: 0, revealSelection: false };
+  const state: ExecutionWorkspaceState = prior ?? { sessionId: executionGraphIdentity(latest), followLatest: true, expanded: false, mode: 'graph', selectedNodeId: null, query: '', filter: 'all', detailMode: 'overview', scale: 1, fit: true, scrollLeft: 0, scrollTop: 0, revealSelection: false };
   const selectedGraph = graphs.find((candidate) => executionGraphIdentity(candidate) === state.sessionId);
   if (!selectedGraph) state.followLatest = true;
   const graph = state.followLatest ? latest : selectedGraph!;
@@ -433,7 +435,16 @@ const currentChatModels = new WeakMap<HTMLElement, ChatPanelReadModel>();
 function currentChatModel(root: HTMLElement): ChatPanelReadModel { const value = currentChatModels.get(root); if (!value) throw new Error('Chat panel model is unavailable.'); return value; }
 
 function renderExecutionGraph(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
-  const region = document.createElement('div'); region.className = 'execution-graph-region';
+  const container = document.createElement('hy-expandable') as HYExpandable; container.className = 'execution-graph-expandable';
+  container.setAttribute('expanded-width', '96vw'); container.setAttribute('expanded-height', '94dvh');
+  container.setAttribute('expand-label', '放大执行拓扑图'); container.setAttribute('restore-label', '还原执行拓扑图');
+  container.toggleAttribute('expanded', state.expanded);
+  container.addEventListener('expanded-change', event => {
+    if (event.target !== container) return;
+    state.expanded = (event as CustomEvent<HYExpandableChangeDetail>).detail.expanded;
+    executionViewportUpdates.get(root)?.();
+  });
+  const region = document.createElement('div'); region.className = 'execution-graph-region'; container.append(region);
   const toolbar = document.createElement('div'); toolbar.className = 'execution-graph-toolbar';
   const detail = document.createElement('button'); detail.type = 'button'; detail.textContent = state.detailMode === 'overview' ? '展开全部' : '折叠已完成读取'; detail.addEventListener('click', () => { state.detailMode = state.detailMode === 'overview' ? 'expanded' : 'overview'; state.fit = true; renderChatPanel(root, currentChatModel(root), dispatch); });
   const zoomOut = document.createElement('button'); zoomOut.type = 'button'; zoomOut.textContent = '−'; zoomOut.setAttribute('aria-label', 'Zoom out execution graph'); zoomOut.addEventListener('click', () => { state.fit = false; state.scale = Math.max(0.01, state.scale / 1.25); renderChatPanel(root, currentChatModel(root), dispatch); });
@@ -459,7 +470,9 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
   const nodeHover = chatHoverPanel(root, document, 'execution-detail-popover', '步骤详情');
   const panDispose = attachGraphPan(viewport, () => { nodeHover.hide(); state.fit = false; state.scrollLeft = viewport.scrollLeft; state.scrollTop = viewport.scrollTop; });
   const lifetime = new AbortController();
-  executionPanDisposers.set(root, () => { lifetime.abort(); panDispose(); });
+  const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => executionViewportUpdates.get(root)?.());
+  resizeObserver?.observe(viewport);
+  executionPanDisposers.set(root, () => { lifetime.abort(); panDispose(); resizeObserver?.disconnect(); });
   const stage = document.createElement('div'); stage.className = 'execution-graph-stage';
   const canvas = document.createElement('div'); canvas.className = 'execution-graph-canvas'; canvas.style.width = `${layout.width}px`; canvas.style.height = `${layout.height}px`;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'execution-edges'); svg.setAttribute('width', String(layout.width)); svg.setAttribute('height', String(layout.height)); svg.setAttribute('aria-hidden', 'true');
@@ -513,7 +526,7 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
   }, { passive: false, signal: lifetime.signal });
   region.append(nodeHover.panel);
   region.append(renderAccessibleGraphList(root, document, graph, state, dispatch));
-  return region;
+  return container;
 }
 
 function renderExecutionTranscript(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
@@ -536,6 +549,12 @@ function renderExecutionNodeDetail(root: HTMLElement, document: Document, graph:
   const heading = document.createElement('h3'); heading.textContent = node.title; const summary = document.createElement('p'); summary.textContent = node.summary; aside.append(heading, summary);
   const facts = document.createElement('dl');
   for (const [label, value] of [['状态', executionStatusLabel(node.status)], ['类型', executionKindLabel(node.kind)], ['耗时', node.durationMs === null ? 'unknown' : `${node.durationMs} ms`], ['项目修订', node.projectRevisionBefore === null && node.projectRevisionAfter === null ? 'unknown' : `r${node.projectRevisionBefore ?? '?'} → r${node.projectRevisionAfter ?? '?'}`], ['工具', node.detail.toolId ? `${node.detail.toolId}${node.detail.toolVersion ? `@${node.detail.toolVersion}` : ''}` : 'none'], ['执行类别', node.detail.executionClass ?? 'unknown'], ['事务', node.detail.transactionId ?? 'none'], ['诊断', node.detail.diagnostic ?? 'none']] as const) { const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value; facts.append(term, description); }
+  if (node.status === 'failed' || node.status === 'cancelled' || node.status === 'outcome-unknown') {
+    const term = document.createElement('dt'); term.textContent = node.status === 'cancelled' ? '取消原因' : '失败原因';
+    const reason = document.createElement('dd'); reason.className = 'execution-node-reason';
+    reason.textContent = safeText(node.detail.reason ?? node.detail.diagnostic ?? '该记录未保存具体原因，请查看对应记录或日志。', 2048);
+    facts.prepend(term, reason);
+  }
   aside.append(facts);
   if (node.artifactRefs.length) { const artifacts = document.createElement('details'); const label = document.createElement('summary'); label.textContent = `证据与产物 ${node.artifactRefs.length}`; const list = document.createElement('ul'); for (const id of node.artifactRefs) { const item = document.createElement('li'); const code = document.createElement('code'); code.textContent = id; item.append(code); list.append(item); } artifacts.append(label, list); aside.append(artifacts); }
   if (node.detail.usageRecordIds.length || node.detail.costRecordIds.length) { const accounting = document.createElement('p'); accounting.className = 'execution-node-accounting'; accounting.textContent = `Usage ${node.detail.usageRecordIds.join(', ') || 'unknown'} · Cost ${node.detail.costRecordIds.join(', ') || 'unknown'}`; aside.append(accounting); }
@@ -605,7 +624,7 @@ function renderTaskRun(document: Document, run: ConversationTaskRunReadModel, ac
   const request = document.createElement('p'); request.textContent = run.requestSummary;
   const config = document.createElement('p'); config.className = 'chat-task-config'; config.textContent = `Model ${run.model.id} · reasoning ${run.model.reasoningEffort} · max output ${run.model.outputTokenLimit} · prompt ${run.promptProfile.id}@${run.promptProfile.version} · r${run.documentRevision ?? 'unknown'}`;
   panel.append(summary, request, config);
-  if (run.terminalDiagnostic) { const diagnostic = document.createElement('p'); diagnostic.className = 'chat-task-diagnostic'; diagnostic.textContent = `原因：${run.terminalDiagnostic}`; panel.append(diagnostic); }
+  if (run.terminalDiagnostic) { const diagnostic = document.createElement('p'); diagnostic.className = 'chat-task-diagnostic'; diagnostic.textContent = run.terminalDiagnostic === 'task.acceptance-evidence-incomplete' ? `尚未完成验收：${run.acceptance.filter(item => item.required && (item.status !== 'pass' || item.evidenceIds.length === 0)).length} 项必需标准待验证，已保留 ${run.evidence.length} 份证据。继续后将开启新回合补齐。` : `原因：${run.terminalDiagnostic}`; panel.append(diagnostic); }
   if (run.resumable && run.sessionId && run.turnId) {
     const resume = document.createElement('button'); resume.type = 'button'; resume.textContent = '从安全检查点继续';
     resume.addEventListener('click', () => { resume.disabled = true; dispatch(Object.freeze({ type: 'conversation/retry', backendId: run.backendId, sessionId: run.sessionId!, turnId: run.turnId! })); }); panel.append(resume);

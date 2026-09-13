@@ -1,0 +1,13 @@
+{
+  "unchangedFiles": 47,
+  "changedFiles": [
+    "package/dist/index.js",
+    "package/package.json",
+    "package/README.md",
+    "package/dist/index.d.ts"
+  ],
+  "addedFiles": [
+    "package/dist/expandable.d.ts",
+    "package/dist/expandable.js"
+  ]
+}

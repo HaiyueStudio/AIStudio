@@ -1,0 +1,40 @@
+✔ live and replay use the same projector and stale read models cannot regress terminal nodes (24.198688ms)
+✔ unknown, oversized and injection-shaped nodes get bounded safe presentation fallbacks (8.546879ms)
+✔ controller keeps the composer available across durable barriers, keeps plan acceptance separate, and makes approval one-shot (4.317695ms)
+✔ auth handoff carries backend identity only and IME Enter never sends prematurely (1.018928ms)
+✔ chat feed follows new content only while the reader is near the latest message (0.218662ms)
+✔ composer keeps an editable focused draft while sending is temporarily blocked (2.044126ms)
+✔ model controls and task cost card expose effective settings, cache savings and unknown explanations safely (3.223782ms)
+✔ a connected conversation can refresh failed backend state, retain the draft and send after recovery (1.624331ms)
+✔ missing login and model configuration keep sending blocked with distinct recovery instructions (0.460497ms)
+✔ task workspace validates provenance, exposes acceptance evidence and bounds long timelines without leaking secret fields (5.680735ms)
+✔ unknown task versions and pass claims without retained evidence fail closed (0.656813ms)
+✔ user messages are projected as conversation input rather than assistant output (0.441689ms)
+✔ pending implementation plans put an explicit approval action before the detailed item list (0.717159ms)
+✔ tool results show a readable step and keep raw structured output collapsed (0.416844ms)
+✔ approval cards expose a validated project-session Allow always action (0.462918ms)
+✔ trusted-code and runtime-start approvals expose one-shot decisions only (0.515818ms)
+✔ approval cards remain actionable regardless of elapsed wall-clock time while IPC-spoofed intents fail closed (0.808288ms)
+✔ expired approval read models are visible but cannot block the composer or dispatch another decision (1.254276ms)
+✔ a cancelled plan no longer blocks the composer after its turn terminates (0.693879ms)
+✔ execution workspace renders a replayed topology and dispatches one durable manual compaction request (17.801393ms)
+✔ projects a deterministic graph, transcript and modification evidence chain (42.610968ms)
+✔ shows actual overlapping tool intervals as parallel and preserves dependency order (1.579349ms)
+✔ keeps barriers, compaction and outcome-unknown visible in graph and transcript (1.790706ms)
+✔ reports sequence gaps and dangling references without crashing (0.726207ms)
+✔ projects a 1000-tool graph within a bounded unit-test budget (173.513747ms)
+✔ session history orders actual execution time instead of unrelated operation counts (4.987352ms)
+✔ a task retains its full chain when an approval continuation starts a two-node provider session (7.917954ms)
+✔ task membership separates different requests that reuse one provider session, even with identical titles (4.843371ms)
+✔ legacy sessions stay inspectable and invalid task membership is rejected (2.043707ms)
+✔ current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors (5.421027ms)
+✔ plan answers without barrierKind finish the original review and release the active frontier on replay (4.495878ms)
+✔ answers only resolve the matching question and retain genuinely pending user input (0.825565ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 453.668939

@@ -1,0 +1,49 @@
+{
+  "codeBuilt": true,
+  "applicationRestarted": false,
+  "focused": {
+    "passed": 45,
+    "failed": 0,
+    "log": "focused.log"
+  },
+  "finalTargeted": {
+    "passed": 13,
+    "failed": 0,
+    "log": "targeted-verified.log",
+    "includes": [
+      "preview ownership",
+      "production preview controls",
+      "layout contract",
+      "Harness and Codex behavior tools"
+    ]
+  },
+  "capability": {
+    "passed": 124,
+    "failed": 0,
+    "exitCode": 0,
+    "log": "census-final.log",
+    "inputDigest": "sha256:6a4c52a4ca511d936b71c64bb19e2709dd34253ffc77c198f9ec90ddf6149723"
+  },
+  "workspaceRetry": {
+    "passed": 5,
+    "failed": 0
+  },
+  "logic": {
+    "passed": 23,
+    "failed": 0
+  },
+  "integration": {
+    "executedFiles": 48,
+    "tests": 236,
+    "passed": 235,
+    "failed": 1,
+    "limitation": "Frozen benchmark requires Windows/i7-7700; current host is macOS/i7-9750H. Assertion preserved."
+  },
+  "registeredIntegrationFiles": 50,
+  "notes": [
+    "The two new preview tests were verified separately and registered in the formal integration inventory.",
+    "Original npm check failed on a stale source-shape assertion and an Electron timeout during a large clock jump. Layout assertion updated; workspace retry passed; remaining phases executed separately.",
+    "Tool phase had two failures and one cancellation during large elapsed-time jumps; the affected behavior paths subsequently passed capability and targeted retries.",
+    "A transient native graph drag-cursor assertion passed isolated retry and the final official capability capture. No timeout or hardware acceptance thresholds were relaxed."
+  ]
+}

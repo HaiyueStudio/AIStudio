@@ -12,7 +12,9 @@
     "tool.search",
     "behavior.query",
     "behavior.locate",
-    "behavior.explain"
+    "behavior.explain",
+    "engine.docs.search",
+    "engine.docs.read"
   ],
   "checks": [
     {
@@ -30,7 +32,9 @@
         "apps/ai-studio/test/tool-discovery-invocation.test.mjs",
         "packages/game-authoring-tools/test/behavior-tools.test.mjs",
         "packages/game-authoring-tools/test/behavior-resource-tool-invocation.test.mjs",
-        "apps/ai-studio/test/agent-tools/behavior-tool-invocation.test.mjs"
+        "apps/ai-studio/test/agent-tools/behavior-tool-invocation.test.mjs",
+        "packages/game-authoring-tools/test/engine-docs.test.mjs",
+        "apps/ai-studio/test/engine-documentation.test.mjs"
       ]
     },
     {
@@ -103,6 +107,41 @@
       "id": "behavior-product-window",
       "files": [
         "apps/ai-studio/test/logic-product-electron.test.mjs"
+      ]
+    },
+    {
+      "id": "expandable-window",
+      "files": [
+        "apps/ai-studio/test/expandable-electron.test.mjs"
+      ]
+    },
+    {
+      "id": "task-checkpoint-continuation",
+      "files": [
+        "apps/ai-studio/test/g11-task-product.test.mjs",
+        "packages/agent-orchestration/test/task-continuation.test.mjs"
+      ]
+    },
+    {
+      "id": "agent-preview-handoff",
+      "files": [
+        "apps/ai-studio/test/agent-preview-ownership.test.mjs",
+        "apps/ai-studio/test/agent-preview-ui-electron.test.mjs",
+        "apps/ai-studio/test/agent-poll-scheduler.test.mjs"
+      ]
+    },
+    {
+      "id": "budget-checkpoint-recovery",
+      "files": [
+        "apps/ai-studio/test/g07-barrier-restart.test.mjs"
+      ]
+    },
+    {
+      "id": "execution-status",
+      "files": [
+        "packages/studio-shell/test/execution-graph.test.mjs",
+        "apps/ai-studio/test/execution-graph-context-ui.test.mjs",
+        "apps/ai-studio/test/execution-graph-electron.test.mjs"
       ]
     }
   ],

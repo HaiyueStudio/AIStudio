@@ -1,3 +1,4 @@
+import { loadEngineDocumentation } from './engine-documentation.js';
 import { ProjectAgentHistory, sha256 } from '@haiyue/ai-studio-operation-log';
 import { renderCanvasTexture } from './canvas-texture-renderer.js';
 import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell } from 'electron';
@@ -49,7 +50,7 @@ const descriptor = defineEditorAppDescriptor({
   storageNamespace: 'haiyue-ai-studio-poc',
   supportTier: 'experimental',
   entries: ['main.js', 'preload.cjs', 'renderer.js', 'preview-runtime.js', 'chunks/chunk.js', 'index.html', 'styles.css', 'preview.html', 'preview.css'],
-  staticFiles: ['index.html', 'styles.css', 'resources.css', 'advanced-authoring.css', 'preview.html', 'preview.css'],
+  staticFiles: ['engine-docs/bundle.json', 'engine-docs/binding.json', 'index.html', 'styles.css', 'resources.css', 'advanced-authoring.css', 'preview.html', 'preview.css'],
   workers: [],
   distDirectory: 'dist',
   outputDirectory: 'release',
@@ -294,6 +295,7 @@ async function boot(): Promise<void> {
     createScriptPreviewPlugin(),
     ...createPocAgentGameAuthoringPlugins({
       backend: agentProfile.backend,
+      documentation: await loadEngineDocumentation(),
       preview: agentPreview,
       textureRenderer: { render: renderCanvasTexture },
       behaviorSource: signal => { if (!projectBehavior) throw new Error('behavior.project-unavailable'); return projectBehavior.source(signal); },

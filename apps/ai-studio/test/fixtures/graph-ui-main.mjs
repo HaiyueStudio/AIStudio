@@ -40,7 +40,12 @@ app.whenReady().then(async () => {
   await move('.execution-node-detail'); await evaluate('new Promise(resolve => setTimeout(resolve, 230))'); assert.equal(await opened('.execution-detail-popover'), true);
   await evaluate('showGraph()'); await frame(); assert.equal(await opened('.execution-detail-popover'), true);
   await writeFile(path.join(directory, 'node-detail.png'), (await window.webContents.capturePage()).toPNG());
-  await move('.chat-composer'); await evaluate('new Promise(resolve => setTimeout(resolve, 230))'); assert.equal(await opened('.execution-detail-popover'), false);
+  await move('.chat-composer');
+  await evaluate(`new Promise((resolve, reject) => { const deadline = performance.now() + 2500; const check = () => {
+    if (!document.querySelector('.execution-detail-popover')?.matches(':popover-open')) return resolve();
+    if (performance.now() > deadline) return reject(Error('Hover panel did not close; focus: ' + document.activeElement?.outerHTML.slice(0, 240)));
+    setTimeout(check, 50);
+  }; check(); })`);
   await click('.execution-node[data-node-id="node:0"]'); assert.equal(await opened('.execution-detail-popover'), true);
   await move('.chat-composer'); await evaluate('new Promise(resolve => setTimeout(resolve, 230))'); assert.equal(await opened('.execution-detail-popover'), true);
   await escape(); assert.equal(await opened('.execution-detail-popover'), false);
@@ -119,7 +124,20 @@ app.whenReady().then(async () => {
   await evaluate('const history=document.querySelector("[aria-label=\\"Agent session\\"]"); history.value="task:continuity"; history.dispatchEvent(new Event("change"));'); await frame();
   assert.equal(await evaluate('document.querySelectorAll(".execution-node").length'), fullCount);
   await evaluate('showTaskChain(2, true)'); await frame(); assert.equal(await evaluate('document.querySelectorAll(".execution-node").length'), fullCount, 'explicit history selection survives updates');
+  await evaluate('disposeGraph(); showGraph()'); await frame();
+  const terminalColors = await evaluate(`['node:0','node:2','node:3'].map(id => getComputedStyle(document.querySelector('.execution-node[data-node-id="'+id+'"]')).backgroundColor)`);
+  assert.equal(new Set(terminalColors).size, 3);
+  assert.equal(terminalColors[1], 'rgb(82, 38, 48)');
+  assert.equal(terminalColors[2], 'rgb(220, 226, 233)');
+  for (const [id, expected, background] of [['node:2', '脚本编译失败', terminalColors[1]], ['node:3', '确认检查点', terminalColors[2]], ['node:4', '该记录未保存具体原因', terminalColors[2]]]) {
+    await click(`.execution-node[data-node-id="${id}"]`);
+    assert.equal(await evaluate(`document.querySelector('.execution-node-reason').textContent.includes(${JSON.stringify(expected)})`), true);
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.execution-node[data-node-id="${id}"]')).backgroundColor`), background, 'selection and hover preserve terminal background');
+    if (id !== 'node:4') await writeFile(path.join(directory, `${id === 'node:2' ? 'failed' : 'cancelled'}-detail.png`), (await window.webContents.capturePage()).toPNG());
+    await escape();
+  }
+  await evaluate('disposeGraph()');
   assert.deepEqual(errors, []);
-  const result = { status: 'passed', presentationTabs: { libraryComponent: true, mutuallyExclusive: true, keyboard: true, preservesDraftAndSelection: true, preservesFeedAndGraphPosition: true, preservesChoiceOnReplay: true, notificationTarget: true }, wheelCursorAnchor: wheel, nativeWheel: true, hoverAndKeyboard: true, pinAndEscape: true, runningBeamOnly: true, narrowBounds: true, unknownUsage: true, compactionOnce: true, cleanup: true, replayPreservesHover: true, taskContinuity: { before: originalIds.length, afterHandoff: continuedIds.length, afterExecution: fullCount, selectionAndZoomPreserved: true, separateRequests: true, historySelection: true }, sizes: [[760,880],[320,600]], screenshots: ['usage.png','node-detail.png','steps-view.png','graph-760x880.png','graph-320x600.png','task-chain.png'] };
+  const result = { status: 'passed', terminalReasons: { failed: true, cancelled: true, historicalFallback: true, colorsRetainedOnSelection: true }, presentationTabs: { libraryComponent: true, mutuallyExclusive: true, keyboard: true, preservesDraftAndSelection: true, preservesFeedAndGraphPosition: true, preservesChoiceOnReplay: true, notificationTarget: true }, wheelCursorAnchor: wheel, nativeWheel: true, hoverAndKeyboard: true, pinAndEscape: true, runningBeamOnly: true, narrowBounds: true, unknownUsage: true, compactionOnce: true, cleanup: true, replayPreservesHover: true, taskContinuity: { before: originalIds.length, afterHandoff: continuedIds.length, afterExecution: fullCount, selectionAndZoomPreserved: true, separateRequests: true, historySelection: true }, sizes: [[760,880],[320,600]], screenshots: ['usage.png','node-detail.png','steps-view.png','graph-760x880.png','graph-320x600.png','task-chain.png'] };
   await writeFile(path.join(directory, 'result.json'), JSON.stringify(result, null, 2)); console.log('[graph-ui] passed'); window.destroy(); app.exit(0);
 }).catch(cause => { console.error(cause); app.exit(1); });

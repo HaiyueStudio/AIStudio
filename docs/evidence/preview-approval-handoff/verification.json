@@ -1,0 +1,9 @@
+{
+  "scope": "automatic approval handoff and manual preview exit",
+  "inputDigest": "sha256:1e4d38bc0dc0ac7944e3d1cb99db161e650e5783a3d813891d45485846da9b44",
+  "capabilityPassed": 159,
+  "previewExitChecksPassed": 16,
+  "appBuilt": true,
+  "userAppRestarted": false,
+  "userProjectModified": false
+}

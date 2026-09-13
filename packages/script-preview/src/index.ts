@@ -267,6 +267,9 @@ interface HaiyueStudioHudTextOptions {
   readonly fontSize?: number;
 }
 interface HaiyueScriptSceneApi {
+  /** Fixed maximum capacity, supplied as a literal or const-only numeric expression.
+   * Capacity cannot change during Play; use setCount for the active instance count.
+   * Instance positions are world-space; rotationDegrees is in degrees. The source mesh supplies geometry/material, not an extra parent transform. */
   instances(entity: Entity | number | string, capacity: number): HaiyueStudioInstanceSet;
   /** Create or update responsive text in the Play HUD. Reusing id updates in place. */
   hudText(id: string, text: string, options?: HaiyueStudioHudTextOptions): void;

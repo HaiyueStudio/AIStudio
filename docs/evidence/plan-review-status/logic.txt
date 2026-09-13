@@ -1,0 +1,44 @@
+
+> @haiyue/ai-studio-repository@0.0.0 m14:logic:test
+> node --test --test-concurrency=1 packages/operation-log/test/behavior-history.test.mjs packages/agent-orchestration/test/behavior-project.test.mjs packages/studio-shell/test/logic-model.test.mjs apps/ai-studio/test/logic-*.test.mjs
+
+✔ production source/IPC/approved Play/portable artifacts: zero-script (8970.448398ms)
+✔ production source/IPC/approved Play/portable artifacts: mixed (11808.459643ms)
+✔ behavior IPC cannot select filesystem paths or inject additional authority (1.006141ms)
+✔ scriptless timer/rule gameplay retains authorization, exact revision and an unchanged project (2003.163203ms)
+{"genre":"snake","source":"76f3dabbaeca3dff9e974e455c1cb6e78451bca768e3edacf51183cfb6961807","nodes":364,"edges":392,"instrumented":176,"mainSource":"scripts/8263ebb3-a9b8-4863-9db6-94ba05fdb2ed.ts"}
+✔ preserved M12 snake: main gameplay structure, source ranges and executable observation plan (2556.140497ms)
+{"genre":"match-3","source":"87ad0126ff04986763870bb61021cea56c999659431e96ecc4c7951d402491c3","nodes":560,"edges":599,"instrumented":317,"mainSource":"scripts/737cfa1b-8107-44ab-898e-bf54bbb9b663.ts"}
+✔ preserved M12 match-3: main gameplay structure, source ranges and executable observation plan (2456.689078ms)
+{"genre":"falling-blocks","source":"f37e41781101da160322ea29b612b0a64871eb192974b8e57accc0ed38ad769a","nodes":673,"edges":696,"instrumented":303,"mainSource":"scripts/92c95cf1-4d2d-4085-b511-f55bd089887d.ts"}
+✔ preserved M12 falling-blocks: main gameplay structure, source ranges and executable observation plan (2633.675558ms)
+{"genre":"jigsaw","source":"e9f427e53c121bc26fd040d55f4dafa2b202605e714a34bcea98a1accc206120","nodes":319,"edges":266,"instrumented":130,"mainSource":"scripts/4b016102-8657-4969-b328-b98d34245e81.ts"}
+✔ preserved M12 jigsaw: main gameplay structure, source ranges and executable observation plan (2075.755226ms)
+{"genre":"platformer","source":"2390a58d9a64207df5c367968ce7d4be3be8006915968b70f2fa2af9f3931cff","nodes":350,"edges":386,"instrumented":183,"mainSource":"scripts/a4509b4a-4b5d-4054-90b9-2bd29def9d1f.ts"}
+✔ preserved M12 platformer: main gameplay structure, source ranges and executable observation plan (2021.528058ms)
+{"genre":"racing","source":"3f6212d797e56bbad0d9d02566204189308b7d4d9c8bfae9e9fbd86ae689f2e5","nodes":452,"edges":437,"instrumented":195,"mainSource":"scripts/ba315bf4-143b-487d-8bb4-7a983d5f33c7.ts"}
+✔ preserved M12 racing: main gameplay structure, source ranges and executable observation plan (2080.273732ms)
+{"genre":"shooter","source":"d3041e8d918fbe40ab464888ae3a155e81d690f003c2c5a1ccfca9251668ab2d","nodes":474,"edges":465,"instrumented":213,"mainSource":"scripts/a6fc3823-a338-4079-b201-286896422f7d.ts"}
+✔ preserved M12 shooter: main gameplay structure, source ranges and executable observation plan (2203.553127ms)
+M14 logic panel evidence: /private/tmp/haiyue-m14-logic-panel-yQ55ou
+✔ logic panel operates on real G02 structure, explanation and executed trace in a sandboxed window (7927.330506ms)
+M14 logic product evidence: /private/tmp/haiyue-m14-logic-product-7RX7nA
+✔ real product selects structure, explains, locates the exact source, observes Play and rereads project history (74276.682332ms)
+✔ actual fixed-step replay aligns branch events and invalidates clock reversal before another Play generation (448.548004ms)
+✔ real project analysis, language changes, locations and artifacts keep one structure and unchanged Document/History (5148.589787ms)
+✔ actual Play captures persist independently, restart keeps prior evidence separate and Stop closes only its own overlay (5239.007656ms)
+✔ saving nonstructural metadata preserves analysis while late captures and accessors cannot cross project lifetime (4225.956793ms)
+✔ revision, configuration, project switch and cancellation reject late results and old ranges (8826.207619ms)
+✔ source failures are redacted and closed owners do not publish a late structure (2368.322856ms)
+✔ large behavior artifacts reuse project journal replication and survive a fresh local journal (2462.90425ms)
+✔ independent explanation records reject wrong binding, invalid data and cancelled publication (1432.947066ms)
+✔ logic graph keeps explicit relations, filtering, bounds, unknown sources and historical overlays separate (4.614078ms)
+✔ cross-entity rule targets are shown only through actual source-backed edges (28.409109ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 163218.15595

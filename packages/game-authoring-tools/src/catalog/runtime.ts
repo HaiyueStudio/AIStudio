@@ -4,7 +4,7 @@ import type { GameToolDefinition } from '../types.js';
 import { MODEL_TOOL_INVOKE_DEFINITION } from './invocation.js';
 
 export const MODEL_CORE_TOOL_IDS: readonly StableId[] = Object.freeze([
-  'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search',
+  'engine.docs.search', 'engine.docs.read', 'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'tool.search',
   'engine.capabilities.describe', 'component.describe', 'diagnostics.query', 'history.query', 'task.evaluate',
 ].map((id) => asStableId(id)));
 
@@ -80,7 +80,7 @@ export class ToolCatalogRuntime {
     return Object.freeze([...toolMatches, ...componentMatches].filter((entry) => entry.score > 0.05).sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, limit));
   }
 
-  selectDefinitions(request: string, expandedIds: readonly StableId[] = [], limit = 18): ToolSchemaSelection {
+  selectDefinitions(request: string, expandedIds: readonly StableId[] = [], limit = MODEL_CORE_TOOL_IDS.length + 8): ToolSchemaSelection {
     if (!Number.isSafeInteger(limit) || limit < MODEL_CORE_TOOL_IDS.length || limit > 40) throw new TypeError('Tool schema selection limit is invalid.');
     const selected = new Set<StableId>(MODEL_CORE_TOOL_IDS.filter((id) => this.byId.has(id)));
     for (const id of expandedIds) if (this.byId.has(id)) selected.add(id);

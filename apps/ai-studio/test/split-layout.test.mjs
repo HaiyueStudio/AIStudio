@@ -57,7 +57,7 @@ test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme
   assert.match(renderer, /sphere[\s\S]*cone[\s\S]*directional-light[\s\S]*point-light/);
   assert.match(renderer, /async function preparePreview[\s\S]*scene\?\.entities\.some/);
   assert.match(renderer, /const editorChanged = await refreshConversation\(false\);[\s\S]*if \(editorChanged\) await refresh\(\);/);
-  assert.match(renderer, /if \(!command\.scene\) await refresh\(\);[\s\S]*startPreview\(command\.plan, command\.scene \?\? scene\)/);
+  assert.match(renderer, /if \(!command\.scene\) await refresh\(\);[\s\S]*const source = command\.scene \?\? scene;[\s\S]*startPreview\(command\.plan, source\)/);
   assert.doesNotMatch(styles, /#workspace\s*\{[^}]*grid-template-columns/);
   assert.match(styles, /--studio-accent:\s*var\(--hy-accent-color/);
   assert.match(renderer, /function renderSelection[\s\S]*viewport\.select\(selection\.activeEntityId\)/);

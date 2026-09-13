@@ -1,0 +1,5 @@
+{
+  "command": "npm --ignore-scripts run m14:capability:capture",
+  "exitCode": 0,
+  "durationSeconds": 474.14
+}

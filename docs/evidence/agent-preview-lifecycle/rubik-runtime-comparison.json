@@ -1,0 +1,45 @@
+{
+  "documentRevision": 5,
+  "samePlay": true,
+  "entityCountBefore": 29,
+  "entityCountAfter": 29,
+  "changedTransforms": [],
+  "metricsBefore": [
+    {
+      "cameraOrbits": 0,
+      "layerTurns": 0,
+      "moves": 0
+    }
+  ],
+  "metricsAfter": [
+    {
+      "cameraOrbits": 25,
+      "layerTurns": 0,
+      "moves": 2
+    }
+  ],
+  "observations": [
+    {
+      "id": "artifact:sha256:ffc870b9b2389a50f8c57f09f57a6ca1b15efb2a9cda6f26c8b304000fce20de",
+      "playId": "behavior-play:6d82fc07-ca4a-4d44-ae2a-987a0bcc4ea3",
+      "documentRevision": 5,
+      "scriptDigests": [
+        "sha256:1e275940728b9afb08c088efa2cb964c290cb528093d264827929d9f2026c0d3"
+      ],
+      "tick": 1175,
+      "frame": 1170,
+      "capturedAt": "2026-09-12T04:44:59.664Z"
+    },
+    {
+      "id": "artifact:sha256:0273167647d0fc455fb99e421ff73de8c874b3c416aeacd5f73b78d9776987a0",
+      "playId": "behavior-play:6d82fc07-ca4a-4d44-ae2a-987a0bcc4ea3",
+      "documentRevision": 5,
+      "scriptDigests": [
+        "sha256:1e275940728b9afb08c088efa2cb964c290cb528093d264827929d9f2026c0d3"
+      ],
+      "tick": 2650,
+      "frame": 2984,
+      "capturedAt": "2026-09-12T04:45:29.886Z"
+    }
+  ]
+}

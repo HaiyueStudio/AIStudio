@@ -1,0 +1,12 @@
+[
+  {
+    "stage": "capability-verified",
+    "exitCode": 1,
+    "durationSeconds": 206.85
+  },
+  {
+    "stage": "targeted-verified",
+    "exitCode": 0,
+    "durationSeconds": 42.89
+  }
+]

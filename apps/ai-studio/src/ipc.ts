@@ -281,6 +281,7 @@ export class StudioIpcRouter {
       case 'preview/consume': return this.observedPlan(this.options.scripts.consume(request.payload.grantId as StableId), request, signal);
       case 'preview/report': {
         const event = request.payload.event as string;
+        if (event === 'stopped' || event === 'cleanup-complete') this.options.agentPreview.observeStopped(request.payload.previewId as StableId | undefined);
         await this.options.operationLog.append({
           kind: `preview/${event}`, severity: event === 'runtime-error' ? 'error' : 'info', source: asStableId('studio.preview.renderer'),
           correlation: { projectId, previewId: request.payload.previewId as StableId | undefined, entityId: request.payload.entityId as StableId | undefined },

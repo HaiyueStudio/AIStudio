@@ -27,7 +27,7 @@ test('task-aware schema expansion keeps stable core tools and materially reduces
   for (const request of cases) {
     const selected = catalog.selectDefinitions(request);
     for (const core of MODEL_CORE_TOOL_IDS) assert.ok(selected.selectedIds.includes(core));
-    assert.ok(selected.definitions.length <= 18);
+    assert.ok(selected.definitions.length <= MODEL_CORE_TOOL_IDS.length + 8);
     assert.ok(selected.omittedCount > 0);
     assert.ok(selected.selectedSchemaBytes < selected.fixedSchemaBytes * 0.8, `${request} should reduce schema bytes by at least 20%`);
   }

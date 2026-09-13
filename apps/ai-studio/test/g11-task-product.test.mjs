@@ -103,7 +103,8 @@ function runtimeFixture(options = {}) {
     context: { prompts: { profile }, async prepare({ request }) { return { prompt: request, promptDigest: `sha256:${'b'.repeat(64)}`, promptProfile: profile, contextArtifactIds: [], contextDigest: `sha256:${'c'.repeat(64)}`, cache: { localArtifactHits: 1, localArtifactMisses: 0, deltaReuseBytes: 64, providerCacheEligibleBytes: 128, providerReportedHitTokens: null } }; }, async commit() {} },
     registry: { descriptors: () => [backend.descriptor], get: () => backend }, usage, accounting: new TaskAccountingRegistry(usage),
     turns: {
-      async *start() {
+      async *start(_backendId, input) {
+        options.onStart?.(input);
         if (options.empty) { yield event('completed', { status: 'completed' }); return; }
         starts += 1;
         for (const request of [
@@ -112,6 +113,10 @@ function runtimeFixture(options = {}) {
           { id: 'tool:g11-inspect', toolId: 'play.inspect', arguments: {} },
           { id: 'tool:g11-evaluate', toolId: 'task.evaluate', arguments: { taskSpec: { schemaVersion: 2, id: 'task:spoofed', request: 'spoofed', visibleConstraints: [], budgetId: 'budget:spoofed', requiredCapabilities: [], acceptance: [{ id: 'acceptance:spoofed', required: true, visibility: 'agent', category: 'functional', assertion: 'evidence state' }] }, observationIds: [evidenceId] } },
         ]) {
+          if (options.resumeCheckpoint && ['studio.plan.propose', 'entity.create'].includes(request.toolId)) continue;
+          if (starts > 1 && request.toolId === 'studio.plan.propose') continue;
+          if (options.completeOnContinuation && starts > 1 && request.toolId === 'entity.create') continue;
+          if (options.completeOnContinuation && starts === 1 && ['play.inspect', 'task.evaluate'].includes(request.toolId)) continue;
           if (options.stopAfterEdit && ['play.inspect', 'task.evaluate'].includes(request.toolId)) continue;
           if (options.repair && starts > 1 && ['studio.plan.propose', 'entity.create'].includes(request.toolId)) continue;
           const released = waitForResult(request.id); yield event('tool-request', { toolCallId: request.id, toolId: request.toolId, arguments: request.arguments }); await released;
@@ -120,9 +125,10 @@ function runtimeFixture(options = {}) {
             yield event('tool-request', { toolCallId: id, toolId: request.toolId, arguments: request.arguments }); await retried;
           }
         }
+        if (options.onCompletedText) yield event('conversation-node', { status: 'streaming', delta: 'Completed the current step.' });
         yield event('completed', { status: 'completed' });
       },
-      async *resume() { yield event('completed', { status: 'completed' }); }, async cancel() {}, async recordToolResult() {},
+      async *resume() { options.onResume?.(); yield event('completed', { status: 'completed' }); }, async cancel() {}, async recordToolResult() {},
     },
   };
 }
@@ -238,5 +244,64 @@ test('a successful tool retry clears its failure so missing acceptance is not bl
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
     await waitFor(() => !host.replay().busy);
     assert.equal(host.replay().taskRuns.at(-1).terminalDiagnostic, 'task.acceptance-evidence-incomplete');
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('an early completed turn continues the same approved task through real evaluation', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-early-completion-'));
+  const log = await openLog(root); const requests = [];
+  const runtime = runtimeFixture({ completeOnContinuation: true, onCompletedText: true, onStart: input => requests.push(input) });
+  const tools = toolsFixture(); const host = new StudioConversationHost({ runtime, tools, operationLog: log, projectContext });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Build and verify the score interaction.' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => !host.replay().busy);
+    const run = host.replay().taskRuns.at(-1);
+    assert.equal(run.status, 'completed'); assert.equal(tools.evaluations, 1);
+    assert.equal(requests.length, 2); assert.equal(requests[0].taskId, requests[1].taskId);
+    const latestText = new Map(nodes(host).filter(node => node.kind === 'text').map(node => [node.id,node]));
+    assert.ok([...latestText.values()].every(node => node.status === 'completed'));
+    assert.match(requests[1].prompt, /evidence state signal score equals 1/);
+    assert.match(requests[1].prompt, /invoke that tool so Studio can present the actual approval/);
+    assert.equal(run.timeline.filter(item => item.title === '继续补齐任务与验收').length, 1);
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('a persisted unfinished checkpoint starts fresh execution instead of replaying old tool requests', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-fresh-checkpoint-'));
+  const log = await openLog(root);
+  const run = { ...interruptedTaskRun(), status: 'blocked', phase: 'blocked', resumable: true, terminalDiagnostic: 'task.acceptance-evidence-incomplete', acceptance: [{ id: 'acceptance:checkpoint:1', label: 'Score becomes one', assertion: 'evidence state signal score equals 1', category: 'functional', required: true, visibility: 'agent', status: 'pending', evidenceIds: [], diagnostic: null }] };
+  const artifact = await log.putArtifact(run, { schemaVersion: 'conversation-task/1' });
+  await log.append({ kind: 'conversation/task-projected', severity: 'info', source: 'studio.conversation-host', correlation: { sessionId, turnId }, payload: { taskId: run.taskId, revision: run.revision, status: run.status, phase: run.phase, artifactId: artifact.id }, artifactRefs: [artifact.id] });
+  let resumed = 0; const requests = []; const tools = toolsFixture();
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ resumeCheckpoint: true, onStart: input => requests.push(input), onResume: () => resumed++ }), tools, operationLog: log, projectContext });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/retry', backendId, sessionId, turnId });
+    await waitFor(() => !host.replay().busy);
+    assert.equal(resumed, 0); assert.equal(requests.length, 1);
+    assert.equal(requests[0].taskId, run.taskId); assert.match(requests[0].prompt, /evidence state signal score equals 1/);
+    assert.equal(host.replay().taskRuns.at(-1).status, 'completed');
+    assert.deepEqual(tools.evaluationTaskSpec.acceptance.map(item => item.id), ['acceptance:checkpoint:1']);
+    assert.equal(nodes(host).filter(node => node.kind === 'plan').length, 0);
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('automatic incomplete-acceptance continuation stops at two attempts without inventing evidence', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-completion-bound-'));
+  const log = await openLog(root); const requests = [];
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ stopAfterEdit: true, onStart: input => requests.push(input) }), tools: toolsFixture(), operationLog: log, projectContext });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Finish and verify.' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => !host.replay().busy);
+    const run = host.replay().taskRuns.at(-1);
+    assert.equal(requests.length, 3); assert.equal(run.status, 'blocked');
+    assert.equal(run.terminalDiagnostic, 'task.acceptance-evidence-incomplete');
+    assert.equal(run.evidence.length, 0); assert.equal(run.acceptance[0].status, 'pending');
+    assert.equal(run.timeline.filter(item => item.title === '继续补齐任务与验收').length, 2);
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
 });

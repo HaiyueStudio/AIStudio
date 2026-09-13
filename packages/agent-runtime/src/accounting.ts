@@ -75,7 +75,7 @@ export class TaskAccount {
   repair(): BudgetDecision { return this.controller.commit({ repairIterations: 1 }); }
   authorizeContinuation(): BudgetDecision { return this.controller.authorizeContinuation(); }
   expireWallTime(): BudgetDecision {
-    const limit = this.options.budget.limits.wallTimeMs; const current = this.controller.consumption().wallTimeMs;
+    const limit = this.controller.budget.limits.wallTimeMs; const current = this.controller.consumption().wallTimeMs;
     return this.controller.preflight({ wallTimeMs: Math.max(1, limit - current + 1) });
   }
   reconcile(): TaskAccountingSnapshot {

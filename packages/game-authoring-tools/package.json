@@ -5,13 +5,22 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "engines": { "node": ">=22.19.0" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./engine-docs/bundle.json": "./dist/engine-docs/bundle.json",
+    "./engine-docs/binding.json": "./dist/engine-docs/binding.json"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log && npm run build -w @haiyue/ai-studio-script-preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prebuild": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log && npm run build -w @haiyue/ai-studio-script-preview",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ../../scripts/build-engine-docs.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "smoke:real-backends": "npm run build && node test/real-backends.smoke.mjs"
   },

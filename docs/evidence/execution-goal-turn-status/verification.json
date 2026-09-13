@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "inputDigest": "sha256:bd92a45e9099effa8fb94cf5186b88b297be82001ecef36e3d886774914d8420",
+  "focused": {
+    "passed": 49,
+    "failed": 0
+  },
+  "capability": {
+    "passed": 198,
+    "failed": 0,
+    "executionStatusCases": 22,
+    "bindingCheck": "passed"
+  },
+  "buildExitCode": 0,
+  "applicationRestarted": false,
+  "userHistoryMutated": false,
+  "liveProviderGenerationStarted": false,
+  "rootCheck": "Passed through quick evaluation; previous capability digest was stale. Final capability capture/check passed; later root-check stages not rerun."
+}

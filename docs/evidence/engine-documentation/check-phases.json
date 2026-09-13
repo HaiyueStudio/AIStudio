@@ -1,0 +1,38 @@
+[
+  {
+    "name": "m12:g12:quick",
+    "exitCode": 0,
+    "durationMs": 8268,
+    "log": "/private/tmp/engine-docs-m12-g12-quick.log"
+  },
+  {
+    "name": "m14:behavior:test",
+    "exitCode": 0,
+    "durationMs": 6986,
+    "log": "/private/tmp/engine-docs-m14-behavior-test.log"
+  },
+  {
+    "name": "m14:workspace:test",
+    "exitCode": 0,
+    "durationMs": 67724,
+    "log": "/private/tmp/engine-docs-m14-workspace-test.log"
+  },
+  {
+    "name": "m14:agent-tools:test",
+    "exitCode": 0,
+    "durationMs": 179481,
+    "log": "/private/tmp/engine-docs-m14-agent-tools-test.log"
+  },
+  {
+    "name": "m14:logic:test",
+    "exitCode": 0,
+    "durationMs": 162629,
+    "log": "/private/tmp/engine-docs-m14-logic-test.log"
+  },
+  {
+    "name": "m14:integration:test",
+    "exitCode": 1,
+    "durationMs": 573478,
+    "log": "/private/tmp/engine-docs-m14-integration-test.log"
+  }
+]

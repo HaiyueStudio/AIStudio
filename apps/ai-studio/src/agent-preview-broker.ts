@@ -60,6 +60,10 @@ export class AgentPreviewBroker implements GamePreviewControl {
   inspect(signal?: AbortSignal): Promise<GamePlayObservation> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'inspect' }), signal).then((value) => value as GamePlayObservation); }
   capture(signal?: AbortSignal): Promise<GamePlayCapture> { return this.enqueue(Object.freeze({ id: this.nextId(), kind: 'capture' }), signal).then((value) => value as GamePlayCapture); }
 
+  observeStopped(instanceId: StableId | undefined): void {
+    if (instanceId && this.latest.instanceId === instanceId) this.latest = STOPPED;
+  }
+
   snapshot(): PreviewRuntimeSnapshot { return this.latest; }
 
   command(): JsonObject {

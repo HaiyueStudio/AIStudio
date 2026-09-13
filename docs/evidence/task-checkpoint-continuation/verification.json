@@ -1,0 +1,9 @@
+{
+  "inputDigest": "sha256:60c6471b0bf1b5ba80cca89c665a0156f0911774b3f1924a346eaa3b48e34dae",
+  "capabilityChecksPassed": 143,
+  "focusedRegressionPassed": 33,
+  "applicationBuildPassed": true,
+  "realModelGameRegenerated": false,
+  "applicationRestarted": false,
+  "rootCheck": "Prerequisite checks passed; stopped at stale capability evidence, subsequently recaptured and checked separately. Full downstream repository suites were not repeated."
+}

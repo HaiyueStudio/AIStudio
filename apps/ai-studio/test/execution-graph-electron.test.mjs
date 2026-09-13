@@ -108,6 +108,16 @@ window.runLiveFrontierCheck=async()=>{
   if(root.querySelector('.execution-node.kind-tool hy-border-beam')||!root.querySelector('.execution-current-activity').textContent.includes('模型生成下一步'))throw new Error('Completed tool still appears active');
   liveOps.push(makeOp(14,'turn.completed',{payload:{status:'completed'}}));renderLive();await settle();
   if(root.querySelector('.execution-node hy-border-beam'))throw new Error('Terminal graph has a live beam');
+  const reviewOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started'),makeOp(2,'question.requested',{nodeId:'node:review',payload:{questionId:'question:review',barrierKind:'plan-review',reason:'Review the requested interaction.'}})];
+  const renderReview=()=>show([projectExecutionGraph({sessionId,ops:reviewOps})]);
+  renderReview();await settle();
+  const planCard=root.querySelector('.execution-node.kind-plan');planCard.click();await settle();
+  if(!root.querySelector('.execution-node-detail').textContent.includes('等待用户'))throw new Error('Pending plan does not show its real waiting state');
+  reviewOps.push(makeOp(3,'question.resolved',{nodeId:'node:review',payload:{questionId:'question:review',resolution:'answered'}}),makeOp(4,'assistant.message'));
+  renderReview();await settle();
+  const detail=root.querySelector('.execution-node-detail');
+  if(!detail||detail.textContent.includes('等待用户')||!detail.textContent.includes('已完成'))throw new Error('Selected plan detail kept the stale waiting state');
+  if(root.querySelectorAll('.execution-node.kind-plan').length!==1||root.querySelector('.execution-node.kind-plan hy-border-beam')||!root.querySelector('.execution-node.kind-turn hy-border-beam'))throw new Error('Answered plan still blocks the running Agent highlight');
   show([graph,shortGraph,nextGraph]);return true;
 };
 window.graphComponentErrors=componentErrors;

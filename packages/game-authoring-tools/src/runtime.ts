@@ -1,3 +1,4 @@
+import type { EngineDocumentation } from './engine-docs.js';
 import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
 import { randomUUID } from 'node:crypto';
 import { asStableId, type ComponentDefinitionV2, type GameComponentInstanceV2, type GameDocumentOperationV2, type JsonObject, type JsonValue, type StableId } from '@haiyue/ai-studio-contracts';
@@ -30,6 +31,7 @@ import {
 
 export interface GameAuthoringToolRuntimeOptions {
   readonly workspace: ProjectWorkspace;
+  readonly documentation?: EngineDocumentation;
   readonly textureRenderer?: CanvasTextureRenderer;
   readonly scene: SceneAuthoringService;
   readonly scripts: ScriptPreviewStudioService;
@@ -890,7 +892,7 @@ function resolveScriptResource(catalog: ReturnType<ScriptPreviewStudioService['s
 function scriptProposalResult(proposal: ScriptEditProposal): JsonObject {
   const diagnostics = Object.freeze(proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })));
   const canApply = !proposal.diagnostics.some((item) => item.severity === 'error');
-  return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Resolve every error diagnostic with another script.patch or script.propose call. Do not call script.apply for this proposal.' });
+  return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Resolve every error diagnostic with another script.patch or script.propose call. Look up unfamiliar or missing API symbols with engine.docs.search and engine.docs.read on the studio-script surface. Do not call script.apply for this proposal.' });
 }
 function applyScriptLineEdits(source: string, edits: readonly ScriptLineEdit[]): string {
   const lines = source.split('\n');
@@ -938,6 +940,13 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const entities = Object.freeze(entityIds.flatMap((entityId) => { const entity = byId.get(entityId); return entity ? [entitySummary(entity, includeComponents)] : []; }));
       const missingEntityIds = Object.freeze(entityIds.filter((entityId) => !byId.has(entityId)));
       return Object.freeze({ documentId: scene.documentId, revision: scene.revision, entities, missingEntityIds, count: entities.length, requestedCount: entityIds.length, includeComponents });
+    }
+    case 'engine.docs.search': case 'engine.docs.read': {
+      if (!options.documentation) throw new GameToolProtocolError('engine.docs.unavailable', 'Local Engine documentation is unavailable.');
+      const value = stored.definition.id === 'engine.docs.search' ? options.documentation.search(args) : options.documentation.read(args);
+      const artifact = await options.operationLog.putArtifact(value, { schemaVersion: 'engine-documentation-result/1' });
+      await options.operationLog.append({ kind: 'engine/documentation-read', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call), artifactRefs: [artifact.id], payload: { toolId: stored.definition.id, bundleDigest: value.bundleDigest, documentationId: value.id ?? null } }, { signal });
+      return value;
     }
     case 'tool.search': {
       const matches = catalog.search(args.text as string, { limit: args.limit as number, includeSchemas: args.includeSchemas === true });
@@ -1225,6 +1234,15 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       const entityIds = stableIdArray(raw.entityIds, 'entityIds', 128);
       if (entityIds.length < 1) throw invalid('scene.get-many requires 1-128 entity ids.');
       return Object.freeze({ entityIds, includeComponents: raw.includeComponents === undefined ? true : booleanValue(raw.includeComponents, 'includeComponents') });
+    }
+    case 'engine.docs.search': {
+      exact(raw, ['query'], ['surface', 'limit', 'maxBytes'], toolId);
+      if (raw.surface !== undefined && !['studio-script', 'authoring', 'engine-native', 'all'].includes(raw.surface as string)) throw invalid('Unknown documentation surface.');
+      return Object.freeze({ query: boundedString(raw.query, 'query', 2048, true), ...(raw.surface === undefined ? {} : { surface: raw.surface as string }), limit: raw.limit === undefined ? 6 : boundedInteger(raw.limit, 'limit', 1, 12), maxBytes: raw.maxBytes === undefined ? 4096 : boundedInteger(raw.maxBytes, 'maxBytes', 1024, 16384) });
+    }
+    case 'engine.docs.read': {
+      exact(raw, ['id', 'bundleDigest'], ['cursor', 'maxBytes'], toolId);
+      return Object.freeze({ id: boundedString(raw.id, 'id', 100, true), bundleDigest: boundedString(raw.bundleDigest, 'bundleDigest', 100, true), ...(raw.cursor === undefined ? {} : { cursor: boundedString(raw.cursor, 'cursor', 512, true) }), maxBytes: raw.maxBytes === undefined ? 16384 : boundedInteger(raw.maxBytes, 'maxBytes', 1024, 32768) });
     }
     case 'tool.search': exact(raw, ['text'], ['limit', 'includeSchemas'], toolId); return Object.freeze({ text: boundedString(raw.text, 'text', 512, true), limit: raw.limit === undefined ? 12 : boundedInteger(raw.limit, 'limit', 1, 50), includeSchemas: raw.includeSchemas === true });
     case 'component.describe': exact(raw, ['type'], ['version'], toolId); return Object.freeze({ type: componentTypeValue(raw.type), ...(raw.version === undefined ? {} : { version: componentVersionValue(raw.version) }) });

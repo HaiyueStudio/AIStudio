@@ -16,16 +16,16 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   const second = new PromptModuleRegistry().profile;
   assert.deepEqual(first, second);
   assert.equal(first.id, 'prompt:game-authoring-general');
-  assert.equal(first.version, '3.6.0');
+  assert.equal(first.version, '3.8.0');
   assert.deepEqual(first.modules.map(({ id, version, layer }) => ({ id, version, layer })), [
     { id: 'prompt.policy.safe-authoring', version: '1.0.0', layer: 'policy' },
     { id: 'prompt.tools.structured-effects', version: '1.0.0', layer: 'tool-contract' },
-    { id: 'prompt.workflow.general-authoring', version: '1.2.0', layer: 'workflow' },
+    { id: 'prompt.workflow.general-authoring', version: '1.4.0', layer: 'workflow' },
     { id: 'prompt.workflow.bounded-tool-batch', version: '1.0.0', layer: 'workflow' },
   ]);
   const production = first.modules.map((entry) => entry.content).join('\n').toLowerCase();
   for (const genrePatch of ['snake', 'snakebody', 'tetris', 'match-3', 'platformer', 'racing', 'shooter', 'rubik', '魔方', '贪吃蛇', '俄罗斯方块', '消消乐']) assert.doesNotMatch(production, new RegExp(escapeRegExp(genrePatch), 'iu'));
-  assert.equal(first.digest, 'sha256:b65d27ae691f00cac6dfadfdf500bfd4c61c6e1b9c1c95b28f10ed16a93f1802');
+  assert.equal(first.digest, 'sha256:42f58b050b8f309518e5d8fcacc52b518adbe4bc0aa6b99520e57e41964a709e');
 });
 
 test('same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest', async () => {

@@ -1,3 +1,4 @@
+import type { EngineDocumentation } from './engine-docs.js';
 import { asStableId, createStudioServiceToken, defineStudioPlugin, type JsonObject, type StableId, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import { projectWorkspaceServiceToken, sceneAuthoringToken } from '@haiyue/ai-studio-editor-plugins';
 import { diagnosticsQueryServiceToken, operationLogServiceToken } from '@haiyue/ai-studio-operation-log';
@@ -21,7 +22,7 @@ export interface GameAuthoringToolService {
   cancel(callId: StableId): Promise<void>;
 }
 
-export interface GameAuthoringToolsPluginOptions { readonly preview: GamePreviewControl; readonly textureRenderer?: CanvasTextureRenderer; readonly behaviorSource?: GameBehaviorSource; }
+export interface GameAuthoringToolsPluginOptions { readonly documentation?: EngineDocumentation; readonly preview: GamePreviewControl; readonly textureRenderer?: CanvasTextureRenderer; readonly behaviorSource?: GameBehaviorSource; }
 
 export const gameAuthoringToolServiceToken = createStudioServiceToken<GameAuthoringToolService>('studio.game-authoring-tools');
 export const gameAuthoringToolContributionKind = asStableId('studio.contribution.agent-tool');
@@ -46,7 +47,7 @@ export function createGameAuthoringToolsPlugin(options: GameAuthoringToolsPlugin
       const runtime = new GameAuthoringToolRuntime({
         workspace: context.services.get(projectWorkspaceServiceToken), scene: context.services.get(sceneAuthoringToken),
         scripts: context.services.get(scriptPreviewServiceToken), diagnostics: context.services.get(diagnosticsQueryServiceToken),
-        operationLog: context.services.get(operationLogServiceToken).log, preview: options.preview, textureRenderer: options.textureRenderer,
+        operationLog: context.services.get(operationLogServiceToken).log, preview: options.preview, textureRenderer: options.textureRenderer, documentation: options.documentation,
         ...(options.behaviorSource ? { behaviorSource: options.behaviorSource } : {}),
       });
       const service: GameAuthoringToolService = Object.freeze({

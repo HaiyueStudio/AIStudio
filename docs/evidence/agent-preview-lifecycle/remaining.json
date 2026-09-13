@@ -1,0 +1,27 @@
+[
+  {
+    "stage": "capability-current",
+    "exitCode": 1,
+    "durationSeconds": 2059.35
+  },
+  {
+    "stage": "workspace-retry",
+    "exitCode": 0,
+    "durationSeconds": 150.87
+  },
+  {
+    "stage": "tools",
+    "exitCode": 1,
+    "durationSeconds": 6295.61
+  },
+  {
+    "stage": "logic",
+    "exitCode": 0,
+    "durationSeconds": 129.14
+  },
+  {
+    "stage": "integration",
+    "exitCode": 1,
+    "durationSeconds": 453.88
+  }
+]

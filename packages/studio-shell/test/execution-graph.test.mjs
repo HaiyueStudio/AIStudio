@@ -250,3 +250,152 @@ test('current frontier follows concurrent tools, human barriers and model contin
   ops.push(op(13, 'turn.completed', { payload: { status: 'completed' } }));
   assert.deepEqual(projectExecutionGraph({ sessionId: SESSION, ops }).currentNodeIds, []);
 });
+
+
+test('plan answers without barrierKind finish the original review and release the active frontier on replay', () => {
+  for (const resolution of ['answered', 'cancelled']) {
+    const ops = [
+      op(0, 'session.created', { turnId: null }),
+      op(1, 'turn.started', { payload: { taskId: 'task:review' } }),
+      op(2, 'question.requested', { nodeId: 'node:plan', projectRevision: 1, payload: { questionId: 'question:plan', barrierKind: 'plan-review', reason: 'Build the requested interaction.' } }),
+      op(3, 'assistant.message'),
+    ];
+    const pending = projectExecutionGraph({ sessionId: SESSION, status: 'running', ops });
+    assert.equal(pending.nodes.find(node => node.kind === 'plan').status, 'waiting', 'streamed text alone does not resolve an actual user barrier');
+    ops.push(op(4, 'question.resolved', { nodeId: 'node:plan', payload: { questionId: 'question:plan', resolution, recovered: true, resolvedBy: 'user-after-restart' } }),
+      op(5, 'tool.started', { nodeId: 'node:next', payload: { toolId: 'scene.query' } }));
+    const graph = projectExecutionGraph({ sessionId: SESSION, status: 'running', ops });
+    const plan = graph.nodes.find(node => node.kind === 'plan');
+    assert.equal(plan.id, 'plan:question:plan');
+    assert.equal(plan.status, resolution === 'answered' ? 'completed' : 'cancelled');
+    assert.equal(plan.title, 'Plan review'); assert.equal(plan.summary, 'Build the requested interaction.');
+    assert.deepEqual(plan.sourceOpIds, ['op:2', 'op:4']);
+    assert.equal(plan.durationMs, 2000);
+    assert.equal(graph.nodes.filter(node => ['plan', 'question'].includes(node.kind)).length, 1);
+    assert.deepEqual(graph.transcript.filter(item => item.kind === 'barrier').map(item => item.graphNodeIds), [[plan.id], [plan.id]]);
+    assert.deepEqual(graph.currentNodeIds, ['tool:node:next']);
+    assert.equal(graph.context.compactionBlockedReason, 'Wait for the active tool batch to reach a safe boundary.');
+    assert.equal(projectExecutionGraph({ sessionId: SESSION, status: 'running', ops: [...ops].reverse() }).digest, graph.digest);
+    const grouped = groupExecutionGraphsByTask([graph], [{ taskId: 'task:review', title: 'Review task', status: 'running' }])[0];
+    assert.ok(grouped.nodes.filter(node => node.kind === 'plan').every(node => node.status !== 'waiting'));
+  }
+});
+
+test('answers only resolve the matching question and retain genuinely pending user input', () => {
+  const ops = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started'),
+    op(2, 'question.requested', { payload: { questionId: 'question:plan', barrierKind: 'plan-review' } }),
+    op(3, 'question.requested', { payload: { questionId: 'question:clarification', barrierKind: 'backend-question' } }),
+    op(4, 'question.resolved', { payload: { questionId: 'question:clarification', resolution: 'answered' } })];
+  const graph = projectExecutionGraph({ sessionId: SESSION, ops });
+  assert.equal(graph.nodes.find(node => node.kind === 'plan').status, 'waiting');
+  assert.equal(graph.nodes.find(node => node.kind === 'question').status, 'completed');
+  assert.deepEqual(graph.currentNodeIds, ['plan:question:plan']);
+});
+
+
+test('terminal details retain explicit causes and aggregate only matching structural children on replay', () => {
+  const ops = [
+    op(0, 'session.created', { turnId: null }),
+    op(1, 'turn.started'),
+    op(2, 'tool.completed', { batchId: 'batch:cancel', nodeId: 'node:plan', payload: { toolId: 'studio.plan.propose', status: 'cancelled', diagnostic: 'barrier.waiting-user', reason: '已保存确认检查点，确认后继续。' } }),
+    op(3, 'tool-batch.completed', { batchId: 'batch:cancel', payload: { status: 'cancelled', cancelled: 1 } }),
+    op(4, 'tool.completed', { batchId: 'batch:failure', nodeId: 'node:failed', payload: { toolId: 'script.apply', status: 'failed', diagnostic: 'script.compile-failed', summary: '脚本编译失败：未知标识符。' } }),
+    op(5, 'tool-batch.completed', { batchId: 'batch:failure', payload: { status: 'failed', failed: 1 } }),
+    op(6, 'turn.completed', { payload: { status: 'cancelled' } }),
+  ];
+  const graph = projectExecutionGraph({ sessionId: SESSION, ops });
+  const byId = id => graph.nodes.find(node => node.id === id);
+  assert.equal(byId('tool:node:plan').detail.reason, '已保存确认检查点，确认后继续。');
+  assert.equal(byId('tool:node:plan').detail.diagnostic, 'barrier.waiting-user');
+  assert.match(byId('batch:batch:cancel').detail.reason, /已保存确认检查点/);
+  assert.doesNotMatch(byId('batch:batch:cancel').detail.reason, /编译失败/);
+  assert.match(byId('batch:batch:failure').detail.reason, /脚本编译失败/);
+  assert.match(byId(`turn:${TURN}`).detail.reason, /已保存确认检查点/);
+  assert.ok(graph.nodes.filter(node => node.kind === 'result').every(node => node.detail.reason.includes('确认检查点')));
+  assert.equal(graph.digest, projectExecutionGraph({ sessionId: SESSION, ops: [...ops].reverse() }).digest);
+});
+
+test('terminal detail handles structured diagnostics, missing historical causes and successful retry', () => {
+  const ops = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started'),
+    op(2, 'tool.completed', { nodeId: 'node:error', payload: { status: 'failed', diagnostic: { code: 'fixture.invalid', message: '参数不合法。' } } }),
+    op(3, 'tool.completed', { nodeId: 'node:legacy', payload: { status: 'cancelled' } }),
+    op(4, 'tool.completed', { nodeId: 'node:long', payload: { status: 'failed', reason: '错'.repeat(9000) } }),
+  ];
+  const graph = projectExecutionGraph({ sessionId: SESSION, ops });
+  assert.equal(graph.nodes.find(node => node.id === 'tool:node:error').detail.reason, '参数不合法。');
+  assert.equal(graph.nodes.find(node => node.id === 'tool:node:error').detail.diagnostic, 'fixture.invalid');
+  assert.equal(graph.nodes.find(node => node.id === 'tool:node:legacy').detail.reason, null);
+  assert.equal(graph.nodes.find(node => node.id === 'tool:node:long').detail.reason.length, 2048);
+  const retried = projectExecutionGraph({ sessionId: SESSION, ops: [...ops,
+    op(5, 'tool.started', { nodeId: 'node:error' }),
+    op(6, 'tool.completed', { nodeId: 'node:error', payload: { status: 'completed' } }),
+  ] }).nodes.find(node => node.id === 'tool:node:error');
+  assert.equal(retried.detail.reason, null);
+  assert.equal(retried.detail.diagnostic, null);
+});
+
+test('a late budget answer cannot reopen a released turn; only turn.started can resume execution', () => {
+  const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started', { payload: { taskId: 'task:budget' } }),
+    op(2, 'tool.started', { nodeId: 'node:validate', payload: { toolId: 'preview.validate' } }),
+    op(3, 'tool.completed', { nodeId: 'node:validate', payload: { toolId: 'preview.validate', status: 'cancelled' } }),
+    op(4, 'question.requested', { nodeId: 'node:budget', payload: { questionId: 'question:budget', barrierKind: 'budget-continuation' } }),
+    op(5, 'turn.completed', { payload: { status: 'cancelled', reason: 'Budget checkpoint saved.' } }),
+    op(6, 'user.message'), op(7, 'question.resolved', { nodeId: 'node:budget', payload: { questionId: 'question:budget', resolution: 'answered' } }), op(8, 'assistant.message')];
+  const graph = projectExecutionGraph({ sessionId: SESSION, ops: source }); const turn = graph.nodes.find(node => node.kind === 'turn');
+  assert.equal(turn.status, 'cancelled'); assert.equal(turn.completedAt, source[5].timestamp);
+  assert.equal(turn.detail.reason, 'Budget checkpoint saved.'); assert.deepEqual(graph.currentNodeIds, []);
+  assert.notEqual(turn.title, '模型生成下一步'); assert.equal(normalizeExecutionGraphs([graph])[0].digest, graph.digest);
+  const resumed = projectExecutionGraph({ sessionId: SESSION, ops: [...source, op(9, 'turn.started', { payload: { taskId: 'task:budget', resumedFrom: 'op:5' } })] });
+  const running = resumed.nodes.find(node => node.kind === 'turn');
+  assert.equal(running.status, 'running'); assert.equal(running.completedAt, null); assert.equal(running.detail.reason, null);
+  assert.ok(resumed.currentNodeIds.includes(running.id));
+  const ended = projectExecutionGraph({ sessionId: SESSION, ops: [...source, op(9, 'turn.started'), op(10, 'turn.completed', { payload: { status: 'failed', reason: 'Resume failed.' } }), op(11, 'user.message')] });
+  assert.equal(ended.nodes.find(node => node.kind === 'turn').status, 'failed'); assert.deepEqual(ended.currentNodeIds, []);
+});
+
+test('assistant text does not finish a turn before the explicit terminal event', () => {
+  const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started'), op(2, 'assistant.message')];
+  const active = projectExecutionGraph({ sessionId: SESSION, ops: source });
+  assert.equal(active.nodes.find(node => node.kind === 'turn').status, 'running');
+  assert.equal(active.nodes.find(node => node.kind === 'turn').completedAt, null);
+  const ended = projectExecutionGraph({ sessionId: SESSION, ops: [...source, op(3, 'turn.completed', { payload: { status: 'completed' } })] });
+  assert.equal(ended.nodes.find(node => node.kind === 'turn').status, 'completed'); assert.deepEqual(ended.currentNodeIds, []);
+});
+
+test('blocked acceptance keeps the goal active while its current turn works, then shows the actual blocker', () => {
+  const old = taskSession('session:prior', 'task:acceptance');
+  const active = taskSession('session:acceptance', 'task:acceptance', 60, true);
+  const task = { taskId: 'task:acceptance', title: 'Verify the game', status: 'blocked', sessionId: active.sessionId, turnId: `${active.sessionId}:turn`, terminalDiagnostic: 'task.repair-no-change-repeat', timeline: [{ status: 'error', detail: 'Repeated evaluation has no changed project or new evidence.' }] };
+  const graph = groupExecutionGraphsByTask([old, active], [task])[0]; const goal = graph.nodes.find(node => node.kind === 'goal');
+  assert.equal(graph.status, 'running'); assert.equal(goal.status, 'running'); assert.equal(goal.completedAt, null);
+  assert.equal(goal.detail.reason, null); assert.equal(goal.detail.diagnostic, task.terminalDiagnostic); assert.match(goal.summary, /验收尚未完成/);
+  assert.ok(graph.currentNodeIds.some(id => graph.nodes.find(node => node.id === id)?.kind === 'turn'));
+  const finished = taskSession('session:acceptance', 'task:acceptance', 60);
+  const stopped = groupExecutionGraphsByTask([old, finished], [task])[0];
+  assert.equal(stopped.status, 'failed'); assert.equal(stopped.nodes.find(node => node.kind === 'goal').detail.reason, task.timeline[0].detail);
+  assert.deepEqual(stopped.currentNodeIds, []);
+  const passed = groupExecutionGraphsByTask([old, finished], [{ ...task, status: 'completed', terminalDiagnostic: null }])[0];
+  assert.equal(passed.status, 'completed'); assert.equal(passed.nodes.find(node => node.kind === 'goal').detail.reason, null);
+});
+
+test('blocked goal shows its current human barrier, without treating a released provider as active work', () => {
+  const ops = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started', { payload: { taskId: 'task:review-blocked' } }),
+    op(2, 'question.requested', { nodeId: 'node:review', payload: { questionId: 'question:review', barrierKind: 'plan-review' } }),
+    op(3, 'turn.completed', { payload: { status: 'cancelled' } })];
+  const raw = projectExecutionGraph({ sessionId: SESSION, ops });
+  const [graph] = groupExecutionGraphsByTask([raw], [{ taskId: 'task:review-blocked', title: 'Review', status: 'blocked', sessionId: SESSION, turnId: TURN }]);
+  assert.equal(graph.status, 'waiting'); assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'cancelled');
+  assert.ok(graph.currentNodeIds.every(id => graph.nodes.find(node => node.id === id)?.kind === 'plan'));
+});
+
+test('old or unrelated active turns cannot revive a stopped task, and explicit host failure remains failed', () => {
+  const stale = taskSession('session:stale', 'task:stopped', 0, true);
+  const ended = taskSession('session:ended', 'task:stopped', 60);
+  const unrelated = taskSession('session:other', 'task:other', 120, true);
+  const task = { taskId: 'task:stopped', title: 'Stopped', status: 'blocked', sessionId: ended.sessionId, turnId: `${ended.sessionId}:turn`, terminalDiagnostic: 'task.acceptance-evidence-incomplete' };
+  const graph = groupExecutionGraphsByTask([stale, ended, unrelated], [task]).find(item => item.taskId === task.taskId);
+  assert.equal(graph.status, 'failed'); assert.equal(graph.nodes.find(node => node.kind === 'goal').detail.reason, task.terminalDiagnostic);
+  const raw = taskSession('session:failure', 'task:host-failure', 180, true);
+  const failed = groupExecutionGraphsByTask([raw], [{ taskId: 'task:host-failure', title: 'Failed', status: 'failed', terminalDiagnostic: 'agent.resume-missing' }])[0];
+  assert.equal(failed.status, 'failed');
+});

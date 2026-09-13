@@ -100,7 +100,7 @@ interface TaskSummaryProjection {
   readonly blockers: readonly string[];
 }
 
-const PROFILE_VERSION = '3.6.0';
+const PROFILE_VERSION = '3.8.0';
 const MAX_PROJECT_CONTEXT_BYTES = 16 * 1024;
 const MAX_MODEL_CONTEXT_BYTES = 96 * 1024;
 const MAX_SUMMARY_ITEMS = 12;
@@ -118,14 +118,14 @@ export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] =
     'Inspect before editing. Propose a user-readable plan before mutation. Re-read the current project revision before every edit and use only structured tool calls.',
     'A plan approval does not approve later high-risk effects. Report unavailable capabilities explicitly instead of inventing an implementation seam.',
   ]),
-  module('prompt.workflow.general-authoring', '1.2.0', 'workflow', [
+  module('prompt.workflow.general-authoring', '1.4.0', 'workflow', [
+    'Before planning, discover relevant capabilities with engine.docs.search. Before writing unfamiliar API calls, use engine.docs.read for the current Studio surface, signatures, prerequisites, coordinate spaces and examples. Native Engine exports do not imply Play script availability. Reuse current references and search compiler diagnostic symbols for repair; do not invent missing API calls.',
     'Context is demand-driven. The initial scene is a bounded discovery slice, not the complete scene or the task impact boundary. Editor selection is only a hint; resolve the user target before editing. For self-contained behavior, query only that entity with hierarchy/components/scripts, then script.get for the relevant source. Expand scope.entityIds to referenced objects, parents or shared motion owners only when their data is needed; inspect behavior relationships for cross-object effects. Discover unknown targets through small hierarchy pages or componentTypes, then fetch details for matching IDs. Request camera/render/settings/assets projections only for relevant system-wide dependencies. Omitted data is unknown, not absent. Re-query at the current revision before mutation and verify all affected responsibilities; never default to all projections or hard-code a whole-scene snapshot.',
     'Derive entities, state, input, simulation, presentation, audio and verification from the current request and project facts. Keep authored responsibilities explicit and composable.',
     'Treat appearance words as visible requirements, not a mandate to use a single primitive. Before choosing geometry, decompose the object by silhouette, independently colored surfaces, moving parts, interaction roles and repetition. Record the parts, materials, local transforms and shared motion owner in the plan. Build and inspect one representative assembly before capturing its subtree with prefab.manage and instantiating repeats. A single material color covers the whole primitive. Preserve explicit implementation constraints, but choose composition when one primitive cannot express the requested appearance.',
     'Verification must exercise real scene/camera transforms and resulting state, not just counters, event labels or HUD text. Use the actual inspected gameplay[index].value payload paths in assertions. play.capture returns a same-tick screenshot/state evidence bundle; evaluate its observations together. Do not invent fps or visual-analysis signals that no available tool produces.',
+    'Call play.stop after the final test capture/inspection, also before repairing failed tests. Retain evidence for evaluation.',
     'After changes, run the strongest available repeatable and visual checks, diagnose failures from new evidence, and stop unchanged retries when the repair budget is exhausted.',
-    'For api.scene.instances, allocate a fixed maximum capacity from literals or const-only numeric expressions; change only the active setCount during Play because pool capacity is immutable.',
-    'When world gameplay bounds and a target viewport size are known, use camera.author frame-bounds with width and height so Studio deterministically fits both axes with padding instead of estimating an orthographic size or ratio.',
   ]),
   module('prompt.workflow.bounded-tool-batch', '1.0.0', 'workflow', [
     'Use Plan → Tool batch → Check. In one assistant step, group independent observations into one bounded tool batch and declare dependencies where a later call consumes an earlier result. Do not invent effects, risk, concurrency safety or approval state; Studio derives them from the tool registry.',
@@ -135,11 +135,11 @@ export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] =
 
 const PLAYBOOKS = Object.freeze([
   playbook('prompt.playbook.interaction', /(?:input|keyboard|pointer|mouse|touch|drag|click|control|交互|输入|键盘|鼠标|拖拽|点击)/iu,
-    'Map user actions to explicit state transitions. Define focus, repeat, cancellation and invalid-action behavior before implementing feedback.'),
+    'Map user actions to explicit state transitions. Define focus, repeat, cancellation and invalid-action behavior before implementing feedback. Use Engine interaction hits for object drags, not fixed screen rectangles. Route background drags only when no relevant object is hit. Apply motion to actual entities and the active camera: the editor OrbitControl is not inherited by Play.', '1.1.0'),
   playbook('prompt.playbook.motion', /(?:physics|collision|gravity|velocity|jump|drive|race|move|物理|碰撞|重力|速度|跳跃|移动|驾驶)/iu,
     'Use fixed-step state as authority. Separate simulation, presentation interpolation, collision response and reset conditions; verify with repeatable input replay.'),
   playbook('prompt.playbook.visual-feedback', /(?:visual|camera|light|shadow|particle|effect|animation|画面|相机|灯光|阴影|粒子|特效|动画)/iu,
-    'Make framing, hierarchy, contrast and state feedback measurable. Pair structural assertions with captured visual evidence instead of inferring correctness from startup.'),
+    'Make framing, hierarchy, contrast and state feedback measurable. Pair structural assertions with captured visual evidence instead of inferring correctness from startup. Basic materials are unlit: dark basic colors remain dark with lights. Use independently colored parts for distinct faces; add lights/environment for lit materials. Inspect one assembly in Play before duplication.', '1.1.0'),
   playbook('prompt.playbook.runtime-repair', /(?:bug|fix|repair|error|crash|diagnostic|修复|错误|崩溃|诊断)/iu,
     'Reproduce first, preserve the failing evidence, change one bounded cause, and capture new evidence. Do not repeat identical actions against unchanged state.'),
 ]);
@@ -480,7 +480,7 @@ export class PromptContextError extends Error { constructor(readonly code: strin
 function module(id: string, version: string, layer: PromptModuleLayer, lines: readonly string[]): PromptModuleDefinition {
   return Object.freeze({ id: asStableId(id), version, layer, source: CONTEXT_SOURCE, content: lines.join(' ') });
 }
-function playbook(id: string, pattern: RegExp, content: string): Readonly<{ id: StableId; version: string; pattern: RegExp; content: string }> { return Object.freeze({ id: asStableId(id), version: '1.0.0', pattern, content }); }
+function playbook(id: string, pattern: RegExp, content: string, version = '1.0.0'): Readonly<{ id: StableId; version: string; pattern: RegExp; content: string }> { return Object.freeze({ id: asStableId(id), version, pattern, content }); }
 function validateModule(value: PromptModuleDefinition): void {
   if (!/^\d+\.\d+\.\d+$/u.test(value.version) || !value.content.trim() || Buffer.byteLength(value.content) > 8192) throw new PromptContextError('prompt.module-invalid', `Prompt module ${value.id} is invalid.`);
 }

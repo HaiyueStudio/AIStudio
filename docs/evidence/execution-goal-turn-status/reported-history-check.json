@@ -1,0 +1,15 @@
+{
+  "source": "Read-only projection of reported project journal; no raw user messages or project data copied",
+  "duringEvaluation": {
+    "acceptanceStatus": "blocked",
+    "goalStatus": "running",
+    "runningTurns": 1
+  },
+  "afterTurnEnd": {
+    "acceptanceStatus": "blocked",
+    "goalStatus": "failed",
+    "runningTurns": 0
+  },
+  "acceptanceDiagnostic": "task.repair-no-change-repeat",
+  "historyWritten": false
+}

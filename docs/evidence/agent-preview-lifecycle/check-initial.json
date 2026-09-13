@@ -1,0 +1,5 @@
+{
+  "command": "npm --ignore-scripts run check",
+  "exitCode": 1,
+  "durationSeconds": 1123.93
+}

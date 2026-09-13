@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "inputDigest": "sha256:ea6671b06ef075acc96318f094623f1372432335255da74a37927428d86aa221",
+  "bundleDigest": "sha256:753d51aeb7e89e50d0e6e5385f396463dbf4afb04bb02dbd6254eef64267fb45",
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "darwin",
+    "arch": "x64"
+  },
+  "checks": {
+    "formalCapability": {
+      "passed": 131,
+      "failed": 0
+    },
+    "retrievalEval": {
+      "passed": 59,
+      "failed": 0
+    },
+    "behavior": {
+      "passed": 33,
+      "failed": 0
+    },
+    "workspace": {
+      "passed": 5,
+      "failed": 0
+    },
+    "agentTools": {
+      "passed": 117,
+      "failed": 0
+    },
+    "logic": {
+      "passed": 23,
+      "failed": 0
+    },
+    "integration": {
+      "passed": 245,
+      "failed": 2,
+      "files": 51
+    },
+    "graphIsolatedRetry": {
+      "passed": 0,
+      "failed": 1
+    },
+    "engineDocs": {
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "limitations": [
+    "Suite counts overlap; do not sum them as distinct cases.",
+    "Graph hover popover close assertion failed both in integration and isolated retry; this task does not change the graph UI.",
+    "Product benchmark asserts a frozen Windows hardware identity; current Darwin host cannot meet it.",
+    "Engine api:check detects existing public API baseline differences; this task changes no Engine API source.",
+    "Retrieval A/B tests tool selection and expected source recall, not real-model game generation.",
+    "A/B token estimate covers schemas and automatic retrieval snippets using bytes/4, excludes full model context and explicit docs.read results.",
+    "Only Studio examples are compiled by the new regression suite; native snippets are references, not all executed.",
+    "AIStudio was built but the user application was not restarted."
+  ]
+}

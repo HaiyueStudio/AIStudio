@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: late durable snapshot responses cannot replace a newer pending or displayed execution graph
+ok 1 - late durable snapshot responses cannot replace a newer pending or displayed execution graph
+  ---
+  duration_ms: 187.666555
+  type: 'test'
+  ...
+# Subtest: manual context compaction is durable and replayed into the execution graph without deleting Transcript
+ok 2 - manual context compaction is durable and replayed into the execution graph without deleting Transcript
+  ---
+  duration_ms: 4553.905904
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5846.741108
