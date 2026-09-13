@@ -32,7 +32,7 @@ export function taskSpecFromRun(run: ConversationTaskRunReadModel): TaskSpecV2 {
 }
 export function productPhaseForTool(toolId: StableId): Extract<ConversationTaskPhase, 'editing' | 'validating' | 'playing' | 'evaluating'> | null {
   if (toolId === 'preview.validate') return 'validating';
-  if (toolId === 'preview.start' || toolId === 'play.start' || toolId === 'play.step' || toolId === 'play.input' || toolId === 'play.inspect' || toolId === 'play.capture' || toolId === 'play.stop' || toolId === 'preview.stop') return 'playing';
+  if (toolId === 'preview.start' || toolId === 'play.start' || toolId === 'play.step' || toolId === 'play.input' || toolId === 'play.pointer-gesture' || toolId === 'play.inspect' || toolId === 'play.capture' || toolId === 'play.stop' || toolId === 'preview.stop') return 'playing';
   if (toolId === 'task.evaluate') return 'evaluating';
   if (['entity.create', 'entity.rename', 'transform.set', 'material.set', 'component.add', 'component.update', 'component.remove', 'script.apply', 'script.propose', 'camera.set'].includes(toolId)) return 'editing';
   return null;

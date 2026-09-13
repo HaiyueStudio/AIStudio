@@ -1,7 +1,7 @@
 import type { StableId } from '@haiyue/ai-studio-contracts';
 import type { ConversationTaskRunReadModel } from '@haiyue/ai-studio-shell';
 
-type Task = Pick<ConversationTaskRunReadModel, 'taskId' | 'status' | 'phase' | 'backendId' | 'sessionId' | 'turnId'>;
+type Task = Pick<ConversationTaskRunReadModel, 'taskId' | 'status' | 'phase' | 'backendId' | 'sessionId' | 'turnId'> & Partial<Pick<ConversationTaskRunReadModel, 'acceptance' | 'timeline'>>;
 
 /** Preview belongs to active task execution; human handoffs return to authoring. */
 export class AgentPreviewOwnership {

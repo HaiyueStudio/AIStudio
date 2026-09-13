@@ -228,6 +228,11 @@ export class ScriptValidationWorker {
 
 export function studioScriptRuntimeDeclarations(capabilities: readonly ScriptCapabilityName[]): string {
   return `${generateScriptRuntimeDeclarations(capabilities)}
+interface HaiyueScriptReadApi {
+  /** Resolve a stable project entity id, runtime numeric id or name in this Play instance.
+   * world.getEntity(string) only looks up Engine names, not project ids. */
+  find(nameOrId: string | number): Entity | null;
+}
 interface HaiyueStudioPointerEvent {
   readonly type: 'move' | 'down' | 'up' | 'cancel' | 'wheel';
   readonly pointerId: number;
@@ -397,6 +402,7 @@ export interface ScriptPreviewStudioService {
   commitProposal(proposalId: StableId, commandId: StableId, signal?: AbortSignal): Promise<ScriptResourceSnapshot>;
   prepare(input?: PreviewPrepareInput): Promise<PreviewPlan>;
   decide(planId: StableId, approved: boolean, ttlMs?: number): Promise<PreviewGrant | null>;
+  canReuse?(planId: StableId): boolean;
   consume(grantId: StableId): PreviewPlan;
 }
 
@@ -446,6 +452,7 @@ export function createScriptPreviewPlugin(): StudioPluginDefinition<JsonObject> 
           return plan;
         },
         decide: authorization.decide.bind(authorization),
+        canReuse: authorization.canReuse.bind(authorization),
         consume: authorization.consume.bind(authorization),
       });
       context.services.provide(scriptPreviewServiceToken, service);
@@ -459,6 +466,10 @@ export class PreviewAuthorizationService {
   private readonly grants = new Map<StableId, Readonly<{ grant: PreviewGrant; plan: PreviewPlan }>>();
   private readonly subscription: Readonly<{ dispose(): void }>;
   private disposed = false;
+  private consent: string | null = null;
+  private consentDocument: StableId | null = null;
+  private loadedConsentDocument: StableId | null = null;
+  private consentGeneration = 0;
   constructor(
     private readonly scripts: ProjectScriptService,
     private readonly validator: ScriptValidationWorker,
@@ -471,6 +482,7 @@ export class PreviewAuthorizationService {
     this.subscription = scripts.subscribe(() => {
       if (initial) { initial = false; return; }
       this.plans.clear(); this.grants.clear();
+      if (scripts.snapshot().documentId !== this.consentDocument) { this.consent = null; this.consentDocument = null; this.loadedConsentDocument = null; this.consentGeneration++; }
     });
   }
 
@@ -504,8 +516,44 @@ export class PreviewAuthorizationService {
       correlation: { documentId: catalog.documentId },
       payload: { planId: plan.id, scriptSetDigest, scriptCount: scripts.length, scriptIds: scripts.map((script) => script.scriptId), capabilities: plan.capabilities, runtimeConfig: runtimeConfig as unknown as JsonObject, risk: plan.risk, diagnosticCount: plan.diagnostics.length },
     });
+    if (this.loadedConsentDocument !== plan.documentId) await this.restoreConsent(plan);
+    this.assertActive();
+    if (this.scripts.snapshot().documentId !== plan.documentId || this.scripts.snapshot().documentRevision !== plan.documentRevision) throw new Error('Preview document changed during validation.');
     this.plans.set(plan.id, plan);
     return plan;
+  }
+
+  /** Reuse only an explicit approval for the same document, executable set and capabilities.
+   * Scene-only edits do not introduce new executable code. Restore consent from trusted local approval facts, never from the project file. */
+  canReuse(planId: StableId): boolean {
+    this.assertActive();
+    const plan = this.plans.get(planId);
+    return Boolean(plan && !hasErrors(plan.diagnostics) && this.consent === this.consentKey(plan));
+  }
+
+  private consentKey(plan: PreviewPlan): string {
+    return createHash('sha256').update(JSON.stringify([plan.documentId, plan.runtimeConfig, plan.scripts.map(script => [script.scriptId, script.entityId, script.order, script.digest, script.capabilities])])).digest('hex');
+  }
+
+  private async restoreConsent(plan: PreviewPlan): Promise<void> {
+    // Bound history lookup; missing/rotated evidence falls back to explicit approval.
+    let consent: string | null = null;
+    const generation = this.consentGeneration;
+    if (typeof this.log.query === 'function' && typeof this.log.status === 'function') {
+      const end = this.log.status().nextSequence;
+      for (let before = end; before > Math.max(0, end - 8_000); before -= 1_000) {
+        const page = await this.log.query({ documentId: plan.documentId, kinds: ['preview/authorized', 'preview/authorization-denied'], ...(before > 1_000 ? { afterSequence: before - 1_001 } : {}), beforeSequence: before, limit: 200, traverseCorrelation: false }).catch(() => null);
+        if (!page || page.nextCursor) break;
+        const latest = page.events.at(-1);
+        if (!latest) continue;
+        if (latest.kind === 'preview/authorized' && latest.source === 'studio.preview'
+          && (latest.payload.consentDigest === this.consentKey(plan) || (latest.payload.consentDigest === undefined && latest.payload.scriptSetDigest === plan.scriptSetDigest))) consent = this.consentKey(plan);
+        break;
+      }
+    }
+    if (this.disposed || generation !== this.consentGeneration || this.scripts.snapshot().documentId !== plan.documentId) return;
+    this.loadedConsentDocument = plan.documentId;
+    this.consentDocument = plan.documentId; this.consent = consent;
   }
 
   async decide(planId: StableId, approved: boolean, ttlMs = 60_000): Promise<PreviewGrant | null> {
@@ -513,15 +561,20 @@ export class PreviewAuthorizationService {
     const plan = this.plans.get(planId);
     if (!plan) throw new Error(`Preview plan ${planId} is missing.`);
     this.plans.delete(planId);
+    this.consentGeneration++;
     if (!approved) {
+      this.consent = null; this.consentDocument = null;
       await this.log.append({ kind: 'preview/authorization-denied', severity: 'warning', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId }, payload: { planId, scriptSetDigest: plan.scriptSetDigest } });
       return null;
     }
     if (hasErrors(plan.diagnostics)) throw new Error('A preview with validation errors cannot be authorized.');
     if (!Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 300_000) throw new RangeError('Preview grant TTL must be an integer from 1 to 300000 milliseconds.');
     const grant: PreviewGrant = Object.freeze({ id: asStableId(`preview-grant:${randomUUID()}`), planId, expiresAt: this.clock() + ttlMs });
-    await this.log.append({ kind: 'preview/authorized', severity: 'info', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId }, payload: { planId, grantId: grant.id, scriptSetDigest: plan.scriptSetDigest, scriptCount: plan.scripts.length, runtimeConfig: plan.runtimeConfig as unknown as JsonObject, expiresAt: grant.expiresAt } });
+    await this.log.append({ kind: 'preview/authorized', severity: 'info', source: asStableId('studio.preview'), correlation: { documentId: plan.documentId }, payload: { planId, grantId: grant.id, scriptSetDigest: plan.scriptSetDigest, consentDigest: this.consentKey(plan), scriptCount: plan.scripts.length, runtimeConfig: plan.runtimeConfig as unknown as JsonObject, expiresAt: grant.expiresAt } });
+    this.assertActive();
+    if (this.scripts.snapshot().documentId !== plan.documentId || this.scripts.snapshot().documentRevision !== plan.documentRevision) throw new Error('Preview approval became stale.');
     this.grants.set(grant.id, Object.freeze({ grant, plan }));
+    this.consent = this.consentKey(plan); this.consentDocument = plan.documentId; this.loadedConsentDocument = plan.documentId;
     return grant;
   }
 
@@ -548,7 +601,7 @@ export class PreviewAuthorizationService {
 
   dispose(): void {
     if (this.disposed) return;
-    this.disposed = true; this.subscription.dispose(); this.plans.clear(); this.grants.clear();
+    this.disposed = true; this.subscription.dispose(); this.plans.clear(); this.grants.clear(); this.consent = null; this.consentDocument = null; this.loadedConsentDocument = null;
   }
   private assertActive(): void { if (this.disposed) throw new Error('Preview authorization service is disposed.'); }
 }
@@ -603,7 +656,7 @@ export class IsolatedTrustedPreviewRuntime {
         if (item.parentId) entities.get(item.parentId)?.addChild(entity); else world.addEntity(entity);
       }
       this.errors = Object.freeze([]);
-      ScriptComponent.setRuntimeApiFactory((base, context) => filterRuntimeApi(base, context, this.planByComponent));
+      ScriptComponent.setRuntimeApiFactory((base, context) => filterRuntimeApi({ ...base, read: base.read ? Object.freeze({ ...base.read, find: (id: string | number) => typeof id === 'string' ? entities.get(id as StableId) ?? base.read!.find(id) : base.read!.find(id) }) : undefined }, context, this.planByComponent));
       ScriptComponent.enableTrustedProject({
         capabilities: plan.capabilities,
         errorPolicy: 'disable-script',

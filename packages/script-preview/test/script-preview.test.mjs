@@ -171,7 +171,10 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   const plan = await authorization.prepare({ scriptIds: [script.id] });
   assert.equal(plan.risk, 'trusted-project');
   assert.equal(plan.scripts.length, 1);
+  assert.equal(authorization.canReuse(plan.id), false);
   const grant = await authorization.decide(plan.id, true);
+  const repeatedPlan = await authorization.prepare({ scriptIds: plan.scripts.map(script => script.scriptId) });
+  assert.equal(authorization.canReuse(repeatedPlan.id), true);
   const consumed = authorization.consume(grant.id);
   assert.equal(consumed.scriptSetDigest, plan.scriptSetDigest);
   assert.throws(() => authorization.consume(grant.id), /already consumed/);
@@ -179,12 +182,21 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   const runtime = new IsolatedTrustedPreviewRuntime(value.operationLog);
   const scene = {
     schemaVersion: 1, revision: plan.documentRevision, documentId: value.scripts.snapshot().documentId,
-    entities: [{ id: entityId, name: 'Cube', kind: 'cube', parentId: null, order: 0, transform: {
+    entities: [{ id: entityId, name: 'Cube 名称 with spaces', kind: 'cube', parentId: null, order: 0, transform: {
       position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 },
     } }],
   };
   await runtime.start(scene, consumed);
   assert.equal(runtime.tick(500, 16).position.x, 0.5);
+  runtime.hotReload(script.id, `
+const own = api.read.find('entity:cube');
+const byName = api.read.find('Cube 名称 with spaces');
+const byRuntimeId = api.read.find(entity.id);
+const missingName = api.read.find('不存在的中文名称 with spaces');
+if (own !== entity || byName !== entity || byRuntimeId !== entity || missingName !== null) throw new Error('Entity lookup spaces differ');
+`);
+  assert.equal(runtime.tick(510, 16).state, 'playing');
+
   runtime.hotReload(script.id, `if (!component.bound) { component.bound = true; api.debug.setInterval(() => {}, 1000); }`);
   assert.equal(runtime.tick(600, 16).disposableCount, 1);
   const [rapidRestartA, rapidRestartB] = await Promise.all([runtime.start(scene, consumed), runtime.start(scene, consumed)]);
@@ -214,6 +226,10 @@ test('authorization is explicit, one-shot and stale-safe; runtime is isolated an
   const staleGrant = await authorization.decide(stalePlan.id, true, 10_000);
   await value.workspace.execute({ id: asStableId('command:stale-preview'), label: 'Advance document revision', baseRevision: 3, key: 'fixture.stale', value: true });
   assert.throws(() => authorization.consume(staleGrant.id), /stale|missing or already consumed/);
+  const sceneOnlyChange = await authorization.prepare();
+  assert.equal(authorization.canReuse(sceneOnlyChange.id), true);
+  await authorization.decide(sceneOnlyChange.id, false);
+  assert.equal(authorization.canReuse((await authorization.prepare()).id), false);
 
   const facts = await value.operationLog.query({ limit: 200, traverseCorrelation: false });
   const kinds = new Set(facts.events.map((event) => event.kind));
@@ -323,3 +339,29 @@ async function dispose(value) {
   value.resources.tasks.dispose(); await value.resources.documents.dispose(); value.resources.history.dispose(); value.resources.projectSession.dispose();
   await value.operationLog.close();
 }
+
+
+test('preview consent is scoped to exact executable content, capabilities and the open document', async () => {
+  const value = await fixture();
+  let auth = new PreviewAuthorizationService(value.scripts, value.validator, value.operationLog);
+  try {
+    const edit = async (text, capabilities = ['read']) => {
+      const proposal = await value.scripts.proposeEdit({ entityId: 'entity:cube', text, capabilities, baseRevision: value.workspace.snapshot().document.revision });
+      return value.scripts.commitProposal(proposal.id, asStableId('command:consent-'+value.workspace.snapshot().document.revision));
+    };
+    await edit(movementScript);
+    const first = await auth.prepare(); assert.equal(auth.canReuse(first.id), false); await auth.decide(first.id, true);
+    auth.dispose();
+    auth = new PreviewAuthorizationService(value.scripts, value.validator, value.operationLog);
+    assert.equal(auth.canReuse((await auth.prepare()).id), true, 'restart restores trusted local consent');
+    await edit(movementScript + '\n// updated executable source');
+    const changed = await auth.prepare(); assert.equal(auth.canReuse(changed.id), false); await auth.decide(changed.id, true);
+    await edit(movementScript + '\n// updated executable source', ['read', 'input']);
+    assert.equal(auth.canReuse((await auth.prepare()).id), false);
+    const target = await mkdtemp(path.join(tmpdir(), 'haiyue-other-consent-'));
+    await value.workspace.newProject(target, 'Other project');
+    assert.equal(auth.canReuse(changed.id), false);
+  } finally {
+    auth.dispose(); value.scripts.dispose(); await value.validator.dispose(); await value.workspace.dispose(); value.resources.tasks.dispose(); await value.resources.documents.dispose(); value.resources.history.dispose(); value.resources.projectSession.dispose(); await value.operationLog.close();
+  }
+});

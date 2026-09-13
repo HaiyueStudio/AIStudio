@@ -96,6 +96,42 @@ try {
       await control.stop();
     }
   }
+  // Run real pointer drags against the public script lookup and captured interaction path.
+  const dragValidator = new ScriptValidationWorker();
+  let dragValidation;
+  try { dragValidation = await dragValidator.validate({ scriptId: 'script:drag', textRevision: 1, sourcePath: 'scripts/drag.ts', text: await readFile(new URL('../../../../docs/examples/drag-target.ts', import.meta.url), 'utf8'), capabilities: ['read', 'scene', 'input'] }); assert.deepEqual(dragValidation.diagnostics, []); }
+  finally { await dragValidator.dispose(); }
+  await window.webContents.executeJavaScript("document.querySelector('iframe').style.width='640px';document.querySelector('iframe').style.height='480px'");
+  const dragScene = { documentId: 'document:drag', revision: 1, camera: { projection: 'perspective', distance: 8, fovDegrees: 45, orthographicSize: 10, near: .01, far: 100, target: { x:0,y:0,z:0 }, azimuthDegrees: 0, elevationDegrees: 0 }, entities: [{ id:'entity:drag-target', name:'Different runtime name', kind:'rounded-box', parentId:null, order:0, transform:{position:{x:0,y:0,z:0},rotationDegrees:{x:0,y:0,z:0},scale:{x:2,y:2,z:2}}, appearance:{material:'basic',color:[.1,.8,.9,1]}, components:[{id:'component:drag',type:'haiyue.interaction.pointer',version:'1.0.0',enabled:true,value:{events:['down','move','drag','up','cancel','click'],penetrable:false,draggable:true,capturePointer:true,maxEventsPerTick:32}}] }] };
+  const dragPlan = { id:'preview-plan:drag',documentId:dragScene.documentId,documentRevision:1,selection:'all-enabled',scriptSetDigest:`sha256:${'c'.repeat(64)}`,scripts:[{scriptId:'script:drag',entityId:'entity:drag-target',order:0,textRevision:1,digest:`sha256:${'d'.repeat(64)}`,capabilities:dragValidation.capabilities,emittedText:dragValidation.emittedText,diagnostics:[]}],capabilities:dragValidation.capabilities,runtimeConfig:{schemaVersion:1,mode:'fixed-step',tickRateHz:60,maxSubSteps:1000,seed:'haiyue-play'},risk:'trusted-project',diagnostics:[] };
+  await control.start(dragScene, dragPlan); await control.step(1);
+  const nativePointer = async (type, x, y) => { await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,x:31+x*640,y:23+y*480,...(type==='mouseMoved'?{buttons:1}:{button:'left',buttons:type==='mousePressed'?1:0,clickCount:1})}); await delay(30); return control.step(1); };
+  await nativePointer('mousePressed', .5,.5);
+  const moved = await nativePointer('mouseMoved', .92,.5);
+  assert.ok(moved.value.state.entities[0].rotation[1] > 1, JSON.stringify(moved.value));
+  assert.ok(moved.value.interactions.some(hit => hit.type==='drag' && hit.entityId==='entity:drag-target'));
+  const released = await nativePointer('mouseReleased', .92,.5);
+  assert.ok(released.value.interactions.some(hit => hit.type==='up' && hit.entityId==='entity:drag-target'));
+  assert.equal(released.value.interactions.some(hit => hit.type==='click'), false);
+  const beforeCamera = released.value.state.camera.theta;
+  await nativePointer('mousePressed', .08,.08); await nativePointer('mouseMoved', .22,.12);
+  const background = await nativePointer('mouseReleased', .22,.12);
+  assert.notEqual(background.value.state.camera.theta, beforeCamera);
+  assert.deepEqual(background.value.state.entities[0].rotation, released.value.state.entities[0].rotation);
+  assert.equal(background.value.runtimeErrorCount, 0);
+  // Synthetic down/move/up in one tick must still see an active drag (not the final released snapshot).
+  await control.stop(); await control.start(dragScene, dragPlan);
+  for (const event of [{phase:'down',x:.5,y:.5},{phase:'move',x:.92,y:.5},{phase:'up',x:.92,y:.5}]) await control.input({kind:'pointer',source:'synthetic',tick:1,pointerId:5,...event});
+  const sameTick = await control.step(1);
+  assert.ok(sameTick.value.interactions.some(hit=>hit.type==='drag'));
+  assert.ok(sameTick.value.interactions.some(hit=>hit.type==='up'));
+  assert.equal(sameTick.value.interactions.some(hit=>hit.type==='click'),false);
+  assert.ok(sameTick.value.state.entities[0].rotation[1]>1);
+  await control.input({kind:'pointer',source:'synthetic',tick:2,pointerId:5,phase:'down',x:.5,y:.5}); await control.step(1);
+  await control.input({kind:'reset',source:'system',tick:3,reason:'blur'});
+  const reset = await control.step(1); assert.ok(reset.value.interactions.some(hit=>hit.type==='cancel'));
+  await control.stop();
+  console.log('[pointer-placement] native object/background drags, capture outside target, same-tick gesture and blur cancellation passed');
   await writeFile(path.join(output, 'results.json'), JSON.stringify({ clicks, results }, null, 2));
   console.log(`[pointer-placement] ${JSON.stringify({ clicks, output })}`);
   app.exit(0);

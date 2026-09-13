@@ -510,3 +510,11 @@ body[data-page="play"] #app { display: none; }
 .execution-graph-expandable { display: block; height: 100%; min-width: 0; min-height: 0; --hy-surface-color: var(--studio-surface); --hy-text-color: var(--studio-text); --hy-border-color: var(--studio-border); --hy-accent-color: var(--studio-accent); }
 .execution-graph-expandable > .execution-graph-region { height: 100%; }
 .execution-graph-expandable .execution-graph-toolbar { padding-right: 44px; }
+
+#play-agent-progress { position: absolute; z-index: 2; right: 16px; top: 120px; width: min(320px, calc(100% - 32px)); max-height: calc(100% - 150px); overflow: auto; padding: 14px; background: var(--studio-surface-elevated); border: 1px solid var(--studio-border); border-radius: 10px; box-shadow: 0 4px 20px #0005; font-size: 13px; }
+#play-agent-progress[hidden] { display: none; }
+#play-agent-progress-current { margin-top: 8px; }
+#play-agent-progress ul, #play-agent-progress ol { padding-left: 20px; margin-bottom: 0; }
+#play-agent-progress li { margin-top: 6px; overflow-wrap: anywhere; }
+#play-agent-progress [data-status="failed"], #play-agent-progress [data-status="fail"] { color: #ffabb9; }
+#play-agent-progress [data-status="pass"] { color: #83dfae; }

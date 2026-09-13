@@ -28,7 +28,7 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
     'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
     'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.generate-texture', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
-    'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
+    'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.pointer-gesture', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /time and delta are milliseconds/);
@@ -1350,7 +1350,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 53);
+      assert.equal(input.tools.length, 54);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -1375,7 +1375,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 53);
+      assert.equal(input.tools.length, 54);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');
@@ -1475,5 +1475,37 @@ test('AI diagnostics excludes other projects and application facts even with cor
     assert.ok(result.value.events.some(item => item.kind === 'test/current-project'));
     assert.ok(result.value.events.every(item => item.correlation.projectId === projectId));
     assert.ok(!result.value.events.some(item => ['test/other-project', 'test/application'].includes(item.kind)));
+  } finally { await dispose(value); }
+});
+
+
+test('pointer gesture validates ordering and executes every input before persisting final state', async () => {
+  const value = await fixture();
+  let tick = 70; let pressed = false; let rotation = 0; let queued; const phases = [];
+  value.preview.input = async event => { assert.equal(event.tick, tick + 1); queued = event; return observation(); };
+  const observation = () => ({ ...value.preview.observation({ state: { rotation }, runtimeErrorCount: 0 }), tick, documentRevision: 1 });
+  value.preview.step = async count => { for (let i = 0; i < count; i++) { tick++; if (queued?.tick === tick) { phases.push(queued.phase); if (queued.phase === 'down') pressed = true; if (queued.phase === 'move' && pressed) rotation++; if (['up','cancel'].includes(queued.phase)) pressed = false; queued = null; } } return observation(); };
+  try {
+    const points = [{ phase: 'down', x: .5, y: .5 }, { phase: 'move', x: .7, y: .5 }, { phase: 'up', x: .7, y: .5 }];
+    const result = await executeReady(value.runtime, call('call:gesture', 'play.pointer-gesture', { points, settleTicks: 2 }));
+    assert.equal(result.value.executedEvents, 3); assert.equal(result.value.fromTick, 71); assert.equal(result.value.toTick, 76);
+    assert.deepEqual(phases, ['down', 'move', 'up']); assert.equal(pressed, false);
+    assert.equal(result.value.baselineProjection.state.rotation, 0); assert.equal(result.value.projection.state.rotation, 1);
+    assert.ok(result.value.observations.length >= 1);
+    for (const points of [[{phase:'move',x:.5,y:.5},{phase:'up',x:.5,y:.5}], [{phase:'down',x:.5,y:.5},{phase:'move',x:.5,y:.5}], [{phase:'down',x:2,y:.5},{phase:'up',x:.5,y:.5}]]) {
+      await assert.rejects(value.runtime.prepare(call('call:bad-gesture-'+JSON.stringify(points), 'play.pointer-gesture', { points })));
+    }
+    assert.equal(tick, 76);
+  } finally { await dispose(value); }
+});
+
+
+test('initialization-only script proposals recommend persisted properties without altering source', async () => {
+  const value = await fixture();
+  try {
+    const created = await executeReady(value.runtime, call('call:initial-transform-entity', 'entity.create', { baseRevision: 1, kind: 'cube' }));
+    const proposed = await executeReady(value.runtime, call('call:initial-transform-script', 'script.propose', { baseRevision: created.afterRevision, entityId: created.value.entity.id, text: repairedRuntimeScript }));
+    assert.match(proposed.value.authoringHints.join(' '), /transform.set/);
+    assert.equal(value.scripts.snapshot().resources.length, 0);
   } finally { await dispose(value); }
 });

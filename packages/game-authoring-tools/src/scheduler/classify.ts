@@ -8,7 +8,7 @@ export interface ToolConcurrencyClassification {
   readonly effectKeys: readonly string[];
 }
 
-const RUNTIME_STATE_TOOL_IDS = new Set(['preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture']);
+const RUNTIME_STATE_TOOL_IDS = new Set(['preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.pointer-gesture', 'play.physics-query', 'play.inspect', 'play.capture']);
 
 /** Derives trusted scheduling metadata exclusively from the registered definition and bounded arguments. */
 export function classifyToolConcurrency(definition: GameToolDefinition | undefined, args: JsonObject): ToolConcurrencyClassification {

@@ -236,7 +236,13 @@ test('script preview IPC discloses risk before one-shot code delivery and logs n
   assert.equal(disclosure.ok, true);
   assert.equal(disclosure.payload.risk, 'trusted-project');
   assert.equal(Object.hasOwn(disclosure.payload.scripts[0], 'emittedText'), false);
-  const authorized = await router.handle(request('preview/authorize', { planId: plan.id, approved: true }));
+  assert.equal(disclosure.payload.approvalReusable, false);
+  const staleReuse = await router.handle(request('preview/authorize', { planId: plan.id, approved: true, reuse: true }));
+  assert.equal(staleReuse.ok, false);
+  scripts.canReuse = id => id === plan.id;
+  const reusedDisclosure = await router.handle(request('preview/prepare', {}));
+  assert.equal(reusedDisclosure.payload.approvalReusable, true);
+  const authorized = await router.handle(request('preview/authorize', { planId: plan.id, approved: true, reuse: true }));
   assert.equal(authorized.payload.id, 'preview-grant:test');
   const consumed = await router.handle(request('preview/consume', { grantId: 'preview-grant:test' }));
   assert.equal(consumed.payload.scripts[0].emittedText, emittedText);

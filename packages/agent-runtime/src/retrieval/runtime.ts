@@ -201,7 +201,17 @@ export class KnowledgeRetrievalRuntime {
     if (conflicts.size) pushDiagnostic(diagnostics, 'conflicting-sources', conflicts.size, 'Conflicting claims were withheld; exact facts or a version-qualified query are required.');
     const limit = input.limit ?? 8; const tokenBudget = input.tokenBudget ?? 2_048;
     const hits: KnowledgeSearchHit[] = []; let estimatedTokens = 0; let budgetSkipped = 0;
+    // Cover distinct sources before taking more overlapping chunks from one long guide.
+    // Exact-only retrieval preserves its lexical baseline; hybrid queries span capabilities.
+    const seenSources = new Set<string>();
+    const firstChunks: RankedChunk[] = [], additionalChunks: RankedChunk[] = [];
     for (const candidate of candidates) {
+      const id = candidate.source.input.sourceId;
+      (seenSources.has(id) ? additionalChunks : firstChunks).push(candidate);
+      seenSources.add(id);
+    }
+    const ranked = mode === 'hybrid' ? [...firstChunks, ...additionalChunks] : candidates;
+    for (const candidate of ranked) {
       if (hits.length >= limit) break;
       if (conflicts.has(candidate.source.input.sourceId)) continue;
       const tokenCount = Math.max(1, Math.ceil(Buffer.byteLength(candidate.chunk.text) / 4));

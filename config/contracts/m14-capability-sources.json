@@ -143,6 +143,15 @@
         "apps/ai-studio/test/execution-graph-context-ui.test.mjs",
         "apps/ai-studio/test/execution-graph-electron.test.mjs"
       ]
+    },
+    {
+      "id": "pointer-gestures",
+      "files": [
+        "apps/ai-studio/test/pointer-placement-electron.test.mjs",
+        "apps/ai-studio/test/ipc.test.mjs",
+        "packages/game-authoring-tools/test/runtime.test.mjs",
+        "packages/agent-runtime/test/g10-retrieval.test.mjs"
+      ]
     }
   ],
   "groups": [

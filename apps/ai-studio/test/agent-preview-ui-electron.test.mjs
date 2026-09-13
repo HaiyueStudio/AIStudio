@@ -13,15 +13,16 @@ test('production preview controls distinguish Agent ownership and restore manual
   // Use production rendering functions and markup; omit application boot and GPU creation.
   const source = (await readFile(new URL('../src/renderer.ts', import.meta.url), 'utf8')).split('void boot().catch(')[0];
   const hook = `
-    const fixtureTask = { taskId: 'task:test', status: 'running', phase: 'playing', backendId: 'backend:test', sessionId: 'session:test', turnId: 'turn:test' };
+    const fixtureTask = { taskId: 'task:test', status: 'running', phase: 'playing', backendId: 'backend:test', sessionId: 'session:test', turnId: 'turn:test', acceptance: [{ id: 'acceptance:test', label: '拖拽后实体旋转', status: 'pending' }] };
     window.previewUiFixture = async (mode) => {
       playing = true;
       if (mode === 'agent') { agentPreviewOwnership.update('project:test', [fixtureTask]); agentPreviewOwnership.claim('project:test'); }
       else agentPreviewOwnership.release();
+      if (mode === 'agent') previewTestActivities.push({ id: 'command:test', label: '模拟拖拽', status: 'running', tick: 12 });
       showPlayPage();
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const notice = element('play-agent-notice');
-      return { owner: element('play-page').dataset.owner, notice: !notice.hidden, text: notice.textContent, exit: element('play-exit').textContent, pauseDisabled: element('play-pause').disabled, resizeDisabled: element('play-device-preset').disabled, input: getComputedStyle(element('play-device-screen')).pointerEvents, stageHeight: element('play-stage').getBoundingClientRect().height, toolbarBottom: element('play-page').querySelector('.play-toolbar').getBoundingClientRect().bottom, stageTop: element('play-stage').getBoundingClientRect().top };
+      return { progress: !element('play-agent-progress').hidden, progressText: element('play-agent-progress').textContent, owner: element('play-page').dataset.owner, notice: !notice.hidden, text: notice.textContent, exit: element('play-exit').textContent, pauseDisabled: element('play-pause').disabled, resizeDisabled: element('play-device-preset').disabled, input: getComputedStyle(element('play-device-screen')).pointerEvents, stageHeight: element('play-stage').getBoundingClientRect().height, toolbarBottom: element('play-page').querySelector('.play-toolbar').getBoundingClientRect().bottom, stageTop: element('play-stage').getBoundingClientRect().top };
     };
     window.previewApprovalFixture = async (mode, failRefresh = false) => {
       await window.previewUiFixture(mode);
@@ -72,6 +73,32 @@ test('production preview controls distinguish Agent ownership and restore manual
         cancels: calls.filter(call => call.channel === 'conversation/intent').map(call => call.payload.intent),
         reports: calls.filter(call => call.channel === 'preview/report').map(call => call.payload) };
     };
+    window.previewRunConsentFixture = async (reusable) => {
+      const originalPrepare = prepareProjectRun, originalStart = startPreview;
+      const dialog = element('run-dialog'), originalShow = dialog.showModal;
+      const calls = []; let starts = 0, dialogs = 0;
+      playing = false; element('run-project').disabled = false;
+      prepareProjectRun = async () => { previewDisclosure = { id: 'plan:reused', approvalReusable: reusable }; return true; };
+      startPreview = async () => { starts++; playing = true; };
+      dialog.showModal = () => { dialogs++; };
+      window.haiyueStudio = { async invoke(request) { calls.push(request); return { ok:true, payload: request.channel === 'preview/authorize' ? {id:'grant:reused'} : {} }; }, cancel() {} };
+      try { await toggleProjectRun(); return { starts, dialogs, reuse: calls.find(call=>call.channel==='preview/authorize')?.payload.reuse ?? false }; }
+      finally { prepareProjectRun = originalPrepare; startPreview = originalStart; dialog.showModal = originalShow; playing = false; }
+    };
+    window.scriptPanelFixture = () => {
+      const originalEditor = scriptEditor, originalScripts = scripts;
+      let text = null;
+      scriptEditor = { load(_id, value) { text = value; }, setReadOnly() {} };
+      const selected = { id: 'entity:panel-test' };
+      try {
+        loadedScriptIdentity = ''; scripts = { ...scripts, resources: [] };
+        renderScriptPanel(selected);
+        const empty = { text, hint: element('script-diagnostics').textContent };
+        scripts = { ...scripts, resources: [{ id: 'script:panel-test', entityId: selected.id, textRevision: 1, text: 'actual bound behavior' }] };
+        renderScriptPanel(selected);
+        return { empty, bound: text };
+      } finally { scriptEditor = originalEditor; scripts = originalScripts; loadedScriptIdentity = ''; }
+    };
     setupPlayPageControls();
   `;
   await build({ stdin: { contents: source + hook, sourcefile: 'renderer-fixture.ts', resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' }, outfile: path.join(root, 'fixture.js'), bundle: true, platform: 'browser', format: 'esm', target: 'chrome142' });
@@ -87,9 +114,16 @@ test('production preview controls distinguish Agent ownership and restore manual
     child.once('exit', code => { clearTimeout(timer); resolve({ code, output }); });
   });
   assert.equal(result.code, 0, result.output);
-  const { agent, manual, handoff, manualHandoff, refreshFailure, exits } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
+  const { agent, manual, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
+  assert.equal(scriptPanel.empty.text, '');
+  assert.match(scriptPanel.empty.hint, /尚未绑定脚本.*属性面板/);
+  assert.equal(scriptPanel.bound, 'actual bound behavior');
+  assert.deepEqual(approvedRun, { starts: 1, dialogs: 0, reuse: true });
+  assert.deepEqual(newRun, { starts: 0, dialogs: 1, reuse: false });
   assert.equal(agent.owner, 'agent'); assert.equal(agent.notice, true); assert.match(agent.text, /Agent.*自动返回/);
   assert.equal(agent.exit, '停止任务并退出'); assert.equal(agent.pauseDisabled, true); assert.equal(agent.resizeDisabled, true); assert.equal(agent.input, 'none'); assert.ok(agent.stageHeight > 300); assert.ok(agent.stageTop > agent.toolbarBottom);
+  assert.equal(agent.progress, true); assert.match(agent.progressText, /模拟拖拽/); assert.match(agent.progressText, /拖拽后实体旋转/); assert.match(agent.progressText, /tick 12/);
+  assert.equal(manual.progress, false);
   assert.equal(manual.owner, 'user'); assert.equal(manual.notice, false); assert.equal(manual.exit, '退出运行'); assert.equal(manual.pauseDisabled, false); assert.equal(manual.resizeDisabled, false); assert.equal(manual.input, 'auto'); assert.equal(manual.stageTop, manual.toolbarBottom);
   for (const result of [handoff, refreshFailure]) {
     assert.equal(result.playing, false); assert.equal(result.page, 'authoring'); assert.equal(result.hidden, true);

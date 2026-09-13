@@ -1,4 +1,4 @@
-import { CartesianTransform3D, Entity, HaiyueEngine, Mesh3D, type Scene } from '@haiyue/engine';
+import { CartesianTransform3D, SphericalTransform3D, Entity, HaiyueEngine, Mesh3D, type Scene } from '@haiyue/engine';
 import { Camera3D, InstancedMesh3D, Interactive, SCRIPT_CAPABILITIES, ScriptComponent, ScriptResource, type ScriptCapabilityName, type ScriptRuntimeApi, type ScriptRuntimeContext, type ScriptRuntimeErrorEvent } from '@haiyue/engine/components';
 import { InstancedMaterial, InstancedPbrMaterial } from '@haiyue/engine/material';
 import { createInteractionRaycastResult, InstancedMesh3DRenderSystem, InteractionSystem, type InteractionRaycastResult } from '@haiyue/engine/systems';
@@ -58,7 +58,7 @@ let declarativePlayRuntime: DeclarativePlayRuntime | null = null;
 let interactionRaycast: InteractionRaycastResult = createInteractionRaycastResult();
 let interactionEvents: readonly StudioInteractionEvent[] = Object.freeze([]);
 let hoveredEntityId: string | null = null;
-const pointerDownTargets = new Map<number, string>();
+const pointerDownTargets = new Map<number, { entityId: string; hit: InteractionRaycastResult; x: number; y: number; moved: boolean }>();
 const instanceSets = new Map<number, StudioInstanceSet>();
 const hudTexts = new Map<string, Readonly<{ element: HTMLElement; text: string; position: HudTextPosition; kind: 'text' | 'image' | 'button' }>>();
 const gameplayObservations = new GameplayObservationStore();
@@ -337,7 +337,7 @@ function publishInspection(requestId: string): void {
 
 function inspectionSnapshot() {
   const snapshot = simulation!.snapshot();
-  return { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount };
+  return { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount, interactions: interactionEvents };
 }
 
 function publishPhysicsQuery(requestId: string, query: Readonly<Record<string, unknown>>): void {
@@ -425,7 +425,15 @@ function drawCapturedHudText(context: CanvasRenderingContext2D, text: string, po
 }
 
 function readSimulationState(): SimulationStateValue {
+  const camera = scene?.activeCameraEntity;
+  const spherical = camera?.getComponent(SphericalTransform3D);
+  const cartesian = camera?.getComponent(CartesianTransform3D);
   return Object.freeze({
+    camera: camera ? Object.freeze({ entityId: stableIdByEntityId.get(camera.id) ?? null,
+      position: Object.freeze([...(spherical?.eyePosition ?? cartesian?.position ?? [])]),
+      rotation: cartesian ? Object.freeze([...cartesian.rotation]) : null,
+      target: spherical ? Object.freeze([...spherical.target]) : null,
+      theta: spherical?.theta ?? null, phi: spherical?.phi ?? null, radius: spherical?.radius ?? null }) : null,
     tick: simulation?.clock.tick ?? 0,
     entities: Object.freeze([...entitiesByStableId].sort((left, right) => left[0].localeCompare(right[0])).map(([id, entity]) => {
       const transform = entity.getComponent(CartesianTransform3D);
@@ -568,28 +576,40 @@ function updateInteractions(input: ReplayInputSnapshot): void {
     output.push(Object.freeze({ tick: input.tick, type, entityId, pointerId, distance: Number.isFinite(hit.distance) ? hit.distance : 0, point: Object.freeze([...hit.point]), normal: Object.freeze([...hit.normal]) }));
   };
   for (const event of input.events) {
+    if (event.kind === 'reset') {
+      for (const [pointerId, down] of pointerDownTargets) emit('cancel', down.entityId, pointerId, down.hit);
+      pointerDownTargets.clear(); hoveredEntityId = null; continue;
+    }
     if (event.kind !== 'pointer') continue;
-    const ndcX = event.x * 2 - 1, ndcY = 1 - event.y * 2;
     let hitEntityId: string | null = null;
     try {
-      if (system.raycast(world, ndcX, ndcY, interactionRaycast) && interactionRaycast.entity) hitEntityId = stableIdByEntityId.get(interactionRaycast.entity.id) ?? null;
+      if (system.raycast(world, event.x * 2 - 1, 1 - event.y * 2, interactionRaycast) && interactionRaycast.entity) hitEntityId = stableIdByEntityId.get(interactionRaycast.entity.id) ?? null;
     } catch { hitEntityId = null; }
+    const down = pointerDownTargets.get(event.pointerId);
+    const captured = down && findEntityComponent(down.entityId, 'haiyue.interaction.pointer')?.value.capturePointer === true;
+    if (down && hitEntityId === down.entityId) down.hit = { ...interactionRaycast, point: new Float32Array(interactionRaycast.point), normal: new Float32Array(interactionRaycast.normal) };
     if (event.phase === 'move') {
       if (hitEntityId && hitEntityId !== hoveredEntityId) emit('hover', hitEntityId, event.pointerId, interactionRaycast);
-      if (hitEntityId) emit(input.pointers.find((pointer) => pointer.pointerId === event.pointerId)?.dragging ? 'drag' : 'move', hitEntityId, event.pointerId, interactionRaycast);
+      const targetId = captured ? down.entityId : hitEntityId;
+      const hit = captured ? down.hit : interactionRaycast;
+      if (targetId) emit('move', targetId, event.pointerId, hit);
+      if (down && (Math.abs(event.x - down.x) + Math.abs(event.y - down.y) > 0.002)) down.moved = true;
+      if (down?.moved && targetId && findEntityComponent(targetId, 'haiyue.interaction.pointer')?.value.draggable === true) emit('drag', targetId, event.pointerId, hit);
       hoveredEntityId = hitEntityId;
-    } else if (event.phase === 'down' && hitEntityId) {
-      pointerDownTargets.set(event.pointerId, hitEntityId);
-      emit('down', hitEntityId, event.pointerId, interactionRaycast);
+    } else if (event.phase === 'down') {
+      pointerDownTargets.delete(event.pointerId);
+      if (hitEntityId) {
+        pointerDownTargets.set(event.pointerId, { entityId: hitEntityId, hit: { ...interactionRaycast, point: new Float32Array(interactionRaycast.point), normal: new Float32Array(interactionRaycast.normal) }, x: event.x, y: event.y, moved: false });
+        emit('down', hitEntityId, event.pointerId, interactionRaycast);
+      }
     } else if (event.phase === 'up') {
-      if (hitEntityId) emit('up', hitEntityId, event.pointerId, interactionRaycast);
-      const downTarget = pointerDownTargets.get(event.pointerId);
-      if (hitEntityId && downTarget === hitEntityId) emit('click', hitEntityId, event.pointerId, interactionRaycast);
+      const targetId = captured ? down.entityId : hitEntityId;
+      if (targetId) emit('up', targetId, event.pointerId, captured ? down.hit : interactionRaycast);
+      if (hitEntityId && down?.entityId === hitEntityId && !down.moved) emit('click', hitEntityId, event.pointerId, interactionRaycast);
       pointerDownTargets.delete(event.pointerId);
     } else if (event.phase === 'wheel' && hitEntityId) emit('wheel', hitEntityId, event.pointerId, interactionRaycast);
     else if (event.phase === 'cancel') {
-      const downTarget = pointerDownTargets.get(event.pointerId);
-      if (downTarget) emit('cancel', downTarget, event.pointerId, interactionRaycast);
+      if (down) emit('cancel', down.entityId, event.pointerId, down.hit);
       pointerDownTargets.delete(event.pointerId);
     }
   }
@@ -866,6 +886,11 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
   });
   const complete = {
     ...base,
+    read: base.read ? Object.freeze({
+      ...base.read,
+      // Document ids are distinct from Engine runtime ids and entity names.
+      find: (id: string | number) => typeof id === 'string' ? entitiesByStableId.get(id) ?? base.read!.find(id) : base.read!.find(id),
+    }) : undefined,
     input,
     physics: physicsRuntime?.api(),
     scene: Object.freeze({

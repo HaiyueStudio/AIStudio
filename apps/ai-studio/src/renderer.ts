@@ -118,6 +118,7 @@ interface PreviewDisclosure {
   readonly scripts: readonly PreviewScriptDisclosure[]; readonly capabilities: readonly ScriptCapabilityName[];
   readonly runtimeConfig: Readonly<{ schemaVersion: 1; mode: 'fixed-step'; tickRateHz: number; maxSubSteps: number; seed: string }>;
   readonly risk: 'trusted-project';
+  readonly approvalReusable?: boolean;
   readonly diagnostics: readonly (ScriptDiagnostic & Readonly<{ scriptId: StableId; entityId: StableId }>)[];
 }
 interface PreviewGrant { readonly id: StableId; }
@@ -179,7 +180,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     scene: '场景', createEmpty: '+ 空物体', createCube: '+ 立方体', inspector: '检查器', noSelection: '未选择物体',
     transformHistory: 'Transform 修改会通过历史记录提交。', position: '位置', rotation: '旋转', scale: '缩放', applyTransform: '应用 Transform',
     noRenderables: '没有可渲染物体', noRenderablesHint: '创建一个基础几何体即可显示。', authoring: '编辑', assets: '资源库',
-    scriptEditHint: '编辑脚本后先验证修改，再提交。', scriptSelectHint: '请选择一个对象来编写脚本。', scriptCommitted: '脚本修改已提交到文档历史记录。', scriptProposalReady: '修改已验证：增加 {added} 行，删除 {removed} 行。请检查后提交。', scriptDisclosure: '风险：{risk}。共 {count} 个脚本。能力：{capabilities}。', scriptSource: '对象脚本源码', validateProposal: '验证修改', commitScript: '提交修改', preparePlay: '准备运行', approvePlay: '批准并运行', stopScript: '停止',
+    scriptEditHint: '编辑脚本后先验证修改，再提交。', scriptSelectHint: '请选择一个对象来编写脚本。', scriptUnboundHint: '此对象尚未绑定脚本。初始位置、旋转和缩放请在属性面板设置；需要运行时行为时再编写脚本。', scriptCommitted: '脚本修改已提交到文档历史记录。', scriptProposalReady: '修改已验证：增加 {added} 行，删除 {removed} 行。请检查后提交。', scriptDisclosure: '风险：{risk}。共 {count} 个脚本。能力：{capabilities}。', scriptSource: '对象脚本源码', validateProposal: '验证修改', commitScript: '提交修改', preparePlay: '准备运行', approvePlay: '批准并运行', stopScript: '停止',
     cube: '立方体', 'rounded-box': '圆角立方体', sphere: '球体', cone: '锥体', cylinder: '圆柱体', plane: '平面', torus: '圆环', icosahedron: '二十面体', lights: '光源', directionalLight: '方向光', pointLight: '点光源', ambientLight: '环境光', builtinGeometry: '点击创建', defaultMaterial: '默认材质', builtinMaterial: '应用到选中几何体', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: '项目中暂无纹理', noModels: '项目中暂无模型', noScripts: '项目中暂无脚本',
     geometry: '几何体', materials: '材质', textures: '纹理', models: '模型', scripts: '脚本', scriptRevision: '脚本 r{revision}', scriptUnvalidated: '尚未验证', scriptValid: '验证通过', scriptErrors: '{count} 个错误', agent: 'AI 助手', history: '执行记录', logs: '日志', agentConversation: 'AI 助手对话',
     refresh: '刷新', exportLogs: '导出安全问题包', downloadLogs: '下载安全日志包', loading: '加载中…', starting: '正在启动 AIStudio…', startingWeb: '正在启动 AIStudio Web…',
@@ -199,7 +200,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     scene: 'Scene', createEmpty: '+ Empty', createCube: '+ Cube', inspector: 'Inspector', noSelection: 'No entity selected',
     transformHistory: 'Transform values are committed through History.', position: 'Position', rotation: 'Rotation', scale: 'Scale', applyTransform: 'Apply Transform',
     noRenderables: 'No renderable entities', noRenderablesHint: 'Create a primitive geometry to render the scene.', authoring: 'Authoring', assets: 'Assets',
-    scriptEditHint: 'Edit the script, then validate the changes before committing.', scriptSelectHint: 'Select an entity to author a script.', scriptCommitted: 'Script committed through Document History.', scriptProposalReady: 'Changes validated: +{added} / -{removed} lines. Review and commit.', scriptDisclosure: 'Risk: {risk}. {count} scripts. Capabilities: {capabilities}.', scriptSource: 'Entity script source', validateProposal: 'Validate changes', commitScript: 'Commit changes', preparePlay: 'Prepare Play', approvePlay: 'Approve & Play', stopScript: 'Stop',
+    scriptEditHint: 'Edit the script, then validate the changes before committing.', scriptSelectHint: 'Select an entity to author a script.', scriptUnboundHint: 'This entity has no script. Set initial position, rotation and scale in Properties; author a script only for runtime behavior.', scriptCommitted: 'Script committed through Document History.', scriptProposalReady: 'Changes validated: +{added} / -{removed} lines. Review and commit.', scriptDisclosure: 'Risk: {risk}. {count} scripts. Capabilities: {capabilities}.', scriptSource: 'Entity script source', validateProposal: 'Validate changes', commitScript: 'Commit changes', preparePlay: 'Prepare Play', approvePlay: 'Approve & Play', stopScript: 'Stop',
     cube: 'Cube', 'rounded-box': 'Rounded Box', sphere: 'Sphere', cone: 'Cone', cylinder: 'Cylinder', plane: 'Plane', torus: 'Torus', icosahedron: 'Icosahedron', lights: 'Lights', directionalLight: 'Directional Light', pointLight: 'Point Light', ambientLight: 'Ambient Light', builtinGeometry: 'Click to create', defaultMaterial: 'Default Material', builtinMaterial: 'Apply to selected geometry', basicMaterial: 'Basic', pbrMaterial: 'PBR', blinnPhongMaterial: 'Blinn-Phong', normalMaterial: 'Normal', noTextures: 'No textures in this project', noModels: 'No models in this project', noScripts: 'No scripts in this project',
     geometry: 'Geometry', materials: 'Materials', textures: 'Textures', models: 'Models', scripts: 'Scripts', scriptRevision: 'Script r{revision}', scriptUnvalidated: 'Not validated', scriptValid: 'Valid', scriptErrors: '{count} error(s)', agent: 'AI Agent', history: 'Execution history', logs: 'Logs', agentConversation: 'Agent conversation',
     refresh: 'Refresh', exportLogs: 'Export safe bug bundle', downloadLogs: 'Download safe log bundle', loading: 'Loading…', starting: 'Starting AIStudio…', startingWeb: 'Starting AIStudio Web…',
@@ -1056,6 +1057,7 @@ async function togglePlayFullscreen(): Promise<void> {
 function updatePlayControls(): void {
   const state = element('play-state');
   const agentOwned = agentPreviewOwnership.active;
+  renderPreviewTestProgress();
   element('play-agent-notice').hidden = !agentOwned;
   element('play-agent-notice').textContent = t('agentPreviewNotice');
   element('play-page').dataset.owner = agentOwned ? 'agent' : 'user';
@@ -1163,6 +1165,7 @@ async function refreshConversation(force: boolean): Promise<boolean> {
   conversationRevision = replay.revision;
   const snapshot = conversationProjector.reset(replay);
   agentPreviewOwnership.update(replay.projectId ?? null, snapshot.taskRuns);
+  renderPreviewTestProgress();
   if (agentHistoryWasBusy && !snapshot.busy) agentHistoryViewer?.refresh();
   agentHistoryWasBusy = snapshot.busy;
   conversationBackendId = snapshot.backendId;
@@ -1244,11 +1247,44 @@ function renderProductLogViewer(model: LogViewerReadModel, viewer: LogViewerCont
   });
 }
 
+const previewTestActivities: Array<{ id: string; label: string; status: 'running' | 'completed' | 'failed'; tick?: number }> = [];
+
+function renderPreviewTestProgress(): void {
+  const panel = document.getElementById('play-agent-progress');
+  if (!panel) return;
+  panel.hidden = !agentPreviewOwnership.active;
+  if (panel.hidden) return;
+  element('play-agent-progress-title').textContent = language === 'zh-CN' ? 'Agent 验收进度' : 'Agent acceptance progress';
+  const active = [...previewTestActivities].reverse().find(item => item.status === 'running');
+  element('play-agent-progress-current').textContent = active?.label ?? (language === 'zh-CN' ? '正在分析测试结果并准备下一步；画面暂停属于正常测试流程。' : 'Reviewing test results and preparing the next step; the simulation may be paused.');
+  const criteria = element('play-agent-progress-criteria');
+  criteria.replaceChildren(...(agentPreviewOwnership.task?.acceptance ?? []).map(item => {
+    const li = document.createElement('li'); li.dataset.status = item.status;
+    const labels: Record<string, string> = { pending: '待验证', pass: '通过', fail: '未通过', blocked: '受阻' };
+    li.textContent = `${language === 'zh-CN' ? labels[item.status] ?? item.status : item.status} · ${item.label}`;
+    return li;
+  }));
+  element('play-agent-progress-history').replaceChildren(...previewTestActivities.slice(-6).map(item => {
+    const li = document.createElement('li'); li.dataset.status = item.status;
+    const status = language === 'zh-CN' ? { running: '进行中', completed: '完成', failed: '失败' }[item.status] : item.status;
+    li.textContent = `${status} · ${item.label}${item.tick === undefined ? '' : ` · tick ${item.tick}`}`;
+    return li;
+  }));
+}
+
 async function processAgentPreviewCommand(): Promise<void> {
   const value = await invoke<AgentPreviewCommandReadModel & JsonObject>('preview/agent-command');
   const command = value.command;
   if (!value.pending || !command || command.id === handledPreviewCommand) return;
   handledPreviewCommand = command.id;
+  if (command.kind === 'start') previewTestActivities.length = 0;
+  const labels = language === 'zh-CN'
+    ? { start: '启动测试预览', stop: '结束测试并退出', input: '模拟输入', step: '推进模拟', inspect: '检查运行状态', capture: '采集画面和状态', 'physics-query': '检查物理结果' }
+    : { start: 'Start test preview', stop: 'Stop test preview', input: 'Simulate input', step: 'Advance simulation', inspect: 'Inspect runtime state', capture: 'Capture frame and state', 'physics-query': 'Inspect physics' };
+  const detail = command.kind === 'input' ? ` ${String(command.event?.phase ?? command.event?.kind ?? '')} @ ${String(command.event?.tick ?? '')}` : command.kind === 'step' ? ` ${command.count} ticks` : '';
+  const activity: (typeof previewTestActivities)[number] = { id: command.id, label: labels[command.kind] + detail, status: 'running' };
+  previewTestActivities.push(activity); if (previewTestActivities.length > 12) previewTestActivities.shift();
+  renderPreviewTestProgress();
   try {
     if (command.kind === 'start') {
       if (!command.plan) throw new Error('Agent preview start command has no plan.');
@@ -1274,13 +1310,17 @@ async function processAgentPreviewCommand(): Promise<void> {
         : command.kind === 'input' ? await previewFrame.input(command.event ?? Object.freeze({}))
           : command.kind === 'physics-query' ? await previewFrame.physicsQuery(command.query ?? Object.freeze({}))
             : command.kind === 'inspect' ? await previewFrame.inspect() : await previewFrame.capture();
+      if (typeof result.tick === 'number') activity.tick = result.tick;
       await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: result });
+      activity.status = 'completed';
       return;
     }
     await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: previewSnapshot() });
+    activity.status = 'completed';
   } catch (cause) {
+    activity.status = 'failed'; activity.label += ` · ${errorMessage(cause).slice(0, 240)}`;
     await invoke('preview/agent-result', { commandId: command.id, ok: false, message: errorMessage(cause) });
-  }
+  } finally { renderPreviewTestProgress(); }
 }
 
 function previewSnapshot(): JsonObject {
@@ -1389,6 +1429,11 @@ async function toggleProjectRun(): Promise<void> {
     }
     setStatus('Preparing isolated preview…');
     const valid = await prepareProjectRun();
+    if (valid && previewDisclosure?.approvalReusable) {
+      await approveAndStartPreview(true);
+      setStatus('Project is running');
+      return;
+    }
     element<HYDialog>('run-dialog').showModal();
     setStatus(valid ? 'Ready' : runScriptContext?.kind === 'missing-script' ? t('runMissingScriptHeading') : 'Script validation failed');
   } catch (cause) { setStatus(errorMessage(cause)); }
@@ -1792,10 +1837,10 @@ function renderScriptPanel(
   if (identity !== loadedScriptIdentity) {
     loadedScriptIdentity = identity;
     scriptDraftGeneration++;
-    scriptEditor?.load(identity, selected ? script?.text ?? DEMO_SCRIPT : '');
+    scriptEditor?.load(identity, selected ? script?.text ?? '' : '');
     pendingScriptProposal = null;
     if (!options.preservePreviewDisclosure) previewDisclosure = null;
-    element('script-diagnostics').textContent = t(selected ? 'scriptEditHint' : 'scriptSelectHint');
+    element('script-diagnostics').textContent = t(!selected ? 'scriptSelectHint' : script ? 'scriptEditHint' : 'scriptUnboundHint');
   }
   element<HTMLButtonElement>('propose-script').disabled = !selected || playing || script?.id !== primaryScript?.id;
   scriptEditor?.setReadOnly(!selected || playing || script?.id !== primaryScript?.id);
@@ -1844,9 +1889,9 @@ async function preparePreview(): Promise<void> {
   renderScriptPanel(scene?.entities.find((entity) => entity.id === previewDisclosure!.scripts[0]?.entityId) ?? null, { preservePreviewDisclosure: true });
 }
 
-async function approveAndStartPreview(): Promise<void> {
+async function approveAndStartPreview(reuse = false): Promise<void> {
   if (!previewDisclosure) throw new Error('Prepare a preview disclosure first.');
-  const grant = await invoke<PreviewGrant & JsonObject>('preview/authorize', { planId: previewDisclosure.id, approved: true });
+  const grant = await invoke<PreviewGrant & JsonObject>('preview/authorize', { planId: previewDisclosure.id, approved: true, ...(reuse ? { reuse: true } : {}) });
   const plan = await invoke<ConsumedPreviewPlan & JsonObject>('preview/consume', { grantId: grant.id });
   await startPreview(plan);
   previewDisclosure = null;

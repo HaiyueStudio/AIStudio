@@ -170,6 +170,13 @@ function runtimeContractDiagnostics(text: string, sourcePath: string): ScriptDia
   const diagnostics: ScriptDiagnostic[] = [];
   const constants = collectConstInitializers(source);
   const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+      && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === 'world'
+      && node.expression.name.text === 'getEntity') {
+      const position = source.getLineAndCharacterOfPosition(node.getStart(source));
+      diagnostics.push({ code: 'script.entity-lookup-space', severity: 'warning', path: sourcePath, line: position.line + 1, column: position.character + 1,
+        message: 'world.getEntity uses Engine runtime ids or names. For project entity ids returned by scene tools, use api.read.find(entityId), and verify the target exists before reporting interaction success.' });
+    }
     if (ts.isCallExpression(node) && isSceneInstancesCall(node.expression)) {
       const capacity = node.arguments[1];
       if (capacity && !isCompileTimeNumericExpression(capacity, constants, new Set())) {

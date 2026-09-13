@@ -21,7 +21,10 @@ try {
   for (const [name, mode, outcome] of [['stale','agent','stale'], ['delayed','agent','delayed'], ['waiting','waiting','stale'], ['manual','manual','stale'], ['missing','missing-coordinates','stale']]) {
     exits[name] = await win.webContents.executeJavaScript(`window.previewExitFixture(${JSON.stringify(mode)}, ${JSON.stringify(outcome)})`);
   }
-  await writeFile(path.join(root, 'result.json'), JSON.stringify({ agent, manual, handoff, manualHandoff, refreshFailure, exits }, null, 2));
+  const scriptPanel = await win.webContents.executeJavaScript('window.scriptPanelFixture()');
+  const approvedRun = await win.webContents.executeJavaScript('window.previewRunConsentFixture(true)');
+  const newRun = await win.webContents.executeJavaScript('window.previewRunConsentFixture(false)');
+  await writeFile(path.join(root, 'result.json'), JSON.stringify({ agent, manual, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel }, null, 2));
   app.exit(0);
 } catch (error) { console.error(error); app.exit(1); }
 

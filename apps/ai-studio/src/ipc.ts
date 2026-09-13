@@ -271,10 +271,12 @@ export class StudioIpcRouter {
         const plan = await this.options.scripts.prepare(scriptIds ? { scriptIds } : undefined);
         return toJson({
           ...plan,
+          approvalReusable: this.options.scripts.canReuse?.(plan.id) ?? false,
           scripts: plan.scripts.map(({ emittedText: _emittedText, ...script }) => script),
         });
       }
       case 'preview/authorize': {
+        if (request.payload.reuse === true && !this.options.scripts.canReuse?.(request.payload.planId as StableId)) throw new IpcDiagnosticError('preview-consent-stale', 'Previous preview approval no longer covers this executable set.');
         const grant = await this.options.scripts.decide(request.payload.planId as StableId, request.payload.approved as boolean);
         return grant ? toJson(grant) : Object.freeze({ denied: true });
       }
@@ -456,7 +458,8 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     }
   }
   else if (channel === 'preview/authorize') {
-    requireShape(payload, keys, ['planId', 'approved'], { planId: 'string', approved: 'json' });
+    requireAllowedShape(payload, keys, ['planId', 'approved'], ['reuse']);
+    if (typeof payload.planId !== 'string' || (payload.reuse !== undefined && typeof payload.reuse !== 'boolean')) throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/authorize scope is invalid.');
     if (typeof payload.approved !== 'boolean') throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/authorize decision is invalid.');
   }
   else if (channel === 'preview/consume') requireShape(payload, keys, ['grantId'], { grantId: 'string' });

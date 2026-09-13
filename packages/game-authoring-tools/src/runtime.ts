@@ -891,8 +891,10 @@ function resolveScriptResource(catalog: ReturnType<ScriptPreviewStudioService['s
 }
 function scriptProposalResult(proposal: ScriptEditProposal): JsonObject {
   const diagnostics = Object.freeze(proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })));
+  const authoringHints = /\bset(?:Position|Rotation|Scale)\s*\(/u.test(proposal.text) && !/\b(?:time|delta)\b|api\.input|api\.scene\.observe/u.test(proposal.text)
+    ? ['This script may only initialize transforms. Persist fixed values using transform.set or entity.create transform (parent-local position/scale, rotationDegrees in degrees) instead of attaching a script. Keep a script only if it performs actual runtime behavior.'] : [];
   const canApply = !proposal.diagnostics.some((item) => item.severity === 'error');
-  return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Resolve every error diagnostic with another script.patch or script.propose call. Look up unfamiliar or missing API symbols with engine.docs.search and engine.docs.read on the studio-script surface. Do not call script.apply for this proposal.' });
+  return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, authoringHints, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Resolve every error diagnostic with another script.patch or script.propose call. Look up unfamiliar or missing API symbols with engine.docs.search and engine.docs.read on the studio-script surface. Do not call script.apply for this proposal.' });
 }
 function applyScriptLineEdits(source: string, edits: readonly ScriptLineEdit[]): string {
   const lines = source.split('\n');
@@ -1190,6 +1192,20 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const persisted = await observations.persistState(stored.call, observation);
       return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue });
     }
+    case 'play.pointer-gesture': {
+      // step() pauses before advancing, so queued events cannot race display frames.
+      const before = await options.preview.step(1, signal);
+      const baseline = await observations.persistState(stored.call, before);
+      let current = before;
+      for (const point of args.points as readonly JsonObject[]) {
+        if (signal?.aborted) throw signal.reason;
+        await options.preview.input({ kind: 'pointer', source: 'synthetic', tick: current.tick + 1, pointerId: args.pointerId as number, button: 0, phase: point.phase as 'down' | 'move' | 'up' | 'cancel', x: point.x as number, y: point.y as number }, signal);
+        current = await options.preview.step(1, signal);
+      }
+      if (Number(args.settleTicks) > 0) current = await options.preview.step(Number(args.settleTicks), signal);
+      const after = await observations.persistInspection(stored.call, current);
+      return Object.freeze({ baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick });
+    }
     case 'play.input': {
       const observation = await options.preview.input(args.event as never, signal);
       const persisted = await observations.persistState(stored.call, observation);
@@ -1357,6 +1373,19 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     }
     case 'preview.start': case 'play.start': exact(raw, ['baseRevision', 'planId'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), planId: stable(raw.planId, 'plan id') });
     case 'play.step': exact(raw, ['count'], [], toolId); return Object.freeze({ count: boundedInteger(raw.count, 'count', 1, 10_000) });
+    case 'play.pointer-gesture': {
+      exact(raw, ['points'], ['pointerId', 'settleTicks'], toolId);
+      if (!Array.isArray(raw.points) || raw.points.length < 2 || raw.points.length > 32) throw invalid('Gesture requires 2-32 pointer points.');
+      const points = raw.points.map((point, index) => {
+        if (!isRecord(point)) throw invalid('Gesture point must be an object.');
+        exact(point, ['phase', 'x', 'y'], [], toolId);
+        const allowed = index === 0 ? ['down'] : index === (raw.points as unknown[]).length - 1 ? ['up', 'cancel'] : ['move'];
+        if (!allowed.includes(String(point.phase))) throw invalid('Gesture must be down, optional moves, then up/cancel.');
+        const event = normalizePlayInput({ ...point, tick: 1, kind: 'pointer', pointerId: 1 });
+        return Object.freeze({ phase: point.phase, x: event.x, y: event.y }) as JsonObject;
+      });
+      return Object.freeze({ points, pointerId: raw.pointerId === undefined ? 1 : boundedInteger(raw.pointerId, 'pointerId', 0, 1_000_000), settleTicks: raw.settleTicks === undefined ? 1 : boundedInteger(raw.settleTicks, 'settleTicks', 0, 600) });
+    }
     case 'play.input': exact(raw, ['event'], [], toolId); return Object.freeze({ event: normalizePlayInput(raw.event) as unknown as JsonValue });
     case 'play.physics-query': return normalizePhysicsQuery(raw);
     case 'task.evaluate': return normalizeEvaluationArguments(raw);

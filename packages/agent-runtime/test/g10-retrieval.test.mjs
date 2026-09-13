@@ -105,3 +105,18 @@ test('long Chinese requests and approved-plan repair continuations keep full mod
     retrieval.dispose(); await fixture.log.close();
   } finally { await fixture.cleanup(); }
 });
+
+
+test('hybrid retrieval covers distinct relevant sources before repeating chunks of a long guide', async () => {
+  const fixture = await openFixture('source-diversity');
+  const retrieval = new KnowledgeRetrievalRuntime(fixture.log);
+  try {
+    await retrieval.upsert(source('knowledge-source:long-input', 'engine://input', 'engine-doc', 'Pointer input drag camera physics verification. '.repeat(180)));
+    await retrieval.upsert(source('knowledge-source:camera-short', 'engine://camera', 'engine-doc', 'Camera orbit follows the pointer drag. Verify the camera transform.'));
+    await retrieval.upsert(source('knowledge-source:physics-short', 'engine://physics', 'engine-doc', 'Physics verification uses fixed-step input and authoritative state.'));
+    const result = await retrieval.search({ query:'pointer input drag camera physics verification', mode:'hybrid', allowedPermissionScopes:[ENGINE], limit:3, tokenBudget:2048 });
+    assert.equal(new Set(result.hits.map(hit=>hit.hit.source)).size, 3);
+    assert.ok(result.estimatedTokens <= 2048);
+    await retrieval.assertReadable(result.artifactIds);
+  } finally { retrieval.dispose(); await fixture.log.close(); await fixture.cleanup(); }
+});
