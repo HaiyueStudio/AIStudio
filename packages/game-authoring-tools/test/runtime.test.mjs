@@ -1537,7 +1537,7 @@ test('large-scene pointer gesture returns bounded evidence, hit targets and real
     assert.equal(result.status,'completed');assert.ok(Buffer.byteLength(JSON.stringify(result.value))<65536);
     assert.equal(result.value.baselineProjectionTruncated,true);assert.equal(result.value.projectionTruncated,true);
     assert.deepEqual(result.value.steps.map(step=>step.interactionTargetId),['entity:large-399','entity:large-399','entity:large-399']);
-    assert.deepEqual(result.value.effects,{changedEntityCount:1,changedEntityIds:['entity:large-399'],changedEntityIdsTruncated:false,cameraChanged:false});
+    assert.deepEqual(result.value.effects,{changedEntityCount:1,changedEntityIds:['entity:large-399'],changedEntityIdsTruncated:false,materialColorChanged:false,changedMaterialEntityCount:0,changedMaterialEntityIds:[],changedMaterialEntityIdsTruncated:false,cameraChanged:false});
     const final = await value.operationLog.readArtifact(result.value.observations.find(item=>item.type==='state').id);
     assert.equal(final.value.payload.state.entities.length,400);assert.equal(final.value.payload.state.entities[399].rotation[1],1);
     assert.equal(final.value.payload.trace.length,150);
@@ -1757,5 +1757,30 @@ test('incremental script proposal reports its actual owner and missing local poi
   assert.equal(proposed.value.bindingContext.ownerName,'Local target');
   assert.deepEqual(proposed.value.bindingContext.selfPointerEvents,[]);
   assert.ok(proposed.value.authoringHints.some(h=>h.includes('no enabled pointer component')));
+ }finally{await dispose(value);}
+});
+
+test('gesture evidence evaluates actual color changes and retained clicks after settle, not script claims',async()=>{
+ const value=await fixture();let tick=0,queued=null,color=[1,0,0,1],change=true;
+ const observe=(interactions=[])=>({...value.preview.observation({state:{entities:[{id:'entity:color',materialColor:color,position:[0,0,0]}],camera:{position:[0,0,10]}},interactions,runtimeErrorCount:0,gameplay:[{value:{success:true}}]}),tick,documentRevision:1});
+ value.preview.input=async event=>{queued=event;return observe();};
+ value.preview.step=async count=>{let interactions=[];for(let i=0;i<count;i++){tick++;interactions=[];if(queued?.tick===tick){if(queued.phase==='up'){if(change)color=[0,1,0,1];interactions=[{pointerId:1,type:'click',entityId:'entity:color'}];}queued=null;}}return observe(interactions);};
+ const request=()=>({points:[{phase:'down',x:.5,y:.5},{phase:'up',x:.5,y:.5}],settleTicks:2});
+ const taskSpec={schemaVersion:2,id:'task:session:fixture',request:'Click changes color',visibleConstraints:[],budgetId:'budget:test',requiredCapabilities:['play.inspect'],acceptance:[
+  {id:'criterion:color',assertion:'evidence state signal effects.materialColorChanged equals true'},
+  {id:'criterion:camera',assertion:'evidence state signal effects.cameraChanged equals false'},
+  {id:'criterion:click',assertion:'evidence event-trace signal interactions.0.type equals "click"'}
+ ].map(x=>({...x,required:true,visibility:'agent',category:'functional'}))};
+ try{
+  const gesture=await executeReady(value.runtime,call('call:color-gesture','play.pointer-gesture',request()));
+  assert.equal(gesture.status,'completed');assert.equal(gesture.value.projection.interactions.length,0);
+  assert.equal(gesture.value.effects.materialColorChanged,true);assert.deepEqual(gesture.value.effects.changedMaterialEntityIds,['entity:color']);
+  const result=await executeReady(value.runtime,call('call:color-evaluation','task.evaluate',{taskSpec,observationIds:gesture.value.observations.map(x=>x.id)}));
+  assert.equal(result.status,'completed');assert.equal(result.value.status,'pass');
+  change=false;
+  const unchanged=await executeReady(value.runtime,call('call:unchanged-gesture','play.pointer-gesture',request()));
+  const failed=await executeReady(value.runtime,call('call:unchanged-evaluation','task.evaluate',{taskSpec,observationIds:unchanged.value.observations.map(x=>x.id)}));
+  assert.equal(failed.value.status,'fail');assert.equal(failed.value.acceptanceResults[0].status,'fail');
+  assert.equal(failed.value.acceptanceResults[1].status,'pass');assert.equal(failed.value.acceptanceResults[2].status,'pass');
  }finally{await dispose(value);}
 });

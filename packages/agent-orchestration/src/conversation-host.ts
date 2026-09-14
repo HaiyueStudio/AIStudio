@@ -1353,10 +1353,12 @@ export class StudioConversationHost {
     const nextBytes = Buffer.byteLength(canonicalStringify(body.backendResult));
     if (batch.outputBytes + nextBytes > 1024 * 1024 && body.status === 'completed') body = this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.result-limit', message: 'Batch model-facing result limit exceeded.', retryable: false }), body.latencyMs, 'failed');
     batch.outputBytes += Buffer.byteLength(canonicalStringify(body.backendResult));
-    if (this.active && body.mutation && Number.isSafeInteger(original.backendResult.afterRevision)) {
+    if (this.active && original.status === 'completed' && original.mutation && Number.isSafeInteger(original.backendResult.afterRevision)) {
       this.updateTaskRun(this.active.taskId, { documentRevision: original.backendResult.afterRevision as number });
     }
-    if (this.active && body.resultValue) await this.captureProductToolResult(this.active.taskId, context.toolId, body.resultValue, context.event.turnId, context.toolCallId);
+    // Checkpoint/approval/error payloads are not executed product results. Consume
+    // the authoritative result independently of the model-facing byte projection.
+    if (this.active && original.status === 'completed' && original.resultValue) await this.captureProductToolResult(this.active.taskId, context.toolId, original.resultValue, context.event.turnId, context.toolCallId);
     if (this.active) {
       this.active.toolFailures ??= new Map();
       if (body.status === 'completed') {
@@ -2122,13 +2124,15 @@ export class StudioConversationHost {
       this.updateTaskRun(taskId, { status: 'blocked', phase: 'blocked', acceptance: Object.freeze(acceptance.map((item) => item.status === 'pass' ? Object.freeze({ ...item, status: 'blocked' as const, diagnostic }) : item)), terminalDiagnostic: diagnostic, resumable: true }, { phase: 'blocked', status: 'error', title: '验收证据不可采信', detail: `${untrustedEvidence.length} 个证据引用未保留、已过期或跨任务。`, turnId, toolCallId });
       return;
     }
-    const snapshot = playtest.recordEvaluation(evaluation);
+    let snapshot = playtest.recordEvaluation(evaluation);
+    const unavailable = evaluation.acceptanceResults.find(item => item.diagnostic?.startsWith('evaluation.signal-unavailable:') && playtest.task.acceptance.some(criterion => criterion.required && criterion.id === item.acceptanceId));
+    if (unavailable && snapshot.phase !== 'blocked') snapshot = playtest.block(unavailable.diagnostic!, Object.freeze(evidence.filter(item => item.provenanceStatus === 'current').map(item => item.id)));
     if (snapshot.phase === 'complete') {
       this.updateTaskRun(taskId, { status: 'completed', phase: 'complete', acceptance: Object.freeze(acceptance), terminalDiagnostic: null, resumable: false }, { phase: 'complete', status: 'complete', title: '逐项验收通过', detail: `${acceptance.filter((item) => item.status === 'pass').length}/${acceptance.length} 项通过。`, turnId, toolCallId });
       return;
     }
     if (snapshot.phase === 'blocked') {
-      this.updateTaskRun(taskId, { status: 'blocked', phase: 'blocked', acceptance: Object.freeze(acceptance), terminalDiagnostic: snapshot.diagnostic, resumable: false }, { phase: 'blocked', status: 'error', title: '验收被阻塞', detail: snapshot.diagnostic ?? '证据来源不兼容。', turnId, toolCallId });
+      this.updateTaskRun(taskId, { status: 'blocked', phase: 'blocked', acceptance: Object.freeze(acceptance), terminalDiagnostic: snapshot.diagnostic, resumable: false }, { phase: 'blocked', status: 'error', title: unavailable ? '验收标准引用了不可用字段' : '验收被阻塞', detail: unavailable ? `需要修正验收方案并重新确认：${unavailable.diagnostic}。这不是游戏功能失败，重复运行预览不会生成该字段。` : snapshot.diagnostic ?? '证据来源不兼容。', turnId, toolCallId });
       return;
     }
     const failedEvidence = evaluation.acceptanceResults.filter((item) => item.status !== 'pass').flatMap((item) => item.evidenceIds).map((id) => asStableId(id));

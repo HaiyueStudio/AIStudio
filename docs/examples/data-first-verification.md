@@ -55,3 +55,37 @@ evidence state signal state.entities.0.rotation.1 gte 0.5
 真实图像审阅与未验证的外观要求需如实说明，不能把 `evidence screenshot` 的存在检查宣称为视觉通过。
 数据与画面不一致时，保留 `play.capture` 同一 tick 的截图和状态作为排查证据。
 完成测试或准备修复前调用 `play.stop`。
+
+## 手势结果必须来自可读取的证据
+
+`play.pointer-gesture` 会把工具返回的 `effects` 同时保存到该手势的最终 `state` 证据，
+包括 `cameraChanged`、`materialColorChanged`、`changedEntityCount/Ids`、
+`changedMaterialEntityCount/Ids`。材质变化比较的是同一实际对象前后的 sRGB RGBA，
+不把新增对象或脚本上报的 success 当作改色。
+
+点击改色可使用以下独立条件，并把这次手势返回的 observationIds 交给评估器：
+
+```text
+evidence state signal effects.materialColorChanged equals true
+evidence state signal effects.cameraChanged equals false
+evidence runtime-errors signal count equals 0
+```
+
+还应检查 `effects.changedMaterialEntityIds` 是目标对象，连续两次点击均产生变化。
+这证明受测点击改变了实际材质；随机数分布与最终像素外观仍是不同的验证目标。
+手势的 `gesture.interactions` 保留整个输入过程，即使 settleTicks 之后当前帧已经没有输入。
+`event-trace` 的命中事件路径是 `interactions.<index>.type/entityId`，不是 `events`。
+先查看实际返回的数组再确定 click 下标；不要假设第一条事件必然是 click。
+
+普通 `play.inspect` 没有手势前后的 `effects`。验收这类条件时应通过 `acceptanceEvidence`
+选择对应手势的 state artifact，不能选择之后的普通 inspect。验收只读取持久化证据，
+不会读取工具最外层字段或模型的解释文字。
+
+`state.entities` 当前只提供 `id/position/rotation/scale/materialColor`，
+没有 `geometry.kind`、`material` 或 `pointer.events`。这些编辑配置应查询 Document；
+不能把 Document 路径直接抄成 Play 验收断言。方案提交会提前拒绝这类已知不可用路径。
+旧方案遇到不可用字段会明确阻塞验收，保留游戏产物，不消耗重复修改游戏的修复轮次。
+
+恢复审批或模型执行回合时，先复用已保留的同项目修订、同 Play 证据；
+映射 ID 写错只修正 `acceptanceEvidence` 和 `observationIds`，不必重启预览或重新查询所有文档。
+文档/脚本/设备等来源兼容性仍由评估器校验，真正过期的证据需要重新采集。

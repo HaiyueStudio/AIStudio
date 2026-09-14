@@ -86,3 +86,11 @@ test('approved assembly requirements are structured and retained across plan ser
   assert.throws(() => validatePlanProposal({...proposal('evidence state'),assemblies:[...assemblies,...assemblies]}), /unique/);
   assert.throws(() => validatePlanProposal({...proposal('evidence state'),assemblies:[{...assemblies[0],minimumInstances:0}]}));
 });
+
+test('reject unavailable engine-owned evidence paths before approving a plan',()=>{
+ for(const path of ['state.entities.0.geometry.kind','state.entities.0.material','state.entities.0.pointer.events','effects.colorChanged']){
+  assert.throws(()=>validatePlanProposal(proposal(`evidence state signal ${path} equals true`)),e=>e.code==='plan.payload-invalid'&&e.message.includes(path));
+ }
+ assert.throws(()=>validatePlanProposal(proposal('evidence event-trace signal events.0.type equals "click"')),/interactions/);
+ for(const assertion of ['evidence state signal effects.materialColorChanged equals true','evidence state signal effects.cameraChanged equals false','evidence state signal state.entities.0.materialColor equals [1,0,0,1]','evidence event-trace signal interactions.0.type equals "click"','evidence state signal gameplay.0.value.customState equals true']) assert.equal(validatePlanProposal(proposal(assertion)).acceptance[0].assertion,assertion);
+});

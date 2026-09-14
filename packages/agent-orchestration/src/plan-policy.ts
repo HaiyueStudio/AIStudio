@@ -1,5 +1,5 @@
 import { asStableId, type StableId, type JsonObject, type TaskSpecV2 } from '@haiyue/ai-studio-contracts';
-import { ASSEMBLY_EXPECTATIONS_SCHEMA, normalizeAssemblyExpectations, EVIDENCE_ASSERTION_PATTERN, isSupportedEvidenceAssertion } from '@haiyue/ai-studio-game-authoring-tools';
+import { ASSEMBLY_EXPECTATIONS_SCHEMA, normalizeAssemblyExpectations, EVIDENCE_ASSERTION_PATTERN, isSupportedEvidenceAssertion, unavailablePlayEvidenceSignal } from '@haiyue/ai-studio-game-authoring-tools';
 import { isRecord } from './value-utils.js';
 
 export interface ApprovedPlanExecution {
@@ -85,6 +85,8 @@ export function validatePlanProposal(value: JsonObject): Readonly<{ title: strin
         if (!isSupportedEvidenceAssertion(assertion)) {
           throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}].assertion 条件 ${part + 1}/${assertions.length} 无法解析：${JSON.stringify(assertion.slice(0, 140))}. Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Strings need JSON double quotes. Keep each condition as a separate acceptance entry; do not omit criteria.`);
         }
+        const unavailable = unavailablePlayEvidenceSignal(assertion);
+        if (unavailable) throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}]: ${unavailable}`);
         if (/^evidence\s+visual-analysis(?:\s|$)/u.test(assertion) || /^evidence\s+performance\s+signal\s+(?!finite\s|tick\s|frame\s|timeMs\s)/u.test(assertion)) {
           throw new PlanProtocolError('plan.evidence-producer-unavailable', `acceptance[${index}].assertion 条件 ${part + 1} 请求了当前 Play 无法生成的证据：${JSON.stringify(assertion.slice(0, 160))}. Play supports performance finite/tick/frame/timeMs, but not fps or visual-analysis. Preserve the requirement and choose available evidence; do not claim an unverified result.`);
         }

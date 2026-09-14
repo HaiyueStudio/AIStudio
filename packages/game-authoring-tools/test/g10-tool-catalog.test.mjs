@@ -63,3 +63,12 @@ test('complete long requests select tools without applying the short search argu
   assert.doesNotThrow(() => catalog.search('x'.repeat(512)));
   assert.throws(() => catalog.search('x'.repeat(513)), /query is invalid/);
 });
+
+test('continuations receive explicitly named tool schemas ahead of fuzzy discovery without growing the budget',()=>{
+ const catalog=new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS,()=>BUILTIN_COMPONENT_DEFINITIONS);
+ const selected=catalog.selectDefinitions('After approval continue script.apply, then preview.validate and play.start. Existing scene hierarchy camera rendering physics gameplay.',[],MODEL_CORE_TOOL_IDS.length+3);
+ for(const id of ['script.apply','preview.validate','play.start'])assert.ok(selected.definitions.some(x=>x.id===id&&x.inputSchema));
+ assert.equal(selected.definitions.length,MODEL_CORE_TOOL_IDS.length+3);
+ assert.doesNotThrow(()=>catalog.selectDefinitions('unknown.'+'long'.repeat(1000)));
+ assert.equal(catalog.selectDefinitions('unknown.tool').selectedIds.includes('unknown.tool'),false);
+});

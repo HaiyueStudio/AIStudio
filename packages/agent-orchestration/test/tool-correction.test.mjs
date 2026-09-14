@@ -99,3 +99,41 @@ test('real tool commit returns failure feedback to backend; corrected success cl
   assert.ok(projected.some(args=>args[0]==='node:fixed'&&args[2]==='completed'));
   assert.equal(host.taskRuns.get('task:correction').timeline.at(-1).title,'工具修正后已完成');
 });
+
+test('evaluation budget checkpoint is delivered and opens continuation instead of parsing a diagnostic as evaluation', async () => {
+  const { host } = fixture(); const delivered=[]; let cancellations=0, executed=0, asked=0;
+  host.active.toolFailures.clear();host.active.blockers=[];host.active.decisions=[];host.active.toolFacts=[];
+  host.active.account.preflightTool=()=>({allowed:false,status:'hard-exceeded'});
+  host.active.account.snapshot=()=>({budgetDecision:{allowed:false,status:'hard-exceeded'}});
+  host.options.tools.prepare=async()=>{executed++;throw Error('must not execute');};
+  host.options.runtime.turns={async recordToolResult(){},async cancel(){cancellations++;}};
+  host.project=()=>{};host.recordTaskAccounting=async()=>{};host.appendToolSessionOp=async()=>{};host.commitContext=async()=>{};
+  host.awaitBudgetContinuation=async()=>{asked++;return 'suspended';};
+  const context={toolId:'task.evaluate',toolCallId:'call:evaluate',toolNodeId:'node:evaluate',args:{observationIds:['artifact:sha256:test']},node:{outputProjection:'full'},event:{backendId:'backend:test',sessionId:'session:test',turnId:'turn:test'},provenance:{backendId:'backend:test',sessionId:'session:test',turnId:'turn:test'},backend:{async submitToolResult(id,result){delivered.push(result);}}};
+  const signal=new AbortController().signal;
+  const body=await host.executeToolBody(context,signal);
+  assert.equal(body.resultValue.code,'budget.continuation-required');
+  await host.commitToolBody({outputBytes:0},context,body,signal);
+  assert.equal(executed,0);assert.equal(cancellations,1);assert.equal(delivered[0].status,'cancelled');
+  await host.captureEvent({}, {...context.event,kind:'completed',payload:{status:'cancelled'}},signal);
+  assert.equal(asked,1);assert.equal(host.taskRuns.get('task:correction').status,'running');
+});
+
+test('failed/cancelled evaluation payloads are not consumed; completed results survive model projection limits',async()=>{
+ const {host}=fixture();const captured=[];host.active.toolFailures.clear();host.active.blockers=[];
+ host.captureProductToolResult=async(...args)=>captured.push(args);
+ host.options.runtime.turns={async recordToolResult(){},async cancel(){}};
+ host.project=()=>{};host.recordTaskAccounting=async()=>{};host.appendToolSessionOp=async()=>{};
+ const context={toolId:'task.evaluate',toolCallId:'call:e',toolNodeId:'node:e',args:{},node:{outputProjection:'full'},event:{backendId:'backend:test',sessionId:'session:test',turnId:'turn:test'},provenance:{},backend:{async submitToolResult(){}}};
+ const signal=new AbortController().signal;
+ for(const status of ['failed','cancelled']){
+  const value={code:status==='cancelled'?'barrier.waiting-user':'evaluation.evidence-selection-invalid',message:'not an evaluation'};
+  const body=host.makeToolBody(context,status,{status,value},status,{},status,{},value,null,null,false,false,1);
+  await host.commitToolBody({outputBytes:0},context,body,signal);
+ }
+ assert.equal(captured.length,0);
+ const value={schemaVersion:2,status:'pass'};
+ const body=host.makeToolBody(context,'completed',{status:'completed',value},'completed',{},'completed',{},value,null,null,false,false,1);
+ const projected=await host.commitToolBody({outputBytes:1024*1024},context,body,signal);
+ assert.equal(projected.status,'failed');assert.deepEqual(captured[0][2],value);
+});

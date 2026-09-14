@@ -85,6 +85,12 @@ export class ToolCatalogRuntime {
     if (!Number.isSafeInteger(limit) || limit < MODEL_CORE_TOOL_IDS.length || limit > 40) throw new TypeError('Tool schema selection limit is invalid.');
     const selected = new Set<StableId>(MODEL_CORE_TOOL_IDS.filter((id) => this.byId.has(id)));
     for (const id of expandedIds) if (this.byId.has(id)) selected.add(id);
+    // Continuations name concrete next tools. Give their registered schemas
+    // priority over fuzzy matches so every approval need not rediscover them.
+    for (const match of request.matchAll(/[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+/gu)) {
+      const definition = this.byId.get(match[0] as StableId);
+      if (definition && selected.size < limit) selected.add(definition.id);
+    }
     for (const id of explicitIntentToolIds(request)) if (this.byId.has(id) && selected.size < limit) selected.add(id);
     for (const match of this.rank(request.trim() || 'project inspect', Math.max(limit, 24), false)) if (match.kind === 'tool' && selected.size < limit) selected.add(match.id);
     const definitions = Object.freeze(this.tools.filter((definition) => selected.has(definition.id)));

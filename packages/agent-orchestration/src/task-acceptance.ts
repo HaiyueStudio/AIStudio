@@ -23,6 +23,7 @@ export function verificationRoute(item: Readonly<{ assertion: string; category: 
     method: 'visual-review', tool: 'play.capture', guidance: 'Inspect rendered appearance; reuse a same-stage capture. Screenshot presence alone does not prove correctness. Report any unavailable visual verifier.',
   };
   if (type === 'lifecycle') return { method: 'data', tool: 'play.stop', guidance: 'Verify owned preview cleanup from lifecycle evidence.' };
+  if (/^evidence\s+state\s+signal\s+(?:effects|gesture)\./u.test(item.assertion) || /^evidence\s+event-trace\s+signal\s+interactions\./u.test(item.assertion)) return { method: 'data', tool: 'play.pointer-gesture', guidance: 'Use the final gesture state/event-trace artifact; effects compare actual before/after engine data. Plain play.inspect does not contain gesture effects. Keep the observationIds for this test stage.' };
   return { method: 'data', tool: 'play.inspect', guidance: 'Use engine state and deterministic assertions, not screenshots. Scope entityIds; for interactions execute real action/pointer input and compare before/after entities and camera, not script metrics alone.' };
 }
 function acceptanceCapabilities(acceptance: readonly Readonly<{ assertion: string; category: string }>[]): TaskSpecV2['requiredCapabilities'] {
@@ -72,6 +73,7 @@ export function advancePlaytest(playtest: BoundedPlaytestTask, target: Extract<C
 }
 export function observationArtifacts(value: JsonObject): readonly ObservationArtifactV2[] {
   const candidates: unknown[] = [];
+  if (isRecord(value.baseline)) candidates.push(value.baseline);
   if (isRecord(value.observation)) candidates.push(value.observation);
   if (Array.isArray(value.observations)) candidates.push(...value.observations);
   const values: ObservationArtifactV2[] = [];

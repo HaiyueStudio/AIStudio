@@ -59,3 +59,26 @@ test('verification routes data and visual requirements consistently across resto
  assert.deepEqual(checkpoint.criteria.map(c=>c.verification.method),['data','data','visual-review']);
  assert.match(checkpoint.criteria[2].verification.guidance,/presence alone does not prove/);
 });
+
+test('gesture baseline and final evidence are both retained for later evaluation',async()=>{
+ const host=new StudioConversationHost({runtime:{},tools:{definitions:()=>[]},operationLog:{async append(){}},isProjectOpen:()=>false});
+ const make=(id,tick)=>({schemaVersion:2,id,type:'state',taskId:spec.id,turnId:'turn:a',playId:'play:a',documentRevision:6,tick,frame:tick,capturedAt:new Date().toISOString(),byteLength:100,producerVersion:'test/1'});
+ host.taskRuns.set(spec.id,{taskId:spec.id,documentRevision:6,phase:'playing',evidence:[],timeline:[],revision:1});
+ host.evidenceReadModel=async artifact=>({...artifact,provenanceStatus:'current'});host.changed=()=>{};
+ try{
+  await host.captureProductToolResult(spec.id,'play.pointer-gesture',{baseline:make('evidence:baseline',1),observations:[make('evidence:after',3)]},'turn:a','call:gesture');
+  assert.deepEqual(host.taskRuns.get(spec.id).evidence.map(item=>item.id),['evidence:baseline','evidence:after']);
+ }finally{await host.dispose();}
+});
+
+test('an unavailable required evidence field prevents gameplay repair even alongside another failed condition',async()=>{
+ const host=new StudioConversationHost({runtime:{},tools:{definitions:()=>[]},operationLog:{async append(){}},isProjectOpen:()=>false});
+ const taskSpec={...spec,acceptance:[...spec.acceptance,{...spec.acceptance[0],id:'criterion:missing',assertion:'evidence state signal state.entities.0.geometry.kind equals "rounded-box"'}]};
+ const task=new BoundedPlaytestTask(taskSpec,3);advancePlaytest(task,'evaluating');host.playtestTasks.set(spec.id,task);
+ host.taskRuns.set(spec.id,{taskId:spec.id,documentRevision:6,phase:'evaluating',evidence:[{id:'evidence:a',provenanceStatus:'current'}],timeline:[],revision:1});host.changed=()=>{};
+ try{
+  await host.captureProductToolResult(spec.id,'task.evaluate',{schemaVersion:2,id:'evaluation:test',taskId:spec.id,status:'fail',acceptanceResults:[{acceptanceId:'criterion:motion',status:'fail',evidenceIds:['evidence:a'],diagnostic:'evaluation.condition-failed:motion:equals'},{acceptanceId:'criterion:missing',status:'blocked',evidenceIds:['evidence:a'],diagnostic:'evaluation.signal-unavailable:state.entities.0.geometry.kind'}],usageRecordIds:[],costRecordIds:[],completedAt:new Date().toISOString(),evaluatorVersion:'test/1'},'turn:a','call:evaluate');
+  assert.equal(task.snapshot().phase,'blocked');assert.equal(task.snapshot().attempts.length,0);
+  assert.match(host.taskRuns.get(spec.id).timeline.at(-1).detail,/不是游戏功能失败/);
+ }finally{await host.dispose();}
+});

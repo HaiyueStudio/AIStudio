@@ -216,3 +216,13 @@ test('multi-stage acceptance selects initial and winning evidence without weaken
   await assert.rejects(evaluator.evaluate({ ...selected, observationIds: [won.artifact.id] }), /included observations/);
   await assert.rejects(evaluator.evaluate({ ...input, acceptanceEvidence: { 'acceptance:initial': [] } }), /1-256/);
 });
+
+test('legacy plans with nonexistent reserved runtime fields block without spending gameplay repair attempts',async(t)=>{
+ const f=await createFixture(t),evaluator=new DeterministicTaskEvaluator(f.repository,()=>7);
+ const spec=taskSpec([{id:'acceptance:geometry',category:'functional',assertion:'evidence state signal state.entities.0.geometry.kind equals "rounded-box"'}]);
+ const stored=await f.repository.persistState(call,observation({state:{entities:[{id:'cube',materialColor:[1,0,0,1]}]}}));
+ const result=await evaluator.evaluate(evaluationInput(spec,[stored.artifact.id]));
+ assert.equal(result.status,'blocked');assert.match(result.acceptanceResults[0].diagnostic,/evaluation.signal-unavailable/);
+ const loop=new BoundedPlaytestTask(spec,3);for(const phase of ['editing','validating','playing','evaluating'])loop.advance(phase);
+ loop.recordEvaluation(result);assert.equal(loop.snapshot().phase,'blocked');assert.equal(loop.snapshot().attempts.length,0);
+});

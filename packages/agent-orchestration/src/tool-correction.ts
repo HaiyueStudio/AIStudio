@@ -12,6 +12,8 @@ export function toolCorrectionGuidance(code: string): string | null {
       return 'Read the exact tool schema with tool.search, correct the reported arguments, and submit a new tool call. Copy returned references unchanged. Do not repeat successful edits.';
     case 'task.preview-stop-required':
       return 'Call play.stop, verify state is stopped, then inspect the current project revision and retry the intended edit through its normal approval path.';
+    case 'evaluation.evidence-selection-invalid':
+      return 'Correct acceptanceEvidence keys using the approved criterion ids and ensure all selected ids are included in observationIds. Reuse compatible retained evidence and resubmit task.evaluate. Do not restart Play, regenerate evidence, or edit gameplay to fix a selection mapping.';
     default: return null;
   }
 }

@@ -62,7 +62,7 @@ export class PlayObservationRepository {
     // Keep each derived record bound to exactly the same runtime snapshot.
     return [
       await this.persistState(call, observation),
-      await this.persistState(call, { ...observation, value: Object.freeze({ trace: value.trace ?? [], physicsEvents: value.physicsEvents ?? [] }) }, 'event-trace'),
+      await this.persistState(call, { ...observation, value: Object.freeze({ trace: value.trace ?? [], physicsEvents: value.physicsEvents ?? [], interactions: isRecord(value.gesture) ? value.gesture.interactions as JsonValue ?? [] : value.interactions ?? [] }) }, 'event-trace'),
       await this.persistState(call, { ...observation, value: Object.freeze({ count: typeof value.runtimeErrorCount === 'number' ? value.runtimeErrorCount : 0 }) }, 'runtime-errors'),
       await this.persistState(call, { ...observation, value: Object.freeze({ finite: Number.isFinite(observation.tick) && Number.isFinite(observation.frame), tick: observation.tick, frame: observation.frame, timeMs: typeof value.timeMs === 'number' ? value.timeMs : null }) }, 'performance'),
     ];
@@ -132,7 +132,7 @@ export class DeterministicTaskEvaluator {
       });
     }
     for (const [id, ids] of Object.entries(input.acceptanceEvidence)) {
-      if (!task.acceptance.some(item => item.id === id) || ids.some(id => !input.observationIds.includes(id))) throw new GameToolProtocolError('evaluation.evidence-selection-invalid', 'Criterion evidence must name an approved criterion and included observations.');
+      if (!task.acceptance.some(item => item.id === id) || ids.some(id => !input.observationIds.includes(id))) throw new GameToolProtocolError('evaluation.evidence-selection-invalid', `Criterion evidence must name an approved criterion and included observations. Invalid selection: ${JSON.stringify({ criterionId: id, criterionKnown: task.acceptance.some(item => item.id === id), observationsNotIncluded: ids.filter(id => !input.observationIds.includes(id)).slice(0, 4), approvedCriterionIds: task.acceptance.slice(0, 8).map(item => item.id) })}. Correct this mapping and resubmit using retained evidence; restarting Play does not fix selection ids.`);
     }
     const results: EvaluationResultV2['acceptanceResults'][number][] = [];
     for (const acceptance of task.acceptance) {
@@ -186,7 +186,10 @@ function evaluateAcceptance(
     return Object.freeze({ acceptanceId: acceptance.id, status: 'blocked', evidenceIds: Object.freeze([latest.artifact.id]), diagnostic: 'evaluation.visual-verifier-required' });
   }
   const actual = readPath(latest.payload, parsed.signal);
-  if (actual === MISSING) return Object.freeze({ acceptanceId: acceptance.id, status: 'fail', evidenceIds: Object.freeze([latest.artifact.id]), diagnostic: `evaluation.signal-missing:${parsed.signal}` });
+  if (actual === MISSING) {
+    const unavailable = unavailablePlayEvidenceSignal(acceptance.assertion) !== null;
+    return Object.freeze({ acceptanceId: acceptance.id, status: unavailable ? 'blocked' : 'fail', evidenceIds: Object.freeze([latest.artifact.id]), diagnostic: `${unavailable ? 'evaluation.signal-unavailable' : 'evaluation.signal-missing'}:${parsed.signal}` });
+  }
   const passed = compare(actual, parsed.operator!, parsed.expected);
   return Object.freeze({ acceptanceId: acceptance.id, status: passed ? 'pass' : 'fail', evidenceIds: Object.freeze([latest.artifact.id]), diagnostic: passed ? null : `evaluation.condition-failed:${parsed.signal}:${parsed.operator}` });
 }
@@ -196,6 +199,23 @@ export const EVIDENCE_ASSERTION_PATTERN = '^evidence\\s+(state|event-trace|runti
 const evidenceAssertionPattern = new RegExp(EVIDENCE_ASSERTION_PATTERN, 'u');
 /** Use the evaluator's parser when validating a proposed plan, before asking the user to approve it. */
 export function isSupportedEvidenceAssertion(value: string): boolean { return parseAssertion(value) !== null; }
+/** Reserved engine-owned fields only; gameplay/physics extension payloads remain open. */
+export function unavailablePlayEvidenceSignal(assertion: string): string | null {
+  const parsed = parseAssertion(assertion);
+  if (!parsed?.signal) return null;
+  const path = parsed.signal;
+  const entity = /^state\.entities\.(?:0|[1-9][0-9]*)\.([^.]+)/u.exec(path);
+  if (parsed.type === 'state' && entity && !['id', 'position', 'rotation', 'scale', 'materialColor'].includes(entity[1]!)) {
+    return `${path} is not a runtime entity field. Use scene.get-many for authored geometry/material/pointer configuration; Play entities expose id, position, rotation, scale and materialColor. Preserve the requirement and choose a supported verification method before approval.`;
+  }
+  if (parsed.type === 'event-trace' && !/^(?:trace|physicsEvents|interactions)(?:\.|$)/u.test(path)) {
+    return `${path} is not an event-trace field. Pointer events are under interactions.<index>.type/entityId; trace and physicsEvents are separate arrays. Inspect the returned event payload; do not invent events.`;
+  }
+  if (parsed.type === 'state' && path.startsWith('effects.') && !/^effects\.(?:cameraChanged|materialColorChanged|changedEntityCount|changedEntityIds|changedEntityIdsTruncated|changedMaterialEntityCount|changedMaterialEntityIds|changedMaterialEntityIdsTruncated)(?:\.|$)/u.test(path)) {
+    return `${path} is not a gesture effect. Use play.pointer-gesture state evidence: effects.cameraChanged, materialColorChanged, changedEntityCount/Ids or changedMaterialEntityCount/Ids. These fields exist only on the gesture's final state artifact, not plain play.inspect.`;
+  }
+  return null;
+}
 function parseAssertion(value: string): ParsedAssertion | null {
   const match = evidenceAssertionPattern.exec(value.trim());
   if (!match) return null;

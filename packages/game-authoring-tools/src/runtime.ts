@@ -908,7 +908,9 @@ function gestureEffects(before: JsonObject, after: JsonObject): JsonObject {
   const entities = (value: JsonObject): Map<string, JsonValue> => new Map((Array.isArray(state(value).entities) ? state(value).entities as JsonValue[] : []).filter((item): item is JsonObject => isRecord(item) && typeof item.id === 'string').map(item => [item.id as string, item]));
   const previous = entities(before), current = entities(after);
   const changed = [...new Set([...previous.keys(), ...current.keys()])].filter(id => canonicalStringify(previous.get(id) ?? null) !== canonicalStringify(current.get(id) ?? null)).sort();
-  return Object.freeze({ changedEntityCount: changed.length, changedEntityIds: changed.slice(0, 32).map(id => id.slice(0, 200)), changedEntityIdsTruncated: changed.length > 32, cameraChanged: canonicalStringify(state(before).camera ?? null) !== canonicalStringify(state(after).camera ?? null) });
+  const color = (entity: JsonValue | undefined): JsonValue => isRecord(entity) ? entity.materialColor as JsonValue ?? null : null;
+  const colorChanged = changed.filter(id => previous.has(id) && current.has(id) && color(previous.get(id)) !== null && color(current.get(id)) !== null && canonicalStringify(color(previous.get(id))) !== canonicalStringify(color(current.get(id))));
+  return Object.freeze({ changedEntityCount: changed.length, changedEntityIds: changed.slice(0, 32).map(id => id.slice(0, 200)), changedEntityIdsTruncated: changed.length > 32, materialColorChanged: colorChanged.length > 0, changedMaterialEntityCount: colorChanged.length, changedMaterialEntityIds: colorChanged.slice(0, 32), changedMaterialEntityIdsTruncated: colorChanged.length > 32, cameraChanged: canonicalStringify(state(before).camera ?? null) !== canonicalStringify(state(after).camera ?? null) });
 }
 
 function scriptProposalResult(proposal: ScriptEditProposal, owner: ReturnType<SceneAuthoringService['snapshot']>['entities'][number] | undefined): JsonObject {
@@ -1241,18 +1243,26 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const baseline = await observations.persistState(stored.call, before);
       let current = before;
       const steps: JsonObject[] = [];
+      const gestureInteractions: JsonObject[] = [];
+      let interactionCount = 0;
       for (const point of args.points as readonly JsonObject[]) {
         if (signal?.aborted) throw signal.reason;
         await options.preview.input({ kind: 'pointer', source: 'synthetic', tick: current.tick + 1, pointerId: args.pointerId as number, button: 0, phase: point.phase as 'down' | 'move' | 'up' | 'cancel', x: point.x as number, y: point.y as number }, signal);
         current = await options.preview.step(1, signal);
         const interactions = Array.isArray(current.value.interactions) ? current.value.interactions.filter(item => isRecord(item) && item.pointerId === args.pointerId) as JsonObject[] : [];
+        interactionCount += interactions.length;
+        gestureInteractions.push(...interactions.slice(0, Math.max(0, 128 - gestureInteractions.length)));
         const hit = interactions.find(item => item.type === point.phase) ?? interactions[0];
         const vector = (value: JsonValue | undefined): JsonValue => Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every(item => typeof item === 'number' && Number.isFinite(item)) ? value.slice(0, 3) : null;
         steps.push(Object.freeze({ phase: point.phase!, tick: current.tick, x: point.x!, y: point.y!, interactionTargetId: typeof hit?.entityId === 'string' ? hit.entityId.slice(0, 200) : null, point: vector(hit?.point), normal: vector(hit?.normal), interactionCount: interactions.length }));
       }
       if (Number(args.settleTicks) > 0) current = await options.preview.step(Number(args.settleTicks), signal);
-      const after = await observations.persistInspection(stored.call, current);
-      return Object.freeze({ baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, baselineProjectionTruncated: baseline.projectionTruncated, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, projectionTruncated: after[0]!.projectionTruncated, steps, effects: gestureEffects(before.value, current.value), executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick });
+      const effects = gestureEffects(before.value, current.value);
+      const gesture = Object.freeze({ steps, interactions: gestureInteractions, interactionCount, interactionsTruncated: interactionCount > gestureInteractions.length, fromTick: before.tick, toTick: current.tick });
+      // Persist exactly the host-computed effects shown to the model. A later
+      // settle tick can have no input events, so retain the whole tested gesture.
+      const after = await observations.persistInspection(stored.call, { ...current, value: Object.freeze({ ...current.value, effects, gesture }) });
+      return Object.freeze({ baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, baselineProjectionTruncated: baseline.projectionTruncated, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, projectionTruncated: after[0]!.projectionTruncated, steps, effects, executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick });
     }
     case 'play.input': {
       const observation = await options.preview.input(args.event as never, signal);

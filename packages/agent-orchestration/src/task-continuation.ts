@@ -16,12 +16,23 @@ export function taskContinuationRequest(run: ConversationTaskRunReadModel): stri
     criteria.push(next);
   }
   checkpoint.criteria = criteria; checkpoint.omittedCriteria = pending.length - criteria.length;
+  // Keep compatible evidence references across approval/model turns. Do not mix
+  // different Play instances or imply that a retained preview is still running.
+  const current = run.evidence.filter(item => item.provenanceStatus === 'current' && item.documentRevision === run.documentRevision);
+  const latest = current.at(-1);
+  const retained: unknown[] = [];
+  for (const item of current.filter(item => item.playId === latest?.playId).slice(-16).reverse()) {
+    const next = { id: item.id, type: item.type, tick: item.tick, playId: item.playId };
+    if (Buffer.byteLength(JSON.stringify({ ...checkpoint, retainedEvidence: [...retained, next] })) > 6144) break;
+    retained.push(next);
+  }
+  if (retained.length) checkpoint.retainedEvidence = retained;
   return [
     'Continue the same approved task from the current project checkpoint; a completed backend turn is not a completed game.',
     JSON.stringify(checkpoint),
-    'Re-inspect the authoritative project revision and finish only the missing work. Preserve completed entities, resources and scripts; do not recreate the project or request the same plan again.',
+    'Check the current revision once; scope any missing reads to affected entities/scripts. Reuse known tool schemas and documentation until an API question or validation error requires another lookup. Preserve completed work; do not recreate the project or request the same plan again.',
     'If the next operation requires approval, invoke that tool so Studio can present the actual approval request. Do not stop merely because a future operation may need approval; never bypass or broaden approval scope.',
-    'Validate scripts, start authorized Play, exercise the required interactions, collect readable same-revision evidence, and call task.evaluate. Inspect its per-criterion results (including any omitted above), repair supported failures within budget, and stop Play after testing. Do not weaken approved criteria or invent passing evidence.',
+    'Use retained compatible evidence for task.evaluate before repeating tests. For evidence selection errors, correct ids using the approved criterion ids and included observationIds; do not restart Play. Validate/start Play only when fresh tests are needed. Missing signal paths require checking the producer payload, not editing correct gameplay. Stop Play after testing. Do not weaken approved criteria or invent passing evidence.',
   ].join('\n\n');
 }
 
