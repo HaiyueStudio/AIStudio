@@ -371,6 +371,7 @@ function fakeDom() {
     set innerHTML(_) { innerHtmlWrites += 1; throw new Error('innerHTML is forbidden'); }
   }
   const matches = (value, selector) => {
+    if (/^\.[\w-]+$/u.test(selector)) return value.classList.contains(selector.slice(1));
     if (selector === '.chat-feed') return value.className === 'chat-feed';
     if (selector === '.chat-composer textarea') return value.tagName === 'textarea' && value.parent?.className === 'chat-composer';
     return value.tagName === selector;
@@ -411,4 +412,29 @@ test('optional usage lookup warning keeps task sending enabled and refresh retri
   assert.equal(fake.find('.chat-composer textarea').value, '继续生成棋盘');
   fake.findButton('Send').click();
   assert.deepEqual(intents.at(-1), { type: 'conversation/send', backendId, prompt: '继续生成棋盘' });
+});
+
+test('query allowance context remains readable and safe in the approval card after replay', () => {
+  const prompt = '本次希望查询 50 条，当前上限为 12 条。\n\n当前任务：修复魔方拖拽\n\n本次检索：<img src=x onerror=alert(1)> pointer capture';
+  const event = projection(1, node('node:query-context', 'question', 'pending', { prompt, queryLimit: { toolId: 'engine.docs.search', requested: 50, limit: 12 }, options: [{ id: 'option:query-expand', label: '查询 50 条' }, { id: 'option:query-cap', label: '按上限 12 条查询' }] }), 'replay');
+  const model = presentChatPanel(new ConversationProjector().reset(snapshot([event])));
+  const card = model.cards.find(card => card.id === 'node:query-context');
+  assert.equal(card.title, '查询额度确认'); assert.equal(card.body, prompt);
+  const fake = fakeDom(); renderChatPanel(fake.root, model, () => {});
+  assert.ok(fake.text().includes('当前任务：修复魔方拖拽'));
+  assert.equal(fake.find('.chat-question-context').style.whiteSpace, 'pre-wrap');
+  assert.equal(fake.innerHtmlWrites, 0);
+  assert.ok(fake.findButton('查询 50 条')); assert.ok(fake.findButton('按上限 12 条查询'));
+});
+
+test('assembly plan requirements survive replay and invalid requirements remain explicitly blocked data', () => {
+  const assemblies = [{assemblyId:'vehicle',label:'Body and wheels',partKeys:['body','wheel'],distinctColors:2,minimumInstances:4}];
+  const original = node('node:assembly-plan','plan','pending',{title:'Vehicle',summary:'Build reusable vehicles',items:[{id:'plan:vehicle',label:'Build prototype',status:'pending'}],assemblies});
+  const normalized = normalizeConversationNode(original);
+  assert.deepEqual(normalized.content.assemblies,assemblies);
+  const view = new ConversationProjector().reset(snapshot([projection(1,normalized,'replay')]));
+  const card = presentChatPanel(view).cards.find(c => c.id === original.id);
+  assert.match(card.body,/Body and wheels/); assert.match(card.body,/4 个实例/);
+  const invalid = normalizeConversationNode({...original,content:{...original.content,assemblies:[{...assemblies[0],minimumInstances:0}]}});
+  assert.equal(invalid.content.assemblies.length,1); assert.equal(invalid.content.assemblies[0].invalid,true);
 });

@@ -1,3 +1,4 @@
+import { SharedGeometryPool } from './render/shared-geometry.js';
 import { createAuthoringRoundedBox, roundedBoxParameters } from './render/rounded-box.js';
 import { createAuthoringPlane } from './render/plane.js';
 import { randomUUID } from 'node:crypto';
@@ -161,6 +162,7 @@ export const viewportServiceToken = createStudioServiceToken<ViewportService>('s
 const ENTITY_SELECTION_KIND = 'scene-entity';
 
 class EngineSceneProjection {
+  private readonly geometryPool = new SharedGeometryPool();
   private worldValue = new World('AIStudio Authoring World');
   private entities = new Map<StableId, Entity>();
   private disposed = false;
@@ -172,6 +174,7 @@ class EngineSceneProjection {
 
   rebuild(snapshot: SceneSnapshot): void {
     this.assertActive();
+    this.geometryPool.clear();
     const nextWorld = new World('AIStudio Authoring World');
     const nextEntities = new Map<StableId, Entity>();
     for (const item of snapshot.entities) {
@@ -182,7 +185,7 @@ class EngineSceneProjection {
         scale: tuple(item.transform.scale),
       });
       entity.addComponent(transform);
-      if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components), createMaterial(item.appearance!)));
+      if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components, this.geometryPool), createMaterial(item.appearance!)));
       else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!));
       nextEntities.set(item.id, entity);
     }
@@ -207,7 +210,7 @@ class EngineSceneProjection {
     if (!after && before) { const entity = this.entities.get(before.id); if (entity) { entity.destroy(); this.entities.delete(before.id); this.generation += 1; } return; }
     if (!after) return;
     if (!before) {
-      const entity = engineEntity(after); this.entities.set(after.id, entity);
+      const entity = engineEntity(after, this.geometryPool); this.entities.set(after.id, entity);
       if (after.parentId) { const parent = this.entities.get(after.parentId); if (!parent) throw new Error(`Scene parent ${after.parentId} is missing.`); parent.addChild(entity); }
       else this.worldValue.addEntity(entity);
       this.generation += 1; return;
@@ -222,7 +225,7 @@ class EngineSceneProjection {
     }
     if (isSceneGeometryKind(after.kind)) {
       entity.removeComponent(DirectionalLight); entity.removeComponent(PointLight); entity.removeComponent(AmbientLight);
-      entity.addComponent(new Mesh3D(createGeometry(after.kind, after.components), createMaterial(after.appearance!)));
+      entity.addComponent(new Mesh3D(createGeometry(after.kind, after.components, this.geometryPool), createMaterial(after.appearance!)));
     } else if (isSceneLightKind(after.kind)) {
       entity.removeComponent(Mesh3D); entity.removeComponent(DirectionalLight); entity.removeComponent(PointLight); entity.removeComponent(AmbientLight); entity.addComponent(createLight(after.kind, after.light!));
     } else {
@@ -236,6 +239,7 @@ class EngineSceneProjection {
     this.disposed = true;
     this.entities.clear();
     this.worldValue.destroy();
+    this.geometryPool.clear();
   }
   private assertActive(): void { if (this.disposed) throw new Error('Engine Scene projection is disposed.'); }
 }
@@ -688,7 +692,7 @@ function normalizeEntityName(value: string | undefined, kind: SceneEntityKind): 
 function normalizeRequiredEntityName(value: string): string { const name = value.trim(); if (!name || name.length > 80) throw new TypeError('Entity name must contain 1-80 characters.'); return name; }
 function tuple(value: Vec3Snapshot): [number, number, number] { return [value.x, value.y, value.z]; }
 function tupleDegreesToRadians(value: Vec3Snapshot): [number, number, number] { const factor = Math.PI / 180; return [value.x * factor, value.y * factor, value.z * factor]; }
-function engineEntity(item: SceneEntitySnapshot): Entity { const entity = new Entity(item.name); entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: tupleDegreesToRadians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) })); if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components), createMaterial(item.appearance!))); else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!)); return entity; }
+function engineEntity(item: SceneEntitySnapshot, pool: SharedGeometryPool): Entity { const entity = new Entity(item.name); entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: tupleDegreesToRadians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) })); if (isSceneGeometryKind(item.kind)) entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components, pool), createMaterial(item.appearance!))); else if (isSceneLightKind(item.kind)) entity.addComponent(createLight(item.kind, item.light!)); return entity; }
 export function isSceneGeometryKind(value: unknown): value is SceneGeometryKind { return SCENE_GEOMETRY_KINDS.includes(value as SceneGeometryKind); }
 export function isSceneLightKind(value: unknown): value is SceneLightKind { return SCENE_LIGHT_KINDS.includes(value as SceneLightKind); }
 export function isSceneMaterialKind(value: unknown): value is SceneMaterialKind { return SCENE_MATERIAL_KINDS.includes(value as SceneMaterialKind); }
@@ -717,13 +721,10 @@ function freezeLight(kind: SceneLightKind, value: NonNullable<SceneEntitySnapsho
   }
   return Object.freeze({ color, intensity: value.intensity });
 }
-function createGeometry(kind: SceneGeometryKind, components?: SceneEntitySnapshot['components']) {
-  switch (kind) {
-    case 'rounded-box': return createAuthoringRoundedBox(components?.find(item => item.type === 'haiyue.render.geometry')?.value);
-    case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();
-    case 'plane': { const plane = components?.find(item => item.type === 'haiyue.render.geometry')?.value.plane; return createAuthoringPlane(plane); } case 'torus': return createTorus3D(); case 'icosahedron': return createIcosahedron3D();
-  }
+function createGeometry(kind: SceneGeometryKind, components: SceneEntitySnapshot['components'] | undefined, pool: SharedGeometryPool) {
+  return pool.get(kind, components?.find(c => c.type === 'haiyue.render.geometry')?.value);
 }
+
 function createMaterial(appearance: NonNullable<SceneEntitySnapshot['appearance']>) {
   switch (appearance.material) {
     case 'basic': return new BasicMaterial({ color: appearance.color });

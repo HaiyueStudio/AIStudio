@@ -28,12 +28,44 @@ test('late durable snapshot responses cannot replace a newer pending or displaye
     host.captureGraphSnapshot(full); host.captureGraphSnapshot(early);
     await new Promise(resolve => setTimeout(resolve, 30));
     const expected = host.replay().executionGraphs[0];
-    assert.equal(expected.nodes.length, 3);
+    assert.equal(expected.nodes.length, 4);
+    assert.equal(expected.nodes.filter(node => node.kind === 'model').length, 1);
     host.captureGraphSnapshot(early, true);
     assert.equal(host.replay().executionGraphs[0].digest, expected.digest);
     const next = await handle.append({ kind: 'question.resolved', turnId: 'turn:ordered', payload: { questionId: 'question:ordered', resolution: 'answered' } });
     host.captureGraphSnapshot(next, true);
     assert.ok(host.replay().executionGraphs[0].throughSequence > expected.throughSequence);
+  } finally { await host.dispose(); await sessions.dispose(); await log.close(); }
+});
+
+test('public assistant output is persisted once per model/tool boundary and streams into the current node', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-model-segments-'));
+  const log = await OperationLog.open({ rootDirectory: root, appVersion: 'model-segments' });
+  const sessions = new DurableSessionRuntime(log);
+  const host = new StudioConversationHost({ runtime: { sessions }, tools: { definitions: () => [] }, operationLog: log, isProjectOpen: () => false });
+  const turnId = 'turn:segments', sessionId = 'session:segments';
+  const provenance = { backendId: 'backend:test', sessionId, turnId };
+  try {
+    const handle = await sessions.create({ id: sessionId, activeGoal: 'Inspect board picking', projectId: null, documentId: null, taskBudgetId: null });
+    await handle.append({kind:'turn.started',turnId}); host.captureGraphSnapshot(await handle.snapshot(),true);
+    const textId = host.internalNodeId('text',turnId);
+    host.project(textId,'text','streaming',provenance,{role:'assistant',text:'先检查棋盘交互。'});
+    await host.publishAssistantSegment(sessionId,turnId);
+    await host.publishAssistantSegment(sessionId,turnId);
+    await handle.append({kind:'tool-batch.planned',turnId,batchId:'batch:segments'});
+    await handle.append({kind:'tool-batch.started',turnId,batchId:'batch:segments'});
+    await handle.append({kind:'tool.started',turnId,batchId:'batch:segments',nodeId:'node:segments',payload:{toolId:'scene.query'}});
+    await handle.append({kind:'tool.completed',turnId,batchId:'batch:segments',nodeId:'node:segments',payload:{toolId:'scene.query',status:'completed'}});
+    await handle.append({kind:'tool-batch.completed',turnId,batchId:'batch:segments',payload:{status:'completed'}});
+    host.project(textId,'text','streaming',provenance,{role:'assistant',text:'先检查棋盘交互。已发现贴图间距不一致。'});
+    assert.equal(host.unpublishedAssistantText(sessionId,turnId),'已发现贴图间距不一致。');
+    await host.publishAssistantSegment(sessionId,turnId);
+    const saved = await handle.snapshot();
+    assert.deepEqual(saved.transcript.filter(item=>item.role==='assistant').map(item=>item.content),['先检查棋盘交互。','已发现贴图间距不一致。']);
+    host.captureGraphSnapshot(saved,true);
+    const models = host.replay().executionGraphs[0].nodes.filter(node=>node.kind==='model');
+    assert.equal(models[0].detail.modelExplanation,'先检查棋盘交互。');
+    assert.equal(models[1].detail.modelExplanation,'已发现贴图间距不一致。');
   } finally { await host.dispose(); await sessions.dispose(); await log.close(); }
 });
 

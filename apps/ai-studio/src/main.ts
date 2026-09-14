@@ -125,7 +125,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       const historyDirectory = (binding: Readonly<{ projectId: string | null; storageKey: string | null }>) => binding.storageKey
         ? path.join(binding.storageKey, '.aistudio', 'agent')
         : path.join(app.getPath('userData'), 'project-agent-history', sha256(binding.projectId ?? 'workspace-empty').slice(0, 32));
-      const queryPreferences = new QueryPreferences(path.join(app.getPath('userData'), 'preferences', 'query-limits.json'));
+      const queryPreferences = new QueryPreferences(path.join(app.getPath('userData'), 'query-limits.json'));
       await queryPreferences.initialize();
       context.effects.own('query-preferences.dispose', () => queryPreferences.dispose());
       const conversation = new ProjectConversationController({

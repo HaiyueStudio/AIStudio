@@ -2,7 +2,14 @@
 // entity:board has haiyue.interaction.pointer with events: ['click'].
 // This example uses an axis-aligned XZ grid in world space. Its origin and
 // spacing are shared by snapping and rendering, independent of the camera.
-const grid = { columns: 15, rows: 15, originX: -7, originZ: -7, spacing: 1 };
+// Texture recipe: 1024 x 1024, exactly 15 lines per axis at 64 + i * 64
+// for i=0..14 (last line 960). Board spans 16 world units, centered at 0.
+// Use the SAME definition for texture generation, picking, rendering and tests.
+const layout = { count: 15, textureSize: 1024, firstPixel: 64, lastPixel: 960, boardSize: 16 };
+const grid = { columns: layout.count, rows: layout.count,
+  originX: (layout.firstPixel / layout.textureSize - 0.5) * layout.boardSize,
+  originZ: (layout.firstPixel / layout.textureSize - 0.5) * layout.boardSize,
+  spacing: (layout.lastPixel - layout.firstPixel) / (layout.count - 1) / layout.textureSize * layout.boardSize };
 const state = component.data as unknown as { column?: number; row?: number; placements?: number };
 for (const hit of api.input.interactions()) {
   if (hit.type !== 'click' || hit.entityId !== 'entity:board') continue;

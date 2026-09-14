@@ -7,6 +7,7 @@ interface ValidationRequest {
   readonly sourcePath: string;
   readonly text: string;
   readonly declarations: string;
+  readonly sceneEntityNames?: readonly string[];
 }
 
 interface ScriptDiagnostic {
@@ -73,7 +74,7 @@ function validate(request: ValidationRequest): Readonly<{ id: string; diagnostic
       });
     });
   diagnostics.push(...capabilityDiagnostics(normalized.text, request.sourcePath));
-  diagnostics.push(...runtimeContractDiagnostics(normalized.text, request.sourcePath));
+  diagnostics.push(...runtimeContractDiagnostics(normalized.text, request.sourcePath, request.sceneEntityNames));
   const transpiled = ts.transpileModule(normalized.text, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, removeComments: false },
     fileName: request.sourcePath,
@@ -165,7 +166,7 @@ function capabilityDiagnostics(text: string, sourcePath: string): ScriptDiagnost
   return diagnostics;
 }
 
-function runtimeContractDiagnostics(text: string, sourcePath: string): ScriptDiagnostic[] {
+function runtimeContractDiagnostics(text: string, sourcePath: string, sceneEntityNames?: readonly string[]): ScriptDiagnostic[] {
   const source = ts.createSourceFile(sourcePath, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
   const diagnostics: ScriptDiagnostic[] = [];
   const constants = collectConstInitializers(source);
@@ -176,6 +177,16 @@ function runtimeContractDiagnostics(text: string, sourcePath: string): ScriptDia
       const position = source.getLineAndCharacterOfPosition(node.getStart(source));
       diagnostics.push({ code: 'script.entity-lookup-space', severity: 'warning', path: sourcePath, line: position.line + 1, column: position.character + 1,
         message: 'world.getEntity uses Engine runtime ids or names. For project entity ids returned by scene tools, use api.read.find(entityId), and verify the target exists before reporting interaction success.' });
+    }
+    if (sceneEntityNames && ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+      && node.expression.name.text === 'findAll' && node.expression.expression.getText(source) === 'api.read') {
+      const argument = node.arguments[0];
+      if (argument && ts.isStringLiteralLike(argument) && !sceneEntityNames.includes(argument.text)) {
+        const position = source.getLineAndCharacterOfPosition(argument.getStart(source));
+        const candidates = sceneEntityNames.filter(name => name.includes(argument.text)).slice(0, 4);
+        diagnostics.push({ code: 'script.entity-name-no-match', severity: 'warning', path: sourcePath, line: position.line + 1, column: position.character + 1,
+          message: `api.read.findAll(${JSON.stringify(argument.text)}) matches exact entity names, not role keys or substrings; no matching name exists in the current scene. ${candidates.length ? 'Similar full names: ' + candidates.map(name => JSON.stringify(name)).join(', ') + '. ' : ''}Bind exact ids returned by assembly.instantiate or scene.query with api.read.find(id), or explicitly filter api.read.findAll(). Verify nonzero affected entities before reporting success; runtime-created entities may require a deliberate later lookup.` });
+      }
     }
     if (ts.isCallExpression(node) && isSceneInstancesCall(node.expression)) {
       const capacity = node.arguments[1];

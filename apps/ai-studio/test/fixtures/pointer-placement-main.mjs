@@ -119,6 +119,30 @@ try {
   assert.notEqual(background.value.state.camera.theta, beforeCamera);
   assert.deepEqual(background.value.state.entities[0].rotation, released.value.state.entities[0].rotation);
   assert.equal(background.value.runtimeErrorCount, 0);
+  // One-line OrbitControls API: native and Agent input must move the same camera,
+  // without rotating the viewed cube, in both projection modes.
+  const orbitValidator = new ScriptValidationWorker();
+  let orbitValidation;
+  try { orbitValidation = await orbitValidator.validate({scriptId:'script:orbit',textRevision:1,sourcePath:'scripts/orbit.ts',text:await readFile(new URL('../../../../docs/examples/orbit-camera.ts',import.meta.url),'utf8'),capabilities:['read']});assert.deepEqual(orbitValidation.diagnostics,[]); }
+  finally {await orbitValidator.dispose();}
+  const orbitPlan = {...dragPlan,scripts:[{...dragPlan.scripts[0],emittedText:orbitValidation.emittedText,capabilities:orbitValidation.capabilities}],capabilities:orbitValidation.capabilities};
+  for (const projection of ['perspective','orthographic']) for (const authored of [false,true]) {
+    const cameraEntity = {id:'entity:viewer-camera',name:'Gameplay camera',kind:'empty',parentId:null,order:1,transform:{position:{x:0,y:0,z:8},rotationDegrees:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},components:[{id:'component:viewer-camera',type:'haiyue.camera.3d',version:'1.0.0',enabled:true,value:{active:true,projection,fovDegrees:45,orthographicHeight:10,near:.01,far:100,reverseZ:false,viewport:{x:0,y:0,width:1,height:1}}}]};
+    const viewer = {...dragScene,camera:{...dragScene.camera,projection},entities:[...dragScene.entities,...(authored?[cameraEntity]:[])]};
+    await control.stop();await control.start(viewer,orbitPlan);const baseline=await control.step(1);
+    await nativePointer('mousePressed',.5,.5);await nativePointer('mouseMoved',.7,.6);const nativeOrbit=await nativePointer('mouseReleased',.7,.6);
+    assert.notEqual(nativeOrbit.value.state.camera.theta,baseline.value.state.camera.theta);
+    assert.deepEqual(nativeOrbit.value.state.entities,baseline.value.state.entities,'camera orbit leaves the cube transform unchanged');
+    assert.equal(nativeOrbit.value.runtimeErrorCount,0);
+    await control.stop();await control.start(viewer,orbitPlan);await control.step(1);
+    for (const e of [{phase:'down',x:.5,y:.5},{phase:'move',x:.7,y:.6},{phase:'up',x:.7,y:.6}]) await control.input({kind:'pointer',source:'synthetic',tick:2,pointerId:7,...e});
+    const replay=await control.step(1);
+    assert.ok(Math.abs(replay.value.state.camera.theta-nativeOrbit.value.state.camera.theta)<.015,JSON.stringify({replay:replay.value.state.camera,native:nativeOrbit.value.state.camera}));
+    assert.ok(Math.abs(replay.value.state.camera.phi-nativeOrbit.value.state.camera.phi)<.015);
+    assert.equal(replay.value.runtimeErrorCount,0);
+    results.push({orbitProjection:projection,authoredCamera:authored,nativeAndReplay:true,cubeUnchanged:true});
+  }
+  await control.stop();await control.start(dragScene,dragPlan);
   // Synthetic down/move/up in one tick must still see an active drag (not the final released snapshot).
   await control.stop(); await control.start(dragScene, dragPlan);
   for (const event of [{phase:'down',x:.5,y:.5},{phase:'move',x:.92,y:.5},{phase:'up',x:.92,y:.5}]) await control.input({kind:'pointer',source:'synthetic',tick:1,pointerId:5,...event});
@@ -143,6 +167,21 @@ try {
   assert.equal(tileReleased.value.state.camera.theta,beforeOrbit);
   assert.ok(tileReleased.value.interactions.some(hit=>hit.type==='up' && hit.entityId===child.id));
   assert.equal(tileReleased.value.runtimeErrorCount,0);
+  await control.stop();
+  // Reproduce an opaque decoration hiding a correctly configured body, then fix
+  // the decoration explicitly instead of mistaking a missing interaction for background.
+  await control.start({...dragScene,entities:[...dragScene.entities,{...child,components:[]}]},dragPlan);await control.step(1);
+  const occluded = await nativePointer('mousePressed',.5,.5);
+  assert.equal(occluded.value.interactions.some(hit=>hit.type==='down'),false);
+  await nativePointer('mouseReleased',.5,.5);await control.stop();
+  const decoration={...child,components:[{...child.components[0],value:{...child.components[0].value,events:[],penetrable:true}}]};
+  await control.start({...dragScene,entities:[...dragScene.entities,decoration]},dragPlan);await control.step(1);
+  const throughDecoration=await nativePointer('mousePressed',.5,.5);
+  assert.ok(throughDecoration.value.interactions.some(hit=>hit.type==='down'&&hit.entityId==='entity:drag-target'));
+  const cameraBeforeDecoration=throughDecoration.value.state.camera.theta;
+  await nativePointer('mouseMoved',.9,.5);const decorationRelease=await nativePointer('mouseReleased',.9,.5);
+  assert.ok(decorationRelease.value.state.entities.find(item=>item.id==='entity:drag-target').rotation[1]>1);
+  assert.equal(decorationRelease.value.state.camera.theta,cameraBeforeDecoration);
   await control.stop();
   results.push({compositeChildHit:child.id,ownerRotated:true,cameraUnchanged:true});
   console.log('[pointer-placement] native object/background drags, capture outside target, same-tick gesture and blur cancellation passed');

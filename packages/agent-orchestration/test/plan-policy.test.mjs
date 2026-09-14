@@ -46,3 +46,43 @@ test('plan validation preserves corrected requirements and still rejects invalid
   }
   assert.doesNotThrow(() => validatePlanProposal(proposal('evidence performance signal finite equals true')));
 });
+
+test('semicolon-separated conditions from the reported cube plan become separate executable checks', () => {
+  const conditions = ['evidence state signal gameplay.0.value.status.phase equals "ready"', 'evidence state signal gameplay.0.value.metrics.cubieCount equals 27', 'evidence state signal gameplay.0.value.metrics.roundedCubieCount equals 27', 'evidence state signal gameplay.0.value.metrics.pbrPartCount gte 27'];
+  const input = proposal(conditions.join('; ')); const before = JSON.stringify(input);
+  const plan = validatePlanProposal(input);
+  assert.deepEqual(plan.acceptance.map(item => item.assertion), conditions);
+  assert.ok(plan.acceptance.every(item => item.required && item.category === 'functional'));
+  assert.deepEqual(plan.acceptance.map(item => item.label), conditions.map((_, i) => `Input updates score（${i + 1}/4）`));
+  assert.equal(JSON.stringify(input), before);
+  assert.deepEqual(validatePlanProposal({ ...input, acceptance: plan.acceptance }).acceptance, plan.acceptance, 'canonical plans are stable on replay');
+});
+
+test('compound parsing preserves semicolons inside JSON strings and nested values', () => {
+  const first = `evidence state signal message equals ${JSON.stringify('ready; "go"；end\\path')}`;
+  const second = `evidence state signal object equals ${JSON.stringify({ label: 'a;b', nested: ['c;d'] })}`;
+  const third = 'evidence runtime-errors signal count equals 0';
+  const input = proposal(`${first}； ${second}; ${third}`); input.acceptance[0].required = false;
+  assert.deepEqual(validatePlanProposal(input).acceptance.map(item => item.assertion), [first, second, third]);
+  assert.ok(validatePlanProposal(input).acceptance.every(item => item.required === false));
+});
+
+test('compound validation rejects an invalid member without silently dropping requirements', () => {
+  for (const bad of ['unparseable prose', '', 'evidence state signal phase equals ready']) {
+    assert.throws(() => validatePlanProposal(proposal(`evidence state; ${bad}; evidence runtime-errors signal count equals 0`)), error => error.code === 'plan.payload-invalid' && /条件 2\/3/.test(error.message) && error.message.length < 700);
+  }
+  assert.throws(() => validatePlanProposal(proposal('evidence state; evidence visual-analysis')), error => error.code === 'plan.evidence-producer-unavailable' && /条件 2/.test(error.message));
+  const input = proposal('evidence state; evidence screenshot'); input.acceptance = Array.from({ length: 26 }, () => input.acceptance[0]);
+  assert.throws(() => validatePlanProposal(input), /expands to 52/);
+  assert.throws(() => validatePlanProposal(proposal('x'.repeat(2001))), /up to 2000 characters/);
+});
+
+test('approved assembly requirements are structured and retained across plan serialization', async () => {
+  const { canonicalPlan } = await import('../dist/plan-policy.js');
+  const assemblies = [{assemblyId:'cabinet',label:'Cabinet panels',partKeys:['body','front','back'],distinctColors:3,minimumInstances:4}];
+  const result = validatePlanProposal({...proposal('evidence state'),assemblies});
+  assert.deepEqual(result.assemblies,assemblies);
+  assert.deepEqual(JSON.parse(canonicalPlan({...result,attempts:0,mutationCount:0})).assemblies,assemblies);
+  assert.throws(() => validatePlanProposal({...proposal('evidence state'),assemblies:[...assemblies,...assemblies]}), /unique/);
+  assert.throws(() => validatePlanProposal({...proposal('evidence state'),assemblies:[{...assemblies[0],minimumInstances:0}]}));
+});

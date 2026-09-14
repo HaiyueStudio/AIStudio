@@ -2,21 +2,19 @@
 // capturePointer=true and draggable=true on the body AND selectable child surfaces.
 // Initial transforms belong in the Document. A missing interaction is only background
 // after confirming coverage; this example scene has no unconfigured visible blockers.
-// This example uses the preview's spherical camera; inspect the active camera component
-// before adapting it to a project with a Cartesian gameplay camera.
+// Studio handles background camera gestures using the same fixed-tick input pipeline.
+api.scene.orbitControls({ mode: 'background' });
 type GestureState = { mode?: 'object' | 'camera' | ''; pointerId?: number; x?: number; y?: number; changes?: number; cancels?: number };
 const state = component.data as unknown as GestureState;
 const object = api.read.find('entity:drag-target');
 if (!object) throw new Error('Missing drag target');
 const transform = object.getComponent('CartesianTransform3D') as unknown as { rotation: Float32Array; setRotation(x: number, y: number, z: number): unknown };
-const cameraEntity = api.read.findAll().find((candidate: Entity) => candidate.getComponent('Camera3D') !== null);
-const camera = cameraEntity?.getComponent('SphericalTransform3D') as unknown as { theta: number; phi: number } | null;
 for (const event of api.input.pointerEvents()) {
   if (event.type === 'down') {
     const hit = api.input.interactions().find((hit: { type: string; entityId: string; pointerId: number }) => hit.type === 'down' && hit.pointerId === event.pointerId);
     let hitOwner: Entity | null = hit ? api.read.find(hit.entityId) : null;
     while (hitOwner && hitOwner !== object) hitOwner = hitOwner.parent;
-    state.mode = hitOwner === object ? 'object' : !hit ? 'camera' : '';
+    state.mode = hitOwner === object ? 'object' : '';
     state.pointerId = event.pointerId; state.x = event.x; state.y = event.y;
   }
   if (event.pointerId !== state.pointerId) continue;
@@ -24,8 +22,6 @@ for (const event of api.input.pointerEvents()) {
     // Normalized displacement controls angle, not world position or picking.
     const dx = event.x - (state.x ?? event.x), dy = event.y - (state.y ?? event.y);
     if (state.mode === 'object') transform.setRotation(transform.rotation[0], transform.rotation[1] + dx * Math.PI, transform.rotation[2]);
-    else if (camera) { camera.theta += dx * Math.PI; camera.phi = Math.max(.1, Math.min(Math.PI - .1, camera.phi + dy * Math.PI)); }
-    else throw new Error('Expected spherical camera');
     state.x = event.x; state.y = event.y;
     if (dx !== 0 || dy !== 0) state.changes = (state.changes ?? 0) + 1;
   }

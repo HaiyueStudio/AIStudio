@@ -109,6 +109,7 @@ function runtimeFixture(options = {}) {
         options.onStart?.(input);
         if (options.empty) { yield emit('completed', { status: 'completed' }); return; }
         starts += 1;
+        if (options.beforeRequestsText) yield emit('conversation-node', { status: 'completed', delta: options.beforeRequestsText });
         if (options.parallelRequests) {
           const waits = [];
           for (const request of options.parallelRequests) {
@@ -162,7 +163,7 @@ function toolsFixture(options = {}) {
     async prepare(call) { options.onPrepare?.(call); const preparation = { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: call.toolId === 'entity.create' ? 'reversible-edit' : 'observe', risk: 'low', documentId: 'document:g11', baseRevision: 7, argumentsDigest: digest('d'), previewDigest: digest('f'), preview: { title: call.toolId, target: 'Current project', summary: call.toolId, diff: '' }, status: 'ready', arguments: call.arguments, taskId: call.taskId }; preparations.set(preparation.id, preparation); return preparation; },
     async execute(id) {
       const prepared = preparations.get(id); if (!prepared) throw new Error('missing preparation');
-      if (prepared.toolId === 'engine.docs.search') return result(prepared, { matches: [], requestedCount: prepared.arguments.limit }, 7, 7);
+      if (prepared.toolId === 'engine.docs.search') return result(prepared, { matches: [], ...(prepared.arguments.limit === undefined ? {} : { requestedCount: prepared.arguments.limit }) }, 7, 7);
       if (prepared.toolId === 'entity.create' && options.editFailure && !prepared.callId.endsWith(':retry')) throw Object.assign(new Error('Query window contains 31784 retained events; scan budget is 10000.'), { code: 'query-scan-budget-exceeded' });
       if (prepared.toolId === 'entity.create') return result(prepared, { entityId: 'entity:score-target', revision: 7 }, 7, 7);
       if (prepared.toolId === 'play.inspect') return result(prepared, { observation: observation(prepared.taskId) }, 7, 7);
@@ -406,6 +407,9 @@ for (const choice of ['query-expand', 'query-cap']) test(`query allowance ${choi
     await host.initialize();
     const restored = nodes(host).filter(n => n.id === pending.id).at(-1);
     assert.equal(restored.content.queryLimit.requested, 20);
+    assert.equal(restored.content.prompt, pending.content.prompt);
+    assert.match(restored.content.prompt, /当前任务：Find pointer docs/);
+    assert.match(restored.content.prompt, /本次检索：引擎文档：pointer/);
     await assert.rejects(host.dispatch({ type: 'conversation/answer-question', nodeId: pending.id, answer: { optionIds: ['option:forged'] } }));
     await host.dispatch({ type: 'conversation/answer-question', nodeId: pending.id, answer: { optionIds: [restored.content.options.find(o => o.id.includes(choice)).id] } });
     await waitFor(() => !host.replay().busy && calls.length === 1);
@@ -438,10 +442,72 @@ test('parallel queries share one allowance question while preserving each query'
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Search pointer and camera docs.' });
     await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending') && nodes(host).filter(n => n.kind === 'tool-call').length >= 2);
     const questions = nodes(host).filter(n => n.kind === 'question'); assert.equal(new Set(questions.map(n => n.id)).size, 1); assert.equal(calls.length, 0);
-    const question = questions.at(-1);
+    const question = nodes(host).filter(n => n.kind === 'question').at(-1);
+    assert.match(question.content.prompt, /pointer/); assert.match(question.content.prompt, /camera/);
     await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(o => o.id.includes('query-expand')).id] } });
     await waitFor(() => !host.replay().busy);
     assert.deepEqual(calls.map(c => c.arguments.query).sort(), ['camera', 'pointer']);
     assert.ok(calls.every(c => c.arguments.limit === 20));
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('documentation continuation preserves the stored search allowance without injecting a new limit', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-continuation-')); const log = await openLog(root); const calls = [];
+  const args = { continueFrom: 'sref:1234567890abcdef:1' };
+  const limits = { 'engine.docs.search': 1, 'tool.search': 50, 'scene.query': 100, 'scene.diff': 100 };
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ requests: [{ id: 'tool:query-next', toolId: 'engine.docs.search', arguments: args }] }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext, queryLimits: () => limits });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Continue the returned documentation page.' }); await waitFor(() => !host.replay().busy);
+    assert.deepEqual(calls[0].arguments, args); assert.ok(!nodes(host).some(n => n.kind === 'question'));
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+for (const beforeRequestsText of ['正在检查魔方拖拽命中与相机轨道控制的冲突，需要查找引擎指针捕获 API。', undefined]) test(`query confirmation displays its actual task and search context (${beforeRequestsText ? 'visible explanation' : 'no invented reason'})`, async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-context-')); const log = await openLog(root);
+  const calls = [];
+  const requests = [{ id: 'tool:context-search', toolId: 'engine.docs.search', arguments: { query: 'pointer capture OrbitControl', surface: 'studio-script', limit: 50 } }];
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ requests, beforeRequestsText }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: '修复魔方拖拽旋转，空白区域仍可调整相机。' });
+    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    const question = nodes(host).filter(n => n.kind === 'question').at(-1);
+    assert.match(question.content.prompt, /当前任务：修复魔方拖拽旋转/);
+    assert.match(question.content.prompt, /当前阶段：制定方案/);
+    assert.match(question.content.prompt, /pointer capture OrbitControl/);
+    assert.match(question.content.prompt, /范围：运行脚本 API/);
+    assert.match(question.content.prompt, /希望查询 50 条，当前上限为 12 条/);
+    assert.ok(question.content.prompt.length <= 2048);
+    if (beforeRequestsText) assert.ok(question.content.prompt.includes(beforeRequestsText));
+    else assert.match(question.content.prompt, /AI 尚未提供单独的查询原因/);
+    await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(o => o.id.includes('query-cap')).id] } });
+    await waitFor(() => !host.replay().busy);
+    assert.deepEqual(calls[0].arguments, { ...requests[0].arguments, limit: 12 });
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('compound plan criteria are expanded before approval and persist as individual pending checks', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-compound-plan-'));
+  let log, sessions, host;
+  const assertions = ['evidence state signal count equals 27', 'evidence state signal roundedCount equals 27'];
+  const assemblies = [{ assemblyId:'cabinet',label:'Independent front and back',partKeys:['body','front','back'],distinctColors:3,minimumInstances:3 }];
+  const requests = [{ id: 'tool:compound-plan', toolId: 'studio.plan.propose', arguments: { assemblies, title: 'Composite object', summary: 'Verify count and geometry independently.', items: [{ label: 'Create objects', details: 'Author the requested composite objects.' }], acceptance: [{ label: 'Correct object structure', required: true, category: 'functional', assertion: assertions.join('; ') }] } }];
+  try {
+    log = await openLog(root); sessions = new DurableSessionRuntime(log);
+    host = new StudioConversationHost({ runtime: runtimeFixture({ requests, sessions }), tools: toolsFixture(), operationLog: log, projectContext, sessionRecovery: { async recover() {} } });
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create 27 rounded objects.' });
+    await waitFor(() => !host.replay().busy && nodes(host).some(n => n.kind === 'plan' && n.status === 'pending'));
+    const run = host.replay().taskRuns.at(-1);
+    assert.equal(run.status, 'waiting-user');
+    assert.deepEqual(run.acceptance.map(a => a.assertion), assertions);
+    assert.ok(run.acceptance.every(a => a.required && a.status !== 'pass'));
+    assert.equal(nodes(host).find(n => n.kind === 'plan').content.acceptance.length, 2);
+    assert.deepEqual(nodes(host).find(n => n.kind === 'plan').content.assemblies, assemblies);
+    assert.ok(!nodes(host).some(n => n.kind === 'tool-result' && n.status === 'failed'));
+    await host.dispose(); await sessions.dispose(); await log.close();
+    log = await openLog(root); sessions = new DurableSessionRuntime(log);
+    host = new StudioConversationHost({ runtime: runtimeFixture({ empty: true, sessions }), tools: toolsFixture(), operationLog: log, projectContext });
+    await host.initialize();
+    assert.deepEqual(host.replay().taskRuns.at(-1).acceptance.map(a => a.assertion), assertions);
+    assert.deepEqual(nodes(host).find(n => n.kind === 'plan').content.assemblies, assemblies);
+  } finally { await host?.dispose(); await sessions?.dispose(); await log?.close(); await rm(root, { recursive: true, force: true }); }
 });

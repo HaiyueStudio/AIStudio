@@ -15,3 +15,5 @@ export * from './canvas-texture.js';
 export * from './engine-docs.js';
 
 export * from './query-limits.js';
+
+export { ASSEMBLY_EXPECTATIONS_SCHEMA, normalizeAssemblyExpectations } from './assemblies.js';

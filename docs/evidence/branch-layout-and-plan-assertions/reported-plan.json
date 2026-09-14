@@ -1,0 +1,14 @@
+{
+  "cause": "Multiple assertions joined by semicolons in one assertion field.",
+  "sourceSequence": 1387,
+  "originalCriteria": 5,
+  "normalizedCriteria": 15,
+  "firstOriginalAssertion": "evidence state signal gameplay.0.value.status.phase equals \"ready\"; evidence state signal gameplay.0.value.metrics.cubieCount equals 27; evidence state signal gameplay.0.value.metrics.roundedCubieCount equals 27; evidence state signal gameplay.0.value.metrics.pbrPartCount gte 27",
+  "firstNormalizedAssertions": [
+    "evidence state signal gameplay.0.value.status.phase equals \"ready\"",
+    "evidence state signal gameplay.0.value.metrics.cubieCount equals 27",
+    "evidence state signal gameplay.0.value.metrics.roundedCubieCount equals 27",
+    "evidence state signal gameplay.0.value.metrics.pbrPartCount gte 27"
+  ],
+  "allRequiredPreserved": true
+}

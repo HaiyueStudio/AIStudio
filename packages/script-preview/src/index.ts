@@ -170,7 +170,7 @@ export class ScriptValidationWorker {
   }
 
   async validate(input: Readonly<{
-    scriptId: StableId; textRevision: number; sourcePath: string; text: string; capabilities?: readonly ScriptCapabilityName[];
+    scriptId: StableId; textRevision: number; sourcePath: string; text: string; capabilities?: readonly ScriptCapabilityName[]; sceneEntityNames?: readonly string[];
   }>): Promise<ScriptValidationResult> {
     this.assertActive();
     const capabilities = normalizeCapabilities(input.capabilities, input.text);
@@ -185,6 +185,7 @@ export class ScriptValidationWorker {
           sourcePath: input.sourcePath,
           text: input.text,
           declarations: studioScriptRuntimeDeclarations(capabilities),
+          sceneEntityNames: input.sceneEntityNames && input.sceneEntityNames.length <= 4096 ? input.sceneEntityNames : undefined,
         });
       } catch (cause) {
         this.pending.delete(requestId);
@@ -271,7 +272,24 @@ interface HaiyueStudioHudTextOptions {
   readonly backgroundColor?: string;
   readonly fontSize?: number;
 }
+interface HaiyueStudioOrbitOptions {
+  readonly enabled?: boolean;
+  readonly mode?: 'all' | 'background';
+  readonly target?: HaiyueStudioInstanceVector;
+  readonly rotateSpeed?: number;
+  readonly enableZoom?: boolean;
+  readonly minRadius?: number;
+  readonly maxRadius?: number;
+}
 interface HaiyueScriptSceneApi {
+  /** Call once each onUpdate tick from one script with input + scene capabilities.
+   * Uses Engine spherical transforms and queued native/replayed input for left-drag orbit and wheel zoom.
+   * mode all (default) handles dragging anywhere; background excludes registered pointer hits at down,
+   * and retains gesture ownership until up/cancel. Configure object and child hit surfaces first.
+   * target is world x/y/z, applied on initial binding; default is the persisted spherical target or origin
+   * for a root Cartesian gameplay camera. Disable camera.follow. No DOM or native constructors are exposed.
+   * Actual results are in play.inspect state.camera; this never changes the persisted authoring camera. */
+  orbitControls(options?: HaiyueStudioOrbitOptions): void;
   /** Fixed maximum capacity, supplied as a literal or const-only numeric expression.
    * Capacity cannot change during Play; use setCount for the active instance count.
    * Instance positions are world-space; rotationDegrees is in degrees. The source mesh supplies geometry/material, not an extra parent transform. */
@@ -316,7 +334,7 @@ export class ProjectScriptService {
     const scriptId = previous?.id ?? asStableId(`script:${randomUUID()}`);
     const sourcePath = previous?.sourcePath ?? `scripts/${scriptId.slice('script:'.length)}.ts`;
     const nextTextRevision = (previous?.textRevision ?? 0) + 1;
-    const validation = await this.validator.validate({ scriptId, textRevision: nextTextRevision, sourcePath, text: input.text, capabilities: input.capabilities ?? previous?.capabilities });
+    const validation = await this.validator.validate({ scriptId, textRevision: nextTextRevision, sourcePath, text: input.text, capabilities: input.capabilities ?? previous?.capabilities, sceneEntityNames: this.workspace.gameSnapshot().entities.map(entity => entity.name) });
     if (validation.stale) throw new Error('Script validation result is stale.');
     const normalizedText = validation.normalizedText;
     const id = asStableId(`script-proposal:${randomUUID()}`);
@@ -840,7 +858,8 @@ function normalizeCapabilities(value: readonly ScriptCapabilityName[] | undefine
   const requested = value ?? DEFAULT_SCRIPT_CAPABILITIES;
   const inferred = usesSceneApi(text) ? ['scene' as const] : [];
   const physics = usesPhysicsApi(text) ? ['physics' as const] : [];
-  const unique = [...new Set([...requested, ...inferred, ...physics])];
+  const orbitInput = /\bapi\s*\.\s*scene\s*\.\s*orbitControls\b/u.test(text) ? ['input' as const] : [];
+  const unique = [...new Set([...requested, ...inferred, ...physics, ...orbitInput])];
   for (const capability of unique) if (!SCRIPT_CAPABILITIES.includes(capability)) throw new TypeError(`Unknown script capability ${capability}.`);
   return Object.freeze(unique);
 }

@@ -30,6 +30,36 @@ async function fixture(t) {
   const stamp = source => ({ epoch: source.epoch, documentId: source.document.id, baseRevision: source.document.revision, selectionRevision: source.selection.revision });
   return { ...f, invoke, request, editor, selection, approvals, stamp, setDecision: value => { decision = value; }, setTarget: value => { target = value; } };
 }
+test('production resource IPC reads assembly prototypes and replicated resources after reopen', async t => {
+  const f = await fixture(t);
+  const transform = (x = 0) => ({ position: { x, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
+  const created = await execute(f, 'assembly.create', { baseRevision: f.workspace.gameSnapshot().revision, assemblyId: 'tiles', blueprint: {
+    name: 'Reusable tile', parts: [{ key: 'body', kind: 'rounded-box', material: 'pbr', color: [.05, .05, .05, 1], transform: transform() }],
+    requirements: [{ label: 'Rounded body', partKeys: ['body'] }],
+  } });
+  assert.equal(created.status, 'completed');
+  // Query before any copying: the persisted prototype field alone used to reject the entire source.
+  assert.equal((await f.invoke('editor/resources', { category: 'Geometry' })).total, 1);
+  const inspected = await execute(f, 'assembly.inspect', { baseRevision: f.workspace.gameSnapshot().revision, assemblyId: 'tiles' });
+  const copied = await execute(f, 'assembly.instantiate', { baseRevision: f.workspace.gameSnapshot().revision, assemblyId: 'tiles', prototypeDigest: inspected.value.prototypeDigest,
+    instances: Array.from({ length: 26 }, (_, i) => ({ name: `Tile ${i + 2}`, transform: transform(i + 1) })),
+  });
+  assert.equal(copied.status, 'completed');
+  const check = async () => {
+    for (const category of ['Geometry', 'Material']) {
+      const page = await f.invoke('editor/resources', { category });
+      assert.equal(page.state, 'ready'); assert.equal(page.total, 1);
+      assert.equal(page.items[0].locations.length, 27);
+      assert.equal(page.items[0].entry.usage.items.length, 27);
+      const site = page.items[0].locations.at(-1);
+      await f.invoke('editor/resource-intent', { intent: { type: 'locate-use', viewToken: page.viewToken, entry: page.items[0].entry, ref: site.ref, field: site.field } });
+    }
+    for (const category of ['Texture', 'Script', 'Model']) assert.equal((await f.invoke('editor/resources', { category })).state, 'ready');
+  };
+  await check();
+  await f.workspace.save(); await f.workspace.reopen(); await check();
+});
+
 test('production IPC / project owner / resource adapter use exact tool approval and shared History', async t => {
   const f = await fixture(t), page = await f.invoke('editor/resources', { category: 'Geometry', limit: 100 });
   assert.equal(page.total, 0, 'empty project contains no geometry templates');

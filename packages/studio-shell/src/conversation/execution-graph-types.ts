@@ -1,3 +1,4 @@
+import type { ConversationNodeReadModel } from './types.js';
 import type {
   CompactionRecordV1,
   ContextPressureV1,
@@ -9,7 +10,8 @@ import type {
   SessionOpV1,
 } from '@haiyue/ai-studio-contracts';
 
-export type ExecutionGraphProductNodeKind = ExecutionGraphNodeKindV1 | 'unknown';
+/** Model rounds are a presentation grouping of durable tool/response boundaries. */
+export type ExecutionGraphProductNodeKind = ExecutionGraphNodeKindV1 | 'model' | 'unknown';
 export type ExecutionGraphProductNodeStatus = ExecutionGraphNodeStatusV1 | 'outcome-unknown';
 export type ExecutionGraphProductEdgeKind = ExecutionGraphEdgeKindV1 | 'contains' | 'parallel-with' | 'resumed-from';
 
@@ -28,6 +30,10 @@ export interface ExecutionGraphProjectionInput {
   readonly status?: string;
   readonly ops: readonly SessionOpV1[];
   readonly transcript?: readonly ExecutionGraphTranscriptInput[];
+  /** Existing redacted conversation projections; never raw tool arguments. */
+  readonly records?: readonly ConversationNodeReadModel[];
+  readonly liveAssistant?: Readonly<{ turnId: string; content: string }>;
+
 }
 
 export interface ExecutionGraphNodeReadModel {
@@ -58,6 +64,9 @@ export interface ExecutionGraphNodeReadModel {
     readonly reason?: string | null;
     readonly diagnostic: string | null;
     readonly validation: string | null;
+    readonly modelExplanation?: string | null;
+    readonly actionSummary?: string | null;
+    readonly resultSummary?: string | null;
   }>;
 }
 

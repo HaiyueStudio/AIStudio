@@ -1,3 +1,5 @@
+import { PlayOrbitControls, type PlayOrbitOptions } from './play-orbit-controls.js';
+import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { CartesianTransform3D, SphericalTransform3D, Entity, HaiyueEngine, Mesh3D, type Scene } from '@haiyue/engine';
 import { Camera3D, InstancedMesh3D, Interactive, SCRIPT_CAPABILITIES, ScriptComponent, ScriptResource, type ScriptCapabilityName, type ScriptRuntimeApi, type ScriptRuntimeContext, type ScriptRuntimeErrorEvent } from '@haiyue/engine/components';
 import { InstancedMaterial, InstancedPbrMaterial } from '@haiyue/engine/material';
@@ -39,6 +41,7 @@ let engine: HaiyueEngine | null = null;
 let scene: Scene | null = null;
 let capturedFrame: HTMLCanvasElement | null = null;
 const scriptOwners: ScriptOwner[] = [];
+const orbitControls = new PlayOrbitControls();
 const planByComponent = new Map<ScriptComponent, PreviewScriptPlan>();
 let target: Entity | null = null;
 let resizeObserver: ResizeObserver | null = null;
@@ -130,10 +133,11 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   activeCamera = snapshot.camera ?? DEFAULT_PROJECT_CAMERA;
   applyProjectCamera(ownedScene, activeCamera, canvasAspect(canvas));
   const entities = new Map<string, Entity>();
+  const geometryPool = new SharedGeometryPool();
   for (const item of snapshot.entities) {
     const entity = new Entity(item.name);
     entity.addComponent(new CartesianTransform3D({ position: tuple(item.transform.position), rotation: radians(item.transform.rotationDegrees), scale: tuple(item.transform.scale) }));
-    attachSceneEntityVisuals(entity, item);
+    attachSceneEntityVisuals(entity, item, geometryPool);
     const pointerInteraction = item.components?.find((candidate) => candidate.type === 'haiyue.interaction.pointer' && candidate.enabled);
     if (pointerInteraction) entity.addComponent(new Interactive({ penetrable: pointerInteraction.value.penetrable === true }));
     entities.set(item.id, entity);
@@ -376,19 +380,21 @@ function retainRenderedFrame(): void {
   const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas');
   if (!canvas) return;
   capturedFrame ??= document.createElement('canvas');
-  if (capturedFrame.width !== canvas.width) capturedFrame.width = canvas.width;
-  if (capturedFrame.height !== canvas.height) capturedFrame.height = canvas.height;
+  const width = Math.max(1, Math.round(canvas.width / 2)), height = Math.max(1, Math.round(canvas.height / 2));
+  if (capturedFrame.width !== width) capturedFrame.width = width;
+  if (capturedFrame.height !== height) capturedFrame.height = height;
   const context = capturedFrame.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Rendered frame storage is unavailable.');
   // Snapshot in the rendering task. A presented WebGPU swap-chain texture may
   // already be expired when a later paused/async screenshot request arrives.
   context.globalCompositeOperation = 'copy';
-  context.drawImage(canvas, 0, 0);
+  context.drawImage(canvas, 0, 0, width, height);
 }
 
 async function captureCompositePng(canvas: HTMLCanvasElement): Promise<Blob> {
   const output = document.createElement('canvas');
-  output.width = canvas.width; output.height = canvas.height;
+  // Analysis evidence uses half-size pixels; input and simulation coordinates stay unchanged.
+  output.width = Math.max(1, Math.round(canvas.width / 2)); output.height = Math.max(1, Math.round(canvas.height / 2));
   const context = output.getContext('2d');
   if (!context) throw new Error('Screenshot composition context is unavailable.');
   context.drawImage(capturedFrame!, 0, 0, output.width, output.height);
@@ -706,6 +712,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   animationFrame = null; previousFrameTime = null;
   if (capturedFrame) { capturedFrame.width = 0; capturedFrame.height = 0; capturedFrame = null; }
   removeInputListeners?.(); removeInputListeners = null;
+  orbitControls.dispose();
   physicsLoadController?.abort(new Error(`physics.runtime-stopped:${reason}`)); physicsLoadController = null;
   simulation?.reset(); simulation = null; activeInput = null;
   resizeObserver?.disconnect(); resizeObserver = null;
@@ -908,6 +915,13 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
       ...(base.scene ?? {}),
       instances(target: Entity | number | string, capacity: number): StudioInstanceSet {
         return getOrCreateInstanceSet(target, capacity, context.world ?? undefined);
+      },
+      orbitControls(options: PlayOrbitOptions = {}): void {
+        if (!capabilities.includes('input')) throw new Error('orbitControls requires input and scene capabilities.');
+        if (!scene || !activeInput) return;
+        if (gameplayCamera?.descriptor.type === 'haiyue.camera.2d') throw new Error('orbitControls requires a 3D camera.');
+        if (gameplayCamera?.follow) throw new Error('Disable camera.follow before enabling orbitControls; the active camera needs one motion owner.');
+        orbitControls.update(observationOwner.scriptId, scene.activeCameraEntity, activeInput.tick, activeInput.events, interactionEvents, options);
       },
       hudText(id: string, text: string, options: HudTextOptions = {}): void { setHudText(id, text, options); },
       removeHudText(id: string): void { removeHudText(id); },

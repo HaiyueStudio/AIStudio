@@ -11,6 +11,7 @@ import type { CanvasTextureRenderer } from './canvas-texture.js';
 import type { GameBehaviorSource } from './behavior.js';
 
 export interface GameAuthoringToolService {
+  assertAssemblyPlan?(expectations: readonly JsonObject[], toolId: string, args: JsonObject): void;
   definitions(): ReturnType<GameAuthoringToolRuntime['definitions']>;
   selectDefinitions?(request: string, expandedIds?: readonly StableId[]): ToolSchemaSelection;
   snapshot(): GameToolRuntimeSnapshot;
@@ -51,7 +52,7 @@ export function createGameAuthoringToolsPlugin(options: GameAuthoringToolsPlugin
         ...(options.behaviorSource ? { behaviorSource: options.behaviorSource } : {}),
       });
       const service: GameAuthoringToolService = Object.freeze({
-        definitions: runtime.definitions.bind(runtime), selectDefinitions: runtime.selectDefinitions.bind(runtime), snapshot: runtime.snapshot.bind(runtime), prepare: runtime.prepare.bind(runtime),
+        assertAssemblyPlan: runtime.assertAssemblyPlan.bind(runtime), definitions: runtime.definitions.bind(runtime), selectDefinitions: runtime.selectDefinitions.bind(runtime), snapshot: runtime.snapshot.bind(runtime), prepare: runtime.prepare.bind(runtime),
         approval: runtime.approval.bind(runtime), decide: runtime.decide.bind(runtime), execute: runtime.execute.bind(runtime), executeTransaction: runtime.executeTransaction.bind(runtime), cancel: runtime.cancel.bind(runtime),
       });
       context.services.provide(gameAuthoringToolServiceToken, service);

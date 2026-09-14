@@ -111,7 +111,8 @@ app.whenReady().then(async () => {
   await evaluate('showTaskChain(1)'); await frame();
   const continuedIds = await evaluate('[...document.querySelectorAll(".execution-node")].map(node=>node.dataset.nodeId)');
   for (const id of originalIds) assert.ok(continuedIds.includes(id), `Lost previous task node: ${id}`);
-  assert.equal(continuedIds.length, originalIds.length + 1);
+  assert.equal(continuedIds.length, originalIds.length + 2, 'a new phase includes its model round');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.execution-node')].filter(node=>!${JSON.stringify(originalIds)}.includes(node.dataset.nodeId)).map(node=>node.classList.contains('kind-model')?'model':node.classList.contains('kind-turn')?'turn':'other').sort()`), ['model','turn']);
   assert.equal(await evaluate('document.querySelector(".execution-workspace").dataset.sessionId'), 'session:execute');
   assert.equal(await evaluate('document.querySelector(".execution-workspace").dataset.taskId'), 'task:continuity');
   assert.equal(await evaluate('document.querySelector(".execution-node.is-selected").dataset.nodeId'), selected);
@@ -120,7 +121,7 @@ app.whenReady().then(async () => {
   const fullCount = await evaluate('document.querySelectorAll(".execution-node").length'); assert.ok(fullCount > continuedIds.length);
   await escape(); await writeFile(path.join(directory, 'task-chain.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate('showTaskChain(2, true)'); await frame();
-  assert.equal(await evaluate('document.querySelectorAll(".execution-node").length'), 2, 'a genuinely new task must not inherit previous task nodes');
+  assert.equal(await evaluate('document.querySelectorAll(".execution-node").length'), 3, 'a genuinely new task must not inherit previous task nodes');
   await evaluate('const history=document.querySelector("[aria-label=\\"Agent session\\"]"); history.value="task:continuity"; history.dispatchEvent(new Event("change"));'); await frame();
   assert.equal(await evaluate('document.querySelectorAll(".execution-node").length'), fullCount);
   await evaluate('showTaskChain(2, true)'); await frame(); assert.equal(await evaluate('document.querySelectorAll(".execution-node").length'), fullCount, 'explicit history selection survives updates');
@@ -136,6 +137,23 @@ app.whenReady().then(async () => {
     if (id !== 'node:4') await writeFile(path.join(directory, `${id === 'node:2' ? 'failed' : 'cancelled'}-detail.png`), (await window.webContents.capturePage()).toPNG());
     await escape();
   }
+  await evaluate('showMarkdownDetail()'); await frame();
+  await click('.execution-node[data-node-id="node:0"]');
+  const markdown = await evaluate(`(() => { const panel = document.querySelector('.execution-node-detail'); return {
+    paragraphs: panel.querySelectorAll('.studio-markdown p').length,
+    ordered: panel.querySelectorAll('.studio-markdown ol > li').length,
+    nested: panel.querySelectorAll('.studio-markdown ol ul > li').length,
+    code: panel.querySelector('.studio-markdown pre code')?.textContent,
+    strong: panel.querySelector('.studio-markdown strong')?.textContent,
+    quote: panel.querySelector('.studio-markdown blockquote')?.textContent,
+    unsafe: panel.querySelectorAll('img,script,iframe,a[href^="javascript:"]').length,
+    injected: window.markdownInjected === true,
+    overflow: panel.scrollWidth > panel.clientWidth + 1,
+  }; })()`);
+  assert.ok(markdown.paragraphs >= 8); assert.equal(markdown.ordered, 2); assert.equal(markdown.nested, 1);
+  assert.equal(markdown.code, 'const count = 27;\nconst ready = true;'); assert.equal(markdown.strong, 'PBR 材质');
+  assert.match(markdown.quote, /验收后/); assert.equal(markdown.unsafe, 0); assert.equal(markdown.injected, false); assert.equal(markdown.overflow, false);
+  await writeFile(path.join(directory, 'markdown-detail.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate('disposeGraph()');
   assert.deepEqual(errors, []);
   const result = { status: 'passed', terminalReasons: { failed: true, cancelled: true, historicalFallback: true, colorsRetainedOnSelection: true }, presentationTabs: { libraryComponent: true, mutuallyExclusive: true, keyboard: true, preservesDraftAndSelection: true, preservesFeedAndGraphPosition: true, preservesChoiceOnReplay: true, notificationTarget: true }, wheelCursorAnchor: wheel, nativeWheel: true, hoverAndKeyboard: true, pinAndEscape: true, runningBeamOnly: true, narrowBounds: true, unknownUsage: true, compactionOnce: true, cleanup: true, replayPreservesHover: true, taskContinuity: { before: originalIds.length, afterHandoff: continuedIds.length, afterExecution: fullCount, selectionAndZoomPreserved: true, separateRequests: true, historySelection: true }, sizes: [[760,880],[320,600]], screenshots: ['usage.png','node-detail.png','steps-view.png','graph-760x880.png','graph-320x600.png','task-chain.png'] };

@@ -17,7 +17,7 @@ const MAX_LIMIT = 1_000;
 const DEFAULT_RETAINED_DELTAS = 2_048;
 const CAMERA_SETTING = 'studio.camera.main';
 const ALL_PROJECTIONS = Object.freeze(['hierarchy', 'components', 'scripts', 'assets', 'camera', 'render', 'settings'] as const);
-const PRIVATE_SETTING_KEYS = new Set(['script.resources', 'studio.prefabs.v1']);
+const PRIVATE_SETTING_KEYS = new Set(['script.resources', 'studio.prefabs.v1', 'studio.assemblies.v1']);
 
 export type SceneContextProjection = typeof ALL_PROJECTIONS[number];
 

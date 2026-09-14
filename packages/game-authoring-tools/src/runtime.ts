@@ -1,3 +1,4 @@
+import { assertAssemblyPlan, normalizeAssemblyArguments, planAssembly, inspectAssembly } from './assemblies.js';
 import { QUERY_PAGE_SIZE } from './query-limits.js';
 import type { EngineDocumentation } from './engine-docs.js';
 import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
@@ -61,7 +62,7 @@ interface ReversibleTransactionMemberPlan {
   readonly operations: readonly GameDocumentOperationV2[];
   readonly result: (afterRevision: number) => JsonObject;
 }
-interface TransactionPlanningContext { readonly createOffsets: Map<string, number>; assetCatalog?: ControlledAssetCatalog; }
+interface TransactionPlanningContext { assemblyWrite?: boolean; readonly createOffsets: Map<string, number>; assetCatalog?: ControlledAssetCatalog; }
 
 const PREFAB_REGISTRY_SETTING_KEY = 'studio.prefabs.v1';
 const MAX_PREFABS = 64;
@@ -111,6 +112,8 @@ export class GameAuthoringToolRuntime {
     this.catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => options.workspace.componentRegistry.snapshot().definitions);
     this.behavior = new BehaviorToolReader(options.behaviorSource, () => requireDocument(options.workspace));
   }
+
+  assertAssemblyPlan(expectations: readonly JsonObject[], toolId: string, args: JsonObject): void { this.assertActive(); assertAssemblyPlan(this.options.workspace.gameSnapshot(), expectations, toolId, args); }
 
   definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
   selectDefinitions(request: string, expandedIds: readonly StableId[] = []): ToolSchemaSelection { this.assertActive(); return this.catalog.selectDefinitions(request, expandedIds); }
@@ -405,6 +408,12 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
   const scene = options.scene.snapshot();
   const result = (label: string, operations: readonly GameDocumentOperationV2[], project: (afterRevision: number) => JsonObject): ReversibleTransactionMemberPlan => Object.freeze({ stored, label, operations: Object.freeze([...operations]), result: project });
   switch (stored.definition.id) {
+    case 'assembly.create': case 'assembly.instantiate': {
+      if (planning.assemblyWrite) throw invalid('Use one assembly mutation per document transaction to preserve its registry.');
+      planning.assemblyWrite = true;
+      const plan = planAssembly(stored.definition.id, stored.arguments, options.workspace, stored.call.id);
+      return result('Author composite assembly', plan.operations, revision => ({ ...plan.value, revision }));
+    }
     case 'camera.set': {
       const camera = args.camera as JsonObject;
       return result('Set Camera', [{ op: 'setting.set', key: PROJECT_CAMERA_SETTING_KEY, value: camera }], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, camera: projectCameraFromSettings(requireDocument(options.workspace).settings) as unknown as JsonValue }));
@@ -942,6 +951,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
   const args = stored.arguments as Record<string, JsonValue>;
   const scene = options.scene.snapshot();
   switch (stored.definition.id) {
+    case 'assembly.inspect': return inspectAssembly(options.workspace.gameSnapshot(), stored.arguments);
     case 'project.snapshot': {
       const workspace = options.workspace.snapshot(); const document = requireDocument(options.workspace);
       return Object.freeze({ projectId: document.projectId, documentId: document.documentId, name: document.name, revision: document.revision, savedRevision: document.savedRevision, dirty: document.dirty, counts: document.counts, registryDigest: document.registryDigest, logHealth: workspace.logging.health });
@@ -1063,7 +1073,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const next = await options.scene.renameEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, name: args.name as string }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
-    case 'camera.author': case 'entity.create-many': case 'entity.hierarchy': case 'prefab.manage': case 'transform.batch': case 'component.configure': {
+    case 'assembly.create': case 'assembly.instantiate': case 'camera.author': case 'entity.create-many': case 'entity.hierarchy': case 'prefab.manage': case 'transform.batch': case 'component.configure': {
       const planning: TransactionPlanningContext = { createOffsets: new Map<string, number>() };
       const plan = await planReversibleTransactionMember(stored, options, planning, signal);
       const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: plan.label, baseRevision: args.baseRevision as number, operations: plan.operations }, signal);
@@ -1210,8 +1220,9 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const runtime = await options.preview.stop(signal); return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount });
     }
     case 'play.stop': {
-      const before = await options.preview.inspect(signal);
+      const before = options.preview.snapshot().state === 'stopped' ? null : await options.preview.inspect(signal);
       const runtime = await options.preview.stop(signal);
+      if (!before) return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount, alreadyStopped: true });
       const lifecycle = await observations.persistState(stored.call, { ...before, value: Object.freeze({ state: runtime.state, disposedSideEffects: runtime.disposableCount, cleanupComplete: runtime.state === 'stopped' }) }, 'lifecycle');
       return Object.freeze({ state: runtime.state, instanceId: runtime.instanceId, disposedSideEffects: runtime.disposableCount, observation: lifecycle.artifact as unknown as JsonValue, projection: lifecycle.projection as JsonValue, projectionTruncated: lifecycle.projectionTruncated });
     }
@@ -1275,6 +1286,7 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
   if (isBehaviorTool(toolId)) return normalizeBehaviorArguments(toolId, value);
   const raw = value as Record<string, unknown>;
   switch (toolId) {
+    case 'assembly.create': case 'assembly.inspect': case 'assembly.instantiate': return normalizeAssemblyArguments(toolId, value);
     case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': case 'play.stop': case 'play.inspect': case 'play.capture': exact(raw, [], [], toolId); return Object.freeze({});
     case 'scene.query': return normalizeSceneContextArguments(raw, false);
     case 'scene.diff': return normalizeSceneContextArguments(raw, true);
@@ -1285,6 +1297,11 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       return Object.freeze({ entityIds, includeComponents: raw.includeComponents === undefined ? true : booleanValue(raw.includeComponents, 'includeComponents') });
     }
     case 'engine.docs.search': {
+      if (raw.continueFrom !== undefined) {
+        exact(raw, ['continueFrom'], ['maxBytes'], toolId);
+        return Object.freeze({ continueFrom: boundedString(raw.continueFrom, 'continueFrom', 100, true), ...(raw.maxBytes === undefined ? {} : { maxBytes: boundedInteger(raw.maxBytes, 'maxBytes', 1024, 16384) }) });
+      }
+      if (raw.query === undefined || raw.requested !== undefined) throw invalid('engine.docs.search requires query for a new search, for example {"query":"pointer interactions","limit":12}. The count field is limit, not requested. To continue a returned page, use its nextCall.arguments ({"continueFrom":"<returned resultRef>"}); Studio restores all search arguments. Never invent or decode a cursor.');
       exact(raw, ['query'], ['surface', 'limit', 'cursor', 'maxBytes'], toolId);
       if (raw.surface !== undefined && !['studio-script', 'authoring', 'engine-native', 'all'].includes(raw.surface as string)) throw invalid('Unknown documentation surface.');
       return Object.freeze({ query: boundedString(raw.query, 'query', 2048, true), ...(raw.surface === undefined ? {} : { surface: raw.surface as string }), ...(raw.cursor === undefined ? {} : { cursor: boundedString(raw.cursor, 'cursor', 512, true) }), limit: raw.limit === undefined ? 6 : boundedInteger(raw.limit, 'limit', 1, QUERY_PAGE_SIZE), maxBytes: raw.maxBytes === undefined ? 4096 : boundedInteger(raw.maxBytes, 'maxBytes', 1024, 16384) });
@@ -1677,6 +1694,7 @@ function normalizeEvaluationArguments(raw: Record<string, unknown>): JsonObject 
 function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringService, proposals: ReadonlyMap<StableId, ScriptEditProposal>, plans: ReadonlyMap<StableId, PreviewPlan>): GameToolPreview {
   const raw = args as Record<string, unknown>; const snapshot = scene.snapshot();
   switch (toolId) {
+    case 'assembly.create': case 'assembly.instantiate': return preview('组合原型与实例', String(args.assemblyId), `${toolId}: ${args.assemblyId}`, JSON.stringify(args).slice(0, 12000));
     case 'camera.set': return preview('Set camera', snapshot.documentId, 'Replace the main project camera for authoring and game preview.', canonicalStringify(raw.camera as JsonObject));
     case 'camera.author': return preview('Author gameplay camera', String(raw.entityId ?? raw.targetEntityId ?? snapshot.documentId), `${raw.action} gameplay camera state through one recoverable operation.`, `${raw.action}${raw.projection ? ` · ${raw.projection}` : ''}${raw.viewport ? ` · ${canonicalStringify(raw.viewport as JsonObject)}` : ''}`);
     case 'entity.create': return preview('Create entity', snapshot.documentId, `Create ${raw.kind}${raw.name ? ` named ${raw.name}` : ''}.`, `+ ${raw.kind} ${raw.name ?? ''}`.trim());
@@ -1850,7 +1868,7 @@ function textureMaterialDefaults(usage: AssetUsage, entity: Readonly<{ appearanc
   return isPbrTextureUsage(usage) ? Object.freeze({ baseColor: usage === 'texture.base-color' ? Object.freeze([1, 1, 1, 1]) : entity.appearance?.color ?? Object.freeze([1, 1, 1, 1]) }) : Object.freeze({});
 }
 
-function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.generate-texture': 'Draw PNG Texture', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'assembly.create': 'Create Composite Prototype', 'assembly.instantiate': 'Replicate Composite', 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.generate-texture': 'Draw PNG Texture', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 const callProjects = new WeakMap<GameToolCall, { projectId: StableId; documentId: StableId }>();
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;

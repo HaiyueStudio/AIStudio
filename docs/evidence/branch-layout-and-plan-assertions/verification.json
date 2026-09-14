@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-14",
+  "inputDigest": "sha256:523f85db1a374c670a95ddc29fdcd5e13e7c1c392db51754265d119b130915b5",
+  "layoutTests": 24,
+  "planTests": 7,
+  "regressionTests": 53,
+  "failedTests": 0,
+  "isolatedElectronWindowPassed": true,
+  "applicationBuildExitCode": 0,
+  "applicationRestarted": false,
+  "rootCheck": {
+    "exitCode": 1,
+    "reason": "Pre-existing stale M14 capability acceptance binding; original verification record preserved."
+  }
+}

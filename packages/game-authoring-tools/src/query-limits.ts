@@ -13,6 +13,8 @@ export function parseQueryLimits(value: unknown): QueryLimits {
   return Object.freeze({ ...v }) as QueryLimits;
 }
 export function queryLimitRequest(toolId: string, args: JsonObject, limits: QueryLimits = QUERY_LIMIT_DEFAULTS) {
+  // Stored documentation pages retain their previously applied limit. The tool rejects overrides.
+  if (toolId === 'engine.docs.search' && args.continueFrom !== undefined) return null;
   if (!Object.hasOwn(QUERY_LIMIT_DEFAULTS, toolId)) return null;
   const tool = toolId as QueryLimitTool;
   const requested = args.limit === undefined ? limits[tool] : args.limit;

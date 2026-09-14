@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-14",
+  "inputDigest": "sha256:13c140f17ff9bf3d43a08daba15cf6cd11da2910fa2dcd02f5211d2f473613a5",
+  "focused": {
+    "passed": 35,
+    "failed": 0
+  },
+  "catalogAndInvocation": {
+    "passed": 9,
+    "failed": 0
+  },
+  "applicationBuild": {
+    "exitCode": 0
+  },
+  "applicationRestarted": false,
+  "rootCheck": {
+    "exitCode": 1,
+    "reason": "Existing M14 capability verification input binding is stale; prior record preserved.",
+    "recordedInputDigest": "sha256:bf00db15ccfa9dc2cdcff7479ac3c7d9e00b29a5f05bb9f6e13c6e34b3558007"
+  }
+}

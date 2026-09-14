@@ -47,10 +47,15 @@ const ops=[
   makeOp(12,'approval.requested',{nodeId:'approval:run',payload:{approvalId:'approval:run',barrierKind:'runtime-start',reason:'运行隔离预览'}}),makeOp(13,'approval.resolved',{nodeId:'approval:run',payload:{approvalId:'approval:run',resolution:'allow-once'}}),
   makeOp(14,'evidence.captured',{nodeId:'evidence:screenshot',projectRevision:9,artifactRefs:['artifact:screenshot'],payload:{evidenceType:'screenshot',transactionId:'transaction:9',summary:'运行画面已采集',pressure}}),
   makeOp(15,'evaluation.completed',{nodeId:'evaluation:1',projectRevision:9,artifactRefs:['artifact:evaluator'],payload:{status:'passed',transactionId:'transaction:9',summary:'交互验收通过'}}),
-  makeOp(16,'compaction.completed',{nodeId:'compaction:g09-ui',artifactRefs:['artifact:summary'],payload:{phase:'completed',compaction}}),makeOp(17,'tool-batch.completed',{batchId:'batch:1',payload:{status:'completed'}}),makeOp(18,'assistant.message',{artifactRefs:['artifact:assistant']}),makeOp(19,'turn.completed',{payload:{status:'completed',summary:'游戏交互已完成并验证'}})
+  makeOp(16,'compaction.completed',{nodeId:'compaction:g09-ui',artifactRefs:['artifact:summary'],payload:{phase:'completed',compaction}}),makeOp(17,'tool-batch.completed',{batchId:'batch:1',payload:{status:'completed'}}),
+  makeOp(18,'tool-batch.planned',{batchId:'batch:2'}),makeOp(19,'tool.started',{batchId:'batch:2',nodeId:'node:validate',payload:{toolId:'preview.validate'}}),
+  makeOp(20,'tool.completed',{batchId:'batch:2',nodeId:'node:validate',payload:{toolId:'preview.validate',status:'completed'}}),makeOp(21,'tool-batch.completed',{batchId:'batch:2',payload:{status:'completed'}}),
+  makeOp(22,'assistant.message',{artifactRefs:['artifact:assistant']}),makeOp(23,'turn.completed',{payload:{status:'completed',summary:'游戏交互已完成并验证'}})
 ];
-const transcript=[{id:'transcript:user',opId:'op:2',role:'user',content:'创建一个可运行并经过验证的游戏。',timestamp:ops[2].timestamp},{id:'transcript:assistant',opId:'op:18',role:'assistant',content:'实现、运行和验证已经完成。',timestamp:ops[18].timestamp}];
-const graph=projectExecutionGraph({sessionId,activeGoal:'创建并验证一个跨类型游戏交互',status:'completed',ops,transcript});
+const transcript=[{id:'transcript:user',opId:'op:2',role:'user',content:'创建一个可运行并经过验证的游戏。',timestamp:ops[2].timestamp},{id:'transcript:assistant',opId:'op:22',role:'assistant',content:'实现、运行和验证已经完成。',timestamp:ops[22].timestamp}];
+ops[6].payload.toolCallId='call:scene';
+const records=[{id:'record:scene-call',kind:'tool-call',status:'completed',provenance:{sessionId,turnId},content:{toolCallId:'call:scene',argumentsSummary:'检查棋盘的指针交互组件。'}},{id:'record:scene-result',kind:'tool-result',status:'completed',provenance:{sessionId,turnId},content:{toolCallId:'call:scene',summary:'棋盘已绑定指针交互组件。'}}];
+const graph=projectExecutionGraph({sessionId,records,activeGoal:'创建并验证一个跨类型游戏交互',status:'completed',ops,transcript});
 const backend={id:backendId,label:'Fixture',kind:'harness-api-key',state:'ready',authMode:'api-key',protocolVersion:'fixture',capabilities:{resume:true,questions:true,structuredTools:true,backendApprovals:false,usage:true,rateLimits:true},promptProfile:null,rateLimits:[],models:[{id:'fixture-model',label:'Fixture',reasoningEfforts:['high'],defaultReasoningEffort:'high',maxOutputTokens:8192,isDefault:true}],selectedModel:'fixture-model',selectedReasoningEffort:'high',outputTokenLimit:4096};
 const snapshot={revision:1,connection:'connected',busy:false,backendId,backends:[backend],taskAccounting:{taskId:'task:g09-ui',budgetStatus:'within',budget:{schemaVersion:2,id:'budget:g09-ui',enforcement:'hard',limits:{inputTokens:100000,outputTokens:10000,estimatedCostMicros:1000000,wallTimeMs:600000,turns:30,toolCalls:100,repairIterations:4,observationBytes:1000000}},usage:{inputTokens:12000,cachedInputTokens:4000,outputTokens:1200,reasoningTokens:600,toolInputBytes:1000,toolOutputBytes:2000,wallTimeMs:8000,contextCache:{localArtifactHits:5,localArtifactMisses:1,deltaReuseBytes:4096,providerCacheEligibleBytes:8192,providerReportedHitTokens:null}},cost:{status:'unknown',amountMicros:null,currency:null,cacheSavingMicros:null,explanation:'Provider subscription did not expose billable cost.',final:true}},taskRuns:[],executionGraphs:[graph],events:[]};
 const pendingCard={id:'card:pending',kind:'progress',status:'pending',title:'等待执行',body:'等待下一步',tone:'progress',actions:[],metadata:[]};
@@ -58,6 +63,7 @@ const withPending=model=>({...model,cards:[...model.cards,pendingCard]});
 const root=document.querySelector('#root'),intents=[]; const projector=new ConversationProjector(); const model=withPending(presentChatPanel(projector.reset(snapshot)));
 const renderStarted=performance.now(); renderChatPanel(root,model,intent=>intents.push(intent)); const renderMs=performance.now()-renderStarted;
 const graphVisible=!!root.querySelector('[aria-label="Agent execution graph and transcript"]')&&root.querySelectorAll('.execution-node').length>3&&root.querySelectorAll('.execution-edges path').length>0;
+if(root.querySelectorAll('.execution-node.kind-model').length!==3)throw new Error('Each tool exchange and final model reply must have separate nodes');
 const firstNode=root.querySelector('.execution-node'); firstNode?.focus(); firstNode?.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true})); const keyboard=document.activeElement?.classList.contains('execution-node')===true;
 const compact=[...root.querySelectorAll('button')].find(button=>button.textContent==='压缩上下文'); compact?.click(); compact?.click(); const idempotent=intents.filter(intent=>intent.type==='conversation/request-compaction').length===1;
 const transcriptTab=[...root.querySelectorAll('.execution-controls button')].find(button=>button.textContent.startsWith('完整记录')); transcriptTab?.click(); const transcriptVisible=!!root.querySelector('.execution-transcript')&&root.textContent.includes('实现、运行和验证已经完成');
@@ -67,9 +73,17 @@ const largeOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started
 for(let i=0;i<1000;i++){const nodeId='node:large:'+i;largeOps.push(makeOp(sequence++,'tool-batch.planned',{batchId:'batch:large',nodeId,payload:{toolId:'scene.query',executionClass:'parallel-read'}}),makeOp(sequence++,'tool.started',{batchId:'batch:large',nodeId,payload:{toolId:'scene.query'}}),makeOp(sequence++,'tool.completed',{batchId:'batch:large',nodeId,payload:{toolId:'scene.query',status:'completed'}}));} largeOps.push(makeOp(sequence++,'tool-batch.completed',{batchId:'batch:large',payload:{status:'completed'}}),makeOp(sequence++,'turn.completed',{payload:{status:'completed'}}));
 const projectionStarted=performance.now();const largeGraph=projectExecutionGraph({sessionId,ops:largeOps});const projectionMs=performance.now()-projectionStarted;const layoutStarted=performance.now();const largeLayout=layoutExecutionGraph(largeGraph);const layoutMs=performance.now()-layoutStarted;
 const makeLater=(id,count,day)=>projectExecutionGraph({sessionId:id,activeGoal:'阶段 '+day,ops:ops.slice(0,count).map(op=>({...op,sessionId:id,id:id+':'+op.id,timestamp:op.timestamp.replace('2026-09-02',day)}))});
-const shortGraph=makeLater('session:short',3,'2026-09-03'),nextGraph=makeLater('session:next',20,'2026-09-04');
+const shortGraph=makeLater('session:short',3,'2026-09-03'),nextGraph=makeLater('session:next',ops.length,'2026-09-04');
 const show=graphs=>renderChatPanel(root,withPending(presentChatPanel(projector.reset({...snapshot,executionGraphs:graphs}))),intent=>intents.push(intent));
 const button=label=>[...root.querySelectorAll('button')].find(item=>item.textContent===label);
+show([graph]);
+[...root.querySelectorAll('.execution-node.kind-model')].at(-1).click();
+let contentDetail=root.querySelector('.execution-node-detail').textContent;
+if(!contentDetail.includes('模型说明（公开输出）')||!contentDetail.includes('实现、运行和验证已经完成。')||contentDetail.includes('unknown')||contentDetail.includes('none'))throw new Error('Public model explanation or empty-field handling failed');
+root.querySelector('.execution-node.kind-tool').click();
+contentDetail=root.querySelector('.execution-node-detail').textContent;
+if(!contentDetail.includes('执行内容')||!contentDetail.includes('检查棋盘的指针交互组件。')||!contentDetail.includes('棋盘已绑定指针交互组件。'))throw new Error('Concrete tool intent/result missing from detail');
+
 const activeSession=()=>root.querySelector('.execution-workspace')?.dataset.sessionId;
 show([graph,shortGraph]);const followsNewShortSession=activeSession()===shortGraph.sessionId;
 const history=root.querySelector('[aria-label="Agent session"]');history.value=graph.sessionId;history.dispatchEvent(new Event('change'));
@@ -105,7 +119,7 @@ window.runLiveFrontierCheck=async()=>{
   renderLive();await settle();if(root.querySelectorAll('.execution-node.kind-tool hy-border-beam').length!==2)throw new Error('Tool highlights do not resume');
   liveOps.push(makeOp(11,'tool.completed',{batchId:'batch:1',nodeId:'node:scene',payload:{toolId:'scene.diff',status:'completed'}}),makeOp(12,'tool.completed',{batchId:'batch:1',nodeId:'node:diagnostics',payload:{toolId:'diagnostics.query',status:'failed',diagnostic:'query-scan-budget-exceeded',summary:'Window too large'}}),makeOp(13,'tool-batch.completed',{batchId:'batch:1',payload:{status:'failed'}}));
   renderLive();await settle();
-  if(root.querySelector('.execution-node.kind-tool hy-border-beam')||!root.querySelector('.execution-current-activity').textContent.includes('模型生成下一步'))throw new Error('Completed tool still appears active');
+  if(root.querySelector('.execution-node.kind-tool hy-border-beam')||!root.querySelector('.execution-current-activity').textContent.includes('模型处理 · 第 2 轮')||root.querySelectorAll('.execution-node.kind-model hy-border-beam').length!==1)throw new Error('Current model round is not highlighted independently');
   liveOps.push(makeOp(14,'turn.completed',{payload:{status:'completed'}}));renderLive();await settle();
   if(root.querySelector('.execution-node hy-border-beam'))throw new Error('Terminal graph has a live beam');
   const reviewOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started'),makeOp(2,'question.requested',{nodeId:'node:review',payload:{questionId:'question:review',barrierKind:'plan-review',reason:'Review the requested interaction.'}}),makeOp(3,'turn.completed',{payload:{status:'cancelled',suspendedBarrierId:'node:review',summary:'cancelled.'}})];
@@ -121,7 +135,7 @@ window.runLiveFrontierCheck=async()=>{
   renderReview();await settle();
   const detail=root.querySelector('.execution-node-detail');
   if(!detail||detail.textContent.includes('待确认')||!detail.textContent.includes('已完成'))throw new Error('Selected plan detail kept the stale waiting state');
-  if(root.querySelectorAll('.execution-node.kind-plan').length!==1||root.querySelector('.execution-node.kind-plan hy-border-beam')||!root.querySelector('.execution-node.kind-turn hy-border-beam'))throw new Error('Answered plan still blocks the running Agent highlight');
+  if(root.querySelectorAll('.execution-node.kind-plan').length!==1||root.querySelector('.execution-node.kind-plan hy-border-beam')||!root.querySelector('.execution-node.kind-model hy-border-beam'))throw new Error('Answered plan still blocks the running model round highlight');
   reviewOps.push(makeOp(7,'turn.completed',{payload:{status:'completed'}}));renderReview();await settle();
   if(root.querySelector('.execution-node hy-border-beam'))throw new Error('Approved continuation remained active after completion');
   const taskOps=[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started',{payload:{taskId:'task:awaiting-evidence'}}),makeOp(2,'turn.completed',{payload:{status:'completed'}})];

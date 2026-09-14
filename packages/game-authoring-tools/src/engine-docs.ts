@@ -35,7 +35,7 @@ function budget(value: unknown, fallback: number, min: number, max: number): num
 /** Immutable local corpus; callers cannot supply paths or choose another installed version. */
 export class EngineDocumentationStore implements EngineDocumentation {
   readonly bundle: EngineDocBundle;
-  private readonly searchResults = new Map<string, Readonly<{ bundleDigest: string; ids: readonly string[] }>>();
+  private readonly searchResults = new Map<string, Readonly<{ bundleDigest: string; ids: readonly string[]; searchInput: JsonObject; nextCursor: string | null }>>();
   private readonly searchNamespace = randomUUID().replaceAll('-', '').slice(0, 16);
   private searchSequence = 0;
   private readonly byReference = new Map<string, EngineDocEntry>();
@@ -72,6 +72,13 @@ export class EngineDocumentationStore implements EngineDocumentation {
     this.index = this.bundle.entries.map(entry => ({ entry, titleTerms: new Set(tokenize(`${entry.title} ${entry.keywords}`)), terms: new Set(tokenize(`${entry.title} ${entry.keywords} ${entry.summary} ${entry.blocks.join('\n')}`)) }));
   }
   search(input: JsonObject): JsonObject {
+    if (input.continueFrom !== undefined) {
+      if (typeof input.continueFrom !== 'string' || !/^sref:[a-f0-9]{16}:[1-9][0-9]*$/.test(input.continueFrom) || Object.keys(input).some(key => !['continueFrom', 'maxBytes'].includes(key))) fail('engine.docs.selection-invalid', 'For another page, use only the returned nextCall.arguments: {continueFrom: resultRef}, plus optional maxBytes. Studio restores query, surface, limit and cursor; do not supply them or requested.');
+      const previous = this.searchResults.get(input.continueFrom);
+      if (!previous) fail('engine.docs.search-result-unavailable', 'The search page expired or belongs to another application instance. Start a new search with {query:"API or feature name"}.');
+      if (!previous.nextCursor) fail('engine.docs.page-unavailable', 'This search page has no next page. Read one of its matches or start a new query.');
+      input = { ...previous.searchInput, cursor: previous.nextCursor, ...(input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes }) };
+    }
     if (!bounded(input.query, 2048) || !input.query.trim() || (input.surface !== undefined && ![...surfaces, 'all'].includes(input.surface as string))) fail('engine.docs.invalid', 'Use a short query and a supported surface.');
     const limit = budget(input.limit, 6, 1, QUERY_PAGE_SIZE); const maxBytes = budget(input.maxBytes, 4096, 1024, 16_384);
     const query = input.query.trim().toLowerCase(); const terms = new Set(tokenize(query));
@@ -89,19 +96,20 @@ export class EngineDocumentationStore implements EngineDocumentation {
       offset = cursor.offset as number;
     }
     const resultRef = `sref:${this.searchNamespace}:${++this.searchSequence}`;
-    const result: Record<string, JsonValue> = { resultRef, readHint: 'Read an exact returned row with {fromSearch:{resultRef,index}}. Studio copies its id and version from this stored JSON; do not retype them. index is zero-based within this page.', nextCursor: null, requestedCount: limit, bundleDigest: this.bundle.digest, binding: this.bundle.binding, surface: input.surface ?? 'studio-script+authoring', matches: [], candidateCount: ranked.length, truncated: false };
+    const nextCall = { toolId: 'engine.docs.search', arguments: { continueFrom: resultRef } };
+    const result: Record<string, JsonValue> = { resultRef, readHint: 'Read an exact returned row with {fromSearch:{resultRef,index}}. Studio copies its id and version from this stored JSON; do not retype them. index is zero-based within this page.', nextCall: null, nextCursor: null, requestedCount: limit, bundleDigest: this.bundle.digest, binding: this.bundle.binding, surface: input.surface ?? 'studio-script+authoring', matches: [], candidateCount: ranked.length, truncated: false };
     const matches: JsonObject[] = [];
     for (const { entry } of ranked.slice(offset, offset + limit)) {
       const match = { index: matches.length, ref: this.referenceFor.get(entry.id)!, id: entry.id, title: entry.title, surface: entry.surface, summary: entry.summary, source: entry.source, contentDigest: entry.digest, nextTool: 'engine.docs.read' };
       const nextOffset = offset + matches.length + 1;
       const nextCursor = nextOffset < ranked.length ? Buffer.from(JSON.stringify({ digest: this.bundle.digest, query: queryBinding, offset: nextOffset })).toString('base64url') : null;
-      if (bytes({ ...result, matches: [...matches, match], nextCursor }) > maxBytes) break;
-      matches.push(match); result.nextCursor = nextCursor;
+      if (bytes({ ...result, matches: [...matches, match], nextCursor, nextCall: nextCursor ? nextCall : null }) > maxBytes) break;
+      matches.push(match); result.nextCursor = nextCursor; result.nextCall = nextCursor ? nextCall : null;
     }
     result.matches = matches; result.truncated = offset + matches.length < ranked.length;
     if (!matches.length && ranked.length) result.diagnostic = 'Matching documentation exceeded maxBytes; increase the search budget.';
     if (!ranked.length) result.diagnostic = 'No matching documentation in this surface; search tool.search or explicitly inspect engine-native. Absence is not proof of unsupported Engine functionality.';
-    this.searchResults.set(resultRef, Object.freeze({ bundleDigest: this.bundle.digest, ids: Object.freeze(matches.map(match => match.id as string)) }));
+    this.searchResults.set(resultRef, Object.freeze({ bundleDigest: this.bundle.digest, ids: Object.freeze(matches.map(match => match.id as string)), searchInput: Object.freeze({ query: input.query, ...(input.surface === undefined ? {} : { surface: input.surface }), limit, maxBytes }), nextCursor: result.nextCursor as string | null }));
     // Bounded to the latest 128 returned pages. Expired handles never resolve to another page.
     while (this.searchResults.size > 128) this.searchResults.delete(this.searchResults.keys().next().value!);
     return result;

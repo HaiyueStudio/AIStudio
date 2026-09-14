@@ -15,10 +15,12 @@ export class ProjectResourceCatalog {
   private readonly health = new Map<string, Readonly<{ health: ResourceCatalogItem['health']; diagnostic: string }>>();
   private readonly tasks = new Set<AbortController>();
 
-  constructor(private readonly ports: ResourceCatalogPorts) {}
+  private cachedRows: readonly ResourceRow[] | null = null;
+  private dependenciesReady = false;
+  constructor(private readonly ports: ResourceCatalogPorts, private readonly options: Readonly<{ reuseQueries?: boolean }> = {}) {}
 
   async refresh(input: ResourceCatalogQuery = {}, signal?: AbortSignal): Promise<ResourceCatalogPage> {
-    this.cancel(); this.health.clear(); this.dependencies = UNKNOWN_DEPENDENCIES;
+    this.cancel(); this.health.clear(); this.dependencies = UNKNOWN_DEPENDENCIES; this.dependenciesReady = false; this.cachedRows = null;
     return this.query(input, signal);
   }
 
@@ -27,10 +29,12 @@ export class ProjectResourceCatalog {
     if (!source) return freeze({ binding: null, items: [], total: 0, nextCursor: null, categories: [], diagnostics: ['请先打开项目。'] });
     const task = this.task(signal);
     try {
-      let dependencies = UNKNOWN_DEPENDENCIES;
-      try { dependencies = dependenciesFrom(await abortable(() => this.ports.dependencies(task.signal), task.signal), source); }
-      catch { this.guard(source, task.signal); dependencies = { complete: false, reason: '资源引用查询失败或已过期，使用数量保持未知。', references: [] }; }
-      this.guard(source, task.signal); this.dependencies = dependencies;
+      if (!this.options.reuseQueries || !this.dependenciesReady) {
+        let dependencies = UNKNOWN_DEPENDENCIES;
+        try { dependencies = dependenciesFrom(await abortable(() => this.ports.dependencies(task.signal), task.signal), source); this.dependenciesReady = true; }
+        catch { this.guard(source, task.signal); dependencies = { complete: false, reason: '资源引用查询失败或已过期，使用数量保持未知。', references: [] }; }
+        this.guard(source, task.signal); this.dependencies = dependencies; this.cachedRows = null;
+      }
       const allRows = this.rows(source);
       const pbrOwners = new Set(allRows.filter(row => record(row.item.configuration) && row.item.configuration.type === 'haiyue.material.pbr' && row.item.configuration.enabled === true).map(row => row.item.entry.ref.kind === 'instance' ? row.item.entry.ref.entityId : null));
       const rows = allRows.filter(row => !query.projectOnly || isProjectResource(row.item) && !(record(row.item.configuration) && row.item.configuration.type === 'haiyue.render.material' && row.item.entry.ref.kind === 'instance' && pbrOwners.has(row.item.entry.ref.entityId))), categories = [...new Set(rows.map(row => projectCategory(row.item, query)))].sort();
@@ -117,7 +121,7 @@ export class ProjectResourceCatalog {
     const raw = shape(checked(input, PAGE_BYTES), ['binding', 'entry', 'ref', 'field']), source = this.source();
     if (!source || !equal(checkedBinding(raw.binding), source.binding)) fail('stale');
     const entry = this.ports.validateEntry(raw.entry), row = this.rows(source).find(row => row.item.entry.catalogEntryId === entry.catalogEntryId);
-    if (entry.kind !== 'asset' || !row || !equal(row.item.entry, entry)) fail('reference-stale');
+    if (!row || !equal(row.item.entry, entry)) fail('reference-stale');
     const site = row.item.locations.find(site => equal(site.ref, raw.ref) && site.field === raw.field);
     if (!site) fail('location-unproven');
     return this.usageLocation(source, site);
@@ -127,21 +131,22 @@ export class ProjectResourceCatalog {
     const location = this.ports.validateLocation(checked(input, 4096)), source = this.source();
     const current = source && location.projectId === source.binding.projectId && location.documentId === source.binding.documentId
       && location.documentRevision === source.binding.documentRevision && location.sourceBindingDigest === source.binding.digest
-      && (this.rows(source).some(row => row.item.entry.status === 'available' && equal(this.location(source, row), location))
+      && (this.rows(source).some(row => row.item.entry.status === 'available' && (equal(this.location(source, row), location) || row.item.locations.some(site => equal(this.usageLocation(source, site), location))))
         || this.dependencies.references.some(row => equal(this.usageLocation(source, row.location), location)));
     return freeze({ status: current ? 'current' : 'historical', location });
   }
 
   cancel(): void { for (const task of this.tasks) task.abort(); }
-  dispose(): void { if (this.closed) return; this.closed = true; this.cancel(); this.tasks.clear(); this.health.clear(); this.dependencies = UNKNOWN_DEPENDENCIES; this.key = null; }
+  dispose(): void { if (this.closed) return; this.closed = true; this.cancel(); this.tasks.clear(); this.health.clear(); this.dependencies = UNKNOWN_DEPENDENCIES; this.dependenciesReady = false; this.cachedRows = null; this.key = null; }
 
   private source(): ResourceSource | null {
     if (this.closed) return fail('disposed');
     const source = resourceSource(this.ports), key = source ? JSON.stringify([source.binding.digest, source.projectRoot]) : null;
-    if (key !== this.key) { this.cancel(); this.key = key; this.health.clear(); this.dependencies = UNKNOWN_DEPENDENCIES; }
+    if (key !== this.key) { this.cancel(); this.key = key; this.health.clear(); this.dependencies = UNKNOWN_DEPENDENCIES; this.dependenciesReady = false; this.cachedRows = null; }
     return source;
   }
-  private rows(source: ResourceSource): readonly ResourceRow[] { return buildResourceRows(source, this.dependencies, this.ports, this.health); }
+  private rows(source: ResourceSource): readonly ResourceRow[] { if (!this.options.reuseQueries) return buildResourceRows(source, this.dependencies, this.ports, this.health);
+    return this.cachedRows ??= buildResourceRows(source, this.dependencies, this.ports, this.health); }
   private guardOwner(source: ResourceSource, signal: AbortSignal): void {
     if (this.closed || signal.aborted) fail('cancelled');
     const workspace = this.ports.workspace.snapshot(), document = workspace.document;
@@ -172,10 +177,10 @@ export class ProjectResourceCatalog {
       if (!(bytes instanceof Uint8Array) || `sha256:${createHash('sha256').update(bytes).digest('hex')}` !== asset.digest) fail('asset-digest');
       source.catalog!.import({ projectPath: asset.projectPath, bytes, kind: asset.kind, mimeType: asset.mimeType, license: asset.license, provenance: asset.provenance,
         decodedBytes: asset.decodedBytes, ...(asset.width === null ? {} : { width: asset.width, height: asset.height! }) });
-      this.guard(source, signal); this.health.set(assetId, { health: 'verified', diagnostic: '' });
+      this.guard(source, signal); this.cachedRows = null; this.health.set(assetId, { health: 'verified', diagnostic: '' });
     } catch {
       this.guard(source, signal);
-      this.health.set(assetId, { health: read ? 'invalid' : 'missing', diagnostic: read ? '文件内容与登记摘要、格式或解码预算不一致。' : '无法读取项目内资源，请检查文件是否存在及是否仍在受控目录。' });
+      this.cachedRows = null; this.health.set(assetId, { health: read ? 'invalid' : 'missing', diagnostic: read ? '文件内容与登记摘要、格式或解码预算不一致。' : '无法读取项目内资源，请检查文件是否存在及是否仍在受控目录。' });
       fail(read ? 'asset-invalid' : 'asset-missing');
     }
   }
@@ -223,7 +228,7 @@ function matches(item: ResourceCatalogItem, query: ResourceCatalogQuery): boolea
   if (query.kind && entry.kind !== query.kind || query.category && projectCategory(item, query) !== query.category || query.status && entry.status !== query.status) return false;
   if (query.unused && (entry.kind !== 'asset' || entry.unused !== 'yes')) return false;
   const search = query.text?.trim().toLocaleLowerCase('en-US');
-  return !search || `${entry.label} ${entry.category} ${entry.kind} ${JSON.stringify(entry.ref)} ${item.asset?.projectPath ?? ''} ${item.asset?.license ?? ''} ${item.asset?.provenance ?? ''} ${item.diagnostics.join(' ')}`.toLocaleLowerCase('en-US').includes(search);
+  return !search || `${entry.label} ${entry.category} ${entry.kind} ${JSON.stringify(entry.ref)} ${item.asset?.projectPath ?? ''} ${item.asset?.license ?? ''} ${item.asset?.provenance ?? ''} ${item.diagnostics.join(' ')} ${item.locations.map(site => site.label).join(' ')}`.toLocaleLowerCase('en-US').includes(search);
 }
 function encodeCursor(fingerprint: string, offset: number): string { return Buffer.from(JSON.stringify({ fingerprint, offset })).toString('base64url'); }
 function cursorOffset(cursor: string, fingerprint: string): number {

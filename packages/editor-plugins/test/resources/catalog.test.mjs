@@ -142,3 +142,23 @@ test('project inventory excludes templates and duplicate entities, follows tools
   assert.equal((await f.page({ projectOnly: true })).total, 0);
   await assert.rejects(f.page({ projectOnly: 'yes' }), /resource.query-invalid/);
 });
+
+test('identical geometry resources group uses and stay stable across rename and copy-on-write edits', async t => {
+  const f = await resourceFixture(); t.after(f.close);
+  const create = async (name, radius) => execute(f, 'entity.create', { baseRevision:f.workspace.gameSnapshot().revision, kind:'rounded-box', name, ...(radius === undefined ? {} : {radius}), material:'pbr', color:[1,0,0,1] });
+  const a = await create('First', undefined), b = await create('Second', .075);
+  let page = await f.page({projectOnly:true,category:'Geometry'});
+  let item = page.items.find(i => i.locations.some(l => l.ref.entityId === a.value.entity.id));
+  assert.equal(item.locations.length, 2); assert.equal(item.entry.usage.status, 'known');
+  const id = item.entry.catalogEntryId;
+  const site = item.locations.find(l => l.ref.entityId === b.value.entity.id);
+  const location = f.catalog.locateUsage({binding:page.binding,entry:item.entry,ref:site.ref,field:site.field});
+  assert.equal(location.target.entityId,b.value.entity.id);
+  await execute(f, 'entity.rename', {baseRevision:f.workspace.gameSnapshot().revision,entityId:a.value.entity.id,name:'Renamed'});
+  page = await f.page({projectOnly:true,category:'Geometry'}); item = page.items.find(i => i.entry.catalogEntryId === id);
+  assert.equal(item.locations.length,2);
+  await execute(f, 'component.configure', {baseRevision:f.workspace.gameSnapshot().revision,entityId:b.value.entity.id,action:'upsert',type:'haiyue.render.geometry',patch:{radius:.2}});
+  page = await f.page({projectOnly:true,category:'Geometry'});
+  assert.equal(page.items.find(i => i.entry.catalogEntryId === id).locations.length,1);
+  assert.equal(page.items.find(i => i.locations.some(l => l.ref.entityId === b.value.entity.id)).locations.length,1);
+});

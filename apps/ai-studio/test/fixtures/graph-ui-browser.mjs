@@ -37,6 +37,13 @@ window.uiPoint = selector => {
 window.graphScale = () => Number(document.querySelector('.execution-graph-canvas').style.transform.match(/[\d.]+/)[0]);
 window.showGraph();
 
+window.showMarkdownDetail = () => {
+  nodes[0] = { ...nodes[0], kind: 'model', title: '模型处理 · 分段说明', summary: '创建圆角立方体。\n\n配置相机和交互。', detail: { ...nodes[0].detail,
+    modelExplanation: '# 实现方案\n\n保留 **PBR 材质**，使用 `rounded-box`。\n\n1. 查询引擎接口\n2. 配置相机\n   - 验证拖拽\n\n> 验收后保留实际结果。\n\n```ts\nconst count = 27;\nconst ready = true;\n```\n\n<img src="https://invalid.example/test.png" onerror="window.markdownInjected=true">\n\n[危险链接](javascript:alert(1))',
+    actionSummary: '**模型处理 · 第 1 轮**\n\n查询引擎接口。\n\n**模型处理 · 第 2 轮**\n\n创建物体并配置相机。', resultSummary: '- 已创建物体\n- 等待交互验收',
+  } }; window.showGraph();
+};
+
 const chainPhase = (sessionId, taskId, offset, startedOnly) => {
   const kinds = startedOnly ? ['session.created', 'turn.started', 'user.message'] : ['session.created', 'turn.started', 'user.message', 'tool.started', 'tool.completed', 'turn.completed'];
   const ops = kinds.map((kind, sequence) => ({ schemaVersion: 1, id: `${sessionId}:op:${sequence}`, sessionId, sequence, kind, timestamp: new Date(Date.UTC(2026, 8, 10, 0, 0, offset + sequence)).toISOString(), turnId: sequence ? `${sessionId}:turn` : null, stepId: null, batchId: kind.startsWith('tool.') ? `${sessionId}:batch` : null, nodeId: kind.startsWith('tool.') ? `${sessionId}:tool` : null, parentOpId: null, dependsOn: [], projectRevision: null, artifactRefs: [], payload: { ...(kind === 'turn.started' ? { taskId } : {}), ...(kind.startsWith('tool.') ? { toolId: 'scene.query' } : {}), ...(kind.endsWith('.completed') ? { status: 'completed' } : {}) }, payloadDigest: `sha256:${'a'.repeat(64)}` }));

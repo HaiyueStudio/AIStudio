@@ -86,7 +86,7 @@ export class IntegratedEditorPanels {
     try {
       const data = await this.ports.invoke('editor/advanced', {}, task.signal) as unknown as AdvancedStudioSource;
       if (task.signal.aborted || this.disposed) return;
-      if (this.source?.epoch !== data.epoch) { this.advanced.close(); this.resourceRequest?.abort(); this.query = { ...DEFAULT_RESOURCE_QUERY }; this.thumbnails.setProject(null); this.resources.update(EMPTY_RESOURCE_PANEL); this.importDialog?.close(); }
+      if (this.source?.epoch !== data.epoch) { this.advanced.close(); this.resourceRequest?.abort(); this.query = { ...DEFAULT_RESOURCE_QUERY }; this.resourceData = EMPTY_RESOURCE_PANEL; this.thumbnails.setProject(null); this.resources.update(EMPTY_RESOURCE_PANEL); this.importDialog?.close(); }
       this.source = { ...data, projection: this.ports.projection() };
       if (this.opened) await this.advanced.open();
       if (includeResources) await this.refreshResources();
@@ -108,11 +108,12 @@ export class IntegratedEditorPanels {
   }
   private async refreshResources(): Promise<void> {
     this.resourceRequest?.abort(); const task = new AbortController(); this.resourceRequest = task;
+    this.resources.update({ ...this.resourceData, state: 'loading', items: [], total: 0, nextCursor: null, viewToken: null, diagnostics: [] });
     try {
       const data = await this.ports.invoke('editor/resources', this.query, task.signal) as unknown as ResourcePanelData;
       if (task.signal.aborted || this.disposed) return;
       this.resourceData = data; this.thumbnails.setProject(data.projectKey); this.resources.update(data);
-    } catch (error) { if (!task.signal.aborted && !this.disposed) { this.resources.update({ ...EMPTY_RESOURCE_PANEL, state: 'error', diagnostics: ['资源读取失败，请刷新重试。'] }); throw error; } }
+    } catch (error) { if (!task.signal.aborted && !this.disposed) { this.resources.update({ ...this.resourceData, items: [], total: 0, nextCursor: null, viewToken: null, state: 'error', diagnostics: ['资源读取失败，请刷新重试。'] }); throw error; } }
     finally { if (this.resourceRequest === task) this.resourceRequest = null; }
   }
   private async resourceIntent(intent: ResourcePanelIntent): Promise<void> {

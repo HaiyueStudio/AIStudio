@@ -1,3 +1,4 @@
+import { enrichExecutionContent } from './execution-content.js';
 import type { CompactionRecordV1, ContextPressureV1, JsonValue, M13StableId, SessionOpV1 } from '@haiyue/ai-studio-contracts';
 import type { ConversationTaskRunReadModel } from './types.js';
 import type {
@@ -38,6 +39,9 @@ interface MutableNode {
   reason: string | null;
   diagnostic: string | null;
   validation: string | null;
+  modelExplanation?: string | null;
+  actionSummary?: string | null;
+  resultSummary?: string | null;
 }
 
 interface MutableEdge {
@@ -181,15 +185,10 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
 
   projectConfirmationCheckpoints(ops, nodes, edges, opToGraphNode, turnLifecycle, transcript);
 
-  for (const node of nodes.values()) {
-    if (node.kind !== 'turn' || node.status !== 'running') continue;
-    const tools = [...nodes.values()].filter(child => child.turnId === node.turnId && child.kind === 'tool');
-    const latest = tools.at(-1);
-    if (latest && !tools.some(child => activeStatuses.has(child.status))) {
-      node.title = '模型生成下一步';
-      node.summary = `上一工具：${latest.toolId ?? latest.title}（${latest.status === 'failed' ? '失败' : latest.status === 'cancelled' ? '已取消' : '已完成'}）。等待模型返回下一步操作或回复。`;
-    }
-  }
+  // Preserve authoritative turn/result causes before inserting presentation groups.
+  summarizeTerminalReasons(nodes, edges);
+  projectModelRounds(ops, nodes, edges, transcript);
+  enrichExecutionContent(input, ops, nodes, [...edges.values()], transcript);
   const root = nodes.get(rootId);
   if (root) {
     root.status = sessionStatus(input.status, ops);
@@ -236,6 +235,107 @@ export function projectExecutionGraph(input: ExecutionGraphProjectionInput): Exe
     ...(taskScopes.length ? { taskScopes: freeze(taskScopes) } : {}),
   } as const;
   return freeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) });
+}
+
+/** A provider turn can contain many tool/response round trips. Keep its lifecycle
+ * node, but give each observable model phase its own stable, replayable coordinate.
+ * These are product phases, not invented provider request/token records. */
+function projectModelRounds(ops: readonly SessionOpV1[], nodes: Map<string, MutableNode>, edges: Map<string, MutableEdge>, transcript: ExecutionTranscriptItemReadModel[]): void {
+  const turns = [...nodes.values()].filter(node => node.kind === 'turn');
+  for (const turn of turns) {
+    const history = ops.filter(op => op.turnId === turn.turnId);
+    if (!history.length) continue;
+    const children = [...nodes.values()].filter(node => node.turnId === turn.turnId && node.id !== turn.id);
+    const byOp = new Map<string, MutableNode>(), byWork = new Map<string, MutableNode>();
+    const barrierOwners = new Map<string, MutableNode>();
+    const answerSummary = (op: SessionOpV1) => op.payload.denied === true || op.payload.resolution === 'cancelled' ? '确认未通过，本轮未继续执行。' : '用户已确认，本轮处理结果见下方节点。';
+    const open = new Set<string>(), rounds: MutableNode[] = [];
+    const state: { current: MutableNode | null; last: MutableNode | null } = { current: null, last: null };
+    let anchor = history[0]!, closed = false;
+    const begin = () => {
+      const node = mutableNode({ id: graphId('model', anchor.id), kind: 'model', turnId: turn.turnId,
+        status: 'running', title: `模型处理 · 第 ${rounds.length + 1} 轮`, summary: rounds.length ? '根据工具返回结果，生成下一步操作或回复。' : '理解请求，生成方案或工具调用。',
+        startedAt: anchor.timestamp, sourceOpIds: [anchor.id], projectRevisionBefore: anchor.projectRevision, projectRevisionAfter: anchor.projectRevision });
+      rounds.push(node); nodes.set(node.id, node); addEdge(edges, 'contains', turn.id, node.id, anchor.id);
+      state.current = node; state.last = node; return node;
+    };
+    const finish = (node: MutableNode, op: SessionOpV1) => {
+      if (node.status !== 'running') return;
+      node.status = 'completed'; node.completedAt = op.timestamp;
+      node.projectRevisionAfter = op.projectRevision ?? node.projectRevisionAfter;
+    };
+    for (const op of history) {
+      if (op.kind === 'turn.started') { closed = false; open.clear(); state.current = null; anchor = op; begin(); }
+      const barrierKey = stringValue(op.payload.questionId) ?? stringValue(op.payload.approvalId) ?? op.nodeId;
+      const answered = op.kind === 'question.resolved' || op.kind === 'approval.resolved';
+      const answerOwner = answered && barrierKey ? barrierOwners.get(barrierKey) : null;
+      // Late checkpoint answers/messages cannot start another model round.
+      if (closed) {
+        const owner = answerOwner ?? state.last;
+        if (owner) { byOp.set(op.id, owner); owner.sourceOpIds.push(op.id); if (answered) owner.summary = answerSummary(op); }
+        continue;
+      }
+      const work = op.batchId ? `batch:${op.batchId}` : op.kind.startsWith('tool.') && op.nodeId ? `tool:${op.nodeId}` : null;
+      const launches = op.kind === 'tool-batch.planned' || op.kind === 'tool-batch.started' || op.kind === 'tool.started';
+      if (work && launches && !byWork.has(work)) {
+        const model = state.current ?? begin(); byWork.set(work, model); open.add(work);
+        finish(model, op); model.summary = '已生成工具调用，执行结果见本轮下方节点。';
+      }
+      if (op.kind === 'assistant.message' && !state.current && open.size === 0) begin();
+      if (op.kind === 'turn.completed' && !state.current && !open.size && !nodes.get(graphId('result', op.id))?.barrierKind) begin();
+      if (!state.last) begin();
+      const owner = answerOwner ?? (work ? byWork.get(work) : null) ?? state.current ?? state.last!;
+      byOp.set(op.id, owner); owner.sourceOpIds.push(op.id);
+      if (op.kind === 'assistant.message') {
+        owner.artifactRefs.push(...op.artifactRefs);
+        owner.summary = '模型正在输出回复。';
+      }
+      if (op.kind === 'question.requested' || op.kind === 'approval.requested') {
+        if (barrierKey) barrierOwners.set(barrierKey, owner);
+        finish(owner, op); owner.summary = '已提出确认请求，等待用户处理。';
+      }
+      if (op.kind === 'tool-batch.completed' || !op.batchId && (op.kind === 'tool.completed' || op.kind === 'tool.outcome-unknown')) {
+        finish(owner, op);
+        if (work) open.delete(work);
+        if (!open.size) { state.current = null; anchor = op; }
+      }
+      if (answered) {
+        owner.summary = answerSummary(op);
+        if (!open.size && (owner === state.current || !state.current && owner === state.last)) { state.current = null; anchor = op; }
+      }
+      if (op.kind === 'turn.completed') {
+        if (state.current?.status === 'running') {
+          const result = nodes.get(graphId('result', op.id));
+          state.current.status = result?.status ?? productStatus(stringValue(op.payload.status));
+          state.current.completedAt = state.current.status === 'waiting' ? null : op.timestamp;
+          state.current.summary = result?.summary ?? '本轮模型处理已结束。';
+          state.current.reason = result?.reason ?? null; state.current.diagnostic = result?.diagnostic ?? null;
+        }
+        closed = true;
+      }
+    }
+    const activeChildren = children.some(node => activeStatuses.has(node.status));
+    if (!closed && turn.status === 'running' && !activeChildren && !state.current) begin();
+    // An enclosing terminal/pause state must never leave a synthesized spinner alive.
+    for (const model of rounds) if (model.status === 'running' && turn.status !== 'running') {
+      model.status = turn.status; model.completedAt = turn.completedAt; model.reason = turn.reason; model.diagnostic = turn.diagnostic;
+    }
+    for (const child of children) {
+      const owner = (child.batchId ? byWork.get(`batch:${child.batchId}`) : null) ?? child.sourceOpIds.map(id => byOp.get(id)).find(Boolean);
+      if (!owner) continue;
+      for (const [id, edge] of edges) if (edge.kind === 'contains' && edge.from === turn.id && edge.to === child.id) {
+        edges.delete(id); for (const source of edge.sourceOpIds) addEdge(edges, 'contains', owner.id, child.id, source);
+      }
+    }
+    for (let i = 0; i < transcript.length; i++) {
+      const item = transcript[i]!;
+      if (item.kind !== 'message' || item.role !== 'assistant') continue;
+      const owner = item.sourceOpIds.map(id => byOp.get(id)).find(Boolean);
+      if (owner) transcript[i] = freeze({ ...item, graphNodeIds: freeze([owner.id]) });
+    }
+    turn.title = '执行阶段';
+    turn.summary = `${rounds.length} 轮模型处理 · ${turn.summary}`;
+  }
 }
 
 /** Show the active frontier, not every enclosing goal/turn. Human barriers take
@@ -378,7 +478,9 @@ export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadMo
     const diagnostic = task?.terminalDiagnostic ?? (terminal ? sourceRoot.detail.diagnostic : null);
     const reason = terminal ? executionFailureReason(diagnostic, task?.timeline?.filter(item => item.status === 'error').at(-1)?.detail ?? sourceRoot.detail.reason ?? null) : status === 'outcome-unknown' && pendingAcceptance ? '当前回合已结束，验收证据尚未补齐，可从检查点继续验收。' : null;
     const title = task?.title ?? (parts[0]!.graph.taskScopes?.length === 1 ? parts[0]!.graph.title : 'Agent task');
-    const nodes: ExecutionGraphNodeReadModel[] = [freeze({ ...sourceRoot, id: rootId, title, status, summary: `${parts.length} 个执行阶段${status === 'running' && (task?.status === 'blocked' || ['playing', 'evaluating', 'repairing'].includes(task?.phase ?? '')) ? ' · 验收处理中' : pendingAcceptance && status === 'outcome-unknown' ? ' · 待继续验收' : ''}`, detail: freeze({ ...sourceRoot.detail, reason, diagnostic }), startedAt: firstTime(parts[0]!), completedAt: terminalStatuses.has(status) ? sourceRoot.completedAt : null, durationMs: null, sourceOpIds: freeze([]), artifactRefs: freeze([]) })];
+    const scopedTurns = parts.flatMap(part => part.graph.nodes.filter(node => part.nodeIds.includes(node.id) && node.kind === 'turn'));
+    const currentTurn = scopedTurns.at(-1);
+    const nodes: ExecutionGraphNodeReadModel[] = [freeze({ ...sourceRoot, id: rootId, title, status, summary: `${parts.length} 个执行阶段${status === 'running' && (task?.status === 'blocked' || ['playing', 'evaluating', 'repairing'].includes(task?.phase ?? '')) ? ' · 验收处理中' : pendingAcceptance && status === 'outcome-unknown' ? ' · 待继续验收' : ''} · ${safeText(currentTurn?.summary, title, 1000)}`, detail: freeze({ ...sourceRoot.detail, reason, diagnostic, modelExplanation: null, actionSummary: currentTurn?.detail.actionSummary ?? null, resultSummary: currentTurn?.detail.resultSummary ?? null }), startedAt: firstTime(parts[0]!), completedAt: terminalStatuses.has(status) ? sourceRoot.completedAt : null, durationMs: null, sourceOpIds: freeze([]), artifactRefs: freeze([]) })];
     const edges: ExecutionGraphEdgeReadModel[] = []; const transcript: ExecutionTranscriptItemReadModel[] = [];
     const critical: string[] = []; const diagnostics: ExecutionGraphDiagnosticReadModel[] = [];
     for (const part of parts) {
@@ -413,6 +515,10 @@ export function normalizeExecutionGraph(value: unknown): ExecutionGraphReadModel
   const nodeIds = new Set<M13StableId>();
   for (const node of value.nodes) {
     if (!record(node) || !stringValue(node.id) || nodeIds.has(node.id as string) || !stringValue(node.kind) || !stringValue(node.status) || !stringValue(node.title) || !Array.isArray(node.sourceOpIds) || !Array.isArray(node.artifactRefs) || !record(node.detail)) throw new TypeError('Execution Graph node is invalid.');
+    for (const field of ['modelExplanation', 'actionSummary', 'resultSummary']) {
+      const content = node.detail[field];
+      if (content !== undefined && content !== null && (typeof content !== 'string' || content.length > 2048)) throw new TypeError('Execution Graph node content is invalid.');
+    }
     nodeIds.add(node.id as string);
   }
   if (value.taskId !== undefined && !stringValue(value.taskId)) throw new TypeError('Execution Graph task identity is invalid.');
@@ -689,7 +795,7 @@ function freezeNode(node: MutableNode): ExecutionGraphNodeReadModel {
     id: node.id, kind: node.kind, status: node.status, title: safeText(node.title, 'Untitled step'), summary: safeText(node.summary, ''), turnId: node.turnId, batchId: node.batchId, sourceNodeId: node.sourceNodeId,
     sourceOpIds: freeze(unique(node.sourceOpIds).sort()), artifactRefs: freeze(unique(node.artifactRefs).sort()), projectRevisionBefore: node.projectRevisionBefore, projectRevisionAfter: node.projectRevisionAfter,
     startedAt: node.startedAt, completedAt: node.completedAt, durationMs: Number.isFinite(started) && Number.isFinite(completed) ? Math.max(0, completed - started) : null,
-    detail: freeze({ toolId: node.toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, barrierKind: node.barrierKind, transactionId: node.transactionId, usageRecordIds: freeze(unique(node.usageRecordIds).sort()), costRecordIds: freeze(unique(node.costRecordIds).sort()), reason: node.reason, diagnostic: node.diagnostic, validation: node.validation }),
+    detail: freeze({ toolId: node.toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, barrierKind: node.barrierKind, transactionId: node.transactionId, usageRecordIds: freeze(unique(node.usageRecordIds).sort()), costRecordIds: freeze(unique(node.costRecordIds).sort()), reason: node.reason, diagnostic: node.diagnostic, validation: node.validation, modelExplanation: node.modelExplanation ?? null, actionSummary: node.actionSummary ?? null, resultSummary: node.resultSummary ?? null }),
   });
 }
 

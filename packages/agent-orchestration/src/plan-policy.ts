@@ -1,11 +1,12 @@
 import { asStableId, type StableId, type JsonObject, type TaskSpecV2 } from '@haiyue/ai-studio-contracts';
-import { EVIDENCE_ASSERTION_PATTERN, isSupportedEvidenceAssertion } from '@haiyue/ai-studio-game-authoring-tools';
+import { ASSEMBLY_EXPECTATIONS_SCHEMA, normalizeAssemblyExpectations, EVIDENCE_ASSERTION_PATTERN, isSupportedEvidenceAssertion } from '@haiyue/ai-studio-game-authoring-tools';
 import { isRecord } from './value-utils.js';
 
 export interface ApprovedPlanExecution {
   readonly title: string;
   readonly summary: string;
   readonly items: readonly Readonly<{ id: StableId; label: string; details?: string }>[];
+  readonly assemblies?: readonly JsonObject[];
   readonly note?: string;
   attempts: number;
   mutationCount: number;
@@ -19,17 +20,17 @@ export function approvedPlanRequest(plan: ApprovedPlanExecution, projectOpen: bo
   ].join('\n\n');
 }
 export function canonicalPlan(plan: ApprovedPlanExecution): string {
-  return JSON.stringify({ title: plan.title, summary: plan.summary, items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
+  return JSON.stringify({ title: plan.title, summary: plan.summary, assemblies: plan.assemblies ?? [], items: plan.items.map((item) => ({ label: item.label, ...(item.details ? { details: item.details } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
 }
 export const PLAN_TOOL_ID = asStableId('studio.plan.propose');
-const ASSERTION_GUIDANCE = 'Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Types: state, event-trace, runtime-errors, performance, screenshot, visual-analysis, lifecycle. Examples: evidence runtime-errors signal count equals 0; evidence state signal gameplay.0.value.metrics.score gte 1; evidence state signal gameplay.0.value.phase equals "ready". Signal paths must match the observation payload you will produce and inspect. Put human-readable requirements in label. Preserve each requirement when correcting its assertion; do not omit criteria to bypass validation. Bare evidence <type> checks presence only, not correctness; visual correctness requires a real visual verifier. Current Play tools produce no visual-analysis evidence and no fps measurement. Performance exposes finite, tick, frame and timeMs. Screenshot presence cannot prove colors or shape: pair it with explicit structural/behavior assertions and state any remaining visual review limitation.';
+const ASSERTION_GUIDANCE = 'Prefer one atomic assertion per acceptance entry; put multiple conditions in separate entries. Legacy semicolon-separated assertions are expanded into independent required checks without dropping conditions. Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Types: state, event-trace, runtime-errors, performance, screenshot, visual-analysis, lifecycle. Examples: evidence runtime-errors signal count equals 0; evidence state signal gameplay.0.value.metrics.score gte 1; evidence state signal gameplay.0.value.phase equals "ready". Signal paths must match the observation payload you will produce and inspect. Put human-readable requirements in label. Preserve each requirement when correcting its assertion; do not omit criteria to bypass validation. Bare evidence <type> checks presence only, not correctness; visual correctness requires a real visual verifier. Current Play tools produce no visual-analysis evidence and no fps measurement. Performance exposes finite, tick, frame and timeMs. Screenshot presence cannot prove colors or shape: pair it with explicit structural/behavior assertions and state any remaining visual review limitation.';
 export const PLAN_TOOL_DEFINITION = Object.freeze({
   id: PLAN_TOOL_ID,
-  description: 'Submit the complete implementation plan and machine-checkable acceptance criteria for user review before any project mutation. Include authored entities, responsibilities, static properties persisted in the Document instead of initialization-only scripts, dynamic state ownership, rendering strategy, and real pointer/action gestures and authoritative before/after entity/camera state for interaction acceptance, and fixed evidence assertions. Distinguish appearance requirements from explicit implementation constraints. For repeated composite objects specify parts, materials, parent-local transforms, motion owner, prototype checks and prefab reuse; do not equate an object name with one primitive. The result blocks until the user approves or requests a revision.',
+  description: 'Submit the complete implementation plan and machine-checkable acceptance criteria for user review before any project mutation. Include authored entities, responsibilities, static properties persisted in the Document instead of initialization-only scripts, dynamic state ownership, rendering strategy, and real pointer/action gestures and authoritative before/after entity/camera state for interaction acceptance, and fixed evidence assertions. Distinguish appearance requirements from explicit implementation constraints. For repeated composite objects specify visible requirements, parts, independent color slots, parent-local transforms and motion owner. Plan assembly.create, assembly.inspect and assembly.instantiate as separate stages; structure checks must cover the promised colored surfaces and subparts, not only body counts. Use prefab.manage for existing subtrees; do not equate an object name with one primitive. The result blocks until the user approves or requests a revision.',
   effect: 'observe' as const,
   risk: 'low' as const,
   inputSchema: Object.freeze({
-    type: 'object', additionalProperties: false, required: Object.freeze(['title', 'summary', 'items']), properties: Object.freeze({
+    type: 'object', additionalProperties: false, required: Object.freeze(['title', 'summary', 'items', 'assemblies']), properties: Object.freeze({
       title: Object.freeze({ type: 'string', minLength: 1, maxLength: 160 }),
       summary: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_200 }),
       items: Object.freeze({ type: 'array', minItems: 1, maxItems: 20, items: Object.freeze({
@@ -38,6 +39,7 @@ export const PLAN_TOOL_DEFINITION = Object.freeze({
           details: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024 }),
         }),
       }) }),
+      assemblies: { ...ASSEMBLY_EXPECTATIONS_SCHEMA, description: 'For repeated composite objects, declare required part roles, independent color count and total instances including the prototype. Studio enforces these against actual entities before preview and final acceptance. Use [] for tasks without repeated assemblies.' },
       acceptance: Object.freeze({ type: 'array', description: 'Fixed, machine-checkable criteria corresponding to the user requirements. Each assertion uses the evidence DSL described below; natural-language assertions are not executable.', minItems: 1, maxItems: 50, items: Object.freeze({
         type: 'object', additionalProperties: false, required: Object.freeze(['label', 'required', 'category', 'assertion']), properties: Object.freeze({
           label: Object.freeze({ type: 'string', minLength: 1, maxLength: 240 }), required: Object.freeze({ type: 'boolean' }),
@@ -48,9 +50,9 @@ export const PLAN_TOOL_DEFINITION = Object.freeze({
     }),
   }) as JsonObject,
 });
-export function validatePlanProposal(value: JsonObject): Readonly<{ title: string; summary: string; items: readonly Readonly<{ label: string; details?: string }>[]; acceptance: readonly PlanAcceptanceProposal[] }> {
+export function validatePlanProposal(value: JsonObject): Readonly<{ title: string; summary: string; items: readonly Readonly<{ label: string; details?: string }>[]; acceptance: readonly PlanAcceptanceProposal[]; assemblies: readonly JsonObject[] }> {
   const raw = value as Record<string, unknown>;
-  if (Object.keys(raw).some((key) => !['title', 'summary', 'items', 'acceptance'].includes(key)) || typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 160
+  if (Object.keys(raw).some((key) => !['title', 'summary', 'items', 'acceptance', 'assemblies'].includes(key)) || typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 160
     || typeof raw.summary !== 'string' || !raw.summary.trim() || raw.summary.length > 1_200 || !Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 20) {
     throw new PlanProtocolError('plan.payload-invalid', 'Plan requires a title, summary and 1-20 detailed items.');
   }
@@ -63,19 +65,55 @@ export function validatePlanProposal(value: JsonObject): Readonly<{ title: strin
   });
   const acceptance = raw.acceptance === undefined ? [] : !Array.isArray(raw.acceptance) || raw.acceptance.length < 1 || raw.acceptance.length > 50
     ? (() => { throw new PlanProtocolError('plan.payload-invalid', 'Plan acceptance requires 1-50 criteria.'); })()
-    : raw.acceptance.map((entry, index) => {
+    : raw.acceptance.flatMap((entry, index) => {
       if (!isRecord(entry) || Object.keys(entry).some((key) => !['label', 'required', 'category', 'assertion'].includes(key)) || typeof entry.label !== 'string' || !entry.label.trim() || entry.label.length > 240
         || typeof entry.required !== 'boolean' || !['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security'].includes(String(entry.category))) {
-        throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}] requires a non-empty label (up to 240 characters), required (boolean), category (functional, visual, performance, lifecycle, budget or security), and assertion; no extra fields.`);
+        const issues = !isRecord(entry) ? ['entry must be an object'] : [
+          ...(typeof entry.label !== 'string' || !entry.label.trim() || entry.label.length > 240 ? ['label must be non-empty text up to 240 characters'] : []),
+          ...(typeof entry.required !== 'boolean' ? [`required must be boolean; received ${typeof entry.required}`] : []),
+          ...(!['functional', 'visual', 'performance', 'lifecycle', 'budget', 'security'].includes(String(entry.category)) ? ['category must be functional, visual, performance, lifecycle, budget or security'] : []),
+          ...Object.keys(entry).filter(key => !['label', 'required', 'category', 'assertion'].includes(key)).map(key => `unknown field: ${key.slice(0, 80)}`),
+        ];
+        throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}] requires correction: ${issues.join('; ').slice(0, 800)}. Required fields: label (string), required (boolean), category (enum), assertion (evidence DSL string). Preserve every requirement; do not omit criteria.`);
       }
-      if (typeof entry.assertion !== 'string' || entry.assertion.length > 2_000 || !isSupportedEvidenceAssertion(entry.assertion)) {
-        throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}].assertion is not executable (maximum 2000 characters). ${ASSERTION_GUIDANCE}`);
+      if (typeof entry.assertion !== 'string' || !entry.assertion.trim() || entry.assertion.length > 2_000) {
+        throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}].assertion must be non-empty text up to 2000 characters. Put each requirement in a separate acceptance entry; do not omit criteria.`);
       }
-      if (/^evidence\s+visual-analysis(?:\s|$)/u.test(entry.assertion.trim()) || /^evidence\s+performance\s+signal\s+(?!finite\s|tick\s|frame\s|timeMs\s)/u.test(entry.assertion.trim())) {
-        throw new PlanProtocolError('plan.evidence-producer-unavailable', `acceptance[${index}] requires evidence the current Play tools cannot produce. ${ASSERTION_GUIDANCE}`);
-      }
-      return Object.freeze({ label: entry.label.trim(), required: entry.required, category: entry.category as PlanAcceptanceProposal['category'], assertion: entry.assertion.trim() });
+      const assertions = splitAcceptanceAssertions(entry.assertion);
+      return assertions.map((assertion, part) => {
+        if (!isSupportedEvidenceAssertion(assertion)) {
+          throw new PlanProtocolError('plan.payload-invalid', `acceptance[${index}].assertion 条件 ${part + 1}/${assertions.length} 无法解析：${JSON.stringify(assertion.slice(0, 140))}. Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Strings need JSON double quotes. Keep each condition as a separate acceptance entry; do not omit criteria.`);
+        }
+        if (/^evidence\s+visual-analysis(?:\s|$)/u.test(assertion) || /^evidence\s+performance\s+signal\s+(?!finite\s|tick\s|frame\s|timeMs\s)/u.test(assertion)) {
+          throw new PlanProtocolError('plan.evidence-producer-unavailable', `acceptance[${index}].assertion 条件 ${part + 1} 请求了当前 Play 无法生成的证据：${JSON.stringify(assertion.slice(0, 160))}. Play supports performance finite/tick/frame/timeMs, but not fps or visual-analysis. Preserve the requirement and choose available evidence; do not claim an unverified result.`);
+        }
+        const suffix = assertions.length > 1 ? `（${part + 1}/${assertions.length}）` : '';
+        const label = entry.label as string;
+        return Object.freeze({ label: `${label.trim().slice(0, 240 - suffix.length)}${suffix}`, required: entry.required as boolean, category: entry.category as PlanAcceptanceProposal['category'], assertion });
+      });
     });
-  return Object.freeze({ title: raw.title.trim(), summary: raw.summary.trim(), items: Object.freeze(items), acceptance: Object.freeze(acceptance) });
+  if (acceptance.length > 50) throw new PlanProtocolError('plan.payload-invalid', `The plan expands to ${acceptance.length} acceptance conditions; maximum 50. Reorganize the plan without dropping requirements.`);
+  return Object.freeze({ title: raw.title.trim(), summary: raw.summary.trim(), items: Object.freeze(items), acceptance: Object.freeze(acceptance), assemblies: normalizeAssemblyExpectations(raw.assemblies ?? []) });
 }
 export class PlanProtocolError extends Error { constructor(readonly code: string, message: string) { super(message); this.name = 'PlanProtocolError'; } }
+
+/** Split only explicit conjunction separators outside JSON strings/containers. */
+function splitAcceptanceAssertions(value: string): string[] {
+  const parts: string[] = [];
+  let start = 0, depth = 0, quoted = false, escaped = false;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') quoted = false;
+      continue;
+    }
+    if (character === '"') quoted = true;
+    else if (character === '{' || character === '[') depth++;
+    else if (character === '}' || character === ']') depth--;
+    else if ((character === ';' || character === '；') && depth === 0) { parts.push(value.slice(start, index).trim()); start = index + 1; }
+  }
+  parts.push(value.slice(start).trim());
+  return parts;
+}

@@ -31,13 +31,21 @@ export function createWorkspaceEditorPorts(options: Readonly<{
     async resources(request, signal) {
       const initial = behavior.validateSource(await behavior.readSource(signal));
       signal.throwIfAborted();
+      let bindingKey = '', cachedBinding: ReturnType<typeof behavior.bindSource> | null = null;
       const catalog = new ProjectResourceCatalog({ workspace,
-        binding: () => behavior.bindSource({ ...initial, document: workspace.gameSnapshot(), registry: { ...initial.registry, definitions: workspace.componentRegistry.snapshot().definitions } }),
+        binding: () => {
+          const document = workspace.gameSnapshot(), registry = workspace.componentRegistry.snapshot();
+          const key = JSON.stringify([document.id, document.revision, registry.digest]);
+          if (bindingKey !== key || !cachedBinding) {
+            cachedBinding = behavior.bindSource({ ...initial, document, registry: { ...initial.registry, definitions: registry.definitions } }); bindingKey = key;
+          }
+          return cachedBinding;
+        },
         validateEntry: input => parseBehaviorContract('resource-catalog-entry', input),
         validateLocation: behavior.validateLocation,
         dependencies: signal => request('asset.dependencies', {}, signal),
         request: (id, args, _binding, signal) => request(id, args, signal),
-      });
+      }, { reuseQueries: true });
       return {
         async query(query, signal) {
           const page = await catalog.query({ ...query, projectOnly: true }, signal), selected = selection.snapshot();

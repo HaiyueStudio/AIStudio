@@ -50,6 +50,7 @@ export function advancePlaytest(playtest: BoundedPlaytestTask, target: Extract<C
     const phase = playtest.snapshot().phase;
     if (phase === 'planning' || phase === 'repairing' || phase === 'evaluating' && target === 'editing') playtest.advance('editing');
     else if (phase === 'editing' && target !== 'editing') playtest.advance('validating');
+    else if (phase === 'validating' && target === 'editing') playtest.advance('editing');
     else if (phase === 'validating' && (target === 'playing' || target === 'evaluating')) playtest.advance('playing');
     else if (phase === 'playing' && target === 'evaluating') playtest.advance('evaluating');
     else break;

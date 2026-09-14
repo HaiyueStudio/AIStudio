@@ -320,10 +320,30 @@ function normalizePlan(value: Record<string, unknown>): JsonObject {
   return compact({
     title: text(value.title, 240) ?? 'Proposed plan',
     summary: text(value.summary, 2_048),
+    ...(value.assemblies === undefined ? {} : { assemblies: normalizePlanAssemblies(value.assemblies) }),
     decision: enumValue(value.decision, ['approved', 'revision-requested']),
     note: text(value.note, 2_048),
     items: Object.freeze(items) as unknown as JsonValue,
   });
+}
+
+function normalizePlanAssemblies(value: unknown): JsonValue {
+  // Preserve the whole contract or an explicit invalid sentinel; never drop individual requirements during replay.
+  const invalid = () => [{ invalid: true, label: '组合要求记录无效，需要重新制定方案。' }];
+  if (!Array.isArray(value) || value.length > 16) return invalid();
+  const seen = new Set<string>(), key = /^(?!constructor$|prototype$)[a-zA-Z][a-zA-Z0-9_-]{0,47}$/u;
+  const rows: JsonValue[] = [];
+  for (const a of value) {
+    if (!isRecord(a) || Object.keys(a).some(k => !['assemblyId','label','partKeys','minimumInstances','distinctColors'].includes(k))
+      || typeof a.assemblyId !== 'string' || !key.test(a.assemblyId) || seen.has(a.assemblyId)
+      || typeof a.label !== 'string' || !a.label.length || a.label.length > 240 || !Array.isArray(a.partKeys) || !a.partKeys.length || a.partKeys.length > 64
+      || a.partKeys.some(k => typeof k !== 'string' || !key.test(k)) || new Set(a.partKeys).size !== a.partKeys.length
+      || !Number.isInteger(a.minimumInstances) || Number(a.minimumInstances) < 1 || Number(a.minimumInstances) > 257
+      || (a.distinctColors !== undefined && (!Number.isInteger(a.distinctColors) || Number(a.distinctColors) < 1 || Number(a.distinctColors) > 64))) return invalid();
+    seen.add(a.assemblyId);
+    rows.push({ assemblyId:a.assemblyId, label:safeText(a.label,240), partKeys:[...a.partKeys], minimumInstances:Number(a.minimumInstances), ...(a.distinctColors === undefined ? {} : {distinctColors:Number(a.distinctColors)}) });
+  }
+  return rows;
 }
 
 function normalizeApproval(value: Record<string, unknown>): JsonObject {

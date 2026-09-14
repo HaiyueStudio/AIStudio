@@ -1,3 +1,4 @@
+import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { createAuthoringRoundedBox } from '@haiyue/ai-studio-editor-plugins/render';
 import { createAuthoringPlane } from '@haiyue/ai-studio-editor-plugins/render';
 import {
@@ -29,10 +30,10 @@ export function installSceneEntityMaterialRenderers(engine: HaiyueEngine, scene:
   scene.addSystem(new BlinnPhongRenderSystem(engine, scene.cameraEntity, { render3DSystem }), false);
 }
 
-export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEntity): void {
+export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEntity, geometryPool?: SharedGeometryPool): void {
   if (isRenderableSceneKind(item.kind)) {
     const appearance = item.appearance ?? { material: 'basic' as const, color: [0.16, 0.58, 1, 1] as const };
-    entity.addComponent(new Mesh3D(createGeometry(item.kind, item.components), createMaterial(appearance)));
+    entity.addComponent(new Mesh3D(geometryPool ? geometryPool.get(item.kind, item.components?.find(c => c.type === 'haiyue.render.geometry')?.value) : createGeometry(item.kind, item.components), createMaterial(appearance)));
     return;
   }
   if (!isLightSceneKind(item.kind)) return;

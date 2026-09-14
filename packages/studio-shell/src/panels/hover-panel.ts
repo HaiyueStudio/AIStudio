@@ -32,11 +32,24 @@ export function createHoverPanel(document: Document, className: string, label: s
     cancelClose();
     if (anchor !== trigger) { hide(); anchor = trigger; populate?.(); }
     panel.hidden = false; panel.showPopover?.(); trigger.setAttribute('aria-expanded', 'true');
+    panel.style.maxHeight = '';
     const rect = trigger.getBoundingClientRect(); const bounds = panel.getBoundingClientRect();
     const width = document.documentElement.clientWidth; const height = document.documentElement.clientHeight;
-    panel.style.left = `${Math.max(8, Math.min(rect.right - bounds.width, width - bounds.width - 8))}px`;
-    const below = rect.bottom + 6; const above = rect.top - bounds.height - 6;
-    panel.style.top = `${Math.max(8, Math.min(below + bounds.height <= height - 8 ? below : above, height - bounds.height - 8))}px`;
+    let left = Math.max(8, Math.min(rect.right - bounds.width, width - bounds.width - 8));
+    let top = rect.bottom + 6;
+    const below = height - rect.bottom - 14; const above = rect.top - 14;
+    // Rich details must not cover their trigger and intercept its click or drag.
+    if (bounds.height <= below) top = rect.bottom + 6;
+    else if (bounds.height <= above) top = rect.top - bounds.height - 6;
+    else if (rect.right + bounds.width + 14 <= width || rect.left >= bounds.width + 14) {
+      left = rect.right + bounds.width + 14 <= width ? rect.right + 6 : rect.left - bounds.width - 6;
+      top = Math.max(8, Math.min(rect.top, height - bounds.height - 8));
+    } else {
+      const available = Math.max(1, Math.max(below, above));
+      panel.style.maxHeight = `${available}px`;
+      top = below >= above ? rect.bottom + 6 : rect.top - panel.getBoundingClientRect().height - 6;
+    }
+    panel.style.left = `${left}px`; panel.style.top = `${Math.max(8, top)}px`;
     scheduleClose();
   };
   const bind = (trigger: HTMLElement, populate?: () => void): void => {

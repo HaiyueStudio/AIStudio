@@ -28,7 +28,14 @@ test('Chinese intent and exact symbols discover callable APIs without loading na
     assert.ok(result.matches.every(entry => entry.surface !== 'engine-native'));
     assert.ok(Buffer.byteLength(JSON.stringify(result)) <= 4096);
   }
+  const grid = search('贴图网格').matches.find(entry => entry.title.includes('Textured grid alignment'));
+  assert.ok(grid, 'texture alignment is discoverable through the on-demand documentation search');
+  assert.match(read(grid).blocks.join('\n'), /N intersections have N-1 intervals/);
   assert.equal(search('api.input.interactions').matches[0].title, 'api.input.interactions');
+  const orbit = search('api.scene.orbitControls').matches[0];
+  assert.equal(orbit.title, 'api.scene.orbitControls');
+  assert.match(read(orbit).blocks.join('\n'), /background|onUpdate/);
+  assert.ok(search('OrbitControls 拖拽相机').matches.some(entry => /orbitControls|运行时 OrbitControls/.test(entry.title)));
   const native = search('createRoundedBox3D', 'engine-native').matches[0];
   assert.equal(native.title, 'createRoundedBox3D');
   assert.match(read(native).blocks.join('\n'), /createRoundedBox3D/);
@@ -104,6 +111,21 @@ test('shipped Studio examples compile against real declarations and rotate the a
       const text = await readFile(new URL(`../../../docs/examples/${name}.ts`, import.meta.url), 'utf8');
       const result = await validator.validate({ scriptId: `script:${name}`, textRevision: 1, sourcePath: `scripts/${name}.ts`, text, capabilities: ['read', 'input', 'scene'] });
       assert.deepEqual(result.diagnostics.filter(item => item.severity === 'error'), [], name);
+      if (name === 'grid-placement') {
+        const update = new Function('entity', 'component', 'world', 'time', 'delta', 'api', result.emittedText);
+        for (const [column, row] of [[0,0], [14,0], [0,14], [14,14], [7,7]]) {
+          // Positions follow the texture recipe, independently of the script's snapping math.
+          const x = ((64 + column * 64) / 1024 - 0.5) * 16;
+          const z = ((64 + row * 64) / 1024 - 0.5) * 16;
+          let placed, observed;
+          update(null, { data: {} }, null, 0, 16, {
+            input: { interactions: () => [{ type: 'click', entityId: 'entity:board', point: [x + 0.1, 0, z - 0.1] }] },
+            scene: { instances: () => ({ setCount() {}, set(_index, value) { placed = value; } }), observe(_name, value) { observed = value; } },
+          });
+          assert.ok(observed.column === column && observed.row === row);
+          assert.deepEqual([placed.position.x, placed.position.z], [x, z]);
+        }
+      }
       if (name === 'rotate-self') {
         const entity = new Entity(); const transform = new CartesianTransform3D(); entity.addComponent(transform);
         const update = new Function('entity', 'component', 'world', 'time', 'delta', 'api', result.emittedText);
@@ -199,4 +221,56 @@ test('model-facing read schema selects stored results and does not invite identi
   assert.equal(schema.properties.id, undefined);
   assert.equal(schema.properties.bundleDigest, undefined);
   assert.ok(schema.properties.ref, 'related-document handles remain available');
+});
+
+test('search continuation restores saved arguments and cursor without model transcription', () => {
+  const input = { query: 'transform', surface: 'all', limit: 20, maxBytes: 4096 };
+  let page = docs.search(input);
+  const ids = [], total = page.candidateCount;
+  for (let count = 0; count < 1000; count++) {
+    assert.ok(Buffer.byteLength(JSON.stringify(page)) <= input.maxBytes);
+    assert.equal(page.requestedCount, 20);
+    assert.equal(page.surface, 'all');
+    ids.push(...page.matches.map(match => match.id));
+    if (!page.nextCall) break;
+    assert.equal(page.nextCall.toolId, 'engine.docs.search');
+    assert.deepEqual(page.nextCall.arguments, { continueFrom: page.resultRef });
+    const next = page.nextCall.arguments;
+    const expected = docs.search({ ...input, cursor: page.nextCursor });
+    // Changing the returned response or input cannot change the server-owned continuation.
+    page.nextCursor = 'forged'; page.requestedCount = 999;
+    page = docs.search(next);
+    assert.deepEqual(page.matches, expected.matches);
+  }
+  assert.equal(ids.length, total); assert.equal(new Set(ids).size, total);
+  assert.equal(page.nextCall, null);
+  assert.throws(() => docs.search({ continueFrom: page.resultRef }), { code: 'engine.docs.page-unavailable' });
+});
+
+test('continuation rejects overrides, forged and expired references instead of guessing a query', () => {
+  const store = new EngineDocumentationStore(raw);
+  const page = store.search({ query: 'pointer', surface: 'all', limit: 20 });
+  const args = page.nextCall.arguments;
+  for (const override of [{ query: 'camera' }, { surface: 'all' }, { limit: 100 }, { requested: 12 }, { cursor: page.nextCursor }]) {
+    assert.throws(() => store.search({ ...args, ...override }), { code: 'engine.docs.selection-invalid' });
+  }
+  assert.throws(() => store.search({ continueFrom: 'invented' }), { code: 'engine.docs.selection-invalid' });
+  assert.throws(() => new EngineDocumentationStore(raw).search(args), { code: 'engine.docs.search-result-unavailable' });
+  for (let i = 0; i < 128; i++) store.search({ query: 'camera' });
+  assert.throws(() => store.search(args), { code: 'engine.docs.search-result-unavailable' });
+});
+
+test('real tool pagination uses returned JSON and malformed requests explain both supported modes', async () => {
+  const fixture = await openBehaviorToolsFixture({ runtimeOptions: { documentation: docs } });
+  try {
+    const first = (await execute(fixture, 'engine.docs.search', { query: 'transform', limit: 20 })).value;
+    const next = await execute(fixture, first.nextCall.toolId, first.nextCall.arguments);
+    assert.equal(next.status, 'completed'); assert.equal(next.value.requestedCount, 20);
+    assert.ok(!next.value.matches.some(m => first.matches.some(previous => previous.id === m.id)));
+    await assert.rejects(execute(fixture, 'engine.docs.search', { requested: 12, cursor: 'invented' }), e => e.code === 'tool.arguments-invalid' && /limit, not requested/.test(e.message) && /nextCall.arguments/.test(e.message));
+    await assert.rejects(execute(fixture, 'engine.docs.search', { ...first.nextCall.arguments, limit: 100 }), { code: 'tool.arguments-invalid' });
+    const schema = GAME_AUTHORING_TOOL_DEFINITIONS.find(t => t.id === 'engine.docs.search').inputSchema;
+    assert.ok(schema.properties.continueFrom); assert.equal(schema.properties.cursor, undefined);
+    assert.equal(schema.properties.requested, undefined); assert.equal(schema.oneOf.length, 2);
+  } finally { await fixture.close(); }
 });

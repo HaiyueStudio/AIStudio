@@ -28,14 +28,16 @@ function hostHtml(previewUrl) {
     window.addEventListener('message', event => {
       if (event.source !== frame.contentWindow || !event.data || event.data.protocol !== 'haiyue-preview/1') return;
       const data = event.data;
-      if (data.type === 'ready') frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'start', scene: ${JSON.stringify(scene)}, plan: ${JSON.stringify(plan)}, assets: [] }, '*');
+      if (data.type === 'ready') frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'start', paused: true, scene: ${JSON.stringify(scene)}, plan: ${JSON.stringify(plan)}, assets: [] }, '*');
       else if (data.type === 'started') frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'pause' }, '*');
       else if (data.type === 'paused' && phase === 'starting') { phase = 'stepping'; frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'input', event: { tick: 1, kind: 'action', action: 'move-right', phase: 'down', source: 'synthetic' } }, '*'); frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'step', requestId: 'step:1', count: 1 }, '*'); }
       else if (data.type === 'stepped' && data.requestId === 'step:1') { frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'inspect', requestId: 'inspect:1' }, '*'); }
       else if (data.type === 'inspection' && data.requestId === 'inspect:1') { inspected = data.value; frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'capture', requestId: 'capture:1' }, '*'); }
       else if (data.type === 'capture' && data.requestId === 'capture:1') {
         const bytes = Uint8Array.from(atob(data.base64), char => char.charCodeAt(0)); const png = [137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value);
-        if (!png) return fail('capture was not PNG'); phase = 'stopping'; window.result = { tick: inspected.tick, frame: inspected.frame, pngBytes: data.byteLength, sameTick: data.tick === inspected.tick, hud: Object.keys(inspected.hud || {}).length > 0 }; frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'stop' }, '*');
+        if (!png) return fail('capture was not PNG');
+        const header = new DataView(bytes.buffer);
+        if (header.getUint32(16) !== 197 || header.getUint32(20) !== 426) return fail('analysis PNG should be half of the 393x852 render canvas: ' + header.getUint32(16) + 'x' + header.getUint32(20)); phase = 'stopping'; window.result = { tick: inspected.tick, frame: inspected.frame, pngBytes: data.byteLength, sameTick: data.tick === inspected.tick, hud: Object.keys(inspected.hud || {}).length > 0 }; frame.contentWindow.postMessage({ protocol: 'haiyue-preview/1', type: 'stop' }, '*');
       } else if (data.type === 'request-failed') fail(data.message); else if (data.type === 'runtime-error') fail(data.code + ': ' + data.message);
       else if (data.type === 'cleanup-complete' && phase === 'stopping') { document.body.dataset.g10Result = JSON.stringify({ ...window.result, cleanup: data.disposableCount }); document.body.dataset.g10Status = 'passed'; }
     });

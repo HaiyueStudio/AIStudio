@@ -37,9 +37,14 @@ export function checkedJson(input: unknown, maxBytes = 8 * 1024 * 1024): unknown
       if (Array.isArray(value) && key === 'length') continue;
       if (Array.isArray(value) && (!/^(0|[1-9][0-9]*)$/u.test(key) || Number(key) >= value.length)) throw new BehaviorContractError('behavior.non-json');
       const descriptor = descriptors[key];
-      if (!('value' in descriptor) || !descriptor.enumerable || secretKey.test(key) || key === '__proto__' || key === 'constructor' || key === 'prototype') throw new BehaviorContractError('behavior.secret-or-accessor');
+      // `prototype` is also a legitimate JSON data field (assembly source bindings).
+      // These values are copied as own data properties, never traversed as object paths.
+      // Reject accessors and prototype-pollution entry points, not ordinary field names.
+      if (!('value' in descriptor) || !descriptor.enumerable || secretKey.test(key) || key === '__proto__' || key === 'constructor') throw new BehaviorContractError('behavior.secret-or-accessor');
       if (!Array.isArray(value)) addBytes(utf8Bytes(JSON.stringify(key)) + 1);
-      (result as Record<string, unknown>)[key] = walk(descriptor.value, depth + 1);
+      const member = walk(descriptor.value, depth + 1);
+      if (key === 'prototype') Object.defineProperty(result, key, { value: member, enumerable: true, writable: true, configurable: true });
+      else (result as Record<string, unknown>)[key] = member;
     }
     seen.delete(value);
     return result;

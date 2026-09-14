@@ -314,16 +314,19 @@ test('log IPC binds reads and exports to the current project and keeps late fact
 test('query settings persist validated counts across restart and IPC refuses unknown limits', async () => {
   const { QueryPreferences } = await import('../dist/query-preferences.js');
   const { QUERY_LIMIT_DEFAULTS } = await import('@haiyue/ai-studio-game-authoring-tools');
-  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { mkdtemp, rm, writeFile, readFile } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os'); const path = await import('node:path');
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-settings-'));
   try {
-    const preferences = new QueryPreferences(path.join(root, 'preferences.json')); await preferences.initialize();
+    const existingPreferences = '{"notificationsEnabled":true}';
+    await writeFile(path.join(root, 'preferences'), existingPreferences);
+    const preferences = new QueryPreferences(path.join(root, 'query-limits.json')); await preferences.initialize();
     assert.deepEqual(preferences.snapshot(), QUERY_LIMIT_DEFAULTS);
     const larger = { ...QUERY_LIMIT_DEFAULTS, 'engine.docs.search': 30, 'scene.query': 2000 };
     validateStudioIpcRequest(request('queries/set', { limits: larger }));
     await preferences.configure(larger); await preferences.dispose();
-    const reopened = new QueryPreferences(path.join(root, 'preferences.json')); await reopened.initialize();
+    const reopened = new QueryPreferences(path.join(root, 'query-limits.json')); await reopened.initialize();
+    assert.equal(await readFile(path.join(root, 'preferences'), 'utf8'), existingPreferences);
     assert.deepEqual(reopened.snapshot(), larger);
     for (const invalid of [{ ...larger, 'engine.docs.search': 0 }, { ...larger, 'engine.docs.search': 1.5 }, { ...larger, unknown: 2 }, {}]) {
       assert.throws(() => validateStudioIpcRequest(request('queries/set', { limits: invalid })));

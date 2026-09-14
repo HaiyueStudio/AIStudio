@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-14",
+  "inputDigest": "sha256:4e83055b8027db707ea625596527e2a5fc1ccfcc4fa453a6ff391f40d6956f37",
+  "focused": {
+    "passed": 43,
+    "failed": 0
+  },
+  "isolatedElectronWindow": {
+    "passed": 1,
+    "contextClipped": false
+  },
+  "applicationBuild": {
+    "exitCode": 0
+  },
+  "applicationRestarted": false,
+  "rootCheck": {
+    "exitCode": 1,
+    "reason": "Existing M14 capability acceptance input binding is stale. Original acceptance record preserved."
+  }
+}

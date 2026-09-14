@@ -1,3 +1,4 @@
+import { geometryDefinition } from '../../render/shared-geometry.js';
 import type { ComponentDefinitionV2, GameDocumentV2, JsonObject, JsonValue, ResourceCatalogEntryV1, ResourceKnowledgeV1, ResourceReferenceV1 } from '@haiyue/ai-studio-contracts';
 import { CONTROLLED_ASSET_CATALOG_SETTING_KEY, ControlledAssetCatalog, type ControlledAssetManifestEntry } from '../catalog.js';
 import { SCENE_GEOMETRY_KINDS, SCENE_LIGHT_KINDS, SCENE_MATERIAL_KINDS } from '../../scene-authoring.js';
@@ -142,7 +143,33 @@ export function buildResourceRows(source: ResourceSource, dependencies: Resource
     { ...detail(), health: 'unavailable', diagnostics: ['尚无通用配置预设的持久化格式。现有 prefab 工作流仍由原服务管理。'] });
   }
   if (rows.length > 64_000) fail('source-budget');
-  return freeze(rows.sort((a, b) => a.item.entry.catalogEntryId.localeCompare(b.item.entry.catalogEntryId, 'en')));
+  return freeze(groupSharedResources(rows, source, ports).sort((a, b) => a.item.entry.catalogEntryId.localeCompare(b.item.entry.catalogEntryId, 'en')));
+}
+
+/** Content-derived resource identities survive renames and expose every proven use site. */
+function groupSharedResources(rows: ResourceRow[], source: ResourceSource, ports: ResourceCatalogPorts): ResourceRow[] {
+  const groups = new Map<string, ResourceRow[]>(), rest: ResourceRow[] = [];
+  for (const row of rows) {
+    const ref = row.item.entry.ref;
+    const config = row.item.configuration;
+    if (ref.kind !== 'instance' || !ref.componentId || !record(config) || !record(config.value)
+      || !['haiyue.render.geometry', 'haiyue.render.material', 'haiyue.material.pbr'].includes(String(config.type))) { rest.push(row); continue; }
+    const value = config.type === 'haiyue.render.geometry' ? geometryDefinition(String(config.value.kind), config.value) : config.value;
+    const signature = digest({ projectId: source.binding.projectId, type: config.type, value });
+    const group = groups.get(signature) ?? []; group.push(row); groups.set(signature, group);
+  }
+  for (const [signature, group] of groups) {
+    const first = group[0]!, entry = first.item.entry;
+    const locations = group.slice(0, 256).map(row => ({ ref: row.item.entry.ref as InstanceRef, label: row.item.entry.label, componentType: String((row.item.configuration as JsonObject).type), field: '' }));
+    const config = first.item.configuration as JsonObject, value = config.value as JsonObject;
+    const names: Record<string,string> = { cube:'立方体', 'rounded-box':'圆角立方体', plane:'平面', sphere:'球体', cone:'圆锥', cylinder:'圆柱', torus:'圆环', icosahedron:'二十面体' };
+    const rounded = value.kind === 'rounded-box' ? ` · r${String(value.radius ?? .075)} / ${String(value.segments ?? 4)}段` : value.kind === 'plane' ? ` · ${String(value.plane ?? 'xy')}` : '';
+    const label = entry.category === 'Geometry' ? `${names[String(value.kind)] ?? String(value.kind)}${rounded}` : `${String(value.material ?? 'pbr').toUpperCase()} 材质`;
+    rest.push(freeze({ ...first, item: { ...first.item, locations, diagnostics: [...first.item.diagnostics, ...(group.length > locations.length ? [`共 ${group.length} 处使用，当前列出前 ${locations.length} 处。`] : [])],
+      entry: ports.validateEntry({ ...entry, catalogEntryId: `resource:${signature.slice(7,39)}`, label, usage: group.length === locations.length ? known(locations.map(l => l.ref)) : unknown(`共 ${group.length} 处使用，位置列表已截断。`), unused: 'inapplicable' }),
+    } }));
+  }
+  return rest;
 }
 
 export function instanceRef(source: ResourceSource, entityId: string, componentId: string | null): InstanceRef {

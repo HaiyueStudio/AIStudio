@@ -1,0 +1,25 @@
+{
+  "scope": "generic-composite-authoring",
+  "regression": {
+    "passed": 144,
+    "failed": 0
+  },
+  "finalAssemblyChecks": {
+    "passed": 4,
+    "failed": 0,
+    "additionalTestBeyondRegression": 1
+  },
+  "sceneContextChecks": {
+    "passed": 3,
+    "failed": 0
+  },
+  "isolatedWebGPUWindow": "passed",
+  "documentationIndex": "passed",
+  "desktopBuild": "passed",
+  "repositoryCheck": {
+    "status": "blocked-by-existing-verification-binding",
+    "recorded": "sha256:bf00db15ccfa9dc2cdcff7479ac3c7d9e00b29a5f05bb9f6e13c6e34b3558007"
+  },
+  "runningUserAppRestarted": false,
+  "liveModelEvaluation": false
+}

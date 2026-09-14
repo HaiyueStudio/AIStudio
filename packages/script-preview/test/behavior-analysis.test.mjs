@@ -3,6 +3,26 @@ import test from 'node:test';
 import { analyzeBehavior, createBehaviorSourceBinding, parseBehaviorContract } from '../dist/behavior/index.js';
 import { clone, controlScript, declarativeInput, digest, hashText, makeInput, seal } from './behavior-fixtures.mjs';
 
+test('prototype data survives validation without allowing accessors or prototype pollution', () => {
+  const input = makeInput();
+  input.document.settings['studio.assemblies.v1'] = { tiles: { prototype: { rootId: 'entity:tile', partIds: { body: 'entity:body' } }, instances: [] } };
+  const checked = parseBehaviorContract('behavior-analysis-input', input);
+  assert.deepEqual(checked.document.settings, input.document.settings);
+  assert.equal(Object.getPrototypeOf(checked.document.settings['studio.assemblies.v1'].tiles), Object.prototype);
+  assert.equal(Object.hasOwn(checked.document.settings['studio.assemblies.v1'].tiles, 'prototype'), true);
+  assert.deepEqual(createBehaviorSourceBinding(checked), createBehaviorSourceBinding(input));
+  for (const bad of [JSON.parse('{"__proto__":{"polluted":true}}'), { constructor: { prototype: { polluted: true } } }, { prototype: { password: 'fixture-rejected' } }]) {
+    const invalid = makeInput(); invalid.document.settings.test = bad;
+    assert.throws(() => parseBehaviorContract('behavior-analysis-input', invalid), /secret-or-accessor/);
+  }
+  let invoked = false;
+  for (const bad of [{ get prototype() { invoked = true; return {}; } }, { prototype: { get partIds() { invoked = true; return {}; } } }]) {
+    const invalid = makeInput(); invalid.document.settings.test = bad;
+    assert.throws(() => parseBehaviorContract('behavior-analysis-input', invalid), /secret-or-accessor/);
+  }
+  assert.equal(invoked, false); assert.equal(Object.prototype.polluted, undefined);
+});
+
 test('script control flow preserves branches, loops, awaiting, explicit aggregate lanes and dynamic gaps', () => {
   const manifest = analyzeBehavior(makeInput({ script: controlScript }));
   const kinds = new Set(manifest.nodes.map(node => node.kind));

@@ -9,6 +9,7 @@ export class ResourceExplorerPanel {
   private data = EMPTY_RESOURCE_PANEL;
   private selected: string | null = null;
   private busy = false;
+  private querying = false;
   private closed = false;
   private generation = 0;
   private message = '';
@@ -38,7 +39,7 @@ export class ResourceExplorerPanel {
     for (const key of ['category', 'kind', 'availability', 'unused']) on(key, 'change', () => { this.syncCategory(); this.send({ type: 'query', query: this.query() }); });
     on('tabs', 'tab-change', event => {
       const value = (event as CustomEvent<HYTabChangeDetail>).detail.value;
-      if (this.busy || this.data.state === 'loading') { this.syncCategory(); return; }
+      if (this.busy && !this.querying) { this.syncCategory(); return; }
       this.get<HTMLSelectElement>('category').value = value === 'all' ? '' : value;
       // A category switch starts at page one with no invisible filters from another tab.
       for (const key of ['kind', 'availability']) this.get<HTMLSelectElement>(key).value = '';
@@ -96,12 +97,17 @@ export class ResourceExplorerPanel {
     return { limit: 25, ...(text ? { text } : {}), ...(category ? { category } : {}), ...(kind ? { kind } : {}), ...(status ? { status } : {}), ...(this.get<HTMLInputElement>('unused').checked ? { unused: true } : {}) };
   }
   private send(intent: ResourcePanelIntent): void {
-    if (this.closed || this.busy && intent.type !== 'cancel') return;
+    if (this.closed || this.busy && intent.type !== 'cancel' && !(this.querying && intent.type === 'query')) return;
     const generation = ++this.generation;
+    this.querying = intent.type === 'query' || intent.type === 'refresh';
+    if (intent.type === 'query' || intent.type === 'refresh') {
+      this.data = { ...this.data, state: 'loading', items: [], total: 0, nextCursor: null, viewToken: null, diagnostics: [] };
+      this.selected = null; this.render();
+    }
     this.busy = intent.type !== 'cancel'; this.message = intent.type === 'cancel' ? '操作已取消。' : ''; this.controls();
     Promise.resolve().then(() => { if (!this.closed && generation === this.generation) return this.dispatch(intent); }).catch(() => {
-      if (!this.closed && generation === this.generation) this.message = '操作未完成，请检查资源状态或刷新后重试。';
-    }).finally(() => { if (!this.closed && generation === this.generation) { this.busy = false; this.controls(); } });
+      if (!this.closed && generation === this.generation) { this.message = '操作未完成，请检查资源状态或刷新后重试。'; if (this.data.state === 'loading') { this.data = { ...this.data, state: 'error' }; this.render(); } }
+    }).finally(() => { if (!this.closed && generation === this.generation) { this.busy = false; this.querying = false; if (intent.type === 'cancel' && this.data.state === 'loading') { this.data = { ...this.data, state: 'empty' }; this.render(); } this.controls(); } });
   }
   private render(): void {
     const active = this.document.activeElement as HTMLElement | null, focused = active?.dataset.resourceEntry, detailFocus = active?.dataset.resourceFocus;
@@ -114,6 +120,7 @@ export class ResourceExplorerPanel {
       const label = entry.kind === 'asset' ? entry.label.split('/').at(-1) || entry.label : entry.label;
       button.title = entry.label; button.setAttribute('aria-label', label);
       button.append(canvas, this.node('strong', label));
+      if (entry.kind === 'instance' && item.locations.length) button.append(this.node('small', `${item.locations.length}${entry.usage.status === 'unknown' ? '+' : ''} 处使用`));
       const context = canvas.getContext('2d');
       if (context) { context.fillStyle = '#9cafce'; context.font = '32px system-ui'; context.textAlign = 'center'; context.fillText(entry.category === 'Script' ? '{ }' : '◇', 64, 76); }
       const signal = this.renderScope.signal;
@@ -121,7 +128,7 @@ export class ResourceExplorerPanel {
       button.addEventListener('click', () => { if (this.selected !== entry.catalogEntryId) this.assignmentUsage = null; this.selected = entry.catalogEntryId; this.usageOffset = 0; this.render(); }, { signal: this.renderScope.signal });
       li.append(button); list.append(li);
     }
-    if (!this.data.items.length) list.append(this.node('li', this.data.projectKey ? '当前分类还没有项目资源。创建或导入后会显示在这里。' : '打开项目后查看对应资源。', 'resource-empty'));
+    if (!this.data.items.length) list.append(this.node('li', this.data.state === 'loading' ? '正在加载当前分类…' : this.data.state === 'error' ? '暂时无法读取资源列表，请刷新重试。' : this.data.projectKey ? '当前分类还没有项目资源。创建或导入后会显示在这里。' : '打开项目后查看对应资源。', 'resource-empty'));
     this.get('count').textContent = `共 ${this.data.total} 条 · 本页 ${this.data.items.length} 条`;
     this.renderDetail(); this.controls();
     if (focused) [...list.querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.resourceEntry === focused)?.focus({ preventScroll: true });

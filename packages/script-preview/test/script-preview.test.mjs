@@ -20,6 +20,17 @@ const transform = entity.getComponent('CartesianTransform3D') as unknown as { se
 transform?.setPosition(time / 1000, 0, 0);
 `;
 
+test('orbitControls is a typed discoverable script API and discloses both capabilities', async()=>{
+  const validator=new ScriptValidationWorker();
+  try {
+    const result=await validator.validate({scriptId:'script:orbit',textRevision:1,sourcePath:'scripts/orbit.ts',text:'api.scene.orbitControls({ mode: "all", rotateSpeed: 0.9 });',capabilities:['read']});
+    assert.deepEqual(result.diagnostics,[]);assert.ok(result.capabilities.includes('scene'));assert.ok(result.capabilities.includes('input'));
+    const bad=await validator.validate({scriptId:'script:orbit',textRevision:2,sourcePath:'scripts/orbit.ts',text:'api.scene.orbitControls({ mode: "wrong" });',capabilities:['read']});
+    assert.ok(bad.diagnostics.some(item=>item.severity==='error'));
+    assert.match(studioScriptRuntimeDeclarations(['scene','input']),/orbitControls\(options\?: HaiyueStudioOrbitOptions\)/);
+  } finally {await validator.dispose();}
+});
+
 async function fixture() {
   const projectRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-script-project-'));
   const userDataRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-script-userdata-'));
@@ -364,4 +375,18 @@ test('preview consent is scoped to exact executable content, capabilities and th
   } finally {
     auth.dispose(); value.scripts.dispose(); await value.validator.dispose(); await value.workspace.dispose(); value.resources.tasks.dispose(); await value.resources.documents.dispose(); value.resources.history.dispose(); value.resources.projectSession.dispose(); await value.operationLog.close();
   }
+});
+
+test('scene-aware validation explains exact-name lookup mistakes without inventing role matches', async()=>{
+ const worker=new ScriptValidationWorker();
+ try {
+  const request={scriptId:'script:lookup',textRevision:1,sourcePath:'scripts/controller.ts',text:"const roots = api.read.findAll('motionRoot');",sceneEntityNames:['Cubie_1 · motionRoot','Cubie_2 · motionRoot']};
+  const missed=await worker.validate(request);
+  const diagnostic=missed.diagnostics.find(d=>d.code==='script.entity-name-no-match');
+  assert.equal(diagnostic?.severity,'warning');assert.match(diagnostic.message,/exact entity names/);assert.match(diagnostic.message,/Cubie_1/);
+  const matched=await worker.validate({...request,textRevision:2,text:"const roots = api.read.findAll('Cubie_1 · motionRoot');"});
+  assert.ok(!matched.diagnostics.some(d=>d.code==='script.entity-name-no-match'));
+  const dynamic=await worker.validate({...request,textRevision:3,text:'const roots = api.read.findAll();'});
+  assert.ok(!dynamic.diagnostics.some(d=>d.code==='script.entity-name-no-match'));
+ } finally {await worker.dispose();}
 });

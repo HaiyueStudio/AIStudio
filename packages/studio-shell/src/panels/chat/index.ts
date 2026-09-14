@@ -1,3 +1,4 @@
+import { renderMarkdown } from '../markdown.js';
 import type { JsonObject, StableId, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 import type { HYExpandable, HYExpandableChangeDetail } from '@haiyue/ui/expandable';
 import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
@@ -539,7 +540,7 @@ function renderExecutionTranscript(root: HTMLElement, document: Document, graph:
     if (query && !`${item.title}\n${item.body}`.toLocaleLowerCase().includes(query)) continue;
     const row = document.createElement('li'); row.className = `transcript-item transcript-${item.kind} status-${item.status}`; row.id = `transcript-${executionDomId(item.id)}`;
     const header = document.createElement('div'); const title = document.createElement('strong'); title.textContent = item.title; const time = document.createElement('time'); time.dateTime = item.timestamp; time.textContent = new Date(item.timestamp).toLocaleTimeString(); header.append(title, time);
-    const body = document.createElement('p'); body.textContent = item.body; row.append(header, body);
+    const body = renderMarkdown(document, item.body); row.append(header, body);
     if (item.graphNodeIds.length) { const locate = document.createElement('button'); locate.type = 'button'; locate.textContent = '在拓扑中定位'; locate.addEventListener('click', () => { selectExecutionNode(state, item.graphNodeIds[0]!); renderChatPanel(root, currentChatModel(root), dispatch); }); row.append(locate); }
     list.append(row);
   }
@@ -548,9 +549,17 @@ function renderExecutionTranscript(root: HTMLElement, document: Document, graph:
 
 function renderExecutionNodeDetail(root: HTMLElement, document: Document, graph: ExecutionGraphReadModel, node: ExecutionGraphNodeReadModel, state: ExecutionWorkspaceState, dispatch: (intent: ConversationIntent) => void): HTMLElement {
   const aside = document.createElement('aside'); aside.className = 'execution-node-detail'; aside.setAttribute('aria-label', `Execution detail: ${node.title}`);
-  const heading = document.createElement('h3'); heading.textContent = node.title; const summary = document.createElement('p'); summary.textContent = node.summary; aside.append(heading, summary);
+  const heading = document.createElement('h3'); heading.textContent = node.title; const summary = renderMarkdown(document, node.summary); aside.append(heading, summary);
   const facts = document.createElement('dl');
-  for (const [label, value] of [['状态', executionStatusLabel(node.status)], ['类型', executionKindLabel(node.kind)], ['耗时', node.durationMs === null ? 'unknown' : `${node.durationMs} ms`], ['项目修订', node.projectRevisionBefore === null && node.projectRevisionAfter === null ? 'unknown' : `r${node.projectRevisionBefore ?? '?'} → r${node.projectRevisionAfter ?? '?'}`], ['工具', node.detail.toolId ? `${node.detail.toolId}${node.detail.toolVersion ? `@${node.detail.toolVersion}` : ''}` : 'none'], ['执行类别', node.detail.executionClass ?? 'unknown'], ['事务', node.detail.transactionId ?? 'none'], ['诊断', node.detail.diagnostic ?? 'none']] as const) { const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value; facts.append(term, description); }
+  for (const [label, value] of [['状态', executionStatusLabel(node.status)], ['类型', executionKindLabel(node.kind)], ['耗时', node.durationMs === null ? null : `${node.durationMs} ms`], ['项目修订', node.projectRevisionBefore === null && node.projectRevisionAfter === null ? null : `r${node.projectRevisionBefore ?? '?'} → r${node.projectRevisionAfter ?? '?'}`], ['工具', node.detail.toolId ? `${node.detail.toolId}${node.detail.toolVersion ? `@${node.detail.toolVersion}` : ''}` : null], ['执行类别', node.detail.executionClass], ['事务', node.detail.transactionId], ['诊断', node.detail.diagnostic]] as const) {
+    if (!value || value === 'unknown' || value === 'none') continue;
+    const term = document.createElement('dt'); term.textContent = label; const description = document.createElement('dd'); description.textContent = value; facts.append(term, description);
+  }
+  for (const [label, value] of [['模型说明（公开输出）', node.kind === 'model' ? node.detail.modelExplanation || '本轮未记录公开的思考摘要或说明。' : null], ['执行内容', node.detail.actionSummary], ['执行结果', node.detail.resultSummary]] as const) {
+    if (!value) continue;
+    const section = document.createElement('section'); const title = document.createElement('strong'); title.textContent = label;
+    const body = renderMarkdown(document, safeText(value, 2048)); section.className = 'execution-detail-section'; section.append(title, body); aside.append(section);
+  }
   if (node.status === 'failed' || node.status === 'cancelled' || node.status === 'outcome-unknown' || (node.status === 'waiting' && node.detail.reason)) {
     const term = document.createElement('dt'); term.textContent = node.status === 'waiting' ? '等待原因' : node.status === 'cancelled' ? '取消原因' : node.status === 'outcome-unknown' ? '待核验原因' : '失败原因';
     const reason = document.createElement('dd'); reason.className = 'execution-node-reason';
@@ -598,7 +607,7 @@ function graphFilterOptions(state: ExecutionWorkspaceState): Readonly<{ statuses
 
 function executionDomId(id: string): string { return `execution-${id.replace(/[^a-zA-Z0-9_-]/gu, '-')}`; }
 function executionStatusLabel(value: ExecutionGraphNodeReadModel['status']): string { return ({ pending:'待处理', running:'执行中', waiting:'待确认', completed:'已完成', failed:'失败', cancelled:'已取消', 'outcome-unknown':'结果待核验' } as const)[value]; }
-function executionKindLabel(value: ExecutionGraphNodeReadModel['kind']): string { return ({ goal:'目标', plan:'方案', turn:'回合', 'tool-batch':'工具批次', tool:'工具', transaction:'修改', approval:'审批', question:'问题', compaction:'上下文压缩', evidence:'证据', evaluation:'验证', repair:'修复', result:'结果', unknown:'未知步骤' } as const)[value]; }
+function executionKindLabel(value: ExecutionGraphNodeReadModel['kind']): string { return ({ goal:'目标', plan:'方案', turn:'执行阶段', model:'模型', 'tool-batch':'工具批次', tool:'工具', transaction:'修改', approval:'审批', question:'问题', compaction:'上下文压缩', evidence:'证据', evaluation:'验证', repair:'修复', result:'结果', unknown:'未知步骤' } as const)[value]; }
 function contextStateLabel(value: string): string { return ({ normal:'正常', warning:'接近上限', preparing:'准备压缩', 'compact-required':'需要压缩', emergency:'紧急', unknown:'容量未知' } as Record<string,string>)[value] ?? value; }
 function executionAccountingLabel(graph: ExecutionGraphReadModel, accounting: ConversationReadModel['taskAccounting']): string { const usageRefs = new Set(graph.nodes.flatMap((node) => node.detail.usageRecordIds)); const costRefs = new Set(graph.nodes.flatMap((node) => node.detail.costRecordIds)); if (!accounting) return `Usage ${usageRefs.size || 'unknown'} records · Cost ${costRefs.size || 'unknown'} records`; const cost = accounting.cost.amountMicros === null || !accounting.cost.currency ? `unknown (${accounting.cost.explanation})` : `${(accounting.cost.amountMicros / 1_000_000).toFixed(6)} ${accounting.cost.currency}`; return `Input ${accounting.usage.inputTokens ?? 'unknown'} · Cached ${accounting.usage.cachedInputTokens ?? 'unknown'} · Output ${accounting.usage.outputTokens ?? 'unknown'} · Cost ${cost}`; }
 
@@ -724,6 +733,7 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
   const content = createChatCardSurface(document, item, card.status === 'pending' || card.status === 'streaming');
   const title = document.createElement('h3'); title.textContent = card.title; content.append(title);
   const body = document.createElement('p'); body.textContent = card.body; content.append(body);
+  if (card.kind === 'question') { body.className = 'chat-question-context'; body.style.whiteSpace = 'pre-wrap'; body.style.overflowWrap = 'anywhere'; body.style.maxHeight = 'none'; }
   if (card.details) {
     const details = document.createElement('details'); details.className = 'chat-tool-details';
     const summary = document.createElement('summary'); summary.textContent = card.details.summary;
@@ -757,13 +767,13 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
       approve.addEventListener('click', () => {
         const acceptedItemIds = selections.filter((item) => item.checked).map((item) => item.value as StableId);
         if (!acceptedItemIds.length) return;
-        approve.disabled = true; revise.disabled = true;
+        approve.disabled = true; revise.disabled = true; review.setAttribute('aria-busy', 'true'); approve.textContent = '正在提交…';
         dispatch(Object.freeze({ type: 'conversation/accept-plan', nodeId: card.id, acceptedItemIds: Object.freeze(acceptedItemIds), mode: 'approve', ...(note.value.trim() ? { note: note.value.trim() } : {}) }));
       });
       const revise = document.createElement('button'); revise.type = 'button'; revise.textContent = '补充后重新规划';
       revise.addEventListener('click', () => {
         const feedback = note.value.trim(); if (!feedback) { note.focus(); return; }
-        approve.disabled = true; revise.disabled = true;
+        approve.disabled = true; revise.disabled = true; review.setAttribute('aria-busy', 'true'); approve.textContent = '正在提交…';
         dispatch(Object.freeze({ type: 'conversation/accept-plan', nodeId: card.id, acceptedItemIds: Object.freeze([]), mode: 'revise', note: feedback }));
       });
       review.append(note, approve, revise); content.append(review);
@@ -773,7 +783,7 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
   const actions = document.createElement('div'); actions.className = 'chat-card-actions';
   for (const action of card.actions) {
     const button = document.createElement('button'); button.type = 'button'; button.textContent = action.label; button.disabled = !action.enabled || !action.intent;
-    button.addEventListener('click', () => { if (action.enabled && action.intent && !button.disabled) { button.disabled = true; dispatch(action.intent); } });
+    button.addEventListener('click', () => { if (action.enabled && action.intent && !button.disabled) { for (const sibling of actions.querySelectorAll('button')) sibling.disabled = true; actions.setAttribute('aria-busy', 'true'); button.textContent = '正在提交…'; dispatch(action.intent); } });
     actions.append(button);
   }
   if (card.actions.length) content.append(actions);
@@ -817,14 +827,14 @@ function questionCard(base: CardBase, node: ConversationNodeReadModel): ChatCard
     id: `answer:${option.id}`, label: option.label, enabled: node.status === 'pending',
     intent: Object.freeze({ type: 'conversation/answer-question', nodeId: node.id, answer: Object.freeze({ optionIds: Object.freeze([option.id]) }) as JsonObject }),
   }));
-  return Object.freeze({ ...base, title: 'Question', body: question?.prompt ?? 'Invalid question payload.', tone: 'warning', actions: Object.freeze(actions), ...(question ? { question } : {}) });
+  return Object.freeze({ ...base, title: node.content.queryLimit ? '查询额度确认' : 'Question', body: question?.prompt ?? 'Invalid question payload.', tone: 'warning', actions: Object.freeze(actions), ...(question ? { question } : {}) });
 }
 
 function planCard(base: CardBase, node: ConversationNodeReadModel): ChatCardReadModel {
   const items = planFromNode(node);
   const fallback = `${items.length} 个实施步骤。确认后将自动执行低风险编辑；危险能力仍会单独请求授权。`;
   const title = stringValue(node.content.title, '总体实现方案');
-  return Object.freeze({ ...base, title: node.status === 'pending' ? `待批准 · ${title}` : title, body: stringValue(node.content.summary, fallback), tone: node.status === 'pending' ? 'warning' : 'neutral', actions: Object.freeze([]), planItems: items });
+  return Object.freeze({ ...base, title: node.status === 'pending' ? `待批准 · ${title}` : title, body: [stringValue(node.content.summary, fallback), ...(Array.isArray(node.content.assemblies) ? node.content.assemblies : []).filter((a): a is JsonObject => a !== null && typeof a === 'object' && !Array.isArray(a)).map(a => `组合要求：${String(a.label)}；部件 ${Array.isArray(a.partKeys) ? a.partKeys.join('、') : ''}；至少 ${String(a.minimumInstances)} 个实例${a.distinctColors ? `，${String(a.distinctColors)} 种独立颜色` : ''}`)].join('\n'), tone: node.status === 'pending' ? 'warning' : 'neutral', actions: Object.freeze([]), planItems: items });
 }
 
 function approvalCard(base: CardBase, node: ConversationNodeReadModel, now: number): ChatCardReadModel {

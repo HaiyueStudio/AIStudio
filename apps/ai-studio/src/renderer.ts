@@ -1,3 +1,4 @@
+import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { mountQuerySettings } from './query-settings-ui.js';
 import {
   CartesianTransform3D,
@@ -309,6 +310,7 @@ class WebGpuViewportRuntime {
     this.stableByEngineId.clear();
     this.entitiesByStableId.clear();
     const entities = new Map<StableId, Entity>();
+  const geometryPool = new SharedGeometryPool();
     this.selectedEntityId = selectedEntityId;
     for (const item of snapshot.entities) {
       const entity = new Entity(item.name);
@@ -317,7 +319,7 @@ class WebGpuViewportRuntime {
         rotation: tupleRadians(item.transform.rotationDegrees),
         scale: tuple(item.transform.scale),
       }));
-      attachSceneEntityVisuals(entity, item);
+      attachSceneEntityVisuals(entity, item, geometryPool);
       if (item.id === selectedEntityId && isRenderableSceneKind(item.kind)) entity.addComponent(new MeshHelper({ mode: 'aabb', color: [1, 0.66, 0.16, 1], lineWidth: 2 }));
       entities.set(item.id, entity);
       this.entitiesByStableId.set(item.id, entity);
@@ -1166,8 +1168,10 @@ function bindUi(): void {
 async function pollAgent(): Promise<void> {
   try {
     const editorChanged = await refreshConversation(false);
-    if (editorChanged) await refresh();
+    if (editorChanged) await refresh(false);
     await processAgentPreviewCommand();
+    // Resource enrichment must not hold the preview/approval handoff queue.
+    if (editorChanged) void editorPanels?.refresh().catch(cause => setStatus(errorMessage(cause)));
   } finally {
     // A human handoff must reveal approval UI even if a scene/command refresh fails.
     if (agentPreviewOwnership.shouldClose) await stopPreview();
@@ -1409,7 +1413,7 @@ async function applyTransform(): Promise<void> {
   }
 }
 
-async function refresh(): Promise<void> {
+async function refresh(refreshPanels = true): Promise<void> {
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
   logViewer?.setProject(project.document?.projectId ?? null);
   scene = await invoke<SceneSnapshot & JsonObject>('scene/snapshot');
@@ -1419,7 +1423,7 @@ async function refresh(): Promise<void> {
     selection = await invoke<SelectionSnapshot & JsonObject>('scene/select', { entityId: null, source: 'system' });
   }
   render();
-  await editorPanels?.refresh();
+  if (refreshPanels) await editorPanels?.refresh();
 }
 
 async function saveProject(): Promise<void> {
@@ -1438,7 +1442,7 @@ async function saveProject(): Promise<void> {
 async function toggleProjectRun(): Promise<void> {
   const button = element<HTMLButtonElement>('run-project');
   if (button.disabled) return;
-  button.disabled = true;
+  button.disabled = true; button.setAttribute('aria-busy', 'true'); button.textContent = t(playing ? 'working' : 'playStarting');
   try {
     if (playing) {
       setStatus('Working…');
@@ -1456,7 +1460,7 @@ async function toggleProjectRun(): Promise<void> {
     element<HYDialog>('run-dialog').showModal();
     setStatus(valid ? 'Ready' : runScriptContext?.kind === 'missing-script' ? t('runMissingScriptHeading') : 'Script validation failed');
   } catch (cause) { setStatus(errorMessage(cause)); }
-  finally { updateRunButton(); }
+  finally { button.removeAttribute('aria-busy'); updateRunButton(); }
 }
 
 async function prepareProjectRun(): Promise<boolean> {
@@ -1533,8 +1537,9 @@ async function approveProjectRun(): Promise<void> {
 
 function updateRunButton(): void {
   const button = element<HTMLButtonElement>('run-project');
-  button.disabled = !project?.document;
-  button.textContent = t(playing ? 'stop' : 'run');
+  const pending = button.getAttribute('aria-busy') === 'true';
+  button.disabled = pending || !project?.document;
+  button.textContent = t(pending ? playing ? 'working' : 'playStarting' : playing ? 'stop' : 'run');
   button.title = t(playing ? 'stopTitle' : 'runTitle');
   button.setAttribute('aria-label', button.title);
   button.classList.toggle('is-playing', playing);

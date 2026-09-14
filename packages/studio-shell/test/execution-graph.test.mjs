@@ -49,6 +49,41 @@ function linearFixture() {
   ];
 }
 
+test('one turn exposes stable model rounds for repeated tool exchanges and the final reply', () => {
+  const ops = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started'),
+    op(2, 'tool-batch.planned', { batchId: 'batch:first' }),
+    op(3, 'tool.started', { batchId: 'batch:first', nodeId: 'node:first', payload: { toolId: 'scene.query' } }),
+    op(4, 'tool.completed', { batchId: 'batch:first', nodeId: 'node:first', payload: { status: 'failed', reason: 'Retry query' } }),
+    op(5, 'tool-batch.completed', { batchId: 'batch:first', payload: { status: 'failed' } }),
+    op(6, 'tool-batch.planned', { batchId: 'batch:second' }),
+    op(7, 'tool.started', { batchId: 'batch:second', nodeId: 'node:second', payload: { toolId: 'scene.query' } }),
+    op(8, 'tool.completed', { batchId: 'batch:second', nodeId: 'node:second', payload: { status: 'completed' } }),
+    op(9, 'tool-batch.completed', { batchId: 'batch:second', payload: { status: 'completed' } }),
+    op(10, 'assistant.message', { artifactRefs: ['artifact:reply'] }),
+    op(11, 'turn.completed', { payload: { status: 'completed', summary: 'Done' } })];
+  const models = graph => graph.nodes.filter(node => node.kind === 'model');
+  const first = projectExecutionGraph({ sessionId: SESSION, ops: ops.slice(0, 6) });
+  assert.equal(models(first).length, 2);
+  assert.deepEqual(first.currentNodeIds, ['model:op:5']);
+  const busy = projectExecutionGraph({ sessionId: SESSION, ops: ops.slice(0, 8) });
+  assert.deepEqual(busy.currentNodeIds, ['tool:node:second']);
+  const transcript = [{ id: 'transcript:reply', opId: 'op:10', role: 'assistant', timestamp: ops[10].timestamp, content: 'Done' }];
+  const complete = projectExecutionGraph({ sessionId: SESSION, ops, transcript });
+  assert.deepEqual(models(complete).map(node => node.id), ['model:op:1', 'model:op:5', 'model:op:9']);
+  assert.ok(models(complete).every(node => node.status === 'completed'));
+  assert.equal(complete.nodes.find(node => node.id === 'tool:node:first').status, 'failed');
+  assert.equal(models(complete)[0].durationMs, 1000, 'tool execution is not counted as model processing');
+  assert.deepEqual(complete.currentNodeIds, []);
+  for (const [model, batch] of [['model:op:1', 'batch:batch:first'], ['model:op:5', 'batch:batch:second']]) {
+    assert.ok(complete.edges.some(edge => edge.kind === 'contains' && edge.from === model && edge.to === batch));
+    assert.ok(!complete.edges.some(edge => edge.kind === 'contains' && edge.from === `turn:${TURN}` && edge.to === batch));
+  }
+  assert.deepEqual(complete.transcript.find(item => item.id === 'transcript:reply').graphNodeIds, ['model:op:9']);
+  assert.equal(complete.digest, projectExecutionGraph({ sessionId: SESSION, ops: [...ops].reverse(), transcript }).digest);
+  const layout = layoutExecutionGraph(complete, { mode: 'expanded' });
+  assert.equal(new Set(models(complete).map(node => layout.nodes.find(box => box.id === node.id).x)).size, 1);
+});
+
 test('projects a deterministic graph, transcript and modification evidence chain', () => {
   const ops = linearFixture();
   const transcript = [
@@ -177,15 +212,15 @@ function taskSession(sessionId, taskId, offset = 0, startedOnly = false) {
   return projectExecutionGraph({ sessionId, activeGoal: 'The same visible title', ops, transcript: [{ id: `${sessionId}:message`, opId: ops[2].id, role: 'user', content: taskId, timestamp: ops[2].timestamp }] });
 }
 
-test('a task retains its full chain when an approval continuation starts a two-node provider session', () => {
+test('a task retains its full chain when an approval continuation starts a new provider session', () => {
   const old = taskSession('session:old', 'task:game'); const next = taskSession('session:next', 'task:game', 60, true);
-  assert.equal(next.nodes.length, 2);
+  assert.equal(next.nodes.length, 3);
   const before = groupExecutionGraphsByTask([old])[0];
   const [after] = groupExecutionGraphsByTask([next, old]);
   assert.equal(executionGraphIdentity(after), executionGraphIdentity(before));
   assert.equal(after.sessionId, next.sessionId, 'compaction must keep targeting the actual current session');
   assert.deepEqual(after.sourceSessionIds, ['session:old', 'session:next']);
-  assert.equal(after.nodes.length, old.nodes.length + 1);
+  assert.equal(after.nodes.length, old.nodes.length + next.nodes.length - 1);
   for (const node of before.nodes) assert.ok(after.nodes.some(item => item.id === node.id), node.id);
   assert.equal(after.transcript.filter(item => item.kind === 'message').length, 2);
   assert.equal(normalizeExecutionGraphs([after]).length, 1);
@@ -199,10 +234,11 @@ test('a task retains its full chain when an approval continuation starts a two-n
 
 test('task membership separates different requests that reuse one provider session, even with identical titles', () => {
   const a = taskSession('session:shared', 'task:a');
-  const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started', { turnId: 'turn:a', payload: { taskId: 'task:a' } }), op(2, 'turn.completed', { turnId: 'turn:a', payload: { status: 'completed' } }), op(3, 'turn.started', { turnId: 'turn:b', payload: { taskId: 'task:b' } })].map(item => ({ ...item, sessionId: a.sessionId }));
+  const source = [op(0, 'session.created', { turnId: null }), op(1, 'turn.started', { turnId: 'turn:a', payload: { taskId: 'task:a' } }), op(2, 'turn.completed', { turnId: 'turn:a', payload: { status: 'completed' } }), op(3, 'turn.started', { turnId: 'turn:b', payload: { taskId: 'task:b', title: 'UNRELATED_SECOND_TASK' } })].map(item => ({ ...item, sessionId: a.sessionId }));
   const shared = projectExecutionGraph({ sessionId: a.sessionId, activeGoal: a.title, ops: source });
   const bNext = taskSession('session:b-next', 'task:b', 60, true);
   const groups = groupExecutionGraphsByTask([shared, bNext], [{ taskId: 'task:a', title: 'First request', status: 'completed' }, { taskId: 'task:b', title: 'Second request', status: 'running' }]);
+  assert.doesNotMatch(JSON.stringify(groups[0].nodes.find(node => node.kind === 'goal')), /UNRELATED_SECOND_TASK/);
   assert.equal(groups.length, 2); assert.equal(groups[0].taskId, 'task:a'); assert.equal(groups[1].taskId, 'task:b');
   assert.ok(groups[0].nodes.some(node => node.turnId === 'turn:a')); assert.ok(!groups[0].nodes.some(node => node.turnId === 'turn:b'));
   assert.ok(!groups[1].nodes.some(node => node.turnId === 'turn:a')); assert.equal(groups[1].sourceSessionIds.length, 2);
@@ -243,9 +279,9 @@ test('current frontier follows concurrent tools, human barriers and model contin
     op(11, 'tool.completed', { batchId: 'batch:1', nodeId: 'node:parallel', payload: { toolId: 'diagnostics.query', status: 'failed', diagnostic: 'query-scan-budget-exceeded', summary: 'Window too large' } }),
     op(12, 'tool-batch.completed', { batchId: 'batch:1', payload: { status: 'failed' } }));
   graph = projectExecutionGraph({ sessionId: SESSION, ops });
-  assert.deepEqual(graph.currentNodeIds, [`turn:${TURN}`]);
-  assert.equal(graph.nodes.find(node => node.id === `turn:${TURN}`).title, '模型生成下一步');
-  assert.match(graph.nodes.find(node => node.id === `turn:${TURN}`).summary, /diagnostics.query.*失败/);
+  assert.deepEqual(graph.currentNodeIds, ['model:op:12']);
+  assert.equal(graph.nodes.find(node => node.id === 'model:op:12').title, '模型处理 · 第 2 轮');
+  assert.match(graph.nodes.find(node => node.id === 'model:op:12').summary, /工具返回结果/);
   assert.equal(graph.nodes.find(node => node.id === 'tool:node:parallel').detail.diagnostic, 'query-scan-budget-exceeded');
   ops.push(op(13, 'turn.completed', { payload: { status: 'completed' } }));
   assert.deepEqual(projectExecutionGraph({ sessionId: SESSION, ops }).currentNodeIds, []);
@@ -348,7 +384,7 @@ test('a late budget answer cannot reopen a released turn; only turn.started can 
   const resumed = projectExecutionGraph({ sessionId: SESSION, ops: [...source, op(9, 'turn.started', { payload: { taskId: 'task:budget', resumedFrom: 'op:5' } })] });
   const running = resumed.nodes.find(node => node.kind === 'turn');
   assert.equal(running.status, 'running'); assert.equal(running.completedAt, null); assert.equal(running.detail.reason, null);
-  assert.ok(resumed.currentNodeIds.includes(running.id));
+  assert.deepEqual(resumed.currentNodeIds, ['model:op:9']);
   const ended = projectExecutionGraph({ sessionId: SESSION, ops: [...source, op(9, 'turn.started'), op(10, 'turn.completed', { payload: { status: 'failed', reason: 'Resume failed.' } }), op(11, 'user.message')] });
   assert.equal(ended.nodes.find(node => node.kind === 'turn').status, 'failed'); assert.deepEqual(ended.currentNodeIds, []);
 });
@@ -369,7 +405,7 @@ test('blocked acceptance keeps the goal active while its current turn works, the
   const graph = groupExecutionGraphsByTask([old, active], [task])[0]; const goal = graph.nodes.find(node => node.kind === 'goal');
   assert.equal(graph.status, 'running'); assert.equal(goal.status, 'running'); assert.equal(goal.completedAt, null);
   assert.equal(goal.detail.reason, null); assert.equal(goal.detail.diagnostic, task.terminalDiagnostic); assert.match(goal.summary, /验收处理中/);
-  assert.ok(graph.currentNodeIds.some(id => graph.nodes.find(node => node.id === id)?.kind === 'turn'));
+  assert.ok(graph.currentNodeIds.some(id => graph.nodes.find(node => node.id === id)?.kind === 'model'));
   const finished = taskSession('session:acceptance', 'task:acceptance', 60);
   const stopped = groupExecutionGraphsByTask([old, finished], [task])[0];
   assert.equal(stopped.status, 'failed'); assert.equal(stopped.nodes.find(node => node.kind === 'goal').detail.reason, task.timeline[0].detail);
@@ -424,12 +460,13 @@ test('persisted confirmation checkpoints project waiting, approved continuation,
     const answered = [...source, resolve(false), op(7, 'user.message')];
     let graph = projectExecutionGraph({ sessionId: SESSION, ops: answered });
     assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'completed'); assert.deepEqual(graph.currentNodeIds, []);
+    assert.match(graph.nodes.find(node => node.kind === 'model').summary, /用户已确认/);
     const fresh = projectExecutionGraph({ sessionId: SESSION, ops: [...answered, op(8, 'turn.started', { turnId: 'turn:continuation' })] });
     assert.equal(fresh.nodes.find(node => node.id === `turn:${TURN}`).status, 'completed');
     assert.equal(fresh.nodes.find(node => node.id === 'turn:turn:continuation').status, 'running');
-    assert.deepEqual(fresh.currentNodeIds, ['turn:turn:continuation']);
+    assert.deepEqual(fresh.currentNodeIds, ['model:op:8']);
     graph = projectExecutionGraph({ sessionId: SESSION, ops: [...answered, op(8, 'turn.started', { payload: { resumedFrom: 'op:5' } })] });
-    assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'running'); assert.deepEqual(graph.currentNodeIds, [`turn:${TURN}`]);
+    assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'running'); assert.deepEqual(graph.currentNodeIds, ['model:op:8']);
     graph = projectExecutionGraph({ sessionId: SESSION, ops: [...answered, op(8, 'turn.started'), op(9, 'turn.completed', { payload: { status: 'completed' } })] });
     assert.equal(graph.nodes.find(node => node.kind === 'turn').status, 'completed'); assert.deepEqual(graph.currentNodeIds, []);
     graph = projectExecutionGraph({ sessionId: SESSION, ops: [...source, resolve(true)] });
@@ -462,4 +499,101 @@ test('PNG storage errors keep their concrete cause while active acceptance stays
   const evaluating = groupExecutionGraphsByTask([active], [{ ...task, status: 'running', phase: 'evaluating', terminalDiagnostic: null }])[0];
   assert.equal(evaluating.status, 'running');
   assert.match(evaluating.nodes.find(node => node.kind === 'goal').summary, /验收处理中/);
+});
+
+function branchingLayoutFixture() {
+  const base = projectExecutionGraph({ sessionId: SESSION, ops: linearFixture() });
+  const template = base.nodes.find(node => node.kind === 'tool');
+  const node = (id, kind, status = 'completed') => ({ ...template, id, kind, title: id, status, batchId: kind === 'tool' ? 'batch:test' : null, startedAt: '2026-09-14T00:00:00.000Z' });
+  const nodes = [node('goal', 'goal'), node('turn', 'turn'), node('batch:a', 'tool-batch'), node('batch:b', 'tool-batch'), node('batch:c', 'tool-batch'), ...Array.from({ length: 5 }, (_, i) => node(`a:${i}`, 'tool')), node('b:0', 'tool', 'failed'), node('b:1', 'tool', 'running'), node('c:0', 'tool')];
+  const pairs = [['goal', 'turn'], ...['a', 'b', 'c'].map(id => ['turn', `batch:${id}`]), ...Array.from({ length: 5 }, (_, i) => ['batch:a', `a:${i}`]), ['batch:b', 'b:0'], ['batch:b', 'b:1'], ['batch:c', 'c:0']];
+  const edges = pairs.map(([from, to], index) => ({ id: `edge:${index}`, kind: 'contains', from, to, sourceOpIds: [] }));
+  return { ...base, nodes, edges, currentNodeIds: ['b:1'], criticalPathNodeIds: [], transcript: [] };
+}
+
+function assertNoLayoutOverlap(layout) {
+  for (const node of layout.nodes) {
+    assert.ok(Number.isFinite(node.x) && Number.isFinite(node.y));
+    assert.ok(node.x + node.width <= layout.width && node.y + node.height <= layout.height);
+  }
+  for (const left of layout.nodes) for (const right of layout.nodes) {
+    if (left.id === right.id || left.layer !== right.layer) continue;
+    assert.ok(left.y + left.height <= right.y || right.y + right.height <= left.y, `${left.id} overlaps ${right.id}`);
+  }
+}
+
+test('siblings align with their first child and reserve all rows of preceding branches', () => {
+  const graph = branchingLayoutFixture(), original = JSON.stringify(graph);
+  const layout = layoutExecutionGraph(graph, { mode: 'expanded' });
+  const positions = new Map(layout.nodes.map(node => [node.id, node]));
+  for (const id of ['a', 'b', 'c']) {
+    const childPositions = graph.edges.filter(edge => edge.from === `batch:${id}`).map(edge => positions.get(edge.to));
+    assert.equal(positions.get(`batch:${id}`).y, Math.min(...childPositions.map(child => child.y)));
+  }
+  assert.ok(positions.get('batch:b').y > positions.get('a:4').y);
+  assert.ok(positions.get('batch:c').y > Math.max(positions.get('b:0').y, positions.get('b:1').y));
+  assertNoLayoutOverlap(layout);
+  assert.equal(JSON.stringify(graph), original);
+  assert.deepEqual(layoutExecutionGraph({ ...graph, nodes: [...graph.nodes].reverse(), edges: [...graph.edges].reverse() }, { mode: 'expanded' }), layout);
+});
+
+test('branch layout handles shared dependencies, filtering and collapsed tools without overlap', () => {
+  const graph = branchingLayoutFixture();
+  graph.edges.push({ id: 'dependency', kind: 'depends-on', from: 'a:0', to: 'b:0', sourceOpIds: [] });
+  for (const options of [{ mode: 'expanded' }, { mode: 'overview', maxCompletedToolsPerBatch: 1 }, { query: 'b:0' }, { statuses: ['running'] }]) {
+    const layout = layoutExecutionGraph(graph, options);
+    assert.equal(new Set(layout.visibleNodeIds).size, layout.nodes.length);
+    assertNoLayoutOverlap(layout);
+    if (options.mode === 'expanded') {
+      const positions = new Map(layout.nodes.map(node => [node.id, node]));
+      assert.equal(positions.get('batch:b').y, positions.get('b:0').y, 'containment owns the tool despite another dependency parent');
+      assert.ok(positions.get('b:0').layer > positions.get('a:0').layer);
+    }
+  }
+  const empty = layoutExecutionGraph({ ...graph, nodes: [], edges: [] });
+  assert.equal(empty.nodes.length, 0); assert.ok(Number.isFinite(empty.height));
+});
+
+test('model rounds show their public explanation and exact tool intent/results without cross-turn leakage', () => {
+  const ops = [op(0,'session.created',{turnId:null}),op(1,'turn.started'),
+    op(2,'assistant.message'),op(3,'tool-batch.planned',{batchId:'batch:docs'}),
+    op(4,'tool.started',{batchId:'batch:docs',nodeId:'node:docs',payload:{toolId:'engine.docs.search',toolCallId:'call:docs'}}),
+    op(5,'tool.completed',{batchId:'batch:docs',nodeId:'node:docs',payload:{toolId:'engine.docs.search',toolCallId:'call:docs',status:'completed'}}),
+    op(6,'tool-batch.completed',{batchId:'batch:docs',payload:{status:'completed',completed:1}}),
+    op(7,'assistant.message'),op(8,'turn.completed',{payload:{status:'completed'}})];
+  const transcript = [{id:'message:1',opId:'op:2',role:'assistant',content:'先确认引擎提供的棋盘命中点接口。\n\n- 使用引擎拾取\n- 共用网格参数',timestamp:ops[2].timestamp},
+    {id:'message:2',opId:'op:7',role:'assistant',content:'已找到接口，下一步让贴图和落子共用间距。',timestamp:ops[7].timestamp}];
+  const record = (id,kind,content,turnId=TURN) => ({schemaVersion:1,id,kind,knownKind:null,status:'completed',createdAt:ops[4].timestamp,provenance:{backendId:'backend:test',sessionId:SESSION,turnId},content,payloadTruncated:false});
+  const records = [record('record:call','tool-call',{toolCallId:'call:docs',argumentsSummary:'检索：棋盘命中点；数量：8'}),record('record:result','tool-result',{toolCallId:'call:docs',summary:'找到 3 篇文档：api.input.interactions、网格对齐、坐标空间'}),record('record:other','tool-result',{toolCallId:'call:docs',summary:'UNRELATED_TURN'},'turn:other')];
+  const graph = projectExecutionGraph({sessionId:SESSION,ops,transcript,records});
+  const models = graph.nodes.filter(node=>node.kind==='model'); assert.equal(models.length,2);
+  assert.equal(models[0].detail.modelExplanation,transcript[0].content); assert.equal(models[1].detail.modelExplanation,transcript[1].content);
+  assert.match(models[0].summary,/engine.docs.search/);
+  assert.match(models[0].detail.resultSummary,/找到 3 篇/);
+  assert.match(models[0].detail.actionSummary,/\n\n/);
+  assert.match(graph.nodes.find(node=>node.kind==='turn').detail.actionSummary,/\*\*模型处理/);
+  const tool = graph.nodes.find(node=>node.kind==='tool'); assert.match(tool.summary,/棋盘命中点/); assert.match(tool.summary,/找到 3 篇/);
+  assert.doesNotMatch(JSON.stringify(graph),/UNRELATED_TURN/);
+  assert.match(graph.nodes.find(node=>node.kind==='tool-batch').summary,/engine.docs.search（已完成）/);
+  assert.match(graph.nodes.find(node=>node.kind==='turn').summary,/共用间距/);
+  assert.equal(normalizeExecutionGraphs([graph])[0].digest,graph.digest);
+  const live = projectExecutionGraph({sessionId:SESSION,ops:ops.slice(0,7),transcript:transcript.slice(0,1),records,liveAssistant:{turnId:TURN,content:'正在核对贴图尺寸。'}});
+  assert.equal(live.nodes.filter(node=>node.kind==='model').at(-1).detail.modelExplanation,'正在核对贴图尺寸。');
+  assert.equal(live.nodes.filter(node=>node.kind==='model')[0].detail.modelExplanation,transcript[0].content);
+});
+
+
+test('node content accepts legacy projections and rejects malformed or unbounded detail fields', () => {
+  const graph = projectExecutionGraph({ sessionId: SESSION, ops: linearFixture() });
+  for (const value of [{ text: 'not a string' }, 'x'.repeat(2049)]) {
+    const malformed = structuredClone(graph); malformed.nodes[0].detail.modelExplanation = value;
+    const { digest: ignored, ...content } = malformed;
+    malformed.digest = `sha256:${createHash('sha256').update(canonical(content)).digest('hex')}`;
+    assert.deepEqual(normalizeExecutionGraphs([malformed]), []);
+  }
+  const legacy = structuredClone(graph);
+  for (const node of legacy.nodes) for (const key of ['modelExplanation', 'actionSummary', 'resultSummary']) delete node.detail[key];
+  const { digest, ...semantic } = legacy;
+  legacy.digest = `sha256:${createHash('sha256').update(canonical(semantic)).digest('hex')}`;
+  assert.equal(normalizeExecutionGraphs([legacy])[0].digest, legacy.digest);
 });

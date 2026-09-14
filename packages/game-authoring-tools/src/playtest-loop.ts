@@ -56,6 +56,13 @@ export class BoundedPlaytestTask {
     return this.snapshot();
   }
 
+  /** Called only after the runtime confirms preview teardown. Preserve evaluation,
+   * terminal state, evidence and repair budgets; stopping alone is not acceptance. */
+  previewStopped(): PlaytestTaskSnapshot {
+    if (this.phaseValue === 'playing' || this.phaseValue === 'validating') this.phaseValue = 'editing';
+    return this.snapshot();
+  }
+
   recordEvaluation(evaluation: EvaluationResultV2): PlaytestTaskSnapshot {
     this.assertMutable();
     if (this.phaseValue !== 'evaluating') throw new PlaytestLoopError('task.transition-invalid', 'Evaluation may only be recorded in evaluating phase.');

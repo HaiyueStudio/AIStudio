@@ -26,7 +26,7 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
     'behavior.query', 'behavior.locate', 'behavior.explain',
     'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'engine.docs.search', 'engine.docs.read', 'tool.search', 'engine.capabilities.describe', 'component.describe', 'component.get',
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
-    'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
+    'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'assembly.create', 'assembly.inspect', 'assembly.instantiate', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
     'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.generate-texture', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.pointer-gesture', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
@@ -601,6 +601,10 @@ test('script proposal, trusted apply and runtime start preserve separate approva
     assert.equal(stopped.value.state, 'stopped');
     assert.equal(stopped.value.projection.cleanupComplete, true);
     assert.equal(value.preview.stops, 1);
+    const stoppedAgain = await executeReady(value.runtime, call('call:stop-again', 'play.stop', {}));
+    assert.equal(stoppedAgain.value.state, 'stopped');
+    assert.equal(stoppedAgain.value.alreadyStopped, true);
+    assert.equal(stoppedAgain.value.observation, undefined, 'idempotent cleanup must not invent new Play evidence');
   } finally { await dispose(value); }
 });
 
@@ -794,7 +798,7 @@ test('every revision-bound tool publishes a required version and rejects omissio
   const value = await fixture();
   try {
     const definitions = GAME_AUTHORING_TOOL_DEFINITIONS.filter((tool) => tool.inputSchema.properties.baseRevision && tool.id !== 'preview.validate');
-    assert.equal(definitions.length, 25);
+    assert.equal(definitions.length, 28);
     for (const definition of definitions) {
       assert.ok(definition.inputSchema.required.includes('baseRevision'), `${definition.id} must tell both providers that the version is required`);
       await assert.rejects(value.runtime.prepare(call(`call:missing-revision:${definition.id}`, definition.id, {})), (error) => {
@@ -1029,6 +1033,10 @@ test('fake backend deterministic E2E creates, transforms, scripts and starts pre
     assert.equal(value.scripts.snapshot().resources.length, 1);
     assert.equal(value.preview.starts, 1);
     assert.equal(value.preview.stops, 1);
+    const stoppedAgain = await executeReady(value.runtime, call('call:stop-again', 'play.stop', {}));
+    assert.equal(stoppedAgain.value.state, 'stopped');
+    assert.equal(stoppedAgain.value.alreadyStopped, true);
+    assert.equal(stoppedAgain.value.observation, undefined, 'idempotent cleanup must not invent new Play evidence');
     assert.equal(value.workspace.snapshot().document.revision, 4);
   } finally { coordinator.dispose(); await dispose(value); }
 });
@@ -1356,7 +1364,7 @@ function scriptedBackend(script) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 54);
+      assert.equal(input.tools.length, GAME_AUTHORING_TOOL_DEFINITIONS.length);
       yield event('status', { status: 'running' });
       let result = yield* request('toolcall:create', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Agent Cube' });
       const entityId = result.value.entity.id;
@@ -1381,7 +1389,7 @@ function repairBackend(entityId, repairedScript) {
   return {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'fake', capabilities: { resume: false, questions: false, structuredTools: true, backendApprovals: false, usage: false, rateLimits: false } },
     async *startTurn(input) {
-      assert.equal(input.tools.length, 54);
+      assert.equal(input.tools.length, GAME_AUTHORING_TOOL_DEFINITIONS.length);
       let result = yield* request('toolcall:repair-diagnostics', 'diagnostics.query', { kinds: ['preview/runtime-error'], limit: 10, traverseCorrelation: false });
       assert.equal(result.value.count, 1);
       assert.equal(result.value.events[0].kind, 'preview/runtime-error');
@@ -1595,4 +1603,103 @@ test('manual and Agent material edits update the effective PBR component and ret
     await approveAndExecute(value.runtime, call('call:material-pbr-again', 'material.set', { baseRevision: 7, entityId, material: 'pbr', color: [1,1,1,1] }));
     assert.equal(pbr().enabled, true); assert.deepEqual(pbr().value.baseColor, [1,1,1,1]); assert.equal(pbr().value.roughness, .83);
   } finally { await dispose(value); }
+});
+
+test('composite prototypes enforce real structure before replication and survive History and reopen', async () => {
+  const value = await fixture();
+  const transform = (x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => ({ position: { x,y,z }, rotationDegrees: { x:0,y:0,z:0 }, scale: { x:sx,y:sy,z:sz } });
+  const blueprint = { name: 'Reusable cabinet', parts: [
+    { key: 'body', kind: 'rounded-box', radius: .1, material: 'pbr', color: [.05,.05,.05,1], transform: transform() },
+    { key: 'front', parentKey: 'body', kind: 'rounded-box', radius: .1, material: 'pbr', color: [1,0,0,1], colorSlot: 'frontColor', transform: transform(0,0,.51,.8,.8,.02) },
+    { key: 'back', parentKey: 'body', kind: 'rounded-box', radius: .1, material: 'pbr', color: [0,1,0,1], colorSlot: 'backColor', transform: transform(0,0,-.51,.8,.8,.02) },
+  ], requirements: [{ label: 'Body with two independently colored panels', partKeys: ['body','front','back'], distinctColors: 3 }] };
+  try {
+    const created = await approveAndExecute(value.runtime, call('call:assembly-prototype', 'assembly.create', { baseRevision: 1, assemblyId: 'cabinet', blueprint }));
+    assert.equal(created.status, 'completed', JSON.stringify(created));
+    assert.equal(value.scene.snapshot().entities.length, 4);
+    const inspect = await executeReady(value.runtime, call('call:assembly-inspect', 'assembly.inspect', { baseRevision: 2, assemblyId: 'cabinet' }));
+    assert.equal(inspect.value.valid, true, JSON.stringify(inspect));
+    const cloned = await approveAndExecute(value.runtime, call('call:assembly-instances', 'assembly.instantiate', { baseRevision: 2, assemblyId: 'cabinet', prototypeDigest: inspect.value.prototypeDigest, instances: [{ name: 'Cabinet two', transform: transform(2), colors: { frontColor: [0,0,1,1] } }, { name: 'Cabinet three', transform: transform(4) }] }));
+    assert.equal(cloned.status, 'completed', JSON.stringify(cloned));
+    assert.equal(cloned.value.instanceCount, 3); assert.equal(value.scene.snapshot().entities.length, 12);
+    assert.equal(new Set(value.scene.snapshot().entities.map(e => e.id)).size, 12);
+    const verified = await executeReady(value.runtime, call('call:assembly-verify', 'assembly.inspect', { baseRevision: 3, assemblyId: 'cabinet' }));
+    assert.equal(verified.value.valid, true);
+    await value.workspace.undo(3); assert.equal(value.scene.snapshot().entities.length, 4);
+    await value.workspace.redo(4); assert.equal(value.scene.snapshot().entities.length, 12);
+    await value.workspace.save(); await value.workspace.reopen();
+    const reopened = await executeReady(value.runtime, call('call:assembly-reopened', 'assembly.inspect', { baseRevision: value.scene.snapshot().revision, assemblyId: 'cabinet' }));
+    assert.equal(reopened.value.valid, true);
+    const revision = value.scene.snapshot().revision;
+    await approveAndExecute(value.runtime, call('call:assembly-corrupt', 'material.set', { baseRevision: revision, entityId: created.value.prototype.partIds.front, material: 'pbr', color: [0,1,0,1] }));
+    const damaged = await executeReady(value.runtime, call('call:assembly-damaged', 'assembly.inspect', { baseRevision: revision+1, assemblyId: 'cabinet' }));
+    assert.equal(damaged.value.valid, false); assert.match(damaged.value.prototype.problems.join(' '), /front|colors/);
+    const before = value.scene.snapshot().entities.length;
+    await assert.rejects(approveAndExecute(value.runtime, call('call:assembly-reject', 'assembly.instantiate', { baseRevision: revision+1, assemblyId: 'cabinet', prototypeDigest: inspect.value.prototypeDigest, instances: [{ name: 'Invalid copy', transform: transform(6) }] })), error => error.code === 'assembly.prototype-invalid');
+    assert.equal(value.scene.snapshot().entities.length, before);
+  } finally { await dispose(value); }
+});
+
+test('assembly blueprints reject lost requirements, invalid hierarchy and unknown slots atomically', async () => {
+  const value = await fixture();
+  const t = { position: {x:0,y:0,z:0}, rotationDegrees:{x:0,y:0,z:0}, scale:{x:1,y:1,z:1} };
+  const part = { key:'body', kind:'cube', material:'basic', color:[1,0,0,1], transform:t };
+  try {
+    for (const [i, blueprint] of [
+      { name:'Broken', parts:[part], requirements:[{label:'Missing front',partKeys:['front']}] },
+      { name:'Broken', parts:[part], requirements:[{label:'Two colors',partKeys:['body'],distinctColors:2}] },
+      { name:'Broken', parts:[{...part,parentKey:'body'}], requirements:[{label:'Body',partKeys:['body']}] },
+    ].entries()) await assert.rejects(value.runtime.prepare(call(`call:assembly-invalid-${i}`, 'assembly.create', {baseRevision:1,assemblyId:'broken',blueprint})), /assembly|Part|Requirement|parent|colors/i);
+    assert.equal(value.scene.snapshot().entities.length, 0);
+  } finally { await dispose(value); }
+});
+
+test('approved assembly plan cannot be bypassed with a bulk primitive or missing structure', async () => {
+  const value = await fixture();
+  const expected = [{assemblyId:'vehicle',label:'Body and four wheels',partKeys:['body','frontLeft','frontRight','rearLeft','rearRight'],minimumInstances:2}];
+  try {
+    assert.throws(() => value.runtime.assertAssemblyPlan(expected,'entity.create-many',{entities:[{kind:'rounded-box'},{kind:'rounded-box'}]}), e => e.code === 'assembly.prototype-required');
+    assert.doesNotThrow(() => value.runtime.assertAssemblyPlan(expected,'entity.create-many',{entities:[{kind:'ambient-light'},{kind:'directional-light'}]}));
+    for (const tool of ['preview.validate','task.evaluate']) assert.throws(() => value.runtime.assertAssemblyPlan(expected,tool,{}), e => e.code === 'assembly.plan-incomplete');
+    assert.equal(value.scene.snapshot().entities.length,0);
+  } finally { await dispose(value); }
+});
+
+test('replication preserves configured pointer components and rejects stale prototype inspection', async () => {
+  const value = await fixture();
+  const transform = {position:{x:0,y:0,z:0},rotationDegrees:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
+  try {
+    const created = await approveAndExecute(value.runtime,call('call:interactive-prototype','assembly.create',{baseRevision:1,assemblyId:'button',blueprint:{name:'Button',parts:[{key:'body',kind:'rounded-box',material:'basic',color:[1,0,0,1],transform}],requirements:[{label:'Rounded interactive button',partKeys:['body']}]}}));
+    const first = await executeReady(value.runtime,call('call:interactive-first-check','assembly.inspect',{baseRevision:2,assemblyId:'button'}));
+    await approveAndExecute(value.runtime,call('call:interactive-bind','component.configure',{baseRevision:2,action:'upsert',entityId:created.value.prototype.partIds.body,type:'haiyue.interaction.pointer',patch:{events:['down','up','drag'],draggable:true,capturePointer:true}}));
+    await assert.rejects(approveAndExecute(value.runtime,call('call:interactive-stale','assembly.instantiate',{baseRevision:3,assemblyId:'button',prototypeDigest:first.value.prototypeDigest,instances:[{name:'Copy',transform}]})),e => e.code === 'assembly.prototype-stale');
+    const checked = await executeReady(value.runtime,call('call:interactive-check','assembly.inspect',{baseRevision:3,assemblyId:'button'}));
+    const copied = await approveAndExecute(value.runtime,call('call:interactive-copy','assembly.instantiate',{baseRevision:3,assemblyId:'button',prototypeDigest:checked.value.prototypeDigest,instances:[{name:'Copy',transform}]}));
+    const entity = value.scene.snapshot().entities.find(e => e.id === copied.value.instances[0].partIds.body);
+    const pointer = entity.components.find(c => c.type === 'haiyue.interaction.pointer');
+    assert.equal(pointer.value.draggable,true); assert.equal(pointer.value.capturePointer,true);
+    const inspected = await executeReady(value.runtime,call('call:interactive-after-copy','assembly.inspect',{baseRevision:4,assemblyId:'button'}));
+    assert.equal(inspected.value.valid,true);
+    await approveAndExecute(value.runtime,call('call:interactive-change-default-radius','component.configure',{baseRevision:4,action:'upsert',entityId:created.value.prototype.partIds.body,type:'haiyue.render.geometry',patch:{radius:.25}}));
+    const changed = await executeReady(value.runtime,call('call:interactive-default-check','assembly.inspect',{baseRevision:5,assemblyId:'button'}));
+    assert.equal(changed.value.valid,false,'omitted radius means the default, not any later radius');
+  } finally { await dispose(value); }
+});
+
+test('assembly inspection detects pointer configured only after cloning and reports the affected instance',async()=>{
+ const value=await fixture();const transform={position:{x:0,y:0,z:0},rotationDegrees:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
+ try {
+  const created=await approveAndExecute(value.runtime,call('call:late-create','assembly.create',{baseRevision:1,assemblyId:'tile',blueprint:{name:'Tile',parts:[{key:'body',kind:'rounded-box',material:'basic',color:[1,0,0,1],transform}],requirements:[{label:'Tile body',partKeys:['body']}]}}));
+  const checked=await executeReady(value.runtime,call('call:late-inspect','assembly.inspect',{baseRevision:2,assemblyId:'tile'}));
+  const copied=await approveAndExecute(value.runtime,call('call:late-copy','assembly.instantiate',{baseRevision:2,assemblyId:'tile',prototypeDigest:checked.value.prototypeDigest,instances:[{name:'Copy',transform}]}));
+  const patch={events:['down','up','drag'],draggable:true,capturePointer:true};
+  await approveAndExecute(value.runtime,call('call:late-pointer','component.configure',{baseRevision:3,action:'upsert',entityId:created.value.prototype.partIds.body,type:'haiyue.interaction.pointer',patch}));
+  const broken=await executeReady(value.runtime,call('call:late-check','assembly.inspect',{baseRevision:4,assemblyId:'tile'}));
+  assert.equal(broken.value.valid,false);assert.match(JSON.stringify(broken.value.failures),new RegExp(copied.value.instances[0].partIds.body));
+  const expected=[{assemblyId:'tile',label:'Interactive tile',partKeys:['body'],minimumInstances:2}];
+  assert.throws(()=>value.runtime.assertAssemblyPlan(expected,'preview.validate',{}),e=>e.code==='assembly.plan-incomplete'&&/pointer interaction/.test(e.message));
+  await approveAndExecute(value.runtime,call('call:late-repair','component.configure',{baseRevision:4,action:'upsert',entityId:copied.value.instances[0].partIds.body,type:'haiyue.interaction.pointer',patch}));
+  const repaired=await executeReady(value.runtime,call('call:late-repaired','assembly.inspect',{baseRevision:5,assemblyId:'tile'}));
+  assert.equal(repaired.value.valid,true);value.runtime.assertAssemblyPlan(expected,'preview.validate',{});
+ }finally{await dispose(value);}
 });

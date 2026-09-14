@@ -293,3 +293,15 @@ test('manual rounded-box creation uses the same validated persisted component', 
     assert.deepEqual(value.scene.snapshot().entities[0].components, entity.components);
   } finally { await disposeFixture(value); }
 });
+
+test('shared geometry identity ignores instance names, placement and default spelling', async () => {
+  const { SharedGeometryPool } = await import('../dist/render/index.js');
+  const pool = new SharedGeometryPool();
+  const a = pool.get('rounded-box'), b = pool.get('rounded-box', { radius: .075, segments: 4 });
+  assert.equal(a, b);
+  assert.notEqual(a, pool.get('rounded-box', { radius: .15 }));
+  assert.equal(pool.get('plane'), pool.get('plane', { plane:'xy' }));
+  assert.notEqual(pool.get('plane'), pool.get('plane', { plane:'xz' }));
+  const other = new SharedGeometryPool(); assert.notEqual(other.get('rounded-box'), a, 'Play and editor own separate pools');
+  pool.clear(); assert.notEqual(pool.get('rounded-box'), a, 'clearing projection releases cache references');
+});
