@@ -138,7 +138,9 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   backendControls.append(refresh);
   if (selectedBackend?.diagnostic) {
     const diagnostic = document.createElement('p'); diagnostic.className = 'chat-backend-diagnostic'; diagnostic.setAttribute('role', 'status');
-    diagnostic.textContent = `${safeText(selectedBackend.diagnostic.code, 96)}: ${safeText(selectedBackend.diagnostic.message, 512)}`;
+    diagnostic.textContent = selectedBackend.state === 'ready' && selectedBackend.diagnostic.code === 'codex.rate-limits-unavailable'
+      ? '额度信息暂时无法查询，登录状态已确认。可以尝试发送任务；“刷新连接”会重新查询额度。'
+      : `${safeText(selectedBackend.diagnostic.code, 96)}: ${safeText(selectedBackend.diagnostic.message, 512)}`;
     backendControls.append(diagnostic);
   }
   if (selectedBackend?.state === 'auth-required') {

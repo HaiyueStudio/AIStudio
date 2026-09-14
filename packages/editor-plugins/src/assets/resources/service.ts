@@ -31,7 +31,9 @@ export class ProjectResourceCatalog {
       try { dependencies = dependenciesFrom(await abortable(() => this.ports.dependencies(task.signal), task.signal), source); }
       catch { this.guard(source, task.signal); dependencies = { complete: false, reason: '资源引用查询失败或已过期，使用数量保持未知。', references: [] }; }
       this.guard(source, task.signal); this.dependencies = dependencies;
-      const rows = this.rows(source), categories = [...new Set(rows.map(row => row.item.entry.category))].sort();
+      const allRows = this.rows(source);
+      const pbrOwners = new Set(allRows.filter(row => record(row.item.configuration) && row.item.configuration.type === 'haiyue.material.pbr' && row.item.configuration.enabled === true).map(row => row.item.entry.ref.kind === 'instance' ? row.item.entry.ref.entityId : null));
+      const rows = allRows.filter(row => !query.projectOnly || isProjectResource(row.item) && !(record(row.item.configuration) && row.item.configuration.type === 'haiyue.render.material' && row.item.entry.ref.kind === 'instance' && pbrOwners.has(row.item.entry.ref.entityId))), categories = [...new Set(rows.map(row => projectCategory(row.item, query)))].sort();
       const matching = rows.filter(row => matches(row.item, query));
       const { cursor, ...filters } = query;
       const fingerprint = digest({ binding: source.binding.digest, filters, states: rows.map(row => [row.item.entry.catalogEntryId, row.item.entry.status, row.item.entry.unused]) });
@@ -204,7 +206,8 @@ function checkedBinding(value: unknown): ResourceCatalogBinding {
   return binding as unknown as ResourceCatalogBinding;
 }
 function queryInput(value: unknown): ResourceCatalogQuery & { limit: number } {
-  const query = shape(value, [], ['text', 'category', 'kind', 'status', 'unused', 'limit', 'cursor']);
+  const query = shape(value, [], ['text', 'category', 'kind', 'status', 'unused', 'limit', 'cursor', 'projectOnly']);
+  if (query.projectOnly !== undefined && typeof query.projectOnly !== 'boolean') fail('query-invalid');
   if (query.text !== undefined && (typeof query.text !== 'string' || query.text.length > 256)) fail('query-invalid');
   if (query.category !== undefined) text(query.category, 64);
   if (query.kind !== undefined && !KINDS.includes(String(query.kind))) fail('query-invalid');
@@ -217,7 +220,7 @@ function queryInput(value: unknown): ResourceCatalogQuery & { limit: number } {
 }
 function matches(item: ResourceCatalogItem, query: ResourceCatalogQuery): boolean {
   const { entry } = item;
-  if (query.kind && entry.kind !== query.kind || query.category && entry.category !== query.category || query.status && entry.status !== query.status) return false;
+  if (query.kind && entry.kind !== query.kind || query.category && projectCategory(item, query) !== query.category || query.status && entry.status !== query.status) return false;
   if (query.unused && (entry.kind !== 'asset' || entry.unused !== 'yes')) return false;
   const search = query.text?.trim().toLocaleLowerCase('en-US');
   return !search || `${entry.label} ${entry.category} ${entry.kind} ${JSON.stringify(entry.ref)} ${item.asset?.projectPath ?? ''} ${item.asset?.license ?? ''} ${item.asset?.provenance ?? ''} ${item.diagnostics.join(' ')}`.toLocaleLowerCase('en-US').includes(search);
@@ -235,4 +238,21 @@ async function abortable<T>(run: () => T | Promise<T>, signal: AbortSignal): Pro
   const cancelled = new Promise<never>((_, reject) => { abort = () => reject(new ResourceCatalogError('resource.cancelled')); signal.addEventListener('abort', abort, { once: true }); });
   try { return await Promise.race([Promise.resolve().then(run), cancelled]); }
   finally { signal.removeEventListener('abort', abort); }
+}
+
+/** Inventory is based on document ownership, never similarities to registered defaults. */
+function isProjectResource(item: ResourceCatalogItem): boolean {
+  if (item.entry.kind === 'asset') return true;
+  if (item.entry.kind !== 'instance' || item.entry.source !== 'document') return false;
+  const configuration = item.configuration;
+  if (!record(configuration)) return false;
+  // Script resources have their own records; binding components are not scripts.
+  if (item.entry.category === 'Script') return typeof configuration.scriptId === 'string';
+  // The component is the resource. Its containing entity is a use site, not another geometry.
+  return ['Geometry', 'Material', 'Model', 'Audio', 'Animation', 'Lighting'].includes(item.entry.category)
+    && item.entry.ref.kind === 'instance' && item.entry.ref.componentId !== null;
+}
+
+function projectCategory(item: ResourceCatalogItem, query: ResourceCatalogQuery): string {
+  return query.projectOnly && item.asset?.kind === 'texture' ? 'Texture' : item.entry.category;
 }

@@ -46,7 +46,7 @@ export interface RenderEffectsRuntimeOptions {
   readonly entitiesByStableId: ReadonlyMap<string, Entity>;
   readonly resolveAudioAsset?: (assetId: string, signal: AbortSignal) => Promise<ResolvedAudioAsset>;
   readonly resolveModelAsset?: (assetId: string, signal: AbortSignal) => Promise<ResolvedModelAsset>;
-  readonly resolveTextureAsset?: (assetId: string, signal: AbortSignal) => Promise<ResolvedTextureAsset>;
+  readonly resolveTextureAsset?: (assetId: string, signal: AbortSignal, slot: 'baseColor' | 'metallicRoughness' | 'normal' | 'occlusion' | 'emissive') => Promise<ResolvedTextureAsset>;
   readonly resolveAnimationAsset?: (assetId: string, signal: AbortSignal) => Promise<ResolvedAnimationAsset>;
   readonly resolveEnvironmentAsset?: (assetId: string, signal: AbortSignal) => Promise<ResolvedEnvironmentAsset>;
   readonly signal?: AbortSignal;
@@ -214,11 +214,11 @@ export class RenderEffectsPlayRuntime {
     const mesh = entity.getComponent(Mesh3D);
     if (!mesh) throw new Error(`render.material-target-invalid: ${entity.name} has no Mesh3D.`);
     const value = descriptor.value;
-    const baseColorTexture = await this.resolveTexture(value.baseColorAssetId);
-    const metallicRoughnessTexture = await this.resolveTexture(value.metallicRoughnessAssetId);
-    const normalTexture = await this.resolveTexture(value.normalAssetId);
-    const occlusionTexture = await this.resolveTexture(value.occlusionAssetId);
-    const emissiveTexture = await this.resolveTexture(value.emissiveAssetId);
+    const baseColorTexture = await this.resolveTexture(value.baseColorAssetId, 'baseColor');
+    const metallicRoughnessTexture = await this.resolveTexture(value.metallicRoughnessAssetId, 'metallicRoughness');
+    const normalTexture = await this.resolveTexture(value.normalAssetId, 'normal');
+    const occlusionTexture = await this.resolveTexture(value.occlusionAssetId, 'occlusion');
+    const emissiveTexture = await this.resolveTexture(value.emissiveAssetId, 'emissive');
     const material = new PbrMaterial({
       baseColor: tuple(value.baseColor, 4, [0.16, 0.58, 1, 1]), metallic: finite(value.metallic, 0, 1, 0.05), roughness: finite(value.roughness, 0, 1, 0.65),
       emissiveFactor: tuple(value.emissiveFactor, 3, [0, 0, 0]), normalScale: finite(value.normalScale, 0, 8, 1), occlusionStrength: finite(value.occlusionStrength, 0, 1, 1),
@@ -235,11 +235,11 @@ export class RenderEffectsPlayRuntime {
     this.counts.materials++;
   }
 
-  private async resolveTexture(assetId: unknown): Promise<MaterialTextureSource> {
+  private async resolveTexture(assetId: unknown, slot: 'baseColor' | 'metallicRoughness' | 'normal' | 'occlusion' | 'emissive'): Promise<MaterialTextureSource> {
     if (typeof assetId !== 'string' || assetId.startsWith('asset:unbound-')) return null;
     if (!this.options.resolveTextureAsset) throw new Error(`texture.asset-resolver-unavailable: Play cannot resolve ${assetId}.`);
     throwIfAborted(this.options.signal);
-    const asset = await this.options.resolveTextureAsset(assetId, this.runtimeSignal());
+    const asset = await this.options.resolveTextureAsset(assetId, this.runtimeSignal(), slot);
     this.runtimeAssets.push(asset);
     this.counts.textures++;
     throwIfAborted(this.options.signal);

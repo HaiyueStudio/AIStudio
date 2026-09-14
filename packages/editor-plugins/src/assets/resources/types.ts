@@ -40,6 +40,8 @@ export interface ResourceCatalogPage {
   readonly diagnostics: readonly string[];
 }
 export interface ResourceCatalogQuery {
+  /** Project inventory, excluding creation templates and duplicate entity wrappers. */
+  readonly projectOnly?: boolean;
   readonly text?: string;
   readonly category?: string;
   readonly kind?: ResourceCatalogEntryV1['kind'];

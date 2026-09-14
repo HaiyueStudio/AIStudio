@@ -358,6 +358,8 @@ function fakeDom() {
     append(...values) { this.children.push(...values); }
     replaceChildren(...values) { this.children = [...values]; }
     setAttribute(key, value) { this.attributes[key] = value; }
+    removeAttribute(key) { delete this.attributes[key]; }
+    toggleAttribute(key, force) { const present = force ?? !Object.hasOwn(this.attributes, key); if (present) this.setAttribute(key, ''); else this.removeAttribute(key); return present; }
     getAttribute(key) { return this.attributes[key] ?? null; }
     addEventListener(type, listener) { const values = this.listeners.get(type) ?? []; values.push(listener); this.listeners.set(type, values); }
     click() { if (this.disabled) return; for (const listener of this.listeners.get('click') ?? []) listener({ currentTarget: this, target: this, preventDefault() {} }); }
@@ -387,3 +389,26 @@ function fakeDom() {
     return [value, ...value.children.flatMap((child) => findAll(child, tag))].filter((item) => item.tagName === tag);
   }
 }
+
+
+test('optional usage lookup warning keeps task sending enabled and refresh retries without discarding the draft', () => {
+  const value = snapshot([]);
+  value.backends = [{ ...value.backends[0], state: 'ready', diagnostic: { code: 'codex.rate-limits-unavailable', message: 'Usage lookup unavailable.' }, rateLimits: [], models: [{ id: 'fixture-model', label: 'Fixture', reasoningEfforts: ['high'], defaultReasoningEffort: 'high', maxOutputTokens: 8192, isDefault: true }], selectedModel: 'fixture-model', selectedReasoningEffort: 'high', outputTokenLimit: 4096 }];
+  const model = presentChatPanel(new ConversationProjector().reset(value));
+  assert.equal(model.composer.canSend, true); assert.equal(model.composer.blockedReason, null);
+  const fake = fakeDom(); const intents = []; renderChatPanel(fake.root, model, intent => intents.push(intent));
+  assert.match(fake.text(), /额度信息暂时无法查询，登录状态已确认/);
+  assert.doesNotMatch(fake.text(), /codex.rpc-error|backend-api/);
+  fake.find('.chat-composer textarea').value = '继续生成棋盘';
+  fake.findButton('Refresh connection').click();
+  assert.deepEqual(intents, [{ type: 'conversation/reconnect' }]);
+  renderChatPanel(fake.root, model, intent => intents.push(intent));
+  assert.equal(fake.find('.chat-composer textarea').value, '继续生成棋盘');
+  assert.equal(fake.findButton('Send').disabled, false);
+  value.backends[0] = { ...value.backends[0], diagnostic: undefined, rateLimits: [{ name: 'Codex', usedPercent: 12 }] };
+  renderChatPanel(fake.root, presentChatPanel(new ConversationProjector().reset(value)), intent => intents.push(intent));
+  assert.doesNotMatch(fake.text(), /额度信息暂时无法查询/);
+  assert.equal(fake.find('.chat-composer textarea').value, '继续生成棋盘');
+  fake.findButton('Send').click();
+  assert.deepEqual(intents.at(-1), { type: 'conversation/send', backendId, prompt: '继续生成棋盘' });
+});

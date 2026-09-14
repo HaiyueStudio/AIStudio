@@ -13,3 +13,5 @@ export * from './catalog/index.js';
 export * from './canvas-texture.js';
 
 export * from './engine-docs.js';
+
+export * from './query-limits.js';

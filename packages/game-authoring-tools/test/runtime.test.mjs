@@ -476,6 +476,8 @@ test('controlled project assets import, search, assign, undo and survive project
     assert.equal(assigned.historyLabel, 'Assign Asset');
     assert.equal(assigned.value.component.type, 'haiyue.material.pbr');
     assert.equal(assigned.value.component.value.baseColorAssetId, imported.value.asset.id);
+    assert.deepEqual(assigned.value.component.value.baseColor, [1, 1, 1, 1]);
+    assert.deepEqual(value.scene.snapshot().entities.find(item => item.id === entityId).appearance.color, [1, 1, 1, 1]);
 
     await value.workspace.undo(4);
     assert.equal(value.workspace.queryGameDocument({ entityId, limit: 256 }).components.some((item) => item.type === 'haiyue.material.pbr'), false);
@@ -1573,5 +1575,24 @@ test('unsaved Canvas textures preview immediately, survive failed save and Undo/
     assert.equal(another.status, 'completed');
     await value.workspace.newProject(null, 'Replacement');
     await assert.rejects(value.workspace.readControlledAsset(asset.projectPath, 1024));
+  } finally { await dispose(value); }
+});
+
+test('manual and Agent material edits update the effective PBR component and retain maps through undo', async () => {
+  const value = await fixture();
+  try {
+    const created = await approveAndExecute(value.runtime, call('call:material-owner', 'entity.create', { baseRevision: 1, kind: 'plane', material: 'pbr', color: [.9,.7,.4,1] }));
+    const entityId = created.value.entity.id;
+    await approveAndExecute(value.runtime, call('call:material-pbr', 'component.configure', { baseRevision: 2, action: 'upsert', entityId, type: 'haiyue.material.pbr', patch: { baseColor: [1,1,1,1], roughness: .83 } }));
+    const pbr = () => value.scene.snapshot().entities.find(item => item.id === entityId).components.find(item => item.type === 'haiyue.material.pbr');
+    await value.scene.setMaterial({ commandId: 'command:manual-tint', baseRevision: 3, entityId, material: 'pbr', color: [.8,.6,.2,1] });
+    assert.deepEqual(pbr().value.baseColor, [.8,.6,.2,1]); assert.equal(pbr().value.roughness, .83);
+    await value.workspace.undo(4); assert.deepEqual(pbr().value.baseColor, [1,1,1,1]);
+    await value.workspace.redo(5); assert.deepEqual(pbr().value.baseColor, [.8,.6,.2,1]);
+    await approveAndExecute(value.runtime, call('call:material-basic', 'material.set', { baseRevision: 6, entityId, material: 'basic', color: [1,0,0,1] }));
+    assert.equal(pbr().enabled, false);
+    assert.equal(value.scene.snapshot().entities.find(item => item.id === entityId).appearance.material, 'basic');
+    await approveAndExecute(value.runtime, call('call:material-pbr-again', 'material.set', { baseRevision: 7, entityId, material: 'pbr', color: [1,1,1,1] }));
+    assert.equal(pbr().enabled, true); assert.deepEqual(pbr().value.baseColor, [1,1,1,1]); assert.equal(pbr().value.roughness, .83);
   } finally { await dispose(value); }
 });

@@ -108,3 +108,37 @@ test('missing and replaced bytes retain manifest identity, show failure, block a
   const count = f.requests.length; await assert.rejects(f.action(page, page.items[0], 'asset.assign', { targetEntityId: f.entityId, usage: 'texture.environment-diffuse' }), /resource.asset-invalid/);
   assert.equal(f.requests.length, count); assert.equal((await f.page({ kind: 'asset' })).items[0].health, 'invalid');
 });
+
+test('project inventory excludes templates and duplicate entities, follows tools, undo, redo and project replacement', async t => {
+  const f = await resourceFixture(); t.after(f.close);
+  for (const category of ['Geometry', 'Material', 'Script', 'Texture']) assert.equal((await f.page({ projectOnly: true, category })).total, 0);
+  assert.ok((await f.page({ kind: 'template' })).total > 0, 'creation catalog remains available outside project inventory');
+  const created = await execute(f, 'entity.create', { baseRevision: f.workspace.gameSnapshot().revision, kind: 'rounded-box', name: '圆角棋盘', material: 'pbr' });
+  assert.equal(created.status, 'completed');
+  const geometry = await f.page({ projectOnly: true, category: 'Geometry', limit: 1 });
+  assert.equal(geometry.total, 1); assert.equal(geometry.nextCursor, null);
+  assert.equal(geometry.items[0].configuration.value.kind, 'rounded-box');
+  assert.ok(geometry.items[0].entry.ref.componentId, 'component is the geometry resource');
+  const materials = await f.page({ projectOnly: true, category: 'Material' });
+  assert.equal(materials.total, 1); assert.equal(materials.items[0].configuration.value.material, 'pbr');
+  assert.equal((await f.action(geometry, geometry.items[0], 'resource.locate')).kind, 'location');
+  await f.workspace.undo(f.workspace.gameSnapshot().revision);
+  assert.equal((await f.page({ projectOnly: true, category: 'Geometry' })).total, 0);
+  assert.equal((await f.page({ projectOnly: true, category: 'Material' })).total, 0);
+  await f.workspace.redo(f.workspace.gameSnapshot().revision);
+  assert.equal((await f.page({ projectOnly: true, category: 'Geometry' })).total, 1);
+  const configured = await execute(f, 'component.configure', { baseRevision: f.workspace.gameSnapshot().revision, entityId: created.value.entity.id, action: 'upsert', type: 'haiyue.material.pbr', version: '1.0.0', patch: { baseColor: [.9, .1, .2, 1] } });
+  assert.equal(configured.status, 'completed');
+  const effective = await f.page({ projectOnly: true, category: 'Material' });
+  assert.equal(effective.total, 1, 'PBR override does not duplicate the underlying material slot');
+  assert.equal(effective.items[0].configuration.type, 'haiyue.material.pbr');
+  const asset = await f.importTexture();
+  const textures = await f.page({ projectOnly: true, category: 'Texture' });
+  assert.equal(textures.total, 1, 'environment-shaped image is still listed as a texture');
+  assert.equal(textures.items[0].entry.ref.assetId, asset.assetId);
+  await f.workspace.save(); await f.workspace.reopen();
+  assert.equal((await f.page({ projectOnly: true, category: 'Texture' })).total, 1);
+  await f.workspace.closeProject();
+  assert.equal((await f.page({ projectOnly: true })).total, 0);
+  await assert.rejects(f.page({ projectOnly: 'yes' }), /resource.query-invalid/);
+});

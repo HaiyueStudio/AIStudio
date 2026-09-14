@@ -53,8 +53,8 @@ test('version and digest validation reject stale, tampered and unknown reference
   assert.throws(() => new EngineDocumentationStore({ ...raw, digest: 'sha256:bad' }), { code: 'engine.docs.digest-mismatch' });
   const altered = { ...raw, entries: [{ ...raw.entries[0], blocks: ['wrong'] }, ...raw.entries.slice(1)] };
   assert.throws(() => new EngineDocumentationStore(altered), { code: 'engine.docs.entry-invalid' });
-  assert.throws(() => docs.read({ id: raw.entries[0].id, bundleDigest: 'stale' }), { code: 'engine.docs.stale' });
-  assert.throws(() => docs.read({ id: '../../secrets', bundleDigest: docs.bundle.digest }), { code: 'engine.docs.not-found' });
+  assert.throws(() => docs.read({ id: raw.entries[0].id, bundleDigest: 'sha256:' + '0'.repeat(64) }), { code: 'engine.docs.stale' });
+  assert.throws(() => docs.read({ id: '../../secrets', bundleDigest: docs.bundle.digest }), { code: 'engine.docs.reference-invalid' });
   assert.throws(() => search('😀'.repeat(600)), { code: 'engine.docs.invalid' });
 });
 
@@ -113,4 +113,90 @@ test('shipped Studio examples compile against real declarations and rotate the a
       }
     }
   } finally { await validator.dispose(); }
+});
+
+
+test('short references preserve version binding and malformed ids are distinct from stale versions', () => {
+  const match = search('api.input.interactions').matches[0];
+  assert.match(match.ref, /^dref:[a-f0-9]{16}$/);
+  assert.equal(docs.read({ ref: match.ref }).id, match.id);
+  assert.throws(() => docs.read({ ref: match.ref, id: match.id }), { code: 'engine.docs.reference-invalid' });
+  assert.throws(() => docs.read({ id: match.id, bundleDigest: 'sha256:a6af2??' }), { code: 'engine.docs.reference-invalid' });
+  assert.throws(() => docs.read({ id: 'doc:970f?', bundleDigest: docs.bundle.digest }), { code: 'engine.docs.reference-invalid' });
+  assert.throws(() => docs.read({ id: 'doc:' + '0'.repeat(24), bundleDigest: docs.bundle.digest }), { code: 'engine.docs.not-found' });
+  const changed = { ...raw, binding: { ...raw.binding, guidesDigest: 'changed' } };
+  changed.digest = hash({ binding: changed.binding, entries: changed.entries });
+  assert.throws(() => new EngineDocumentationStore(changed).read({ ref: match.ref }), { code: 'engine.docs.reference-unavailable' });
+});
+
+test('larger documentation searches page within byte budgets without losing or repeating matches', () => {
+  const input = { query: 'transform', surface: 'all', limit: 20, maxBytes: 4096 };
+  let page = docs.search(input), ids = [], pages = 0;
+  const total = page.candidateCount;
+  assert.ok(total > 20);
+  do {
+    assert.ok(Buffer.byteLength(JSON.stringify(page)) <= input.maxBytes);
+    assert.ok(page.matches.length > 0);
+    ids.push(...page.matches.map(m => m.id)); pages++;
+    if (!page.nextCursor) break;
+    assert.throws(() => docs.search({ ...input, query: 'different', cursor: page.nextCursor }), { code: 'engine.docs.cursor-invalid' });
+    page = docs.search({ ...input, cursor: page.nextCursor });
+  } while (pages < 1000);
+  assert.equal(new Set(ids).size, ids.length); assert.equal(ids.length, total);
+});
+
+test('tool boundary accepts short doc references and gives actionable malformed scene scope diagnostics', async () => {
+  const fixture = await openBehaviorToolsFixture({ runtimeOptions: { documentation: docs } });
+  try {
+    const result = await execute(fixture, 'engine.docs.search', { query: 'transform', limit: 20 });
+    assert.equal((await execute(fixture, 'engine.docs.read', { ref: result.value.matches[0].ref })).status, 'completed');
+    await assert.rejects(execute(fixture, 'scene.query', { scope: { sceneId: 'scene:??' } }), e => e.code === 'scene.scope-invalid' && /Omit scope.sceneId/.test(e.message));
+    assert.equal((await execute(fixture, 'scene.query', { projection: ['hierarchy'] })).status, 'completed');
+  } finally { await fixture.close(); }
+});
+
+test('search-result selection copies the identity from stored JSON without accepting model-supplied ids', () => {
+  const searchResult = docs.search({ query: 'api.input.interactions' });
+  const expectedId = searchResult.matches[0].id;
+  const selected = { resultRef: searchResult.resultRef, index: searchResult.matches[0].index };
+  // Even a caller mutating its returned JSON cannot rewrite the server-owned row.
+  searchResult.matches[0].id = 'doc:' + '0'.repeat(24);
+  const result = docs.read({ fromSearch: selected });
+  assert.equal(result.id, expectedId);
+  assert.deepEqual(result.resolvedFrom, selected);
+  assert.match(result.blocks.join('\n'), /interactions/);
+  assert.throws(() => docs.read({ fromSearch: selected, id: expectedId }), { code: 'engine.docs.selection-invalid' });
+  assert.throws(() => docs.read({ fromSearch: { ...selected, index: 999 } }), { code: 'engine.docs.selection-invalid' });
+  assert.throws(() => docs.read({ fromSearch: { ...selected, index: -1 } }), { code: 'engine.docs.selection-invalid' });
+  assert.throws(() => docs.read({ fromSearch: { ...selected, id: expectedId } }), { code: 'engine.docs.selection-invalid' });
+  const otherInstance = new EngineDocumentationStore(raw);
+  otherInstance.search({ query: 'camera' });
+  assert.throws(() => otherInstance.read({ fromSearch: selected }), { code: 'engine.docs.search-result-unavailable' });
+});
+
+test('expired search-result handles fail explicitly instead of selecting a newly reused row', () => {
+  const store = new EngineDocumentationStore(raw);
+  const first = store.search({ query: 'pointer' });
+  for (let i = 0; i < 128; i++) store.search({ query: 'camera' });
+  assert.throws(() => store.read({ fromSearch: { resultRef: first.resultRef, index: 0 } }), { code: 'engine.docs.search-result-unavailable' });
+});
+
+test('real tool calls read the chosen search row without any document id in their arguments', async () => {
+  const fixture = await openBehaviorToolsFixture({ runtimeOptions: { documentation: docs } });
+  try {
+    const searchResult = (await execute(fixture, 'engine.docs.search', { query: 'api.input.interactions', limit: 20 })).value;
+    const args = { fromSearch: { resultRef: searchResult.resultRef, index: 0 } };
+    const result = await execute(fixture, 'engine.docs.read', args);
+    assert.equal(result.value.id, searchResult.matches[0].id);
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(Object.keys(args), ['fromSearch']);
+  } finally { await fixture.close(); }
+});
+
+test('model-facing read schema selects stored results and does not invite identifier transcription', () => {
+  const schema = GAME_AUTHORING_TOOL_DEFINITIONS.find(tool => tool.id === 'engine.docs.read').inputSchema;
+  assert.ok(schema.properties.fromSearch);
+  assert.equal(schema.properties.id, undefined);
+  assert.equal(schema.properties.bundleDigest, undefined);
+  assert.ok(schema.properties.ref, 'related-document handles remain available');
 });

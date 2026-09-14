@@ -1,3 +1,4 @@
+import { QUERY_PAGE_SIZE } from './query-limits.js';
 import type { EngineDocumentation } from './engine-docs.js';
 import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
 import { randomUUID } from 'node:crypto';
@@ -479,7 +480,10 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
       if (!isSceneGeometryKind(target.kind) || !target.appearance) throw new GameToolProtocolError('tool.material-target-invalid', 'Only geometry entities can use materials.');
       const component = ownedComponent(options.workspace, entityId, 'haiyue.render.material');
       const replacement = options.workspace.componentRegistry.validate({ ...component, value: Object.freeze({ material: args.material, color: args.color ?? target.appearance.color }) as JsonObject });
-      return result('Set Material', [{ op: 'component.replace', component: replacement }], (revision) => Object.freeze({ entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)), revision }));
+      const pbr = target.components?.find(item => item.type === 'haiyue.material.pbr');
+      const operations: GameDocumentOperationV2[] = [{ op: 'component.replace', component: replacement }];
+      if (pbr) operations.push({ op: 'component.replace', component: options.workspace.componentRegistry.validate({ ...pbr, enabled: args.material === 'pbr', value: { ...pbr.value, ...(args.color ? { baseColor: args.color } : {}) } }) });
+      return result('Set Material', operations, (revision) => Object.freeze({ entity: entitySummary(requireEntity(options.scene.snapshot(), entityId)), revision }));
     }
     case 'component.add': {
       const entityId = args.entityId as StableId; const type = asStableId(args.type as string, 'component type'); const definition = resolveComponentDefinition(options.workspace, type, args.version as string | undefined);
@@ -522,7 +526,7 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
       try { catalog.assignment(args.assetId as string, usage); } catch (cause) { throw assetProtocolError(cause); }
       const sceneEntity = requireEntity(scene, entityId); if (isPbrTextureUsage(usage) && !isSceneGeometryKind(sceneEntity.kind)) throw new GameToolProtocolError('asset.target-incompatible', `${usage} requires a geometry entity with Mesh3D.`);
       const query = options.workspace.queryGameDocument({ entityId, limit: 256 }); const binding = assetBinding(usage, args.assetId as StableId); const existing = query.components.find((item) => item.type === binding.type && item.version === '1.0.0');
-      const component = existing ? options.workspace.componentRegistry.validate({ ...existing, value: Object.freeze({ ...existing.value, ...binding.patch }) }) : options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-asset', stored.call.id), type: binding.type, version: resolveComponentDefinition(options.workspace, binding.type, '1.0.0').version, enabled: true, value: Object.freeze({ ...resolveComponentDefinition(options.workspace, binding.type, '1.0.0').defaults, ...binding.patch }) });
+      const component = existing ? options.workspace.componentRegistry.validate({ ...existing, ...(isPbrTextureUsage(usage) ? { enabled: true } : {}), value: Object.freeze({ ...existing.value, ...binding.patch }) }) : options.workspace.componentRegistry.create({ id: transactionGeneratedId('component-asset', stored.call.id), type: binding.type, version: resolveComponentDefinition(options.workspace, binding.type, '1.0.0').version, enabled: true, value: Object.freeze({ ...resolveComponentDefinition(options.workspace, binding.type, '1.0.0').defaults, ...textureMaterialDefaults(usage, sceneEntity), ...binding.patch }) });
       const operation: GameDocumentOperationV2 = existing ? { op: 'component.replace', component } : { op: 'component.add', entityId, component };
       return result('Assign Asset', [operation], (revision) => Object.freeze({ documentId: stored.view.documentId, revision, entityId, assetId: args.assetId as StableId, usage, component: component as unknown as JsonValue }));
     }
@@ -959,8 +963,24 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return value;
     }
     case 'tool.search': {
-      const matches = catalog.search(args.text as string, { limit: args.limit as number, includeSchemas: args.includeSchemas === true });
-      return Object.freeze({ query: args.text as string, matches: matches as unknown as JsonValue, count: matches.length, truncated: matches.length === args.limit, source: 'authoritative-tool-and-component-registries', semantic: true });
+      const candidates = catalog.search(args.text as string, { limit: QUERY_PAGE_SIZE, includeSchemas: args.includeSchemas === true });
+      const binding = sha256(canonicalStringify({ text: args.text, includeSchemas: args.includeSchemas, limit: args.limit, ids: candidates.map(item => [item.id, item.version]) }));
+      let offset = 0;
+      if (args.cursor !== undefined) {
+        let cursor: unknown;
+        try { cursor = JSON.parse(Buffer.from(args.cursor as string, 'base64url').toString('utf8')); } catch { throw invalid('Use the exact tool.search nextCursor.'); }
+        if (!isRecord(cursor) || cursor.binding !== binding || !Number.isSafeInteger(cursor.offset) || (cursor.offset as number) < 0 || (cursor.offset as number) >= candidates.length) throw invalid('tool.search cursor does not match this query. Keep text, includeSchemas and limit unchanged, or start without cursor.');
+        offset = cursor.offset as number;
+      }
+      const matches: JsonValue[] = [];
+      let nextCursor: string | null = null;
+      for (const match of candidates.slice(offset, offset + (args.limit as number))) {
+        const nextOffset = offset + matches.length + 1;
+        const cursor = nextOffset < candidates.length ? Buffer.from(JSON.stringify({ binding, offset: nextOffset })).toString('base64url') : null;
+        if (Buffer.byteLength(canonicalStringify({ matches: [...matches, match as unknown as JsonValue], nextCursor: cursor })) > 60 * 1024) break;
+        matches.push(match as unknown as JsonValue); nextCursor = cursor;
+      }
+      return Object.freeze({ query: args.text as string, matches, count: matches.length, requestedCount: args.limit!, candidateCount: candidates.length, nextCursor, truncated: offset + matches.length < candidates.length, source: 'authoritative-tool-and-component-registries', semantic: true });
     }
     case 'engine.capabilities.describe': {
       const manifest = options.workspace.componentRegistry.capabilityManifest();
@@ -1131,11 +1151,11 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       let component: GameComponentInstanceV2;
       let operation;
       if (existing) {
-        component = options.workspace.componentRegistry.validate({ ...existing, value: Object.freeze({ ...existing.value, ...binding.patch }) });
+        component = options.workspace.componentRegistry.validate({ ...existing, ...(isPbrTextureUsage(usage) ? { enabled: true } : {}), value: Object.freeze({ ...existing.value, ...binding.patch }) });
         operation = { op: 'component.replace' as const, component };
       } else {
         const definition = resolveComponentDefinition(options.workspace, binding.type, '1.0.0');
-        component = options.workspace.componentRegistry.create({ id: asStableId(`component:${randomUUID()}`), type: binding.type, version: definition.version, enabled: true, value: Object.freeze({ ...definition.defaults, ...binding.patch }) });
+        component = options.workspace.componentRegistry.create({ id: asStableId(`component:${randomUUID()}`), type: binding.type, version: definition.version, enabled: true, value: Object.freeze({ ...definition.defaults, ...textureMaterialDefaults(usage, sceneEntity), ...binding.patch }) });
         operation = { op: 'component.add' as const, entityId, component };
       }
       const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: 'Assign Asset', baseRevision: args.baseRevision as number, operations: [operation] }, signal);
@@ -1265,15 +1285,15 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
       return Object.freeze({ entityIds, includeComponents: raw.includeComponents === undefined ? true : booleanValue(raw.includeComponents, 'includeComponents') });
     }
     case 'engine.docs.search': {
-      exact(raw, ['query'], ['surface', 'limit', 'maxBytes'], toolId);
+      exact(raw, ['query'], ['surface', 'limit', 'cursor', 'maxBytes'], toolId);
       if (raw.surface !== undefined && !['studio-script', 'authoring', 'engine-native', 'all'].includes(raw.surface as string)) throw invalid('Unknown documentation surface.');
-      return Object.freeze({ query: boundedString(raw.query, 'query', 2048, true), ...(raw.surface === undefined ? {} : { surface: raw.surface as string }), limit: raw.limit === undefined ? 6 : boundedInteger(raw.limit, 'limit', 1, 12), maxBytes: raw.maxBytes === undefined ? 4096 : boundedInteger(raw.maxBytes, 'maxBytes', 1024, 16384) });
+      return Object.freeze({ query: boundedString(raw.query, 'query', 2048, true), ...(raw.surface === undefined ? {} : { surface: raw.surface as string }), ...(raw.cursor === undefined ? {} : { cursor: boundedString(raw.cursor, 'cursor', 512, true) }), limit: raw.limit === undefined ? 6 : boundedInteger(raw.limit, 'limit', 1, QUERY_PAGE_SIZE), maxBytes: raw.maxBytes === undefined ? 4096 : boundedInteger(raw.maxBytes, 'maxBytes', 1024, 16384) });
     }
     case 'engine.docs.read': {
-      exact(raw, ['id', 'bundleDigest'], ['cursor', 'maxBytes'], toolId);
-      return Object.freeze({ id: boundedString(raw.id, 'id', 100, true), bundleDigest: boundedString(raw.bundleDigest, 'bundleDigest', 100, true), ...(raw.cursor === undefined ? {} : { cursor: boundedString(raw.cursor, 'cursor', 512, true) }), maxBytes: raw.maxBytes === undefined ? 16384 : boundedInteger(raw.maxBytes, 'maxBytes', 1024, 32768) });
+      exact(raw, [], ['fromSearch', 'ref', 'id', 'bundleDigest', 'cursor', 'maxBytes'], toolId);
+      return Object.freeze({ ...(raw.fromSearch === undefined ? {} : { fromSearch: jsonObjectValue(raw.fromSearch, 'fromSearch') }), ...(raw.ref === undefined ? {} : { ref: boundedString(raw.ref, 'ref', 100, true) }), ...(raw.id === undefined ? {} : { id: boundedString(raw.id, 'id', 100, true) }), ...(raw.bundleDigest === undefined ? {} : { bundleDigest: boundedString(raw.bundleDigest, 'bundleDigest', 100, true) }), ...(raw.cursor === undefined ? {} : { cursor: boundedString(raw.cursor, 'cursor', 512, true) }), maxBytes: raw.maxBytes === undefined ? 16384 : boundedInteger(raw.maxBytes, 'maxBytes', 1024, 32768) });
     }
-    case 'tool.search': exact(raw, ['text'], ['limit', 'includeSchemas'], toolId); return Object.freeze({ text: boundedString(raw.text, 'text', 512, true), limit: raw.limit === undefined ? 12 : boundedInteger(raw.limit, 'limit', 1, 50), includeSchemas: raw.includeSchemas === true });
+    case 'tool.search': exact(raw, ['text'], ['limit', 'cursor', 'includeSchemas'], toolId); return Object.freeze({ text: boundedString(raw.text, 'text', 512, true), limit: raw.limit === undefined ? 12 : boundedInteger(raw.limit, 'limit', 1, QUERY_PAGE_SIZE), ...(raw.cursor === undefined ? {} : { cursor: boundedString(raw.cursor, 'cursor', 512, true) }), includeSchemas: raw.includeSchemas === true });
     case 'component.describe': exact(raw, ['type'], ['version'], toolId); return Object.freeze({ type: componentTypeValue(raw.type), ...(raw.version === undefined ? {} : { version: componentVersionValue(raw.version) }) });
     case 'component.get': {
       exact(raw, [], ['componentId', 'entityId', 'type', 'version'], toolId);
@@ -1550,7 +1570,12 @@ function normalizeSceneScope(value: unknown): SceneContextScope {
   exact(value, [], ['sceneId', 'entityIds', 'componentTypes'], 'scene scope');
   const entityIds = value.entityIds === undefined ? undefined : stableIdArray(value.entityIds, 'entityIds', 1_000);
   const componentTypes = value.componentTypes === undefined ? undefined : componentTypeArray(value.componentTypes, 128);
-  return Object.freeze({ ...(value.sceneId === undefined ? {} : { sceneId: stable(value.sceneId, 'scene id') }), ...(entityIds ? { entityIds } : {}), ...(componentTypes ? { componentTypes } : {}) });
+  return Object.freeze({ ...(value.sceneId === undefined ? {} : { sceneId: sceneScopeId(value.sceneId) }), ...(entityIds ? { entityIds } : {}), ...(componentTypes ? { componentTypes } : {}) });
+}
+
+function sceneScopeId(value: unknown): StableId {
+  try { return stable(value, 'scene id'); }
+  catch { throw new GameToolProtocolError('scene.scope-invalid', 'scope.sceneId is malformed. Omit scope.sceneId to query the current scene, or copy the exact scene id from a successful scene.query. Never use placeholders such as scene:??.', true); }
 }
 
 function stableIdArray(value: unknown, label: string, maximum: number): readonly StableId[] {
@@ -1630,7 +1655,7 @@ function normalizePositiveVec3Value(value: unknown, label: string): JsonObject {
 }
 
 function normalizeEvaluationArguments(raw: Record<string, unknown>): JsonObject {
-  exact(raw, ['taskSpec', 'observationIds'], ['budgetStatus', 'usageRecordIds', 'costRecordIds'], 'task.evaluate');
+  exact(raw, ['taskSpec', 'observationIds'], ['acceptanceEvidence', 'budgetStatus', 'usageRecordIds', 'costRecordIds'], 'task.evaluate');
   const ids = (value: unknown, label: string, minimum: number): readonly StableId[] => {
     if (!Array.isArray(value) || value.length < minimum || value.length > 256) throw invalid(`${label} is invalid.`);
     const result = value.map((item) => stable(item, label));
@@ -1643,6 +1668,7 @@ function normalizeEvaluationArguments(raw: Record<string, unknown>): JsonObject 
   return Object.freeze({
     taskSpec: jsonObjectValue(raw.taskSpec, 'taskSpec') as JsonValue,
     observationIds: ids(raw.observationIds, 'observationIds', 1), budgetStatus,
+    ...(raw.acceptanceEvidence === undefined ? {} : { acceptanceEvidence: jsonObjectValue(raw.acceptanceEvidence, 'acceptanceEvidence') }),
     usageRecordIds: raw.usageRecordIds === undefined ? Object.freeze([]) : ids(raw.usageRecordIds, 'usageRecordIds', 0),
     costRecordIds: raw.costRecordIds === undefined ? Object.freeze([]) : ids(raw.costRecordIds, 'costRecordIds', 0),
   });
@@ -1819,6 +1845,11 @@ function normalizedPlane(raw: Record<string, unknown>): JsonObject {
   if (raw.kind !== 'plane' || !['xy', 'xz', 'yz'].includes(String(raw.plane))) throw invalid('plane is valid only for plane geometry and must be xy, xz or yz.');
   return { plane: raw.plane as string };
 }
+// A color map supplies the surface color. New bindings must not inherit the registry's blue swatch.
+function textureMaterialDefaults(usage: AssetUsage, entity: Readonly<{ appearance?: Readonly<{ color: readonly number[] }> }>): JsonObject {
+  return isPbrTextureUsage(usage) ? Object.freeze({ baseColor: usage === 'texture.base-color' ? Object.freeze([1, 1, 1, 1]) : entity.appearance?.color ?? Object.freeze([1, 1, 1, 1]) }) : Object.freeze({});
+}
+
 function historyLabel(toolId: StableId): string | undefined { return ({ 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.generate-texture': 'Draw PNG Texture', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 const callProjects = new WeakMap<GameToolCall, { projectId: StableId; documentId: StableId }>();
 function correlation(call: GameToolCall, approvalId?: StableId) {

@@ -1,0 +1,12 @@
+{
+  "title": "HaiyueStudioPointerEvent",
+  "returnedId": "doc:0ed78b842e81f7b9068ffcd1",
+  "requestedId": "doc:0ed78a842e81f7b9068ffcd1",
+  "diagnostic": "engine.docs.not-found",
+  "difference": "b changed to a at character 10 (one-based, including doc: prefix)",
+  "searchSequence": 2404,
+  "failedReadSequence": 3516,
+  "successfulBundleDigest": "sha256:a6afac25b69840f8312b9d79b150f732795b13bb8cc294232061778d1b5024ba",
+  "successfulResultsHadOneBundleVersion": true,
+  "transport": "Codex submitToolResult serializes the structured result with JSON.stringify; the failing id was not returned by preceding searches."
+}

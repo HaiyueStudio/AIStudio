@@ -11,7 +11,11 @@
       "import": "./dist/index.js"
     },
     "./engine-docs/bundle.json": "./dist/engine-docs/bundle.json",
-    "./engine-docs/binding.json": "./dist/engine-docs/binding.json"
+    "./engine-docs/binding.json": "./dist/engine-docs/binding.json",
+    "./query-limits": {
+      "types": "./dist/query-limits.d.ts",
+      "import": "./dist/query-limits.js"
+    }
   },
   "engines": {
     "node": ">=22.19.0"

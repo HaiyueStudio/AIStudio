@@ -194,3 +194,25 @@ test('array-index evidence signals use persisted full payloads and distinguish m
   assert.match(result.acceptanceResults[2].diagnostic, /condition-failed/);
   for (const item of result.acceptanceResults.slice(3)) assert.match(item.diagnostic, /signal-missing/);
 });
+
+
+test('multi-stage acceptance selects initial and winning evidence without weakening latest-state defaults or provenance', async (t) => {
+  const f = await createFixture(t);
+  const initial = await f.repository.persistState(call, observation({ gameplay: [{ value: { state: 'playing', moveCount: 0 } }] }, 1));
+  const won = await f.repository.persistState(call, observation({ gameplay: [{ value: { state: 'won', moveCount: 9 } }] }, 20));
+  const task = taskSpec([
+    { id: 'acceptance:initial', category: 'functional', assertion: 'evidence state signal gameplay.0.value.state equals "playing"' },
+    { id: 'acceptance:won', category: 'functional', assertion: 'evidence state signal gameplay.0.value.state equals "won"' },
+  ]);
+  const input = evaluationInput(task, [initial.artifact.id, won.artifact.id]);
+  const evaluator = new DeterministicTaskEvaluator(f.repository, () => 7);
+  assert.equal((await evaluator.evaluate(input)).status, 'fail');
+  const selected = { ...input, acceptanceEvidence: { 'acceptance:initial': [initial.artifact.id], 'acceptance:won': [won.artifact.id] } };
+  const result = await evaluator.evaluate(selected);
+  assert.equal(result.status, 'pass');
+  assert.deepEqual(result.acceptanceResults.map(item => item.evidenceIds), [[initial.artifact.id], [won.artifact.id]]);
+  assert.equal((await new DeterministicTaskEvaluator(f.repository, () => 8).evaluate(selected)).status, 'blocked');
+  await assert.rejects(evaluator.evaluate({ ...input, acceptanceEvidence: { 'acceptance:unknown': [initial.artifact.id] } }), /approved criterion/);
+  await assert.rejects(evaluator.evaluate({ ...selected, observationIds: [won.artifact.id] }), /included observations/);
+  await assert.rejects(evaluator.evaluate({ ...input, acceptanceEvidence: { 'acceptance:initial': [] } }), /1-256/);
+});

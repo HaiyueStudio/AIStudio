@@ -131,9 +131,12 @@ export class DeterministicTaskEvaluator {
         turns: Object.freeze([]), tools: Object.freeze([]), completedAt: new Date().toISOString(),
       });
     }
+    for (const [id, ids] of Object.entries(input.acceptanceEvidence)) {
+      if (!task.acceptance.some(item => item.id === id) || ids.some(id => !input.observationIds.includes(id))) throw new GameToolProtocolError('evaluation.evidence-selection-invalid', 'Criterion evidence must name an approved criterion and included observations.');
+    }
     const results: EvaluationResultV2['acceptanceResults'][number][] = [];
     for (const acceptance of task.acceptance) {
-      const evaluated = evaluateAcceptance(task.id, acceptance, observations, this.currentRevision());
+      const evaluated = evaluateAcceptance(task.id, acceptance, input.acceptanceEvidence[acceptance.id] ? observations.filter(item => input.acceptanceEvidence[acceptance.id]!.includes(item.artifact.id as StableId)) : observations, this.currentRevision());
       results.push(evaluated);
     }
     const required = task.acceptance.filter((item) => item.required);
@@ -276,11 +279,19 @@ function validateStoredEnvelope(value: JsonValue): StoredObservationEnvelope {
   return value as unknown as StoredObservationEnvelope;
 }
 
-interface EvaluationInput { readonly taskSpec: unknown; readonly observationIds: readonly StableId[]; readonly budgetStatus: EvaluationResultV2['budgetStatus']; readonly usageRecordIds: readonly StableId[]; readonly costRecordIds: readonly StableId[]; }
+interface EvaluationInput { readonly taskSpec: unknown; readonly acceptanceEvidence: Readonly<Record<string, readonly StableId[]>>; readonly observationIds: readonly StableId[]; readonly budgetStatus: EvaluationResultV2['budgetStatus']; readonly usageRecordIds: readonly StableId[]; readonly costRecordIds: readonly StableId[]; }
 function validateEvaluationInput(value: unknown): EvaluationInput {
   if (!isRecord(value) || !Array.isArray(value.observationIds) || value.observationIds.length < 1 || value.observationIds.length > 256) throw new GameToolProtocolError('evaluation.input-invalid', 'Evaluation input is invalid.');
   const ids = value.observationIds.map((id) => stable(id, 'observation id'));
-  return Object.freeze({ taskSpec: value.taskSpec, observationIds: Object.freeze(ids), budgetStatus: ['within', 'soft-exceeded', 'hard-exceeded'].includes(String(value.budgetStatus)) ? value.budgetStatus as EvaluationResultV2['budgetStatus'] : 'within', usageRecordIds: stableArray(value.usageRecordIds), costRecordIds: stableArray(value.costRecordIds) });
+  const acceptanceEvidence: Record<string, readonly StableId[]> = Object.create(null);
+  if (value.acceptanceEvidence !== undefined) {
+    if (!isRecord(value.acceptanceEvidence) || Object.keys(value.acceptanceEvidence).length > 64) throw new GameToolProtocolError('evaluation.evidence-selection-invalid', 'Criterion evidence selection is invalid.');
+    for (const [id, selected] of Object.entries(value.acceptanceEvidence)) {
+      if (!Array.isArray(selected) || selected.length < 1 || selected.length > 256) throw new GameToolProtocolError('evaluation.evidence-selection-invalid', 'Select 1-256 observations per criterion.');
+      acceptanceEvidence[stable(id, 'acceptance id')] = Object.freeze(selected.map(id => stable(id, 'observation id')));
+    }
+  }
+  return Object.freeze({ taskSpec: value.taskSpec, acceptanceEvidence: Object.freeze(acceptanceEvidence), observationIds: Object.freeze(ids), budgetStatus: ['within', 'soft-exceeded', 'hard-exceeded'].includes(String(value.budgetStatus)) ? value.budgetStatus as EvaluationResultV2['budgetStatus'] : 'within', usageRecordIds: stableArray(value.usageRecordIds), costRecordIds: stableArray(value.costRecordIds) });
 }
 
 function validateTaskSpec(value: unknown): TaskSpecV2 {

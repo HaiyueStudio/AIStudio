@@ -1,3 +1,4 @@
+import { QueryPreferences } from './query-preferences.js';
 import { loadEngineDocumentation } from './engine-documentation.js';
 import { ProjectAgentHistory, sha256 } from '@haiyue/ai-studio-operation-log';
 import { renderCanvasTexture } from './canvas-texture-renderer.js';
@@ -124,6 +125,9 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       const historyDirectory = (binding: Readonly<{ projectId: string | null; storageKey: string | null }>) => binding.storageKey
         ? path.join(binding.storageKey, '.aistudio', 'agent')
         : path.join(app.getPath('userData'), 'project-agent-history', sha256(binding.projectId ?? 'workspace-empty').slice(0, 32));
+      const queryPreferences = new QueryPreferences(path.join(app.getPath('userData'), 'preferences', 'query-limits.json'));
+      await queryPreferences.initialize();
+      context.effects.own('query-preferences.dispose', () => queryPreferences.dispose());
       const conversation = new ProjectConversationController({
         resolveProject: () => {
           const snapshot = workspace.snapshot();
@@ -136,6 +140,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         hostOptions: (binding, scopedLog) => ({
           runtime: agentRuntime,
           tools: gameTools,
+          queryLimits: () => queryPreferences.snapshot(),
           operationLog: scopedLog,
           sessionRecovery: new StudioSessionOrchestrator(createWorkspaceRecoveryAuthority(workspace), scopedLog, new RecoveryClaimStore(path.join(app.getPath('userData'), 'operation-log', 'recovery-claims'))),
           isProjectOpen: () => workspace.snapshot().document !== null,
@@ -210,6 +215,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       const previewChanges = agentPreview.subscribePending(notifyRenderer);
       const router = new StudioIpcRouter({
         notifications,
+        queryPreferences,
         workspace,
         scene,
         selection,

@@ -42,7 +42,7 @@ export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEn
   else entity.addComponent(new AmbientLight({ color: light.color, intensity: light.intensity }));
 }
 
-function createGeometry(kind: SceneEntityKind, components?: RenderableSceneEntity['components']) {
+export function createGeometry(kind: SceneEntityKind, components?: RenderableSceneEntity['components']) {
   switch (kind) {
     case 'rounded-box': return createAuthoringRoundedBox(components?.find(item => item.type === 'haiyue.render.geometry')?.value);
     case 'cube': return createBox3D(); case 'sphere': return createSphere3D(); case 'cone': return createCone3D(); case 'cylinder': return createCylinder3D();

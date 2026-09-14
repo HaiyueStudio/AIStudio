@@ -34,6 +34,7 @@ test('production window connects notification preferences through its real typed
   });
   assert.equal(result.code, 0, result.output); assert.match(result.output, /notification-product.*passed/);
   const report = JSON.parse(await readFile(path.join(directory, 'production.json'), 'utf8'));
+  assert.equal(report.queryFinal.limits['engine.docs.search'], 30);
   assert.equal(report.final.preferences.sound, false); assert.equal(report.reloaded, true);
   console.log(`[notification-product] evidence: ${directory}`);
 });

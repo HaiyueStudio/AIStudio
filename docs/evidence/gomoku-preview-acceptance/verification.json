@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-14",
+  "scope": "Agent preview cursor, staged acceptance and shared material texture loading",
+  "focused": {
+    "passed": 96,
+    "failed": 0,
+    "log": "focused.log"
+  },
+  "electron": {
+    "passed": 1,
+    "failed": 0,
+    "log": "window.log",
+    "authorDominantRGB": [
+      167,
+      139,
+      89
+    ],
+    "previewDominantRGB": [
+      167,
+      139,
+      89
+    ]
+  },
+  "build": "passed",
+  "rootCheck": "blocked by stale capability verification input binding",
+  "applicationRestarted": false,
+  "existingProjectModified": false,
+  "fullRegressionPassed": false,
+  "sourceInputDigest": "sha256:0f7e7f187aba19dd8b50e7ada049a343991bb0dea2ca9d73df66102e06c579cb",
+  "rootCheckLog": "root-check.log"
+}

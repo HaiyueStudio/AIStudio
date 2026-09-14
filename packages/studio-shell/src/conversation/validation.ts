@@ -300,7 +300,15 @@ function normalizeQuestion(value: Record<string, unknown>): JsonObject {
     try { return [Object.freeze({ id: stable(item.id, 'question option id'), label: text(item.label, 160) ?? 'Option', ...(typeof item.description === 'string' ? { description: safeText(item.description, 512) } : {}) })]; }
     catch { return []; }
   }) : [];
-  return Object.freeze({ prompt: text(value.prompt, 2_048) ?? 'The Agent needs more information.', options: Object.freeze(options), allowFreeform: value.allowFreeform === true, multiple: value.multiple === true });
+  const q = value.queryLimit;
+  const queryLimit = isRecord(q) && isJsonValue(q) ? Object.freeze({
+    taskId: text(q.taskId, 200) ?? null, toolId: text(q.toolId, 96) ?? null,
+    requested: safeInteger(q.requested, 1, Number.MAX_SAFE_INTEGER), limit: safeInteger(q.limit, 1, Number.MAX_SAFE_INTEGER),
+    selectedLimit: safeInteger(q.selectedLimit, 1, Number.MAX_SAFE_INTEGER),
+    expandOptionId: text(q.expandOptionId, 160) ?? null, capOptionId: text(q.capOptionId, 160) ?? null,
+    requestText: text(q.requestText, 8_192) ?? null,
+  }) : undefined;
+  return Object.freeze({ ...(queryLimit ? { queryLimit } : {}), prompt: text(value.prompt, 2_048) ?? 'The Agent needs more information.', options: Object.freeze(options), allowFreeform: value.allowFreeform === true, multiple: value.multiple === true });
 }
 
 function normalizePlan(value: Record<string, unknown>): JsonObject {

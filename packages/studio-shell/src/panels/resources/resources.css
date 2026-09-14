@@ -24,7 +24,7 @@
 .resource-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 8px; }
 .resource-list-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; color: var(--hy-secondary-text-color, #a6b5ca); font-size: 12px; }
 .resource-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.resource-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 6px; list-style: none; padding: 0; margin: 8px 0 0; max-height: 520px; overflow: auto; scrollbar-gutter: stable; }
+.resource-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 112px), 1fr)); gap: 6px; list-style: none; padding: 0; margin: 8px 0 0; max-height: 520px; overflow: auto; scrollbar-gutter: stable; }
 .resource-list button { width: 100%; height: 100%; display: grid; align-content: start; gap: 3px; padding: 9px; border-color: var(--hy-border-color, #303b4e); }
 .resource-list strong { font-size: 13px; font-weight: 500; }
 .resource-list button[aria-pressed="true"] { border-color: #94cdff; background: var(--hy-selected-bg-color, #263d58); }
@@ -40,3 +40,8 @@
   .resource-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .has-resource-selection .resource-columns { grid-template-columns: minmax(240px, 1fr) minmax(250px, .85fr); }
 }
+
+.resource-list button { justify-items: center; gap: 8px; padding: 8px; text-align: center; }
+.resource-thumbnail { display: block; width: 100%; max-width: 128px; height: auto; aspect-ratio: 1; border-radius: 5px; background: repeating-conic-gradient(#1b2432 0% 25%, #202b3a 0% 50%) 50% / 16px 16px; }
+.resource-list strong { display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resource-detail > button:first-child { float: right; margin: 0 0 8px 8px; }

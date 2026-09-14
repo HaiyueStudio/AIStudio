@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
     await update(await controller.seed(count, count === 1000 ? 200 : 0));
     await evaluate(`await query('kind','instance');await query('category','');`);
     await evaluate(`assert(window.resourceTest.data.total===${count * 2 + (count === 1000 ? 200 : 0)},'real entity/script total');assert(get('list').querySelectorAll('button').length<=25,'bounded DOM');assert(!panel.root.querySelector('img'),'project text never HTML');`);
-    if (!count) await evaluate(`assert(get('list').textContent.includes('没有匹配资源'),'empty project');`);
+    if (!count) await evaluate(`assert(get('list').textContent.includes('还没有项目资源'),'empty project');`);
     if (count === 1) await evaluate(`get('list').querySelector('button').focus();`);
     if (count === 1000) {
       await evaluate(`const first=window.resourceTest.data.items[0].entry.catalogEntryId;get('kind').value='instance';get('next').click();await idle();assert(window.resourceTest.data.items[0].entry.catalogEntryId!==first,'real cursor paging');await query('category','Script');assert(window.resourceTest.data.total===200,'200 scripts searchable');select(item=>item.entry.category==='Script');await action('resource.locate');`);

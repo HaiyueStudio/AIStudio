@@ -1,0 +1,111 @@
+{
+  "sourceInputDigest": "sha256:44acf01106df96f7a8d6770e95f079af593d703e16a1550bebd2b29dd10ae14d",
+  "build": "passed",
+  "resourceFocused": {
+    "passed": 21,
+    "failed": 0
+  },
+  "resourceWindows": {
+    "passed": 2,
+    "failed": 0
+  },
+  "productWindow": {
+    "author": "passed",
+    "restart": "passed",
+    "large": "blocked by existing Windows machine assertion on macOS"
+  },
+  "capabilityCapture": {
+    "exitCode": 1,
+    "completedGroups": [
+      {
+        "id": "documents",
+        "passed": 10
+      },
+      {
+        "id": "tools",
+        "passed": 26
+      },
+      {
+        "id": "camera",
+        "passed": 3
+      },
+      {
+        "id": "simulation",
+        "passed": 6
+      },
+      {
+        "id": "physics",
+        "passed": 10
+      },
+      {
+        "id": "render",
+        "passed": 13
+      },
+      {
+        "id": "scripts",
+        "passed": 7
+      },
+      {
+        "id": "observations",
+        "passed": 10
+      },
+      {
+        "id": "census-guards",
+        "passed": 16
+      },
+      {
+        "id": "behavior-project-flow",
+        "passed": 30
+      },
+      {
+        "id": "behavior-panel-window",
+        "passed": 1
+      },
+      {
+        "id": "behavior-product-window",
+        "passed": 1
+      },
+      {
+        "id": "expandable-window",
+        "passed": 1
+      },
+      {
+        "id": "task-checkpoint-continuation",
+        "passed": 11
+      },
+      {
+        "id": "agent-preview-handoff",
+        "passed": 16
+      },
+      {
+        "id": "budget-checkpoint-recovery",
+        "passed": 17
+      },
+      {
+        "id": "execution-status",
+        "passed": 25
+      }
+    ],
+    "lastGroup": {
+      "id": "pointer-gestures",
+      "passed": 75,
+      "failed": 1
+    },
+    "totalPassed": 278,
+    "failure": "Native pointer placement after iframe resize observed old 640x480 input size; timed wait fixture.",
+    "generatedEvidence": "Previous report preserved; no success claim or hand-edited capture."
+  },
+  "independentPointerRecheck": {
+    "passed": 1,
+    "failed": 0,
+    "clicks": 40,
+    "sourceChangesBetweenRuns": false
+  },
+  "rootCheck": {
+    "exitCode": 1,
+    "failure": "stale verification input binding because capability capture did not complete successfully",
+    "laterStages": "not reached"
+  },
+  "liveAppRestarted": false,
+  "liveProjectModified": false
+}

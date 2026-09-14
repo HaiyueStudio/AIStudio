@@ -47,7 +47,8 @@
     "packages/studio-shell/test/conversation.test.mjs",
     "packages/studio-shell/test/execution-graph.test.mjs",
     "scripts/test/editor-candidate-surface.test.mjs",
-    "scripts/test/orchestration-boundaries.test.mjs"
+    "scripts/test/orchestration-boundaries.test.mjs",
+    "apps/ai-studio/test/material-cursor-electron.test.mjs"
   ],
   "files": [
     "apps/ai-studio/test/agent-preview-ownership.test.mjs",
@@ -70,11 +71,13 @@
     "apps/ai-studio/test/m14-integration/preview-notification.test.mjs",
     "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
     "apps/ai-studio/test/m14-integration/secret-scan.test.mjs",
+    "apps/ai-studio/test/material-cursor-electron.test.mjs",
     "apps/ai-studio/test/notification-ui-electron.test.mjs",
     "apps/ai-studio/test/plan-review-electron.test.mjs",
     "apps/ai-studio/test/plane-geometry.test.mjs",
     "apps/ai-studio/test/project-history-electron.test.mjs",
     "apps/ai-studio/test/resources/panel-electron.test.mjs",
+    "apps/ai-studio/test/resources/thumbnails-electron.test.mjs",
     "apps/ai-studio/test/security.test.mjs",
     "apps/ai-studio/test/tool-batch-lifecycle.test.mjs",
     "apps/ai-studio/test/tool-contract-continuation.test.mjs",

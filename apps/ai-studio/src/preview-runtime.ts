@@ -8,6 +8,7 @@ import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-edito
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isRenderableSceneKind } from './scene-entity-rendering.js';
 import { PlaySimulation } from './play-simulation.js';
 import { PhysicsPlayRuntime } from './physics-play-runtime.js';
+import { loadControlledMaterialTexture } from './scene-material-textures.js';
 import { RenderEffectsPlayRuntime } from '@haiyue/ai-studio-script-preview/effects';
 import { hasDeclarativeGameplay, BehaviorRuntimeRecorder, parseBehaviorRuntimePlan, type BehaviorRuntimePlan } from '@haiyue/ai-studio-script-preview/behavior/runtime';
 import { createEquirectangularReflectionMap } from '@haiyue/engine/lighting';
@@ -32,7 +33,7 @@ interface PreviewPlan {
   readonly risk: 'trusted-project'; readonly diagnostics: readonly unknown[];
 }
 interface ScriptOwner { readonly plan: PreviewScriptPlan; readonly resource: ScriptResource; readonly component: ScriptComponent; readonly entity: Entity; }
-interface PreviewAsset { readonly id: string; readonly kind: 'texture' | 'model' | 'audio' | 'animation'; readonly mimeType: string; readonly byteLength: number; readonly url?: string; readonly source?: string; }
+interface PreviewAsset { readonly id: string; readonly kind: 'texture' | 'model' | 'audio' | 'animation'; readonly mimeType: string; readonly byteLength: number; readonly url?: string; readonly source?: string; readonly blob?: Blob; }
 
 let engine: HaiyueEngine | null = null;
 let scene: Scene | null = null;
@@ -66,6 +67,8 @@ const configuredDeclarativePools = new Set<string>();
 const entitiesByStableId = new Map<string, Entity>();
 const stableIdByEntityId = new Map<number, string>();
 let disposed = false;
+const textureUrls = new Set<string>();
+let textureLoad = new AbortController();
 let paused = false;
 let lifecycleGeneration = 0;
 let renderedFrame = 0;
@@ -144,13 +147,18 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   ownedScene.addSystem(new InstancedMesh3DRenderSystem(ownedEngine, ownedScene.activeCameraEntity, { loadOp: 'load' }));
   interactionSystem = new InteractionSystem(ownedEngine, ownedScene.activeCameraEntity, { bindCanvas: false, continuousHover: false });
   ownedScene.addSystem(interactionSystem, false);
-  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  textureLoad = new AbortController();
+  const assetsById = new Map(assets.map((asset) => {
+    if (!asset.blob) return [asset.id, asset] as const;
+    const url = URL.createObjectURL(asset.blob); textureUrls.add(url);
+    return [asset.id, Object.freeze({ ...asset, url })] as const;
+  }));
   renderEffectsRuntime = await RenderEffectsPlayRuntime.create({
     engine: ownedEngine, scene: ownedScene, sceneEntities: snapshot.entities, entitiesByStableId,
-    resolveTextureAsset: async (assetId) => {
+    signal: textureLoad.signal,
+    resolveTextureAsset: async (assetId, signal, slot) => {
       const asset = requirePreviewAsset(assetsById, assetId, 'texture');
-      if (!asset.url) throw new Error(`texture.asset-payload-invalid: ${assetId} has no controlled URL.`);
-      return Object.freeze({ texture: asset.url, release() {} });
+      return loadControlledMaterialTexture(ownedEngine, asset, signal, slot);
     },
     resolveModelAsset: async (assetId) => {
       const asset = requirePreviewAsset(assetsById, assetId, 'model');
@@ -702,7 +710,9 @@ function stop(reason: string, invalidatePendingStart = true): void {
   simulation?.reset(); simulation = null; activeInput = null;
   resizeObserver?.disconnect(); resizeObserver = null;
   physicsRuntime?.dispose(); physicsRuntime = null;
+  textureLoad.abort();
   renderEffectsRuntime?.dispose(); renderEffectsRuntime = null;
+  for (const url of textureUrls) URL.revokeObjectURL(url); textureUrls.clear();
   declarativePlayRuntime = null;
   for (const owner of scriptOwners.splice(0).reverse()) {
     owner.entity.removeComponent(owner.component);
@@ -819,6 +829,7 @@ function isPreviewAsset(value: unknown): value is PreviewAsset {
     || !['texture', 'model', 'audio', 'animation'].includes(String(value.kind)) || typeof value.mimeType !== 'string' || value.mimeType.length < 3 || value.mimeType.length > 128
     || !Number.isSafeInteger(value.byteLength) || Number(value.byteLength) < 1 || Number(value.byteLength) > 32 * 1024 * 1024) return false;
   if (value.kind === 'animation') return exactKeys(value, ['id', 'kind', 'mimeType', 'byteLength', 'source']) && typeof value.source === 'string' && new TextEncoder().encode(value.source).byteLength <= Number(value.byteLength);
+  if (value.kind === 'texture' && value.blob instanceof Blob) return exactKeys(value, ['id', 'kind', 'mimeType', 'byteLength', 'blob']) && value.blob.size === value.byteLength && value.blob.type === value.mimeType;
   return exactKeys(value, ['id', 'kind', 'mimeType', 'byteLength', 'url']) && typeof value.url === 'string' && /^blob:/u.test(value.url);
 }
 function requirePreviewAsset(values: ReadonlyMap<string, PreviewAsset>, id: string, kind: PreviewAsset['kind']): PreviewAsset { const asset = values.get(id); if (!asset) throw new Error(`${kind}.asset-missing: ${id} was not transferred to the isolated preview.`); if (asset.kind !== kind) throw new Error(`${kind}.asset-kind-mismatch: ${id} is ${asset.kind}.`); return asset; }

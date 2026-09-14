@@ -40,7 +40,7 @@ export function createWorkspaceEditorPorts(options: Readonly<{
       });
       return {
         async query(query, signal) {
-          const page = await catalog.query(query, signal), selected = selection.snapshot();
+          const page = await catalog.query({ ...query, projectOnly: true }, signal), selected = selection.snapshot();
           const target = selected.activeEntityId ? workspace.gameSnapshot().entities.find(e => e.id === selected.activeEntityId) : null;
           return { binding: page.binding as unknown as JsonObject | null, data: {
             projectKey: null, viewToken: null, state: page.binding ? 'ready' as const : 'empty' as const, total: page.total,
@@ -50,6 +50,7 @@ export function createWorkspaceEditorPorts(options: Readonly<{
               metadata: item.asset ? [
                 { label: '项目内文件', value: item.asset.projectPath }, { label: '格式', value: item.asset.mimeType },
                 { label: '许可', value: item.asset.license }, { label: '来源', value: item.asset.provenance },
+                { label: '宽度', value: String(item.asset.width) }, { label: '高度', value: String(item.asset.height) },
                 { label: '文件字节', value: String(item.asset.byteLength) }, { label: '解码预算', value: String(item.asset.decodedBytes) },
               ] : [], configuration: item.configuration === null ? null : JSON.stringify(item.configuration, null, 2),
               locations: item.locations.map(({ ref, label, field }) => ({ ref, label, field })), target: item.target, assignments: item.assignments })),

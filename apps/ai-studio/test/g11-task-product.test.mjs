@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
-import { TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
+import { TaskAccountingRegistry, UsageLedgerStore, DurableSessionRuntime } from '@haiyue/ai-studio-agent-runtime';
 import { StudioConversationHost, queryRetainedOperationEvents } from '@haiyue/ai-studio-agent-orchestration';
 
 const backendId = 'backend:g11-product';
@@ -89,6 +89,7 @@ test('G11 restores retained projections through bounded sequence windows when th
 function runtimeFixture(options = {}) {
   const releases = new Map();
   let starts = 0;
+  const emit = (kind, payload) => ({ ...event(kind, payload), turnId: options.turnId ?? turnId });
   const usage = new UsageLedgerStore();
   const backend = {
     descriptor: { schemaVersion: 1, id: backendId, kind: 'harness-api-key', protocolVersion: 'g11-fixture', capabilities: { resume: true, questions: true, structuredTools: true, backendApprovals: false, usage: true, rateLimits: true } },
@@ -100,14 +101,23 @@ function runtimeFixture(options = {}) {
   const waitForResult = (id) => new Promise((resolve) => releases.set(id, resolve));
   const profile = { id: 'prompt:g11-general', version: '2.0.0', digest: `sha256:${'a'.repeat(64)}`, modules: [] };
   return {
+    ...(options.sessions ? { sessions: options.sessions } : {}),
     context: { prompts: { profile }, async prepare({ request }) { return { prompt: request, promptDigest: `sha256:${'b'.repeat(64)}`, promptProfile: profile, contextArtifactIds: [], contextDigest: `sha256:${'c'.repeat(64)}`, cache: { localArtifactHits: 1, localArtifactMisses: 0, deltaReuseBytes: 64, providerCacheEligibleBytes: 128, providerReportedHitTokens: null } }; }, async commit() {} },
     registry: { descriptors: () => [backend.descriptor], get: () => backend }, usage, accounting: new TaskAccountingRegistry(usage),
     turns: {
       async *start(_backendId, input) {
         options.onStart?.(input);
-        if (options.empty) { yield event('completed', { status: 'completed' }); return; }
+        if (options.empty) { yield emit('completed', { status: 'completed' }); return; }
         starts += 1;
-        for (const request of [
+        if (options.parallelRequests) {
+          const waits = [];
+          for (const request of options.parallelRequests) {
+            waits.push(waitForResult(request.id));
+            yield emit('tool-request', { toolCallId: request.id, toolId: request.toolId, arguments: request.arguments });
+          }
+          await Promise.all(waits); yield emit('completed', { status: 'completed' }); return;
+        }
+        for (const request of options.requests ?? [
           { id: 'tool:g11-plan', toolId: 'studio.plan.propose', arguments: { title: 'Score interaction', summary: 'Create, run and verify one score interaction.', items: [{ label: 'Author score controller', details: 'Create the controller and observable score state.' }], acceptance: [{ label: 'Score becomes one', required: true, category: 'functional', assertion: 'evidence state signal score equals 1' }] } },
           { id: 'tool:g11-edit', toolId: 'entity.create', arguments: { baseRevision: 7, kind: 'cube', name: 'ScoreTarget' } },
           { id: 'tool:g11-inspect', toolId: 'play.inspect', arguments: {} },
@@ -119,16 +129,21 @@ function runtimeFixture(options = {}) {
           if (options.completeOnContinuation && starts === 1 && ['play.inspect', 'task.evaluate'].includes(request.toolId)) continue;
           if (options.stopAfterEdit && ['play.inspect', 'task.evaluate'].includes(request.toolId)) continue;
           if (options.repair && starts > 1 && ['studio.plan.propose', 'entity.create'].includes(request.toolId)) continue;
-          const released = waitForResult(request.id); yield event('tool-request', { toolCallId: request.id, toolId: request.toolId, arguments: request.arguments }); await released;
+          const released = waitForResult(request.id); yield emit('tool-request', { toolCallId: request.id, toolId: request.toolId, arguments: request.arguments }); await released;
+          if (options.terminalAfterRepair && request.toolId === 'task.evaluate') {
+            for (const [id, toolId, args] of [['tool:g11-evaluate-terminal', 'task.evaluate', request.arguments], ['tool:g11-inspect-terminal', 'play.inspect', {}]]) {
+              const released = waitForResult(id); yield emit('tool-request', { toolCallId: id, toolId, arguments: args }); await released;
+            }
+          }
           if (options.retryEdit && request.toolId === 'entity.create') {
             const id = `${request.id}:retry`; const retried = waitForResult(id);
-            yield event('tool-request', { toolCallId: id, toolId: request.toolId, arguments: request.arguments }); await retried;
+            yield emit('tool-request', { toolCallId: id, toolId: request.toolId, arguments: request.arguments }); await retried;
           }
         }
-        if (options.onCompletedText) yield event('conversation-node', { status: 'streaming', delta: 'Completed the current step.' });
-        yield event('completed', { status: 'completed' });
+        if (options.onCompletedText) yield emit('conversation-node', { status: 'streaming', delta: 'Completed the current step.' });
+        yield emit('completed', { status: 'completed' });
       },
-      async *resume() { options.onResume?.(); yield event('completed', { status: 'completed' }); }, async cancel() {}, async recordToolResult() {},
+      async *resume() { options.onResume?.(); yield emit('completed', { status: 'completed' }); }, async cancel() {}, async recordToolResult() {},
     },
   };
 }
@@ -139,20 +154,22 @@ function toolsFixture(options = {}) {
     evaluationTaskSpec: null,
     evaluations: 0,
     definitions: () => [
+      { id: 'engine.docs.search', description: 'Search docs', effect: 'observe', risk: 'low', inputSchema: {} },
       { id: 'entity.create', description: 'Create entity', effect: 'reversible-edit', risk: 'medium', inputSchema: {} },
       { id: 'play.inspect', description: 'Inspect Play', effect: 'observe', risk: 'low', inputSchema: {} },
       { id: 'task.evaluate', description: 'Evaluate task', effect: 'observe', risk: 'low', inputSchema: {} },
     ],
-    async prepare(call) { const preparation = { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: call.toolId === 'entity.create' ? 'reversible-edit' : 'observe', risk: 'low', documentId: 'document:g11', baseRevision: 7, argumentsDigest: digest('d'), previewDigest: digest('f'), preview: { title: call.toolId, target: 'Current project', summary: call.toolId, diff: '' }, status: 'ready', arguments: call.arguments, taskId: call.taskId }; preparations.set(preparation.id, preparation); return preparation; },
+    async prepare(call) { options.onPrepare?.(call); const preparation = { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: call.toolId === 'entity.create' ? 'reversible-edit' : 'observe', risk: 'low', documentId: 'document:g11', baseRevision: 7, argumentsDigest: digest('d'), previewDigest: digest('f'), preview: { title: call.toolId, target: 'Current project', summary: call.toolId, diff: '' }, status: 'ready', arguments: call.arguments, taskId: call.taskId }; preparations.set(preparation.id, preparation); return preparation; },
     async execute(id) {
       const prepared = preparations.get(id); if (!prepared) throw new Error('missing preparation');
+      if (prepared.toolId === 'engine.docs.search') return result(prepared, { matches: [], requestedCount: prepared.arguments.limit }, 7, 7);
       if (prepared.toolId === 'entity.create' && options.editFailure && !prepared.callId.endsWith(':retry')) throw Object.assign(new Error('Query window contains 31784 retained events; scan budget is 10000.'), { code: 'query-scan-budget-exceeded' });
       if (prepared.toolId === 'entity.create') return result(prepared, { entityId: 'entity:score-target', revision: 7 }, 7, 7);
       if (prepared.toolId === 'play.inspect') return result(prepared, { observation: observation(prepared.taskId) }, 7, 7);
       if (prepared.toolId === 'task.evaluate') {
         fixture.evaluationTaskSpec = prepared.arguments.taskSpec;
         fixture.evaluations += 1;
-        const diagnostic = options.recoverOnce && fixture.evaluations === 1 ? 'evaluation.screenshot-state-tick-mismatch' : options.diagnostic;
+        const diagnostic = options.terminalAfterRepair && fixture.evaluations > 1 ? 'evaluation.evidence-provenance-mismatch' : options.recoverOnce && fixture.evaluations === 1 ? 'evaluation.screenshot-state-tick-mismatch' : options.diagnostic;
         const acceptanceId = prepared.arguments.taskSpec.acceptance[0].id;
         return result(prepared, { schemaVersion: 2, id: 'evaluation:g11', taskId: prepared.taskId, evaluatorVersion: 'g11-fixture', status: diagnostic ? 'blocked' : 'pass', acceptanceResults: [{ acceptanceId, status: diagnostic ? 'blocked' : 'pass', evidenceIds: [evidenceId], diagnostic: diagnostic ?? null }], budgetStatus: 'within', usageRecordIds: [], costRecordIds: [], turns: [], tools: [], completedAt: '2026-08-29T00:00:30.000Z' }, 7, 7);
       }
@@ -304,5 +321,127 @@ test('automatic incomplete-acceptance continuation stops at two attempts without
     assert.equal(run.terminalDiagnostic, 'task.acceptance-evidence-incomplete');
     assert.equal(run.evidence.length, 0); assert.equal(run.acceptance[0].status, 'pending');
     assert.equal(run.timeline.filter(item => item.title === '继续补齐任务与验收').length, 2);
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+test('terminal evaluation clears an earlier queued repair and permits inspection without restarting a blocked task', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-terminal-repair-')); let host, log;
+  try {
+    log = await openLog(root); let starts = 0;
+    const tools = toolsFixture({ recoverOnce: true, terminalAfterRepair: true });
+    host = new StudioConversationHost({ runtime: runtimeFixture({ terminalAfterRepair: true, onStart() { starts++; } }), tools, operationLog: log, projectContext });
+    await host.initialize();
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Verify a staged game.' });
+    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => !host.replay().busy);
+    const run = host.replay().taskRuns.at(-1);
+    assert.equal(starts, 1); assert.equal(tools.evaluations, 2);
+    assert.equal(run.status, 'blocked'); assert.equal(run.phase, 'blocked');
+    assert.equal(run.terminalDiagnostic, 'evaluation.evidence-provenance-mismatch');
+    assert.ok(!JSON.stringify(run).includes('task.transition-invalid'));
+    assert.ok(run.timeline.some(item => item.phase === 'repairing'));
+  } finally { await host?.dispose(); await log?.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+for (const choice of ['query-expand', 'query-cap']) test(`query quantity ${choice} continues successfully and reuses this task's choice`, async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-allowance-'));
+  const log = await openLog(root); const calls = [];
+  const requests = [1, 2].map(n => ({ id: `tool:query-${n}`, toolId: 'engine.docs.search', arguments: { query: 'pointer', limit: 20 } }));
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ requests }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Find pointer documentation.' });
+    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    assert.equal(calls.length, 0);
+    assert.equal(host.replay().taskRuns.at(-1).status, 'waiting-user');
+    const question = nodes(host).find(n => n.kind === 'question' && n.status === 'pending');
+    await assert.rejects(host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: ['option:forged'] } }));
+    // A malformed answer must not grant a larger query. Use a fresh valid choice on the same barrier.
+    await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(o => o.id.includes(choice)).id] } });
+    await waitFor(() => !host.replay().busy);
+    assert.deepEqual(calls.map(c => c.arguments.limit), [choice === 'query-expand' ? 20 : 12, choice === 'query-expand' ? 20 : 12]);
+    assert.equal(new Set(nodes(host).filter(n => n.kind === 'question').map(n => n.id)).size, 1);
+    assert.ok(!nodes(host).some(n => n.kind === 'tool-result' && n.status === 'failed'));
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'A separate new task searches more docs.' });
+    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending' && n.id !== question.id));
+    assert.equal(calls.length, 2, 'a previous task cannot grant the new task a query allowance');
+    const nextQuestion = nodes(host).filter(n => n.kind === 'question' && n.status === 'pending' && n.id !== question.id).at(-1);
+    await host.dispatch({ type: 'conversation/answer-question', nodeId: nextQuestion.id, answer: { optionIds: [nextQuestion.content.options.find(o => o.id.includes('query-cap')).id] } });
+    await waitFor(() => !host.replay().busy);
+    assert.deepEqual(calls.slice(2).map(c => c.arguments.limit), [12, 12]);
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('query preferences are dynamic and omitted limit uses the configured threshold', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-default-')); const log = await openLog(root); const calls = [];
+  const limits = { 'engine.docs.search': 25, 'tool.search': 50, 'scene.query': 100, 'scene.diff': 100 };
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ requests: [{ id: 'tool:query-default', toolId: 'engine.docs.search', arguments: { query: 'pointer' } }] }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext, queryLimits: () => limits });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Read pointer docs.' }); await waitFor(() => !host.replay().busy);
+    assert.equal(calls[0].arguments.limit, 25); assert.ok(!nodes(host).some(n => n.kind === 'question'));
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+for (const choice of ['query-expand', 'query-cap']) test(`query allowance ${choice} survives host/session restart and resumes the pending read`, async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-restart-'));
+  let log, sessions, host;
+  const calls = [];
+  const requests = [{ id: 'tool:query-durable', toolId: 'engine.docs.search', arguments: { query: 'pointer', limit: 20 } }];
+  try {
+    log = await openLog(root); sessions = new DurableSessionRuntime(log);
+    host = new StudioConversationHost({ runtime: runtimeFixture({ requests, sessions, turnId: 'turn:quota:1' }), tools: toolsFixture({ onPrepare: c => calls.push(c) }), operationLog: log, projectContext, sessionRecovery: { async recover() {} } });
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Find pointer docs.' });
+    await waitFor(() => !host.replay().busy && nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    const pending = nodes(host).find(n => n.kind === 'question' && n.status === 'pending');
+    assert.equal(calls.length, 0);
+    assert.equal(host.replay().taskRuns.at(-1).status, 'waiting-user');
+    assert.ok(host.replay().executionGraphs.flatMap(g => g.nodes).some(n => n.kind === 'question' && n.status === 'waiting'));
+    await host.dispose(); await sessions.dispose(); await log.close();
+    log = await openLog(root); sessions = new DurableSessionRuntime(log);
+    host = new StudioConversationHost({ runtime: runtimeFixture({ requests, sessions, turnId: 'turn:quota:2' }), tools: toolsFixture({ onPrepare: c => calls.push(c) }), operationLog: log, projectContext, sessionRecovery: { async recover() {} } });
+    await host.initialize();
+    const restored = nodes(host).filter(n => n.id === pending.id).at(-1);
+    assert.equal(restored.content.queryLimit.requested, 20);
+    await assert.rejects(host.dispatch({ type: 'conversation/answer-question', nodeId: pending.id, answer: { optionIds: ['option:forged'] } }));
+    await host.dispatch({ type: 'conversation/answer-question', nodeId: pending.id, answer: { optionIds: [restored.content.options.find(o => o.id.includes(choice)).id] } });
+    await waitFor(() => !host.replay().busy && calls.length === 1);
+    assert.equal(calls[0].arguments.limit, choice === 'query-expand' ? 20 : 12);
+    assert.deepEqual((await sessions.replay(sessionId)).recovery.unresolvedBarrierIds, []);
+    assert.ok(!nodes(host).some(n => n.kind === 'tool-result' && n.status === 'failed'));
+  } finally { await host?.dispose(); await sessions?.dispose(); await log?.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+test('cancelling an unanswered query allowance never executes the read', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-cancel-')); const log = await openLog(root); const calls = [];
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ requests: [{ id: 'tool:query-cancel', toolId: 'engine.docs.search', arguments: { query: 'pointer', limit: 20 } }] }), tools: toolsFixture({ onPrepare: c => calls.push(c) }), operationLog: log, projectContext });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Search docs.' });
+    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    await host.dispatch({ type: 'conversation/cancel', backendId, sessionId, turnId });
+    await waitFor(() => !host.replay().busy);
+    assert.equal(calls.length, 0);
+    assert.equal(nodes(host).filter(n => n.kind === 'question').at(-1).status, 'cancelled');
+  } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+test('parallel queries share one allowance question while preserving each query', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-query-parallel-')); const log = await openLog(root); const calls = [];
+  const parallelRequests = ['pointer', 'camera'].map((query, n) => ({ id: `tool:parallel-query-${n}`, toolId: 'engine.docs.search', arguments: { query, limit: 20 } }));
+  const host = new StudioConversationHost({ runtime: runtimeFixture({ parallelRequests }), tools: toolsFixture({ onPrepare: c => calls.push(c) }), operationLog: log, projectContext });
+  try {
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Search pointer and camera docs.' });
+    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending') && nodes(host).filter(n => n.kind === 'tool-call').length >= 2);
+    const questions = nodes(host).filter(n => n.kind === 'question'); assert.equal(new Set(questions.map(n => n.id)).size, 1); assert.equal(calls.length, 0);
+    const question = questions.at(-1);
+    await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(o => o.id.includes('query-expand')).id] } });
+    await waitFor(() => !host.replay().busy);
+    assert.deepEqual(calls.map(c => c.arguments.query).sort(), ['camera', 'pointer']);
+    assert.ok(calls.every(c => c.arguments.limit === 20));
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
 });

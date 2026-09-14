@@ -5,7 +5,7 @@ import path from 'node:path';
 import { EditorSelectionService } from '@haiyue/editor-platform';
 import { UnifiedSceneSelectionService } from '@haiyue/ai-studio-editor-plugins';
 import { ProjectEditorController } from '@haiyue/ai-studio-agent-orchestration';
-import { resourceFixture, png } from '../../../../packages/editor-plugins/test/resources/fixture.mjs';
+import { resourceFixture, png, execute } from '../../../../packages/editor-plugins/test/resources/fixture.mjs';
 import { seedResourceProject } from '../../../../packages/editor-plugins/test/resources/large-fixture.mjs';
 import { createWorkspaceEditorPorts } from '../../dist/editor-adapters.js';
 import { createWorkspaceBehaviorPorts } from '../../dist/behavior-adapters.js';
@@ -31,12 +31,16 @@ async function fixture(t) {
   return { ...f, invoke, request, editor, selection, approvals, stamp, setDecision: value => { decision = value; }, setTarget: value => { target = value; } };
 }
 test('production IPC / project owner / resource adapter use exact tool approval and shared History', async t => {
-  const f = await fixture(t), page = await f.invoke('editor/resources', { kind: 'template', category: 'Lighting', limit: 100 });
-  const item = page.items.find(item => item.entry.ref.templateId === 'haiyue.light.point'); assert.ok(item);
-  const before = f.workspace.snapshot(), created = await f.invoke('editor/resource-intent', { intent: { type: 'action', viewToken: page.viewToken, entry: item.entry, action: 'template.create' } });
-  assert.equal(created.kind, 'workflow'); assert.equal(f.approvals.length, 0, 'low-risk create retains the existing policy');
+  const f = await fixture(t), page = await f.invoke('editor/resources', { category: 'Geometry', limit: 100 });
+  assert.equal(page.total, 0, 'empty project contains no geometry templates');
+  assert.equal((await f.invoke('editor/resources', { kind: 'template' })).total, 0);
+  const before = f.workspace.snapshot(), initial = await f.invoke('editor/advanced');
+  const created = await execute(f, 'entity.create', { baseRevision: initial.document.revision, kind: 'point-light' });
+  assert.equal(created.status, 'completed');
+  assert.equal(f.approvals.length, 0, 'low-risk create retains the existing policy');
   assert.equal(f.workspace.snapshot().history.entries.length, before.history.entries.length + 1);
-  const entityId = created.result.entity.id; await f.selection.select(entityId, 'inspector');
+  const entityId = f.workspace.gameSnapshot().entities.find(entity => entity.componentIds.some(id => f.workspace.gameSnapshot().components.some(c => c.id === id && c.type === 'haiyue.light.point'))).id;
+  await f.selection.select(entityId, 'inspector');
   let source = await f.invoke('editor/advanced');
   assert.equal(source.selection.active.id, entityId); assert.ok(source.document.components.some(c => c.type === 'haiyue.light.point'));
   const rename = { type: 'author', stamp: f.stamp(source), toolId: 'entity.rename', arguments: { entityId, baseRevision: source.document.revision, name: 'G09 light' } };
@@ -51,7 +55,7 @@ test('production IPC / project owner / resource adapter use exact tool approval 
   const rejected = await f.request('editor/advanced-intent', { intent: { ...rename, stamp: f.stamp(source), arguments: { ...rename.arguments, baseRevision: source.document.revision, name: 'Rejected' } } });
   assert.equal(rejected.ok, false); assert.equal(JSON.stringify(f.workspace.gameSnapshot()), after);
   const lighting = await f.invoke('editor/resources', { category: 'Lighting', limit: 100 });
-  assert.ok(lighting.items.some(i => i.entry.kind === 'preset' && i.entry.status === 'unavailable'));
+  assert.ok(lighting.items.every(i => i.entry.kind === 'instance'), 'inventory excludes unavailable preset notices');
   assert.ok(lighting.items.some(i => i.entry.kind === 'instance' && !i.entry.intents.includes('asset.assign')));
 });
 test('actual resource import retains asset identity after reopen and copy; old view cannot import into the copied project', async t => {
@@ -75,7 +79,7 @@ test('production projections keep 1000 entities and 200 scripts bounded and reje
   const f = await fixture(t); await seedResourceProject(f, 1000, 200);
   const page = await f.invoke('editor/resources', { limit: 25 }), advanced = await f.invoke('editor/advanced');
   assert.equal(advanced.document.entities.length, 1000); assert.equal(Object.hasOwn(advanced.document, 'scripts'), false);
-  assert.ok(page.total > 1000); assert.ok(page.items.length <= 25); assert.ok(Buffer.byteLength(JSON.stringify(page)) < 512 * 1024);
+  assert.equal(page.total, 200, 'only actual script resources, not empty entities or transform components'); assert.ok(page.items.length <= 25); assert.ok(Buffer.byteLength(JSON.stringify(page)) < 512 * 1024);
   assert.equal(JSON.stringify(page).includes('Math.sin(time'), false);
   assert.equal((await f.request('editor/advanced', { schemaVersion: 2 })).ok, false);
   assert.equal((await f.request('editor/resource-import', { viewToken: page.viewToken, details: {}, binding: {} })).ok, false);

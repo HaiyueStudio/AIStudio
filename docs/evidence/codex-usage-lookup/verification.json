@@ -1,0 +1,23 @@
+{
+  "inputDigest": "sha256:bf00db15ccfa9dc2cdcff7479ac3c7d9e00b29a5f05bb9f6e13c6e34b3558007",
+  "focused": {
+    "passed": 43,
+    "failed": 0
+  },
+  "capability": {
+    "groups": 18,
+    "passed": 279,
+    "failed": 0
+  },
+  "build": "passed",
+  "rootCheck": {
+    "exitCode": 1,
+    "failure": "Existing split-layout.test.mjs:69 assertion expects UI 0.1.3 while manifest uses 0.1.4",
+    "workspacePassed": 4,
+    "workspaceFailed": 1,
+    "subsequentStages": "not reached"
+  },
+  "liveAppRestarted": false,
+  "realModelTaskSent": false,
+  "networkRecoveryVerified": false
+}

@@ -1,0 +1,11 @@
+# Optional Codex usage lookup recovery
+
+The reported App Server error is a failed request to the usage metadata endpoint, not evidence that a usage limit was reached or that authentication is invalid. Status first verifies account/read. The previous adapter tolerated HTTP 5xx and a local two-second timeout for optional account/rateLimits/read, but a fast plain JSON-RPC network error had no HTTP status and was treated as a fatal backend error. Refresh repeated the same query and classification.
+
+The adapter now recognizes the pinned upstream network-error prefix only inside the optional usage lookup. It retains ready after successful account verification, leaves rate-limit values unknown (empty), and supplies a bounded warning. Shared turn-error handling is unchanged. Authentication failures, unrelated RPC failures, malformed payloads, abort/disposal and required turn requests retain their failure behavior. A later successful refresh clears the warning and populates actual usage.
+
+The UI explains that quota information is unavailable while login is verified, allows an attempted task send, and keeps the draft on refresh. No proxy, credentials, login state or live project was modified. No real model task was sent; the app was not restarted.
+
+Focused backend and conversation suites: 43 passed. The test DOM gained the standard toggleAttribute/removeAttribute operations already used by the expandable graph container. The read-only pre-fix live probe returned ready with codex.rate-limits-unavailable and zero returned buckets (unknown, not zero usage), demonstrating a verified account with unavailable metadata. This does not establish that the model endpoint is reachable; actual model-request failures still surface independently.
+
+Final verification: application build passed; all 18 capability groups passed (279 tests). Root check passed its earlier contract/build/document/behavior stages, then stopped at the existing split-layout.test.mjs:69 UI version assertion (expected 0.1.3, manifest 0.1.4; workspace 4 passed, 1 failed). Subsequent root-check stages were not reached. Source-bound capture digest is recorded in verification.json. The live app was not restarted and actual network recovery has not been established.

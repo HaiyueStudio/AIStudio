@@ -1,6 +1,8 @@
 import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
 import { DEFAULT_RESOURCE_QUERY, EMPTY_RESOURCE_PANEL, RESOURCE_ACTION_LABELS, RESOURCE_KIND_LABELS, RESOURCE_PRIMARY_CATEGORIES, resourceActions, resourceCategoryLabel, resourceUsageLabel, type ResourcePanelData, type ResourcePanelIntent, type ResourcePanelItem, type ResourcePanelQuery } from './model.js';
 
+export type ResourceThumbnailRenderer = (canvas: HTMLCanvasElement, item: ResourcePanelItem, signal: AbortSignal) => void | Promise<void>;
+
 /** No tools or filesystem: bounded projections in, typed intents out. */
 export class ResourceExplorerPanel {
   readonly root: HTMLElement;
@@ -14,7 +16,7 @@ export class ResourceExplorerPanel {
   private assignmentUsage: string | null = null;
   private readonly lifetime = new AbortController();
   private renderScope = new AbortController();
-  constructor(private readonly document: Document, parent: HTMLElement, private readonly dispatch: (intent: ResourcePanelIntent) => void | Promise<void>) {
+  constructor(private readonly document: Document, parent: HTMLElement, private readonly dispatch: (intent: ResourcePanelIntent) => void | Promise<void>, private readonly thumbnail?: ResourceThumbnailRenderer) {
     this.root = document.createElement('section'); this.root.className = 'resource-explorer'; this.root.setAttribute('aria-label', '项目资源');
     // Fixed product markup; all project data uses textContent or option.value.
     this.root.innerHTML = `<header class="resource-header"><h2>项目资源</h2><button type="button" data-resource="refresh">刷新</button><button type="button" data-resource="cancel" hidden>取消</button></header>
@@ -108,11 +110,18 @@ export class ResourceExplorerPanel {
     for (const item of this.data.items) {
       const entry = item.entry, li = this.document.createElement('li'), button = this.document.createElement('button'); button.type = 'button'; button.dataset.resourceEntry = entry.catalogEntryId;
       button.setAttribute('aria-pressed', String(entry.catalogEntryId === this.selected));
-      button.append(this.node('strong', entry.label), this.node('span', `${RESOURCE_KIND_LABELS[entry.kind] ?? '未知资源种类'} · ${resourceCategoryLabel(entry.category)} · ${entry.status === 'available' ? '可用' : '不可用'}`));
+      const canvas = this.document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.className = 'resource-thumbnail'; canvas.setAttribute('aria-hidden', 'true');
+      const label = entry.kind === 'asset' ? entry.label.split('/').at(-1) || entry.label : entry.label;
+      button.title = entry.label; button.setAttribute('aria-label', label);
+      button.append(canvas, this.node('strong', label));
+      const context = canvas.getContext('2d');
+      if (context) { context.fillStyle = '#9cafce'; context.font = '32px system-ui'; context.textAlign = 'center'; context.fillText(entry.category === 'Script' ? '{ }' : '◇', 64, 76); }
+      const signal = this.renderScope.signal;
+      if (this.thumbnail) void Promise.resolve().then(() => { if (!signal.aborted) return this.thumbnail!(canvas, item, signal); }).catch(() => { if (!signal.aborted) canvas.title = '缩略图暂不可用'; });
       button.addEventListener('click', () => { if (this.selected !== entry.catalogEntryId) this.assignmentUsage = null; this.selected = entry.catalogEntryId; this.usageOffset = 0; this.render(); }, { signal: this.renderScope.signal });
       li.append(button); list.append(li);
     }
-    if (!this.data.items.length) list.append(this.node('li', this.data.projectKey ? '没有匹配资源。试试其他分类或调整筛选。' : '打开项目后查看对应资源。', 'resource-empty'));
+    if (!this.data.items.length) list.append(this.node('li', this.data.projectKey ? '当前分类还没有项目资源。创建或导入后会显示在这里。' : '打开项目后查看对应资源。', 'resource-empty'));
     this.get('count').textContent = `共 ${this.data.total} 条 · 本页 ${this.data.items.length} 条`;
     this.renderDetail(); this.controls();
     if (focused) [...list.querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.resourceEntry === focused)?.focus({ preventScroll: true });
@@ -127,7 +136,7 @@ export class ResourceExplorerPanel {
     detail.replaceChildren();
     if (!item) { detail.append(this.node('h3', '选择资源查看详情'), this.node('p', '文件资产、模板、预设和实例分别保留原有身份与操作。')); return; }
     const entry = item.entry;
-    detail.append(this.node('h3', entry.label), this.node('p', resourceUsageLabel(entry)));
+    detail.append(this.button('关闭详情', () => { this.selected = null; this.render(); [...this.get('list').querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.resourceEntry === entry.catalogEntryId)?.focus(); }), this.node('h3', entry.label), this.node('p', resourceUsageLabel(entry)));
     const sourceLabels: Record<string, string> = { 'controlled-manifest': '项目受控资产清单', registry: '组件注册表', 'project-record': '项目记录', document: '项目文档', unsupported: '尚无持久化支持' };
     const healthLabels: Record<string, string> = { registered: '已登记，文件尚未检查', verified: '已核验', missing: '文件缺失或不可读', invalid: '资源校验失败', unavailable: '尚不可用' };
     detail.append(this.node('p', `来源：${sourceLabels[entry.source] ?? '未知来源'} · ${healthLabels[item.health] ?? '未知状态'}`));

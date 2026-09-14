@@ -1,3 +1,4 @@
+import { QUERY_PAGE_SIZE } from '../query-limits.js';
 import { asStableId, type ComponentDefinitionV2, type JsonObject, type M13StableId, type StableId } from '@haiyue/ai-studio-contracts';
 import { LocalHashEmbeddingProvider, tokenize } from '@haiyue/ai-studio-agent-runtime';
 import type { GameToolDefinition } from '../types.js';
@@ -58,7 +59,7 @@ export class ToolCatalogRuntime {
 
   search(text: string, options: Readonly<{ limit?: number; includeSchemas?: boolean }> = {}): readonly ToolCatalogMatch[] {
     const query = text.trim(); const limit = options.limit ?? 12;
-    if (!query || query.length > 512 || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new TypeError('Tool catalog query is invalid.');
+    if (!query || query.length > 512 || !Number.isSafeInteger(limit) || limit < 1 || limit > QUERY_PAGE_SIZE) throw new TypeError('Tool catalog query is invalid.');
     return this.rank(query, limit, options.includeSchemas ?? false);
   }
 

@@ -64,7 +64,8 @@ async function run() {
     return finish(0);
   }
   await selectWorkspaceTab('resources');
-  await waitFor(() => evaluate('document.querySelector("#studio-resource-panel [data-resource-entry]") !== null'), 'resource catalog');
+  await waitFor(() => evaluate('document.querySelector(".resource-explorer")?.getAttribute("aria-busy") === "false"'), 'empty project inventory');
+  assert.equal(await evaluate('document.querySelectorAll("#studio-resource-panel [data-resource-entry]").length'), 0);
   const desktopLayout = await resourceLayout();
   assert.ok(desktopLayout.viewportWidth > 650 && desktopLayout.panelWidth < 650, 'Exercise a narrow pane in a wide window.');
   // Respect the production desktop minimum; the isolated resource fixture
@@ -76,14 +77,15 @@ async function run() {
   await screenshot('resources-narrow.png');
   window.setSize(...windowSize); await resourceLayout();
   checks.push('resource panel fits its container at desktop and narrow widths');
-  await evaluate(`(()=>{const p=document.querySelector('#studio-resource-panel');p.querySelector('[data-resource=kind]').value='template';p.querySelector('[data-resource=category]').value='Geometry';p.querySelector('form').requestSubmit();})()`);
-  await waitFor(() => evaluate('document.querySelector(".resource-explorer").getAttribute("aria-busy")==="false" && document.querySelector("[data-resource=kind]").value==="template"'), 'geometry catalog');
+  const initial = await data();
+  await call('scene/create', { commandId: 'command:resource-fixture', baseRevision: initial.document.revision, kind: 'rounded-box', material: 'pbr' });
+  await click('#studio-resource-panel [data-resource=refresh]');
+  await waitFor(() => evaluate('document.querySelectorAll("#studio-resource-panel [data-resource-entry]").length === 1'), 'created geometry in inventory');
+  await waitFor(() => evaluate('document.querySelector("#studio-resource-panel canvas[data-thumbnail-ready=true]") !== null'), 'geometry thumbnail');
   await click('#studio-resource-panel [data-resource-entry]');
-  await click('[data-resource-action="template.create"]');
-  await waitFor(async () => (await data()).document.entities.length === 1, 'resource creates geometry');
-  await waitFor(() => evaluate('document.querySelector(".resource-explorer").getAttribute("aria-busy")==="false"'), 'resource action settled');
+  assert.equal(await evaluate('document.querySelector("[data-resource=detail]").hidden'), false);
   const entityId = (await data()).document.entities[0].id;
-  checks.push('resource template creates through production IPC and original tool');
+  checks.push('empty project inventory gains one geometry through production creation IPC and shows mesh thumbnail');
   await click('#workspace-advanced-button');
   await waitFor(() => evaluate('document.querySelector(".advanced-authoring-panel") !== null'), 'public lazy advanced panel');
   await click(`[data-entity="${entityId}"]`);
@@ -147,7 +149,8 @@ async function large() {
   await measure('open', budget.maxOpenMs, async () => { await click('#open-project'); await waitFor(async () => (await data()).document?.entities.length === budget.entities, 'large project opened'); });
   assert.equal((await call('project/snapshot')).document.counts.scripts, budget.scripts);
   await selectWorkspaceTab('resources');
-  await waitFor(() => evaluate('document.querySelector("[data-resource-entry]") !== null'), 'large resource panel');
+  await evaluate(`(()=>{const tabs=document.querySelector('#studio-resource-panel hy-tabs');tabs.value='Script';tabs.dispatchEvent(new CustomEvent('tab-change',{detail:{value:'Script'}}));})()`);
+  await waitFor(() => evaluate('document.querySelector("[data-resource-entry]") !== null'), 'large project script inventory');
   await measure('advancedMount', budget.maxInteractionMs, async () => { await click('#workspace-advanced-button'); await waitFor(() => evaluate('document.querySelectorAll("[data-entity]").length>0'), 'large hierarchy mounted'); });
   assert.ok(await evaluate('document.querySelectorAll("[data-entity]").length') <= budget.maxVisibleTreeRows);
   await measure('filterAndSelect', budget.maxInteractionMs, async () => {

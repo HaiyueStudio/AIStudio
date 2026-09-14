@@ -93,6 +93,7 @@ export class WebStudioHost {
   private async dispatch(request: StudioIpcRequest): Promise<JsonObject> {
     const payload = request.payload as Record<string, unknown>;
     switch (request.channel) {
+      case 'queries/get': case 'queries/set': throw new Error('Agent query settings require the Electron app.');
       case 'notifications/get': return { supported: false, preferences: null, delivery: 'unsupported' };
       case 'notifications/target': return { target: null };
       case 'notifications/set': case 'notifications/test': throw new Error('Desktop notifications require the Electron app.');

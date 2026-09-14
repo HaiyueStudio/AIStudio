@@ -1,0 +1,43 @@
+{
+  "initial": {
+    "preferences": {
+      "schemaVersion": 1,
+      "enabled": true,
+      "sound": true,
+      "backgroundOnly": false,
+      "language": "zh-CN"
+    },
+    "supported": false,
+    "delivery": "idle"
+  },
+  "final": {
+    "preferences": {
+      "schemaVersion": 1,
+      "enabled": true,
+      "sound": false,
+      "backgroundOnly": false,
+      "language": "zh-CN"
+    },
+    "supported": false,
+    "delivery": "idle"
+  },
+  "queryInitial": {
+    "limits": {
+      "engine.docs.search": 12,
+      "tool.search": 50,
+      "scene.query": 100,
+      "scene.diff": 100
+    }
+  },
+  "queryFinal": {
+    "limits": {
+      "engine.docs.search": 30,
+      "tool.search": 50,
+      "scene.query": 100,
+      "scene.diff": 100
+    }
+  },
+  "reloaded": true,
+  "typedPreload": true,
+  "nativeDeliveryDisabledForTest": true
+}

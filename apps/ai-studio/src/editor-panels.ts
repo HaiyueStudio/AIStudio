@@ -3,6 +3,7 @@ import { AdvancedStudioPanel, type AdvancedStudioSource } from '@haiyue/ai-studi
 import { ResourceExplorerPanel, DEFAULT_RESOURCE_QUERY, EMPTY_RESOURCE_PANEL, type ResourcePanelData, type ResourcePanelIntent } from '@haiyue/ai-studio-shell/resources';
 import type { IntentWorkspace } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod } from './ipc.js';
+import { ResourceThumbnails } from './resource-thumbnails.js';
 import type { HYDrawer } from '@haiyue/ui/drawer';
 
 export interface EditorPanelPorts {
@@ -20,6 +21,7 @@ export class IntegratedEditorPanels {
   private readonly lifetime = new AbortController();
   private readonly advanced: AdvancedStudioPanel;
   private readonly resources: ResourceExplorerPanel;
+  private readonly thumbnails: ResourceThumbnails;
   private readonly observer: MutationObserver;
   private source: AdvancedStudioSource | null = null;
   private resourceData: ResourcePanelData = EMPTY_RESOURCE_PANEL;
@@ -37,7 +39,8 @@ export class IntegratedEditorPanels {
     const host = document.createElement('div'); host.id = 'studio-advanced-panel';
     workspace.installAdvancedInspector(host);
     const resourceHost = document.createElement('div'); resourceHost.id = 'studio-resource-panel'; workspace.installResourceExplorer(resourceHost);
-    this.resources = new ResourceExplorerPanel(document, resourceHost, intent => this.resourceIntent(intent));
+    this.thumbnails = new ResourceThumbnails(document, (assetId, signal) => ports.invoke('asset/read', { assetId }, signal));
+    this.resources = new ResourceExplorerPanel(document, resourceHost, intent => this.resourceIntent(intent), (canvas, item, signal) => this.thumbnails.render(canvas, item, signal));
     this.advanced = new AdvancedStudioPanel({ host, viewportHost: document.getElementById('viewport-panel')!, source: () => {
       if (!this.source) throw Error('editor.projection-unavailable'); return this.source;
     }, load: () => import('@haiyue/editor-shell/advanced-authoring'),
@@ -83,7 +86,7 @@ export class IntegratedEditorPanels {
     try {
       const data = await this.ports.invoke('editor/advanced', {}, task.signal) as unknown as AdvancedStudioSource;
       if (task.signal.aborted || this.disposed) return;
-      if (this.source?.epoch !== data.epoch) { this.advanced.close(); this.resourceRequest?.abort(); this.query = { ...DEFAULT_RESOURCE_QUERY }; this.resources.update(EMPTY_RESOURCE_PANEL); this.importDialog?.close(); }
+      if (this.source?.epoch !== data.epoch) { this.advanced.close(); this.resourceRequest?.abort(); this.query = { ...DEFAULT_RESOURCE_QUERY }; this.thumbnails.setProject(null); this.resources.update(EMPTY_RESOURCE_PANEL); this.importDialog?.close(); }
       this.source = { ...data, projection: this.ports.projection() };
       if (this.opened) await this.advanced.open();
       if (includeResources) await this.refreshResources();
@@ -93,7 +96,7 @@ export class IntegratedEditorPanels {
   reveal(id: string): void { if (this.source?.document) this.advanced.reveal({ kind: 'scene-entity', id, documentId: this.source.document.id }); }
   dispose(): void {
     if (this.disposed) return; this.disposed = true; this.lifetime.abort(); this.observer.disconnect();
-    this.request?.abort(); this.resourceRequest?.abort(); cancelAnimationFrame(this.projectionFrame); this.advanced.dispose(); this.resources.dispose();
+    this.request?.abort(); this.resourceRequest?.abort(); cancelAnimationFrame(this.projectionFrame); this.advanced.dispose(); this.resources.dispose(); this.thumbnails.dispose();
     this.importRequest?.abort(); this.importRequest = null; this.importDialog?.remove(); this.importDialog = null; this.source = null; this.resourceData = EMPTY_RESOURCE_PANEL;
   }
   private refreshProjection(): void {
@@ -108,7 +111,7 @@ export class IntegratedEditorPanels {
     try {
       const data = await this.ports.invoke('editor/resources', this.query, task.signal) as unknown as ResourcePanelData;
       if (task.signal.aborted || this.disposed) return;
-      this.resourceData = data; this.resources.update(data);
+      this.resourceData = data; this.thumbnails.setProject(data.projectKey); this.resources.update(data);
     } catch (error) { if (!task.signal.aborted && !this.disposed) { this.resources.update({ ...EMPTY_RESOURCE_PANEL, state: 'error', diagnostics: ['资源读取失败，请刷新重试。'] }); throw error; } }
     finally { if (this.resourceRequest === task) this.resourceRequest = null; }
   }

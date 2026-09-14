@@ -95,9 +95,13 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
         catch (cause) {
           const failure = normalizeBackendFailure(cause);
           // Optional usage metadata must not invalidate a successful account check.
-          // Authentication, protocol and process failures still block the backend.
-          if (!failure.retryable || signal?.aborted || this.disposed) throw cause;
-          diagnostic = Object.freeze({ code: 'codex.rate-limits-unavailable', message: 'Usage limits are temporarily unavailable. Refresh connection to retry.', retryable: true });
+          // Reqwest connection failures arrive as a plain JSON-RPC error without
+          // an HTTP status. Classify this known usage-only error here, not in
+          // shared turn failure handling; other RPC/protocol errors still block.
+          const usageConnectionFailure = failure.code === 'codex.rpc-error'
+            && /^failed to fetch codex rate limits: error sending request for url\b/iu.test(failure.message);
+          if ((!failure.retryable && !usageConnectionFailure) || signal?.aborted || this.disposed) throw cause;
+          diagnostic = Object.freeze({ code: 'codex.rate-limits-unavailable', message: 'Usage limits could not be fetched. Login is verified; you can try sending a task. Refresh connection to retry the usage lookup.', retryable: true });
         }
         if (!diagnostic) rateLimits = this.captureRateLimits(rates, true);
       }

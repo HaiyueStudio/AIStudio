@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "sourceDigest": "sha256:3104d99adfaad3ef6eb95c2334d1bb66ba2b4569531d0716e6f71b4e6f265a02",
+  "documentationBundleDigest": "sha256:8fb57894eb223310f9b6efad0c6386a89d1ef7323f10f791340697cc9d571150",
+  "focusedTests": {
+    "host": 18,
+    "documentation": 13,
+    "ipcToolsConversation": 93,
+    "uniqueTotal": 124,
+    "failures": 0
+  },
+  "electronWindowTests": {
+    "passed": 1,
+    "productionWindow": true,
+    "isolatedUserData": true,
+    "persistedDocumentLimit": 30
+  },
+  "build": "passed",
+  "testInventory": 56,
+  "rootCheck": {
+    "status": "blocked",
+    "reason": "stale verification input binding",
+    "m12QuickTestsPassed": 59
+  },
+  "userAppRestarted": false
+}

@@ -358,11 +358,11 @@ class FakeCodexTransport {
     if (!('id' in frame)) return; this.requests.push(frame);
     if (frame.method === 'initialize') this.result(frame.id, { userAgent: 'fixture', codexHome: 'D:\\fixture', platformFamily: 'windows', platformOs: 'windows' });
     else if (frame.method === 'account/read') this.result(frame.id, { account: this.options.authRequired ? null : { type: 'chatgpt', email: null, planType: 'plus' }, requiresOpenaiAuth: true });
-    else if (frame.method === 'account/rateLimits/read') { if (this.options.rateLimitsNoResponse) return; if (this.options.rateLimitsError) this.error(frame.id, this.options.rateLimitsError, `HTTP ${this.options.rateLimitsError}`); else this.result(frame.id, this.options.malformedRateLimits ? { rateLimits: { primary: { usedPercent: 'invalid' } }, rateLimitsByLimitId: null } : { rateLimits: { limitId: 'codex', limitName: 'Codex', primary: { usedPercent: 12, resetsAt: 1_800_000_000 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: 'plus', rateLimitReachedType: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null }); }
+    else if (frame.method === 'account/rateLimits/read') { if (this.options.rateLimitsNoResponse) return; if (this.options.rateLimitsError) this.error(frame.id, this.options.rateLimitsError, this.options.rateLimitsMessage ?? `HTTP ${this.options.rateLimitsError}`); else this.result(frame.id, this.options.malformedRateLimits ? { rateLimits: { primary: { usedPercent: 'invalid' } }, rateLimitsByLimitId: null } : { rateLimits: { limitId: 'codex', limitName: 'Codex', primary: { usedPercent: 12, resetsAt: 1_800_000_000 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: 'plus', rateLimitReachedType: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null }); }
     else if (frame.method === 'account/login/start') this.result(frame.id, frame.params.type === 'chatgptDeviceCode' ? { type: 'chatgptDeviceCode', loginId: 'login:device', verificationUrl: 'https://example.invalid/device', userCode: 'ABCD-EFGH' } : { type: 'chatgpt', loginId: 'login:1', authUrl: 'https://example.invalid/login' });
     else if (frame.method === 'account/logout') this.result(frame.id, {});
     else if (frame.method === 'model/list') this.result(frame.id, this.options.malformedCatalog ? { data: [{ model: 'drifted' }] } : { data: [{ id: 'gpt-5.6-sol', model: 'gpt-5.6-sol', displayName: 'GPT-5.6 Sol', description: 'fixture', hidden: false, isDefault: true, defaultReasoningEffort: 'high', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: 'low' }, { reasoningEffort: 'medium', description: 'medium' }, { reasoningEffort: 'high', description: 'high' }, { reasoningEffort: 'xhigh', description: 'xhigh' }] }], nextCursor: null });
-    else if (frame.method === 'thread/start') { if (this.options.threadStartError) this.error(frame.id, this.options.threadStartError, `HTTP ${this.options.threadStartError}`); else if (!this.options.threadStartNoResponse) { if (this.options.dirtyCwd) { const nested = path.join(frame.params.cwd, 'nested'); await mkdir(nested, { recursive: true }); await writeFile(path.join(nested, 'owned.txt'), 'fixture'); } this.toolWireName = frame.params.dynamicTools[0]?.name; this.result(frame.id, { thread: { id: 'thread:1' } }); } }
+    else if (frame.method === 'thread/start') { if (this.options.threadStartError) this.error(frame.id, this.options.threadStartError, this.options.threadStartMessage ?? `HTTP ${this.options.threadStartError}`); else if (!this.options.threadStartNoResponse) { if (this.options.dirtyCwd) { const nested = path.join(frame.params.cwd, 'nested'); await mkdir(nested, { recursive: true }); await writeFile(path.join(nested, 'owned.txt'), 'fixture'); } this.toolWireName = frame.params.dynamicTools[0]?.name; this.result(frame.id, { thread: { id: 'thread:1' } }); } }
     else if (frame.method === 'thread/read') this.result(frame.id, { thread: { id: frame.params.threadId, canAcceptDirectInput: true } });
     else if (frame.method === 'thread/unsubscribe') this.result(frame.id, { status: 'notLoaded' });
     else if (frame.method === 'turn/start') { this.result(frame.id, { turn: { id: 'turn:1', status: 'inProgress' } }); setImmediate(() => this.started()); }
@@ -421,3 +421,34 @@ class AsyncQueue { constructor() { this.values = []; this.waiters = []; this.don
 async function collect(stream) { const values = []; for await (const item of stream) values.push(item); return values; }
 function semanticProjection(events) { return events.map((event) => ({ kind: event.kind, status: event.payload.status, finishReason: event.payload.finishReason, delta: event.payload.delta, toolId: event.payload.toolId, arguments: event.payload.arguments, inputTokens: event.payload.inputTokens, outputTokens: event.payload.outputTokens, cachedInputTokens: event.payload.cachedInputTokens, cacheWriteTokens: event.payload.cacheWriteTokens, reasoningTokens: event.payload.reasoningTokens })); }
 async function assertGeneratedClientSchema(frames) { const schema = JSON.parse(await readFile(new URL('../../../docs/upstream/codex/app-server-schema-0.148.0/ClientRequest.json', import.meta.url), 'utf8')); const validate = new Ajv({ strict: false, formats: { int64: true, uint64: true, uint32: true, uint16: true, uint: true } }).compile(schema); for (const frame of frames) assert.equal(validate(frame), true, `${frame.method}: ${JSON.stringify(validate.errors)}`); }
+
+
+test('plain usage network RPC failure stays optional on repeated refresh and clears after recovery', async () => {
+  const message = 'failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)';
+  const transport = new FakeCodexTransport({ rateLimitsError: -32603, rateLimitsMessage: message });
+  const backend = new CodexAppServerBackend({ transport });
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const status = await backend.status();
+      assert.equal(status.state, 'ready'); assert.equal(status.diagnostic.code, 'codex.rate-limits-unavailable');
+      assert.deepEqual(status.rateLimits, []); assert.match(status.diagnostic.message, /Login is verified/);
+      assert.doesNotMatch(status.diagnostic.message, /backend-api|https:/);
+      assert.ok((await backend.modelCatalog()).models.length);
+    }
+    assert.equal(transport.requests.filter(r => r.method === 'account/rateLimits/read').length, 2);
+    transport.options.rateLimitsError = undefined;
+    const recovered = await backend.status();
+    assert.equal(recovered.state, 'ready'); assert.equal(recovered.diagnostic, undefined); assert.equal(recovered.rateLimits[0].usedPercent, 12);
+    assert.ok(transport.requests.every(r => !['thread/start','turn/start'].includes(r.method)));
+    transport.options.rateLimitsError = 401;
+    assert.equal((await backend.status()).state, 'auth-required');
+    transport.options.rateLimitsError = -32601; transport.options.rateLimitsMessage = 'Method not found';
+    assert.equal((await backend.status()).state, 'error');
+  } finally { await backend.dispose(); }
+  const required = new CodexAppServerBackend({ transport: new FakeCodexTransport({ threadStartError: -32603, threadStartMessage: message }), isolatedCwd: 'D:\\isolated-ai-studio' });
+  try {
+    const events = await collect(required.startTurn(input));
+    assert.equal(events.at(-1).payload.status, 'failed');
+    assert.ok(events.some(e => e.kind === 'diagnostic' && e.payload.code === 'codex.rpc-error'));
+  } finally { await required.dispose(); }
+});

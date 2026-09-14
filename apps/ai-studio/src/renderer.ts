@@ -1,3 +1,4 @@
+import { mountQuerySettings } from './query-settings-ui.js';
 import {
   CartesianTransform3D,
   Camera3D,
@@ -34,6 +35,8 @@ import {
   type SafeLogPage,
 } from '@haiyue/ai-studio-shell';
 import type { StudioIpcMethod, StudioIpcRequest, StudioIpcResponse } from './ipc.js';
+import { AuthoringMaterials } from './authoring-materials.js';
+import { AgentPreviewCursor } from './agent-preview-cursor.js';
 import { AgentPreviewOwnership } from './agent-preview-ownership.js';
 import { AgentPollScheduler } from './agent-poll-scheduler.js';
 import { mountNotificationSettings } from './notification-ui.js';
@@ -75,7 +78,9 @@ let intentWorkspace: IntentWorkspace | null = null;
 let editorPanels: IntegratedEditorPanels | null = null;
 let agentHistoryWasBusy = false;
 const agentPreviewOwnership = new AgentPreviewOwnership();
+const agentPreviewCursor = new AgentPreviewCursor();
 let previewStop: Promise<void> | null = null;
+let querySettings: ReturnType<typeof mountQuerySettings> | null = null;
 let notificationSettings: ReturnType<typeof mountNotificationSettings> | null = null;
 let disposeNotificationClicked: (() => void) | null = null;
 
@@ -241,6 +246,7 @@ async function invoke<T extends JsonObject>(channel: StudioIpcMethod, payload: J
 }
 
 class WebGpuViewportRuntime {
+  private readonly materials = new AuthoringMaterials((id) => invoke('asset/read', { assetId: id }));
   private engine: HaiyueEngine | null = null;
   private engineScene: Scene | null = null;
   private interaction: InteractionSystem | null = null;
@@ -298,6 +304,7 @@ class WebGpuViewportRuntime {
       this.cameraSnapshot = nextCamera;
       applyProjectCamera(engineScene, nextCamera, this.canvasAspect());
     }
+    this.materials.clear();
     engineScene.clear({ keepCamera: true });
     this.stableByEngineId.clear();
     this.entitiesByStableId.clear();
@@ -322,7 +329,13 @@ class WebGpuViewportRuntime {
       else engineScene.add(entity);
     }
     // The running engine owns scene updates so each render gets a fresh swap-chain view.
-    void reportViewport('rendered', selectedEntityId ?? 'Scene rendered.', snapshot.revision, selectedEntityId);
+    void this.materials.apply(this.engine!, engineScene, snapshot, entities).then(current => {
+      if (current && !this.disposed && this.authoringSnapshot === snapshot) void reportViewport('rendered', selectedEntityId ?? 'Scene rendered.', snapshot.revision, selectedEntityId);
+    }).catch(cause => {
+      if (!this.disposed && this.authoringSnapshot === snapshot) {
+        setStatus(errorMessage(cause)); void reportViewport('failed', errorMessage(cause), snapshot.revision);
+      }
+    });
   }
 
   select(selectedEntityId: StableId | null): void {
@@ -375,6 +388,7 @@ class WebGpuViewportRuntime {
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal;
     this.disposed = true;
+    this.materials.dispose();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.orbitControl?.dispose();
@@ -787,6 +801,7 @@ function setupUiPreferences(): void {
   theme = readStoredTheme();
   applyTheme(theme);
 
+  querySettings = mountQuerySettings(document, element('settings-dialog').querySelector('.settings-form')!, { language: () => language, invoke });
   notificationSettings = mountNotificationSettings(document, element('settings-dialog').querySelector('.settings-form')!, {
     desktop: typeof window.haiyueStudio.onNotificationClicked === 'function', language: () => language, invoke,
   });
@@ -820,6 +835,7 @@ function setupUiPreferences(): void {
 function applyLocale(): void {
   scriptEditor?.setLanguage(language);
   notificationSettings?.refreshLocale();
+  querySettings?.refreshLocale();
   document.documentElement.lang = language;
   document.body.dataset.language = language;
   intentWorkspace?.setLanguage(language);
@@ -1137,10 +1153,12 @@ function bindUi(): void {
     agentPoll?.stop(); agentPoll = null;
     disposeConversationChanged?.(); disposeConversationChanged = null;
     disposeNotificationClicked?.(); disposeNotificationClicked = null;
+    querySettings?.dispose(); querySettings = null;
     notificationSettings?.dispose(); notificationSettings = null;
     logViewerSubscription?.dispose(); logViewerSubscription = null;
     logViewer?.dispose(); logViewer = null;
     playStageResizeObserver?.disconnect(); playStageResizeObserver = null;
+    agentPreviewCursor.dispose();
     void viewport?.dispose(); void previewFrame?.dispose();
   }, { once: true });
 }
@@ -1306,6 +1324,7 @@ async function processAgentPreviewCommand(): Promise<void> {
       // Read-only inspection of a user preview does not claim or control it.
       const controlsTimeline = command.kind === 'step' || command.kind === 'input';
       if (!playing || !previewFrame || (controlsTimeline && !agentPreviewOwnership.active) || agentPreviewOwnership.shouldClose) throw new Error('Agent Play is not active.');
+      if (command.kind === 'input') agentPreviewCursor.show(element('play-device-screen'), command.event ?? Object.freeze({}), language);
       const result = command.kind === 'step' ? await previewFrame.step(Number(command.count))
         : command.kind === 'input' ? await previewFrame.input(command.event ?? Object.freeze({}))
           : command.kind === 'physics-query' ? await previewFrame.physicsQuery(command.query ?? Object.freeze({}))
@@ -1953,6 +1972,7 @@ function sameCamera(left: ProjectCameraSnapshot, right: ProjectCameraSnapshot): 
 }
 
 async function stopPreview(): Promise<void> {
+  agentPreviewCursor.clear();
   if (previewStop) return previewStop;
   if (!playing) { agentPreviewOwnership.release(); return; }
   previewStop = disposePreview();

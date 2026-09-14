@@ -1,9 +1,9 @@
 import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
 
 export interface PreviewAssetManifestEntry { readonly id: StableId; readonly kind: 'texture' | 'model' | 'audio' | 'animation'; readonly mimeType: string; readonly byteLength: number; readonly decodedBytes: number; }
-export interface PreviewAssetComponent { readonly enabled: boolean; readonly value: JsonObject; }
+export interface PreviewAssetComponent { readonly enabled: boolean; readonly value: Readonly<Record<string, unknown>>; }
 export interface PreviewAssetScene { readonly entities: readonly Readonly<{ readonly components?: readonly PreviewAssetComponent[] }>[]; readonly assets?: readonly PreviewAssetManifestEntry[]; }
-export interface PreviewRuntimeAsset { readonly id: StableId; readonly kind: PreviewAssetManifestEntry['kind']; readonly mimeType: string; readonly byteLength: number; readonly url?: string; readonly source?: string; }
+export interface PreviewRuntimeAsset { readonly id: StableId; readonly kind: PreviewAssetManifestEntry['kind']; readonly mimeType: string; readonly byteLength: number; readonly url?: string; readonly source?: string; readonly blob?: Blob; }
 export interface PreviewAssetReadResult extends JsonObject { readonly assetId: StableId; readonly kind: PreviewAssetManifestEntry['kind']; readonly mimeType: string; readonly byteLength: number; readonly base64: string; }
 export interface PreviewAssetTransferPlatform {
   createObjectUrl(bytes: Uint8Array, mimeType: string): string;
@@ -38,6 +38,7 @@ export async function loadPreviewAssets(snapshot: PreviewAssetScene, read: (asse
       if (response.assetId !== entry.id || response.kind !== entry.kind || response.mimeType !== entry.mimeType || response.byteLength !== entry.byteLength) throw new Error(`Preview asset descriptor changed for ${entry.id}.`);
       const bytes = decodeBase64(response.base64, entry.byteLength);
       if (entry.kind === 'animation') loaded.push(Object.freeze({ id: entry.id, kind: entry.kind, mimeType: entry.mimeType, byteLength: entry.byteLength, source: platform.decodeText(bytes) }));
+      else if (entry.kind === 'texture') loaded.push(Object.freeze({ id: entry.id, kind: entry.kind, mimeType: entry.mimeType, byteLength: entry.byteLength, blob: new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: entry.mimeType }) }));
       else loaded.push(Object.freeze({ id: entry.id, kind: entry.kind, mimeType: entry.mimeType, byteLength: entry.byteLength, url: platform.createObjectUrl(bytes, entry.mimeType) }));
     }
     throwIfAborted(signal);
