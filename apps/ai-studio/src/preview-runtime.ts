@@ -1,3 +1,4 @@
+import { readPlayMaterialColor, setPlayMaterialColor } from './play-material-color.js';
 import { PlayOrbitControls, type PlayOrbitOptions } from './play-orbit-controls.js';
 import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { CartesianTransform3D, SphericalTransform3D, Entity, HaiyueEngine, Mesh3D, type Scene } from '@haiyue/engine';
@@ -451,7 +452,7 @@ function readSimulationState(): SimulationStateValue {
     tick: simulation?.clock.tick ?? 0,
     entities: Object.freeze([...entitiesByStableId].sort((left, right) => left[0].localeCompare(right[0])).map(([id, entity]) => {
       const transform = entity.getComponent(CartesianTransform3D);
-      return Object.freeze({ id, position: transform ? Object.freeze([...transform.position]) : null, rotation: transform ? Object.freeze([...transform.rotation]) : null, scale: transform ? Object.freeze([...transform.scale]) : null });
+      return Object.freeze({ id, materialColor: readPlayMaterialColor(entity), position: transform ? Object.freeze([...transform.position]) : null, rotation: transform ? Object.freeze([...transform.rotation]) : null, scale: transform ? Object.freeze([...transform.scale]) : null });
     })),
     physics: physicsRuntime?.state() ?? null,
     renderEffects: (renderEffectsRuntime?.manifest() ?? null) as unknown as SimulationStateValue,
@@ -900,6 +901,7 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
       ...(event.wheelY === undefined ? {} : { wheelY: event.wheelY }),
     })] : [])),
     interactions: () => interactionEvents,
+    selfInteractions: () => Object.freeze(interactionEvents.filter(event => event.entityId === observationOwner.entityId)),
     snapshot: () => simulation?.input.snapshot(),
   });
   const complete = {
@@ -915,6 +917,11 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
       ...(base.scene ?? {}),
       instances(target: Entity | number | string, capacity: number): StudioInstanceSet {
         return getOrCreateInstanceSet(target, capacity, context.world ?? undefined);
+      },
+      setMaterialColor(target: Entity | string, color: readonly number[]): void {
+        const resolved = typeof target === 'string' ? entitiesByStableId.get(target) : target;
+        if (!resolved || ![...entitiesByStableId.values()].includes(resolved)) throw new Error('Material target must belong to the active Play scene.');
+        setPlayMaterialColor(resolved, color, entitiesByStableId.values());
       },
       orbitControls(options: PlayOrbitOptions = {}): void {
         if (!capabilities.includes('input')) throw new Error('orbitControls requires input and scene capabilities.');

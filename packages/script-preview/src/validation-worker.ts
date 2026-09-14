@@ -188,6 +188,14 @@ function runtimeContractDiagnostics(text: string, sourcePath: string, sceneEntit
           message: `api.read.findAll(${JSON.stringify(argument.text)}) matches exact entity names, not role keys or substrings; no matching name exists in the current scene. ${candidates.length ? 'Similar full names: ' + candidates.map(name => JSON.stringify(name)).join(', ') + '. ' : ''}Bind exact ids returned by assembly.instantiate or scene.query with api.read.find(id), or explicitly filter api.read.findAll(). Verify nonzero affected entities before reporting success; runtime-created entities may require a deliberate later lookup.` });
       }
     }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'getComponent') {
+      const argument = node.arguments[0];
+      if (argument && ts.isStringLiteralLike(argument) && /^(?:haiyue\.material\.|haiyue\.render\.material$)/u.test(argument.text)) {
+        const position = source.getLineAndCharacterOfPosition(argument.getStart(source));
+        diagnostics.push({ code: 'script.material-descriptor-runtime', severity: 'error', path: sourcePath, line: position.line + 1, column: position.character + 1,
+          message: 'Editor material type ids are not Engine runtime material components. Use api.scene.setMaterialColor(entityOrProjectId, [r,g,b,a]) for dynamic color; use material/component authoring tools for initial configuration. Do not cast descriptor data into a rendering material. Verify play.inspect state.entities materialColor, not a script-reported color.' });
+      }
+    }
     if (ts.isCallExpression(node) && isSceneInstancesCall(node.expression)) {
       const capacity = node.arguments[1];
       if (capacity && !isCompileTimeNumericExpression(capacity, constants, new Set())) {

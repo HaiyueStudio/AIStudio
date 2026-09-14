@@ -185,6 +185,35 @@ try {
   await control.stop();
   results.push({compositeChildHit:child.id,ownerRotated:true,cameraUnchanged:true});
   console.log('[pointer-placement] native object/background drags, capture outside target, same-tick gesture and blur cancellation passed');
+  // Incremental requirement: keep the camera controller, add object-local color behavior.
+  const clickValidator = new ScriptValidationWorker();
+  let clickValidation;
+  try {clickValidation=await clickValidator.validate({scriptId:'script:click',textRevision:1,sourcePath:'scripts/click.ts',text:await readFile(new URL('../../../../docs/examples/click-material-color.ts',import.meta.url),'utf8'),capabilities:['input','scene']});assert.deepEqual(clickValidation.diagnostics,[]);}finally{await clickValidator.dispose();}
+  const cameraEntity={id:'entity:color-camera',name:'Color camera',kind:'empty',parentId:null,order:1,transform:{position:{x:0,y:0,z:8},rotationDegrees:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},components:[{id:'component:color-camera',type:'haiyue.camera.3d',version:'1.0.0',enabled:true,value:{active:true,projection:'perspective',fovDegrees:45,orthographicHeight:10,near:.01,far:100,reverseZ:false,viewport:{x:0,y:0,width:1,height:1}}}]};
+  const colorScene={...dragScene,entities:[{...dragScene.entities[0],appearance:{material:'pbr',color:[.16,.58,1,1]}},cameraEntity,{id:'entity:color-light',name:'Color light',kind:'ambient-light',parentId:null,order:2,transform:cameraEntity.transform,light:{color:[1,1,1],intensity:1}}]};
+  const colorPlan={...dragPlan,scripts:[{...dragPlan.scripts[0],scriptId:'script:color-camera',entityId:cameraEntity.id,emittedText:orbitValidation.emittedText,capabilities:orbitValidation.capabilities},{...dragPlan.scripts[0],scriptId:'script:color-target',order:1,emittedText:clickValidation.emittedText,capabilities:clickValidation.capabilities}],capabilities:['read','scene','input']};
+  await control.start(colorScene,colorPlan);let colorObservation=await control.step(1);
+  const actualColor=o=>o.value.state.entities.find(e=>e.id==='entity:drag-target').materialColor;
+  const initialCamera=colorObservation.value.state.camera;
+  for(let i=0;i<3;i++){
+    const previous=actualColor(colorObservation);
+    await nativePointer('mousePressed',.5,.5);colorObservation=await nativePointer('mouseReleased',.5,.5);
+    assert.notDeepEqual(actualColor(colorObservation),previous,'each native click changes the real PBR material');
+    assert.deepEqual(colorObservation.value.state.camera,initialCamera,'click does not rotate camera');
+    assert.equal(colorObservation.value.runtimeErrorCount,0);
+  }
+  const priorColor=actualColor(colorObservation);
+  await nativePointer('mousePressed',.05,.05);colorObservation=await nativePointer('mouseReleased',.05,.05);
+  assert.deepEqual(actualColor(colorObservation),priorColor,'background click does not recolor object');
+  await nativePointer('mousePressed',.5,.5);await nativePointer('mouseMoved',.7,.6);colorObservation=await nativePointer('mouseReleased',.7,.6);
+  assert.notEqual(colorObservation.value.state.camera.theta,initialCamera.theta,'original orbit still works');
+  assert.deepEqual(actualColor(colorObservation),priorColor,'drag does not fire click');
+  await control.stop();await control.start(colorScene,colorPlan);colorObservation=await control.step(1);
+  const original=actualColor(colorObservation);
+  for(const phase of ['down','up']) {await control.input({kind:'pointer',source:'synthetic',tick:colorObservation.tick+1,pointerId:81,button:0,phase,x:.5,y:.5});colorObservation=await control.step(1);}
+  assert.notDeepEqual(actualColor(colorObservation),original,'Agent replay triggers the same local click behavior');
+  assert.equal(colorObservation.value.runtimeErrorCount,0);
+  await control.stop();results.push({incrementalColor:true,nativeClicks:3,replayClick:true,backgroundUnchanged:true,orbitPreserved:true});
   await writeFile(path.join(output, 'results.json'), JSON.stringify({ clicks, results }, null, 2));
   console.log(`[pointer-placement] ${JSON.stringify({ clicks, output })}`);
   app.exit(0);

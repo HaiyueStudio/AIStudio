@@ -246,6 +246,10 @@ interface HaiyueStudioPointerEvent {
   readonly wheelY?: number;
 }
 interface HaiyueScriptInputApi {
+  /** This tick's pointer hits on the script's own entity (stable project id).
+   * Configure haiyue.interaction.pointer on that entity. Child hits do not bubble.
+   * interactions() remains the global stream for explicit cross-object controllers. */
+  selfInteractions(): ReturnType<HaiyueScriptInputApi['interactions']>;
   /** Convenience alias for isPressed(action); true on every tick while held. */
   isDown(action: string): boolean;
   /** Raw canvas input. For scene placement use interactions(): hit.point is world [x,y,z].
@@ -282,6 +286,12 @@ interface HaiyueStudioOrbitOptions {
   readonly maxRadius?: number;
 }
 interface HaiyueScriptSceneApi {
+  /** Set actual Play Mesh3D color (sRGB RGBA 0..1), preserving textures/PBR settings.
+   * target is entity or a stable project id. Isolates shared materials; does not modify Document.
+   * Supports Basic/PBR/Blinn-Phong; instanced meshes use instances.set instead.
+   * Never write editor descriptor data or getComponent("haiyue.material.pbr") to change rendering.
+   * Verify state.entities[i].materialColor through play.inspect. */
+  setMaterialColor(target: Entity | string, color: readonly [number, number, number, number]): void;
   /** Call once each onUpdate tick from one script with input + scene capabilities.
    * Uses Engine spherical transforms and queued native/replayed input for left-drag orbit and wheel zoom.
    * mode all (default) handles dragging anywhere; background excludes registered pointer hits at down,

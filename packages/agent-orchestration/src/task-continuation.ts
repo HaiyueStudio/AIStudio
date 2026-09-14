@@ -1,3 +1,4 @@
+import { verificationRoute } from './task-acceptance.js';
 import type { ConversationTaskRunReadModel } from '@haiyue/ai-studio-shell/conversation';
 
 /** A bounded checkpoint, not a full scene snapshot or another copy of the task contract. */
@@ -10,7 +11,7 @@ export function taskContinuationRequest(run: ConversationTaskRunReadModel): stri
   };
   const criteria: unknown[] = [];
   for (const item of pending) {
-    const next = { id: item.id, label: item.label.slice(0, 160), assertion: item.assertion.slice(0, 512), assertionTruncated: item.assertion.length > 512, status: item.status, diagnostic: item.diagnostic?.slice(0, 200) ?? null };
+    const next = { verification: verificationRoute(item), id: item.id, label: item.label.slice(0, 160), assertion: item.assertion.slice(0, 512), assertionTruncated: item.assertion.length > 512, status: item.status, diagnostic: item.diagnostic?.slice(0, 200) ?? null };
     if (Buffer.byteLength(JSON.stringify({ ...checkpoint, criteria: [...criteria, next] })) > 6144) break;
     criteria.push(next);
   }

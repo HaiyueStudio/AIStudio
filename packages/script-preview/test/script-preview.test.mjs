@@ -390,3 +390,13 @@ test('scene-aware validation explains exact-name lookup mistakes without inventi
   assert.ok(!dynamic.diagnostics.some(d=>d.code==='script.entity-name-no-match'));
  } finally {await worker.dispose();}
 });
+
+test('object-local click API compiles and descriptor material writes fail before Play',async()=>{
+ const worker=new ScriptValidationWorker();
+ try {
+  const good=await worker.validate({scriptId:'script:click',textRevision:1,sourcePath:'scripts/click.ts',text:"for (const hit of api.input.selfInteractions()) { if (hit.type === 'click') api.scene.setMaterialColor(entity, [1,0,0,1]); }",capabilities:['input','scene']});
+  assert.deepEqual(good.diagnostics,[]);
+  const bad=await worker.validate({scriptId:'script:click',textRevision:2,sourcePath:'scripts/click.ts',text:'const material = entity.getComponent("haiyue.material.pbr") as unknown as {data:{baseColor:number[]}}; material.data.baseColor=[1,0,0,1];',capabilities:['read','scene']});
+  assert.ok(bad.diagnostics.some(d=>d.code==='script.material-descriptor-runtime'&&d.severity==='error'));
+ }finally{await worker.dispose();}
+});

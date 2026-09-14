@@ -37,3 +37,25 @@ test('confirmed preview teardown allows script repair; failed stop and terminal 
 test('editing after validation failure follows the existing legal transition',()=>{
  const task=new BoundedPlaytestTask(spec,2);advancePlaytest(task,'validating');advancePlaytest(task,'editing');assert.equal(task.snapshot().phase,'editing');
 });
+
+
+test('verification routes data and visual requirements consistently across restored plans', async()=>{
+ const {verificationRoute,taskSpecFromPlan,taskSpecFromRun}=await import('../dist/task-acceptance.js');
+ const {taskContinuationRequest}=await import('../dist/task-continuation.js');
+ const acceptance=[
+  {id:'criterion:transform',label:'Object rotates',category:'functional',assertion:'evidence state signal state.entities.0.rotation.1 gte 1',required:true,status:'pending',evidenceIds:[]},
+  {id:'criterion:errors',label:'No errors',category:'functional',assertion:'evidence runtime-errors signal count equals 0',required:true,status:'pending',evidenceIds:[]},
+  {id:'criterion:appearance',label:'Rendered appearance',category:'visual',assertion:'evidence screenshot',required:true,status:'pending',evidenceIds:[]}
+ ];
+ assert.equal(verificationRoute(acceptance[0]).method,'data');
+ assert.equal(verificationRoute(acceptance[1]).tool,'play.inspect');
+ assert.equal(verificationRoute(acceptance[2]).tool,'play.capture');
+ assert.equal(verificationRoute({assertion:'evidence lifecycle',category:'lifecycle'}).tool,'play.stop');
+ const run={taskId:'task:routes',requestSummary:'Verify game',documentRevision:1,status:'running',acceptance,evidence:[]};
+ const active={taskId:run.taskId,goal:run.requestSummary,account:{options:{budget:{id:'budget:routes'}}}};
+ assert.deepEqual(taskSpecFromPlan(active,acceptance).requiredCapabilities,taskSpecFromRun(run).requiredCapabilities);
+ assert.deepEqual(taskSpecFromRun({...run,acceptance:acceptance.slice(0,2)}).requiredCapabilities,['task.evaluate','play.inspect']);
+ const checkpoint=JSON.parse(taskContinuationRequest(run).split('\n\n')[1]);
+ assert.deepEqual(checkpoint.criteria.map(c=>c.verification.method),['data','data','visual-review']);
+ assert.match(checkpoint.criteria[2].verification.guidance,/presence alone does not prove/);
+});

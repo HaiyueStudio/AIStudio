@@ -274,3 +274,14 @@ test('real tool pagination uses returned JSON and malformed requests explain bot
     assert.equal(schema.properties.requested, undefined); assert.equal(schema.oneOf.length, 2);
   } finally { await fixture.close(); }
 });
+
+
+test('data-first verification guide is searchable and distinguishes runtime facts from image review',()=>{
+ const result=search('数据优先验收');
+ const entry=result.matches.find(item=>item.title.includes('数据优先验收'));
+ assert.ok(entry);
+ const content=JSON.stringify(read(entry,{maxBytes:12000}));
+ assert.match(content,/includeGameplay/);
+ assert.match(content,/missingEntityIds/);
+ assert.match(content,/视觉/);
+});

@@ -16,19 +16,29 @@ export function acceptanceReadModel(value: PlanAcceptanceProposal, id: StableId)
 export function acceptanceLabel(assertion: string): string {
   const match = /^evidence ([a-z-]+)/u.exec(assertion); return match ? `${match[1]} 验收` : '验收标准';
 }
+/** Derive evidence acquisition from the approved assertion, including restored tasks. */
+export function verificationRoute(item: Readonly<{ assertion: string; category: string }>): Readonly<{ method: string; tool: string; guidance: string }> {
+  const type = /^evidence\s+([a-z-]+)/u.exec(item.assertion)?.[1];
+  if (item.category === 'visual' || type === 'screenshot' || type === 'visual-analysis') return {
+    method: 'visual-review', tool: 'play.capture', guidance: 'Inspect rendered appearance; reuse a same-stage capture. Screenshot presence alone does not prove correctness. Report any unavailable visual verifier.',
+  };
+  if (type === 'lifecycle') return { method: 'data', tool: 'play.stop', guidance: 'Verify owned preview cleanup from lifecycle evidence.' };
+  return { method: 'data', tool: 'play.inspect', guidance: 'Use engine state and deterministic assertions, not screenshots. Scope entityIds; for interactions execute real action/pointer input and compare before/after entities and camera, not script metrics alone.' };
+}
+function acceptanceCapabilities(acceptance: readonly Readonly<{ assertion: string; category: string }>[]): TaskSpecV2['requiredCapabilities'] {
+  const capabilities = new Set<TaskSpecV2['requiredCapabilities'][number]>(['task.evaluate']);
+  for (const item of acceptance) {
+    capabilities.add(verificationRoute(item).method === 'visual-review' ? 'play.capture' : 'play.inspect');
+    if (/^evidence\s+(?:state|event-trace|runtime-errors|performance|visual-analysis|lifecycle)(?:\s|$)/u.test(item.assertion)) capabilities.add('play.inspect');
+  }
+  return Object.freeze([...capabilities]);
+}
 export function taskSpecFromPlan(active: Readonly<{ taskId: StableId; goal: string; account: TaskAccount }>, acceptance: readonly PlanAcceptanceProposal[]): TaskSpecV2 {
   const criteria = acceptance.map((item, index) => Object.freeze({ id: asStableId(`acceptance:${active.taskId}:${index + 1}`), required: item.required, visibility: 'agent' as const, category: item.category, assertion: item.assertion }));
-  const requiredCapabilities = new Set<TaskSpecV2['requiredCapabilities'][number]>(['task.evaluate']);
-  for (const item of acceptance) {
-    if (/^evidence screenshot/u.test(item.assertion)) requiredCapabilities.add('play.capture');
-    if (/^evidence (?:state|event-trace|runtime-errors|performance|visual-analysis|lifecycle)/u.test(item.assertion)) requiredCapabilities.add('play.inspect');
-  }
-  return Object.freeze({ schemaVersion: 2, id: active.taskId, request: active.goal.slice(0, 20_000), visibleConstraints: Object.freeze([]), budgetId: active.account.options.budget.id, requiredCapabilities: Object.freeze([...requiredCapabilities]), acceptance: Object.freeze(criteria) });
+  return Object.freeze({ schemaVersion: 2, id: active.taskId, request: active.goal.slice(0, 20_000), visibleConstraints: Object.freeze([]), budgetId: active.account.options.budget.id, requiredCapabilities: acceptanceCapabilities(acceptance), acceptance: Object.freeze(criteria) });
 }
 export function taskSpecFromRun(run: ConversationTaskRunReadModel): TaskSpecV2 {
-  const requiredCapabilities = new Set<TaskSpecV2['requiredCapabilities'][number]>(['task.evaluate']);
-  for (const item of run.acceptance) { if (item.category === 'visual') requiredCapabilities.add('play.capture'); else requiredCapabilities.add('play.inspect'); }
-  return Object.freeze({ schemaVersion: 2, id: run.taskId, request: run.requestSummary, visibleConstraints: Object.freeze([]), budgetId: asStableId(`budget:${run.taskId}`), requiredCapabilities: Object.freeze([...requiredCapabilities]), acceptance: Object.freeze(run.acceptance.map((item) => Object.freeze({ id: item.id, required: item.required, visibility: item.visibility, category: item.category, assertion: item.assertion }))) });
+  return Object.freeze({ schemaVersion: 2, id: run.taskId, request: run.requestSummary, visibleConstraints: Object.freeze([]), budgetId: asStableId(`budget:${run.taskId}`), requiredCapabilities: acceptanceCapabilities(run.acceptance), acceptance: Object.freeze(run.acceptance.map((item) => Object.freeze({ id: item.id, required: item.required, visibility: item.visibility, category: item.category, assertion: item.assertion }))) });
 }
 export function productPhaseForTool(toolId: StableId): Extract<ConversationTaskPhase, 'editing' | 'validating' | 'playing' | 'evaluating'> | null {
   if (toolId === 'preview.validate') return 'validating';
@@ -39,6 +49,9 @@ export function productPhaseForTool(toolId: StableId): Extract<ConversationTaskP
 }
 export function productToolTitle(toolId: StableId): string {
   if (toolId === 'task.evaluate') return '正在逐项验收';
+  if (toolId === 'play.inspect') return '正在读取引擎数据验收';
+  if (toolId === 'play.pointer-gesture' || toolId === 'play.input') return '正在模拟交互并验证状态变化';
+  if (toolId === 'play.capture') return '正在采集渲染效果供视觉检查';
   if (toolId.startsWith('play.') || toolId.startsWith('preview.')) return '正在运行与采集证据';
   return '正在编辑项目';
 }
@@ -81,7 +94,7 @@ export function evaluationResult(value: JsonObject, taskId: StableId): Evaluatio
 }
 export function repairRequest(task: TaskSpecV2, evaluation: EvaluationResultV2, iteration: number): string {
   const failed = evaluation.acceptanceResults.filter((item) => item.status !== 'pass');
-  return ['Continue the same visible task with a bounded evidence-led repair.', `Repair iteration: ${iteration}.`, `Failed acceptance: ${JSON.stringify(failed.map((item) => ({ acceptanceId: item.acceptanceId, evidenceIds: item.evidenceIds, diagnostic: item.diagnostic })))}`, 'Check whether a failed condition belongs to an earlier test stage: use task.evaluate acceptanceEvidence to select that stage’s retained observation (same Play and revision), rather than modifying correct gameplay or requiring playing and won at the same tick. Re-inspect the authoritative revision, change only causes supported by the cited evidence, run Play again as needed, collect fresh same-revision evidence (play.capture returns a matching screenshot/state bundle; use its observations together), and call task.evaluate with the approved criteria. Do not repeat an unchanged repair.'].join('\n');
+  return ['Continue the same visible task with a bounded evidence-led repair.', `Repair iteration: ${iteration}.`, `Failed acceptance: ${JSON.stringify(failed.map((item) => ({ acceptanceId: item.acceptanceId, evidenceIds: item.evidenceIds, diagnostic: item.diagnostic })))}`, 'Acquire evidence per failed criterion: use play.inspect for engine data and play.pointer-gesture for interaction effects; use play.capture only for rendered appearance or a data/render discrepancy. Do not screenshot every test. Check whether a failed condition belongs to an earlier test stage: use task.evaluate acceptanceEvidence to select that stage’s retained observation (same Play and revision), rather than modifying correct gameplay or requiring playing and won at the same tick. Re-inspect the authoritative revision, change only causes supported by the cited evidence, run Play again as needed, collect fresh same-revision evidence (play.capture returns a matching screenshot/state bundle; use its observations together), and call task.evaluate with the approved criteria. Do not repeat an unchanged repair.'].join('\n');
 }
 export function taskAccountingProjection(snapshot: ReturnType<TaskAccount['reconcile']>): ConversationTaskAccountingReadModel {
   const value = normalizeTaskAccounting({ taskId: snapshot.taskId, budget: snapshot.budget, budgetStatus: snapshot.budgetDecision.status, usage: snapshot.usage, cost: snapshot.cost });

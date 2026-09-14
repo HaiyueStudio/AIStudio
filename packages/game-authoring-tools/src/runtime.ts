@@ -1,4 +1,5 @@
 import { assertAssemblyPlan, normalizeAssemblyArguments, planAssembly, inspectAssembly } from './assemblies.js';
+import { scopePlayInspection } from './play-inspection.js';
 import { QUERY_PAGE_SIZE } from './query-limits.js';
 import type { EngineDocumentation } from './engine-docs.js';
 import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
@@ -910,12 +911,15 @@ function gestureEffects(before: JsonObject, after: JsonObject): JsonObject {
   return Object.freeze({ changedEntityCount: changed.length, changedEntityIds: changed.slice(0, 32).map(id => id.slice(0, 200)), changedEntityIdsTruncated: changed.length > 32, cameraChanged: canonicalStringify(state(before).camera ?? null) !== canonicalStringify(state(after).camera ?? null) });
 }
 
-function scriptProposalResult(proposal: ScriptEditProposal): JsonObject {
+function scriptProposalResult(proposal: ScriptEditProposal, owner: ReturnType<SceneAuthoringService['snapshot']>['entities'][number] | undefined): JsonObject {
   const diagnostics = Object.freeze(proposal.diagnostics.map((item) => Object.freeze({ code: item.code, severity: item.severity, line: item.line, column: item.column, message: item.message })));
   const authoringHints = /\bset(?:Position|Rotation|Scale)\s*\(/u.test(proposal.text) && !/\b(?:time|delta)\b|api\.input|api\.scene\.observe/u.test(proposal.text)
     ? ['This script may only initialize transforms. Persist fixed values using transform.set or entity.create transform (parent-local position/scale, rotationDegrees in degrees) instead of attaching a script. Keep a script only if it performs actual runtime behavior.'] : [];
+  const pointer = owner?.components?.find(item => item.enabled && item.type === 'haiyue.interaction.pointer');
+  const bindingContext = { ownerId: proposal.entityId, ownerName: owner?.name ?? null, ownerKind: owner?.kind ?? null, selfPointerEvents: pointer?.value.events ?? [], interactionScope: 'selfInteractions matches ownerId; interactions is global. Child hits do not bubble.', effectTarget: 'entity refers to this owner. Use an explicit stable id for deliberate cross-object effects.' };
+  if (proposal.text.includes('api.input.selfInteractions') && !pointer) authoringHints.push('The script owner has no enabled pointer component. Configure the required hit events on this owner before preview, or bind local behavior to the actual hit object.');
   const canApply = !proposal.diagnostics.some((item) => item.severity === 'error');
-  return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, authoringHints, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Resolve every error diagnostic with another script.patch or script.propose call. Look up unfamiliar or missing API symbols with engine.docs.search and engine.docs.read on the studio-script surface. Do not call script.apply for this proposal.' });
+  return Object.freeze({ proposalId: proposal.id, scriptId: proposal.scriptId, entityId: proposal.entityId, baseRevision: proposal.baseRevision, nextTextRevision: proposal.nextTextRevision, digest: proposal.digest, addedLines: proposal.addedLines, removedLines: proposal.removedLines, capabilities: proposal.capabilities, bindingContext, authoringHints, repairs: proposal.repairs, diagnostics, canApply, requiredAction: canApply ? 'Call script.apply with this proposal.' : 'Resolve every error diagnostic with another script.patch or script.propose call. Look up unfamiliar or missing API symbols with engine.docs.search and engine.docs.read on the studio-script surface. Do not call script.apply for this proposal.' });
 }
 function applyScriptLineEdits(source: string, edits: readonly ScriptLineEdit[]): string {
   const lines = source.split('\n');
@@ -1175,7 +1179,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     case 'script.propose': {
       const proposal = await options.scripts.proposeEdit({ entityId: args.entityId as StableId, text: args.text as string, baseRevision: args.baseRevision as number, ...(args.capabilities ? { capabilities: args.capabilities as ScriptCapabilityName[] } : {}) });
       proposals.set(proposal.id, proposal);
-      return scriptProposalResult(proposal);
+      return scriptProposalResult(proposal, scene.entities.find(item => item.id === proposal.entityId));
     }
     case 'script.patch': {
       const catalog = options.scripts.snapshot(); const resource = resolveScriptResource(catalog, args);
@@ -1183,7 +1187,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const text = applyScriptLineEdits(resource.text, args.edits as unknown as readonly ScriptLineEdit[]);
       const proposal = await options.scripts.proposeEdit({ entityId: resource.entityId, text, baseRevision: args.baseRevision as number, ...(args.capabilities ? { capabilities: args.capabilities as ScriptCapabilityName[] } : { capabilities: resource.capabilities }) });
       proposals.set(proposal.id, proposal);
-      return Object.freeze({ ...scriptProposalResult(proposal), patchedFromDigest: resource.digest, editCount: (args.edits as readonly JsonValue[]).length });
+      return Object.freeze({ ...scriptProposalResult(proposal, scene.entities.find(item => item.id === proposal.entityId)), patchedFromDigest: resource.digest, editCount: (args.edits as readonly JsonValue[]).length });
     }
     case 'script.apply': {
       const proposalId = args.proposalId as StableId; if (!proposals.has(proposalId)) throw new GameToolProtocolError('tool.proposal-missing', 'Script proposal is unavailable or already consumed.');
@@ -1261,7 +1265,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue, projectionTruncated: persisted.projectionTruncated });
     }
     case 'play.inspect': {
-      const observation = await options.preview.inspect(signal);
+      const observation = scopePlayInspection(await options.preview.inspect(signal), args);
       const bundle = await observations.persistInspection(stored.call, observation);
       return Object.freeze({ observation: bundle[0]!.artifact as unknown as JsonValue, observations: bundle.map((item) => item.artifact) as unknown as JsonValue, projection: bundle[0]!.projection as JsonValue, projectionTruncated: bundle[0]!.projectionTruncated });
     }
@@ -1287,7 +1291,13 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
   const raw = value as Record<string, unknown>;
   switch (toolId) {
     case 'assembly.create': case 'assembly.inspect': case 'assembly.instantiate': return normalizeAssemblyArguments(toolId, value);
-    case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': case 'play.stop': case 'play.inspect': case 'play.capture': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': case 'play.stop': case 'play.capture': exact(raw, [], [], toolId); return Object.freeze({});
+    case 'play.inspect': {
+      exact(raw, [], ['entityIds', 'includeGameplay'], toolId);
+      const ids = raw.entityIds === undefined ? undefined : stableIdArray(raw.entityIds, 'entityIds', 128);
+      if (ids && (ids.length < 1 || new Set(ids).size !== ids.length)) throw invalid('entityIds requires 1-128 unique entity ids.');
+      return Object.freeze({ ...(ids ? { entityIds: ids } : {}), ...(raw.includeGameplay === undefined ? {} : { includeGameplay: booleanValue(raw.includeGameplay, 'includeGameplay') }) });
+    }
     case 'scene.query': return normalizeSceneContextArguments(raw, false);
     case 'scene.diff': return normalizeSceneContextArguments(raw, true);
     case 'scene.get-many': {

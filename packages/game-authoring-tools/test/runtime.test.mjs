@@ -1703,3 +1703,59 @@ test('assembly inspection detects pointer configured only after cloning and repo
   assert.equal(repaired.value.valid,true);value.runtime.assertAssemblyPlan(expected,'preview.validate',{});
  }finally{await dispose(value);}
 });
+
+
+test('scoped Play data verifies the target beyond a large scene projection without any capture', async () => {
+  const value = await fixture();
+  try {
+    let rotation = 0, captures = 0;
+    const entities = () => Array.from({length:400}, (_,i) => ({id:`entity:scope-${i}`,position:[i,0,0],rotation:[0,i===399?rotation:0,0],scale:[1,1,1]}));
+    value.preview.inspect = async () => ({...value.preview.observation({}), documentRevision:1, value:{
+      state:{entities:entities(),camera:{theta:0}}, gameplay:[{value:{metrics:{success:true}}}],
+      runtimeErrorCount:2, trace:[{kind:'action',action:'rotate'}]
+    }});
+    value.preview.capture = async () => { captures++; throw new Error('Data acceptance must not take a screenshot'); };
+    const inspect = async id => executeReady(value.runtime, call(id,'play.inspect',{entityIds:['entity:scope-399','entity:missing'],includeGameplay:false}));
+    const before = await inspect('call:scope-before');
+    assert.equal(before.value.projectionTruncated,false);
+    assert.deepEqual(before.value.projection.state.entities.map(e=>e.id),['entity:scope-399']);
+    assert.deepEqual(before.value.projection.selection.missingEntityIds,['entity:missing']);
+    assert.equal(before.value.projection.selection.totalEntityCount,400);
+    assert.equal(before.value.projection.selection.transformSpace,'parent-local');
+    assert.equal(before.value.projection.gameplay,undefined);
+    assert.equal(before.value.projection.runtimeErrorCount,2,'global runtime errors stay visible');
+    assert.equal(before.value.projection.state.camera.theta,0);
+    const stored = await value.operationLog.readArtifact(before.value.observation.id);
+    assert.deepEqual(stored.value.payload,before.value.projection,'evaluator paths match the exact selected snapshot');
+    const evaluate = async (id, inspected) => executeReady(value.runtime,call(id,'task.evaluate',{
+      taskSpec:{schemaVersion:2,id:'task:session:fixture',request:'Verify real object rotation',visibleConstraints:[],budgetId:'budget:fixture',requiredCapabilities:['play.inspect'],acceptance:[
+        {id:'acceptance:target',required:true,visibility:'agent',category:'functional',assertion:'evidence state signal state.entities.0.id equals "entity:scope-399"'},
+        {id:'acceptance:rotation',required:true,visibility:'agent',category:'functional',assertion:'evidence state signal state.entities.0.rotation.1 gte 0.5'}
+      ]},observationIds:inspected.value.observations.map(e=>e.id)
+    }));
+    assert.equal((await evaluate('call:scope-fail',before)).value.status,'fail','script-reported success cannot hide unchanged engine state');
+    rotation=1;
+    const after=await inspect('call:scope-after');
+    assert.equal((await evaluate('call:scope-pass',after)).value.status,'pass');
+    assert.equal(captures,0);
+    for (const args of [{entityIds:[]},{entityIds:['entity:a','entity:a']},{includeGameplay:'false'},{entityIds:['entity:a'],code:'world.run()'}]) {
+      await assert.rejects(value.runtime.prepare(call('call:invalid-scope-'+JSON.stringify(args),'play.inspect',args)));
+    }
+    value.preview.inspect=async()=>value.preview.observation({score:4});
+    await assert.rejects(inspect('call:scope-unavailable'),e=>e.code==='observation.entity-state-unavailable');
+  } finally { await dispose(value); }
+});
+
+test('incremental script proposal reports its actual owner and missing local pointer configuration',async()=>{
+ const value=await fixture();
+ try {
+  const created=await approveAndExecute(value.runtime,call('call:binding-create','entity.create',{baseRevision:1,kind:'cube',name:'Local target'}));
+  const entityId=created.value.entity.id;
+  const proposed=await executeReady(value.runtime,call('call:binding-propose','script.propose',{baseRevision:2,entityId,text:"for (const hit of api.input.selfInteractions()) { if(hit.type === 'click') api.scene.setMaterialColor(entity,[1,0,0,1]); }",capabilities:['input','scene']}));
+  assert.equal(proposed.value.canApply,true);
+  assert.equal(proposed.value.bindingContext.ownerId,entityId);
+  assert.equal(proposed.value.bindingContext.ownerName,'Local target');
+  assert.deepEqual(proposed.value.bindingContext.selfPointerEvents,[]);
+  assert.ok(proposed.value.authoringHints.some(h=>h.includes('no enabled pointer component')));
+ }finally{await dispose(value);}
+});
