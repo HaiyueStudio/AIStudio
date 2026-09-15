@@ -901,6 +901,7 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
     }
     if (card.status === 'pending') {
       const review = document.createElement('div'); review.className = 'chat-plan-review';
+      const consent = document.createElement('p'); consent.textContent = '批准后，Agent 可按本方案编写和提交项目脚本，无需逐次确认。首次运行或代码、权限变化后的运行会另行请求授权。'; review.append(consent);
       const note = document.createElement('textarea'); note.placeholder = '可选：补充约束、修改意见或实现偏好'; note.setAttribute('aria-label', 'Plan feedback');
       const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = '批准并执行';
       approve.addEventListener('click', () => {

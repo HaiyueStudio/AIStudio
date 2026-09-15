@@ -10,3 +10,11 @@ test('recovered consent is task-scoped, exact, and cannot be consumed twice',()=
  assert.equal(matchesRecoveredApproval({...grant,consumedBy:'call:one'},expected),false);
  assert.equal(matchesRecoveredApproval({...grant,documentId:undefined},expected),false);
 });
+test('replacement preview handles reuse only the identical validated runtime preview',()=>{
+ const runtime={...expected,toolId:'play.start',effect:'runtime-start'};
+ const grant={...runtime,decision:'allow-once'};
+ assert.equal(matchesRecoveredApproval(grant,{...runtime,argsDigest:'sha256:new-plan-handle'}),true);
+ for(const field of ['taskId','documentId','toolId','toolVersion','target','baseRevision','previewDigest','effect','risk'])
+   assert.equal(matchesRecoveredApproval(grant,{...runtime,[field]:'changed'}),false,field);
+ assert.equal(matchesRecoveredApproval({...grant,consumedBy:'approval:used'},runtime),false);
+});

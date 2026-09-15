@@ -554,6 +554,40 @@ test('allow always auto-approves only the same tool, version, target and project
   } finally { await dispose(value); }
 });
 
+test('unchanged preview consent is reused but revocation and new code require authorization', async () => {
+  const f = await fixture();
+  try {
+    const created = await executeReady(f.runtime, call('call:consent-cube', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Runner' }));
+    const proposed = await executeReady(f.runtime, call('call:consent-code', 'script.propose', { baseRevision: 2, entityId: created.value.entity.id, text: movementScript, capabilities: ['read', 'debug'] }));
+    await approveAndExecute(f.runtime, call('call:consent-apply', 'script.apply', { baseRevision: 2, proposalId: proposed.value.proposalId }));
+    const validated = await executeReady(f.runtime, call('call:consent-validate', 'preview.validate', {}));
+    await approveAndExecute(f.runtime, call('call:consent-first-start', 'play.start', { baseRevision: 3, planId: validated.value.planId }));
+    await executeReady(f.runtime, call('call:consent-stop', 'play.stop', {}));
+    const next = await executeReady(f.runtime, call('call:consent-revalidate', 'preview.validate', {}));
+    assert.notEqual(next.value.planId, validated.value.planId);
+    const start = await f.runtime.prepare(call('call:consent-restart', 'preview.start', { baseRevision: 3, planId: next.value.planId }));
+    assert.equal(start.status, 'ready'); assert.equal(start.approvalId, undefined);
+    await f.runtime.execute(start.id);
+    assert.equal(f.preview.starts, 2);
+    await executeReady(f.runtime, call('call:consent-stop-two', 'play.stop', {}));
+    const changed = await executeReady(f.runtime, call('call:consent-new-code', 'script.propose', { baseRevision: 3, entityId: created.value.entity.id, text: movementScript + '\n// new executable version', capabilities: ['read', 'debug'] }));
+    await approveAndExecute(f.runtime, call('call:consent-new-apply', 'script.apply', { baseRevision: 3, proposalId: changed.value.proposalId }));
+    const latest = await executeReady(f.runtime, call('call:consent-new-plan', 'preview.validate', {}));
+    const guarded = await f.runtime.prepare(call('call:consent-new-start', 'play.start', { baseRevision: 4, planId: latest.value.planId }));
+    assert.equal(guarded.status, 'approval-required');
+    assert.equal(f.preview.starts, 2);
+    await f.runtime.decide(guarded.approvalId, 'allow-once');
+    await f.runtime.execute(guarded.id);
+    await executeReady(f.runtime, call('call:consent-stop-three', 'play.stop', {}));
+    const revocable = await executeReady(f.runtime, call('call:consent-revocable', 'preview.validate', {}));
+    const pending = await f.runtime.prepare(call('call:consent-prepared', 'play.start', { baseRevision: 4, planId: revocable.value.planId }));
+    assert.equal(pending.status, 'ready');
+    await f.scripts.decide(revocable.value.planId, false);
+    await assert.rejects(f.runtime.execute(pending.id), error => error.code === 'approval.stale');
+
+  } finally { await dispose(f); }
+});
+
 test('script proposal, trusted apply and runtime start preserve separate approvals', async () => {
   const value = await fixture();
   try {
@@ -1338,7 +1372,7 @@ async function fixture(runtimeOptions = {}, restartState = null) {
     snapshot: () => projectScripts.snapshot(), proposeEdit: (input) => projectScripts.proposeEdit(input),
     rebaseProposal: (proposalId, revision) => projectScripts.rebaseProposal(proposalId, revision),
     commitProposal: (proposalId, commandId, signal) => projectScripts.commitProposal(proposalId, commandId, signal),
-    prepare: (input) => authorization.prepare(input),
+    prepare: (input) => authorization.prepare(input), canReuse: (id) => authorization.canReuse(id),
     decide: (planId, approved, ttl) => authorization.decide(planId, approved, ttl), consume: (grantId) => authorization.consume(grantId),
   };
   const preview = {

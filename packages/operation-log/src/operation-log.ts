@@ -99,6 +99,7 @@ export class OperationLog {
   private readonly diagnostics: OperationLogDiagnostic[] = [];
   private readonly events: StoredEvent[] = [];
   private readonly projectEvents = new Map<StableId, StoredEvent[]>();
+  private readonly correlationEvents = new Map<string, StoredEvent[]>();
   private readonly projectBytes = new Map<StableId, number>();
   private readonly projectSegments = new Map<StableId, Set<string>>();
   private readonly coordinateProjects = new Map<string, StableId | null>();
@@ -269,7 +270,16 @@ export class OperationLog {
     const queryDigest = sha256(canonicalStringify(normalizedForDigest));
     const cursor = query.cursor ? decodeCursor(query.cursor, queryDigest) : undefined;
     const after = Math.max(query.afterSequence ?? -1, cursor?.afterSequence ?? -1);
-    const scopedEvents = query.projectId ? this.projectEvents.get(query.projectId) ?? [] : this.events;
+    let scopedEvents = query.projectId ? this.projectEvents.get(query.projectId) ?? [] : this.events;
+    // Exact lookups must budget only their indexed candidates, not the whole journal.
+    // Traversal still needs the full project/window because it can reach other IDs.
+    if (!query.traverseCorrelation) {
+      for (const key of correlationQueryKeys) {
+        if (key === 'projectId' || query[key] === undefined) continue;
+        const indexed = this.correlationEvents.get(`${key}:${query[key]}`) ?? [];
+        if (indexed.length < scopedEvents.length) scopedEvents = indexed;
+      }
+    }
     const start = firstIndexAfterSequence(scopedEvents, after);
     const before = query.beforeSequence;
     const end = before === undefined ? scopedEvents.length : Math.max(start, firstIndexAtOrAfterSequence(scopedEvents, before));
@@ -442,6 +452,7 @@ export class OperationLog {
     }
     for (const { event } of this.events) this.learnProjectCoordinates(event);
     this.rebuildProjectIndex();
+    this.rebuildCorrelationIndex();
     this.indexDirty = true;
     await this.checkpointIndex('index-rebuild-failed', 'Derived index rebuild failed');
   }
@@ -503,6 +514,7 @@ export class OperationLog {
     segment.bytes += bytes;
     const stored = { segment: segment.name, event };
     this.events.push(stored);
+    this.indexCorrelationEvent(stored);
     if (this.learnProjectCoordinates(event)) this.rebuildProjectIndex();
     else this.indexProjectEvent(stored);
     this.nextSequence += 1;
@@ -554,6 +566,7 @@ export class OperationLog {
     }
     this.rebuildProjectIndex();
     this.addDiagnostic('segment-retired', 'warning', `Segment ${oldest.name} was retired by ${reason}.`, undefined, oldest.name);
+    this.rebuildCorrelationIndex();
   }
 
   /** Legacy facts inherit only unambiguous session/document ownership.
@@ -593,6 +606,21 @@ export class OperationLog {
   private rebuildProjectIndex(): void {
     this.projectEvents.clear(); this.projectBytes.clear(); this.projectSegments.clear();
     for (const stored of this.events) this.indexProjectEvent(stored);
+  }
+
+  private indexCorrelationEvent(stored: StoredEvent): void {
+    for (const key of correlationQueryKeys) {
+      const id = stored.event.correlation[key];
+      if (key === 'projectId' || id === undefined) continue;
+      const coordinate = `${key}:${id}`;
+      const entries = this.correlationEvents.get(coordinate);
+      if (entries) entries.push(stored); else this.correlationEvents.set(coordinate, [stored]);
+    }
+  }
+
+  private rebuildCorrelationIndex(): void {
+    this.correlationEvents.clear();
+    for (const stored of this.events) this.indexCorrelationEvent(stored);
   }
 
   private async writeIndex(): Promise<void> {

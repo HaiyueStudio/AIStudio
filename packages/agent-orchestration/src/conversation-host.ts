@@ -1807,6 +1807,17 @@ export class StudioConversationHost {
     const approval = this.options.tools.approval(preparation.approvalId!);
     if (!approval) throw new Error('Prepared approval is unavailable.');
     const nodeId = this.nextNodeId('approval');
+    // Plan acceptance authorizes script edits in this task, not execution of new code.
+    const active = this.active;
+    if (approval.toolId === 'script.apply' && approval.effect === 'trusted-code' && active?.approvedPlan
+      && this.approvedPlanTurns.has(turnKey(preparation.sessionId, preparation.turnId))
+      && this.options.projectContext?.()?.documentId === approval.documentId) {
+      await this.options.operationLog.append({ kind: 'conversation/plan-script-authorized', severity: 'info', source: asStableId('studio.conversation-host'),
+        correlation: { sessionId: preparation.sessionId, turnId: preparation.turnId, approvalId: approval.approvalId, toolCallId: preparation.callId },
+        payload: { taskId: active.taskId, documentId: approval.documentId, planTitle: active.approvedPlan.title, toolId: approval.toolId, baseRevision: approval.baseRevision, argumentsDigest: approval.argumentsDigest, previewDigest: approval.previewDigest } });
+      await this.options.tools.decide(approval.approvalId, 'allow-once');
+      return 'approved';
+    }
     await this.requestApprovalBarrier(preparation, approval, nodeId);
     let durableGrant = this.findDurableApprovalGrant(approval);
     if (durableGrant) {

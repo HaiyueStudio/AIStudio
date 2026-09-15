@@ -111,6 +111,33 @@ test('a long durable plan releases the provider call and selects real catalog to
   }
 });
 
+test('approved plan commits validated scripts without a second human approval', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'haiyue-plan-script-'));
+  const log = await OperationLog.open({ rootDirectory: root, appVersion: 'test', flushPolicy: 'always' });
+  const sessions = new DurableSessionRuntime(log);
+  let host;
+  try {
+    const runtime = approvalReleaseRuntime(sessions, 'script.apply');
+    const tools = approvalTools('script.apply');
+    host = new StudioConversationHost({ runtime, tools, operationLog: log, sessionRecovery: { async recover() {} }, projectContext: () => ({ projectId: 'project:g07-release', documentId: 'document:g07-release', revision: 1, name: 'Fixture', dirty: false, selectedEntityId: null, sceneDigest: `sha256:${'2'.repeat(64)}`, scriptDigest: `sha256:${'3'.repeat(64)}`, capabilityDigest: `sha256:${'4'.repeat(64)}`, capabilityManifest: {}, projectSummary: {} }) });
+    await host.initialize();
+    await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Implement the approved script.' });
+    await waitFor(() => !host.replay().busy && latestNode(host, 'plan', 'pending'));
+    assert.equal(tools.executeCalls, 0);
+    const plan = latestNode(host, 'plan', 'pending');
+    await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
+    await waitFor(() => !host.replay().busy && tools.executeCalls === 1);
+    assert.equal(runtime.startCalls, 2);
+    assert.equal(latestNode(host, 'approval', 'pending'), undefined);
+    const facts = await log.query({ kinds: ['conversation/plan-script-authorized'], limit: 10, traverseCorrelation: false });
+    assert.equal(facts.events.length, 1);
+    assert.equal(facts.events[0].payload.toolId, 'script.apply');
+  } finally {
+    await host?.dispose(); await sessions.dispose(); await log.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g07-approval-release-'));
   const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
@@ -373,7 +400,7 @@ function providerReleaseRuntime(sessions) {
   return runtime;
 }
 
-function approvalReleaseRuntime(sessions) {
+function approvalReleaseRuntime(sessions, toolId = 'entity.create') {
   const usage = new UsageLedgerStore(); const accounting = new TaskAccountingRegistry(usage); const profile = { id: 'prompt:g07-approval-release', version: '1.0.0', digest: `sha256:${'8'.repeat(64)}`, modules: [] };
   const runtime = { activeCalls: 0, maxActiveCalls: 0, startCalls: 0, cancelCalls: 0, sessions, usage, accounting };
   const releases = new Map();
@@ -389,9 +416,9 @@ function approvalReleaseRuntime(sessions) {
         const sessionId = `session:approval-rotated-${stage}`;
         try {
           if (stage === 1) yield { schemaVersion: 1, backendId, sessionId, turnId, kind: 'tool-request', payload: { toolCallId: callId, toolId: 'studio.plan.propose', arguments: { title: 'Approval release plan', summary: 'Create exactly one cube after a separately persisted authorization.', items: [{ label: 'Create cube', details: 'Use the registered entity tool once.' }] } } };
-          else yield { schemaVersion: 1, backendId, sessionId, turnId: `turn:g07-approval:${stage}`, kind: 'tool-request', payload: { toolCallId: callId, toolId: 'entity.create', arguments: { kind: 'cube', name: 'Approved Cube' } } };
+          else yield { schemaVersion: 1, backendId, sessionId, turnId: `turn:g07-approval:${stage}`, kind: 'tool-request', payload: { toolCallId: callId, toolId, arguments: { kind: 'cube', name: 'Approved Cube' } } };
           await released;
-          yield { schemaVersion: 1, backendId, sessionId, turnId: stage === 1 ? turnId : `turn:g07-approval:${stage}`, kind: 'completed', payload: { status: stage < 3 ? 'cancelled' : 'completed' } };
+          yield { schemaVersion: 1, backendId, sessionId, turnId: stage === 1 ? turnId : `turn:g07-approval:${stage}`, kind: 'completed', payload: { status: stage < (toolId === 'script.apply' ? 2 : 3) ? 'cancelled' : 'completed' } };
         } finally { releases.delete(callId); runtime.activeCalls -= 1; }
       },
       async *resume() {}, async cancel() { runtime.cancelCalls += 1; for (const release of releases.values()) release(); }, async recordToolResult() {},
@@ -425,19 +452,19 @@ function observeTools() {
   const tools = { executeCalls: 0, definitions: () => ['project.snapshot', 'diagnostics.query'].map((id) => ({ id, description: id, effect: 'observe', risk: 'low', inputSchema: {} })), async prepare(call) { return { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'observe', risk: 'low', documentId: 'document:g07-release', baseRevision: 1, argumentsDigest: `sha256:${'4'.repeat(64)}`, previewDigest: `sha256:${'5'.repeat(64)}`, preview: { title: 'Read', target: 'Project', summary: 'Read only', diff: '' }, status: 'ready' }; }, async execute(preparationId) { tools.executeCalls += 1; return { schemaVersion: 1, callId: preparationId.replace('preparation:', ''), toolId: 'diagnostics.query', status: 'completed', value: { retained: true }, documentId: 'document:g07-release', beforeRevision: 1, afterRevision: 1 }; } }; return tools;
 }
 
-function approvalTools() {
+function approvalTools(toolId = 'entity.create') {
   const approvals = new Map(); const preparations = new Map();
   const tools = {
     executeCalls: 0,
-    definitions: () => [{ id: 'entity.create', description: 'Create entity', effect: 'reversible-edit', risk: 'medium', inputSchema: {} }],
+    definitions: () => [{ id: toolId, description: 'Create entity', effect: (toolId === 'script.apply' ? 'trusted-code' : 'reversible-edit'), risk: 'medium', inputSchema: {} }],
     async prepare(call) {
-      const preparation = { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, taskId: call.taskId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', documentId: 'document:g07-release', baseRevision: 1, argumentsDigest: `sha256:${'b'.repeat(64)}`, previewDigest: `sha256:${'c'.repeat(64)}`, preview: { title: 'Create cube', target: 'Scene/Approved Cube', summary: 'Create one approved cube', diff: '+ Approved Cube' }, approvalId: `approval:${call.id}`, status: 'awaiting-approval' };
-      preparations.set(call.id, preparation); approvals.set(preparation.approvalId, { schemaVersion: 1, approvalId: preparation.approvalId, preparationId: preparation.id, sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id, toolId: call.toolId, toolVersion: '1.0.0', effect: 'reversible-edit', risk: 'medium', argumentsDigest: preparation.argumentsDigest, previewDigest: preparation.previewDigest, documentId: preparation.documentId, baseRevision: 1, target: preparation.preview.target, decision: 'pending' }); return preparation;
+      const preparation = { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, taskId: call.taskId, toolId: call.toolId, toolVersion: '1.0.0', effect: (toolId === 'script.apply' ? 'trusted-code' : 'reversible-edit'), risk: 'medium', documentId: 'document:g07-release', baseRevision: 1, argumentsDigest: `sha256:${'b'.repeat(64)}`, previewDigest: `sha256:${'c'.repeat(64)}`, preview: { title: 'Create cube', target: 'Scene/Approved Cube', summary: 'Create one approved cube', diff: '+ Approved Cube' }, approvalId: `approval:${call.id}`, status: 'awaiting-approval' };
+      preparations.set(call.id, preparation); approvals.set(preparation.approvalId, { schemaVersion: 1, approvalId: preparation.approvalId, preparationId: preparation.id, sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id, toolId: call.toolId, toolVersion: '1.0.0', effect: (toolId === 'script.apply' ? 'trusted-code' : 'reversible-edit'), risk: 'medium', argumentsDigest: preparation.argumentsDigest, previewDigest: preparation.previewDigest, documentId: preparation.documentId, baseRevision: 1, target: preparation.preview.target, decision: 'pending' }); return preparation;
     },
     approval(id) { return approvals.get(id) ?? null; },
     async decide(id, decision) { const current = approvals.get(id); if (!current) throw new Error('approval missing'); const resolved = { ...current, decision }; approvals.set(id, resolved); return resolved; },
     async cancel(callId) { preparations.delete(callId); for (const [id, approval] of approvals) if (approval.toolCallId === callId) approvals.delete(id); },
-    async execute(preparationId) { tools.executeCalls += 1; return { schemaVersion: 1, callId: preparationId.replace('preparation:', ''), toolId: 'entity.create', status: 'completed', value: { entity: { id: 'entity:approved-cube', name: 'Approved Cube' } }, documentId: 'document:g07-release', beforeRevision: 1, afterRevision: 2, historyLabel: 'Create Approved Cube' }; },
+    async execute(preparationId) { tools.executeCalls += 1; return { schemaVersion: 1, callId: preparationId.replace('preparation:', ''), toolId, status: 'completed', value: { entity: { id: 'entity:approved-cube', name: 'Approved Cube' } }, documentId: 'document:g07-release', beforeRevision: 1, afterRevision: 2, historyLabel: 'Create Approved Cube' }; },
   };
   return tools;
 }

@@ -73,6 +73,29 @@ test('sequence windows keep large retained journals within the query scan budget
   await log.close();
 });
 
+test('exact approval and tool lookups use bounded indexes across large journals and restart', async () => {
+  const root = await tempRoot('exact-approval-query');
+  let log = await OperationLog.open(options(root, { maxQueryScan: 3 }));
+  try {
+    for (let i = 0; i < 20; i++) await log.append(event(i));
+    for (let i = 0; i < 3; i++) await log.append(event(20 + i, { kind: 'conversation/approval-grant-consumed', correlation: { approvalId: 'approval:target', toolCallId: 'call:target', projectId: 'project:target' } }));
+    for (const restart of [false, true]) {
+      if (restart) { await log.close(); log = await OperationLog.open(options(root, { maxQueryScan: 3 })); }
+      const query = { approvalId: 'approval:target', kinds: ['conversation/approval-grant-consumed'], limit: 1, traverseCorrelation: false };
+      const first = await log.query(query);
+      assert.equal(first.scanned, 3); assert.deepEqual(first.events.map(e => e.sequence), [20]);
+      const second = await log.query({ ...query, cursor: first.nextCursor });
+      assert.equal(second.scanned, 2); assert.deepEqual(second.events.map(e => e.sequence), [21]);
+      assert.equal((await log.query({ ...query, approvalId: 'approval:missing' })).scanned, 0);
+      assert.equal((await log.query({ toolCallId: 'call:target', limit: 10, traverseCorrelation: false })).events.length, 3);
+      assert.equal((await log.query({ ...query, projectId: 'project:other' })).events.length, 0);
+      assert.equal((await log.query({ ...query, beforeSequence: 21 })).scanned, 1);
+      await assert.rejects(log.query(allQuery), hasCode('query-scan-budget-exceeded'));
+      await assert.rejects(log.query({ ...query, traverseCorrelation: true }), hasCode('query-scan-budget-exceeded'));
+    }
+  } finally { await log.close(); }
+});
+
 test('source redaction, taint, immutable artifacts and bug bundle contain no secret canary', async () => {
   const root = await tempRoot('operation-redaction');
   const bundles = await tempRoot('operation-bundles');
@@ -258,6 +281,8 @@ test('rotation and quota retire complete segments while preserving monotonic res
   for (let index = 0; index < 12; index += 1) await log.append(event(index, { payload: { index, text: 'x'.repeat(80) } }));
   assert.ok(log.status().segmentCount <= 2);
   assert.ok(log.status().eventCount < 12);
+  assert.equal((await log.query({ commandId: 'command:0', limit: 1, traverseCorrelation: false })).scanned, 0);
+  assert.equal((await log.query({ commandId: 'command:11', limit: 1, traverseCorrelation: false })).events.length, 1);
   const next = log.status().nextSequence;
   await log.close();
   const reopened = await OperationLog.open(options(root, { maxSegmentBytes: 750, maxTotalBytes: 1900, retentionSegments: 2 }));

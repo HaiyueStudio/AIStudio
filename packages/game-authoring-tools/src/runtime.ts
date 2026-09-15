@@ -61,6 +61,7 @@ interface StoredPreparation {
   view: GameToolPreparation;
   approval?: GameToolApproval;
   approvalScopeDigest?: string;
+  reusedPreviewConsent?: boolean;
 }
 
 interface ReversibleTransactionMemberPlan {
@@ -172,7 +173,9 @@ export class GameAuthoringToolRuntime {
       const preparationId = asStableId(`tool-preparation:${randomUUID()}`);
       const approvalScopeDigest = definition.requiresApproval && definition.effect === 'reversible-edit'
         ? approvalGrantDigest(document.documentId, call.sessionId, definition, preview.target) : undefined;
-      const autoAllowed = approvalScopeDigest !== undefined && this.approvalGrants.has(approvalScopeDigest);
+      const reusedPreviewConsent = ['play.start', 'preview.start'].includes(definition.id)
+        && this.options.scripts.canReuse?.(args.planId as StableId) === true;
+      const autoAllowed = reusedPreviewConsent || (approvalScopeDigest !== undefined && this.approvalGrants.has(approvalScopeDigest));
       const approvalId = definition.requiresApproval && !autoAllowed ? asStableId(`approval:${randomUUID()}`) : undefined;
       const status = approvalId ? 'approval-required' : 'ready';
       const view: GameToolPreparation = Object.freeze({
@@ -181,7 +184,7 @@ export class GameAuthoringToolRuntime {
         documentId: document.documentId, baseRevision: document.revision, argumentsDigest, previewDigest, preview, status,
         ...(approvalId ? { approvalId } : {}),
       });
-      const stored: StoredPreparation = { call, definition, arguments: args, preview, view, ...(approvalScopeDigest ? { approvalScopeDigest } : {}) };
+      const stored: StoredPreparation = { call, definition, arguments: args, preview, view, reusedPreviewConsent, ...(approvalScopeDigest ? { approvalScopeDigest } : {}) };
       if (approvalId) stored.approval = Object.freeze({
         schemaVersion: 1, approvalId, preparationId, sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id,
         toolId: definition.id, toolVersion: definition.version,
@@ -197,9 +200,9 @@ export class GameAuthoringToolRuntime {
         kind: 'approval/requested', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(call, stored.approval.approvalId),
         payload: { preparationId, toolId: definition.id, effect: definition.effect, risk: definition.risk, target: preview.target, argumentsDigest, previewDigest, documentId: document.documentId, baseRevision: document.revision },
       }, signal);
-      else if (autoAllowed && approvalScopeDigest) await this.appendFact(definition, {
+      else if (autoAllowed) await this.appendFact(definition, {
         kind: 'approval/auto-allowed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
-        payload: { preparationId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target: preview.target, documentId: document.documentId, scope: 'project-session', scopeDigest: approvalScopeDigest, argumentsDigest, previewDigest },
+        payload: { preparationId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target: preview.target, documentId: document.documentId, scope: reusedPreviewConsent ? 'preview-consent' : 'project-session', scopeDigest: approvalScopeDigest ?? null, argumentsDigest, previewDigest },
       }, signal);
       this.preparations.set(preparationId, stored);
       return view;
@@ -343,6 +346,10 @@ export class GameAuthoringToolRuntime {
 
   private async executeStored(stored: StoredPreparation, signal?: AbortSignal): Promise<GameToolResult> {
     enforceLogHealth(stored.definition.id, stored.definition.effect, this.options.operationLog.status());
+    if (stored.reusedPreviewConsent && this.options.scripts.canReuse?.(stored.arguments.planId as StableId) !== true) {
+      this.preparations.delete(stored.view.id);
+      throw new GameToolProtocolError('approval.stale', 'Preview consent changed after preparation; validate and authorize the current executable set again.', true);
+    }
     const document = requireDocument(this.options.workspace);
     const independentRead = !stored.definition.requiresApproval && isProjectIndependentRead({
       toolId: stored.definition.id, arguments: stored.arguments, expectedRevision: null,
