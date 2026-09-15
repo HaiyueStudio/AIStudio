@@ -134,7 +134,7 @@ test('durable mutation approval releases its turn, reuses the scoped grant, and 
     assert.equal(latestNode(host, 'approval', 'completed').content.decision, 'allow-once');
     const grantFacts = await log.query({ kinds: ['conversation/approval-grant-reused'], limit: 10, traverseCorrelation: false });
     assert.equal(grantFacts.events.length, 1);
-    const replay = await sessions.replay(sessionId); assert.deepEqual(replay.recovery.unresolvedBarrierIds, []);
+    const replay = await sessions.replay('session:approval-rotated-3'); assert.deepEqual(replay.recovery.unresolvedBarrierIds, []);
   } finally {
     await host?.dispose().catch(() => undefined); await sessions.dispose().catch(() => undefined); await log.close().catch(() => undefined);
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
@@ -386,6 +386,7 @@ function approvalReleaseRuntime(sessions) {
         runtime.startCalls += 1; const stage = runtime.startCalls; runtime.activeCalls += 1; runtime.maxActiveCalls = Math.max(runtime.maxActiveCalls, runtime.activeCalls);
         const callId = stage === 1 ? 'call:g07-approval-plan' : `call:g07-approval-edit:${stage}`;
         const released = new Promise((resolve) => releases.set(callId, resolve));
+        const sessionId = `session:approval-rotated-${stage}`;
         try {
           if (stage === 1) yield { schemaVersion: 1, backendId, sessionId, turnId, kind: 'tool-request', payload: { toolCallId: callId, toolId: 'studio.plan.propose', arguments: { title: 'Approval release plan', summary: 'Create exactly one cube after a separately persisted authorization.', items: [{ label: 'Create cube', details: 'Use the registered entity tool once.' }] } } };
           else yield { schemaVersion: 1, backendId, sessionId, turnId: `turn:g07-approval:${stage}`, kind: 'tool-request', payload: { toolCallId: callId, toolId: 'entity.create', arguments: { kind: 'cube', name: 'Approved Cube' } } };

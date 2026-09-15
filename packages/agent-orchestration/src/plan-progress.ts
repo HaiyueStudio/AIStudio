@@ -26,6 +26,18 @@ export function applyPlanProgress(args: JsonObject, items: readonly JsonObject[]
   }
   return Object.freeze(items.map(item => {
     const update = updates.get(String(item.id));
-    return update ? Object.freeze({ ...item, executionStatus: update.status!, executionSummary: String(update.summary).trim() }) : item;
+    return update ? Object.freeze({ ...item, executionNeedsSync: false, executionStatus: update.status!, executionSummary: String(update.summary).trim() }) : item;
   }));
+}
+
+/** Store real operation outcomes alongside model-authored steps. Never infer semantic completion. */
+export function recordPlanOperation(content: JsonObject, operation: JsonObject): JsonObject {
+  const previous = Array.isArray(content.recentOperations) ? content.recentOperations.filter(isRecord) as JsonObject[] : [];
+  const recentOperations = [...previous.filter(item => item.callId !== operation.callId), operation].slice(-8);
+  const count = Number(content.progressToolsSinceUpdate ?? 0) + 1;
+  const needsSync = content.progressNeedsSync === true || count >= 6;
+  const items = Array.isArray(content.items) ? (content.items as JsonObject[]).map(item => isRecord(item) && item.executionStatus === 'in_progress'
+    ? { ...item, executionNeedsSync: needsSync, executionOperationIds: [...(Array.isArray(item.executionOperationIds) ? item.executionOperationIds : []), operation.callId].slice(-8) }
+    : item) : [];
+  return { ...content, items, recentOperations, progressToolsSinceUpdate: count, progressNeedsSync: needsSync };
 }

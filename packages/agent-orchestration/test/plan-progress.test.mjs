@@ -21,3 +21,19 @@ test('approval continuation provides exact step IDs and separates progress from 
   assert.match(approvedPlanRequest(plan, true), /studio.plan.update/);
   assert.match(approvedPlanRequest(plan, true), /not acceptance evidence/);
 });
+
+test('completed operations prompt reconciliation, never falsely complete stale steps', async () => {
+  const {recordPlanOperation}=await import('../dist/plan-progress.js');
+  let content={items:applyPlanProgress({updates:[{stepId:'step:scene',status:'in_progress',summary:'building'}]},items)};
+  for(let i=0;i<6;i++)content=recordPlanOperation(content,{callId:`call:${i}`,toolId:'script.propose',summary:'script validated',revision:8});
+  assert.equal(content.progressNeedsSync,true);
+  assert.equal(content.items[0].executionStatus,'in_progress');
+  assert.equal(content.items[0].executionNeedsSync,true);
+  assert.equal(content.recentOperations.at(-1).summary,'script validated');
+  const reconciled=applyPlanProgress({updates:[{stepId:'step:scene',status:'completed',summary:'static scene done'},{stepId:'step:script',status:'in_progress',summary:'apply controller'}]},content.items);
+  assert.equal(reconciled[0].executionNeedsSync,false);
+  assert.equal(reconciled[1].executionStatus,'in_progress');
+  const resumed=recordPlanOperation({...content,progressToolsSinceUpdate:0},{callId:'call:resumed',toolId:'scene.query',summary:'read current scene',revision:8});
+  assert.equal(resumed.progressNeedsSync,true);
+  assert.equal(resumed.items[0].executionNeedsSync,true);
+});

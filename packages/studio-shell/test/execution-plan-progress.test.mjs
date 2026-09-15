@@ -50,3 +50,19 @@ test('latest proposal replaces old steps, rejected items are excluded and block 
   assert.match(executionProgressLabel(result), /修复输入.*阻塞/);
   assert.equal(result.nodes.find(node => node.kind === 'plan-step').detail.reason, '等待修复拾取结果');
 });
+
+test('unsynchronized progress survives normalization and stops the old step running animation', () => {
+ const items=plan().content.items.map(item=>({...item,executionNeedsSync:item.executionStatus==='in_progress',executionOperationIds:['call:script']}));
+ const record=plan({items,progressNeedsSync:true,recentOperations:[{callId:'call:script',toolId:'script.propose',summary:'Controller validated',revision:8}]});
+ assert.equal(record.content.items[2].executionNeedsSync,true);
+ assert.equal(record.content.recentOperations[0].summary,'Controller validated');
+ const result=withExecutionPlan(graph(),[record]);
+ const step=result.nodes.find(n=>n.kind==='plan-step'&&n.title.includes('编写拖拽交互'));
+ assert.equal(step.status,'pending');assert.match(step.summary,/进度待同步/);
+ assert.equal(result.nodes.filter(n=>n.kind==='plan-step'&&n.status==='completed').length,2);
+});
+
+test('exact approval ownership and consumption survive persisted node normalization', () => {
+ const record=normalizeConversationNode({schemaVersion:1,id:'node:approval',kind:'approval',status:'completed',createdAt:'2026-09-15T00:00:01.000Z',provenance,content:{approvalId:'approval:one',toolCallId:'call:one',toolId:'script.apply',toolVersion:'1.0.0',target:'script:one',effect:'trusted-code',risk:'high',baseRevision:8,argsDigest:`sha256:${'a'.repeat(64)}`,previewDigest:`sha256:${'b'.repeat(64)}`,decision:'allow-once',taskId:'task:one',documentId:'document:one',consumedBy:'approval:two'}});
+ assert.equal(record.content.taskId,'task:one');assert.equal(record.content.documentId,'document:one');assert.equal(record.content.consumedBy,'approval:two');
+});

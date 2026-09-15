@@ -517,16 +517,17 @@ export function withExecutionPlan(graph: ExecutionGraphReadModel, records: reado
   const approved = plan.content.decision === 'approved';
   const steps: ExecutionGraphNodeReadModel[] = items.map((item, index) => {
     const report = approved && typeof item.executionStatus === 'string' && ['pending', 'in_progress', 'completed', 'blocked'].includes(item.executionStatus) ? item.executionStatus : 'pending';
-    const status: ExecutionGraphProductNodeStatus = report === 'completed' ? 'completed' : report === 'blocked' ? 'outcome-unknown'
+    const stale = item.executionNeedsSync === true && report === 'in_progress';
+    const status: ExecutionGraphProductNodeStatus = stale ? 'pending' : report === 'completed' ? 'completed' : report === 'blocked' ? 'outcome-unknown'
       : report === 'in_progress' ? live ? graph.status === 'waiting' ? 'waiting' : 'running' : graph.status === 'cancelled' ? 'cancelled' : 'outcome-unknown' : 'pending';
     const summary = safeText(item.executionSummary, approved ? '等待 Agent 上报此步骤的执行进度。' : '方案待确认。', 512);
     return freeze({ ...root, id: `plan-step:${plan.id}:${item.id}`, kind: 'plan-step', status,
       title: `第 ${index + 1}/${items.length} 步：${safeText(item.label, '计划步骤', 240)}`,
-      summary: !live && report === 'in_progress' ? `回合已结束，步骤结果待核实。${summary}` : summary,
+      summary: stale ? `进度待同步。上次报告：${summary}` : !live && report === 'in_progress' ? `回合已结束，步骤结果待核实。${summary}` : summary,
       sourceNodeId: plan.id, sourceOpIds: freeze([]), artifactRefs: freeze([]), turnId: plan.provenance.turnId, batchId: null,
       startedAt: plan.createdAt, completedAt: null, durationMs: null, projectRevisionBefore: null, projectRevisionAfter: null,
       detail: freeze({ toolId: null, toolVersion: null, executionClass: null, barrierKind: null, transactionId: null, usageRecordIds: freeze([]), costRecordIds: freeze([]), diagnostic: null, validation: null,
-        planStep: freeze({ index: index + 1, total: items.length, reportStatus: report }), actionSummary: safeText(item.details, String(item.label), 1024), resultSummary: typeof item.executionSummary === 'string' ? summary : null,
+        planStep: freeze({ index: index + 1, total: items.length, reportStatus: stale ? 'pending' : report }), actionSummary: safeText(item.details, String(item.label), 1024), resultSummary: typeof item.executionSummary === 'string' ? summary : null,
         reason: report === 'blocked' ? summary : null }),
     });
   });

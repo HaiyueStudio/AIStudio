@@ -83,3 +83,16 @@ function component(index, value) { return { id: `component:${String(index).padSt
 function rename(source, revision, index, name) { const target = structuredClone(source); target.revision = revision; target.entities[index] = { ...target.entities[index], name }; return target; }
 function delta(before, after, operations, transactionId) { return { schemaVersion: 2, transactionId, documentId: before.id, beforeRevision: before.revision, afterRevision: after.revision, operations, inverse: [], metrics: { copiedBytes: 1, historyBytes: 1, projectionWork: operations.length, durationMicros: 1 } }; }
 function digest(value) { return `sha256:${value.padEnd(64, '0').slice(0, 64).replace(/[^a-f0-9]/gu, 'a')}`; }
+
+test('cursor-only calls retain original query shape and nextQuery works after reader recreation', () => {
+  const runtime = new SceneContextRuntime(); const doc = fixtureDocument(1, 5, 0); runtime.reset(doc);
+  const first = runtime.query({scope:{entityIds:doc.entities.slice(1).map(e=>e.id)},projection:['hierarchy'],limit:1});
+  const second = runtime.query({cursor:first.nextCursor});
+  assert.equal(second.items[0].id,doc.entities[2].id);
+  assert.deepEqual(second.projection,['hierarchy']);
+  assert.throws(()=>runtime.query({cursor:first.nextCursor,projection:['components']}),/cursor/);
+  const restored = new SceneContextRuntime(); restored.reset(doc);
+  assert.deepEqual(restored.query(first.nextQuery).items,second.items);
+  const other=structuredClone(doc); other.id='document:other'; restored.reset(other);
+  assert.throws(()=>restored.query(first.nextQuery),/cursor/);
+});

@@ -39,7 +39,7 @@ export function queryAllowancePrompt(input: { toolId: string; requested: number;
 
 export function approvalContent(preparation: GameToolPreparation, approval: GameToolApproval): JsonObject {
   return Object.freeze({
-    approvalId: approval.approvalId, toolCallId: approval.toolCallId, toolId: approval.toolId, toolVersion: approval.toolVersion,
+    documentId: approval.documentId, approvalId: approval.approvalId, toolCallId: approval.toolCallId, toolId: approval.toolId, toolVersion: approval.toolVersion,
     target: approval.target, effect: approval.effect, risk: approval.risk, argumentsSummary: preparation.preview.summary,
     previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: presentationDigest(approval.argumentsDigest),
     previewDigest: presentationDigest(approval.previewDigest), ...(approval.expiresAt ? { expiresAt: approval.expiresAt } : {}),

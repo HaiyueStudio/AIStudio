@@ -1,4 +1,5 @@
-import { PLAN_PROGRESS_TOOL, applyPlanProgress } from './plan-progress.js';
+import { matchesRecoveredApproval } from './approval-recovery.js';
+import { PLAN_PROGRESS_TOOL, applyPlanProgress, recordPlanOperation } from './plan-progress.js';
 import { toolCorrectionGuidance, toolFailureFeedback, interactionDiagnosticFeedback } from './tool-correction.js';
 import { QUERY_LIMIT_DEFAULTS, QUERY_PAGE_SIZE, queryLimitRequest, parseQueryLimits, type QueryLimits } from '@haiyue/ai-studio-game-authoring-tools';
 import { taskContinuationRequest, incompleteAcceptanceDetail } from './task-continuation.js';
@@ -462,7 +463,13 @@ export class StudioConversationHost {
     const localTurnId = this.localId(`turn:approved-plan:${this.nodeSequence + 1}`);
     const initialProgressNodeId = this.nextNodeId('approved-plan-progress');
     const project = this.options.projectContext?.() ?? null;
+    const retainedProgress = [...this.nodes.values()].reverse().find(node => node.kind === 'plan' && node.content.taskId === taskId && node.content.decision === 'approved');
+    if (retainedProgress && plan) {
+      const items = (retainedProgress.content.items as JsonObject[]).map(item => item.executionStatus === 'in_progress' ? { ...item, executionNeedsSync: true } : item);
+      this.project(retainedProgress.id, 'plan', retainedProgress.status, retainedProgress.provenance, { ...retainedProgress.content, items, progressNeedsSync: true });
+    }
     const request = [
+      retainedProgress?.content.recentOperations ? `Recent completed operations (do not repeat): ${JSON.stringify(retainedProgress.content.recentOperations)}` : null,
       plan ? approvedPlanRequest(plan, project !== null) : correctingTools ? `Continue the original request: ${goal}. Submit a valid plan for user review before editing.` : budgetContinuationRequest(goal, project !== null),
       this.taskRuns.get(taskId)?.acceptance.length ? taskContinuationRequest(this.taskRuns.get(taskId)!) : null,
       continuationInstruction,
@@ -1215,6 +1222,7 @@ export class StudioConversationHost {
     const account = this.active?.account; const startedAtMs = Date.now(); let stage: 'budget' | 'workflow' | 'prepare' | 'approval' = 'budget';
     try {
       if (!account) throw new Error('Task accounting is unavailable for this tool call.');
+      if (context.invocationError) throw new GameToolProtocolError(context.invocationError.code, context.invocationError.message);
       if (this.active?.budgetCheckpoint) return this.cancelledToolBody(context, Object.freeze({ code: 'budget.turn-stopping', message: 'This turn is already stopping at a safe budget checkpoint. Retry in the continuation turn.', retryable: true }), Date.now() - startedAtMs);
       const preflight = account.preflightTool(toolCallId);
       if (!preflight.allowed && preflight.status === 'hard-exceeded') {
@@ -1301,6 +1309,22 @@ export class StudioConversationHost {
     let stage: 'budget' | 'workflow' | 'prepare' | 'approval' | 'execute' = 'budget';
     try {
       if (!account) throw new Error('Task accounting is unavailable for this tool call.');
+      if (context.invocationError) throw new GameToolProtocolError(context.invocationError.code, context.invocationError.message);
+      // Local progress metadata must remain writable at a work-budget checkpoint.
+      if (toolId === PLAN_PROGRESS_TOOL.id) {
+        const plan = this.active?.approvedPlan;
+        const record = plan && [...this.nodes.values()].reverse().find(node => node.kind === 'plan' && node.content.decision === 'approved' && (!node.content.taskId || node.content.taskId === this.active?.taskId)
+          && Array.isArray(node.content.items) && plan.items.length > 0 && plan.items.every(item => (node.content.items as readonly JsonObject[]).some(candidate => candidate.id === item.id && candidate.status === 'accepted')));
+        if (!plan || !record || !this.active || !this.approvedPlanTurns.has(turnKey(event.sessionId, event.turnId))) throw new PlanProtocolError('plan.approval-required', 'Approve a plan before reporting progress.');
+        const items = applyPlanProgress(args, record.content.items as readonly JsonObject[]);
+        this.project(record.id, 'plan', record.status, record.provenance, Object.freeze({ ...record.content, taskId: this.active.taskId, items, progressNeedsSync: items.some(item => item.executionNeedsSync === true), progressToolsSinceUpdate: 0, progressUpdatedAt: new Date().toISOString() }));
+        this.active.approvedPlan = { ...plan, items: plan.items.map(item => { const updated = items.find(candidate => candidate.id === item.id)!; return Object.freeze({ ...item, executionStatus: String(updated.executionStatus ?? 'pending'), executionSummary: String(updated.executionSummary ?? '') }); }) };
+        const running = items.filter(item => item.executionStatus === 'in_progress');
+        const summary = running.length ? running.map(item => `${item.label}：${item.executionSummary}`).join('；') : '计划步骤进度已更新。';
+        const changedIds = new Set((args.updates as readonly JsonObject[]).map(update => update.stepId));
+        const result = Object.freeze({ planId: record.id, items: items.filter(item => changedIds.has(item.id)).map(item => Object.freeze({ id: item.id!, label: item.label!, executionStatus: item.executionStatus!, executionSummary: item.executionSummary! })), completedSteps: items.filter(item => item.status === 'accepted' && item.executionStatus === 'completed').length, totalSteps: plan.items.length, note: 'Progress only; task acceptance still requires authoritative evidence.' });
+        return this.makeToolBody(context, 'completed', Object.freeze({ status: 'completed', value: result }), 'completed', Object.freeze({ toolCallId, toolId, effect: 'observe', argumentsSummary: summary }), 'completed', Object.freeze({ toolCallId, toolId, resultStatus: 'completed', summary }), null, null, null, false, false, Date.now() - startedAtMs);
+      }
       if (this.active?.budgetCheckpoint) {
         return this.cancelledToolBody(context, Object.freeze({ code: 'budget.turn-stopping', message: 'This turn is already stopping at a safe budget checkpoint. Retry in the continuation turn.', retryable: true }), Date.now() - startedAtMs);
       }
@@ -1314,25 +1338,10 @@ export class StudioConversationHost {
       if (preflight.status === 'soft-exceeded') this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'completed', provenance, Object.freeze({ code: 'budget.soft-warning', message: preflight.warning ?? 'Soft task budget is exceeded; execution is continuing.', severity: 'warning', retryable: false }));
       assertBudgetAllowed(preflight); assertBudgetAllowed(account.commitTool(toolCallId));
       stage = 'prepare';
-      if (context.invocationError) throw new GameToolProtocolError(context.invocationError.code, context.invocationError.message);
       if (toolId === PLAN_TOOL_ID) {
         const result = await this.awaitPlan(toolCallId, event.sessionId, event.turnId, args, provenance, signal);
         if (result === 'suspended') return this.suspendedToolBody(context, 'plan-review', Date.now() - startedAtMs);
         return this.makeToolBody(context, 'completed', Object.freeze({ status: 'completed', value: result }), 'completed', Object.freeze({ toolCallId, toolId, target: 'Current project', effect: 'observe', argumentsSummary: toolArgumentSummary(toolId, args) }), 'completed', Object.freeze({ toolCallId, toolId, resultStatus: 'completed', summary: result.approvedForExecution === true ? '方案已确认，开始执行。' : '用户补充了信息，需要更新方案。' }), result, null, null, false, false, Date.now() - startedAtMs);
-      }
-      if (toolId === PLAN_PROGRESS_TOOL.id) {
-        const plan = this.active?.approvedPlan;
-        const record = plan && [...this.nodes.values()].reverse().find(node => node.kind === 'plan' && node.content.decision === 'approved' && (!node.content.taskId || node.content.taskId === this.active?.taskId)
-          && Array.isArray(node.content.items) && plan.items.length > 0 && plan.items.every(item => (node.content.items as readonly JsonObject[]).some(candidate => candidate.id === item.id && candidate.status === 'accepted')));
-        if (!plan || !record || !this.active || !this.approvedPlanTurns.has(turnKey(event.sessionId, event.turnId))) throw new PlanProtocolError('plan.approval-required', 'Approve a plan before reporting progress.');
-        const items = applyPlanProgress(args, record.content.items as readonly JsonObject[]);
-        this.project(record.id, 'plan', record.status, record.provenance, Object.freeze({ ...record.content, taskId: this.active.taskId, items, progressUpdatedAt: new Date().toISOString() }));
-        this.active.approvedPlan = { ...plan, items: plan.items.map(item => { const updated = items.find(candidate => candidate.id === item.id)!; return Object.freeze({ ...item, executionStatus: String(updated.executionStatus ?? 'pending'), executionSummary: String(updated.executionSummary ?? '') }); }) };
-        const running = items.filter(item => item.executionStatus === 'in_progress');
-        const summary = running.length ? running.map(item => `${item.label}：${item.executionSummary}`).join('；') : '计划步骤进度已更新。';
-        const changedIds = new Set((args.updates as readonly JsonObject[]).map(update => update.stepId));
-        const result = Object.freeze({ planId: record.id, items: items.filter(item => changedIds.has(item.id)).map(item => Object.freeze({ id: item.id!, label: item.label!, executionStatus: item.executionStatus!, executionSummary: item.executionSummary! })), completedSteps: items.filter(item => item.status === 'accepted' && item.executionStatus === 'completed').length, totalSteps: plan.items.length, note: 'Progress only; task acceptance still requires authoritative evidence.' });
-        return this.makeToolBody(context, 'completed', Object.freeze({ status: 'completed', value: result }), 'completed', Object.freeze({ toolCallId, toolId, effect: 'observe', argumentsSummary: summary }), 'completed', Object.freeze({ toolCallId, toolId, resultStatus: 'completed', summary }), null, null, null, false, false, Date.now() - startedAtMs);
       }
       this.assertApprovedAssemblyPlan(toolId, context.args);
       const definition = this.options.tools.definitions().find((item) => item.id === toolId);
@@ -1368,6 +1377,15 @@ export class StudioConversationHost {
   private async commitToolBody(batch: ActiveToolBatch, context: ToolExecutionContext, original: HostToolBody, signal: AbortSignal): Promise<HostToolBody> {
     let body = context.node.outputProjection === 'full' ? original : Object.freeze({ ...original, backendResult: projectToolModelResult(original.backendResult, context.node.outputProjection) });
     if (body.status === 'failed') body = Object.freeze({ ...body, backendResult: Object.freeze({ ...body.backendResult, ...toolFailureFeedback(original.backendResult) }) });
+    if (context.toolId !== PLAN_PROGRESS_TOOL.id && this.active?.approvedPlan && original.status === 'completed') {
+      const plan = [...this.nodes.values()].reverse().find(node => node.kind === 'plan' && node.content.taskId === this.active!.taskId && node.content.decision === 'approved');
+      if (plan) {
+        const content = recordPlanOperation(plan.content, { callId: context.toolCallId, toolId: context.toolId, summary: String(original.resultContent.summary ?? '').slice(0, 300), revision: this.options.projectContext?.()?.revision ?? null });
+        this.project(plan.id, 'plan', plan.status, plan.provenance, content);
+        if (content.progressNeedsSync) body = Object.freeze({ ...body, backendResult: Object.freeze({ ...body.backendResult,
+          planProgress: { syncRequired: true, items: (content.items as JsonObject[]).map(item => ({ id: item.id!, label: item.label!, status: item.executionStatus ?? 'pending' })), recentOperations: content.recentOperations!, instruction: 'Reconcile plan progress now using studio.plan.update. Mark completed work completed and start the actual next step. Use these authoritative operation results; do not repeat completed edits or re-query unchanged objects merely to report progress. Progress is distinct from final acceptance.' } }) });
+      }
+    }
     const transaction = transactionResultIdentity(original.backendResult);
     const nextBytes = Buffer.byteLength(canonicalStringify(body.backendResult));
     if (batch.outputBytes + nextBytes > 1024 * 1024 && body.status === 'completed') body = this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.result-limit', message: 'Batch model-facing result limit exceeded.', retryable: false }), body.latencyMs, 'failed');
@@ -1700,8 +1718,8 @@ export class StudioConversationHost {
     if (!snapshot.recovery.unresolvedBarrierIds.includes(approvalId)) throw new Error('Approval is stale or already resolved.');
     await handle.append({ kind: 'approval.resolved', turnId: node.provenance.turnId, nodeId: node.id, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { approvalId, resolution: decision, denied: decision === 'reject', resolvedBy: 'user-after-restart', recovered: true } });
     await handle.checkpoint();
-    this.project(node.id, 'approval', 'completed', node.provenance, Object.freeze({ ...node.content, decision }));
     const run = this.taskRunFor(node.provenance.sessionId, node.provenance.turnId);
+    this.project(node.id, 'approval', 'completed', node.provenance, Object.freeze({ ...node.content, documentId: node.content.documentId ?? snapshot.session.documentId ?? null, taskId: node.content.taskId ?? run?.taskId ?? null, decision }));
     if (run) this.updateTaskRun(run.taskId, decision === 'reject' ? { status: 'cancelled', phase: 'cancelled', resumable: false, terminalDiagnostic: 'approval.rejected-after-restart' } : { status: 'running', resumable: true, terminalDiagnostic: null }, { phase: decision === 'reject' ? 'cancelled' : run.phase, status: decision === 'reject' ? 'warning' : 'complete', title: decision === 'reject' ? '恢复后的授权已拒绝' : '恢复后的授权已确认', detail: decision === 'reject' ? '未提交工作已停止，已有产物保持不变。' : 'Studio 将从持久检查点重新校验并恢复。', turnId: node.provenance.turnId });
     if (decision !== 'reject') this.scheduleRecoveredContinuation(node, `The user approved ${String(node.content.toolId ?? 'the pending Studio tool')} after its durable barrier. Re-inspect the authoritative project revision, retry only that pending operation with the same arguments, and continue the already approved plan without repeating completed edits.`, this.recoveredApprovedPlan(node.provenance), false);
   }
@@ -1777,8 +1795,9 @@ export class StudioConversationHost {
   }
 
   private recoveredApprovedPlan(provenance: ConversationNodeReadModel['provenance']): ApprovedPlanExecution | null {
-    const plan = [...this.nodes.values()].filter((candidate) => candidate.kind === 'plan' && candidate.status === 'completed' && candidate.provenance.sessionId === provenance.sessionId && candidate.content.decision === 'approved').at(-1);
     const run = this.barrierTaskRunFor(provenance);
+    const plan = [...this.nodes.values()].filter(candidate => candidate.kind === 'plan' && candidate.status === 'completed' && candidate.content.decision === 'approved'
+      && (run ? candidate.content.taskId === run.taskId : candidate.provenance.sessionId === provenance.sessionId)).at(-1);
     if (!plan && !run?.acceptance.length) return null;
     const items = Array.isArray(plan?.content.items) ? plan.content.items.filter(isRecord).filter((item) => item.status === 'accepted').map((item, index) => Object.freeze({ id: typeof item.id === 'string' ? asStableId(item.id) : asStableId(`plan-item:recovered:${index + 1}`), label: typeof item.label === 'string' ? item.label.slice(0, 256) : `Recovered step ${index + 1}`, ...(typeof item.executionStatus === 'string' ? { executionStatus: item.executionStatus, executionSummary: String(item.executionSummary ?? '').slice(0, 512) } : {}), ...(typeof item.details === 'string' ? { details: item.details.slice(0, 2_048) } : {}) })) : [];
     return { assemblies: Array.isArray(plan?.content.assemblies) ? plan.content.assemblies.filter(isRecord) as JsonObject[] : [], title: typeof plan?.content.title === 'string' ? plan.content.title : run?.title ?? 'Recovered approved plan', summary: typeof plan?.content.summary === 'string' ? plan.content.summary : 'Restored from the durable approved plan and acceptance checkpoint.', items: Object.freeze(items), ...(typeof plan?.content.note === 'string' ? { note: plan.content.note } : {}), attempts: 0, mutationCount: 0 };
@@ -1789,16 +1808,26 @@ export class StudioConversationHost {
     if (!approval) throw new Error('Prepared approval is unavailable.');
     const nodeId = this.nextNodeId('approval');
     await this.requestApprovalBarrier(preparation, approval, nodeId);
-    const durableGrant = this.findDurableApprovalGrant(approval);
+    let durableGrant = this.findDurableApprovalGrant(approval);
+    if (durableGrant) {
+      const used = await this.options.operationLog.query({ kinds: ['conversation/approval-grant-consumed'], approvalId: asStableId(String(durableGrant.content.approvalId)), limit: 1, traverseCorrelation: false });
+      if (used.events.some(event => event.payload.sourceApprovalId === durableGrant!.content.approvalId) || this.nodes.get(durableGrant.id)?.content.consumedBy) {
+        this.project(durableGrant.id, 'approval', 'completed', durableGrant.provenance, { ...durableGrant.content, consumedBy: 'recovered-consumption' });
+        durableGrant = null;
+      }
+    }
     if (durableGrant) {
       const decision = durableGrant.content.decision === 'allow-always' ? 'allow-always' : 'allow-once';
+      // Reserve before awaiting so two ready calls cannot consume the same consent.
+      this.project(durableGrant.id, 'approval', 'completed', durableGrant.provenance, { ...durableGrant.content, consumedBy: approval.approvalId });
+      await this.options.operationLog.append({ kind: 'conversation/approval-grant-consumed', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: preparation.sessionId, turnId: preparation.turnId, approvalId: asStableId(String(durableGrant.content.approvalId)) }, payload: { sourceApprovalId: durableGrant.content.approvalId!, consumedBy: approval.approvalId } });
       const resolved = await this.options.tools.decide(approval.approvalId, decision);
       await this.resolveApprovalBarrier(Object.freeze({ preparation, approval, nodeId, sessionId: preparation.sessionId, turnId: preparation.turnId, resolve: () => {}, reject: () => {} }), decision);
       await this.options.operationLog.append({ kind: 'conversation/approval-grant-reused', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: preparation.sessionId, turnId: preparation.turnId, approvalId: approval.approvalId, toolCallId: preparation.callId }, payload: { sourceApprovalId: durableGrant.content.approvalId, approvalId: approval.approvalId, toolId: approval.toolId, argumentsDigest: approval.argumentsDigest, decision: resolved.decision } }).catch(() => undefined);
       return 'approved';
     }
     if (this.durableBarrierMode()) {
-      this.project(nodeId, 'approval', 'pending', provenance, approvalContent(preparation, approval));
+      this.project(nodeId, 'approval', 'pending', provenance, { ...approvalContent(preparation, approval), taskId: this.active?.taskId ?? null });
       if (this.active) {
         this.active.suspendedBarrierId = approval.approvalId;
         this.updateTaskRun(this.active.taskId, { status: 'waiting-user', resumable: true }, { phase: this.taskRuns.get(this.active.taskId)?.phase ?? 'editing', status: 'warning', title: '等待工具授权', detail: `${approval.toolId} · ${approval.effect} · ${approval.target}；Backend 调用已释放。`, turnId: provenance.turnId, toolCallId: preparation.id });
@@ -1824,18 +1853,18 @@ export class StudioConversationHost {
         resolve: () => { if (settled) return; settled = true; releaseHumanWait(); signal.removeEventListener('abort', abort); resolve('approved'); },
         reject: (cause: unknown) => { if (settled) return; settled = true; releaseHumanWait(); signal.removeEventListener('abort', abort); reject(cause); },
       }));
-      this.project(nodeId, 'approval', 'pending', provenance, approvalContent(preparation, approval));
+      this.project(nodeId, 'approval', 'pending', provenance, { ...approvalContent(preparation, approval), taskId: this.active?.taskId ?? null });
       if (this.active) this.updateTaskRun(this.active.taskId, { status: 'waiting-user', resumable: true }, { phase: this.taskRuns.get(this.active.taskId)?.phase ?? 'editing', status: 'warning', title: '等待工具授权', detail: `${approval.toolId} · ${approval.effect} · ${approval.target}`, turnId: provenance.turnId, toolCallId: preparation.id });
     });
   }
 
   private findDurableApprovalGrant(approval: GameToolApproval): ConversationNodeReadModel | null {
-    const matches = [...this.nodes.values()].filter((node) => node.kind === 'approval' && node.status === 'completed'
-      && node.provenance.sessionId === approval.sessionId
-      && (node.content.decision === 'allow-once' || node.content.decision === 'allow-always')
-      && node.content.toolId === approval.toolId && node.content.toolVersion === approval.toolVersion
-      && node.content.target === approval.target && node.content.argsDigest === presentationDigest(approval.argumentsDigest));
-    return matches.at(-1) ?? null;
+    if (!this.active) return null;
+    const expected = { taskId: this.active.taskId, documentId: approval.documentId, toolId: approval.toolId,
+      toolVersion: approval.toolVersion, target: approval.target, baseRevision: approval.baseRevision,
+      argsDigest: presentationDigest(approval.argumentsDigest), previewDigest: presentationDigest(approval.previewDigest), effect: approval.effect, risk: approval.risk };
+    return [...this.nodes.values()].filter(node => node.kind === 'approval' && node.status === 'completed'
+      && matchesRecoveredApproval(node.content, expected)).at(-1) ?? null;
   }
 
   private pauseForHumanInteraction(sessionId: StableId, turnId: StableId): () => void {

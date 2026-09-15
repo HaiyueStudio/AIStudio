@@ -342,6 +342,7 @@ interface HaiyueScriptSceneApi {
 export class ProjectScriptService {
   private readonly listeners = new Set<(snapshot: ScriptCatalogSnapshot) => void>();
   private readonly proposals = new Map<StableId, ScriptEditProposal>();
+  private readonly proposalBases = new Map<StableId, string>();
   private readonly subscription: Readonly<{ dispose(): void }>;
   private current: ScriptCatalogSnapshot;
   private disposed = false;
@@ -365,12 +366,14 @@ export class ProjectScriptService {
     assertScriptText(input.text);
     if (input.baseRevision !== this.current.documentRevision) throw new ProjectRevisionError(this.current.documentRevision, input.baseRevision);
     if (this.workspace.queryGameDocument({ entityId: input.entityId, limit: 1 }).entities.length !== 1) throw new Error(`Script entity ${input.entityId} does not exist.`);
+    const baseline = this.proposalBase(input.entityId);
     const previous = this.current.resources.find((resource) => resource.entityId === input.entityId);
     const scriptId = previous?.id ?? asStableId(`script:${randomUUID()}`);
     const sourcePath = previous?.sourcePath ?? `scripts/${scriptId.slice('script:'.length)}.ts`;
     const nextTextRevision = (previous?.textRevision ?? 0) + 1;
     const validation = await this.validator.validate({ scriptId, textRevision: nextTextRevision, sourcePath, text: input.text, capabilities: input.capabilities ?? previous?.capabilities, sceneEntityNames: this.workspace.gameSnapshot().entities.map(entity => entity.name) });
     if (validation.stale) throw new Error('Script validation result is stale.');
+    if (input.baseRevision !== this.current.documentRevision || baseline !== this.proposalBase(input.entityId)) throw new Error('Project changed during script validation; propose against the current revision.');
     const normalizedText = validation.normalizedText;
     const id = asStableId(`script-proposal:${randomUUID()}`);
     const diff = lineDiff(previous?.text ?? '', normalizedText);
@@ -386,7 +389,23 @@ export class ProjectScriptService {
       payload: { proposalId: id, digest: proposal.digest, addedLines: diff.addedLines, removedLines: diff.removedLines, capabilities: proposal.capabilities, diagnosticCount: proposal.diagnostics.length, repairs: proposal.repairs },
     });
     this.proposals.set(id, proposal);
+    this.proposalBases.set(id, baseline);
     return proposal;
+  }
+
+  /** Preserve source, but create a freshly validated exact-revision proposal. */
+  async rebaseProposal(id: StableId, baseRevision: number): Promise<ScriptEditProposal> {
+    this.assertActive();
+    const proposal = this.proposals.get(id);
+    if (!proposal) throw new Error('Script proposal is unavailable or consumed.');
+    if (baseRevision !== this.current.documentRevision) throw new ProjectRevisionError(this.current.documentRevision, baseRevision);
+    if (this.proposalBases.get(id) !== this.proposalBase(proposal.entityId)) throw new Error('Script proposal target changed; inspect the current script and resolve the conflict before proposing again.');
+    return this.proposeEdit({ entityId: proposal.entityId, text: proposal.text, capabilities: proposal.capabilities, baseRevision });
+  }
+
+  private proposalBase(entityId: StableId): string {
+    return JSON.stringify({ documentId: this.current.documentId, owner: this.workspace.queryGameDocument({ entityId, limit: 1 }).entities[0] ?? null,
+      resource: this.current.resources.find(resource => resource.entityId === entityId) ?? null });
   }
 
   async commitProposal(proposalId: StableId, commandId: StableId, signal?: AbortSignal): Promise<ScriptResourceSnapshot> {
@@ -404,7 +423,7 @@ export class ProjectScriptService {
         capabilities: proposal.capabilities, digest: sourceDigest(proposal.text),
       } }],
     }, signal);
-    this.proposals.delete(proposalId);
+    this.proposals.delete(proposalId); this.proposalBases.delete(proposalId);
     const committed = this.current.resources.find((resource) => resource.id === proposal.scriptId);
     if (!committed) throw new Error('Committed script did not project back into the document.');
     await this.log.append({
@@ -418,7 +437,7 @@ export class ProjectScriptService {
   getProposal(id: StableId): ScriptEditProposal | undefined { return this.proposals.get(id); }
   dispose(): void {
     if (this.disposed) return;
-    this.disposed = true; this.subscription.dispose(); this.listeners.clear(); this.proposals.clear();
+    this.disposed = true; this.subscription.dispose(); this.listeners.clear(); this.proposals.clear(); this.proposalBases.clear();
   }
   private sync(workspace: ProjectWorkspaceSnapshot): void {
     if (this.disposed) return;
@@ -452,6 +471,7 @@ export interface PreviewGrant { readonly id: StableId; readonly planId: StableId
 export interface ScriptPreviewStudioService {
   snapshot(): ScriptCatalogSnapshot;
   proposeEdit(input: Readonly<{ entityId: StableId; text: string; baseRevision: number; capabilities?: readonly ScriptCapabilityName[] }>): Promise<ScriptEditProposal>;
+  rebaseProposal?(proposalId: StableId, baseRevision: number): Promise<ScriptEditProposal>;
   commitProposal(proposalId: StableId, commandId: StableId, signal?: AbortSignal): Promise<ScriptResourceSnapshot>;
   prepare(input?: PreviewPrepareInput): Promise<PreviewPlan>;
   decide(planId: StableId, approved: boolean, ttlMs?: number): Promise<PreviewGrant | null>;
@@ -495,6 +515,7 @@ export function createScriptPreviewPlugin(): StudioPluginDefinition<JsonObject> 
           if (!scene.snapshot().entities.some((entity) => entity.id === input.entityId)) throw new Error(`Script entity ${input.entityId} does not exist.`);
           return scripts.proposeEdit(input);
         },
+        rebaseProposal: scripts.rebaseProposal.bind(scripts),
         commitProposal: scripts.commitProposal.bind(scripts),
         prepare: async (input?: PreviewPrepareInput) => {
           const plan = await authorization.prepare(input);

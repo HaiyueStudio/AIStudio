@@ -149,7 +149,7 @@ export class GameAuthoringToolRuntime {
     }, signal);
     try {
       const document = requireDocument(this.options.workspace);
-      const args = normalizeArguments(definition.id, call.arguments, document.revision);
+      let args = normalizeArguments(definition.id, call.arguments, document.revision);
       definition = resolveComponentToolPolicy(definition, args, this.options.workspace);
       enforceLogHealth(definition.id, definition.effect, this.options.operationLog.status());
       await this.appendFact(definition, {
@@ -158,6 +158,14 @@ export class GameAuthoringToolRuntime {
       }, signal);
       const requestedRevision = readBaseRevision(args);
       if (requestedRevision !== undefined && requestedRevision !== document.revision) throw new GameToolProtocolError('tool.stale-revision', `Tool expected document revision ${requestedRevision}; current revision is ${document.revision}.`, true);
+      if (definition.id === 'script.apply') {
+        const original = this.proposals.get(args.proposalId as StableId);
+        if (original && original.baseRevision !== document.revision && this.options.scripts.rebaseProposal) {
+          const refreshed = await this.options.scripts.rebaseProposal(original.id, document.revision);
+          this.proposals.set(refreshed.id, refreshed);
+          args = Object.freeze({ ...args, proposalId: refreshed.id });
+        }
+      }
       const preview = buildPreview(definition.id, args, this.options.scene, this.proposals, this.previewPlans);
       const argumentsDigest = sha256(canonicalStringify(args));
       const previewDigest = sha256(canonicalStringify(preview as unknown as JsonObject));

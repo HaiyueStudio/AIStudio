@@ -314,12 +314,18 @@ function normalizeQuestion(value: Record<string, unknown>): JsonObject {
 function normalizePlan(value: Record<string, unknown>): JsonObject {
   const items = Array.isArray(value.items) ? value.items.slice(0, 50).flatMap((item) => {
     if (!isRecord(item)) return [];
-    try { return [Object.freeze({ id: stable(item.id, 'plan item id'), label: text(item.label, 240) ?? 'Plan item', ...(typeof item.details === 'string' ? { details: safeText(item.details, 1_024) } : {}), status: enumValue(item.status, ['pending', 'accepted', 'rejected', 'completed']) ?? 'pending', ...(enumValue(item.executionStatus, ['pending', 'in_progress', 'completed', 'blocked']) ? { executionStatus: item.executionStatus as string } : {}), ...(typeof item.executionSummary === 'string' ? { executionSummary: safeText(item.executionSummary, 512) } : {}) })]; }
+    try { return [Object.freeze({ id: stable(item.id, 'plan item id'), label: text(item.label, 240) ?? 'Plan item', ...(typeof item.details === 'string' ? { details: safeText(item.details, 1_024) } : {}), status: enumValue(item.status, ['pending', 'accepted', 'rejected', 'completed']) ?? 'pending', ...(enumValue(item.executionStatus, ['pending', 'in_progress', 'completed', 'blocked']) ? { executionStatus: item.executionStatus as string } : {}), ...(item.executionNeedsSync === true ? { executionNeedsSync: true } : {}), ...(Array.isArray(item.executionOperationIds) ? { executionOperationIds: item.executionOperationIds.slice(-8).flatMap(id => { try { return [stable(id, 'operation id')]; } catch { return []; } }) } : {}), ...(typeof item.executionSummary === 'string' ? { executionSummary: safeText(item.executionSummary, 512) } : {}) })]; }
     catch { return []; }
   }) : [];
   return compact({
     taskId: stableOptional(value.taskId),
     progressUpdatedAt: text(value.progressUpdatedAt, 40),
+    progressNeedsSync: value.progressNeedsSync === true,
+    progressToolsSinceUpdate: safeInteger(value.progressToolsSinceUpdate, 0, 1_000_000) ?? 0,
+    recentOperations: Array.isArray(value.recentOperations) ? value.recentOperations.slice(-8).flatMap(item => {
+      if (!isRecord(item)) return [];
+      try { return [{ callId: stable(item.callId, 'operation id'), toolId: stable(item.toolId, 'tool id'), summary: text(item.summary, 300) ?? '', revision: safeInteger(item.revision, 0, Number.MAX_SAFE_INTEGER) }]; } catch { return []; }
+    }) : [],
     title: text(value.title, 240) ?? 'Proposed plan',
     summary: text(value.summary, 2_048),
     ...(value.assemblies === undefined ? {} : { assemblies: normalizePlanAssemblies(value.assemblies) }),
@@ -357,6 +363,9 @@ function normalizeApproval(value: Record<string, unknown>): JsonObject {
     const argsDigest = digest(value.argsDigest);
     const previewDigest = digest(value.previewDigest);
     return Object.freeze({
+      ...(stableOptional(value.taskId) ? { taskId: stableOptional(value.taskId)! } : {}),
+      ...(stableOptional(value.documentId) ? { documentId: stableOptional(value.documentId)! } : {}),
+      ...(typeof value.consumedBy === 'string' ? { consumedBy: safeText(value.consumedBy, 200) } : {}),
       approvalId: stable(value.approvalId, 'approval id'), toolCallId: stable(value.toolCallId, 'tool call id'),
       toolId: text(value.toolId, 128) ?? 'unknown', toolVersion: text(value.toolVersion, 32) ?? 'unknown',
       target: text(value.target, 256) ?? 'Unknown target', effect, risk,

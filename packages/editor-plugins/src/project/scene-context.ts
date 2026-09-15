@@ -51,6 +51,7 @@ export interface SceneQueryResult {
   readonly totalItems: number;
   readonly truncated: boolean;
   readonly nextCursor: string | null;
+  readonly nextQuery?: SceneQueryInput | null;
   readonly digest: M13Digest;
   readonly snapshotDigest: M13Digest;
 }
@@ -118,12 +119,14 @@ export class SceneContextError extends Error {
 export class SceneContextRuntime {
   private base: GameDocumentV2 | null = null;
   private records: RevisionRecord[] = [];
+  private readonly queryPages = new Map<string, SceneQueryInput>();
 
   constructor(private readonly maxRetainedDeltas = DEFAULT_RETAINED_DELTAS) {
     if (!Number.isSafeInteger(maxRetainedDeltas) || maxRetainedDeltas < 1 || maxRetainedDeltas > 100_000) throw new TypeError('Scene retained delta limit is invalid.');
   }
 
   reset(snapshot: GameDocumentV2 | null): void {
+    this.queryPages.clear();
     this.base = snapshot ? freezeDocument(snapshot) : null;
     this.records = [];
   }
@@ -153,6 +156,8 @@ export class SceneContextRuntime {
   }
 
   query(input: SceneQueryInput = {}): SceneQueryResult {
+    const saved = input.cursor ? this.queryPages.get(input.cursor) : undefined;
+    if (saved) input = { ...saved, ...input };
     const current = this.requireCurrent();
     const revision = normalizedRevision(input.revision ?? current.revision, 'query revision');
     const snapshot = this.atRevision(revision);
@@ -166,7 +171,13 @@ export class SceneContextRuntime {
     const page = Object.freeze(items.slice(offset, offset + limit));
     const nextOffset = offset + page.length;
     const nextCursor = nextOffset < items.length ? encodeCursor({ version: 1, kind: 'scene-query', documentId, fromRevision: revision, toRevision: revision, fingerprint, offset: nextOffset }) : null;
+    const nextQuery = nextCursor ? { revision, scope, projection, cursor: nextCursor, limit } : null;
+    if (nextQuery) {
+      this.queryPages.set(nextCursor!, deepFreeze(nextQuery));
+      while (this.queryPages.size > 128 || Buffer.byteLength(JSON.stringify([...this.queryPages.values()])) > 1024 * 1024) this.queryPages.delete(this.queryPages.keys().next().value!);
+    }
     return deepFreeze({
+      nextQuery: nextQuery && Buffer.byteLength(JSON.stringify(nextQuery)) > 8192 ? { cursor: nextCursor!, limit } : nextQuery,
       schemaVersion: 1,
       documentId,
       revision,

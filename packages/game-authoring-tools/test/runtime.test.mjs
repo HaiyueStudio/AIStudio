@@ -30,7 +30,7 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
     'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.generate-texture', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
     'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.regression', 'play.pointer-gesture', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
-  assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= 20_000 && item.maxResultBytes <= 65_536));
+  assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= (item.id === 'play.regression' ? 120_000 : 20_000) && item.maxResultBytes <= 65_536));
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /time and delta are milliseconds/);
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /strict-TypeScript/);
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /component\.data is the only persistent/);
@@ -1336,6 +1336,7 @@ async function fixture(runtimeOptions = {}, restartState = null) {
   const authorization = new PreviewAuthorizationService(projectScripts, validator, operationLog, () => time.value);
   const scripts = {
     snapshot: () => projectScripts.snapshot(), proposeEdit: (input) => projectScripts.proposeEdit(input),
+    rebaseProposal: (proposalId, revision) => projectScripts.rebaseProposal(proposalId, revision),
     commitProposal: (proposalId, commandId, signal) => projectScripts.commitProposal(proposalId, commandId, signal),
     prepare: (input) => authorization.prepare(input),
     decide: (planId, approved, ttl) => authorization.decide(planId, approved, ttl), consume: (grantId) => authorization.consume(grantId),
@@ -1895,4 +1896,23 @@ test('regression replay preserves a failed prelude even when its last gesture pa
     assert.equal(replay.value.diagnostics.expectationMatched, false);
     assert.equal(replay.value.toTick, failed.value.toTick);
   } finally { await dispose(f); }
+});
+
+test('independent script proposals revalidate retained source at current revision, changed targets conflict',async()=>{
+ const f=await fixture();try{
+  const created=await approveAndExecute(f.runtime,call('call:independent-create','entity.create-many',{baseRevision:1,entities:[{kind:'cube',name:'First'},{kind:'cube',name:'Second'}]}));
+  const [a,b]=f.scene.snapshot().entities.filter(e=>e.name==='First'||e.name==='Second').map(e=>e.id), rev=created.afterRevision;
+  const propose=(id,text,n)=>executeReady(f.runtime,call(`call:independent-propose-${n}`,'script.propose',{baseRevision:rev,entityId:id,text}));
+  const p1=await propose(a,'const first = 1;',1),p2=await propose(b,'const second = 2;',2),conflict=await propose(a,'const conflict = 3;',3);
+  const applied=await approveAndExecute(f.runtime,call('call:independent-apply-a','script.apply',{baseRevision:rev,proposalId:p1.value.proposalId}));
+  const prepared=await f.runtime.prepare(call('call:independent-apply-b','script.apply',{baseRevision:applied.afterRevision,proposalId:p2.value.proposalId}));
+  assert.equal(prepared.status,'approval-required');
+  assert.equal(prepared.baseRevision,applied.afterRevision);
+  assert.equal(f.projectScripts.snapshot().resources.length,1,'revalidation itself does not commit');
+  await f.runtime.decide(prepared.approvalId,'allow-once');
+  const second=await f.runtime.execute(prepared.id);assert.equal(second.status,'completed');
+  assert.equal(f.projectScripts.snapshot().resources.find(r=>r.entityId===b).text,'const second = 2;');
+  await assert.rejects(f.runtime.prepare(call('call:independent-conflict','script.apply',{baseRevision:second.afterRevision,proposalId:conflict.value.proposalId})),/target changed/);
+  assert.equal(f.projectScripts.snapshot().resources.find(r=>r.entityId===a).text,'const first = 1;');
+ }finally{await dispose(f);}
 });
