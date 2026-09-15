@@ -1640,6 +1640,49 @@ test('manual and Agent material edits update the effective PBR component and ret
   } finally { await dispose(value); }
 });
 
+test('assembly root part keys are distinct from the implicit root and failed batches leave no reservations', async () => {
+  const f = await fixture();
+  const transform = { position: { x: 0, y: 0, z: 0 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+  const blueprint = { name: 'Grouped prototype', parts: [
+    { key: 'root', kind: 'empty', transform },
+    { key: 'body', parentKey: 'root', kind: 'rounded-box', radius: .1, material: 'pbr', color: [.1,.1,.1,1], transform },
+  ], requirements: [{ label: 'Root group with rounded body', partKeys: ['root', 'body'] }] };
+  const args = { baseRevision: 1, assemblyId: 'grouped', blueprint };
+  try {
+    const { planAssembly } = await import('../dist/assemblies.js');
+    const planned = planAssembly('assembly.create', args, f.workspace, 'call:root-key');
+    const binding = planned.value.prototype;
+    assert.notEqual(binding.rootId, binding.partIds.root);
+    // Reproduce the old duplicate inside a batch; rollback must remove the first add.
+    const conflicting = planned.operations.map(op => op.op === 'entity.add' && op.entity.id === binding.partIds.root
+      ? { ...op, entity: { ...op.entity, id: binding.rootId } } : op);
+    await assert.rejects(f.workspace.executeBatch({ id: 'command:old-root-collision', label: 'Collision fixture', baseRevision: 1, operations: conflicting }), e => e.code === 'document.entity-duplicate');
+    assert.equal(f.workspace.gameSnapshot().revision, 1);
+    assert.equal(f.workspace.gameSnapshot().entities.length, 0);
+    assert.equal(f.workspace.queryGameDocument({ entityId: binding.rootId, limit: 1 }).entities.length, 0);
+    await assert.rejects(executeReady(f.runtime, call('call:missing-after-rollback', 'assembly.inspect', { baseRevision: 1, assemblyId: 'grouped' })), e => e.code === 'assembly.missing');
+    const created = await approveAndExecute(f.runtime, call('call:root-key', 'assembly.create', args));
+    assert.equal(created.status, 'completed');
+    assert.equal(f.workspace.gameSnapshot().entities.length, 3);
+    const checked = await executeReady(f.runtime, call('call:root-inspect', 'assembly.inspect', { baseRevision: 2, assemblyId: 'grouped' }));
+    assert.equal(checked.value.valid, true);
+    const copies = await approveAndExecute(f.runtime, call('call:root-copies', 'assembly.instantiate', { baseRevision: 2, assemblyId: 'grouped', prototypeDigest: checked.value.prototypeDigest, instances: [{ name: 'Copy A', transform }, { name: 'Copy B', transform }] }));
+    assert.equal(copies.value.instanceCount, 3);
+    const entities = f.workspace.gameSnapshot().entities;
+    assert.equal(new Set(entities.map(e => e.id)).size, 9);
+    for (const b of [created.value.prototype, ...copies.value.instances]) {
+      assert.notEqual(b.rootId, b.partIds.root);
+      assert.equal(entities.find(e => e.id === b.partIds.root).parentId, b.rootId);
+      assert.equal(entities.find(e => e.id === b.partIds.body).parentId, b.partIds.root);
+    }
+    await f.workspace.undo(3); assert.equal(f.workspace.gameSnapshot().entities.length, 3);
+    await f.workspace.redo(4); assert.equal(f.workspace.gameSnapshot().entities.length, 9);
+    await f.workspace.save(); await f.workspace.reopen();
+    const reopened = await executeReady(f.runtime, call('call:root-reopened', 'assembly.inspect', { baseRevision: f.workspace.gameSnapshot().revision, assemblyId: 'grouped' }));
+    assert.equal(reopened.value.valid, true);
+  } finally { await dispose(f); }
+});
+
 test('composite prototypes enforce real structure before replication and survive History and reopen', async () => {
   const value = await fixture();
   const transform = (x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => ({ position: { x,y,z }, rotationDegrees: { x:0,y:0,z:0 }, scale: { x:sx,y:sy,z:sz } });

@@ -148,7 +148,8 @@ export function planAssembly(id: string, args: JsonObject, workspace: ProjectWor
   const make = (recipe: JsonObject, label: string, rootTransform: JsonObject, colors: JsonObject, ordinal: number, source?: Assembly): Binding => {
     const slotKeys = new Set(parts(recipe).flatMap(p => p.colorSlot ? [String(p.colorSlot)] : []));
     if (Object.keys(colors).some(k => !slotKeys.has(k))) fail('slot-invalid', 'Color overrides must use blueprint colorSlot keys.');
-    const rootId = generated(`${ordinal}:root`), partIds = Object.fromEntries(parts(recipe).map(p => [String(p.key), generated(`${ordinal}:${p.key}`)]));
+    // Blueprint keys (including "root") must never share the implicit root's ID domain.
+    const rootId = generated(`${ordinal}:root`), partIds = Object.fromEntries(parts(recipe).map(p => [String(p.key), generated(`${ordinal}:part:${p.key}`)]));
     const sourceIds = source ? new Map([[source.prototype.rootId,rootId], ...Object.entries(source.prototype.partIds).map(([k,id]) => [id,partIds[k]!] as const)]) : new Map<StableId,StableId>();
     const remap = (v: JsonValue): JsonValue => typeof v === 'string' ? sourceIds.get(v as StableId) ?? v : Array.isArray(v) ? v.map(remap) : object(v) ? Object.fromEntries(Object.entries(v).map(([k,x]) => [k,remap(x)])) : v;
     const add = (entityId: StableId, name: string, parentId: StableId | null, values: [string, JsonObject][]) => {
