@@ -1,6 +1,6 @@
 import { enrichExecutionContent } from './execution-content.js';
 import type { CompactionRecordV1, ContextPressureV1, JsonValue, M13StableId, SessionOpV1 } from '@haiyue/ai-studio-contracts';
-import type { ConversationTaskRunReadModel } from './types.js';
+import type { ConversationNodeReadModel, ConversationTaskRunReadModel } from './types.js';
 import type {
   ExecutionGraphContextReadModel,
   ExecutionGraphDiagnosticReadModel,
@@ -501,6 +501,61 @@ export function groupExecutionGraphsByTask(graphs: readonly ExecutionGraphReadMo
   return freeze(result.sort(compareExecutionGraphs));
 }
 
+/** Display explicit approved-plan progress; do not infer completion from tool counts or text. */
+export function withExecutionPlan(graph: ExecutionGraphReadModel, records: readonly ConversationNodeReadModel[]): ExecutionGraphReadModel {
+  const sessions = new Set(graph.sourceSessionIds ?? [graph.sessionId]);
+  const turns = new Set(graph.nodes.map(node => node.turnId).filter(Boolean));
+  const plan = records.filter(node => node.kind === 'plan' && Array.isArray(node.content.items)
+    && (node.content.taskId ? node.content.taskId === graph.taskId || graph.taskScopes?.some(scope => scope.taskId === node.content.taskId)
+      : sessions.has(node.provenance.sessionId) && turns.has(node.provenance.turnId)))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).at(-1);
+  const root = graph.nodes.find(node => node.kind === 'goal');
+  if (!plan || !root) return graph;
+  const items = (plan.content.items as readonly unknown[]).filter(record).filter(item => item.status !== 'rejected' && typeof item.id === 'string' && typeof item.label === 'string').slice(0, 50);
+  if (!items.length) return graph;
+  const live = graph.status === 'running' || graph.status === 'waiting';
+  const approved = plan.content.decision === 'approved';
+  const steps: ExecutionGraphNodeReadModel[] = items.map((item, index) => {
+    const report = approved && typeof item.executionStatus === 'string' && ['pending', 'in_progress', 'completed', 'blocked'].includes(item.executionStatus) ? item.executionStatus : 'pending';
+    const status: ExecutionGraphProductNodeStatus = report === 'completed' ? 'completed' : report === 'blocked' ? 'outcome-unknown'
+      : report === 'in_progress' ? live ? graph.status === 'waiting' ? 'waiting' : 'running' : graph.status === 'cancelled' ? 'cancelled' : 'outcome-unknown' : 'pending';
+    const summary = safeText(item.executionSummary, approved ? '等待 Agent 上报此步骤的执行进度。' : '方案待确认。', 512);
+    return freeze({ ...root, id: `plan-step:${plan.id}:${item.id}`, kind: 'plan-step', status,
+      title: `第 ${index + 1}/${items.length} 步：${safeText(item.label, '计划步骤', 240)}`,
+      summary: !live && report === 'in_progress' ? `回合已结束，步骤结果待核实。${summary}` : summary,
+      sourceNodeId: plan.id, sourceOpIds: freeze([]), artifactRefs: freeze([]), turnId: plan.provenance.turnId, batchId: null,
+      startedAt: plan.createdAt, completedAt: null, durationMs: null, projectRevisionBefore: null, projectRevisionAfter: null,
+      detail: freeze({ toolId: null, toolVersion: null, executionClass: null, barrierKind: null, transactionId: null, usageRecordIds: freeze([]), costRecordIds: freeze([]), diagnostic: null, validation: null,
+        planStep: freeze({ index: index + 1, total: items.length, reportStatus: report }), actionSummary: safeText(item.details, String(item.label), 1024), resultSummary: typeof item.executionSummary === 'string' ? summary : null,
+        reason: report === 'blocked' ? summary : null }),
+    });
+  });
+  const activeSteps = steps.filter(step => step.detail.planStep?.reportStatus === 'in_progress');
+  const context = activeSteps.map(step => step.title).join('；').slice(0, 800);
+  const nodes = [...graph.nodes.map(node => node.kind === 'model' && node.status === 'running' && live && context
+    ? freeze({ ...node, title: `${context} · 模型处理中`, summary: `${activeSteps.map(step => step.summary).join('；')}\n${node.summary}`.slice(0, 2048) }) : node), ...steps];
+  const edges = [...graph.edges, ...steps.map(step => freeze({ id: `contains:${root.id}:${step.id}`, kind: 'contains' as const, from: root.id, to: step.id, sourceOpIds: freeze([]) }))];
+  const currentNodeIds = [...graph.currentNodeIds, ...steps.filter(step => live && ['running', 'waiting'].includes(step.status)).map(step => step.id)];
+  const { digest: _digest, ...original } = graph;
+  const semantic = { ...original, nodes: freeze(nodes), edges: freeze(edges), currentNodeIds: freeze(currentNodeIds) };
+  return freeze({ ...semantic, digest: sha256Digest(canonicalStringify(semantic as unknown as JsonValue)) });
+}
+
+export function executionProgressLabel(graph: ExecutionGraphReadModel): string {
+  const steps = graph.nodes.filter(node => node.kind === 'plan-step');
+  const completed = steps.filter(node => node.detail.planStep?.reportStatus === 'completed').length;
+  if (graph.status === 'completed') return `任务已完成${steps.length ? ` · 已上报 ${completed}/${steps.length} 步完成` : ''}`;
+  if (graph.status === 'failed' || graph.status === 'cancelled') return `${graph.status === 'failed' ? '任务执行失败' : '任务已停止'}${steps.length ? ` · 已完成 ${completed}/${steps.length} 步` : ''}`;
+  const active = steps.filter(node => node.detail.planStep?.reportStatus === 'in_progress');
+  if (active.length) return `${active.map(node => node.title).join('；')}${graph.status === 'waiting' ? ' · 等待确认' : ''} · 已完成 ${completed}/${steps.length}`;
+  const blocked = steps.filter(node => node.detail.planStep?.reportStatus === 'blocked');
+  if (blocked.length) return `${blocked.map(node => node.title).join('；')} · 等待解决阻塞`;
+  if (steps.length) return completed === steps.length ? `已完成 ${completed}/${steps.length} 步 · 等待最终验收结果`
+    : `${graph.status === 'waiting' ? '等待确认方案或授权' : '等待 Agent 更新执行步骤'} · 已完成 ${completed}/${steps.length} 步`;
+  const current = graph.nodes.filter(node => graph.currentNodeIds.includes(node.id) && !['goal', 'turn', 'model'].includes(node.kind));
+  return current.length ? current.map(node => node.title).join('；') : graph.status === 'waiting' ? '等待用户确认' : '正在规划实施步骤';
+}
+
 /** Present the actionable cause without relabeling an execution error as missing acceptance. */
 export function executionFailureReason(diagnostic: string | null, detail: string | null): string | null {
   if (diagnostic === 'texture.project-unsaved') return '当前项目尚未保存到项目目录，无法保存生成的 PNG 贴图。';
@@ -515,6 +570,8 @@ export function normalizeExecutionGraph(value: unknown): ExecutionGraphReadModel
   const nodeIds = new Set<M13StableId>();
   for (const node of value.nodes) {
     if (!record(node) || !stringValue(node.id) || nodeIds.has(node.id as string) || !stringValue(node.kind) || !stringValue(node.status) || !stringValue(node.title) || !Array.isArray(node.sourceOpIds) || !Array.isArray(node.artifactRefs) || !record(node.detail)) throw new TypeError('Execution Graph node is invalid.');
+    const step = node.detail.planStep;
+    if (step !== undefined && (!record(step) || !Number.isSafeInteger(step.index) || !Number.isSafeInteger(step.total) || Number(step.index) < 1 || Number(step.total) > 50 || Number(step.index) > Number(step.total) || !['pending', 'in_progress', 'completed', 'blocked'].includes(String(step.reportStatus)))) throw new TypeError('Execution Graph plan step is invalid.');
     for (const field of ['modelExplanation', 'actionSummary', 'resultSummary']) {
       const content = node.detail[field];
       if (content !== undefined && content !== null && (typeof content !== 'string' || content.length > 2048)) throw new TypeError('Execution Graph node content is invalid.');

@@ -1,0 +1,93 @@
+{
+  "scope": "Controlled scheduler wait fixture; synthetic tool bodies, no model or real game timing claim",
+  "waitsMs": {
+    "eachCreation": 90,
+    "docsSearch": 240
+  },
+  "trials": [
+    {
+      "maxConcurrency": 1,
+      "elapsedMs": 430,
+      "trace": [
+        {
+          "callId": "call:light",
+          "event": "start",
+          "ms": 5
+        },
+        {
+          "callId": "call:light",
+          "event": "end",
+          "ms": 95
+        },
+        {
+          "callId": "call:body",
+          "event": "start",
+          "ms": 95
+        },
+        {
+          "callId": "call:body",
+          "event": "end",
+          "ms": 186
+        },
+        {
+          "callId": "call:docs",
+          "event": "start",
+          "ms": 187
+        },
+        {
+          "callId": "call:docs",
+          "event": "end",
+          "ms": 428
+        }
+      ],
+      "maxConcurrencyObserved": 1,
+      "statuses": [
+        "completed",
+        "completed",
+        "completed"
+      ]
+    },
+    {
+      "maxConcurrency": 4,
+      "elapsedMs": 241,
+      "trace": [
+        {
+          "callId": "call:light",
+          "event": "start",
+          "ms": 0
+        },
+        {
+          "callId": "call:docs",
+          "event": "start",
+          "ms": 1
+        },
+        {
+          "callId": "call:light",
+          "event": "end",
+          "ms": 91
+        },
+        {
+          "callId": "call:body",
+          "event": "start",
+          "ms": 91
+        },
+        {
+          "callId": "call:body",
+          "event": "end",
+          "ms": 182
+        },
+        {
+          "callId": "call:docs",
+          "event": "end",
+          "ms": 241
+        }
+      ],
+      "maxConcurrencyObserved": 2,
+      "statuses": [
+        "completed",
+        "completed",
+        "completed"
+      ]
+    }
+  ]
+}

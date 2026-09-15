@@ -13,7 +13,7 @@ export function scopePlayInspection(observation: GamePlayObservation, args: Json
     const byId = new Map(state.entities.flatMap(item => isRecord(item) && typeof item.id === 'string' ? [[item.id, item] as const] : []));
     const ids = args.entityIds as readonly string[];
     value.state = { ...state, entities: ids.flatMap(id => byId.has(id) ? [byId.get(id)!] : []) };
-    value.selection = { entityIds: ids, missingEntityIds: ids.filter(id => !byId.has(id)), totalEntityCount: state.entities.length, transformSpace: 'parent-local', rotationUnit: 'radians' };
+    value.selection = { entityIds: ids, missingEntityIds: ids.filter(id => !byId.has(id)), totalEntityCount: state.entities.length, transformSpace: 'parent-local', worldMatrixSpace: 'world', worldMatrixLayout: 'column-major', rotationUnit: 'radians' };
   }
   if (args.includeGameplay === false) delete value.gameplay;
   value.inspectionScope = { entities: Array.isArray(args.entityIds) ? 'selected' : 'all', gameplayIncluded: args.includeGameplay !== false };

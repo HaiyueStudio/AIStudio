@@ -511,13 +511,25 @@ body[data-page="play"] #app { display: none; }
 .execution-graph-expandable > .execution-graph-region { height: 100%; }
 .execution-graph-expandable .execution-graph-toolbar { padding-right: 44px; }
 
-#play-agent-progress { position: absolute; z-index: 2; right: 16px; top: 120px; width: min(320px, calc(100% - 32px)); max-height: calc(100% - 150px); overflow: auto; padding: 14px; background: var(--studio-surface-elevated); border: 1px solid var(--studio-border); border-radius: 10px; box-shadow: 0 4px 20px #0005; font-size: 13px; }
+#play-agent-progress { position: absolute; z-index: 2; right: 16px; top: 16px; width: min(560px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; padding: 14px; background: var(--studio-surface-elevated); border: 1px solid var(--studio-border); border-radius: 10px; box-shadow: 0 4px 20px #0005; font-size: 13px; }
 #play-agent-progress[hidden] { display: none; }
 #play-agent-progress-current { margin-top: 8px; }
-#play-agent-progress ul, #play-agent-progress ol { padding-left: 20px; margin-bottom: 0; }
-#play-agent-progress li { margin-top: 6px; overflow-wrap: anywhere; }
-#play-agent-progress [data-status="failed"], #play-agent-progress [data-status="fail"] { color: #ffabb9; }
-#play-agent-progress [data-status="pass"] { color: #83dfae; }
+#play-agent-progress-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 12px; }
+#play-agent-progress-table th, #play-agent-progress-table td { padding: 9px 7px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--studio-border); overflow-wrap: anywhere; }
+#play-agent-progress-table thead th { color: var(--studio-text-secondary); font-weight: 600; }
+#play-agent-progress-table thead th:nth-child(1) { width: 30%; }
+#play-agent-progress-table thead th:nth-child(2) { width: 48%; }
+#play-agent-progress-table thead th:nth-child(3) { width: 22%; }
+#play-agent-progress-table tbody th { font-weight: 500; }
+#play-agent-progress-table small { display: block; margin-top: 5px; color: var(--studio-text-muted); }
+#play-agent-progress-table small[hidden] { display: none; }
+#play-agent-progress-table .preview-test-status { display: inline-block; white-space: nowrap; font-size: 12px; padding: 2px 5px; border-radius: 4px; background: #8a98b21a; color: #b9c4d8; }
+#play-agent-progress-table [data-status="fail"] { color: #ffabb9; background: #ed668422; }
+#play-agent-progress-table [data-status="pass"] { color: #83dfae; background: #55c98a22; }
+#play-agent-progress-table [data-status="running"] { color: #bcb2ff; background: #8d7dff22; }
+#play-agent-progress-table .preview-test-empty { text-align: center; color: var(--studio-text-muted); }
+@media (max-width: 480px) { #play-agent-progress { padding: 9px; } #play-agent-progress-table th, #play-agent-progress-table td { padding: 7px 3px; } }
+
 
 /* Awaiting evidence/reconciliation is attention, not an execution failure. */
 .task-status-awaiting-acceptance { box-shadow: inset 3px 0 #e1b952; }

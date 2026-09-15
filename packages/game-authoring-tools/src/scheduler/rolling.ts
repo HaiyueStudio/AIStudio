@@ -1,3 +1,4 @@
+import { requiresSerialOrder } from './classify.js';
 import type { ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
 import { ToolBatchProtocolError, type RollingToolBatchOptions, type RollingToolWorkResult, type ToolBatchDiagnostic } from './types.js';
 
@@ -84,9 +85,8 @@ export class RollingToolBatchScheduler<T> {
 
 function canDispatch<T>(entries: readonly RollingEntry<T>[], index: number): boolean {
   const node = entries[index]!.node;
-  if (node.executionClass !== 'parallel-read') return !entries.some((entry) => entry.state === 'running') && entries.slice(0, index).every((entry) => entry.state === 'done');
-  if (entries.some((entry) => entry.state === 'running' && entry.node.executionClass !== 'parallel-read')) return false;
-  return !entries.slice(0, index).some((entry) => entry.state !== 'done' && entry.node.executionClass !== 'parallel-read');
+  return !entries.some((entry, prior) => entry.state !== 'done'
+    && (entry.state === 'running' || prior < index) && requiresSerialOrder(entry.node, node));
 }
 function diagnostic(code: string, message: string, retryable: boolean): ToolBatchDiagnostic { return Object.freeze({ code, message, retryable }); }
 function errorDiagnostic(cause: unknown): ToolBatchDiagnostic { return diagnostic(cause instanceof ToolBatchProtocolError ? cause.code : 'tool-batch.cancelled', cause instanceof Error ? cause.message : String(cause), cause instanceof ToolBatchProtocolError && cause.retryable); }

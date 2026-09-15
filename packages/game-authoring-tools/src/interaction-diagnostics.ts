@@ -33,6 +33,7 @@ export function diagnoseGesture(steps: readonly JsonObject[], before: JsonObject
   const oldEntities = stateEntities(before), newEntities = stateEntities(after);
   const mismatches: string[] = [];
   if (expect) {
+    if (expect.rotation && effects.rotationMatched !== true) mismatches.push(...(effects.rotationMismatches as string[] ?? ["Rotation evidence unavailable."]));
     if (typeof expect.cameraChanged === 'boolean' && effects.cameraChanged !== expect.cameraChanged) mismatches.push(`cameraChanged: expected ${expect.cameraChanged}, observed ${effects.cameraChanged}`);
     if (typeof expect.minChangedEntities === 'number' && Number(effects.changedEntityCount) < expect.minChangedEntities) mismatches.push(`changedEntityCount: expected >= ${expect.minChangedEntities}, observed ${effects.changedEntityCount}`);
     for (const key of ['changedEntityIds', 'unchangedEntityIds', 'changedTransformEntityIds'] as const) for (const id of Array.isArray(expect[key]) ? expect[key] as string[] : []) {

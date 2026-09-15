@@ -144,3 +144,20 @@ test('a successful gesture with failed behavior retains compact diagnostics and 
  const f=fixture();f.host.active.toolFailures.clear();f.host.active.toolFailures.set('play.pointer-gesture',{...failure,toolId:'play.pointer-gesture',code:'interaction.diagnostic-required'});f.host.active.blockers=['play.pointer-gesture: interaction.diagnostic-required'];
  assert.equal(f.request(),true);assert.match(f.host.active.continuationInstruction,/hypothesis/);
 });
+
+test('the reported missing predicate reaches the model and schedules bounded correction before task failure',()=>{
+ const assertion='evidence state signal effects.unchangedEntityIds';
+ const input={title:'Cube',summary:'Turn a layer without changing other members',items:[{label:'Turn layer',details:'Verify members and nonmembers'}],assemblies:[],acceptance:[{label:'Other members stay unchanged',required:true,category:'functional',assertion}]};
+ let diagnostic;try{validatePlanProposal(input);}catch(error){diagnostic=error;}
+ assert.equal(diagnostic.code,'plan.payload-invalid');
+ const f=fixture();f.host.active.toolFailures.set(failure.toolId,{...failure,code:diagnostic.code,message:diagnostic.message});
+ for(const projection of ['summary','digest-only']){
+  const feedback=projectToolModelResult({status:'failed',error:{code:diagnostic.code,message:diagnostic.message}},projection);
+  assert.match(feedback.error.message,/Missing operator and expected value/);assert.match(feedback.error.message,/does not exist/);
+  assert.match(feedback.correction.instruction,/structured object/);
+ }
+ assert.equal(f.request(),true);assert.equal(f.host.taskRuns.get(f.run.taskId).status,'running');assert.match(f.host.active.continuationInstruction,/Missing operator/);
+ const corrected={...input,acceptance:[{...input.acceptance[0],assertion:{type:'state',signal:'state.entities.0.rotation',operator:'equals',expected:[0,0,0]}}]};
+ const result=validatePlanProposal(corrected);assert.equal(result.acceptance.length,1);assert.equal(result.acceptance[0].required,true);
+ assert.equal(result.acceptance[0].assertion,'evidence state signal state.entities.0.rotation equals [0,0,0]');
+});

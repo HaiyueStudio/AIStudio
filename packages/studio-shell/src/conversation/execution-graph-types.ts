@@ -11,7 +11,7 @@ import type {
 } from '@haiyue/ai-studio-contracts';
 
 /** Model rounds are a presentation grouping of durable tool/response boundaries. */
-export type ExecutionGraphProductNodeKind = ExecutionGraphNodeKindV1 | 'model' | 'unknown';
+export type ExecutionGraphProductNodeKind = ExecutionGraphNodeKindV1 | 'model' | 'plan-step' | 'unknown';
 export type ExecutionGraphProductNodeStatus = ExecutionGraphNodeStatusV1 | 'outcome-unknown';
 export type ExecutionGraphProductEdgeKind = ExecutionGraphEdgeKindV1 | 'contains' | 'parallel-with' | 'resumed-from';
 
@@ -64,6 +64,7 @@ export interface ExecutionGraphNodeReadModel {
     readonly reason?: string | null;
     readonly diagnostic: string | null;
     readonly validation: string | null;
+    readonly planStep?: Readonly<{ index: number; total: number; reportStatus: string }>;
     readonly modelExplanation?: string | null;
     readonly actionSummary?: string | null;
     readonly resultSummary?: string | null;

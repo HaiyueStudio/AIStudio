@@ -52,3 +52,13 @@
 `diagnostics.expectationMatched` 只是显式预期的逐项数据比较，不自动代表整项玩法或视觉验收通过。
 
 `effects.changedTransformEntityCount/Ids` 单独报告父局部 position/rotation/scale 的变化，排除仅材质变化和脚本自报指标。它只证明变换发生，旋转轴、角度和完整成员集合仍需按实际玩法检查。
+
+验收计划的 `acceptance[].assertion` 优先使用结构化比较，编辑器在批准前生成 DSL：
+
+```json
+{"type":"state","signal":"effects.cameraChanged","operator":"equals","expected":false}
+```
+
+`operator` 和 `expected` 都不可省略。`effects.unchangedEntityIds` 不存在：
+`unchangedEntityIds` 是手势工具 `expect` 输入。验收未移动对象应比较实际证据中对应对象的
+位置/旋转等值，保留预期对象和完整要求；不能用 JSON 修复器猜测缺失的判断条件。

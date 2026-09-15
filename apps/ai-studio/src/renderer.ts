@@ -1,3 +1,4 @@
+import { renderPreviewTestTable, type PreviewTestActivity } from './preview-test-progress.js';
 import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { mountQuerySettings } from './query-settings-ui.js';
 import {
@@ -523,7 +524,7 @@ class SandboxedPreviewFrame {
     element('play-device-screen').append(this.frame);
   }
 
-  async start(snapshot: SceneSnapshot, plan: ConsumedPreviewPlan): Promise<void> {
+  async start(snapshot: SceneSnapshot, plan: ConsumedPreviewPlan, initiallyPaused = false): Promise<void> {
     await withTimeout(this.ready.promise, 10_000, 'Preview realm did not become ready.');
     this.scriptSetDigest = plan.scriptSetDigest;
     this.documentRevision = plan.documentRevision;
@@ -537,7 +538,8 @@ class SandboxedPreviewFrame {
     this.runtimeAssets.push(...assets);
     const { assets: _assetManifest, ...runtimeScene } = snapshot;
     const { behavior, behaviorDiagnostic: _behaviorDiagnostic, ...approvedPlan } = plan;
-    this.post({ type: 'start', scene: runtimeScene, plan: approvedPlan, assets, ...(behavior ? { behavior: parseBehaviorRuntimePlan(behavior) } : {}) });
+    this.paused = initiallyPaused;
+    this.post({ type: 'start', paused: initiallyPaused, scene: runtimeScene, plan: approvedPlan, assets, ...(behavior ? { behavior: parseBehaviorRuntimePlan(behavior) } : {}) });
     await withTimeout(this.started.promise, 15_000, 'Preview realm did not start.');
   }
 
@@ -1269,7 +1271,7 @@ function renderProductLogViewer(model: LogViewerReadModel, viewer: LogViewerCont
   });
 }
 
-const previewTestActivities: Array<{ id: string; label: string; status: 'running' | 'completed' | 'failed'; tick?: number }> = [];
+const previewTestActivities: PreviewTestActivity[] = [];
 
 function renderPreviewTestProgress(): void {
   const panel = document.getElementById('play-agent-progress');
@@ -1279,19 +1281,7 @@ function renderPreviewTestProgress(): void {
   element('play-agent-progress-title').textContent = language === 'zh-CN' ? 'Agent 验收进度' : 'Agent acceptance progress';
   const active = [...previewTestActivities].reverse().find(item => item.status === 'running');
   element('play-agent-progress-current').textContent = active?.label ?? (language === 'zh-CN' ? '正在分析测试结果并准备下一步；画面暂停属于正常测试流程。' : 'Reviewing test results and preparing the next step; the simulation may be paused.');
-  const criteria = element('play-agent-progress-criteria');
-  criteria.replaceChildren(...(agentPreviewOwnership.task?.acceptance ?? []).map(item => {
-    const li = document.createElement('li'); li.dataset.status = item.status;
-    const labels: Record<string, string> = { pending: '待验证', pass: '通过', fail: '未通过', blocked: '受阻' };
-    li.textContent = `${language === 'zh-CN' ? labels[item.status] ?? item.status : item.status} · ${item.label}`;
-    return li;
-  }));
-  element('play-agent-progress-history').replaceChildren(...previewTestActivities.slice(-6).map(item => {
-    const li = document.createElement('li'); li.dataset.status = item.status;
-    const status = language === 'zh-CN' ? { running: '进行中', completed: '完成', failed: '失败' }[item.status] : item.status;
-    li.textContent = `${status} · ${item.label}${item.tick === undefined ? '' : ` · tick ${item.tick}`}`;
-    return li;
-  }));
+  renderPreviewTestTable(element<HTMLTableElement>('play-agent-progress-table'), agentPreviewOwnership.task?.acceptance ?? [], previewTestActivities, language === 'zh-CN' ? 'zh-CN' : 'en');
 }
 
 async function processAgentPreviewCommand(): Promise<void> {
@@ -1304,7 +1294,10 @@ async function processAgentPreviewCommand(): Promise<void> {
     ? { start: '启动测试预览', stop: '结束测试并退出', input: '模拟输入', step: '推进模拟', inspect: '检查运行状态', capture: '采集画面和状态', 'physics-query': '检查物理结果' }
     : { start: 'Start test preview', stop: 'Stop test preview', input: 'Simulate input', step: 'Advance simulation', inspect: 'Inspect runtime state', capture: 'Capture frame and state', 'physics-query': 'Inspect physics' };
   const detail = command.kind === 'input' ? ` ${String(command.event?.phase ?? command.event?.kind ?? '')} @ ${String(command.event?.tick ?? '')}` : command.kind === 'step' ? ` ${command.count} ticks` : '';
-  const activity: (typeof previewTestActivities)[number] = { id: command.id, label: labels[command.kind] + detail, status: 'running' };
+  const expectations = language === 'zh-CN'
+    ? { start: '按已批准方案启动预览', stop: '停止测试并返回编辑器', input: '向预览提交指定输入事件', step: `模拟推进 ${command.count ?? 0} ticks 并返回状态`, inspect: '返回当前对象与运行状态数据', capture: '返回当前画面和状态证据', 'physics-query': '返回指定物理查询结果' }
+    : { start: 'Start the approved preview', stop: 'Stop testing and return to the editor', input: 'Submit the specified input event to the preview', step: `Advance ${command.count ?? 0} ticks and return state`, inspect: 'Return current object and runtime state', capture: 'Return frame and state evidence', 'physics-query': 'Return the requested physics query results' };
+  const activity: PreviewTestActivity = { id: command.id, label: labels[command.kind] + detail, expected: expectations[command.kind], status: 'running' };
   previewTestActivities.push(activity); if (previewTestActivities.length > 12) previewTestActivities.shift();
   renderPreviewTestProgress();
   try {
@@ -1341,7 +1334,7 @@ async function processAgentPreviewCommand(): Promise<void> {
     await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: previewSnapshot() });
     activity.status = 'completed';
   } catch (cause) {
-    activity.status = 'failed'; activity.label += ` · ${errorMessage(cause).slice(0, 240)}`;
+    activity.status = 'failed'; activity.diagnostic = errorMessage(cause).slice(0, 240);
     await invoke('preview/agent-result', { commandId: command.id, ok: false, message: errorMessage(cause) });
   } finally { renderPreviewTestProgress(); }
 }
@@ -1935,7 +1928,7 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   previewFrame = frame;
   const previewScene = Object.freeze({ ...sourceScene, camera: sourceScene.camera ?? currentProjectCamera() });
   try {
-    await Promise.all([frame.start(previewScene, plan), authoringCleanup]);
+    await Promise.all([frame.start(previewScene, plan, agentPreviewOwnership.active), authoringCleanup]);
   }
   catch (cause) {
     await frame.dispose();
@@ -1948,9 +1941,9 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
   }
   playing = true;
   renderLogicPanel();
-  previewPaused = false;
+  previewPaused = agentPreviewOwnership.active;
   element('viewport-empty-state').hidden = true;
-  document.body.dataset.preview = 'playing';
+  document.body.dataset.preview = previewPaused ? 'paused' : 'playing';
   element('preview-disclosure').textContent = `Playing isolated trusted-project preview with ${plan.capabilities.join(', ')}.`;
   renderScriptPanel(sourceScene.entities.find((entity) => entity.id === primary.entityId) ?? null);
   updatePlayControls();

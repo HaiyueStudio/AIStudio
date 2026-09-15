@@ -215,13 +215,13 @@ export function unavailablePlayEvidenceSignal(assertion: string): string | null 
   const path = parsed.signal;
   if (parsed.type === 'state' && /^gesture\.(?:final\.)?effects(?:\.|$)/u.test(path)) return `${path} is a result wrapper, not an observation signal. Gesture effects are at effects.* on its final state artifact. Correct the plan before approval; an approved assertion must be reapproved, not silently rewritten or repaired through gameplay.`;
   const entity = /^state\.entities\.(?:0|[1-9][0-9]*)\.([^.]+)/u.exec(path);
-  if (parsed.type === 'state' && entity && !['id', 'position', 'rotation', 'scale', 'materialColor'].includes(entity[1]!)) {
+  if (parsed.type === 'state' && entity && !['id', 'parentId', 'worldMatrix', 'position', 'rotation', 'scale', 'materialColor'].includes(entity[1]!)) {
     return `${path} is not a runtime entity field. Use scene.get-many for authored geometry/material/pointer configuration; Play entities expose id, position, rotation, scale and materialColor. Preserve the requirement and choose a supported verification method before approval.`;
   }
   if (parsed.type === 'event-trace' && !/^(?:trace|physicsEvents|interactions)(?:\.|$)/u.test(path)) {
     return `${path} is not an event-trace field. Pointer events are under interactions.<index>.type/entityId; trace and physicsEvents are separate arrays. Inspect the returned event payload; do not invent events.`;
   }
-  if (parsed.type === 'state' && path.startsWith('effects.') && !/^effects\.(?:cameraChanged|materialColorChanged|changedEntityCount|changedEntityIds|changedEntityIdsTruncated|changedMaterialEntityCount|changedMaterialEntityIds|changedMaterialEntityIdsTruncated|changedTransformEntityCount|changedTransformEntityIds|changedTransformEntityIdsTruncated)(?:\.|$)/u.test(path)) {
+  if (parsed.type === 'state' && path.startsWith('effects.') && !/^effects\.(?:rotationMatched|intermediateMotion|rotationMismatches|rotationMismatchesTruncated|cameraChanged|materialColorChanged|changedEntityCount|changedEntityIds|changedEntityIdsTruncated|changedMaterialEntityCount|changedMaterialEntityIds|changedMaterialEntityIdsTruncated|changedTransformEntityCount|changedTransformEntityIds|changedTransformEntityIdsTruncated)(?:\.|$)/u.test(path)) {
     return `${path} is not a gesture effect. Use play.pointer-gesture state evidence: effects.cameraChanged, materialColorChanged, changedEntityCount/Ids or changedMaterialEntityCount/Ids, changedTransformEntityCount/Ids. These fields exist only on the gesture's final state artifact, not plain play.inspect.`;
   }
   return null;

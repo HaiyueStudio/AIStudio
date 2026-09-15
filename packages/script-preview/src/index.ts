@@ -285,7 +285,32 @@ interface HaiyueStudioOrbitOptions {
   readonly minRadius?: number;
   readonly maxRadius?: number;
 }
+interface HaiyueStudioTransformSnapshot { readonly ids: readonly string[]; readonly worldMatrices: readonly (readonly number[])[]; }
+interface HaiyueStudioTransformApi {
+  /** Entity-local point -> world point. */
+  worldPoint(id:string, point:readonly [number,number,number]): readonly [number,number,number];
+  /** World point -> entity-local point. */
+  localPoint(id:string, point:readonly [number,number,number]): readonly [number,number,number];
+  /** World point -> canvas normalized [x,y], origin top-left; uses the active camera. */
+  projectPoint(point:readonly [number,number,number]): readonly [number,number];
+  /** Signed radians from normalized drag and a WORLD axis/pivot, respecting the active camera.
+   * Use the down hit point and accumulated drag. null means the projected tangent is degenerate.
+   * Choose among candidate axes by projected tangent alignment; never map dx/dy to fixed world axes. */
+  dragAngle(point:readonly [number,number,number], pivot:readonly [number,number,number], axis:readonly [number,number,number], delta:readonly [number,number]): number | null;
+  /** Choose from 1-3 permitted WORLD axes by projected screen-tangent alignment.
+   * Lock the returned axis after the drag threshold; use dragAngle for subsequent ticks.
+   * Returns null for tiny drags or degenerate candidates. Units: signed radians. */
+  dragAxis(point:readonly [number,number,number], pivot:readonly [number,number,number], axes:readonly (readonly [number,number,number])[], delta:readonly [number,number]): {axis:readonly [number,number,number];angle:number} | null;
+  /** Freeze exact motion-root membership and world transforms at drag start; keep in component.data.
+   * No root/descendant duplicates. Re-capture after each completed operation. */
+  capture(ids:readonly string[]): HaiyueStudioTransformSnapshot;
+  /** Apply absolute radians relative to capture, using matrix composition for position AND orientation.
+   * Use the same snapshot/pivot/axis for preview and release, angle=0 for cancel. Do not accumulate Euler angles.
+   * World pivot/axis, parent-local writes. Repeat calls with the same angle are idempotent. */
+  rotate(snapshot:HaiyueStudioTransformSnapshot, pivot:readonly [number,number,number], axis:readonly [number,number,number], radians:number): void;
+}
 interface HaiyueScriptSceneApi {
+  readonly transforms: HaiyueStudioTransformApi;
   /** Set actual Play Mesh3D color (sRGB RGBA 0..1), preserving textures/PBR settings.
    * target is entity or a stable project id. Isolates shared materials; does not modify Document.
    * Supports Basic/PBR/Blinn-Phong; instanced meshes use instances.set instead.

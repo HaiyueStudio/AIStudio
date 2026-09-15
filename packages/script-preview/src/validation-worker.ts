@@ -210,6 +210,16 @@ function runtimeContractDiagnostics(text: string, sourcePath: string, sceneEntit
     ts.forEachChild(node, visit);
   };
   visit(source);
+  // Detect actual call expressions, never words in comments/strings. Camera orbit
+  // and object interaction mutations have different owners and lifecycles.
+  const calls:string[]=[];
+  const collect=(node:ts.Node):void=>{if(ts.isCallExpression(node))calls.push(node.expression.getText(source).replace(/\s+/gu,''));ts.forEachChild(node,collect);};
+  collect(source);
+  const orbit=calls.includes('api.scene.orbitControls');
+  const objectInput=calls.some(c=>['api.input.interactions','api.input.selfInteractions'].includes(c));
+  const objectWrites=calls.some(c=>c==='api.scene.setMaterialColor'||c==='api.scene.transforms.rotate'||/\.(?:setPosition|setRotation|setMatrix|setTranslation)$/u.test(c));
+  if(orbit&&objectInput&&objectWrites)diagnostics.push({code:'script.responsibility-mixed',severity:'error',path:sourcePath,line:1,column:1,
+    message:'Split independent camera and object behavior into separate script resources. Keep api.scene.orbitControls in a camera-owned script; put object input and object mutation in an object/motion-controller script. Preserve both behaviors. A separate controller entity may own a multi-object operation; do not attach one script per decorative mesh. Static transforms and pointer penetrable configuration belong to Document properties.'});
   return diagnostics;
 }
 

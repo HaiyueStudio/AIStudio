@@ -1,4 +1,4 @@
-export { classifyToolConcurrency, classificationMatches } from './classify.js';
+export { classifyToolConcurrency, classificationMatches, isProjectIndependentRead } from './classify.js';
 export type { ToolConcurrencyClassification } from './classify.js';
 export { normalizeToolBatchRequest, validateToolBatchRequest } from './normalize.js';
 export type { LegacyToolRequest, NormalizeToolBatchInput } from './normalize.js';

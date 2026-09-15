@@ -314,10 +314,12 @@ function normalizeQuestion(value: Record<string, unknown>): JsonObject {
 function normalizePlan(value: Record<string, unknown>): JsonObject {
   const items = Array.isArray(value.items) ? value.items.slice(0, 50).flatMap((item) => {
     if (!isRecord(item)) return [];
-    try { return [Object.freeze({ id: stable(item.id, 'plan item id'), label: text(item.label, 240) ?? 'Plan item', ...(typeof item.details === 'string' ? { details: safeText(item.details, 1_024) } : {}), status: enumValue(item.status, ['pending', 'accepted', 'rejected', 'completed']) ?? 'pending' })]; }
+    try { return [Object.freeze({ id: stable(item.id, 'plan item id'), label: text(item.label, 240) ?? 'Plan item', ...(typeof item.details === 'string' ? { details: safeText(item.details, 1_024) } : {}), status: enumValue(item.status, ['pending', 'accepted', 'rejected', 'completed']) ?? 'pending', ...(enumValue(item.executionStatus, ['pending', 'in_progress', 'completed', 'blocked']) ? { executionStatus: item.executionStatus as string } : {}), ...(typeof item.executionSummary === 'string' ? { executionSummary: safeText(item.executionSummary, 512) } : {}) })]; }
     catch { return []; }
   }) : [];
   return compact({
+    taskId: stableOptional(value.taskId),
+    progressUpdatedAt: text(value.progressUpdatedAt, 40),
     title: text(value.title, 240) ?? 'Proposed plan',
     summary: text(value.summary, 2_048),
     ...(value.assemblies === undefined ? {} : { assemblies: normalizePlanAssemblies(value.assemblies) }),

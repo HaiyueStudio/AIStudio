@@ -1,3 +1,5 @@
+import { createPlayTransforms, playWorldMatrix } from './play-transforms.js';
+import { inverse, multiply } from '@haiyue/ai-studio-script-preview/transforms';
 import { InteractionTrace } from './interaction-trace.js';
 import { readPlayMaterialColor, setPlayMaterialColor } from './play-material-color.js';
 import { PlayOrbitControls, type PlayOrbitOptions } from './play-orbit-controls.js';
@@ -443,6 +445,7 @@ function drawCapturedHudText(context: CanvasRenderingContext2D, text: string, po
 }
 
 function readSimulationState(): SimulationStateValue {
+  const worldMatrices = new Map<number, Float32Array>();
   const camera = scene?.activeCameraEntity;
   const spherical = camera?.getComponent(SphericalTransform3D);
   const cartesian = camera?.getComponent(CartesianTransform3D);
@@ -455,7 +458,7 @@ function readSimulationState(): SimulationStateValue {
     tick: simulation?.clock.tick ?? 0,
     entities: Object.freeze([...entitiesByStableId].sort((left, right) => left[0].localeCompare(right[0])).map(([id, entity]) => {
       const transform = entity.getComponent(CartesianTransform3D);
-      return Object.freeze({ id, materialColor: readPlayMaterialColor(entity), position: transform ? Object.freeze([...transform.position]) : null, rotation: transform ? Object.freeze([...transform.rotation]) : null, scale: transform ? Object.freeze([...transform.scale]) : null });
+      return Object.freeze({ id, parentId: entity.parent ? stableIdByEntityId.get(entity.parent.id) ?? null : null, worldMatrix: Object.freeze(Array.from(playWorldMatrix(entity, worldMatrices))), materialColor: readPlayMaterialColor(entity), position: transform ? Object.freeze([...transform.position]) : null, rotation: transform ? Object.freeze([...transform.rotation]) : null, scale: transform ? Object.freeze([...transform.scale]) : null });
     })),
     physics: physicsRuntime?.state() ?? null,
     renderEffects: (renderEffectsRuntime?.manifest() ?? null) as unknown as SimulationStateValue,
@@ -942,6 +945,10 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
         if (!resolved || ![...entitiesByStableId.values()].includes(resolved)) throw new Error('Material target must belong to the active Play scene.');
         setPlayMaterialColor(resolved, color, entitiesByStableId.values());
       },
+      transforms: createPlayTransforms(
+        (id) => { const target = entitiesByStableId.get(id); if (!target) throw new Error('Transform target does not belong to the active Play scene.'); return target; },
+        () => { const camera = scene?.activeCameraEntity; const projection = camera?.getComponent(Camera3D); if (!camera || !projection) throw new Error('A 3D camera is required.'); return multiply(projection.projectionMatrix, inverse(playWorldMatrix(camera))); },
+        () => { const canvas = document.querySelector<HTMLCanvasElement>('#preview-canvas'); return canvas ? canvasAspect(canvas) : 1; }),
       orbitControls(options: PlayOrbitOptions = {}): void {
         if (!capabilities.includes('input')) throw new Error('orbitControls requires input and scene capabilities.');
         if (!scene || !activeInput) return;

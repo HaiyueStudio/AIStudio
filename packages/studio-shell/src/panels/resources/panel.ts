@@ -3,6 +3,17 @@ import { DEFAULT_RESOURCE_QUERY, EMPTY_RESOURCE_PANEL, RESOURCE_ACTION_LABELS, R
 
 export type ResourceThumbnailRenderer = (canvas: HTMLCanvasElement, item: ResourcePanelItem, signal: AbortSignal) => void | Promise<void>;
 
+interface ResourceRow {
+  readonly element: HTMLLIElement;
+  readonly button: HTMLButtonElement;
+  readonly canvas: HTMLCanvasElement;
+  readonly label: HTMLElement;
+  readonly usage: HTMLElement;
+  readonly lifetime: AbortController;
+  thumbnail: AbortController;
+  thumbnailKey: string;
+}
+
 /** No tools or filesystem: bounded projections in, typed intents out. */
 export class ResourceExplorerPanel {
   readonly root: HTMLElement;
@@ -17,6 +28,8 @@ export class ResourceExplorerPanel {
   private assignmentUsage: string | null = null;
   private readonly lifetime = new AbortController();
   private renderScope = new AbortController();
+  private detailKey = '';
+  private readonly rows = new Map<string, ResourceRow>();
   constructor(private readonly document: Document, parent: HTMLElement, private readonly dispatch: (intent: ResourcePanelIntent) => void | Promise<void>, private readonly thumbnail?: ResourceThumbnailRenderer) {
     this.root = document.createElement('section'); this.root.className = 'resource-explorer'; this.root.setAttribute('aria-label', '项目资源');
     // Fixed product markup; all project data uses textContent or option.value.
@@ -58,11 +71,16 @@ export class ResourceExplorerPanel {
     if (this.closed) return;
     if (data.items.length > 100 || data.categories.length > 128 || data.items.some(item => item.locations.length > 1000 || item.metadata.length > 32)) throw Error('Resource panel projection exceeds display budget.');
     if (data.projectKey !== this.data.projectKey) {
-      this.generation++; this.busy = false; this.selected = null; this.usageOffset = 0; this.assignmentUsage = null; this.message = '';
+      this.clearRows(); this.generation++; this.busy = false; this.querying = false; this.selected = null; this.usageOffset = 0; this.assignmentUsage = null; this.message = '';
       this.get<HTMLInputElement>('search').value = ''; this.get<HTMLInputElement>('unused').checked = false;
       for (const key of ['kind', 'availability']) this.get<HTMLSelectElement>(key).value = '';
       this.get<HTMLSelectElement>('category').value = DEFAULT_RESOURCE_QUERY.category!;
       this.get<HTMLDetailsElement>('more').open = false;
+    }
+    // Loading is a state transition, not an empty query result. Only settled
+    // results (or a project switch above) may remove existing resource cards.
+    if (data.projectKey === this.data.projectKey && data.state === 'loading') {
+      data = { ...data, items: this.data.items, total: this.data.total, nextCursor: null, viewToken: null };
     }
     this.data = data;
     const category = this.get<HTMLSelectElement>('category').value;
@@ -73,10 +91,12 @@ export class ResourceExplorerPanel {
     if (!data.items.some(item => item.entry.catalogEntryId === this.selected)) { this.selected = null; this.usageOffset = 0; }
     this.render();
   }
-  dispose(): void { if (this.closed) return; this.closed = true; this.generation++; this.lifetime.abort(); this.renderScope.abort(); this.root.remove(); }
+  dispose(): void { if (this.closed) return; this.closed = true; this.generation++; this.lifetime.abort(); this.renderScope.abort(); this.clearRows(); this.root.remove(); }
   private get<T extends HTMLElement = HTMLElement>(key: string): T { return this.root.querySelector<T>(`[data-resource="${key}"]`)!; }
   private options(key: string, rows: readonly (readonly [string, string])[]): void {
-    this.get(key).replaceChildren(...rows.map(([value, label]) => { const option = this.document.createElement('option'); option.value = value; option.textContent = label; return option; }));
+    const select = this.get<HTMLSelectElement>(key);
+    if (JSON.stringify([...select.options].map(option => [option.value, option.textContent])) === JSON.stringify(rows)) return;
+    select.replaceChildren(...rows.map(([value, label]) => { const option = this.document.createElement('option'); option.value = value; option.textContent = label; return option; }));
   }
   private syncCategory(): void {
     const category = this.get<HTMLSelectElement>('category').value, tabs = this.get<HYTabs>('tabs');
@@ -101,35 +121,38 @@ export class ResourceExplorerPanel {
     const generation = ++this.generation;
     this.querying = intent.type === 'query' || intent.type === 'refresh';
     if (intent.type === 'query' || intent.type === 'refresh') {
-      this.data = { ...this.data, state: 'loading', items: [], total: 0, nextCursor: null, viewToken: null, diagnostics: [] };
-      this.selected = null; this.render();
+      this.data = { ...this.data, state: 'loading', nextCursor: null, viewToken: null, diagnostics: [] };
+      this.render();
     }
     this.busy = intent.type !== 'cancel'; this.message = intent.type === 'cancel' ? '操作已取消。' : ''; this.controls();
     Promise.resolve().then(() => { if (!this.closed && generation === this.generation) return this.dispatch(intent); }).catch(() => {
       if (!this.closed && generation === this.generation) { this.message = '操作未完成，请检查资源状态或刷新后重试。'; if (this.data.state === 'loading') { this.data = { ...this.data, state: 'error' }; this.render(); } }
-    }).finally(() => { if (!this.closed && generation === this.generation) { this.busy = false; this.querying = false; if (intent.type === 'cancel' && this.data.state === 'loading') { this.data = { ...this.data, state: 'empty' }; this.render(); } this.controls(); } });
+    }).finally(() => { if (!this.closed && generation === this.generation) { this.busy = false; this.querying = false; if (intent.type === 'cancel' && this.data.state === 'loading') { this.data = { ...this.data, state: this.data.items.length ? 'ready' : 'empty' }; this.render(); } this.controls(); } });
   }
   private render(): void {
     const active = this.document.activeElement as HTMLElement | null, focused = active?.dataset.resourceEntry, detailFocus = active?.dataset.resourceFocus;
-    this.renderScope.abort(); this.renderScope = new AbortController();
-    const list = this.get('list'); list.replaceChildren();
-    for (const item of this.data.items) {
-      const entry = item.entry, li = this.document.createElement('li'), button = this.document.createElement('button'); button.type = 'button'; button.dataset.resourceEntry = entry.catalogEntryId;
-      button.setAttribute('aria-pressed', String(entry.catalogEntryId === this.selected));
-      const canvas = this.document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.className = 'resource-thumbnail'; canvas.setAttribute('aria-hidden', 'true');
-      const label = entry.kind === 'asset' ? entry.label.split('/').at(-1) || entry.label : entry.label;
-      button.title = entry.label; button.setAttribute('aria-label', label);
-      button.append(canvas, this.node('strong', label));
-      if (entry.kind === 'instance' && item.locations.length) button.append(this.node('small', `${item.locations.length}${entry.usage.status === 'unknown' ? '+' : ''} 处使用`));
-      const context = canvas.getContext('2d');
-      if (context) { context.fillStyle = '#9cafce'; context.font = '32px system-ui'; context.textAlign = 'center'; context.fillText(entry.category === 'Script' ? '{ }' : '◇', 64, 76); }
-      const signal = this.renderScope.signal;
-      if (this.thumbnail) void Promise.resolve().then(() => { if (!signal.aborted) return this.thumbnail!(canvas, item, signal); }).catch(() => { if (!signal.aborted) canvas.title = '缩略图暂不可用'; });
-      button.addEventListener('click', () => { if (this.selected !== entry.catalogEntryId) this.assignmentUsage = null; this.selected = entry.catalogEntryId; this.usageOffset = 0; this.render(); }, { signal: this.renderScope.signal });
-      li.append(button); list.append(li);
+    const list = this.get('list');
+    const ids = new Set(this.data.items.map(item => item.entry.catalogEntryId));
+    for (const [id, row] of this.rows) if (!ids.has(id)) {
+      row.lifetime.abort(); row.thumbnail.abort(); row.element.remove(); this.rows.delete(id);
     }
-    if (!this.data.items.length) list.append(this.node('li', this.data.state === 'loading' ? '正在加载当前分类…' : this.data.state === 'error' ? '暂时无法读取资源列表，请刷新重试。' : this.data.projectKey ? '当前分类还没有项目资源。创建或导入后会显示在这里。' : '打开项目后查看对应资源。', 'resource-empty'));
-    this.get('count').textContent = `共 ${this.data.total} 条 · 本页 ${this.data.items.length} 条`;
+    if (this.data.items.length) list.querySelector('.resource-empty')?.remove();
+    let position = list.firstElementChild;
+    for (const item of this.data.items) {
+      const id = item.entry.catalogEntryId;
+      let row = this.rows.get(id);
+      if (!row) { row = this.createRow(id); this.rows.set(id, row); }
+      this.updateRow(row, item);
+      // Leave unchanged nodes attached, including their focus, pixels and scroll.
+      if (row.element !== position) list.insertBefore(row.element, position);
+      position = row.element.nextElementSibling;
+    }
+    if (!this.data.items.length) {
+      let empty = list.querySelector<HTMLElement>('.resource-empty');
+      if (!empty) { empty = this.node('li', '', 'resource-empty'); list.append(empty); }
+      this.setText(empty, this.data.state === 'loading' ? '正在加载当前分类…' : this.data.state === 'error' ? '暂时无法读取资源列表，请刷新重试。' : this.data.projectKey ? '当前分类还没有项目资源。创建或导入后会显示在这里。' : '打开项目后查看对应资源。');
+    }
+    this.setText(this.get('count'), `共 ${this.data.total} 条 · 本页 ${this.data.items.length} 条`);
     this.renderDetail(); this.controls();
     if (focused) [...list.querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.resourceEntry === focused)?.focus({ preventScroll: true });
     else if (detailFocus) {
@@ -137,13 +160,71 @@ export class ResourceExplorerPanel {
       (next && !next.disabled ? next : this.get('detail')).focus({ preventScroll: true });
     }
   }
+  private clearRows(): void {
+    for (const row of this.rows.values()) { row.lifetime.abort(); row.thumbnail.abort(); row.element.remove(); }
+    this.rows.clear(); this.detailKey = '';
+  }
+  private createRow(id: string): ResourceRow {
+    const element = this.document.createElement('li'), button = this.document.createElement('button');
+    button.type = 'button'; button.dataset.resourceEntry = id;
+    const canvas = this.document.createElement('canvas'); canvas.width = canvas.height = 128;
+    canvas.className = 'resource-thumbnail'; canvas.setAttribute('aria-hidden', 'true');
+    const label = this.node('strong', ''), usage = this.node('small', ''), lifetime = new AbortController();
+    button.append(canvas, label); element.append(button);
+    button.addEventListener('click', () => {
+      if (this.selected !== id) this.assignmentUsage = null;
+      this.selected = id; this.usageOffset = 0; this.render();
+    }, { signal: lifetime.signal });
+    return { element, button, canvas, label, usage, lifetime, thumbnail: new AbortController(), thumbnailKey: '' };
+  }
+  private updateRow(row: ResourceRow, item: ResourcePanelItem): void {
+    const entry = item.entry, label = entry.kind === 'asset' ? entry.label.split('/').at(-1) || entry.label : entry.label;
+    const pressed = String(entry.catalogEntryId === this.selected);
+    if (row.button.getAttribute('aria-pressed') !== pressed) row.button.setAttribute('aria-pressed', pressed);
+    if (row.button.title !== entry.label) row.button.title = entry.label;
+    if (row.button.getAttribute('aria-label') !== label) row.button.setAttribute('aria-label', label);
+    this.setText(row.label, label);
+    const showUsage = entry.kind === 'instance' && item.locations.length > 0;
+    if (showUsage && !row.usage.parentNode) row.button.append(row.usage);
+    else if (!showUsage) row.usage.remove();
+    this.setText(row.usage, !showUsage ? '' : `${item.locations.length}${entry.usage.status === 'unknown' ? '+' : ''} 处使用`);
+    // Document revisions bind actions, but do not change thumbnail appearance.
+    const visualRef = entry.ref.kind === 'instance' ? { ...entry.ref, documentRevision: undefined } : entry.ref;
+    const key = JSON.stringify([entry.category, visualRef, item.configuration, item.health, item.metadata]);
+    if (row.thumbnailKey === key) return;
+    row.thumbnail.abort(); row.thumbnail = new AbortController();
+    const signal = row.thumbnail.signal, initial = !row.thumbnailKey;
+    row.thumbnailKey = key;
+    if (initial) {
+      const context = row.canvas.getContext('2d');
+      if (context) { context.fillStyle = '#9cafce'; context.font = '32px system-ui'; context.textAlign = 'center'; context.fillText(entry.category === 'Script' ? '{ }' : '◇', 64, 76); }
+    }
+    if (!this.thumbnail) return;
+    // Render offscreen, then replace pixels atomically. An outdated async render
+    // can never erase or overwrite a newer thumbnail, even if it ignores abort.
+    const staging = this.document.createElement('canvas'); staging.width = staging.height = 128;
+    staging.getContext('2d')?.drawImage(row.canvas, 0, 0);
+    void Promise.resolve().then(async () => {
+      if (signal.aborted) return;
+      await this.thumbnail!(staging, item, signal);
+      if (signal.aborted) return;
+      const context = row.canvas.getContext('2d');
+      context?.clearRect(0, 0, 128, 128); context?.drawImage(staging, 0, 0);
+      row.canvas.title = staging.title;
+      if (staging.dataset.thumbnailReady) row.canvas.dataset.thumbnailReady = staging.dataset.thumbnailReady;
+    }).catch(() => { if (!signal.aborted) { row.canvas.title = '缩略图暂不可用'; row.thumbnailKey = ''; } });
+  }
+  private setText(node: HTMLElement, text: string): void { if (node.textContent !== text) node.textContent = text; }
   private renderDetail(): void {
     const detail = this.get('detail'), item = this.data.items.find(row => row.entry.catalogEntryId === this.selected);
+    const key = JSON.stringify([item ?? null, this.data.target, this.usageOffset]);
+    if (key === this.detailKey) return;
+    this.detailKey = key; this.renderScope.abort(); this.renderScope = new AbortController();
     detail.hidden = !item; this.root.classList.toggle('has-resource-selection', Boolean(item));
     detail.replaceChildren();
     if (!item) { detail.append(this.node('h3', '选择资源查看详情'), this.node('p', '文件资产、模板、预设和实例分别保留原有身份与操作。')); return; }
     const entry = item.entry;
-    detail.append(this.button('关闭详情', () => { this.selected = null; this.render(); [...this.get('list').querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.resourceEntry === entry.catalogEntryId)?.focus(); }), this.node('h3', entry.label), this.node('p', resourceUsageLabel(entry)));
+    detail.append(this.button('关闭详情', () => { this.selected = null; this.render(); [...this.get('list').querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.resourceEntry === entry.catalogEntryId)?.focus(); }, true), this.node('h3', entry.label), this.node('p', resourceUsageLabel(entry)));
     const sourceLabels: Record<string, string> = { 'controlled-manifest': '项目受控资产清单', registry: '组件注册表', 'project-record': '项目记录', document: '项目文档', unsupported: '尚无持久化支持' };
     const healthLabels: Record<string, string> = { registered: '已登记，文件尚未检查', verified: '已核验', missing: '文件缺失或不可读', invalid: '资源校验失败', unavailable: '尚不可用' };
     detail.append(this.node('p', `来源：${sourceLabels[entry.source] ?? '未知来源'} · ${healthLabels[item.health] ?? '未知状态'}`));
@@ -185,28 +266,29 @@ export class ResourceExplorerPanel {
     }
     if (item.locations.length > 20) {
       detail.append(this.node('p', `使用位置 ${this.usageOffset + 1}–${Math.min(item.locations.length, this.usageOffset + 20)} / ${item.locations.length}`));
-      if (this.usageOffset) detail.append(this.button('上一组使用位置', () => { this.usageOffset -= 20; this.render(); this.get('detail').focus(); }));
-      if (this.usageOffset + 20 < item.locations.length) detail.append(this.button('下一组使用位置', () => { this.usageOffset += 20; this.render(); this.get('detail').focus(); }));
+      if (this.usageOffset) detail.append(this.button('上一组使用位置', () => { this.usageOffset -= 20; this.render(); this.get('detail').focus(); }, true));
+      if (this.usageOffset + 20 < item.locations.length) detail.append(this.button('下一组使用位置', () => { this.usageOffset += 20; this.render(); this.get('detail').focus(); }, true));
     }
   }
   private controls(): void {
     const loading = this.busy || this.data.state === 'loading';
     this.root.setAttribute('aria-busy', String(loading));
-    this.get('status').textContent = this.message || (loading ? '正在处理资源…' : this.data.state === 'error' ? '资源读取失败，请刷新重试。' : this.data.projectKey ? '' : '尚未打开项目。');
+    this.get('status').textContent = this.message || (this.data.state === 'error' ? '资源读取失败，请刷新重试。' : this.data.projectKey ? '' : '尚未打开项目。');
     this.get('status').hidden = !this.get('status').textContent;
     this.get('cancel').hidden = !loading;
     this.get('pagination').hidden = !this.data.nextCursor && this.data.total <= this.data.items.length;
     this.get('error').textContent = this.data.diagnostics.join('\n'); this.get('error').hidden = !this.data.diagnostics.length;
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('button')) {
       const key = button.dataset.resource;
-      button.disabled = key === 'cancel' ? !loading : loading || button.dataset.unavailable === 'true' || (!this.data.viewToken && ['import', 'next'].includes(key ?? '')) || key === 'next' && !this.data.nextCursor;
+      const browse = Boolean(button.dataset.resourceEntry) || button.dataset.resourceBrowse === 'true';
+      button.disabled = browse ? false : key === 'cancel' ? !loading : loading || Boolean(button.dataset.resourceAction && !this.data.viewToken) || button.dataset.unavailable === 'true' || (!this.data.viewToken && ['import', 'next'].includes(key ?? '')) || key === 'next' && !this.data.nextCursor;
     }
     for (const control of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input,select')) control.disabled = loading;
   }
   private node<K extends keyof HTMLElementTagNameMap>(tag: K, text: string, className?: string): HTMLElementTagNameMap[K] {
     const node = this.document.createElement(tag); node.textContent = text; if (className) node.className = className; return node;
   }
-  private button(label: string, run: () => void): HTMLButtonElement { const button = this.node('button', label); button.type = 'button'; button.dataset.resourceFocus = label; button.addEventListener('click', run, { signal: this.renderScope.signal }); return button; }
+  private button(label: string, run: () => void, browse = false): HTMLButtonElement { const button = this.node('button', label); button.type = 'button'; button.dataset.resourceFocus = label; if (browse) button.dataset.resourceBrowse = 'true'; button.addEventListener('click', run, { signal: this.renderScope.signal }); return button; }
 }
 function assignmentLabel(value: string): string {
   return ({ 'texture.environment-diffuse': '环境漫反射', 'texture.environment-specular': '环境镜面反射', 'texture.base-color': '基础颜色', 'texture.metallic-roughness': '金属度 / 粗糙度', 'texture.normal': '法线', 'texture.occlusion': '环境遮蔽', 'texture.emissive': '自发光', model: '模型', audio: '音频', animation: '动画' } as Record<string, string>)[value] ?? value;

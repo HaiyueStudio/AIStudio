@@ -26,6 +26,7 @@ test('G09 real Electron renders an accessible replayed graph and bounded large-g
 
 function appSource(shellEntry) { return `
 import { ConversationProjector, layoutExecutionGraph, presentChatPanel, projectExecutionGraph, groupExecutionGraphsByTask, renderChatPanel } from ${JSON.stringify(shellEntry.replaceAll('\\', '/'))};
+import { verifyChatReading } from ${JSON.stringify(new URL('./fixtures/chat-reading-browser.mjs', import.meta.url).pathname)};
 import { defineBorderBeamComponents, HYBorderBeam } from '@haiyue/ui/border-beam';
 import { defineTabsComponents } from '@haiyue/ui/tabs';
 defineTabsComponents();
@@ -151,6 +152,21 @@ window.runLiveFrontierCheck=async()=>{
   if(!failedGoal.classList.contains('status-failed')||getComputedStyle(failedGoal).backgroundColor!=='rgb(82, 38, 48)'||!root.querySelector('.execution-node-detail').textContent.includes('当前项目尚未保存到项目目录'))throw new Error('PNG failure lost its concrete reason or failure style');
   show([graph,shortGraph,nextGraph]);return true;
 };
+window.runPlanProgressCheck=async()=>{
+  const settle=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  const progressGraph=projectExecutionGraph({sessionId,status:'running',activeGoal:'用户原始要求不要重复展示',ops:[makeOp(0,'session.created',{turnId:null}),makeOp(1,'turn.started',{payload:{taskId:'task:plan-progress'}})]});
+  let record={schemaVersion:1,id:'plan:ui-progress',kind:'plan',status:'completed',createdAt:'2026-09-02T00:00:01.000Z',provenance:{backendId,sessionId,turnId},content:{taskId:'task:plan-progress',title:'构建三阶魔方',decision:'approved',items:['场景与光源','圆角方块与颜色','拖拽交互','规则验收','外观验收'].map((label,index)=>({id:'plan-step:'+index,label,status:'accepted',executionStatus:index<2?'completed':index===2?'in_progress':'pending',executionSummary:index<2?'步骤已完成':index===2?'根据拾取结果旋转对应行或列':'等待执行'}))}};
+  const render=()=>renderChatPanel(root,withPending(presentChatPanel(projector.reset({...snapshot,executionGraphs:[progressGraph],events:[{schemaVersion:1,sequence:1,source:'live',node:record}]}))),intent=>intents.push(intent));
+  render();await settle();
+  if(!root.querySelector('.execution-header').textContent.includes('第 3/5 步：拖拽交互')||root.querySelectorAll('.kind-plan-step').length!==5)throw new Error('Plan header or step nodes missing');
+  const selected=[...root.querySelectorAll('.kind-plan-step')][2];selected.click();await settle();
+  if(!root.querySelector('.execution-node-detail').textContent.includes('根据拾取结果'))throw new Error('Step detail lost reported context');
+  record={...record,content:{...record.content,items:record.content.items.map((item,index)=>({...item,executionStatus:index<3?'completed':index===3?'in_progress':'pending',executionSummary:index<2?'步骤已完成':index===2?'拖拽交互已实现':index===3?'检查每次旋转后的逻辑坐标':'等待执行'}))}};
+  render();await settle();
+  if(!root.querySelector('.execution-header').textContent.includes('第 4/5 步：规则验收')||document.getElementById(selected.id)!==selected||!root.querySelector('.execution-node-detail').textContent.includes('拖拽交互已实现'))throw new Error('Step progress update replaced DOM or dismissed selected detail');
+  return true;
+};
+window.runChatReadingCheck=()=>verifyChatReading(model);
 window.graphComponentErrors=componentErrors;
 const result={graph:graphVisible,transcript:transcriptVisible,keyboard,idempotent,accessible,waitingCardHealthy,noComponentErrors:componentErrors.length===0,followsNewShortSession,preservesHistorySelection,followsLatest,fitsWholeGraph,preservesScroll,locatesOffscreenStep,digest:/^sha256:[a-f0-9]{64}$/.test(graph.digest),parallel:graph.edges.some(edge=>edge.kind==='parallel-with'),large:largeGraph.nodes.filter(node=>node.kind==='tool').length===1000&&largeLayout.visibleNodeIds.length<100,renderBudget:renderMs<1500,projectionBudget:projectionMs<1500,layoutBudget:layoutMs<100,renderMs,projectionMs,layoutMs};
 document.body.dataset.g09Result=JSON.stringify(result);document.body.dataset.g09Status=Object.entries(result).filter(([key])=>!key.endsWith('Ms')).every(([,value])=>value===true)?'passed':'failed';if(document.body.dataset.g09Status==='failed')document.body.dataset.g09Error=JSON.stringify({result,componentErrors});

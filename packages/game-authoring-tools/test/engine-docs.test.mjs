@@ -290,3 +290,12 @@ test('interaction diagnostics are independently retrievable within the default d
  const result=search('交互故障诊断');const entry=result.matches.find(item=>item.title.includes('交互故障诊断'));assert.ok(entry);
  const content=JSON.stringify(read(entry));assert.match(content,/changedTransformEntityIds/);assert.match(content,/interaction.diagnostic-required/);assert.match(content,/selfInteractions/);
 });
+
+test('rotation regression and responsibility guide is discoverable without native API context', () => {
+  const guide = search('魔方 装饰面 穿透 回归 脚本拆分').matches.find(entry => /固定回归/.test(entry.title));
+  assert.ok(guide, 'agent can discover the complete workflow with an ordinary bounded search');
+  const blocks = read(guide, { maxBytes: 16384 }).blocks.join('\n');
+  for (const term of ['penetrable', 'events', 'CameraController', 'dragAxis', 'rotationMatched', 'play.regression']) assert.ok(blocks.includes(term), term);
+  const api = search('api.scene.transforms').matches.find(entry => entry.title === 'api.scene.transforms');
+  assert.ok(api, 'generic transform API is directly searchable');
+});

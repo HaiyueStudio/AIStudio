@@ -32,7 +32,7 @@ for (const transaction of [false, true]) test(`failed Play inspection can revali
     await f.finished();
     assert.equal(f.results.get('play.inspect').status, 'failed');
     assert.equal(f.results.get('preview.validate')?.status, 'completed');
-    assert.equal(f.results.get('entity.create')?.error?.code, 'task.transition-invalid');
+    assert.equal(f.results.get('entity.create')?.error?.code, 'task.preview-stop-required');
     assert.equal(f.results.get('project.snapshot')?.status, 'completed');
     assert.deepEqual(f.executed, ['play.inspect', 'preview.validate', 'project.snapshot']);
     assert.equal(nodes(f.host).some(node => node.kind === 'tool-call' && node.status === 'pending'), false);

@@ -400,3 +400,14 @@ test('object-local click API compiles and descriptor material writes fail before
   assert.ok(bad.diagnostics.some(d=>d.code==='script.material-descriptor-runtime'&&d.severity==='error'));
  }finally{await worker.dispose();}
 });
+
+test('separate camera and manipulation responsibilities; comments never trigger the guard',async()=>{
+ const validator=new ScriptValidationWorker();try{
+  const validate=(text,n)=>validator.validate({scriptId:'script:responsibility',textRevision:n,sourcePath:'scripts/controller.ts',text,capabilities:['read','input','scene']});
+  const mixed=await validate('api.scene.orbitControls({mode:"background"}); for(const hit of api.input.interactions()){if(hit.type==="click")api.scene.setMaterialColor(hit.entityId,[1,0,0,1]);}',1);
+  assert.ok(mixed.diagnostics.some(d=>d.code==='script.responsibility-mixed'&&d.severity==='error'));
+  const object=await validate('for(const hit of api.input.interactions()){if(hit.type==="click")api.scene.setMaterialColor(hit.entityId,[1,0,0,1]);}',2);assert.deepEqual(object.diagnostics,[]);
+  const camera=await validate('// api.input.interactions(); api.scene.setMaterialColor()\napi.scene.orbitControls({mode:"background"});',3);assert.deepEqual(camera.diagnostics,[]);
+  const math=await validate('const snapshot=api.scene.transforms.capture(["entity:cube"]); api.scene.transforms.rotate(snapshot,[0,0,0],[0,1,0],Math.PI/2); const axis=api.scene.transforms.dragAxis([0,2,1],[0,0,0],[[0,0,1],[1,0,0]],[0.1,0]);',4);assert.deepEqual(math.diagnostics,[]);
+ }finally{await validator.dispose();}
+});

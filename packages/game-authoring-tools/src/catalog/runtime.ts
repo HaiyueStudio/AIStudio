@@ -42,7 +42,7 @@ const GROUPS: readonly CapabilityGroup[] = Object.freeze([
   group('scene', ['scene', 'entity', 'hierarchy', 'prefab', 'assembly', 'composite', '组合', '原型', '场景', '实体', '层级', '预制体'], ['scene.', 'entity.', 'prefab.', 'assembly.'], ['scene', 'hierarchy']),
   group('spatial', ['transform', 'position', 'rotation', 'scale', 'align', 'layout', '变换', '位置', '旋转', '缩放', '对齐', '布局'], ['transform.'], ['transform']),
   group('camera', ['camera', 'view', 'framing', 'orbit', 'follow', 'viewport', '相机', '视角', '镜头', '取景'], ['camera.'], ['camera']),
-  group('interaction', ['input', 'keyboard', 'mouse', 'pointer', 'touch', 'gamepad', 'interaction', '输入', '键盘', '鼠标', '触控', '交互'], ['play.input', 'play.pointer-gesture'], ['input']),
+  group('interaction', ['input', 'keyboard', 'mouse', 'pointer', 'touch', 'gamepad', 'interaction', '输入', '键盘', '鼠标', '触控', '交互'], ['play.input', 'play.pointer-gesture', 'play.regression'], ['input']),
   group('gameplay', ['gameplay', 'state', 'trigger', 'score', 'spawn', 'reset', '玩法', '状态', '触发', '计分', '生成', '重开'], ['play.', 'script.'], ['gameplay']),
   group('physics', ['physics', 'collision', 'gravity', 'body', 'raycast', 'overlap', '物理', '碰撞', '重力', '刚体', '射线'], ['play.physics-', 'component.'], ['physics']),
   group('presentation', ['render', 'light', 'material', 'shadow', 'particle', 'effect', 'hud', 'ui', '渲染', '灯光', '材质', '阴影', '粒子', '特效', '界面'], ['material.', 'camera.', 'component.', 'play.capture'], ['render', 'ui']),
@@ -107,6 +107,7 @@ function explicitIntentToolIds(request: string): readonly StableId[] {
   if (/\b(?:input|keyboard|pointer|touch|mouse|gamepad)\b|输入|键盘|触控|鼠标|点击|拖拽/u.test(lower)) ids.push(asStableId('play.input'));
   if (/\b(?:physics|raycast|rigid|collision|gravity)\b|物理|碰撞|重力|刚体|射线/u.test(lower)) ids.push(asStableId('component.configure'), asStableId('play.physics-query'));
   if (/\b(?:create|build)\b|生成|创建|搭建/u.test(lower)) ids.push(asStableId('entity.create'));
+  if (/\b(?:camera|orbit|follow)\b|相机|镜头|视角/u.test(lower)) ids.push(asStableId('camera.author'));
   if (/\b(?:drag|click|pointer|touch|mouse)\b|触控|鼠标|点击|拖拽/u.test(lower)) ids.push(asStableId('play.pointer-gesture'));
   return Object.freeze(ids);
 }

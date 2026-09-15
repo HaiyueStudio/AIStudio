@@ -1,3 +1,4 @@
+import { captureReadingPosition, restoreReadingPosition, type ReadingPosition } from './reading-position.js';
 import { reconcileChildren } from '../reconcile-children.js';
 import { renderMarkdown } from '../markdown.js';
 import { detailTextIncluded } from './detail-text.js';
@@ -6,7 +7,7 @@ import type { HYExpandable, HYExpandableChangeDetail } from '@haiyue/ui/expandab
 import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
 import { approvalFromNode, planFromNode, questionFromNode, safeText } from '../../conversation/validation.js';
 import { layoutExecutionGraph } from '../../conversation/execution-layout.js';
-import { compareExecutionGraphs, executionFailureReason, executionGraphIdentity, groupExecutionGraphsByTask } from '../../conversation/execution-graph.js';
+import { compareExecutionGraphs, executionFailureReason, withExecutionPlan, executionProgressLabel, executionGraphIdentity, groupExecutionGraphsByTask } from '../../conversation/execution-graph.js';
 import { attachGraphPan } from '../graph-pan.js';
 import { createHoverPanel } from '../hover-panel.js';
 import type {
@@ -39,7 +40,7 @@ export function presentChatPanel(snapshot: ConversationReadModel, now = Date.now
   return Object.freeze({
     backendId: snapshot.backendId, backends: snapshot.backends, cards,
     composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : backendBlockedReason(selected)), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
-    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns, executionGraphs: groupExecutionGraphsByTask(snapshot.executionGraphs ?? [], snapshot.taskRuns),
+    connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns, executionGraphs: groupExecutionGraphsByTask(snapshot.executionGraphs ?? [], snapshot.taskRuns).map(graph => withExecutionPlan(graph, snapshot.nodes)),
     ariaLive: cards.at(-1)?.body ?? (snapshot.connection === 'connected' ? 'Agent conversation ready.' : 'Agent conversation disconnected.'),
   });
 }
@@ -104,14 +105,16 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   if (!model.executionGraphs?.length) disposeExecutionGraph(root);
   currentChatModels.set(root, model);
   const document = root.ownerDocument;
-  for (const image of [...(root.querySelectorAll?.('.chat-evidence-preview') ?? [])] as HTMLImageElement[]) image.removeAttribute('src');
   const previousFeed = root.querySelector?.('.chat-feed') as HTMLElement | null | undefined;
   const previousTabs = root.querySelector?.('.chat-view-tabs') as HYTabs | null | undefined;
   const restoreTabFocus = previousTabs != null && document.activeElement === previousTabs;
-  const view = chatViewStates.get(root) ?? { choice: null, followLatest: true, feedScrollTop: 0, stepsScrollTop: 0 };
-  if (previousFeed && previousTabs?.value === 'steps') {
-    view.followLatest = chatFeedIsNearLatest(previousFeed); view.feedScrollTop = previousFeed.scrollTop;
-    view.stepsScrollTop = (root.querySelector?.('.chat-steps-view') as HTMLElement | null)?.scrollTop ?? 0;
+  const view: ChatViewState = chatViewStates.get(root) ?? { choice: null, followLatest: true, feedScrollTop: 0, stepsScrollTop: 0 };
+  if (previousFeed && previousFeed.clientHeight > 0 && previousTabs?.value === 'steps') {
+    const previousSteps = root.querySelector?.('.chat-steps-view') as HTMLElement | null;
+    view.followLatest = chatFeedIsNearLatest(previousFeed) && (!previousSteps || chatFeedIsNearLatest(previousSteps));
+    view.feedScrollTop = previousFeed.scrollTop; view.feedPosition = captureReadingPosition(previousFeed);
+    view.stepsScrollTop = previousSteps?.scrollTop ?? 0;
+    if (previousSteps) view.stepsPosition = captureReadingPosition(previousSteps);
   }
   chatViewStates.set(root, view);
   const previousInput = root.querySelector?.('.chat-composer textarea') as HTMLTextAreaElement | null | undefined;
@@ -121,6 +124,7 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     ? Object.freeze({ start: previousInput.selectionStart, end: previousInput.selectionEnd, direction: previousInput.selectionDirection ?? undefined })
     : null;
   const fragment = document.createDocumentFragment();
+  const persistentSections = new Map<Node, Node>();
   const backendControls = document.createElement('div');
   backendControls.className = 'chat-backend-controls';
   const backendSelect = document.createElement('select');
@@ -203,15 +207,23 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     backendControls.append(hoverButton(document, usage, '用量', '上下文与任务用量'), usage.panel);
   }
   fragment.append(backendControls);
+  const cards = chatCardElements.get(root) ?? new Map<string, CachedChatCard>(); chatCardElements.set(root, cards);
+  chatDispatchers.set(root, dispatch);
+  const dispatchCard = (intent: ConversationIntent): void => chatDispatchers.get(root)?.(intent);
+  const cardElement = (card: ChatCardReadModel): HTMLElement => reconcileChatCard(document, cards, card, dispatchCard);
+  const retainedIds = new Set<string>(model.cards.map(card => card.id));
+  for (const id of cards.keys()) if (!retainedIds.has(id)) cards.delete(id);
   const pendingCards = model.cards.filter(card => card.status === 'pending'
     && (card.kind === 'plan' || card.kind === 'question' || (card.kind === 'approval' && card.actions.some(action => action.enabled))));
   const pendingIds = new Set(pendingCards.map(card => card.id));
   if (pendingCards.length) {
-    const attention = document.createElement('section'); attention.className = 'chat-attention'; attention.setAttribute('aria-label', '等待你的确认');
-    const heading = document.createElement('h2'); heading.textContent = `等待你的确认 · ${pendingCards.length}`;
-    const list = document.createElement('ol'); list.className = 'chat-attention-list';
-    for (const card of pendingCards) list.append(renderCard(document, card, dispatch));
-    attention.append(heading, list); fragment.append(attention);
+    const attention = root.querySelector?.<HTMLElement>('.chat-attention') ?? document.createElement('section'); attention.className = 'chat-attention'; attention.setAttribute('aria-label', '等待你的确认');
+    const heading = attention.querySelector?.('h2') ?? document.createElement('h2'); heading.textContent = `等待你的确认 · ${pendingCards.length}`;
+    const list = attention.querySelector?.<HTMLElement>('.chat-attention-list') ?? document.createElement('ol'); list.className = 'chat-attention-list';
+    reconcileChildren(list, pendingCards.map(cardElement));
+    reconcileChildren(attention, [heading, list]);
+    if (attention.parentNode) { const marker = document.createElement('div'); persistentSections.set(marker, attention); fragment.append(marker); }
+    else fragment.append(attention);
   }
   const workspace = root.querySelector?.<HTMLElement>('.chat-workspace') ?? document.createElement('div'); workspace.className = 'chat-workspace';
   const tabs = (workspace.querySelector?.('.chat-view-tabs') ?? document.createElement('hy-tabs')) as HYTabs; tabs.className = 'chat-view-tabs'; tabs.setAttribute('aria-label', '执行展示方式');
@@ -221,24 +233,24 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const graphPanel = tabs.querySelector?.<HTMLElement>('.chat-graph-view') ?? document.createElement('section'); graphPanel.className = 'chat-graph-view'; graphPanel.slot = 'graph'; graphPanel.hidden = tabs.value !== 'graph';
   if (hasGraph) { const execution = renderExecutionWorkspace(root, document, model.executionGraphs, model.taskAccounting, dispatch); if (execution.parentNode !== graphPanel) graphPanel.replaceChildren(execution); }
   else graphPanel.replaceChildren();
-  const stepsPanel = tabs.querySelector?.<HTMLElement>('.chat-steps-view') ?? document.createElement('section'); stepsPanel.replaceChildren(); stepsPanel.className = 'chat-steps-view'; stepsPanel.slot = 'steps'; stepsPanel.hidden = tabs.value !== 'steps';
-  if (model.taskRuns.length) stepsPanel.append(renderTaskWorkspace(document, model.taskRuns, model.taskAccounting, dispatch));
-  const status = document.createElement('p');
+  const stepsPanel = tabs.querySelector?.<HTMLElement>('.chat-steps-view') ?? document.createElement('section'); stepsPanel.className = 'chat-steps-view'; stepsPanel.slot = 'steps'; stepsPanel.hidden = tabs.value !== 'steps';
+  const taskKey = JSON.stringify([model.taskRuns, model.taskAccounting]);
+  let taskView = chatTaskElements.get(root);
+  if (!taskView || taskView.key !== taskKey) { taskView = { key: taskKey, element: model.taskRuns.length ? renderTaskWorkspace(document, model.taskRuns, model.taskAccounting, dispatchCard) : null }; chatTaskElements.set(root, taskView); }
+  const status = stepsPanel.querySelector?.<HTMLElement>('.chat-connection') ?? document.createElement('p');
   status.className = 'chat-connection';
-  status.textContent = `Connection: ${model.connection}`;
-  stepsPanel.append(status);
-  const feed = document.createElement('ol');
+  if (status.textContent !== `Connection: ${model.connection}`) status.textContent = `Connection: ${model.connection}`;
+  const feed = stepsPanel.querySelector?.<HTMLElement>('.chat-feed') ?? document.createElement('ol');
   feed.className = 'chat-feed';
   feed.setAttribute('role', 'log');
   feed.setAttribute('aria-live', 'polite');
-  for (const card of model.cards) if (!pendingIds.has(card.id)) feed.append(renderCard(document, card, dispatch));
-  stepsPanel.append(feed);
-  const jumpLatest = document.createElement('button');
+  reconcileChildren(feed, model.cards.filter(card => !pendingIds.has(card.id)).map(cardElement));
+  const jumpLatest = stepsPanel.querySelector?.<HTMLButtonElement>('.chat-jump-latest') ?? document.createElement('button');
   jumpLatest.type = 'button';
   jumpLatest.className = 'chat-jump-latest';
   jumpLatest.textContent = '↓ Latest';
   jumpLatest.setAttribute('aria-label', 'Jump to latest agent message');
-  stepsPanel.append(jumpLatest);
+  reconcileChildren(stepsPanel, [...(taskView.element ? [taskView.element] : []), status, feed, jumpLatest]);
   if (graphPanel.parentNode !== tabs) tabs.append(graphPanel);
   if (stepsPanel.parentNode !== tabs) tabs.append(stepsPanel);
   if (tabs.parentNode !== workspace) workspace.append(tabs);
@@ -262,8 +274,8 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     appendOptimisticTurn(document, feed, prompt);
     input.value = '';
     send.disabled = true;
-    feed.scrollTop = feed.scrollHeight;
     view.followLatest = true;
+    feed.scrollTop = feed.scrollHeight; stepsPanel.scrollTop = stepsPanel.scrollHeight;
     dispatch(Object.freeze({ type: 'conversation/send', backendId: model.backendId, prompt }));
   };
   const keyboard = new ChatComposerKeyboardController();
@@ -286,15 +298,17 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   }
   const composerStatus = document.createElement('span'); composerStatus.id = 'chat-composer-status'; composerStatus.textContent = model.composer.blockedReason ?? 'Ready to send.'; composer.append(composerStatus);
   fragment.append(composer);
-  if (fragment.childNodes && typeof root.insertBefore === 'function') reconcileChildren(root, [...fragment.childNodes].map(child => child === workspaceMarker ? workspace : child));
+  if (fragment.childNodes && typeof root.insertBefore === 'function') reconcileChildren(root, [...fragment.childNodes].map(child => child === workspaceMarker ? workspace : persistentSections.get(child) ?? child));
   else root.replaceChildren(fragment);
   if (restoreInputFocus) {
     input.focus();
     if (preservedSelection) input.setSelectionRange(preservedSelection.start, preservedSelection.end, preservedSelection.direction);
   }
   const syncLatestButton = (): void => {
-    if (chatViewActivators.get(root) !== showView || tabs.value !== 'steps' || stepsPanel.hidden) return;
-    view.followLatest = chatFeedIsNearLatest(feed); view.feedScrollTop = feed.scrollTop;
+    if (chatViewActivators.get(root) !== showView || tabs.value !== 'steps' || stepsPanel.hidden || stepsPanel.clientHeight === 0) return;
+    view.followLatest = chatFeedIsNearLatest(feed) && chatFeedIsNearLatest(stepsPanel);
+    view.feedScrollTop = feed.scrollTop; view.stepsScrollTop = stepsPanel.scrollTop;
+    view.feedPosition = captureReadingPosition(feed); view.stepsPosition = captureReadingPosition(stepsPanel);
     jumpLatest.hidden = view.followLatest;
   };
   const showView = (value: 'graph' | 'steps', chosen = true): void => {
@@ -303,9 +317,9 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     tabs.value = value; graphPanel.hidden = value !== 'graph'; stepsPanel.hidden = value !== 'steps';
     if (chosen) for (const { hover } of chatHoverControllers.get(root) ?? []) hover.hide();
     if (value === 'graph') executionViewportUpdates.get(root)?.();
-    else {
-      stepsPanel.scrollTop = view.stepsScrollTop;
-      feed.scrollTop = view.followLatest ? feed.scrollHeight : Math.min(view.feedScrollTop, Math.max(0, feed.scrollHeight - feed.clientHeight));
+    else if (stepsPanel.clientHeight > 0) {
+      if (view.followLatest) { feed.scrollTop = feed.scrollHeight; stepsPanel.scrollTop = stepsPanel.scrollHeight; }
+      else { restoreReadingPosition(feed, view.feedPosition, view.feedScrollTop); restoreReadingPosition(stepsPanel, view.stepsPosition, view.stepsScrollTop); }
       syncLatestButton();
     }
   };
@@ -315,15 +329,15 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
     const value = (event as CustomEvent<HYTabChangeDetail>).detail?.value;
     if (value === 'graph' || value === 'steps') showView(value);
   }, { signal: renderLifetime.signal });
-  stepsPanel.addEventListener('scroll', () => { if (chatViewActivators.get(root) === showView && tabs.value === 'steps') view.stepsScrollTop = stepsPanel.scrollTop; }, { passive: true, signal: renderLifetime.signal });
-  feed.addEventListener('scroll', syncLatestButton, { passive: true });
-  jumpLatest.addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; syncLatestButton(); });
+  stepsPanel.addEventListener('scroll', syncLatestButton, { passive: true, signal: renderLifetime.signal });
+  feed.addEventListener('scroll', syncLatestButton, { passive: true, signal: renderLifetime.signal });
+  jumpLatest.addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; stepsPanel.scrollTop = stepsPanel.scrollHeight; syncLatestButton(); }, { signal: renderLifetime.signal });
   showView(tabs.value as 'graph' | 'steps', false);
   if (restoreTabFocus) tabs.shadowRoot?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
   for (const { className, state } of openPanels) if (tabs.value === 'graph' || !hasGraph) chatHoverControllers.get(root)?.find(item => item.className === className)?.hover.restore(state);
 }
 
-interface ChatViewState { choice: 'graph' | 'steps' | null; followLatest: boolean; feedScrollTop: number; stepsScrollTop: number; }
+interface ChatViewState { choice: 'graph' | 'steps' | null; followLatest: boolean; feedScrollTop: number; stepsScrollTop: number; feedPosition?: ReadingPosition; stepsPosition?: ReadingPosition; }
 const chatViewStates = new WeakMap<HTMLElement, ChatViewState>();
 const chatViewActivators = new WeakMap<HTMLElement, (value: 'graph' | 'steps') => void>();
 
@@ -382,6 +396,7 @@ function disposeChatRender(root: HTMLElement): void {
 }
 export function disposeChatPanel(root: HTMLElement): void {
   disposeChatRender(root); disposeExecutionGraph(root);
+  chatCardElements.delete(root); chatTaskElements.delete(root); chatDispatchers.delete(root); chatViewStates.delete(root);
   chatHoverControllers.delete(root); executionWorkspaceElements.delete(root); currentChatModels.delete(root); chatViewActivators.delete(root);
 }
 
@@ -412,7 +427,7 @@ function renderExecutionWorkspace(root: HTMLElement, document: Document, graphs:
   executionWorkspaceStates.set(root, state);
   const workspace = executionWorkspaceElements.get(root) ?? document.createElement('section'); executionWorkspaceElements.set(root, workspace); const children: Node[] = []; workspace.className = 'execution-workspace'; workspace.setAttribute('aria-label', 'Agent execution graph and transcript'); workspace.dataset.sessionId = graph.sessionId; if (graph.taskId) workspace.dataset.taskId = graph.taskId; else delete workspace.dataset.taskId;
   const header = document.createElement('header'); header.className = 'execution-header';
-  const heading = document.createElement('div'); const title = document.createElement('strong'); title.textContent = graph.title; const status = document.createElement('span'); status.className = `execution-status status-${graph.status}`; status.textContent = executionStatusLabel(graph.status); heading.append(title, status);
+  const heading = document.createElement('div'); const title = document.createElement('strong'); title.textContent = executionProgressLabel(graph); title.title = title.textContent; const status = document.createElement('span'); status.className = `execution-status status-${graph.status}`; status.textContent = executionStatusLabel(graph.status); heading.append(title, status);
   const sessionSelect = document.createElement('select'); sessionSelect.setAttribute('aria-label', 'Agent session');
   for (const [index, candidate] of ordered.entries()) { const option = document.createElement('option'); option.value = executionGraphIdentity(candidate); option.selected = executionGraphIdentity(candidate) === executionGraphIdentity(graph); option.textContent = `${candidate.taskId ? '任务' : '第'} ${index + 1}${candidate.taskId ? '' : ' 段'} · ${candidate.nodes.length} 个步骤 · ${candidate.title} · ${executionStatusLabel(candidate.status)}`; sessionSelect.append(option); }
   sessionSelect.addEventListener('change', () => { state.sessionId = sessionSelect.value; state.followLatest = false; state.selectedNodeId = null; state.query = ''; state.filter = 'all'; state.fit = true; state.scrollLeft = 0; state.scrollTop = 0; renderChatPanel(root, currentChatModel(root), dispatch); });
@@ -568,9 +583,9 @@ function renderExecutionGraph(root: HTMLElement, document: Document, graph: Exec
       const fingerprint = JSON.stringify([node.kind, node.status, node.title, node.summary, node.durationMs, node.projectRevisionBefore, node.projectRevisionAfter, node.artifactRefs, node.detail, transcriptNodeIds.has(node.id)]);
       if (fingerprints.get(node.id) !== fingerprint) { fingerprints.set(node.id, fingerprint); nodeHover.refresh(node.id); }
     }
-    const current = graph.nodes.filter(node => graph.currentNodeIds.includes(node.id));
+    const current = graph.nodes.filter(node => graph.currentNodeIds.includes(node.id) && !['goal', 'turn', 'plan-step'].includes(node.kind));
     for (const [id, item] of activityItems) if (!current.some(node => node.id === id)) { item.remove(); activityItems.delete(id); }
-    if (!current.length) text(activity, `当前任务：${executionStatusLabel(graph.status)}`);
+    if (!current.length) text(activity, executionProgressLabel(graph));
     else {
       if (!activityItems.size) activity.replaceChildren();
       for (const node of current) {
@@ -700,7 +715,7 @@ function graphFilterOptions(state: ExecutionWorkspaceState): Readonly<{ statuses
 
 function executionDomId(id: string): string { return `execution-${id.replace(/[^a-zA-Z0-9_-]/gu, '-')}`; }
 function executionStatusLabel(value: ExecutionGraphNodeReadModel['status']): string { return ({ pending:'待处理', running:'执行中', waiting:'待确认', completed:'已完成', failed:'失败', cancelled:'已取消', 'outcome-unknown':'结果待核验' } as const)[value]; }
-function executionKindLabel(value: ExecutionGraphNodeReadModel['kind']): string { return ({ goal:'目标', plan:'方案', turn:'执行阶段', model:'模型', 'tool-batch':'工具批次', tool:'工具', transaction:'修改', approval:'审批', question:'问题', compaction:'上下文压缩', evidence:'证据', evaluation:'验证', repair:'修复', result:'结果', unknown:'未知步骤' } as const)[value]; }
+function executionKindLabel(value: ExecutionGraphNodeReadModel['kind']): string { return ({ goal:'目标', plan:'方案', 'plan-step':'计划步骤', turn:'执行阶段', model:'模型', 'tool-batch':'工具批次', tool:'工具', transaction:'修改', approval:'审批', question:'问题', compaction:'上下文压缩', evidence:'证据', evaluation:'验证', repair:'修复', result:'结果', unknown:'未知步骤' } as const)[value]; }
 function contextStateLabel(value: string): string { return ({ normal:'正常', warning:'接近上限', preparing:'准备压缩', 'compact-required':'需要压缩', emergency:'紧急', unknown:'容量未知' } as Record<string,string>)[value] ?? value; }
 function executionAccountingLabel(graph: ExecutionGraphReadModel, accounting: ConversationReadModel['taskAccounting']): string { const usageRefs = new Set(graph.nodes.flatMap((node) => node.detail.usageRecordIds)); const costRefs = new Set(graph.nodes.flatMap((node) => node.detail.costRecordIds)); if (!accounting) return `Usage ${usageRefs.size || 'unknown'} records · Cost ${costRefs.size || 'unknown'} records`; const cost = accounting.cost.amountMicros === null || !accounting.cost.currency ? `unknown (${accounting.cost.explanation})` : `${(accounting.cost.amountMicros / 1_000_000).toFixed(6)} ${accounting.cost.currency}`; return `Input ${accounting.usage.inputTokens ?? 'unknown'} · Cached ${accounting.usage.cachedInputTokens ?? 'unknown'} · Output ${accounting.usage.outputTokens ?? 'unknown'} · Cost ${cost}`; }
 
@@ -815,6 +830,37 @@ function renderTaskCostCard(document: Document, value: NonNullable<ConversationR
     meter.setAttribute('aria-label', `输出预算已使用 ${Math.round(value.usage.outputTokens / value.budget.limits.outputTokens * 100)}%`); card.append(meter);
   }
   if (contextCache) card.append(contextCache); card.append(budget); return card;
+}
+
+interface CachedChatCard { signature: string; shape: string; element: HTMLElement; }
+const chatCardElements = new WeakMap<HTMLElement, Map<string, CachedChatCard>>();
+const chatDispatchers = new WeakMap<HTMLElement, (intent: ConversationIntent) => void>();
+const chatTaskElements = new WeakMap<HTMLElement, { key: string; element: HTMLElement | null }>();
+function reconcileChatCard(document: Document, cache: Map<string, CachedChatCard>, card: ChatCardReadModel, dispatch: (intent: ConversationIntent) => void): HTMLElement {
+  const signature = JSON.stringify(card), shape = JSON.stringify({ ...card, title: '', body: '' });
+  const previous = cache.get(card.id);
+  if (previous?.signature === signature) return previous.element;
+  if (previous?.shape === shape) {
+    // Streaming text must not replace the card, its beam, disclosures or controls.
+    const content = previous.element.querySelector('.chat-card-content');
+    if (content) {
+      const title = content.querySelector('h3'), body = content.querySelector('p');
+      if (title && title.textContent !== card.title) title.textContent = card.title;
+      if (body && body.textContent !== card.body) body.textContent = card.body;
+      previous.signature = signature; return previous.element;
+    }
+  }
+  const next = renderCard(document, card, dispatch);
+  let element = next;
+  if (previous && next.childNodes) {
+    // Only this changed record is patched; other cards stay connected.
+    const open = [...previous.element.querySelectorAll('details')].map(detail => detail.open);
+    element = previous.element; element.className = next.className;
+    element.dataset.kind = card.kind; element.dataset.status = card.status;
+    element.replaceChildren(...next.childNodes);
+    [...element.querySelectorAll('details')].forEach((detail, index) => { if (open[index] !== undefined) detail.open = open[index]!; });
+  }
+  cache.set(card.id, { signature, shape, element }); return element;
 }
 
 function renderCard(document: Document, card: ChatCardReadModel, dispatch: (intent: ConversationIntent) => void): HTMLElement {

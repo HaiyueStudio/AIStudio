@@ -1,3 +1,4 @@
+import { verifyIncrementalResources } from './incremental-browser.mjs';
 import { ResourceExplorerPanel } from '../../../../packages/studio-shell/dist/panels/resources/index.js';
 import { defineTabsComponents } from '@haiyue/ui/tabs';
 defineTabsComponents();
@@ -31,3 +32,5 @@ const update = value => { data = value; panel.update(value); };
 const action = async name => { const button = panel.root.querySelector(`[data-resource-action="${name}"]`); assert(button && !button.disabled, `action ${name} available`); button.focus(); button.click(); await idle(); };
 window.resourceTest = { panel, get, assert, intents, idle, query, tab, select, action, update, get data() { return data; }, setBlock(value) { block = value; } };
 update(await window.resourceBridge.current());
+
+window.verifyIncrementalResources = () => verifyIncrementalResources(data.items[0]);

@@ -7,9 +7,12 @@ import { isRecord, stringField } from './value-utils.js';
 export function toolCorrectionGuidance(code: string): string | null {
   switch (code) {
     case 'plan.payload-invalid':
-      return 'Correct the indicated plan fields using the studio.plan.propose schema and resubmit the complete plan. Preserve all user requirements and required acceptance conditions; never remove checks just to pass validation. Await real user approval after the corrected plan is accepted.';
+      return 'Correct the indicated plan fields using the studio.plan.propose schema and resubmit the complete plan. For assertions prefer a structured object {type, signal, operator, expected}. A missing operator/value or nonexistent evidence field is not broken outer JSON: resolve it from the requirement and actual producer data; do not apply guessed defaults. Preserve all user requirements and required acceptance conditions; never remove checks just to pass validation. Await real user approval after the corrected plan is accepted.';
     case 'tool.arguments-invalid':
       return 'Read the exact tool schema with tool.search, correct the reported arguments, and submit a new tool call. Copy returned references unchanged. Do not repeat successful edits.';
+    case 'interaction.regression-incomplete':
+    case 'interaction.regression-precondition':
+      return 'Use play.regression list/inspect to read retained cases and their original setup. Start a fresh paused Play through the normal authorized preview flow and replay each case at the current revision. Preserve its original expectations. If a case fails, inspect world-transform mismatches and repair the supported cause; do not weaken or replace the case to pass acceptance.';
     case 'interaction.diagnostic-required':
       return 'Inspect the previous gesture diagnostics, actual hit entity, pointer configuration and script binding. Fix the first supported cause through normal editing approval, or state a new hypothesis and run a distinct points/expect probe. Do not repeat the same test, restart Play or capture new images as a substitute for diagnosis.';
     case 'task.preview-stop-required':

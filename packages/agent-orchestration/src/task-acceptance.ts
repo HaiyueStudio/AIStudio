@@ -43,13 +43,14 @@ export function taskSpecFromRun(run: ConversationTaskRunReadModel): TaskSpecV2 {
 }
 export function productPhaseForTool(toolId: StableId): Extract<ConversationTaskPhase, 'editing' | 'validating' | 'playing' | 'evaluating'> | null {
   if (toolId === 'preview.validate') return 'validating';
-  if (toolId === 'preview.start' || toolId === 'play.start' || toolId === 'play.step' || toolId === 'play.input' || toolId === 'play.pointer-gesture' || toolId === 'play.inspect' || toolId === 'play.capture' || toolId === 'play.stop' || toolId === 'preview.stop') return 'playing';
+  if (toolId === 'preview.start' || toolId === 'play.start' || toolId === 'play.step' || toolId === 'play.input' || toolId === 'play.pointer-gesture' || toolId === 'play.regression' || toolId === 'play.inspect' || toolId === 'play.capture' || toolId === 'play.stop' || toolId === 'preview.stop') return 'playing';
   if (toolId === 'task.evaluate') return 'evaluating';
   if (['entity.create', 'entity.rename', 'transform.set', 'material.set', 'component.add', 'component.update', 'component.remove', 'script.apply', 'script.propose', 'camera.set'].includes(toolId)) return 'editing';
   return null;
 }
 export function productToolTitle(toolId: StableId): string {
   if (toolId === 'task.evaluate') return '正在逐项验收';
+  if (toolId === 'play.regression') return '正在重放项目交互回归用例';
   if (toolId === 'play.inspect') return '正在读取引擎数据验收';
   if (toolId === 'play.pointer-gesture' || toolId === 'play.input') return '正在模拟交互并验证状态变化';
   if (toolId === 'play.capture') return '正在采集渲染效果供视觉检查';

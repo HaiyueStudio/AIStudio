@@ -1,3 +1,4 @@
+import { PLAN_PROGRESS_TOOL, applyPlanProgress } from './plan-progress.js';
 import { toolCorrectionGuidance, toolFailureFeedback, interactionDiagnosticFeedback } from './tool-correction.js';
 import { QUERY_LIMIT_DEFAULTS, QUERY_PAGE_SIZE, queryLimitRequest, parseQueryLimits, type QueryLimits } from '@haiyue/ai-studio-game-authoring-tools';
 import { taskContinuationRequest, incompleteAcceptanceDetail } from './task-continuation.js';
@@ -10,7 +11,7 @@ import { compareExecutionGraphs } from '@haiyue/ai-studio-shell/conversation';
 import { queryAllowancePrompt, queryRequestDescription, approvalContent, presentationDigest, intentLogPayload, localCompactionSummary, questionOptions, terminalStatus, completionSummary, boundedJson, projectToolModelResult, toolArgumentSummary, toolResultSummary } from './conversation-presentation.js';
 import { asStableId, type AgentTurnConfigV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type ObservationArtifactV2, type StableId, type TaskBudgetV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
 import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type AgentTurnInput, type BackendSessionAdapter, type BudgetDecision, type CompactionSummaryRequestV1, type ContextCompactionRuntime, type ContextProjectSnapshot, type DurableSessionHandle, type PromptProfileSnapshot, type SessionReplaySnapshotV1, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
-import { BoundedPlaytestTask, GameToolProtocolError, MODEL_TOOL_INVOKE_DEFINITION, PlaytestLoopError, RollingToolBatchScheduler, normalizeToolBatchRequest, resolveModelToolInvocation, type GameAuthoringToolService, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult, type LegacyToolRequest, type RollingToolWorkResult, type ToolBatchDiagnostic, type ToolBatchNodeStatus } from '@haiyue/ai-studio-game-authoring-tools';
+import { BoundedPlaytestTask, GameToolProtocolError, MODEL_TOOL_INVOKE_DEFINITION, PlaytestLoopError, RollingToolBatchScheduler, isProjectIndependentRead, normalizeToolBatchRequest, resolveModelToolInvocation, type GameAuthoringToolService, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult, type LegacyToolRequest, type RollingToolWorkResult, type ToolBatchDiagnostic, type ToolBatchNodeStatus } from '@haiyue/ai-studio-game-authoring-tools';
 import { canonicalStringify, redactObject, sha256, type ConversationOperationLog } from '@haiyue/ai-studio-operation-log';
 import { normalizeConversationNode, normalizeTaskAccounting, normalizeTaskRun, projectExecutionGraph, validateConversationIntent, type ConversationBackendReadModel, type ConversationNodeReadModel, type ConversationProjectionEvent, type ConversationReplaySnapshot, type ConversationTaskAcceptanceReadModel, type ConversationTaskAccountingReadModel, type ConversationTaskEvidenceReadModel, type ConversationTaskPhase, type ConversationTaskRunReadModel, type ExecutionGraphReadModel } from '@haiyue/ai-studio-shell/conversation';
 import { migrateLegacySessions } from './legacy-session-migration.js';
@@ -111,6 +112,7 @@ interface ActiveToolBatch {
   readonly bodies: HostToolBody[];
   readonly scheduler: RollingToolBatchScheduler<HostToolWork>;
   transactionGroup: BatchTransactionGroup | null;
+  transactionTail: Promise<ReadonlyMap<StableId, HostToolBody>> | null;
   startTail: Promise<void>;
   commitTail: Promise<void>;
   drain: Promise<void> | null;
@@ -778,7 +780,7 @@ export class StudioConversationHost {
       maxNodes: 64, maxConcurrency: 4, maxWallTimeMs: 60_000, signal,
       cancelled: (node, diagnostic) => Object.freeze({ status: 'cancelled', value: this.cancelledToolBody(contexts.get(asStableId(node.id)), diagnostic) }),
     });
-    const batch: ActiveToolBatch = { id, backend, sessionId: event.sessionId, turnId: event.turnId, startedAtMs: Date.now(), calls: [], contexts, bodies: [], scheduler, transactionGroup: null, startTail: Promise.resolve(), commitTail: Promise.resolve(), drain: null, outputBytes: 0 };
+    const batch: ActiveToolBatch = { id, backend, sessionId: event.sessionId, turnId: event.turnId, startedAtMs: Date.now(), calls: [], contexts, bodies: [], scheduler, transactionGroup: null, transactionTail: null, startTail: Promise.resolve(), commitTail: Promise.resolve(), drain: null, outputBytes: 0 };
     batch.startTail = this.startToolBatchSession(batch);
     return batch;
   }
@@ -820,17 +822,17 @@ export class StudioConversationHost {
     batch.startTail = dispatched;
     const transactionEligible = node.executionClass === 'exclusive-mutation' && typeof this.options.tools.executeTransaction === 'function';
     let group: BatchTransactionGroup | null = null;
-    let precedingTransaction: Promise<ReadonlyMap<StableId, HostToolBody>> | null = null;
     if (transactionEligible) {
       group = batch.transactionGroup ?? { id: asStableId(`transaction-group:${batch.id}:${batch.calls.length}`), entries: [], flush: null };
       batch.transactionGroup = group;
     } else if (batch.transactionGroup) {
-      precedingTransaction = this.flushTransactionGroup(batch, batch.transactionGroup, signal);
+      this.flushTransactionGroup(batch, batch.transactionGroup, signal);
       batch.transactionGroup = null;
     }
+    const precedingTransaction = batch.transactionTail;
     const work = batch.scheduler.enqueue(node, async (batchSignal): Promise<RollingToolWorkResult<HostToolWork>> => {
       await dispatched;
-      if (precedingTransaction) await precedingTransaction;
+      if (precedingTransaction && !isProjectIndependentRead(node)) await precedingTransaction;
       if (batchSignal.aborted) return Object.freeze({ status: 'cancelled', value: this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.cancelled', message: 'Tool batch was cancelled before execution.', retryable: true })) });
       if (group) {
         const prepared = await this.prepareMutationWork(context, group, batchSignal);
@@ -1245,6 +1247,8 @@ export class StudioConversationHost {
 
   private flushTransactionGroup(batch: ActiveToolBatch, group: BatchTransactionGroup, signal?: AbortSignal): Promise<ReadonlyMap<StableId, HostToolBody>> {
     if (group.flush) return group.flush;
+    // Seal the group before awaiting members: later streamed calls must not join an in-flight commit.
+    if (batch.transactionGroup === group) batch.transactionGroup = null;
     group.flush = (async () => {
       const outcomes = await Promise.all(group.entries.map(async (entry) => (await entry.work).value));
       const bodies = new Map<StableId, HostToolBody>();
@@ -1276,6 +1280,7 @@ export class StudioConversationHost {
       }
       return bodies;
     })();
+    batch.transactionTail = group.flush;
     return group.flush;
   }
 
@@ -1314,6 +1319,20 @@ export class StudioConversationHost {
         const result = await this.awaitPlan(toolCallId, event.sessionId, event.turnId, args, provenance, signal);
         if (result === 'suspended') return this.suspendedToolBody(context, 'plan-review', Date.now() - startedAtMs);
         return this.makeToolBody(context, 'completed', Object.freeze({ status: 'completed', value: result }), 'completed', Object.freeze({ toolCallId, toolId, target: 'Current project', effect: 'observe', argumentsSummary: toolArgumentSummary(toolId, args) }), 'completed', Object.freeze({ toolCallId, toolId, resultStatus: 'completed', summary: result.approvedForExecution === true ? '方案已确认，开始执行。' : '用户补充了信息，需要更新方案。' }), result, null, null, false, false, Date.now() - startedAtMs);
+      }
+      if (toolId === PLAN_PROGRESS_TOOL.id) {
+        const plan = this.active?.approvedPlan;
+        const record = plan && [...this.nodes.values()].reverse().find(node => node.kind === 'plan' && node.content.decision === 'approved' && (!node.content.taskId || node.content.taskId === this.active?.taskId)
+          && Array.isArray(node.content.items) && plan.items.length > 0 && plan.items.every(item => (node.content.items as readonly JsonObject[]).some(candidate => candidate.id === item.id && candidate.status === 'accepted')));
+        if (!plan || !record || !this.active || !this.approvedPlanTurns.has(turnKey(event.sessionId, event.turnId))) throw new PlanProtocolError('plan.approval-required', 'Approve a plan before reporting progress.');
+        const items = applyPlanProgress(args, record.content.items as readonly JsonObject[]);
+        this.project(record.id, 'plan', record.status, record.provenance, Object.freeze({ ...record.content, taskId: this.active.taskId, items, progressUpdatedAt: new Date().toISOString() }));
+        this.active.approvedPlan = { ...plan, items: plan.items.map(item => { const updated = items.find(candidate => candidate.id === item.id)!; return Object.freeze({ ...item, executionStatus: String(updated.executionStatus ?? 'pending'), executionSummary: String(updated.executionSummary ?? '') }); }) };
+        const running = items.filter(item => item.executionStatus === 'in_progress');
+        const summary = running.length ? running.map(item => `${item.label}：${item.executionSummary}`).join('；') : '计划步骤进度已更新。';
+        const changedIds = new Set((args.updates as readonly JsonObject[]).map(update => update.stepId));
+        const result = Object.freeze({ planId: record.id, items: items.filter(item => changedIds.has(item.id)).map(item => Object.freeze({ id: item.id!, label: item.label!, executionStatus: item.executionStatus!, executionSummary: item.executionSummary! })), completedSteps: items.filter(item => item.status === 'accepted' && item.executionStatus === 'completed').length, totalSteps: plan.items.length, note: 'Progress only; task acceptance still requires authoritative evidence.' });
+        return this.makeToolBody(context, 'completed', Object.freeze({ status: 'completed', value: result }), 'completed', Object.freeze({ toolCallId, toolId, effect: 'observe', argumentsSummary: summary }), 'completed', Object.freeze({ toolCallId, toolId, resultStatus: 'completed', summary }), null, null, null, false, false, Date.now() - startedAtMs);
       }
       this.assertApprovedAssemblyPlan(toolId, context.args);
       const definition = this.options.tools.definitions().find((item) => item.id === toolId);
@@ -1583,7 +1602,7 @@ export class StudioConversationHost {
       id: asStableId(`plan-item:${this.nodeSequence}:${index + 1}`), label: item.label, ...(item.details ? { details: item.details } : {}),
     })));
     const content = Object.freeze({
-      title: proposal.title, summary: proposal.summary, toolCallId, assemblies: proposal.assemblies as JsonValue,
+      taskId: this.active?.taskId ?? null, title: proposal.title, summary: proposal.summary, toolCallId, assemblies: proposal.assemblies as JsonValue,
       items: Object.freeze(items.map((item) => Object.freeze({ ...item, status: 'pending' }))),
       acceptance: Object.freeze(proposal.acceptance.map((item) => Object.freeze({ ...item }))),
     });
@@ -1655,7 +1674,7 @@ export class StudioConversationHost {
     }
     const current = this.nodes.get(nodeId);
     if (current) this.project(nodeId, 'plan', 'completed', current.provenance, Object.freeze({
-      title: pending.title, summary: pending.summary, toolCallId: pending.toolCallId,
+      taskId: current.content.taskId ?? this.active?.taskId ?? null, title: pending.title, summary: pending.summary, toolCallId: pending.toolCallId,
       items: Object.freeze(pending.items.map((item) => Object.freeze({ ...item, status: mode === 'approve' && accepted.has(item.id) ? 'accepted' : 'rejected' }))),
       acceptance: Object.freeze(pending.acceptance.map((item) => Object.freeze({ ...item }))),
       decision: mode === 'approve' ? 'approved' : 'revision-requested',
@@ -1665,9 +1684,10 @@ export class StudioConversationHost {
       approvedForExecution: mode === 'approve',
       decision: mode === 'approve' ? 'approved' : 'revision-requested',
       acceptedItemIds: Object.freeze([...accepted]),
+      items: Object.freeze(pending.items.filter(item => accepted.has(item.id))),
       ...(note?.trim() ? { userNote: note.trim().slice(0, 2_048) } : {}),
       instruction: mode === 'approve'
-        ? 'Execute only the accepted plan items, incorporate the user note, and use independent tool calls without asking approval for low-risk reversible edits.'
+        ? 'Execute only the accepted plan items. Use studio.plan.update with the returned item IDs before starting a step and when completing or blocking it; batch progress changes and allow independent active steps. Incorporate the user note and batch independent low-risk edits.'
         : 'Revise the implementation plan from the user note and call studio.plan.propose again before any mutation.',
     }));
   }
@@ -1760,7 +1780,7 @@ export class StudioConversationHost {
     const plan = [...this.nodes.values()].filter((candidate) => candidate.kind === 'plan' && candidate.status === 'completed' && candidate.provenance.sessionId === provenance.sessionId && candidate.content.decision === 'approved').at(-1);
     const run = this.barrierTaskRunFor(provenance);
     if (!plan && !run?.acceptance.length) return null;
-    const items = Array.isArray(plan?.content.items) ? plan.content.items.filter(isRecord).filter((item) => item.status === 'accepted').map((item, index) => Object.freeze({ id: typeof item.id === 'string' ? asStableId(item.id) : asStableId(`plan-item:recovered:${index + 1}`), label: typeof item.label === 'string' ? item.label.slice(0, 256) : `Recovered step ${index + 1}`, ...(typeof item.details === 'string' ? { details: item.details.slice(0, 2_048) } : {}) })) : [];
+    const items = Array.isArray(plan?.content.items) ? plan.content.items.filter(isRecord).filter((item) => item.status === 'accepted').map((item, index) => Object.freeze({ id: typeof item.id === 'string' ? asStableId(item.id) : asStableId(`plan-item:recovered:${index + 1}`), label: typeof item.label === 'string' ? item.label.slice(0, 256) : `Recovered step ${index + 1}`, ...(typeof item.executionStatus === 'string' ? { executionStatus: item.executionStatus, executionSummary: String(item.executionSummary ?? '').slice(0, 512) } : {}), ...(typeof item.details === 'string' ? { details: item.details.slice(0, 2_048) } : {}) })) : [];
     return { assemblies: Array.isArray(plan?.content.assemblies) ? plan.content.assemblies.filter(isRecord) as JsonObject[] : [], title: typeof plan?.content.title === 'string' ? plan.content.title : run?.title ?? 'Recovered approved plan', summary: typeof plan?.content.summary === 'string' ? plan.content.summary : 'Restored from the durable approved plan and acceptance checkpoint.', items: Object.freeze(items), ...(typeof plan?.content.note === 'string' ? { note: plan.content.note } : {}), attempts: 0, mutationCount: 0 };
   }
 
@@ -2108,7 +2128,7 @@ export class StudioConversationHost {
         });
       }
     }
-    if (toolId === 'play.pointer-gesture' && isRecord(value.diagnostics)) {
+    if (['play.pointer-gesture', 'play.regression'].includes(toolId) && isRecord(value.diagnostics)) {
       const d = interactionDiagnosticFeedback(value).interactionDiagnostic;
       if (d) this.updateTaskRun(taskId, {}, { phase: 'playing', status: value.diagnostics.expectationMatched === false ? 'warning' : 'complete', title: '交互诊断', detail: JSON.stringify({ documentRevision: this.taskRuns.get(taskId)?.documentRevision ?? null, diagnostic: d }).slice(0, 1024), turnId, toolCallId });
     }
@@ -2268,7 +2288,7 @@ export class StudioConversationHost {
 
   private modelTools(request: string): readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] {
     const definitions = this.options.tools.selectDefinitions?.(request).definitions ?? this.options.tools.definitions();
-    const tools: Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] = [PLAN_TOOL_DEFINITION, ...definitions].map((definition) => Object.freeze({
+    const tools: Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] = [PLAN_TOOL_DEFINITION, PLAN_PROGRESS_TOOL, ...definitions].map((definition) => Object.freeze({
       id: definition.id,
       description: `${definition.description}${Object.hasOwn(QUERY_LIMIT_DEFAULTS, definition.id) ? ` Current user query threshold: ${(this.options.queryLimits?.() ?? QUERY_LIMIT_DEFAULTS)[definition.id as keyof QueryLimits]}. Omit limit to use it; a larger request pauses for user choice, it is not a tool failure. Results may be paginated.` : ''} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Inspect this before planning or using a document revision.' : ''}`,
       inputSchema: definition.inputSchema,

@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {verifyRotation,normalizeRotation} from '../dist/gesture-rotation.js';
+import {multiply,rotationAround} from '@haiyue/ai-studio-script-preview/transforms';
+const I=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+const entity=(id,x,parentId=null)=>({id,parentId,worldMatrix:[...I.slice(0,12),x,0,0,1]});
+const state=entities=>({state:{entities}});
+const before=state([entity('entity:root',1),entity('entity:child',2,'entity:root'),entity('entity:other',3)]);
+const turn=(angle)=>state(before.state.entities.map(e=>({...e,worldMatrix:e.id==='entity:other'?[...e.worldMatrix]:Array.from(multiply(rotationAround([0,0,0],[0,1,0],angle),e.worldMatrix))})));
+const expect={entityIds:['entity:root'],pivot:[0,0,0],axis:[0,1,0],angleDegrees:90,requireIntermediate:true};
+test('host world-state verifies exact angle, direction, descendants and intermediate motion',()=>{assert.equal(verifyRotation(before,turn(Math.PI/2),[turn(.3)],expect).rotationMatched,true);assert.equal(verifyRotation(before,turn(-Math.PI/2),[turn(-.3)],expect).rotationMatched,false);assert.equal(verifyRotation(before,turn(Math.PI/2),[],expect).rotationMatched,false);const bad=turn(Math.PI/2);bad.state.entities[2].worldMatrix[12]=10;assert.equal(verifyRotation(before,bad,[turn(.3)],expect).rotationMatched,false);});
+test('self-reported ninety degrees or changed counts cannot substitute for world matrices',()=>{assert.equal(verifyRotation(before,{state:{entities:[]},gameplay:{angleDegrees:90}},[],expect).rotationMatched,false);assert.throws(()=>normalizeRotation({...expect,axis:[0,0,0]}),/Invalid/);assert.throws(()=>normalizeRotation({...expect,angleDegrees:NaN}),/Invalid/);});

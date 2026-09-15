@@ -13,16 +13,35 @@ test('production preview controls distinguish Agent ownership and restore manual
   // Use production rendering functions and markup; omit application boot and GPU creation.
   const source = (await readFile(new URL('../src/renderer.ts', import.meta.url), 'utf8')).split('void boot().catch(')[0];
   const hook = `
-    const fixtureTask = { taskId: 'task:test', status: 'running', phase: 'playing', backendId: 'backend:test', sessionId: 'session:test', turnId: 'turn:test', acceptance: [{ id: 'acceptance:test', label: '拖拽后实体旋转', status: 'pending' }] };
+    const fixtureTask = { taskId: 'task:test', status: 'running', phase: 'playing', backendId: 'backend:test', sessionId: 'session:test', turnId: 'turn:test', acceptance: [{ id: 'acceptance:test', label: '拖拽后实体旋转', assertion: 'evidence state signal effects.entityChanged equals true', status: 'pending' }] };
     window.previewUiFixture = async (mode) => {
       playing = true;
       if (mode === 'agent') { agentPreviewOwnership.update('project:test', [fixtureTask]); agentPreviewOwnership.claim('project:test'); }
       else agentPreviewOwnership.release();
-      if (mode === 'agent') previewTestActivities.push({ id: 'command:test', label: '模拟拖拽', status: 'running', tick: 12 });
+      if (mode === 'agent') previewTestActivities.push({ id: 'command:test', label: '模拟拖拽', expected: '提交拖拽输入事件', status: 'running', tick: 12 });
       showPlayPage();
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const notice = element('play-agent-notice');
       return { progress: !element('play-agent-progress').hidden, progressText: element('play-agent-progress').textContent, owner: element('play-page').dataset.owner, notice: !notice.hidden, text: notice.textContent, exit: element('play-exit').textContent, pauseDisabled: element('play-pause').disabled, resizeDisabled: element('play-device-preset').disabled, input: getComputedStyle(element('play-device-screen')).pointerEvents, stageHeight: element('play-stage').getBoundingClientRect().height, toolbarBottom: element('play-page').querySelector('.play-toolbar').getBoundingClientRect().bottom, stageTop: element('play-stage').getBoundingClientRect().top };
+    };
+    window.previewTableFixture = async () => {
+      await window.previewUiFixture('agent');
+      const original = fixtureTask.acceptance;
+      fixtureTask.acceptance = [
+        { id: 'case:pending', label: '拖拽旋转方块', assertion: 'evidence state signal effects.entityChanged equals true', status: 'pending' },
+        { id: 'case:pass', label: '运行无错误', assertion: 'evidence runtime-errors signal count equals 0', status: 'pass' },
+        { id: 'case:fail', label: '保持相机位置', assertion: 'evidence state signal effects.cameraChanged equals false', status: 'fail', diagnostic: '相机位置发生了变化' },
+        { id: 'case:blocked', label: '外观检查', assertion: 'evidence screenshot', status: 'blocked', diagnostic: '等待画面证据' },
+      ];
+      previewTestActivities.length = 0;
+      previewTestActivities.push({ id: 'op:running', label: '模拟拖拽', expected: '提交指定拖拽输入', status: 'running' }, { id: 'op:done', label: '读取状态', expected: '返回当前运行状态', status: 'completed', tick: 12 });
+      renderPreviewTestProgress();
+      const table = element('play-agent-progress-table'), first = table.tBodies[0].rows[0];
+      renderPreviewTestProgress(); const retained = table.tBodies[0].rows[0] === first;
+      const rows = [...table.tBodies[0].rows].map(row => [...row.cells].map(cell => cell.textContent));
+      const headers = [...table.tHead.rows[0].cells].map(cell => cell.textContent);
+      fixtureTask.acceptance = original;
+      return { rows, headers, retained, columns: [...table.tBodies[0].rows].every(row => row.cells.length === 3) };
     };
     window.previewApprovalFixture = async (mode, failRefresh = false) => {
       await window.previewUiFixture(mode);
@@ -114,7 +133,12 @@ test('production preview controls distinguish Agent ownership and restore manual
     child.once('exit', code => { clearTimeout(timer); resolve({ code, output }); });
   });
   assert.equal(result.code, 0, result.output);
-  const { agent, manual, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
+  const { agent, manual, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
+  assert.deepEqual(table.headers, ['测试用例', '期望效果', '状态']);
+  assert.equal(table.retained, true); assert.equal(table.columns, true); assert.equal(table.narrow, true);
+  assert.deepEqual(table.rows.map(row => row[2]), ['待验证', '通过', '未通过', '待验证', '进行中', '通过']);
+  assert.match(table.rows[1][1], /count 等于 0/); assert.match(table.rows[2][1], /相机位置发生了变化/);
+  assert.match(table.rows[3][1], /等待画面证据/);
   assert.equal(scriptPanel.empty.text, '');
   assert.match(scriptPanel.empty.hint, /尚未绑定脚本.*属性面板/);
   assert.equal(scriptPanel.bound, 'actual bound behavior');

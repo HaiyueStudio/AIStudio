@@ -1,6 +1,6 @@
 import { asStableId, type JsonObject, type ToolBatchNodeV1, type ToolBatchRequestV1 } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, sha256 } from '@haiyue/ai-studio-operation-log';
-import { classifyToolConcurrency } from './classify.js';
+import { classifyToolConcurrency, requiresSerialOrder } from './classify.js';
 import { ToolBatchProtocolError } from './types.js';
 import type { GameToolDefinition } from '../types.js';
 
@@ -90,12 +90,10 @@ export function validateToolBatchRequest(request: ToolBatchRequestV1): void {
 
 function validateEffectiveDag(nodes: readonly ToolBatchNodeV1[]): void {
   const effective = new Map<string, Set<string>>(nodes.map((node) => [node.id, new Set(node.dependsOn)]));
-  let latestBarrier: string | null = null;
   nodes.forEach((node, index) => {
-    if (node.executionClass !== 'parallel-read') {
-      for (let prior = 0; prior < index; prior += 1) effective.get(node.id)?.add(nodes[prior]!.id);
-      latestBarrier = node.id;
-    } else if (latestBarrier) effective.get(node.id)?.add(latestBarrier);
+    for (let prior = 0; prior < index; prior += 1) {
+      if (requiresSerialOrder(nodes[prior]!, node)) effective.get(node.id)?.add(nodes[prior]!.id);
+    }
   });
   const visiting = new Set<string>(); const visited = new Set<string>();
   const visit = (id: string): void => {

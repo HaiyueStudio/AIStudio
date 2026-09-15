@@ -1,3 +1,4 @@
+import { requiresSerialOrder } from './classify.js';
 import type { JsonObject, JsonValue, ToolBatchNodeV1, ToolBatchRequestV1 } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, sha256 } from '@haiyue/ai-studio-operation-log';
 import { validateToolBatchRequest } from './normalize.js';
@@ -100,9 +101,8 @@ export class ToolBatchScheduler {
 
 function canDispatch(records: readonly { node: ToolBatchNodeV1; state: 'pending' | 'running' | 'done' }[], index: number): boolean {
   const node = records[index]!.node;
-  if (node.executionClass !== 'parallel-read') return !records.some((record) => record.state === 'running') && records.slice(0, index).every((record) => record.state === 'done');
-  if (records.some((record) => record.state === 'running' && record.node.executionClass !== 'parallel-read')) return false;
-  return !records.slice(0, index).some((record) => record.state !== 'done' && record.node.executionClass !== 'parallel-read');
+  return !records.some((entry, prior) => entry.state !== 'done'
+    && (entry.state === 'running' || prior < index) && requiresSerialOrder(entry.node, node));
 }
 
 function projectValue(result: ToolBatchExecutorResult, projection: ToolBatchNodeV1['outputProjection']): JsonObject {

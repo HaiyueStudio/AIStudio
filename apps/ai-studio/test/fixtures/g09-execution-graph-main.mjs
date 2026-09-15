@@ -32,11 +32,14 @@ app.whenReady().then(async () => {
     stage = 'live tool and approval beams';
     window.showInactive();
     result.liveFrontier = await window.webContents.executeJavaScript('window.runLiveFrontierCheck()');
+    stage = 'incremental transcript and reading position';
+    result.chatReading = await window.webContents.executeJavaScript('window.runChatReadingCheck()');
     stage = 'drag panning';
     window.showInactive();
     await window.webContents.executeJavaScript('window.prepareGraphPanCheck()');
     result.panning = await checkGraphPanning(window, '.execution-graph-viewport', 'is-selected');
     await window.webContents.executeJavaScript('window.runNarrowGraphCheck()');
+    result.planProgress = await window.webContents.executeJavaScript('window.runPlanProgressCheck()');
     if (screenshotPath) {
       stage = 'screenshot preparation';
       window.showInactive();

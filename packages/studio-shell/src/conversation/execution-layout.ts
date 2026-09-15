@@ -84,7 +84,7 @@ export function layoutExecutionGraph(graph: ExecutionGraphReadModel, options: Ex
 /** Reserve rows for whole branches, aligning each parent with its first child. */
 function calculateBranchRows(graph: ExecutionGraphReadModel, nodes: readonly ExecutionGraphNodeReadModel[], layers: ReadonlyMap<M13StableId, number>): Map<M13StableId, number> {
   const byId = new Map(nodes.map(node => [node.id, node]));
-  const compare = (left: ExecutionGraphNodeReadModel, right: ExecutionGraphNodeReadModel) => statusPriority(left.status) - statusPriority(right.status) || left.startedAt.localeCompare(right.startedAt) || left.id.localeCompare(right.id);
+  const compare = (left: ExecutionGraphNodeReadModel, right: ExecutionGraphNodeReadModel) => (left.kind === 'plan-step' && right.kind === 'plan-step' ? (left.detail.planStep?.index ?? 0) - (right.detail.planStep?.index ?? 0) : Number(right.kind === 'plan-step') - Number(left.kind === 'plan-step')) || statusPriority(left.status) - statusPriority(right.status) || left.startedAt.localeCompare(right.startedAt) || left.id.localeCompare(right.id);
   const parents = new Map<M13StableId, { id: M13StableId; contains: boolean }>();
   for (const edge of graph.edges) {
     if (!byId.has(edge.from) || !byId.has(edge.to) || !isLayerEdge(edge.kind) || layers.get(edge.from)! >= layers.get(edge.to)!) continue;

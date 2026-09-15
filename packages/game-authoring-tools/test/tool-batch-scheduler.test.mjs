@@ -4,6 +4,8 @@ import {
   GAME_AUTHORING_TOOL_DEFINITIONS,
   ToolBatchProtocolError,
   ToolBatchScheduler,
+  RollingToolBatchScheduler,
+  isProjectIndependentRead,
   classifyToolConcurrency,
   normalizeToolBatchRequest,
   validateToolBatchRequest,
@@ -161,4 +163,61 @@ test('batch output limit is enforced and digest-only projection remains bounded'
   assert.deepEqual(Object.keys(result.outcomes[0].value).sort(), ['byteLength', 'digest']);
   assert.equal(result.outcomes[1].status, 'failed');
   assert.equal(result.outcomes[1].diagnostic.code, 'tool-batch.result-limit');
+});
+
+for (const mode of ['batch', 'rolling']) {
+  async function run(calls, body) {
+    const request = batch(calls);
+    if (mode === 'batch') { const result = await new ToolBatchScheduler().execute(request, body); assert.ok(result.outcomes.every(item => item.status === 'completed')); return result; }
+    const scheduler = new RollingToolBatchScheduler({ maxWallTimeMs: 2000, cancelled: (_node, diagnostic) => ({ status: 'cancelled', value: { diagnostic } }) });
+    try { const result = await Promise.all(request.nodes.map(node => scheduler.enqueue(node, signal => body(node, signal)))); assert.ok(result.every(item => item.status === 'completed')); return result; }
+    finally { await scheduler.drain(); }
+  }
+  for (const reverse of [false, true]) test(`${mode}: registry read and scene mutation overlap in either order (${reverse})`, async () => {
+    const calls = [{ toolCallId: 'call:write', toolId: 'entity.create' }, { toolCallId: 'call:docs', toolId: 'engine.docs.search' }];
+    if (reverse) calls.reverse();
+    const started = [];
+    let release; const bothStarted = new Promise(resolve => { release = resolve; });
+    let overlapped = true;
+    const timeout = setTimeout(() => { overlapped = false; release(); }, 800);
+    try {
+      await run(calls, async node => {
+        started.push(node.toolId); if (started.length === 2) release();
+        await bothStarted;
+        assert.equal(started.length, 2, 'a registry read must start before the mutation finishes');
+        return { status: 'completed', value: {} };
+      });
+      assert.equal(started.length, 2);
+      assert.equal(overlapped, true);
+    } finally { clearTimeout(timeout); }
+  });
+  for (const barrier of ['script.apply', 'preview.start', 'unknown.tool', 'entity.create-many']) test(`${mode}: static reads respect ${barrier} barrier`, async () => {
+    const events = [];
+    await run([{ toolCallId: 'call:barrier', toolId: barrier }, { toolCallId: 'call:docs', toolId: 'engine.docs.search' }], async (node, signal) => {
+      events.push(`start:${node.toolId}`); await delay(5, signal); events.push(`end:${node.toolId}`);
+      return { status: 'completed', value: {} };
+    });
+    assert.deepEqual(events, [`start:${barrier}`, `end:${barrier}`, 'start:engine.docs.search', 'end:engine.docs.search']);
+  });
+  test(`${mode}: explicit documentation dependency remains ordered`, async () => {
+    let written = false;
+    await run([{ toolCallId: 'call:write', toolId: 'entity.create' }, { toolCallId: 'call:docs', toolId: 'engine.docs.search', dependsOn: ['call:write'] }], async (node, signal) => {
+      if (node.toolId === 'entity.create') { await delay(5, signal); written = true; } else assert.equal(written, true);
+      return { status: 'completed', value: {} };
+    });
+  });
+}
+
+test('independent reads remain registry-limited and revision assertions forbid crossing writes', () => {
+  for (const toolId of ['engine.docs.search', 'engine.docs.read', 'tool.search', 'component.describe']) {
+    const node = batch([{ toolCallId: 'call:docs', toolId }]).nodes[0];
+    assert.equal(isProjectIndependentRead(node), true);
+    assert.equal(isProjectIndependentRead({ ...node, expectedRevision: 1 }), false);
+    assert.equal(isProjectIndependentRead({ ...node, arguments: { baseRevision: 1 } }), false);
+  }
+  for (const toolId of ['scene.query', 'asset.search', 'project.snapshot', 'play.inspect']) assert.equal(isProjectIndependentRead(batch([{ toolCallId: 'call:state', toolId }]).nodes[0]), false);
+  const definition = GAME_AUTHORING_TOOL_DEFINITIONS.find(item => item.id === 'engine.docs.search');
+  assert.equal(classifyToolConcurrency({ ...definition, requiresApproval: true }, {}).executionClass, 'approval-barrier');
+  // A forward dependency on a static read no longer creates a spurious barrier cycle.
+  assert.doesNotThrow(() => batch([{ toolCallId: 'call:write', toolId: 'entity.create', dependsOn: ['call:docs'] }, { toolCallId: 'call:docs', toolId: 'engine.docs.search' }]));
 });

@@ -8,7 +8,7 @@ export interface ToolConcurrencyClassification {
   readonly effectKeys: readonly string[];
 }
 
-const RUNTIME_STATE_TOOL_IDS = new Set(['preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.pointer-gesture', 'play.physics-query', 'play.inspect', 'play.capture']);
+const RUNTIME_STATE_TOOL_IDS = new Set(['preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.input', 'play.pointer-gesture', 'play.regression', 'play.physics-query', 'play.inspect', 'play.capture']);
 
 /** Derives trusted scheduling metadata exclusively from the registered definition and bounded arguments. */
 export function classifyToolConcurrency(definition: GameToolDefinition | undefined, args: JsonObject): ToolConcurrencyClassification {
@@ -19,11 +19,29 @@ export function classifyToolConcurrency(definition: GameToolDefinition | undefin
     if (definition.effect === 'trusted-code') return frozen('trusted-code-barrier', unique(['trusted-code', ...(definition.id === 'script.apply' ? ['document-mutation' as const] : []), ...approval]), effectKeys(args, 'script'));
     if (definition.effect === 'runtime-start') return frozen('runtime-barrier', unique(['runtime-control', ...approval]), ['runtime:preview']);
     if (definition.effect === 'reversible-edit') return frozen(definition.requiresApproval ? 'approval-barrier' : 'exclusive-mutation', unique(['document-mutation', ...approval]), effectKeys(args, 'document'));
+    if (definition.effect === 'observe' && definition.requiresApproval) return frozen('approval-barrier', ['observe', 'approval'], effectKeys(args, 'read'));
     if (definition.effect === 'observe' && definition.concurrencySafe === true) return frozen('parallel-read', ['observe'], effectKeys(args, 'read'));
     return frozen('unknown-exclusive', ['unknown'], [`tool:${definition.id}`]);
   } catch {
     return frozen('unknown-exclusive', ['unknown'], [`tool:${definition.id}`]);
   }
+}
+
+// These handlers read the bundled documentation or fixed registries, never scene state.
+const PROJECT_INDEPENDENT_READS = new Set(['engine.docs.search', 'engine.docs.read', 'tool.search', 'component.describe']);
+
+export function isProjectIndependentRead(node: Pick<ToolBatchNodeV1, 'toolId' | 'executionClass' | 'effects' | 'arguments' | 'expectedRevision'>): boolean {
+  return PROJECT_INDEPENDENT_READS.has(node.toolId) && node.executionClass === 'parallel-read'
+    && node.effects.length === 1 && node.effects[0] === 'observe'
+    && node.expectedRevision === null && node.arguments.baseRevision === undefined;
+}
+
+/** Only registry-derived nodes may enter a scheduler; caller-supplied classes are not authority. */
+export function requiresSerialOrder(left: ToolBatchNodeV1, right: ToolBatchNodeV1): boolean {
+  if (left.executionClass === 'parallel-read' && right.executionClass === 'parallel-read') return false;
+  if (left.executionClass === 'exclusive-mutation' && isProjectIndependentRead(right)) return false;
+  if (right.executionClass === 'exclusive-mutation' && isProjectIndependentRead(left)) return false;
+  return true;
 }
 
 export function classificationMatches(node: ToolBatchNodeV1, trusted: ToolConcurrencyClassification): boolean {

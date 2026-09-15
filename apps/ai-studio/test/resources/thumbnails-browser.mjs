@@ -33,7 +33,7 @@ const png = canvas=>canvas.toDataURL();
 assert(png(canvases[0])!==png(canvases[1]), 'Rounded box and sphere have different engine meshes');
 assert(canvases.every(c=>c.getContext('2d').getImageData(0,0,128,128).data.some((v,i)=>i%4===3 && v>0)), 'Wireframes contain pixels');
 const button = panel.root.querySelector('[data-resource-entry]');
-assert(button.children.length===2 && button.children[0].tagName==='CANVAS', 'Each card shows only thumbnail and name');
+assert(button.children[0].tagName==='CANVAS' && button.children[1].tagName==='STRONG' && [...button.children].slice(2).every(node=>node.tagName==='SMALL'), 'Cards show thumbnail, name and optional shared-resource use count');
 button.click(); assert(!panel.root.querySelector('[data-resource=detail]').hidden,'Click opens details');
 panel.root.querySelector('[data-resource=detail] button').click(); assert(panel.root.querySelector('[data-resource=detail]').hidden,'Close returns to compact inventory');
 await category('Material'); assert(data.total===2,'Actual materials only');
