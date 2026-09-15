@@ -137,3 +137,10 @@ test('failed/cancelled evaluation payloads are not consumed; completed results s
  const projected=await host.commitToolBody({outputBytes:1024*1024},context,body,signal);
  assert.equal(projected.status,'failed');assert.deepEqual(captured[0][2],value);
 });
+
+test('a successful gesture with failed behavior retains compact diagnostics and gets evidence-led correction',()=>{
+ const input={status:'completed',value:{projection:{large:'x'.repeat(50000)},diagnostics:{stage:'pointer-unavailable',expectationMatched:false,hitEntityId:'entity:surface',receiverEntityId:'entity:surface',mismatches:['entity:surface did not change'],nextAction:'Inspect scene.get-many and script.get.',repeatedFailureCount:2}}};
+ for(const mode of ['summary','digest-only']){const output=projectToolModelResult(input,mode);assert.equal(output.status,'completed');assert.equal(output.interactionDiagnostic.hitEntityId,'entity:surface');assert.equal(output.interactionDiagnostic.expectationMatched,false);assert.ok(JSON.stringify(output).length<2000);}
+ const f=fixture();f.host.active.toolFailures.clear();f.host.active.toolFailures.set('play.pointer-gesture',{...failure,toolId:'play.pointer-gesture',code:'interaction.diagnostic-required'});f.host.active.blockers=['play.pointer-gesture: interaction.diagnostic-required'];
+ assert.equal(f.request(),true);assert.match(f.host.active.continuationInstruction,/hypothesis/);
+});

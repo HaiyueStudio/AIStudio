@@ -8,6 +8,7 @@ export function taskContinuationRequest(run: ConversationTaskRunReadModel): stri
     taskId: run.taskId, request: run.requestSummary.slice(0, 1000), documentRevision: run.documentRevision, status: run.status,
     requiredRemaining: pending.length, retainedEvidenceCount: run.evidence.length,
     criteria: [], omittedCriteria: pending.length,
+    lastInteractionDiagnostic: run.timeline?.filter(item => item.title === '交互诊断').at(-1)?.detail.slice(0, 1024) ?? null,
   };
   const criteria: unknown[] = [];
   for (const item of pending) {

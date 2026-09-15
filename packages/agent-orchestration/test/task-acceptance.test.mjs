@@ -82,3 +82,12 @@ test('an unavailable required evidence field prevents gameplay repair even along
   assert.match(host.taskRuns.get(spec.id).timeline.at(-1).detail,/不是游戏功能失败/);
  }finally{await host.dispose();}
 });
+
+test('gesture diagnostic is retained as a historical task fact and handed to repair continuation',async()=>{
+ const {repairRequest}=await import('../dist/task-acceptance.js');
+ const host=new StudioConversationHost({runtime:{},tools:{definitions:()=>[]},operationLog:{async append(){}},isProjectOpen:()=>false});
+ const run={taskId:'task:diagnostic',status:'running',phase:'playing',timeline:[],evidence:[],documentRevision:11};host.taskRuns.set(run.taskId,run);host.changed=()=>{};
+ await host.captureProductToolResult(run.taskId,'play.pointer-gesture',{diagnostics:{stage:'pointer-unavailable',expectationMatched:false,hitEntityId:'entity:outer',nextAction:'Inspect the visible outer surface.',repeatedFailureCount:2}},'turn:diagnostic','call:diagnostic');
+ const saved=host.taskRuns.get(run.taskId).timeline.at(-1);assert.equal(saved.title,'交互诊断');assert.equal(saved.status,'warning');assert.match(saved.detail,/entity:outer/);assert.match(saved.detail,/documentRevision.*11/);
+ assert.match(repairRequest(spec,{acceptanceResults:[]},1,saved.detail),/Latest observed interaction diagnostic.*entity:outer/);
+});

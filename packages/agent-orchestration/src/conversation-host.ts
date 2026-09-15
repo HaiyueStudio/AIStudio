@@ -1,4 +1,4 @@
-import { toolCorrectionGuidance, toolFailureFeedback } from './tool-correction.js';
+import { toolCorrectionGuidance, toolFailureFeedback, interactionDiagnosticFeedback } from './tool-correction.js';
 import { QUERY_LIMIT_DEFAULTS, QUERY_PAGE_SIZE, queryLimitRequest, parseQueryLimits, type QueryLimits } from '@haiyue/ai-studio-game-authoring-tools';
 import { taskContinuationRequest, incompleteAcceptanceDetail } from './task-continuation.js';
 import { stringField, isRecord, errorCode, errorMessage } from './value-utils.js';
@@ -2108,6 +2108,10 @@ export class StudioConversationHost {
         });
       }
     }
+    if (toolId === 'play.pointer-gesture' && isRecord(value.diagnostics)) {
+      const d = interactionDiagnosticFeedback(value).interactionDiagnostic;
+      if (d) this.updateTaskRun(taskId, {}, { phase: 'playing', status: value.diagnostics.expectationMatched === false ? 'warning' : 'complete', title: '交互诊断', detail: JSON.stringify({ documentRevision: this.taskRuns.get(taskId)?.documentRevision ?? null, diagnostic: d }).slice(0, 1024), turnId, toolCallId });
+    }
     if (toolId !== 'task.evaluate') return;
     const evaluation = evaluationResult(value, taskId);
     const playtest = this.playtestTasks.get(taskId); if (!playtest) throw new PlaytestLoopError('task.acceptance-unapproved', 'Task evaluation has no approved lifecycle owner.');
@@ -2146,7 +2150,7 @@ export class StudioConversationHost {
         this.updateTaskRun(taskId, { status: 'running', phase: 'repairing', acceptance: Object.freeze(acceptance), repairIteration: repair.attempts.length, terminalDiagnostic: null, resumable: false }, { phase: 'repairing', status: 'warning', title: `开始第 ${repair.attempts.length} 轮修复`, detail: failedEvidence.length ? `依据 ${failedEvidence.length} 项失败证据。` : '等待可采信失败证据。', turnId, toolCallId });
         if (this.active?.taskId === taskId) {
           this.active.continuationRequested = true;
-          this.active.continuationInstruction = repairRequest(playtest.task, evaluation, repair.attempts.length);
+          this.active.continuationInstruction = repairRequest(playtest.task, evaluation, repair.attempts.length, this.taskRuns.get(taskId)?.timeline.filter(item => item.title === '交互诊断').at(-1)?.detail);
           this.active.decisions.push(`Evaluation failed; bounded repair iteration ${repair.attempts.length} approved by the task budget.`);
         }
       }

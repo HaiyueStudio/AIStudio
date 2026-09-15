@@ -226,3 +226,23 @@ test('legacy plans with nonexistent reserved runtime fields block without spendi
  const loop=new BoundedPlaytestTask(spec,3);for(const phase of ['editing','validating','playing','evaluating'])loop.advance(phase);
  loop.recordEvaluation(result);assert.equal(loop.snapshot().phase,'blocked');assert.equal(loop.snapshot().attempts.length,0);
 });
+
+test('normalized event-trace wrapper checks the same persisted gesture event and preserves failure semantics',async(t)=>{
+ const {normalizePlayEvidenceAssertion}=await import('../dist/index.js');
+ const f=await createFixture(t),evaluator=new DeterministicTaskEvaluator(f.repository,()=>7);
+ const bundle=await f.repository.persistInspection(call,observation({gesture:{interactions:[{type:'down',entityId:'cube'},{type:'click',entityId:'cube'}]},interactions:[]}));
+ for(const [expected,status] of [['click','pass'],['drag','fail']]){
+  const assertion=normalizePlayEvidenceAssertion(`evidence event-trace signal gesture.interactions.1.type equals "${expected}"`);
+  const result=await evaluator.evaluate(evaluationInput(taskSpec([{id:'acceptance:pointer',category:'functional',assertion}]),bundle.map(x=>x.artifact.id)));
+  assert.equal(result.status,status);
+ }
+});
+
+test('known final result wrapper is normalized only before approval; old approved signal is unavailable',async()=>{
+  const {normalizePlayEvidenceAssertion,unavailablePlayEvidenceSignal}=await import('../dist/index.js');
+  const old='evidence state signal gesture.final.effects.cameraChanged equals false';
+  assert.equal(normalizePlayEvidenceAssertion(old),'evidence state signal effects.cameraChanged equals false');
+  assert.match(unavailablePlayEvidenceSignal(old),/approved assertion must be reapproved/);
+  assert.equal(unavailablePlayEvidenceSignal(normalizePlayEvidenceAssertion(old)),null);
+  assert.equal(normalizePlayEvidenceAssertion('evidence state signal gameplay.0.value.gesture.final.effects.cameraChanged equals false'),'evidence state signal gameplay.0.value.gesture.final.effects.cameraChanged equals false');
+});

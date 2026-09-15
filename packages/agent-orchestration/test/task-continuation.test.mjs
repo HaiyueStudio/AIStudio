@@ -24,3 +24,9 @@ test('continuation includes only current same-Play evidence and routes effects t
  assert.equal(checkpoint.criteria[0].verification.tool,'play.pointer-gesture');
  assert.match(text,/do not restart Play/);assert.ok(Buffer.byteLength(text)<8192);
 });
+
+test('checkpoint carries the recent diagnostic with its observed revision, within the same budget',()=>{
+ const run={taskId:'task:diagnostic',requestSummary:'Repair drag',documentRevision:12,status:'running',acceptance:[],evidence:[],timeline:[{title:'交互诊断',detail:'{"documentRevision":11,"diagnostic":{"hitEntityId":"entity:outer"}}'}]};
+ const text=taskContinuationRequest(run),checkpoint=JSON.parse(text.split('\n\n')[1]);
+ assert.match(checkpoint.lastInteractionDiagnostic,/documentRevision.*11/);assert.equal(checkpoint.documentRevision,12);assert.ok(Buffer.byteLength(text)<8192);
+});

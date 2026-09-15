@@ -1537,7 +1537,7 @@ test('large-scene pointer gesture returns bounded evidence, hit targets and real
     assert.equal(result.status,'completed');assert.ok(Buffer.byteLength(JSON.stringify(result.value))<65536);
     assert.equal(result.value.baselineProjectionTruncated,true);assert.equal(result.value.projectionTruncated,true);
     assert.deepEqual(result.value.steps.map(step=>step.interactionTargetId),['entity:large-399','entity:large-399','entity:large-399']);
-    assert.deepEqual(result.value.effects,{changedEntityCount:1,changedEntityIds:['entity:large-399'],changedEntityIdsTruncated:false,materialColorChanged:false,changedMaterialEntityCount:0,changedMaterialEntityIds:[],changedMaterialEntityIdsTruncated:false,cameraChanged:false});
+    assert.deepEqual(result.value.effects,{changedTransformEntityCount:1,changedTransformEntityIds:['entity:large-399'],changedTransformEntityIdsTruncated:false,changedEntityCount:1,changedEntityIds:['entity:large-399'],changedEntityIdsTruncated:false,materialColorChanged:false,changedMaterialEntityCount:0,changedMaterialEntityIds:[],changedMaterialEntityIdsTruncated:false,cameraChanged:false});
     const final = await value.operationLog.readArtifact(result.value.observations.find(item=>item.type==='state').id);
     assert.equal(final.value.payload.state.entities.length,400);assert.equal(final.value.payload.state.entities[399].rotation[1],1);
     assert.equal(final.value.payload.trace.length,150);
@@ -1774,7 +1774,7 @@ test('gesture evidence evaluates actual color changes and retained clicks after 
  try{
   const gesture=await executeReady(value.runtime,call('call:color-gesture','play.pointer-gesture',request()));
   assert.equal(gesture.status,'completed');assert.equal(gesture.value.projection.interactions.length,0);
-  assert.equal(gesture.value.effects.materialColorChanged,true);assert.deepEqual(gesture.value.effects.changedMaterialEntityIds,['entity:color']);
+  assert.equal(gesture.value.effects.changedTransformEntityCount,0);assert.equal(gesture.value.effects.materialColorChanged,true);assert.deepEqual(gesture.value.effects.changedMaterialEntityIds,['entity:color']);
   const result=await executeReady(value.runtime,call('call:color-evaluation','task.evaluate',{taskSpec,observationIds:gesture.value.observations.map(x=>x.id)}));
   assert.equal(result.status,'completed');assert.equal(result.value.status,'pass');
   change=false;
@@ -1782,5 +1782,43 @@ test('gesture evidence evaluates actual color changes and retained clicks after 
   const failed=await executeReady(value.runtime,call('call:unchanged-evaluation','task.evaluate',{taskSpec,observationIds:unchanged.value.observations.map(x=>x.id)}));
   assert.equal(failed.value.status,'fail');assert.equal(failed.value.acceptanceResults[0].status,'fail');
   assert.equal(failed.value.acceptanceResults[1].status,'pass');assert.equal(failed.value.acceptanceResults[2].status,'pass');
+ }finally{await dispose(value);}
+});
+
+test('gesture diagnostics survive settle and prevent repeated failed probes before injecting more input', async()=>{
+  const value=await fixture();let tick=0,queued=null,inputCount=0;
+  const observe=(routing)=>({...value.preview.observation({state:{entities:[{id:'entity:surface',position:[0,0,0]}],camera:{theta:0}},interactions:[],runtimeErrorCount:0,...(routing?{routing}:{})}),tick,documentRevision:1});
+  value.preview.input=async event=>{queued=event;inputCount++;return observe();};
+  value.preview.step=async count=>{let routing;for(let i=0;i<count;i++){tick++;routing=undefined;if(queued){routing={tick,hits:[{phase:queued.phase,pointerId:queued.pointerId,hitEntityId:'entity:surface',receiverEntityId:'entity:surface',pointer:null,emitted:[],suppressed:[{reason:'pointer-unavailable'}]}],reads:[],orbit:{scriptId:'script:camera',mode:'background',decisions:[{pointerId:queued.pointerId,action:'yield-object'}]}};queued=null;}}return observe(routing);};
+  const args={points:[{phase:'down',x:.5,y:.5},{phase:'up',x:.5,y:.5}],settleTicks:2,expect:{changedEntityIds:['entity:surface'],cameraChanged:false}};
+  try{
+    for(let i=1;i<=2;i++){
+      const result=await executeReady(value.runtime,call('call:diagnose-'+i,'play.pointer-gesture',args));
+      assert.equal(result.status,'completed');assert.equal(result.value.diagnostics.stage,'pointer-unavailable');
+      assert.equal(result.value.diagnostics.expectationMatched,false);assert.equal(result.value.diagnostics.repeatedFailureCount,i);
+      assert.equal(result.value.projection.diagnostics.stage,'pointer-unavailable');
+      assert.equal(result.value.steps[0].routing.hits[0].hitEntityId,'entity:surface');
+    }
+    await assert.rejects(executeReady(value.runtime,call('call:diagnose-blocked','play.pointer-gesture',args)),e=>e.code==='interaction.diagnostic-required');assert.equal(inputCount,4);
+    const probe=await executeReady(value.runtime,call('call:diagnose-new','play.pointer-gesture',{...args,points:[{phase:'down',x:.1,y:.1},{phase:'up',x:.1,y:.1}],hypothesis:'Inspect whether the background differs from the visible surface.'}));
+    assert.equal(probe.status,'completed');assert.equal(inputCount,6);
+    await assert.rejects(value.runtime.prepare(call('call:diagnose-contradictory','play.pointer-gesture',{...args,expect:{changedEntityIds:['entity:surface'],unchangedEntityIds:['entity:surface']}})),/both changed and unchanged/);
+  }finally{await dispose(value);}
+});
+
+test('dense gesture routing and many script references fit the result budget while full effects remain evidence',async()=>{
+ const value=await fixture();let tick=0,queued=null,angle=0;
+ const ids=Array.from({length:50},(_,i)=>'entity:'+String(i).padStart(3,'0')+'x'.repeat(130));
+ const scriptDigests=Array.from({length:40},(_,i)=>'sha256:'+i.toString(16).padStart(64,'0'));
+ const observe=(routing)=>({...value.preview.observation({state:{entities:ids.map(id=>({id,position:[0,0,0],rotation:[0,angle,0],scale:[1,1,1],materialColor:[angle/100,0,0,1]})),camera:{theta:0}},...(routing?{routing}:{}),interactions:[],runtimeErrorCount:0}),scriptDigests,tick,documentRevision:1});
+ value.preview.input=async event=>{queued=event;return observe();};
+ value.preview.step=async count=>{let routing;for(let i=0;i<count;i++){tick++;routing=undefined;if(queued){angle++;routing={tick,hits:[{phase:queued.phase,pointerId:queued.pointerId,hitEntityId:ids[0],receiverEntityId:ids[0],pointer:{enabled:true,events:['down','move','up']},emitted:[{type:queued.phase,entityId:ids[0]}]}],reads:Array.from({length:4},(_,j)=>({scriptId:'script:'+j+'x'.repeat(100),entityId:ids[j],scope:'global',eventCount:1})),orbit:null};queued=null;}}return observe(routing);};
+ try{
+  const points=Array.from({length:32},(_,i)=>({phase:i===0?'down':i===31?'up':'move',x:.5+i/100,y:.5}));
+  const result=await executeReady(value.runtime,call('call:dense-routing','play.pointer-gesture',{points}));
+  assert.equal(result.status,'completed');assert.ok(Buffer.byteLength(JSON.stringify(result.value))<=65536);
+  assert.equal(result.value.effects.changedTransformEntityCount,50);assert.equal(result.value.effects.changedTransformEntityIdsTruncated,true);
+  assert.equal(result.value.stepsRoutingTruncated,true);assert.equal(result.value.steps[0].routing.truncated,true);
+  assert.equal(result.value.observations[0].scriptDigests.length,40);
  }finally{await dispose(value);}
 });

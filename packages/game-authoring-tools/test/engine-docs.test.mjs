@@ -285,3 +285,8 @@ test('data-first verification guide is searchable and distinguishes runtime fact
  assert.match(content,/missingEntityIds/);
  assert.match(content,/视觉/);
 });
+
+test('interaction diagnostics are independently retrievable within the default document budget',()=>{
+ const result=search('交互故障诊断');const entry=result.matches.find(item=>item.title.includes('交互故障诊断'));assert.ok(entry);
+ const content=JSON.stringify(read(entry));assert.match(content,/changedTransformEntityIds/);assert.match(content,/interaction.diagnostic-required/);assert.match(content,/selfInteractions/);
+});

@@ -89,3 +89,17 @@ evidence runtime-errors signal count equals 0
 恢复审批或模型执行回合时，先复用已保留的同项目修订、同 Play 证据；
 映射 ID 写错只修正 `acceptanceEvidence` 和 `observationIds`，不必重启预览或重新查询所有文档。
 文档/脚本/设备等来源兼容性仍由评估器校验，真正过期的证据需要重新采集。
+
+规划时注意证据类型与路径成对使用：
+
+```text
+evidence state signal gesture.interactions.1.type equals "click"
+evidence event-trace signal interactions.1.type equals "click"
+```
+
+二者读取同一个手势事件集合，下标必须以实际事件为准。若方案将第二种误写成
+`evidence event-trace signal gesture.interactions.1.type ...`，提交时会把已知的包装路径
+规范化为 `interactions.1.type`，再展示给用户确认。只移除这个明确等价的包装层，
+不修改事件下标、比较条件、预期值或必需性；未知字段继续报错。
+
+交互失败时，检索“交互故障诊断”，按几何命中、事件分发、脚本读取、相机归属、真实变换逐层定位。相关文档：`example:interaction-diagnostics`。

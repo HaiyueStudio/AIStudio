@@ -39,6 +39,25 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate('document.querySelector(".execution-node-detail").textContent.includes("518 ms")'), true);
   await move('.execution-node-detail'); await evaluate('new Promise(resolve => setTimeout(resolve, 230))'); assert.equal(await opened('.execution-detail-popover'), true);
   await evaluate('showGraph()'); await frame(); assert.equal(await opened('.execution-detail-popover'), true);
+  await evaluate(`window.retainedGraph = {
+    viewport: document.querySelector('.execution-graph-viewport'), canvas: document.querySelector('.execution-graph-canvas'),
+    node: document.querySelector('.execution-node[data-node-id="node:0"]'), beam: document.querySelector('.execution-node[data-node-id="node:0"] hy-border-beam'),
+    edge: document.querySelector('.execution-edges path'), panel: document.querySelector('.execution-detail-popover'), detail: document.querySelector('.execution-node-detail'), scale: graphScale(),
+  }; window.nodeMutations=[]; window.nodeObserver=new MutationObserver(records=>nodeMutations.push(...records)); nodeObserver.observe(retainedGraph.node,{subtree:true,childList:true,attributes:true,characterData:true});
+  retainedGraph.detail.querySelector('details').open=true;
+  const selection=getSelection(), range=document.createRange(); range.selectNodeContents(retainedGraph.detail.querySelector('h3')); selection.removeAllRanges(); selection.addRange(range); window.retainedText=selection.toString();`);
+  for (let i=0;i<4;i++) { await evaluate('streamGraph("other")'); await frame(); }
+  assert.deepEqual(await evaluate(`({
+    viewport: retainedGraph.viewport===document.querySelector('.execution-graph-viewport'), canvas:retainedGraph.canvas===document.querySelector('.execution-graph-canvas'),
+    node: retainedGraph.node===document.querySelector('.execution-node[data-node-id="node:0"]'), beam:retainedGraph.beam===document.querySelector('.execution-node[data-node-id="node:0"] hy-border-beam'),
+    edge:retainedGraph.edge===document.querySelector('.execution-edges path'), panel:retainedGraph.panel===document.querySelector('.execution-detail-popover'),
+    detail:retainedGraph.detail===document.querySelector('.execution-node-detail'), open:retainedGraph.panel.matches(':popover-open'),
+    selectedText: getSelection().toString()===retainedText, expanded:retainedGraph.detail.querySelector('details').open, scale:graphScale()===retainedGraph.scale,
+    unchangedNode:nodeMutations.length===0, added:!!document.querySelector('.execution-node[data-node-id="node:stream"]')
+  })`), { viewport:true,canvas:true,node:true,beam:true,edge:true,panel:true,detail:true,open:true,selectedText:true,expanded:true,scale:true,unchangedNode:true,added:true });
+  await evaluate('nodeObserver.disconnect(); getSelection().removeAllRanges(); streamGraph("remove")'); await frame();
+  assert.equal(await evaluate(`document.querySelector('.execution-node[data-node-id="node:stream"]')===null`), true);
+
   await writeFile(path.join(directory, 'node-detail.png'), (await window.webContents.capturePage()).toPNG());
   await move('.chat-composer');
   await evaluate(`new Promise((resolve, reject) => { const deadline = performance.now() + 2500; const check = () => {
@@ -48,6 +67,20 @@ app.whenReady().then(async () => {
   }; check(); })`);
   await click('.execution-node[data-node-id="node:0"]'); assert.equal(await opened('.execution-detail-popover'), true);
   await move('.chat-composer'); await evaluate('new Promise(resolve => setTimeout(resolve, 230))'); assert.equal(await opened('.execution-detail-popover'), true);
+  await evaluate('document.querySelector(".execution-node-detail details").open=true; streamGraph("self")'); await frame();
+  assert.equal(await opened('.execution-detail-popover'), true, 'updating the pinned node keeps its popover open');
+  assert.equal(await evaluate('document.querySelector(".execution-detail-popover")===retainedGraph.panel'), true);
+  assert.equal(await evaluate('document.querySelector(".execution-node-detail").textContent.includes("已创建棋盘纹理，验证完成。")'), true);
+  assert.equal(await evaluate(`document.querySelector('.execution-node[data-node-id="node:0"] hy-border-beam')===null`), true);
+  assert.equal(await evaluate('document.querySelector(".execution-node-detail details").open'), true);
+  await evaluate('streamGraph("restore")'); await frame();
+  await evaluate(`{ window.removedTrigger=document.querySelector('.execution-node[data-node-id="node:0"]'); const filter=document.querySelector('[aria-label="Filter execution graph"]'); filter.value='failed'; filter.dispatchEvent(new Event('change')); }`); await frame();
+  assert.equal(await opened('.execution-detail-popover'), false, 'filtering out the inspected node closes only its detail');
+  await evaluate('removedTrigger.dispatchEvent(new PointerEvent("pointerenter")); removedTrigger.click()'); await frame();
+  assert.equal(await opened('.execution-detail-popover'), false, 'removed node hover bindings are released');
+  await evaluate(`{ const filter=document.querySelector('[aria-label="Filter execution graph"]'); filter.value='all'; filter.dispatchEvent(new Event('change')); }`); await frame();
+
+
   await escape(); assert.equal(await opened('.execution-detail-popover'), false);
   window.webContents.focus(); await frame();
   await evaluate('document.querySelector(".execution-node[data-node-id=\\"node:0\\"]").blur(); document.querySelector(".execution-node[data-node-id=\\"node:0\\"]").focus()'); await frame(); assert.equal(await opened('.execution-detail-popover'), true);
@@ -69,6 +102,8 @@ app.whenReady().then(async () => {
   await evaluate(`(() => { const v=document.querySelector('.execution-graph-viewport'); for (const deltaMode of [1,2]) v.dispatchEvent(new WheelEvent('wheel',{deltaY:100000,deltaMode,bubbles:true,cancelable:true})); })()`); await frame(); assert.ok(await evaluate('graphScale()') >= .01);
   await evaluate('while(graphScale()<1.25) document.querySelector("[aria-label=\\"Zoom in execution graph\\"]").click(); const viewport=document.querySelector(".execution-graph-viewport"); viewport.scrollLeft=60; viewport.scrollTop=40;'); await frame();
   const graphPosition = await evaluate('({scale:graphScale(), left:document.querySelector(".execution-graph-viewport").scrollLeft, top:document.querySelector(".execution-graph-viewport").scrollTop, selected:document.querySelector(".execution-node.is-selected").dataset.nodeId})');
+  await evaluate('streamGraph("other")'); await frame();
+  assert.deepEqual(await evaluate('({scale:graphScale(), left:document.querySelector(".execution-graph-viewport").scrollLeft, top:document.querySelector(".execution-graph-viewport").scrollTop, selected:document.querySelector(".execution-node.is-selected").dataset.nodeId})'), graphPosition, 'streamed nodes preserve zoom and nonzero pan position');
   await switchView('steps');
   assert.equal(await evaluate('document.querySelector(".execution-graph-viewport").getBoundingClientRect().height'), 0);
   assert.ok(await evaluate('document.querySelector(".chat-feed").clientHeight') > 100);
@@ -137,6 +172,15 @@ app.whenReady().then(async () => {
     if (id !== 'node:4') await writeFile(path.join(directory, `${id === 'node:2' ? 'failed' : 'cancelled'}-detail.png`), (await window.webContents.capturePage()).toPNG());
     await escape();
   }
+  await evaluate('showDuplicateFailure()'); await frame();
+  await click('.execution-node[data-node-id="node:2"]');
+  const duplicate = await evaluate(`(() => { const panel = document.querySelector('.execution-node-detail'); return { count: panel.textContent.split('gesture.interactions.0.type is not an event-trace field').length - 1, reason: !!panel.querySelector('.execution-node-reason'), result: panel.textContent.includes('执行结果') }; })()`);
+  assert.deepEqual(duplicate, { count: 1, reason: false, result: true });
+  await writeFile(path.join(directory, 'deduplicated-failure.png'), (await window.webContents.capturePage()).toPNG());
+  await escape(); await evaluate('showDuplicateFailure(true)'); await frame();
+  await click('.execution-node[data-node-id="node:2"]');
+  assert.match(await evaluate("document.querySelector('.execution-node-reason').textContent"), /项目修订已经改变/);
+  await escape();
   await evaluate('showMarkdownDetail()'); await frame();
   await click('.execution-node[data-node-id="node:0"]');
   const markdown = await evaluate(`(() => { const panel = document.querySelector('.execution-node-detail'); return {
@@ -156,6 +200,6 @@ app.whenReady().then(async () => {
   await writeFile(path.join(directory, 'markdown-detail.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate('disposeGraph()');
   assert.deepEqual(errors, []);
-  const result = { status: 'passed', terminalReasons: { failed: true, cancelled: true, historicalFallback: true, colorsRetainedOnSelection: true }, presentationTabs: { libraryComponent: true, mutuallyExclusive: true, keyboard: true, preservesDraftAndSelection: true, preservesFeedAndGraphPosition: true, preservesChoiceOnReplay: true, notificationTarget: true }, wheelCursorAnchor: wheel, nativeWheel: true, hoverAndKeyboard: true, pinAndEscape: true, runningBeamOnly: true, narrowBounds: true, unknownUsage: true, compactionOnce: true, cleanup: true, replayPreservesHover: true, taskContinuity: { before: originalIds.length, afterHandoff: continuedIds.length, afterExecution: fullCount, selectionAndZoomPreserved: true, separateRequests: true, historySelection: true }, sizes: [[760,880],[320,600]], screenshots: ['usage.png','node-detail.png','steps-view.png','graph-760x880.png','graph-320x600.png','task-chain.png'] };
+  const result = { status: 'passed', terminalReasons: { failed: true, cancelled: true, historicalFallback: true, colorsRetainedOnSelection: true }, presentationTabs: { libraryComponent: true, mutuallyExclusive: true, keyboard: true, preservesDraftAndSelection: true, preservesFeedAndGraphPosition: true, preservesChoiceOnReplay: true, notificationTarget: true }, wheelCursorAnchor: wheel, nativeWheel: true, hoverAndKeyboard: true, pinAndEscape: true, runningBeamOnly: true, narrowBounds: true, unknownUsage: true, compactionOnce: true, cleanup: true, replayPreservesHover: true, incrementalGraph: { retainedNodesAndEdges: true, retainedPopoverAndSelection: true, unchangedNodeNoMutations: true, latestDetail: true, additionAndRemoval: true }, taskContinuity: { before: originalIds.length, afterHandoff: continuedIds.length, afterExecution: fullCount, selectionAndZoomPreserved: true, separateRequests: true, historySelection: true }, sizes: [[760,880],[320,600]], screenshots: ['usage.png','node-detail.png','steps-view.png','graph-760x880.png','graph-320x600.png','task-chain.png'] };
   await writeFile(path.join(directory, 'result.json'), JSON.stringify(result, null, 2)); console.log('[graph-ui] passed'); window.destroy(); app.exit(0);
 }).catch(cause => { console.error(cause); app.exit(1); });

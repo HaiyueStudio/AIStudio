@@ -57,3 +57,28 @@ window.showTaskChain = (stage, newTask = false) => {
   const snapshot = new ConversationProjector().reset({ revision: Math.ceil(stage) + 1, connection: 'connected', busy: false, backendId: null, backends: [], taskAccounting: { ...accounting, taskId: newTask ? 'task:other' : 'task:continuity' }, taskRuns: [], executionGraphs: graphs, events: [] });
   renderChatPanel(root, presentChatPanel(snapshot), intent => graphIntents.push(intent));
 };
+
+window.showDuplicateFailure = (distinct = false) => {
+  const message = 'acceptance[7]: gesture.interactions.0.type is not an event-trace field. Pointer events are under interactions.<index>.type/entityId.';
+  nodes[2] = { ...nodes[2], title: 'Tool batch', summary: 'studio.plan.propose（失败）；0 completed, 1 failed, 0 cancelled.', detail: { ...nodes[2].detail, toolId: null,
+    actionSummary: '**studio.plan.propose**\n\n准备提交“三阶圆角 PBR 魔方游戏”供用户确认。',
+    resultSummary: '**studio.plan.propose（失败）**\n\n' + message,
+    reason: distinct ? '另一个原因：项目修订已经改变。' : 'studio.plan.propose: ' + message,
+  } }; window.showGraph();
+};
+
+// Simulate full read-model snapshots while only one node actually changes.
+window.streamGraph = (mode) => {
+  if (mode === 'other') {
+    nodes[23] = { ...nodes[23], summary: '已验证其他对象 ' + ++graph.revision };
+    if (!nodes.some(node => node.id === 'node:stream')) {
+      nodes.push({ ...nodes[23], id: 'node:stream', title: '新增验收节点' });
+      graph.edges.push({ id: 'edge:stream', kind: 'depends-on', from: 'node:23', to: 'node:stream', sourceOpIds: [] });
+    }
+  } else if (mode === 'self') nodes[0] = { ...nodes[0], status: 'completed', summary: '纹理生成完成', detail: { ...nodes[0].detail, resultSummary: '已创建棋盘纹理，验证完成。' } };
+  else if (mode === 'remove') {
+    nodes.splice(nodes.findIndex(node => node.id === 'node:stream'), 1);
+    graph.edges = graph.edges.filter(edge => edge.id !== 'edge:stream');
+  } else if (mode === 'restore') nodes[0] = { ...nodes[0], status: 'running', summary: '创建素材并检查对应的游戏表现。', detail: { ...nodes[0].detail, resultSummary: undefined } };
+  window.showGraph();
+};

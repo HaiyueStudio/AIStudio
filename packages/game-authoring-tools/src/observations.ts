@@ -199,11 +199,21 @@ export const EVIDENCE_ASSERTION_PATTERN = '^evidence\\s+(state|event-trace|runti
 const evidenceAssertionPattern = new RegExp(EVIDENCE_ASSERTION_PATTERN, 'u');
 /** Use the evaluator's parser when validating a proposed plan, before asking the user to approve it. */
 export function isSupportedEvidenceAssertion(value: string): boolean { return parseAssertion(value) !== null; }
+/** Normalize only a known projection wrapper, before the plan is approved.
+ * persistInspection projects state.gesture.interactions into event-trace.interactions.
+ * Keep the evidence type, index, predicate and expected value unchanged. */
+export function normalizePlayEvidenceAssertion(value: string): string {
+  const parsed = parseAssertion(value);
+  if (parsed?.type === 'state' && /^gesture\.final\.effects\./u.test(parsed.signal ?? '')) return value.replace(/^(evidence\s+state\s+signal\s+)gesture\.final\.(effects\.)/u, '$1$2');
+  if (parsed?.type !== 'event-trace' || !/^gesture\.interactions(?:\.|$)/u.test(parsed.signal ?? '')) return value;
+  return value.replace(/^(evidence\s+event-trace\s+signal\s+)gesture\.(interactions)(?=\.|\s)/u, '$1$2');
+}
 /** Reserved engine-owned fields only; gameplay/physics extension payloads remain open. */
 export function unavailablePlayEvidenceSignal(assertion: string): string | null {
   const parsed = parseAssertion(assertion);
   if (!parsed?.signal) return null;
   const path = parsed.signal;
+  if (parsed.type === 'state' && /^gesture\.(?:final\.)?effects(?:\.|$)/u.test(path)) return `${path} is a result wrapper, not an observation signal. Gesture effects are at effects.* on its final state artifact. Correct the plan before approval; an approved assertion must be reapproved, not silently rewritten or repaired through gameplay.`;
   const entity = /^state\.entities\.(?:0|[1-9][0-9]*)\.([^.]+)/u.exec(path);
   if (parsed.type === 'state' && entity && !['id', 'position', 'rotation', 'scale', 'materialColor'].includes(entity[1]!)) {
     return `${path} is not a runtime entity field. Use scene.get-many for authored geometry/material/pointer configuration; Play entities expose id, position, rotation, scale and materialColor. Preserve the requirement and choose a supported verification method before approval.`;
@@ -211,8 +221,8 @@ export function unavailablePlayEvidenceSignal(assertion: string): string | null 
   if (parsed.type === 'event-trace' && !/^(?:trace|physicsEvents|interactions)(?:\.|$)/u.test(path)) {
     return `${path} is not an event-trace field. Pointer events are under interactions.<index>.type/entityId; trace and physicsEvents are separate arrays. Inspect the returned event payload; do not invent events.`;
   }
-  if (parsed.type === 'state' && path.startsWith('effects.') && !/^effects\.(?:cameraChanged|materialColorChanged|changedEntityCount|changedEntityIds|changedEntityIdsTruncated|changedMaterialEntityCount|changedMaterialEntityIds|changedMaterialEntityIdsTruncated)(?:\.|$)/u.test(path)) {
-    return `${path} is not a gesture effect. Use play.pointer-gesture state evidence: effects.cameraChanged, materialColorChanged, changedEntityCount/Ids or changedMaterialEntityCount/Ids. These fields exist only on the gesture's final state artifact, not plain play.inspect.`;
+  if (parsed.type === 'state' && path.startsWith('effects.') && !/^effects\.(?:cameraChanged|materialColorChanged|changedEntityCount|changedEntityIds|changedEntityIdsTruncated|changedMaterialEntityCount|changedMaterialEntityIds|changedMaterialEntityIdsTruncated|changedTransformEntityCount|changedTransformEntityIds|changedTransformEntityIdsTruncated)(?:\.|$)/u.test(path)) {
+    return `${path} is not a gesture effect. Use play.pointer-gesture state evidence: effects.cameraChanged, materialColorChanged, changedEntityCount/Ids or changedMaterialEntityCount/Ids, changedTransformEntityCount/Ids. These fields exist only on the gesture's final state artifact, not plain play.inspect.`;
   }
   return null;
 }
@@ -236,7 +246,7 @@ function compare(actual: JsonValue, operator: 'equals' | 'gte' | 'lte', expected
 function observationProjection(value: JsonObject | null): Readonly<{ projection: JsonObject | null; projectionTruncated: boolean }> {
   const bytes = (item: JsonValue): number => new TextEncoder().encode(canonicalStringify(item)).byteLength;
   if (value === null || bytes(value) <= 8_192) return { projection: value, projectionTruncated: false };
-  const priority = ['gameplay', 'state', 'camera', 'entities', 'input', 'interactions', 'runtimeErrorCount', 'tick', 'frame'];
+  const priority = ['diagnostics', 'effects', 'gameplay', 'state', 'camera', 'entities', 'input', 'interactions', 'runtimeErrorCount', 'tick', 'frame'];
   const compact = (item: JsonValue, width: number, depth = 0): JsonValue => {
     if (typeof item === 'string') return item.slice(0, 256);
     if (item === null || typeof item !== 'object') return item;

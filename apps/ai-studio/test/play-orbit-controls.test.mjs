@@ -34,3 +34,17 @@ test('authored root cameras convert without changing position; options validate 
   control.update('a',camera,2,[event('wheel')].map(e=>({...e,wheelY:100000})),[],{maxRadius:10});assert.equal(t.radius,10);
   control.update('a',camera,3,[event('wheel')].map(e=>({...e,wheelY:-100000})),[],{minRadius:1});assert.equal(t.radius,1);
 });
+
+test('Orbit diagnostics preserve geometric ownership and reset rather than reporting stale activity',()=>{
+ const f=fixture();f.update(1,[event('down')],'background',[{type:'down',pointerId:1,entityId:'entity:opaque'}]);
+ assert.deepEqual(f.control.snapshot(1).decisions,[{phase:'down',pointerId:1,action:'yield-object',hitEntityId:'entity:opaque'}]);
+ f.update(2,[event('move',.8)],'background');assert.equal(f.transform.theta,0);assert.deepEqual(f.control.snapshot(2).decisions,[]);
+ f.update(3,[event('down'),event('move',.8)],'all',[{type:'down',pointerId:1,entityId:'entity:opaque'}]);
+ assert.notEqual(f.transform.theta,0);assert.deepEqual(f.control.snapshot(3).decisions.map(d=>d.action),['claim','rotate']);
+ assert.equal(f.control.snapshot(4),null);f.control.dispose();assert.equal(f.control.snapshot(3),null);
+});
+
+test('a raycast error is unknown rather than empty background',()=>{
+ const f=fixture();f.update(1,[event('down'),event('move',.8)],'background',[{type:'down',pointerId:1,raycastFailed:true}]);
+ assert.equal(f.transform.theta,0);assert.equal(f.control.snapshot(1).decisions[0].action,'yield-raycast-error');
+});

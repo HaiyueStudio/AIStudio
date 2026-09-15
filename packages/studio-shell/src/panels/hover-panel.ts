@@ -7,7 +7,7 @@ export function createHoverPanel(document: Document, className: string, label: s
   panel.setAttribute('popover', 'manual'); panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', label);
   panel.id = `chat-hover-${++nextPanelId}`;
   const lifetime = new AbortController(); const options = { signal: lifetime.signal };
-  const bindings = new Map<string, { trigger: HTMLElement; populate?: () => void }>();
+  const bindings = new Map<string, { trigger: HTMLElement; populate?: () => void; lifetime: AbortController }>();
   const keyOf = (trigger: HTMLElement): string => trigger.dataset.nodeId ?? trigger.getAttribute('aria-label') ?? '';
   let anchor: HTMLElement | null = null; let pinned = false; let disposed = false; let restoringFocus = false;
   let pointer: HoverState['pointer'] = null;
@@ -52,8 +52,16 @@ export function createHoverPanel(document: Document, className: string, label: s
     panel.style.left = `${left}px`; panel.style.top = `${Math.max(8, top)}px`;
     scheduleClose();
   };
+  const unbind = (trigger: HTMLElement): void => {
+    const key = keyOf(trigger); const binding = bindings.get(key);
+    if (binding?.trigger !== trigger) return;
+    if (anchor === trigger) hide();
+    binding.lifetime.abort(); bindings.delete(key);
+  };
   const bind = (trigger: HTMLElement, populate?: () => void): void => {
-    bindings.set(keyOf(trigger), { trigger, populate });
+    const previous = bindings.get(keyOf(trigger)); if (previous) unbind(previous.trigger);
+    const bindingLifetime = new AbortController(); const options = { signal: bindingLifetime.signal };
+    bindings.set(keyOf(trigger), { trigger, populate, lifetime: bindingLifetime });
     trigger.setAttribute('aria-controls', panel.id); trigger.setAttribute('aria-expanded', 'false');
     trigger.addEventListener('pointerenter', event => { trackPointer(event); if (event.pointerType !== 'touch') show(trigger, populate); }, options);
     trigger.addEventListener('pointerleave', event => { trackPointer(event); scheduleClose(); }, options);
@@ -94,13 +102,21 @@ export function createHoverPanel(document: Document, className: string, label: s
     if (!panel.hidden && !pinned && timer === undefined && !panel.contains(event.target as Node) && !anchor?.contains(event.target as Node)) scheduleClose();
   }, { ...options, passive: true });
   return {
-    panel, bind, hide,
+    panel, bind, unbind, hide,
+    refresh(key: string): void {
+      if (!anchor || panel.hidden || keyOf(anchor) !== key) return;
+      const scrollTop = panel.scrollTop; const scrollLeft = panel.scrollLeft;
+      const expanded = [...panel.querySelectorAll('details')].map(detail => detail.open);
+      bindings.get(key)?.populate?.();
+      panel.querySelectorAll('details').forEach((detail, index) => { if (expanded[index] !== undefined) detail.open = expanded[index]!; });
+      panel.scrollTop = scrollTop; panel.scrollLeft = scrollLeft;
+    },
     snapshot(): HoverState | null { return anchor && !panel.hidden ? { key: keyOf(anchor), pinned, pointer } : null; },
     restore(state: HoverState): void {
       const binding = bindings.get(state.key); if (!binding) return;
       focusFrame = document.defaultView?.requestAnimationFrame(() => { focusFrame = undefined; pointer = state.pointer; show(binding.trigger, binding.populate); pinned = state.pinned; });
     },
-    dispose(): void { disposed = true; hide(); if (focusFrame !== undefined) document.defaultView?.cancelAnimationFrame(focusFrame); lifetime.abort(); bindings.clear(); },
+    dispose(): void { disposed = true; hide(); if (focusFrame !== undefined) document.defaultView?.cancelAnimationFrame(focusFrame); lifetime.abort(); for (const binding of bindings.values()) binding.lifetime.abort(); bindings.clear(); },
   };
 }
 

@@ -94,3 +94,14 @@ test('reject unavailable engine-owned evidence paths before approving a plan',()
  assert.throws(()=>validatePlanProposal(proposal('evidence event-trace signal events.0.type equals "click"')),/interactions/);
  for(const assertion of ['evidence state signal effects.materialColorChanged equals true','evidence state signal effects.cameraChanged equals false','evidence state signal state.entities.0.materialColor equals [1,0,0,1]','evidence event-trace signal interactions.0.type equals "click"','evidence state signal gameplay.0.value.customState equals true']) assert.equal(validatePlanProposal(proposal(assertion)).acceptance[0].assertion,assertion);
 });
+
+test('event-trace gesture wrapper is normalized before approval without changing the requirement',()=>{
+ const original='evidence event-trace signal gesture.interactions.0.type equals "click"';
+ const input=proposal(original),result=validatePlanProposal(input);
+ assert.equal(result.acceptance[0].assertion,'evidence event-trace signal interactions.0.type equals "click"');
+ assert.equal(result.acceptance[0].required,true);assert.equal(result.acceptance[0].category,'functional');assert.equal(result.acceptance[0].label,input.acceptance[0].label);
+ assert.equal(input.acceptance[0].assertion,original,'raw request remains unchanged');
+ const state='evidence state signal gesture.interactions.3.entityId equals "entity:target"';
+ assert.equal(validatePlanProposal(proposal(state)).acceptance[0].assertion,state);
+ assert.throws(()=>validatePlanProposal(proposal('evidence event-trace signal gesture.effects.cameraChanged equals true')),/not an event-trace field/);
+});

@@ -1,3 +1,4 @@
+import type { JsonObject } from '@haiyue/ai-studio-contracts';
 import { CartesianTransform3D, SphericalTransform3D, type Entity } from '@haiyue/engine';
 import type { ReplayInputEvent } from '@haiyue/engine/experimental/simulation';
 
@@ -18,9 +19,11 @@ export class PlayOrbitControls {
   private camera: Entity | null = null;
   private lastTick = -1;
   private mode = 'all';
+  private decisions: JsonObject[] = [];
+  private truncated = false;
   private pointer: { id: number; x: number; y: number } | null = null;
 
-  update(owner: string, camera: Entity, tick: number, events: readonly ReplayInputEvent[], hits: readonly { type: string; pointerId: number }[], options: PlayOrbitOptions = {}): void {
+  update(owner: string, camera: Entity, tick: number, events: readonly ReplayInputEvent[], hits: readonly { type: string; pointerId: number; entityId?: string; raycastFailed?: boolean }[], options: PlayOrbitOptions = {}): void {
     if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(key => !['enabled','mode','target','rotateSpeed','enableZoom','minRadius','maxRadius'].includes(key))) throw new TypeError('orbitControls options are invalid.');
     const speed = bounded(options.rotateSpeed, 1, 0, 10, 'rotateSpeed');
     const minimum = bounded(options.minRadius, .1, .001, 1e6, 'minRadius');
@@ -31,8 +34,8 @@ export class PlayOrbitControls {
     if (this.owner && this.owner !== owner && tick <= this.lastTick + 1) throw new Error('orbitControls must have one script owner per active camera.');
     if (this.owner === owner && tick === this.lastTick) return;
     if (this.owner !== owner || this.camera !== camera || tick !== this.lastTick + 1 || mode !== this.mode) this.pointer = null;
-    this.owner = owner; this.lastTick = tick; this.mode = mode;
-    if (options.enabled === false) { this.pointer = null; return; }
+    this.owner = owner; this.lastTick = tick; this.mode = mode; this.decisions = []; this.truncated = false;
+    if (options.enabled === false) { this.pointer = null; this.record({ action: 'disabled' }); return; }
     let transform = camera.getComponent(SphericalTransform3D);
     if (!transform) {
       const cartesian = camera.getComponent(CartesianTransform3D);
@@ -49,24 +52,31 @@ export class PlayOrbitControls {
     }
     this.camera = camera;
     for (const event of events) {
-      if (event.kind === 'reset') { this.pointer = null; continue; }
+      if (event.kind === 'reset') { this.pointer = null; this.record({ action: 'reset' }); continue; }
       if (event.kind !== 'pointer') continue;
       if (event.phase === 'down') {
         if (this.pointer || (event.button ?? 0) !== 0) continue;
-        if (mode === 'background' && hits.some(hit => hit.pointerId === event.pointerId && hit.type === 'down')) continue;
+        const hit = hits.find(hit => hit.pointerId === event.pointerId && hit.type === 'down');
+        if (mode === 'background' && hit) { this.record({ phase: event.phase, pointerId: event.pointerId, action: hit.raycastFailed ? 'yield-raycast-error' : 'yield-object', hitEntityId: hit.entityId ?? null }); continue; }
+        this.record({ phase: event.phase, pointerId: event.pointerId, action: 'claim', hitEntityId: hit?.entityId ?? null });
         this.pointer = { id: event.pointerId, x: event.x, y: event.y };
       } else if (event.phase === 'move' && this.pointer?.id === event.pointerId) {
+        this.record({ phase: event.phase, pointerId: event.pointerId, action: 'rotate' });
         const dx = event.x - this.pointer.x, dy = event.y - this.pointer.y;
         transform.set(transform.radius, transform.theta - dx * Math.PI * 2 * speed, Math.max(.01, Math.min(Math.PI - .01, transform.phi - dy * Math.PI * speed)));
         this.pointer.x = event.x; this.pointer.y = event.y;
-      } else if ((event.phase === 'up' || event.phase === 'cancel') && this.pointer?.id === event.pointerId) this.pointer = null;
+      } else if ((event.phase === 'up' || event.phase === 'cancel') && this.pointer?.id === event.pointerId) { this.pointer = null; this.record({ phase: event.phase, pointerId: event.pointerId, action: 'release' }); }
       else if (event.phase === 'wheel' && options.enableZoom !== false && !(mode === 'background' && hits.some(hit => hit.pointerId === event.pointerId && hit.type === 'wheel'))) {
+        this.record({ phase: event.phase, pointerId: event.pointerId, action: 'zoom' });
         transform.radius = Math.max(minimum, Math.min(maximum, transform.radius * (1 + (event.wheelY ?? 0) * .001)));
       }
     }
   }
 
-  dispose(): void { this.owner = null; this.camera = null; this.pointer = null; this.lastTick = -1; }
+  snapshot(tick: number): JsonObject | null { return tick === this.lastTick ? { tick, scriptId: this.owner, mode: this.mode, decisions: this.decisions, truncated: this.truncated } : null; }
+  private record(value: JsonObject): void { if (this.decisions.length < 64) this.decisions.push(value); else this.truncated = true; }
+
+  dispose(): void { this.owner = null; this.camera = null; this.pointer = null; this.lastTick = -1; this.decisions = []; this.truncated = false; }
 }
 
 function bounded(value: number | undefined, fallback: number, minimum: number, maximum: number, label: string): number {

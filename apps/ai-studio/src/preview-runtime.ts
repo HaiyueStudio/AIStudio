@@ -1,3 +1,4 @@
+import { InteractionTrace } from './interaction-trace.js';
 import { readPlayMaterialColor, setPlayMaterialColor } from './play-material-color.js';
 import { PlayOrbitControls, type PlayOrbitOptions } from './play-orbit-controls.js';
 import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
@@ -43,6 +44,8 @@ let scene: Scene | null = null;
 let capturedFrame: HTMLCanvasElement | null = null;
 const scriptOwners: ScriptOwner[] = [];
 const orbitControls = new PlayOrbitControls();
+const interactionTrace = new InteractionTrace();
+let interactionHits: { type: string; pointerId: number; entityId?: string; raycastFailed?: boolean }[] = [];
 const planByComponent = new Map<ScriptComponent, PreviewScriptPlan>();
 let target: Entity | null = null;
 let resizeObserver: ResizeObserver | null = null;
@@ -350,7 +353,7 @@ function publishInspection(requestId: string): void {
 
 function inspectionSnapshot() {
   const snapshot = simulation!.snapshot();
-  return { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount, interactions: interactionEvents };
+  return { tick: snapshot.tick, frame: renderedFrame, timeMs: snapshot.timeMs, paused: snapshot.paused, seed: snapshot.seed, state: readSimulationState(), gameplay: gameplayObservations.snapshot(), input: snapshot.input, trace: snapshot.trace.slice(-128), physics: physicsRuntime?.status() ?? null, physicsEvents: (physicsRuntime?.events() ?? []).slice(-128), renderEffects: renderEffectsRuntime?.manifest() ?? null, hud: hudSnapshot(), runtimeErrorCount, interactions: interactionEvents, routing: interactionTrace.snapshot(orbitControls.snapshot(snapshot.tick)) };
 }
 
 function publishPhysicsQuery(requestId: string, query: Readonly<Record<string, unknown>>): void {
@@ -574,19 +577,22 @@ function updateGameplayCamera(_deltaMs: number): void {
 }
 
 function updateInteractions(input: ReplayInputSnapshot): void {
+  interactionTrace.begin(input.tick); interactionHits = [];
   const system = interactionSystem;
   const world = scene?.world;
   if (!system || !world) { interactionEvents = Object.freeze([]); return; }
   const output: StudioInteractionEvent[] = [];
   const counts = new Map<string, number>();
+  let suppressed: { type: string; reason: string }[] = [];
+  const suppress = (type: string, reason: string): void => { if (suppressed.length < 8) suppressed.push({ type, reason }); };
   const emit = (type: StudioInteractionEvent['type'], entityId: string, pointerId: number, hit: InteractionRaycastResult): void => {
     const descriptor = findEntityComponent(entityId, 'haiyue.interaction.pointer');
-    if (!descriptor) return;
+    if (!descriptor) { suppress(type, 'pointer-unavailable'); return; }
     const allowed = Array.isArray(descriptor.value.events) ? descriptor.value.events : [];
-    if (!allowed.includes(type)) return;
+    if (!allowed.includes(type)) { suppress(type, 'event-not-subscribed'); return; }
     const maximum = integerNumber(descriptor.value.maxEventsPerTick, 1, 256, 32);
     const count = counts.get(entityId) ?? 0;
-    if (count >= maximum || output.length >= 256) return;
+    if (count >= maximum || output.length >= 256) { suppress(type, 'event-limit'); return; }
     counts.set(entityId, count + 1);
     output.push(Object.freeze({ tick: input.tick, type, entityId, pointerId, distance: Number.isFinite(hit.distance) ? hit.distance : 0, point: Object.freeze([...hit.point]), normal: Object.freeze([...hit.normal]) }));
   };
@@ -596,10 +602,15 @@ function updateInteractions(input: ReplayInputSnapshot): void {
       pointerDownTargets.clear(); hoveredEntityId = null; continue;
     }
     if (event.kind !== 'pointer') continue;
-    let hitEntityId: string | null = null;
+    let hitEntityId: string | null = null; let raycastFailed = false;
+    suppressed = []; const outputStart = output.length;
     try {
       if (system.raycast(world, event.x * 2 - 1, 1 - event.y * 2, interactionRaycast) && interactionRaycast.entity) hitEntityId = stableIdByEntityId.get(interactionRaycast.entity.id) ?? null;
-    } catch { hitEntityId = null; }
+    } catch { hitEntityId = null; raycastFailed = true; }
+    // Raycast returns the nearest opaque mesh even when it has no pointer component.
+    // Ownership is independent of the subscription-filtered script event list.
+    if (hitEntityId) interactionHits.push({ type: event.phase, pointerId: event.pointerId, entityId: hitEntityId });
+    else if (raycastFailed) interactionHits.push({ type: event.phase, pointerId: event.pointerId, raycastFailed: true });
     const down = pointerDownTargets.get(event.pointerId);
     const captured = down && findEntityComponent(down.entityId, 'haiyue.interaction.pointer')?.value.capturePointer === true;
     if (down && hitEntityId === down.entityId) down.hit = { ...interactionRaycast, point: new Float32Array(interactionRaycast.point), normal: new Float32Array(interactionRaycast.normal) };
@@ -627,6 +638,14 @@ function updateInteractions(input: ReplayInputSnapshot): void {
       if (down) emit('cancel', down.entityId, event.pointerId, down.hit);
       pointerDownTargets.delete(event.pointerId);
     }
+    const targetId = captured ? down.entityId : hitEntityId;
+    const rawPointer = activeSceneEntities?.find(candidate => candidate.id === targetId)?.components?.find(candidate => candidate.type === 'haiyue.interaction.pointer');
+    interactionTrace.hit({ phase: event.phase, pointerId: event.pointerId, hitEntityId, receiverEntityId: targetId,
+      capturedEntityId: captured ? down.entityId : null, raycastFailed,
+      point: hitEntityId ? [...interactionRaycast.point] : null, normal: hitEntityId ? [...interactionRaycast.normal] : null,
+      pointer: rawPointer ? { enabled: rawPointer.enabled, events: stringArray(rawPointer.value.events), draggable: rawPointer.value.draggable === true, capturePointer: rawPointer.value.capturePointer === true } : null,
+      emitted: output.slice(outputStart).map(item => ({ type: item.type, entityId: item.entityId })), suppressed,
+    });
   }
   interactionEvents = Object.freeze(output);
 }
@@ -713,7 +732,7 @@ function stop(reason: string, invalidatePendingStart = true): void {
   animationFrame = null; previousFrameTime = null;
   if (capturedFrame) { capturedFrame.width = 0; capturedFrame.height = 0; capturedFrame = null; }
   removeInputListeners?.(); removeInputListeners = null;
-  orbitControls.dispose();
+  orbitControls.dispose(); interactionTrace.clear(); interactionHits = [];
   physicsLoadController?.abort(new Error(`physics.runtime-stopped:${reason}`)); physicsLoadController = null;
   simulation?.reset(); simulation = null; activeInput = null;
   resizeObserver?.disconnect(); resizeObserver = null;
@@ -900,8 +919,8 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
       ...(event.wheelX === undefined ? {} : { wheelX: event.wheelX }),
       ...(event.wheelY === undefined ? {} : { wheelY: event.wheelY }),
     })] : [])),
-    interactions: () => interactionEvents,
-    selfInteractions: () => Object.freeze(interactionEvents.filter(event => event.entityId === observationOwner.entityId)),
+    interactions: () => { interactionTrace.read(observationOwner.scriptId, observationOwner.entityId, 'global', interactionEvents); return interactionEvents; },
+    selfInteractions: () => { const events = Object.freeze(interactionEvents.filter(event => event.entityId === observationOwner.entityId)); interactionTrace.read(observationOwner.scriptId, observationOwner.entityId, 'self', events); return events; },
     snapshot: () => simulation?.input.snapshot(),
   });
   const complete = {
@@ -928,7 +947,7 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
         if (!scene || !activeInput) return;
         if (gameplayCamera?.descriptor.type === 'haiyue.camera.2d') throw new Error('orbitControls requires a 3D camera.');
         if (gameplayCamera?.follow) throw new Error('Disable camera.follow before enabling orbitControls; the active camera needs one motion owner.');
-        orbitControls.update(observationOwner.scriptId, scene.activeCameraEntity, activeInput.tick, activeInput.events, interactionEvents, options);
+        orbitControls.update(observationOwner.scriptId, scene.activeCameraEntity, activeInput.tick, activeInput.events, interactionHits, options);
       },
       hudText(id: string, text: string, options: HudTextOptions = {}): void { setHudText(id, text, options); },
       removeHudText(id: string): void { removeHudText(id); },

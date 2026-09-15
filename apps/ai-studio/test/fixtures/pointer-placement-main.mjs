@@ -160,6 +160,9 @@ try {
   await control.start({...dragScene,entities:[...dragScene.entities,child]},dragPlan); await control.step(1);
   const tileDown = await nativePointer('mousePressed',.5,.5);
   assert.ok(tileDown.value.interactions.some(hit=>hit.type==='down' && hit.entityId===child.id), JSON.stringify(tileDown.value.interactions));
+  assert.equal(tileDown.value.routing.hits.find(h=>h.phase==='down').hitEntityId,child.id);
+  assert.ok(tileDown.value.routing.reads.some(r=>r.scope==='global' && r.eventCount>0));
+  assert.ok(tileDown.value.routing.orbit.decisions.some(d=>d.action==='yield-object'));
   const beforeOrbit = tileDown.value.state.camera.theta;
   const tileMoved = await nativePointer('mouseMoved',.92,.5);
   const tileReleased = await nativePointer('mouseReleased',.92,.5);
@@ -173,7 +176,22 @@ try {
   await control.start({...dragScene,entities:[...dragScene.entities,{...child,components:[]}]},dragPlan);await control.step(1);
   const occluded = await nativePointer('mousePressed',.5,.5);
   assert.equal(occluded.value.interactions.some(hit=>hit.type==='down'),false);
-  await nativePointer('mouseReleased',.5,.5);await control.stop();
+  assert.equal(occluded.value.routing.hits.find(h=>h.phase==='down').hitEntityId,child.id);
+  assert.equal(occluded.value.routing.hits.find(h=>h.phase==='down').pointer,null);
+  assert.ok(occluded.value.routing.orbit.decisions.some(d=>d.action==='yield-object'));
+  const occludedMove=await nativePointer('mouseMoved',.9,.5);
+  assert.deepEqual(occludedMove.value.state.camera,occluded.value.state.camera,'opaque unconfigured mesh is not empty background');
+  await nativePointer('mouseReleased',.9,.5);await control.stop();
+  // A configured surface that only subscribes click must also retain object ownership.
+  const clickOnly={...child,components:[{...child.components[0],value:{...child.components[0].value,events:['click']}}]};
+  await control.start({...dragScene,entities:[...dragScene.entities,clickOnly]},dragPlan);await control.step(1);
+  const filteredDown=await nativePointer('mousePressed',.5,.5);
+  assert.equal(filteredDown.value.interactions.length,0);
+  assert.ok(filteredDown.value.routing.hits.some(h=>h.suppressed.some(s=>s.reason==='event-not-subscribed')));
+  assert.ok(filteredDown.value.routing.orbit.decisions.some(d=>d.action==='yield-object'));
+  const filteredMove=await nativePointer('mouseMoved',.9,.5);
+  assert.deepEqual(filteredMove.value.state.camera,filteredDown.value.state.camera);
+  await nativePointer('mouseReleased',.9,.5);await control.stop();
   const decoration={...child,components:[{...child.components[0],value:{...child.components[0].value,events:[],penetrable:true}}]};
   await control.start({...dragScene,entities:[...dragScene.entities,decoration]},dragPlan);await control.step(1);
   const throughDecoration=await nativePointer('mousePressed',.5,.5);

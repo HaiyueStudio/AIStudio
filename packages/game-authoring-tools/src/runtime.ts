@@ -1,4 +1,5 @@
 import { assertAssemblyPlan, normalizeAssemblyArguments, planAssembly, inspectAssembly } from './assemblies.js';
+import { diagnoseGesture, gestureRouting, GestureProgressGuard } from './interaction-diagnostics.js';
 import { scopePlayInspection } from './play-inspection.js';
 import { QUERY_PAGE_SIZE } from './query-limits.js';
 import type { EngineDocumentation } from './engine-docs.js';
@@ -96,6 +97,7 @@ export class GameAuthoringToolRuntime {
   private readonly approvalGrants = new Set<string>();
   private mutationTail: Promise<void> = Promise.resolve();
   private disposed = false;
+  private readonly gestureProgress = new GestureProgressGuard();
   private readonly observations: PlayObservationRepository;
   private readonly evaluator: DeterministicTaskEvaluator;
   private readonly effectLocks: EffectLockManager;
@@ -320,7 +322,7 @@ export class GameAuthoringToolRuntime {
     if (this.disposal) return this.disposal;
     this.disposed = true;
     for (const controller of this.active.values()) controller.abort(new GameToolProtocolError('tool.runtime-disposed', 'Game tool runtime disposed.'));
-    this.active.clear(); this.preparations.clear(); this.proposals.clear(); this.previewPlans.clear(); this.approvalGrants.clear();
+    this.active.clear(); this.gestureProgress.clear(); this.preparations.clear(); this.proposals.clear(); this.previewPlans.clear(); this.approvalGrants.clear();
     return this.disposal = this.behavior.dispose();
   }
 
@@ -343,7 +345,7 @@ export class GameAuthoringToolRuntime {
     const timer = setTimeout(() => controller.abort(new GameToolProtocolError('tool.timeout', `Tool ${stored.definition.id} exceeded ${timeoutMs} ms.`, true)), timeoutMs);
     try {
       await this.appendFact(stored.definition, { kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest } }, controller.signal);
-      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, this.catalog, this.behavior, controller.signal);
+      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, this.catalog, this.behavior, this.gestureProgress, controller.signal);
       if (controller.signal.aborted) throw controller.signal.reason ?? new GameToolProtocolError('tool.cancelled', 'Tool call was cancelled.');
       assertResultBudget(value, stored.definition.maxResultBytes);
       const after = requireDocument(this.options.workspace);
@@ -908,9 +910,11 @@ function gestureEffects(before: JsonObject, after: JsonObject): JsonObject {
   const entities = (value: JsonObject): Map<string, JsonValue> => new Map((Array.isArray(state(value).entities) ? state(value).entities as JsonValue[] : []).filter((item): item is JsonObject => isRecord(item) && typeof item.id === 'string').map(item => [item.id as string, item]));
   const previous = entities(before), current = entities(after);
   const changed = [...new Set([...previous.keys(), ...current.keys()])].filter(id => canonicalStringify(previous.get(id) ?? null) !== canonicalStringify(current.get(id) ?? null)).sort();
+  const transform = (entity: JsonValue | undefined): JsonValue => isRecord(entity) ? { position: entity.position as JsonValue ?? null, rotation: entity.rotation as JsonValue ?? null, scale: entity.scale as JsonValue ?? null } : null;
+  const transformChanged = changed.filter(id => previous.has(id) && current.has(id) && canonicalStringify(transform(previous.get(id))) !== canonicalStringify(transform(current.get(id))));
   const color = (entity: JsonValue | undefined): JsonValue => isRecord(entity) ? entity.materialColor as JsonValue ?? null : null;
   const colorChanged = changed.filter(id => previous.has(id) && current.has(id) && color(previous.get(id)) !== null && color(current.get(id)) !== null && canonicalStringify(color(previous.get(id))) !== canonicalStringify(color(current.get(id))));
-  return Object.freeze({ changedEntityCount: changed.length, changedEntityIds: changed.slice(0, 32).map(id => id.slice(0, 200)), changedEntityIdsTruncated: changed.length > 32, materialColorChanged: colorChanged.length > 0, changedMaterialEntityCount: colorChanged.length, changedMaterialEntityIds: colorChanged.slice(0, 32), changedMaterialEntityIdsTruncated: colorChanged.length > 32, cameraChanged: canonicalStringify(state(before).camera ?? null) !== canonicalStringify(state(after).camera ?? null) });
+  return Object.freeze({ changedTransformEntityCount: transformChanged.length, changedTransformEntityIds: transformChanged.slice(0, 32), changedTransformEntityIdsTruncated: transformChanged.length > 32, changedEntityCount: changed.length, changedEntityIds: changed.slice(0, 32).map(id => id.slice(0, 200)), changedEntityIdsTruncated: changed.length > 32, materialColorChanged: colorChanged.length > 0, changedMaterialEntityCount: colorChanged.length, changedMaterialEntityIds: colorChanged.slice(0, 32), changedMaterialEntityIdsTruncated: colorChanged.length > 32, cameraChanged: canonicalStringify(state(before).camera ?? null) !== canonicalStringify(state(after).camera ?? null) });
 }
 
 function scriptProposalResult(proposal: ScriptEditProposal, owner: ReturnType<SceneAuthoringService['snapshot']>['entities'][number] | undefined): JsonObject {
@@ -952,7 +956,7 @@ function collectAssetReferences(value: JsonValue, path: string, output: { assetI
   if (isRecord(value)) for (const [key, child] of Object.entries(value)) collectAssetReferences(child as JsonValue, `${path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`, output);
 }
 
-async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, observations: PlayObservationRepository, evaluator: DeterministicTaskEvaluator, catalog: ToolCatalogRuntime, behavior: BehaviorToolReader, signal: AbortSignal): Promise<JsonObject> {
+async function executeHandler(stored: StoredPreparation, options: GameAuthoringToolRuntimeOptions, proposals: Map<StableId, ScriptEditProposal>, plans: Map<StableId, PreviewPlan>, observations: PlayObservationRepository, evaluator: DeterministicTaskEvaluator, catalog: ToolCatalogRuntime, behavior: BehaviorToolReader, gestureProgress: GestureProgressGuard, signal: AbortSignal): Promise<JsonObject> {
   if (isBehaviorTool(stored.definition.id)) return behavior.execute(stored.definition.id, stored.arguments, signal);
   const args = stored.arguments as Record<string, JsonValue>;
   const scene = options.scene.snapshot();
@@ -1240,11 +1244,15 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     case 'play.pointer-gesture': {
       // step() pauses before advancing, so queued events cannot race display frames.
       const before = await options.preview.step(1, signal);
+      if (signal.aborted) throw signal.reason;
+      const progressKey = canonicalStringify({ task: stored.call.taskId ?? stored.call.sessionId, documentId: stored.view.documentId, revision: before.documentRevision, scripts: [...before.scriptDigests].sort() });
+      gestureProgress.before(progressKey, args);
       const baseline = await observations.persistState(stored.call, before);
       let current = before;
       const steps: JsonObject[] = [];
       const gestureInteractions: JsonObject[] = [];
       let interactionCount = 0;
+      let routingBytes = 0;
       for (const point of args.points as readonly JsonObject[]) {
         if (signal?.aborted) throw signal.reason;
         await options.preview.input({ kind: 'pointer', source: 'synthetic', tick: current.tick + 1, pointerId: args.pointerId as number, button: 0, phase: point.phase as 'down' | 'move' | 'up' | 'cancel', x: point.x as number, y: point.y as number }, signal);
@@ -1254,15 +1262,27 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
         gestureInteractions.push(...interactions.slice(0, Math.max(0, 128 - gestureInteractions.length)));
         const hit = interactions.find(item => item.type === point.phase) ?? interactions[0];
         const vector = (value: JsonValue | undefined): JsonValue => Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every(item => typeof item === 'number' && Number.isFinite(item)) ? value.slice(0, 3) : null;
-        steps.push(Object.freeze({ phase: point.phase!, tick: current.tick, x: point.x!, y: point.y!, interactionTargetId: typeof hit?.entityId === 'string' ? hit.entityId.slice(0, 200) : null, point: vector(hit?.point), normal: vector(hit?.normal), interactionCount: interactions.length }));
+        let routing = gestureRouting(current.value, args.pointerId as number);
+        routingBytes += new TextEncoder().encode(JSON.stringify(routing)).byteLength;
+        if (routingBytes > 24 * 1024) routing = { available: routing.available!, truncated: true };
+        steps.push(Object.freeze({ routing, phase: point.phase!, tick: current.tick, x: point.x!, y: point.y!, interactionTargetId: typeof hit?.entityId === 'string' ? hit.entityId.slice(0, 200) : null, point: vector(hit?.point), normal: vector(hit?.normal), interactionCount: interactions.length }));
       }
       if (Number(args.settleTicks) > 0) current = await options.preview.step(Number(args.settleTicks), signal);
       const effects = gestureEffects(before.value, current.value);
+      if (signal.aborted) throw signal.reason;
+      const diagnostic = diagnoseGesture(steps, before.value, current.value, effects, args.expect as JsonObject | undefined);
+      const diagnostics = { ...diagnostic, repeatedFailureCount: gestureProgress.after(progressKey, args, diagnostic), ...(args.hypothesis ? { hypothesis: args.hypothesis } : {}) };
       const gesture = Object.freeze({ steps, interactions: gestureInteractions, interactionCount, interactionsTruncated: interactionCount > gestureInteractions.length, fromTick: before.tick, toTick: current.tick });
       // Persist exactly the host-computed effects shown to the model. A later
       // settle tick can have no input events, so retain the whole tested gesture.
-      const after = await observations.persistInspection(stored.call, { ...current, value: Object.freeze({ ...current.value, effects, gesture }) });
-      return Object.freeze({ baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, baselineProjectionTruncated: baseline.projectionTruncated, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, projectionTruncated: after[0]!.projectionTruncated, steps, effects, executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick });
+      const after = await observations.persistInspection(stored.call, { ...current, value: Object.freeze({ ...current.value, effects, gesture, diagnostics }) });
+      const result: JsonObject = { baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, baselineProjectionTruncated: baseline.projectionTruncated, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, projectionTruncated: after[0]!.projectionTruncated, steps, effects, diagnostics, executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick };
+      if (new TextEncoder().encode(JSON.stringify(result)).byteLength > stored.definition.maxResultBytes) {
+        // Full bounded routing stays in the persisted gesture artifact. Preserve
+        // counts, effects and diagnosis rather than fail a completed large probe.
+        return Object.freeze({ ...result, steps: steps.map(step => ({ ...step, routing: { available: (step.routing as JsonObject).available!, truncated: true } })), stepsRoutingTruncated: true });
+      }
+      return Object.freeze(result);
     }
     case 'play.input': {
       const observation = await options.preview.input(args.event as never, signal);
@@ -1444,7 +1464,23 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'preview.start': case 'play.start': exact(raw, ['baseRevision', 'planId'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), planId: stable(raw.planId, 'plan id') });
     case 'play.step': exact(raw, ['count'], [], toolId); return Object.freeze({ count: boundedInteger(raw.count, 'count', 1, 10_000) });
     case 'play.pointer-gesture': {
-      exact(raw, ['points'], ['pointerId', 'settleTicks'], toolId);
+      exact(raw, ['points'], ['pointerId', 'settleTicks', 'expect', 'hypothesis'], toolId);
+      let expect: Record<string, JsonValue> | undefined;
+      if (raw.expect !== undefined) {
+        if (!isRecord(raw.expect)) throw invalid('expect must be an object.');
+        exact(raw.expect, [], ['cameraChanged', 'changedEntityIds', 'unchangedEntityIds', 'minChangedEntities', 'changedTransformEntityIds'], 'gesture expect');
+        if (!Object.keys(raw.expect).length) throw invalid('expect requires at least one expected effect.');
+        expect = {};
+        if (raw.expect.cameraChanged !== undefined) expect.cameraChanged = booleanValue(raw.expect.cameraChanged, 'cameraChanged');
+        if (raw.expect.minChangedEntities !== undefined) expect.minChangedEntities = boundedInteger(raw.expect.minChangedEntities, 'minChangedEntities', 1, 10000);
+        for (const key of ['changedEntityIds', 'unchangedEntityIds', 'changedTransformEntityIds']) if (raw.expect[key] !== undefined) {
+          const ids = stableIdArray(raw.expect[key], key, 32);
+          if (!ids.length || new Set(ids).size !== ids.length) throw invalid(`${key} requires 1-32 unique ids.`);
+          expect[key] = ids;
+        }
+        if ([...((expect.changedEntityIds as string[] | undefined) ?? []), ...((expect.changedTransformEntityIds as string[] | undefined) ?? [])].some(id => (expect!.unchangedEntityIds as string[] | undefined)?.includes(id))) throw invalid('An entity cannot be both changed and unchanged.');
+      }
+      const hypothesis = raw.hypothesis === undefined ? undefined : boundedString(raw.hypothesis, 'hypothesis', 500, true);
       if (!Array.isArray(raw.points) || raw.points.length < 2 || raw.points.length > 32) throw invalid('Gesture requires 2-32 pointer points.');
       const points = raw.points.map((point, index) => {
         if (!isRecord(point)) throw invalid('Gesture point must be an object.');
@@ -1454,7 +1490,7 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
         const event = normalizePlayInput({ ...point, tick: 1, kind: 'pointer', pointerId: 1 });
         return Object.freeze({ phase: point.phase, x: event.x, y: event.y }) as JsonObject;
       });
-      return Object.freeze({ points, pointerId: raw.pointerId === undefined ? 1 : boundedInteger(raw.pointerId, 'pointerId', 0, 1_000_000), settleTicks: raw.settleTicks === undefined ? 1 : boundedInteger(raw.settleTicks, 'settleTicks', 0, 600) });
+      return Object.freeze({ points, ...(expect ? { expect } : {}), ...(hypothesis ? { hypothesis } : {}), pointerId: raw.pointerId === undefined ? 1 : boundedInteger(raw.pointerId, 'pointerId', 0, 1_000_000), settleTicks: raw.settleTicks === undefined ? 1 : boundedInteger(raw.settleTicks, 'settleTicks', 0, 600) });
     }
     case 'play.input': exact(raw, ['event'], [], toolId); return Object.freeze({ event: normalizePlayInput(raw.event) as unknown as JsonValue });
     case 'play.physics-query': return normalizePhysicsQuery(raw);

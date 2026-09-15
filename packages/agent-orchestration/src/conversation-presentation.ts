@@ -1,4 +1,4 @@
-import { toolFailureFeedback } from './tool-correction.js';
+import { toolFailureFeedback, interactionDiagnosticFeedback } from './tool-correction.js';
 import { asStableId, type StableId, type JsonObject } from '@haiyue/ai-studio-contracts';
 import { ConservativeTokenEstimator, type CompactionSummaryRequestV1 } from '@haiyue/ai-studio-agent-runtime';
 import type { GameToolPreparation, GameToolApproval } from '@haiyue/ai-studio-game-authoring-tools';
@@ -92,9 +92,9 @@ export function completionSummary(status: 'completed' | 'cancelled' | 'failed' |
 export function boundedJson(value: JsonObject): string { const text = JSON.stringify(value); return text.length > 2_000 ? `${text.slice(0, 1_997)}...` : text; }
 export function projectToolModelResult(value: JsonObject, projection: 'summary' | 'digest-only'): JsonObject {
   const serialized = canonicalStringify(value); const digest = sha256(serialized); const byteLength = Buffer.byteLength(serialized);
-  if (projection === 'digest-only') return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength, ...toolFailureFeedback(value) });
+  if (projection === 'digest-only') return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength, ...toolFailureFeedback(value), ...interactionDiagnosticFeedback(value) });
   const resultValue = isRecord(value.value) ? value.value : value;
-  return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength, keys: Object.freeze(Object.keys(resultValue).sort().slice(0, 32)), ...toolFailureFeedback(value) });
+  return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength, keys: Object.freeze(Object.keys(resultValue).sort().slice(0, 32)), ...toolFailureFeedback(value), ...interactionDiagnosticFeedback(value) });
 }
 export function toolArgumentSummary(toolId: StableId, args: JsonObject): string {
   const raw = args as Record<string, unknown>;

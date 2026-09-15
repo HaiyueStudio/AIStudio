@@ -1,0 +1,67 @@
+{
+  "status": "passed",
+  "terminalReasons": {
+    "failed": true,
+    "cancelled": true,
+    "historicalFallback": true,
+    "colorsRetainedOnSelection": true
+  },
+  "presentationTabs": {
+    "libraryComponent": true,
+    "mutuallyExclusive": true,
+    "keyboard": true,
+    "preservesDraftAndSelection": true,
+    "preservesFeedAndGraphPosition": true,
+    "preservesChoiceOnReplay": true,
+    "notificationTarget": true
+  },
+  "wheelCursorAnchor": {
+    "prevented": true,
+    "old": 1.47799,
+    "next": 1.8,
+    "same": true,
+    "error": 0.15945642392709658
+  },
+  "nativeWheel": true,
+  "hoverAndKeyboard": true,
+  "pinAndEscape": true,
+  "runningBeamOnly": true,
+  "narrowBounds": true,
+  "unknownUsage": true,
+  "compactionOnce": true,
+  "cleanup": true,
+  "replayPreservesHover": true,
+  "incrementalGraph": {
+    "retainedNodesAndEdges": true,
+    "retainedPopoverAndSelection": true,
+    "unchangedNodeNoMutations": true,
+    "latestDetail": true,
+    "additionAndRemoval": true
+  },
+  "taskContinuity": {
+    "before": 6,
+    "afterHandoff": 8,
+    "afterExecution": 11,
+    "selectionAndZoomPreserved": true,
+    "separateRequests": true,
+    "historySelection": true
+  },
+  "sizes": [
+    [
+      760,
+      880
+    ],
+    [
+      320,
+      600
+    ]
+  ],
+  "screenshots": [
+    "usage.png",
+    "node-detail.png",
+    "steps-view.png",
+    "graph-760x880.png",
+    "graph-320x600.png",
+    "task-chain.png"
+  ]
+}
