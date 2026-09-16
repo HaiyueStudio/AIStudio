@@ -3,6 +3,7 @@ import type {
   JsonObject,
   M13StableId,
   StableId,
+  ToolConcurrencyHintV1,
 } from '@haiyue/ai-studio-contracts';
 import type { CompactionSummaryRequestV1 } from '../compaction/index.js';
 
@@ -10,6 +11,7 @@ export interface BackendSessionToolV1 {
   readonly id: StableId;
   readonly description: string;
   readonly inputSchema: JsonObject;
+  readonly concurrency?: ToolConcurrencyHintV1;
 }
 
 export interface BackendSessionCapabilitySnapshotV1 {

@@ -34,6 +34,7 @@ export interface PocAgentGameAuthoringProfileOptions {
   readonly clearDeepSeekApiKey: () => Promise<void>;
   readonly codexLoginMode?: 'browser' | 'device-code';
   readonly behaviorSource?: GameBehaviorSource;
+  readonly harnessMaxParallelToolCalls?: 1 | 2 | 3 | 4;
 }
 
 export function createPocAgentGameAuthoringPlugins(options: PocAgentGameAuthoringProfileOptions): readonly StudioPluginDefinition<any>[] {
@@ -43,7 +44,7 @@ export function createPocAgentGameAuthoringPlugins(options: PocAgentGameAuthorin
       if (options.backend === 'codex-app-server') {
         return Object.freeze([new CodexAppServerBackend({ loginMode: options.codexLoginMode ?? 'browser' })]);
       }
-      const transport = await createPinnedHarnessAgentTransport({ owner: context, resolveApiKey: options.resolveDeepSeekApiKey });
+      const transport = await createPinnedHarnessAgentTransport({ owner: context, resolveApiKey: options.resolveDeepSeekApiKey, maxParallelToolCalls: options.harnessMaxParallelToolCalls });
       return Object.freeze([new HarnessApiKeyBackend({ transport, clearApiKey: options.clearDeepSeekApiKey })]);
     },
   });

@@ -276,6 +276,8 @@ flowchart LR
 
 W1 实施记录见 [agent-efficiency-w1.md](./agent-efficiency-w1.md)。下文的初始基线与评测目标保留为分析时记录，实际实施和验证结果以该记录为准。
 
+W2 只读并发实施记录见 [agent-efficiency-w2.md](./agent-efficiency-w2.md)。
+
 | 包 | 优先级 / 规模 | 修改落点 | 验收条件 |
 | --- | --- | --- | --- |
 | W0 基线 | P0 / 小 | bridge request instrumentation；runtime usage；现有 evals | 精确区分 turn 与 model request，分项记录 TTFT、工具/审批/持久化等待、上下文字节/token |

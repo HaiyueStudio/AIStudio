@@ -1,4 +1,5 @@
 export type JsonPrimitive = null | boolean | number | string;
+export { isToolConcurrencyHintV1, type ToolConcurrencyHintV1 } from './tool-concurrency.js';
 export type * from './m14.js';
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 export type JsonObject = Readonly<Record<string, JsonValue>>;

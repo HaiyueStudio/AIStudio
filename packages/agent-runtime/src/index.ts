@@ -1,4 +1,4 @@
-import { asStableId, createStudioServiceToken, defineStudioPlugin, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12Digest, type StableId, type StudioPluginActivationContext, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
+import { isToolConcurrencyHintV1, asStableId, createStudioServiceToken, defineStudioPlugin, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12Digest, type StableId, type StudioPluginActivationContext, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, operationLogServiceToken, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import type { AgentModelCatalog } from './model-controls.js';
 import { validateAgentTurnConfig } from './model-controls.js';
@@ -58,7 +58,7 @@ export interface AgentTurnInput {
   readonly taskId: StableId; readonly config: AgentTurnConfigV2;
   readonly sessionId?: StableId; readonly prompt: string; readonly contextArtifactIds: readonly StableId[];
   readonly contextCache?: ContextCacheMetrics;
-  readonly tools: readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[];
+  readonly tools: readonly import('./backends/types.js').BackendSessionToolV1[];
 }
 export interface AgentBackendEvent {
   readonly schemaVersion: 1; readonly backendId: StableId; readonly sessionId: StableId; readonly turnId: StableId;
@@ -299,7 +299,7 @@ export function normalizeBackendFailure(cause: unknown): Readonly<{ code: string
 function validateTurnInput(input: AgentTurnInput): void {
   validateAgentTurnConfig(input.config);
   if (!isStableId(input.taskId) || typeof input.prompt !== 'string' || input.prompt.length === 0 || input.prompt.length > 200_000 || !Array.isArray(input.tools) || !Array.isArray(input.contextArtifactIds)
-    || input.contextArtifactIds.some((id) => !isStableId(id)) || input.tools.some((tool) => !isStableId(tool?.id) || typeof tool.description !== 'string' || !isJsonObject(tool.inputSchema))) throw new AgentBackendProtocolError('agent.turn-input-invalid', 'Agent turn input is invalid.');
+    || input.contextArtifactIds.some((id) => !isStableId(id)) || input.tools.some((tool) => !isStableId(tool?.id) || typeof tool.description !== 'string' || !isJsonObject(tool.inputSchema) || (tool.concurrency !== undefined && !isToolConcurrencyHintV1(tool.concurrency)))) throw new AgentBackendProtocolError('agent.turn-input-invalid', 'Agent turn input is invalid.');
 }
 function fuseAbort(parent: AbortSignal | undefined, controller: AbortController): () => void { if (!parent) return () => {}; const abort = (): void => controller.abort(parent.reason); if (parent.aborted) abort(); else parent.addEventListener('abort', abort, { once: true }); return () => parent.removeEventListener('abort', abort); }
 function isKind(value: unknown): value is AgentBackendKind { return value === 'harness-api-key' || value === 'codex-app-server'; }

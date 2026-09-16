@@ -40,7 +40,7 @@ Studio Session replay/checkpoint
 | native compact transport | Studio 未挂载原生压缩 driver | 有 `thread/compact/start` |
 | safe Studio mirror | 不支持 | 不支持；RPC 返回空对象且通知没有摘要/覆盖范围 |
 | binding `nativeCompaction` | `false` | `false` |
-| parallel tool transport | 当前配置为 1，因此 `false` | provider transport 可并行，报告 `true`；实际调度仍由 G06 决定 |
+| parallel tool transport | W2 默认上限 4，注册表确认的只读调用可并行，报告 `true`；回退为 1 时报告 `false` | provider transport 可并行，报告 `true`；实际调度仍由 G06 决定 |
 | Code Mode | 未启用，`false` | 未启用，`false` |
 | usage/cache support | `reported`，单次缺字段仍为 unknown | `reported`，来自 token usage notification |
 

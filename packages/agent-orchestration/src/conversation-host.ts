@@ -1,4 +1,5 @@
 import { matchesRecoveredApproval } from './approval-recovery.js';
+import { toolConcurrencyHint, invocationConcurrencyHint } from './tool-concurrency.js';
 import { PLAN_PROGRESS_TOOL, applyPlanProgress, recordPlanOperation } from './plan-progress.js';
 import { toolCorrectionGuidance, toolFailureFeedback, interactionDiagnosticFeedback } from './tool-correction.js';
 import { QUERY_LIMIT_DEFAULTS, QUERY_PAGE_SIZE, queryLimitRequest, parseQueryLimits, type QueryLimits } from '@haiyue/ai-studio-game-authoring-tools';
@@ -2368,12 +2369,13 @@ export class StudioConversationHost {
     const registered = new Map(this.options.tools.definitions().map(definition => [definition.id, definition]));
     const definitions = selectedIds ? selectedIds.flatMap(id => { const definition = registered.get(id); return definition ? [definition] : []; })
       : this.options.tools.selectDefinitions?.(request).definitions ?? this.options.tools.definitions();
-    const tools: Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] = [PLAN_TOOL_DEFINITION, PLAN_PROGRESS_TOOL, ...definitions].map((definition) => Object.freeze({
+    const tools: AgentTurnInput['tools'][number][] = [PLAN_TOOL_DEFINITION, PLAN_PROGRESS_TOOL, ...definitions].map((definition) => Object.freeze({
       id: definition.id,
       description: `${definition.description}${Object.hasOwn(QUERY_LIMIT_DEFAULTS, definition.id) ? ` Current user query threshold: ${(this.options.queryLimits?.() ?? QUERY_LIMIT_DEFAULTS)[definition.id as keyof QueryLimits]}. Omit limit to use it; a larger request pauses for user choice, it is not a tool failure. Results may be paginated.` : ''} Effect: ${definition.effect}. Risk: ${definition.risk}.${'version' in definition ? ` Version: ${definition.version}.` : ''}${definition.id === 'project.snapshot' ? ' Read when project identity or revision is missing or invalidated; reuse confirmed context and commit results otherwise.' : ''}`,
       inputSchema: definition.inputSchema,
+      concurrency: toolConcurrencyHint(registered.get(definition.id)),
     }));
-    if (definitions.some((definition) => definition.id === 'tool.search')) tools.push(MODEL_TOOL_INVOKE_DEFINITION);
+    if (definitions.some((definition) => definition.id === 'tool.search')) tools.push(Object.freeze({ ...MODEL_TOOL_INVOKE_DEFINITION, concurrency: invocationConcurrencyHint([...registered.values()]) }));
     return Object.freeze(tools);
   }
 

@@ -33,6 +33,8 @@ Backend.submitToolResult      AgentTurn usage/cost refs      durable SessionOp +
 
 `ToolBatchRequestV1` 和 `ToolBatchNodeV1` 继续使用 G01 冻结合同。旧 Backend 不需要新增事件类型：连续的 `tool-request` 被规范化为一个 rolling batch；只发一个调用的 Harness 仍形成单节点 batch，并在结果提交后继续原 generator。显式完整 DAG 可直接交给 `ToolBatchScheduler`；流式兼容层只接受指向已出现节点的依赖，避免尚未到达的 forward dependency 让 provider 死锁。
 
+2026-09-16 W2 已将注册表生成的 `ToolConcurrencyHintV1` 接入 Harness `isConcurrencySafe`，默认上限 4。同响应只读调用现在可同时到达 rolling scheduler；写入、审批、Play、script 和未知工具仍由 upstream 独占分组。invoke 按精确目标 ID/版本分类，不整体授予并发。提示不进入模型 schema，但纳入会话签名。详见 [W2 实施与验证](./agent-efficiency-w2.md)；本轮未增加 step/batch-close 协议。
+
 ## Trusted classification
 
 模型提供的 effect、risk、approval 或 execution class 都不会进入分类输入。`classifyToolConcurrency` 只读取已注册 `GameToolDefinition` 和经过边界限制的参数：

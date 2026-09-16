@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context, Fiber } from '@deepseek-ai/cordis';
-import type { StudioKernelHost, StudioPluginActivationContext } from '@haiyue/ai-studio-contracts';
+import { isToolConcurrencyHintV1, type ToolConcurrencyHintV1, type StudioKernelHost, type StudioPluginActivationContext } from '@haiyue/ai-studio-contracts';
 import { harnessOwnerContext } from './ownership.js';
 import AgentRegistry, { installModelSelection, type Agent, type AgentHandle, type AssistantStreamFrame, type ModelSelectionRef } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
@@ -12,7 +12,7 @@ import SessionProjections from '@deepseek-ai/dsh-session-projection';
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import ToolRuntime, { type ToolDefinition } from '@deepseek-ai/dsh-tools';
 
-export interface HarnessBridgeTool { readonly id: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>; }
+export interface HarnessBridgeTool { readonly id: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>; readonly concurrency?: ToolConcurrencyHintV1; }
 export type HarnessReasoningEffort = 'off' | 'low' | 'high' | 'max';
 export interface HarnessBridgeTurnInput {
   readonly sessionId?: string; readonly prompt: string; readonly tools: readonly HarnessBridgeTool[];
@@ -29,7 +29,7 @@ export interface HarnessBridgeSessionOpenInput {
 export interface HarnessBridgeSessionCapabilities {
   readonly maxInputTokens: number | null;
   readonly nativeCompaction: false;
-  readonly parallelToolCalls: false;
+  readonly parallelToolCalls: boolean;
   readonly codeMode: false;
   readonly providerUsage: 'reported';
   readonly providerCache: 'reported';
@@ -68,6 +68,8 @@ export interface PinnedHarnessAgentTransportOptions {
   readonly resolveApiKey: () => Promise<string | null>;
   readonly model?: string;
   readonly baseURL?: string;
+  /** W2 rollout: 1 restores serial dispatch; 2–4 enable bounded, registry-approved reads. */
+  readonly maxParallelToolCalls?: 1 | 2 | 3 | 4;
 }
 
 interface HarnessRequestFailure { readonly code: string; readonly providerRetryAfterMs?: number; }
@@ -95,6 +97,8 @@ export function harnessRequestRetryDelayMs(failure: HarnessRequestFailure, polic
 }
 
 export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAgentTransportOptions): Promise<HarnessAgentTransport> {
+  const maxParallelToolCalls = options.maxParallelToolCalls ?? 4;
+  if (![1, 2, 3, 4].includes(maxParallelToolCalls)) throw new TypeError('Harness maxParallelToolCalls must be 1–4.');
   const parent = harnessOwnerContext(options.owner);
   const root = parent.root;
   if (transportRoots.has(root)) throw new Error('Studio root already has a live Harness transport.');
@@ -109,7 +113,7 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
     await context.plugin(SessionProjections);
     await context.plugin(LlmRuntime);
     await context.plugin(SystemPrompt, { includeRuntimeContext: false });
-    await context.plugin(ToolRuntime, { mode: 'native', maxParallelSubCalls: 1 });
+    await context.plugin(ToolRuntime, { mode: 'native', maxParallelSubCalls: maxParallelToolCalls });
     const selectedModel = options.model ?? 'deepseek-v4-flash';
     const resolved = resolveAdapterOptions({
       apiKeyEnv: 'HAIYUE_STUDIO_DEEPSEEK_SECRET', baseURL: options.baseURL, thinking: 'enabled', reasoningEffort: 'high',
@@ -132,11 +136,11 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
       name: 'studio:harness-agent-adapter', inject: ['llm'],
       apply(ctx) { ctx.llm.registerAdapter(['deepseek-official'], adapter); },
     });
-    await context.plugin(AgentLoop, { maxParallelToolCalls: 1, agents: [] });
+    await context.plugin(AgentLoop, { maxParallelToolCalls, agents: [] });
     let transport: PinnedHarnessTransport | undefined;
     await context.plugin({
       name: 'studio:harness-agent-client', inject: ['agents', 'sessions', 'llm', 'systemPrompt', 'tools', 'agentLoop'],
-      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, resolved.baseURL === PUBLIC_BASE_URL, options.resolveApiKey, () => disposeHarnessScope(scope)); },
+      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, resolved.baseURL === PUBLIC_BASE_URL, options.resolveApiKey, () => disposeHarnessScope(scope), maxParallelToolCalls); },
     });
     harnessOwnerContext(options.owner);
     if (!transport) throw new Error('Harness transport did not activate.');
@@ -165,7 +169,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   private disposed = false;
   private disposal?: Promise<void>;
   private readonly assistantAttempts = new Map<string, Readonly<{ attemptId: string; revision: number; turn: number }>>();
-  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number; contextWindow?: number }>[], private readonly officialEndpoint: boolean, private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>) {
+  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number; contextWindow?: number }>[], private readonly officialEndpoint: boolean, private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>, private readonly maxParallelToolCalls: number) {
     if (!models.some((entry) => entry.id === model)) throw new Error(`Harness default model ${model} is not in the pinned catalog.`);
     context.effect(() => () => this.release(), 'studio.harness-transport.dispose');
     context.on('session/event', (session, event) => this.onSessionEvent(String(session.id), event));
@@ -184,7 +188,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     return Object.freeze({
       maxInputTokens: this.officialEndpoint ? catalog.contextWindow ?? null : null,
       nativeCompaction: false,
-      parallelToolCalls: false,
+      parallelToolCalls: this.maxParallelToolCalls > 1,
       codeMode: false,
       providerUsage: 'reported',
       providerCache: 'reported',
@@ -290,12 +294,18 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     return handle;
   }
   private toolDefinition(tool: HarnessBridgeTool, index: number): ToolDefinition {
+    // Snapshot trusted metadata; neither provider arguments nor later object mutation may grant concurrency.
+    const concurrency: unknown = tool.concurrency ? JSON.parse(JSON.stringify(tool.concurrency)) : undefined;
     return {
       name: harnessToolName(tool.id, index), description: `${tool.description}\nStudio tool id: ${tool.id}`, parameters: tool.inputSchema as Record<string, unknown>,
+      isConcurrencySafe: args => isParallelHarnessToolCall(tool.id, concurrency, args),
       output: { schema: {}, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
       execute: async (args, execution) => {
+        if (execution.signal.aborted) throw execution.signal.reason;
+        const queue = execution.agent ? this.streams.get(String(execution.agent.id)) : undefined;
+        if (!queue) throw new Error('Harness tool call has no active Studio turn.');
         const callId = String(execution.callId); const pending = deferred<Readonly<Record<string, unknown>>>(); this.results.set(callId, pending);
-        const turn = latestTurn(execution.agent); const queue = execution.agent ? this.streams.get(String(execution.agent.id)) : undefined;
+        const turn = latestTurn(execution.agent);
         queue?.push(Object.freeze({ type: 'tool-request', sessionId: String(execution.agent?.id ?? ''), turnId: turnId(String(execution.agent?.id ?? ''), turn), toolCallId: callId, toolId: tool.id, arguments: isRecord(args) ? Object.freeze({ ...args }) : Object.freeze({}) }));
         const abort = (): void => pending.reject(execution.signal.reason); execution.signal.addEventListener('abort', abort, { once: true });
         try { return await pending.promise; } finally { execution.signal.removeEventListener('abort', abort); this.results.delete(callId); }
@@ -350,7 +360,15 @@ function deferred<T>(): Deferred<T> { let resolve!: (value: T) => void; let reje
 function turnId(sessionId: string, turn: number): string { return `${sessionId}:turn:${turn}`; }
 function latestTurn(agent: Agent | undefined): number { const events = agent?.session.snapshotEvents() ?? []; for (let i = events.length - 1; i >= 0; i -= 1) { const event = events[i]!; if (event.type === 'turn/start') return event.data.turn; } return 1; }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
-function harnessToolSetSignature(tools: readonly HarnessBridgeTool[]): string { return createHash('sha256').update(stableJson(tools.map((tool) => ({ id: tool.id, description: tool.description, inputSchema: tool.inputSchema })))).digest('hex'); }
+function harnessToolSetSignature(tools: readonly HarnessBridgeTool[]): string { return createHash('sha256').update(stableJson(tools.map((tool) => ({ id: tool.id, description: tool.description, inputSchema: tool.inputSchema, ...(tool.concurrency ? { concurrency: tool.concurrency } : {}) })))).digest('hex'); }
+function isParallelHarnessToolCall(toolId: string, hint: unknown, args: unknown): boolean {
+  if (!isToolConcurrencyHintV1(hint)) return false;
+  if (toolId !== 'studio.tool.invoke') return hint.mode === 'parallel-read';
+  if (hint.mode !== 'invoke' || !isRecord(args) || Object.keys(args).length !== 3
+    || Object.keys(args).some(key => !['toolId', 'toolVersion', 'arguments'].includes(key))
+    || !isRecord(args.arguments) || Object.keys(args.arguments).length > 256) return false;
+  return hint.targets.some(target => target.toolId === args.toolId && target.toolVersion === args.toolVersion);
+}
 function stableJson(value: unknown): string { if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'; if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`; return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`).join(',')}}`; }
 function abortableDelay(delayMs: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.reject(signal.reason);
