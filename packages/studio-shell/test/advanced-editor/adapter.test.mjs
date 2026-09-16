@@ -73,3 +73,17 @@ test('runtime inspection projects persisted ObservationArtifactV2 and separates 
   assert.equal(projectAdvancedStudio({...input,epoch:'open:different'}).runtime.fields.length,0);
   assert.equal((await repository.read(persisted.artifact.id)).artifact.digest,persisted.artifact.digest);assert.equal(f.workspace.snapshot().history.entries.length,before);
 });
+
+test('Basic optional transparency fields appear and edits retain boolean values', async t => {
+ const f=await fixture();t.after(f.close);
+ // Fixture owns a logic entity; add a material through the existing authoring intent.
+ const added=await f.dispatch(f.emit('section.add',{additionId:'haiyue.render.material@1.0.0'}));
+ assert.equal(added.status,'completed');
+ const section=f.view().sections.find(s=>s.description.startsWith('haiyue.render.material@'));
+ const blending=section.fields.find(f=>f.id==='blending'), depth=section.fields.find(f=>f.id==='depthWrite');
+ assert.equal(blending.value,'auto');assert.equal(depth.value,'auto');
+ assert.deepEqual(depth.options.map(o=>o.value),['auto',true,false]);
+ const result=await f.dispatch(f.emit('field.edit',{sectionId:section.id,fieldId:'depthWrite',value:false}));
+ assert.equal(result.status,'completed');
+ assert.equal(f.view().sections.find(s=>s.id===section.id).fields.find(f=>f.id==='depthWrite').value,false);
+});

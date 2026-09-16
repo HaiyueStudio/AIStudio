@@ -314,6 +314,8 @@ interface HaiyueScriptSceneApi {
   /** Set actual Play Mesh3D color (sRGB RGBA 0..1), preserving textures/PBR settings.
    * target is entity or a stable project id. Isolates shared materials; does not modify Document.
    * Supports Basic/PBR/Blinn-Phong; instanced meshes use instances.set instead.
+   * Studio Basic auto mode follows alpha: below 1 enables normal blending without depth writes;
+   * alpha 1 restores opaque rendering. Explicit authored blending/depthWrite overrides are preserved.
    * Never write editor descriptor data or getComponent("haiyue.material.pbr") to change rendering.
    * Verify state.entities[i].materialColor through play.inspect. */
   setMaterialColor(target: Entity | string, color: readonly [number, number, number, number]): void;

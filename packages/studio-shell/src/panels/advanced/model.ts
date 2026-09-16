@@ -100,7 +100,7 @@ export function projectAdvancedStudio(source: AdvancedStudioSource): unknown {
     sections: selected.map(component => {
       const definition = definitionFor(source,component.type,component.version), properties = definition?.valueSchema.properties as JsonObject | undefined;
       return { id: component.id, title: definition?.editor.label ?? component.type, description: `${component.type}@${component.version}${definition ? '' : ' · 未注册版本，只读'}`, enabled: component.enabled, editable: Boolean(definition), removable: Boolean(definition),
-        fields: [...Object.entries(component.value).map(([key,value]) => field(key,value,properties?.[key],!definition)), field('$value',component.value,undefined,!definition)] };
+        fields: [...Object.entries(component.type === 'haiyue.render.material' && component.value.material === 'basic' ? { blending: 'auto', depthWrite: 'auto', ...component.value } : component.value).map(([key,value]) => field(key,value,properties?.[key],!definition)), field('$value',component.value,undefined,!definition)] };
     }),
     additions: document ? source.definitions.map(definition => ({ id: `${definition.type}@${definition.version}`, label: `${definition.editor.label} (${definition.version})`, description: definition.editor.category, enabled: Boolean(active) && !selected.some(component => component.type === definition.type) })) : [],
     gizmo: { enabled: selected.some(component => component.type === 'haiyue.transform.3d' && component.enabled && definitionFor(source,component.type,component.version)), transforms: document?.entities.flatMap(entity => { const component = entity.componentIds.map(id => components.get(id)).find(component => component?.type === 'haiyue.transform.3d'); return component ? [{ id: entity.id, parentId: entity.parentId, value: transformValue(component.value) }] : []; }) ?? [], projection: source.projection },
@@ -131,7 +131,7 @@ export function adaptAdvancedStudioIntent(input: unknown, source: AdvancedStudio
       if (!component || !definitionFor(source,component.type,component.version)) return invalid();
       if (value.type === 'section.remove') return author('component.remove',{componentId:component.id});
       if (value.type === 'section.toggle') { if (typeof value.enabled !== 'boolean') return invalid(); return author('component.set',{componentId:component.id,value:component.value,enabled:value.enabled}); }
-      if (typeof value.fieldId !== 'string' || value.fieldId !== '$value' && !Object.hasOwn(component.value,value.fieldId)) return invalid();
+      if (typeof value.fieldId !== 'string' || value.fieldId !== '$value' && !Object.hasOwn(component.value,value.fieldId) && !(component.type === 'haiyue.render.material' && component.value.material === 'basic' && ['blending', 'depthWrite'].includes(value.fieldId))) return invalid();
       const next = value.fieldId === '$value' ? record(value.value) : { ...component.value, [value.fieldId]: value.value };
       return author('component.set',{componentId:component.id,value:next as JsonObject});
     }

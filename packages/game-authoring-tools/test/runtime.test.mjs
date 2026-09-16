@@ -1993,3 +1993,37 @@ test('independent script proposals revalidate retained source at current revisio
   assert.equal(f.projectScripts.snapshot().resources.find(r=>r.entityId===a).text,'const first = 1;');
  }finally{await dispose(f);}
 });
+
+
+test('material.set exposes validated Basic transparency and color-only edits preserve policy', async () => {
+ const f = await fixture();
+ try {
+  const created = await approveAndExecute(f.runtime,call('call:alpha-create','entity.create',{baseRevision:1,kind:'cube',material:'basic',color:[0,0,0,.01]}));
+  const entityId = created.value.entity.id;
+  const changed = await approveAndExecute(f.runtime,call('call:alpha-mode','material.set',{baseRevision:2,entityId,material:'basic',blending:'normal',depthWrite:false}));
+  assert.deepEqual(changed.value.entity.appearance,{material:'basic',color:[0,0,0,.01],blending:'normal',depthWrite:false});
+  const color = await approveAndExecute(f.runtime,call('call:alpha-color','material.set',{baseRevision:3,entityId,material:'basic',color:[1,1,1,1]}));
+  assert.equal(color.value.entity.appearance.blending,'normal'); assert.equal(color.value.entity.appearance.depthWrite,false);
+  const reset = await approveAndExecute(f.runtime,call('call:alpha-auto','material.set',{baseRevision:4,entityId,material:'basic',blending:'auto',depthWrite:'auto'}));
+  assert.equal(reset.value.entity.appearance.blending,'auto'); assert.equal(reset.value.entity.appearance.depthWrite,'auto');
+  await assert.rejects(f.runtime.prepare(call('call:alpha-bad','material.set',{baseRevision:5,entityId,material:'basic',depthWrite:'false'})),/depthWrite/);
+ } finally { await dispose(f); }
+});
+
+test('transactional material.set preserves Basic policy and one History entry', async () => {
+ const f = await fixture();
+ try {
+  const created=await approveAndExecute(f.runtime,call('call:alpha-tx-create','entity.create',{baseRevision:1,kind:'cube',material:'basic',color:[0,0,0,.01]}));
+  const entityId=created.value.entity.id;
+  await approveAndExecute(f.runtime,call('call:alpha-tx-mode','material.set',{baseRevision:2,entityId,material:'basic',blending:'normal',depthWrite:true}));
+  const prepared=await f.runtime.prepare(call('call:alpha-tx-color','material.set',{baseRevision:3,entityId,material:'basic',color:[0,0,1,.5]}));
+  if(prepared.approvalId)await f.runtime.decide(prepared.approvalId,'allow-once');
+  const count=f.workspace.snapshot().history.entries.length;
+  const committed=await f.runtime.executeTransaction({sessionId:'session:fixture',turnId:'turn:fixture',batchId:'batch:alpha',preparationIds:[prepared.id]});
+  assert.equal(committed.afterRevision,4);
+  assert.equal(f.workspace.snapshot().history.entries.length,count+1);
+  assert.deepEqual(f.scene.snapshot().entities[0].appearance,{material:'basic',color:[0,0,1,.5],blending:'normal',depthWrite:true});
+  await f.workspace.undo(4);
+  assert.equal(f.scene.snapshot().entities[0].appearance.color[3],.01);
+ } finally { await dispose(f); }
+});

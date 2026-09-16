@@ -16,11 +16,11 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   const second = new PromptModuleRegistry().profile;
   assert.deepEqual(first, second);
   assert.equal(first.id, 'prompt:game-authoring-general');
-  assert.equal(first.version, '3.9.0');
+  assert.equal(first.version, '3.10.0');
   assert.deepEqual(first.modules.map(({ id, version, layer }) => ({ id, version, layer })), [
     { id: 'prompt.policy.safe-authoring', version: '1.0.0', layer: 'policy' },
-    { id: 'prompt.tools.structured-effects', version: '1.0.0', layer: 'tool-contract' },
-    { id: 'prompt.workflow.general-authoring', version: '1.6.0', layer: 'workflow' },
+    { id: 'prompt.tools.structured-effects', version: '1.1.0', layer: 'tool-contract' },
+    { id: 'prompt.workflow.general-authoring', version: '1.7.0', layer: 'workflow' },
     { id: 'prompt.workflow.bounded-tool-batch', version: '1.0.0', layer: 'workflow' },
   ]);
   const production = first.modules.map((entry) => entry.content).join('\n').toLowerCase();
@@ -28,7 +28,7 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   assert.match(production, /choose evidence per acceptance criterion/);
   assert.match(production, /instead of screenshotting every test/);
   assert.match(production, /drop visual requirements/);
-  assert.equal(first.digest, 'sha256:971546e49236ca02ca84ac5a3ada30370c4fe25cc627a035f8f89e7bfd1c420a');
+  assert.equal(first.digest, 'sha256:baf4efb35c621a19f74dd16d03f321cac75a88832db582cefe9ba08a34132f2c');
 });
 
 test('same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest', async () => {
@@ -80,6 +80,32 @@ test('same revision reuses a live session by reference, changed revision sends o
     assert.match(afterRestart.prompt, /SCRIPT_FULL_MARKER_ALPHA/, 'a new provider session receives the full current manifest');
     await reopened.close();
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test('policy is transmitted once with a readable full audit profile and conditional discovery guidance', async () => {
+  const fixture = await openFixture();
+  try {
+    const runtime = new PromptContextRuntime(fixture.log);
+    const prepared = await runtime.prepare({ conversationKey, backendId, taskId, request: '把选中的立方体改成蓝色', tools, project: null });
+    const envelope = JSON.parse(prepared.prompt.split('\n\n')[1]);
+    const policy = envelope.find(entry => entry.kind === 'policy');
+    assert.equal(policy.projection.profile.modules, undefined);
+    const audit = await fixture.log.readArtifact(policy.projection.profileArtifactId);
+    assert.deepEqual(audit.value, runtime.prompts.profile);
+    assert.deepEqual((await fixture.log.readArtifact(policy.artifactId)).value, policy.projection);
+    for (const module of runtime.prompts.profile.modules) {
+      const escaped = JSON.stringify(module.content).slice(1, -1);
+      assert.equal(JSON.stringify(policy.projection).split(escaped).length - 1, 1);
+    }
+    const oldBytes = Buffer.byteLength(JSON.stringify({ profile: runtime.prompts.profile, text: runtime.prompts.stablePrefix() }));
+    assert.ok(Buffer.byteLength(JSON.stringify(policy.projection)) < oldBytes * 0.6);
+    const events = await fixture.log.query({ kinds: ['agent/context-artifact-created'], limit: 20, traverseCorrelation: false });
+    assert.ok(events.events.find(event => event.payload.artifact.kind === 'policy').artifactRefs.includes(audit.id));
+    assert.match(policy.projection.text, /latest confirmed revision/);
+    assert.match(policy.projection.text, /simple property edits.*need no documentation search/);
+    assert.match(policy.projection.text, /stale-revision error/);
+    assert.doesNotMatch(policy.projection.text, /before every edit|search before planning|Re-query current revision before mutation/);
+  } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
 });
 
 test('exact project source replaces legacy full manifests with bounded scene snapshot then revision diff', async () => {

@@ -4,6 +4,7 @@ import { StudioConversationHost } from '../dist/conversation-host.js';
 import { projectToolModelResult } from '../dist/conversation-presentation.js';
 import { toolFailureFeedback, toolCorrectionGuidance } from '../dist/tool-correction.js';
 import { validatePlanProposal } from '../dist/plan-policy.js';
+import { GAME_AUTHORING_TOOL_DEFINITIONS } from '@haiyue/ai-studio-game-authoring-tools';
 
 const failure = { toolId: 'studio.plan.propose', code: 'plan.payload-invalid', message: 'acceptance[0].required must be boolean', retryable: false };
 function fixture(limit = 2) {
@@ -37,6 +38,52 @@ test('reported malformed acceptance item gives precise repair instructions witho
   assert.equal(proposal.acceptance[0].required, 'true');
   const fixed = {...proposal, acceptance:[{...proposal.acceptance[0],required:true}]};
   assert.deepEqual(validatePlanProposal(fixed).acceptance, fixed.acceptance);
+});
+
+test('argument repair includes exact registry fields and enums without another discovery call', () => {
+  const definition = GAME_AUTHORING_TOOL_DEFINITIONS.find(tool => tool.id === 'engine.docs.search');
+  const result = { status: 'failed', error: { code: 'tool.arguments-invalid', message: 'Unexpected requestedCount; use limit.' } };
+  const before = JSON.stringify(result);
+  const feedback = toolFailureFeedback(result, definition);
+  assert.equal(feedback.correction.toolContract.complete, true);
+  assert.equal(feedback.correction.toolContract.toolVersion, definition.version);
+  assert.deepEqual(feedback.correction.toolContract.inputSchema, definition.inputSchema);
+  assert.equal(feedback.correction.toolContract.inputSchema.properties.limit.type, 'integer');
+  assert.ok(feedback.correction.toolContract.inputSchema.properties.surface.enum.includes('studio-script'));
+  assert.match(feedback.correction.instruction, /only if.*unavailable/);
+  assert.equal(feedback.correction.automaticReplay, false);
+  assert.equal(JSON.stringify(result), before);
+  assert.equal(toolFailureFeedback(result).correction.toolContract, undefined);
+  assert.equal(toolFailureFeedback({ status: 'failed', error: { code: 'tool.outcome-unknown' } }, definition).correction, undefined);
+});
+
+test('large repair schemas remain bounded and explicitly partial; no values or references are invented', () => {
+  const definition = { id: 'test:large', version: '1.0.0', inputSchema: { type: 'object', additionalProperties: false, required: ['mode', 'reference'], properties: {
+    mode: { enum: ['read', 'write'] }, reference: { type: 'string', description: 'Copy the returned reference exactly.' },
+    large: { type: 'string', description: 'x'.repeat(30_000) },
+  } } };
+  const feedback = toolFailureFeedback({ status: 'failed', error: { code: 'tool.arguments-invalid', message: 'mode must be read or write.' } }, definition);
+  const contract = feedback.correction.toolContract;
+  assert.equal(contract.complete, false);
+  assert.deepEqual(contract.schemaExcerpt.properties.mode.enum, ['read', 'write']);
+  assert.equal(contract.schemaExcerpt.properties.large, undefined);
+  assert.match(contract.instruction, /Omitted.*unknown/);
+  assert.ok(Buffer.byteLength(JSON.stringify(feedback)) < 6_000);
+});
+
+test('compact failed tool delivery attaches a contract only for the exact dispatched version', async () => {
+  const { host } = fixture(); const delivered = [];
+  const definition = GAME_AUTHORING_TOOL_DEFINITIONS.find(tool => tool.id === 'engine.docs.search');
+  host.options.tools.definitions = () => [definition];
+  host.options.runtime.turns = { async recordToolResult() {} };
+  host.project = () => {}; host.recordTaskAccounting = async () => {}; host.appendToolSessionOp = async () => {};
+  const context = { toolId: definition.id, toolCallId: 'call:repair', toolNodeId: 'node:repair', args: { requestedCount: 3 }, node: { outputProjection: 'digest-only', toolVersion: definition.version },
+    event: { backendId: 'backend:test', sessionId: 'session:test', turnId: 'turn:test' }, provenance: {}, backend: { async submitToolResult(_id, result) { delivered.push(result); } } };
+  const body = host.makeToolBody(context, 'failed', { status: 'failed', error: { code: 'tool.arguments-invalid', message: 'Use limit, not requestedCount.' } }, 'failed', {}, 'failed', {}, null, null, null, false, false, 1);
+  await host.commitToolBody({ outputBytes: 0 }, context, body, new AbortController().signal);
+  assert.deepEqual(delivered[0].correction.toolContract.inputSchema, definition.inputSchema);
+  await host.commitToolBody({ outputBytes: 0 }, { ...context, node: { ...context.node, toolVersion: '0.0.0' } }, body, new AbortController().signal);
+  assert.equal(delivered[1].correction.toolContract, undefined);
 });
 
 test('ending after a correctable tool failure schedules a budgeted continuation and preserves failure history', () => {

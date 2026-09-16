@@ -1,3 +1,4 @@
+import { BASIC_TRANSPARENCY_PROPERTIES } from '../render/basic-transparency.js';
 import { ROUNDED_BOX_PROPERTIES, roundedBoxParameters } from '../render/rounded-box.js';
 import {
   asStableId,
@@ -124,7 +125,7 @@ export const BUILTIN_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = O
   definition('haiyue.render.geometry', 'document.v2', 'gpu-owner', 'medium', 'Geometry', 'Rendering', 'inspector.geometry', 'adapter.render.geometry',
     objectSchema({ ...ROUNDED_BOX_PROPERTIES, kind: { enum: ['cube', 'rounded-box', 'sphere', 'cone', 'cylinder', 'plane', 'torus', 'icosahedron'] }, plane: { enum: ['xy', 'xz', 'yz'], description: 'For plane geometry: xy faces +Z (default), xz faces +Y (horizontal), yz faces +X. Transform rotation is applied afterwards.' } }, ['kind']), { kind: 'cube' }),
   definition('haiyue.render.material', 'material.pbr', 'gpu-owner', 'medium', 'Material', 'Rendering', 'inspector.material', 'adapter.render.material',
-    objectSchema({ material: { enum: ['basic', 'pbr', 'blinn-phong', 'normal'] }, color: numberArraySchema(4, 0, 1) }, ['material', 'color']),
+    objectSchema({ ...BASIC_TRANSPARENCY_PROPERTIES, material: { enum: ['basic', 'pbr', 'blinn-phong', 'normal'] }, color: numberArraySchema(4, 0, 1) }, ['material', 'color']),
     { material: 'basic', color: [0.16, 0.58, 1, 1] }),
   definition('haiyue.light.directional', 'lighting', 'gpu-owner', 'medium', 'Directional Light', 'Lighting', 'inspector.light', 'adapter.light.directional',
     objectSchema({ color: numberArraySchema(3, 0), intensity: numberSchema(0), direction: numberArraySchema(3), castShadow: { type: 'boolean' }, shadow: objectSchema({ mapSize: { enum: [512, 1024, 2048] }, extent: numberSchema(1, 100_000), near: numberSchema(0.01, 100_000), far: numberSchema(1, 1_000_000), bias: numberSchema(0, 1), normalBias: numberSchema(0, 100) }, ['mapSize', 'extent', 'near', 'far', 'bias', 'normalBias']) }, ['color', 'intensity', 'direction', 'castShadow', 'shadow']),

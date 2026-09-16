@@ -61,15 +61,17 @@ for (const kind of ['harness', 'codex']) test(`${kind}: omitted tools execute af
     await waitFor(() => fixture.error || nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     if (fixture.error) throw fixture.error;
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
+    assert.equal(tools.executions, 0, 'discovery must not authorize script writes before plan approval');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => fixture.error || nodes(host).some(node => node.kind === 'approval' && node.status === 'pending'));
+    await waitFor(() => fixture.error || fixture.finished && !host.replay().busy);
     if (fixture.error) throw fixture.error;
-    assert.equal(tools.executions, 0, 'discovering and routing must not approve trusted code');
     assert.equal(tools.approvalRecord.toolId, 'script.apply');
     assert.equal(tools.approvalRecord.effect, 'trusted-code');
-    await host.dispatch({ type: 'conversation/resolve-approval', approvalId: tools.approvalRecord.approvalId, decision: 'allow-once' });
-    await waitFor(() => host.replay().busy === false);
-    if (fixture.error) throw fixture.error;
+    assert.equal(tools.approvalRecord.decision, 'allow-once');
+    const grants = await log.query({ kinds: ['conversation/plan-script-authorized'], limit: 10, traverseCorrelation: false });
+    assert.equal(grants.events.length, 1, 'existing plan-scoped script authorization must be durable and exact');
+    assert.equal(grants.events[0].payload.argumentsDigest, tools.approvalRecord.argumentsDigest);
+    assert.equal(grants.events[0].payload.baseRevision, 1);
     assert.equal(fixture.finished, true);
     assert.equal(fixture.starts, 1, 'search must not restart or replace the provider turn');
     assert.ok(fixture.toolIds.includes(MODEL_TOOL_INVOKE_DEFINITION.id));
@@ -130,4 +132,3 @@ function toolService() {
     },
   };
 }
-

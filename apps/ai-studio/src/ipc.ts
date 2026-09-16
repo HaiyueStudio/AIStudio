@@ -1,3 +1,4 @@
+import { basicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
 import type { QueryPreferences } from './query-preferences.js';
 import { parseQueryLimits, QUERY_LIMIT_DEFAULTS } from '@haiyue/ai-studio-game-authoring-tools/query-limits';
 import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
@@ -231,6 +232,7 @@ export class StudioIpcRouter {
         name: request.payload.name as string | undefined,
         parentId: request.payload.parentId as StableId | null | undefined,
         material: request.payload.material as never,
+        ...basicTransparencyOptions(request.payload),
         color: request.payload.color as SceneMaterialColor | undefined,
       }, signal));
       case 'scene/select': return toJson(await this.options.selection.select(
@@ -249,6 +251,7 @@ export class StudioIpcRouter {
         baseRevision: request.payload.baseRevision as number,
         entityId: request.payload.entityId as StableId,
         material: request.payload.material as never,
+        ...basicTransparencyOptions(request.payload),
         color: request.payload.color as SceneMaterialColor | undefined,
       }, signal));
       case 'viewport/report': {
@@ -439,7 +442,8 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     });
   }
   else if (channel === 'scene/material') {
-    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'entityId', 'material'], ['color']);
+    requireAllowedShape(payload, keys, ['commandId', 'baseRevision', 'entityId', 'material'], ['color', 'blending', 'depthWrite']);
+    try { basicTransparencyOptions(payload); } catch { throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/material transparency is invalid.'); }
     if (typeof payload.commandId !== 'string' || typeof payload.baseRevision !== 'number' || typeof payload.entityId !== 'string'
       || !sceneMaterialKinds.has(String(payload.material)) || !validMaterialColor(payload.color)) throw new IpcDiagnosticError('ipc-payload-rejected', 'scene/material payload is invalid.');
   }

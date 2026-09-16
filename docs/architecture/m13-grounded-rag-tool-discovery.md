@@ -38,17 +38,25 @@ Component Registry + reviewed engine guides + project/asset metadata
 
 ## Tool discovery
 
-模型始终得到十个稳定 core tools。`ToolCatalogRuntime` 使用与知识检索相同的本地语义匹配对精确工具和组件注册表分组、排序；每个任务最多扩展 18 个完整工具 schema。`tool.search(includeSchemas)` 可显式展开后续需要的少量合同，所有 mutation 仍由原工具注册表的 effect、risk、approval 与 validation 执行。
+当前模型默认得到十二个稳定 core tools。`ToolCatalogRuntime` 使用与知识检索相同的本地语义匹配对精确工具和组件注册表分组、排序；默认再选择八个完整工具 schema，共二十个定义。`tool.search(includeSchemas)` 可显式展开后续需要的少量合同，所有 mutation 仍由原工具注册表的 effect、risk、approval 与 validation 执行。
 
 ### 2026-09-06：搜索结果的可执行入口
 
-固定版本的 Harness/Codex 在创建会话时绑定 native 工具列表，搜索返回 schema 本身不会注册新的 native tool。因此，桌面 Conversation Host 在提供 `tool.search` 时，同时注册一个稳定的 `studio.tool.invoke` 传输入口。十个 core tools、最多十八个按任务选择的工具以及计划工具保留；这个入口额外占用一个小 schema，不把全部编辑器 schema 常驻到模型上下文，也不重建正在执行的 provider 会话。
+固定版本的 Harness/Codex 在创建会话时绑定 native 工具列表，搜索返回 schema 本身不会注册新的 native tool。因此，桌面 Conversation Host 在提供 `tool.search` 时，同时注册一个稳定的 `studio.tool.invoke` 传输入口。当前默认二十个目录定义与两个计划工具保留；这个入口额外占用一个小 schema，不把全部编辑器 schema 常驻到模型上下文，也不重建正在执行的 provider 会话。
 
 `tool.search(includeSchemas=true)` 的工具命中同时返回精确 `version`、`inputSchema` 和 `invocation: { tool, toolId, toolVersion }`。模型把 `toolId`、`toolVersion` 和符合目标 schema 的 `arguments` 传给已注册的 `studio.tool.invoke`。完整目录消费者仍可使用原来的 `nextTool` 直接调用。
 
 Host 在批处理分类前用当前工具注册表解析目标，再把原始 call id 与目标 id/version/arguments 交给原有调度、预算、计划审批、prepare、精确授权和执行链。该入口不是编辑器 effect，也不另建 registry；未知目标、递归调用、版本漂移和额外 policy 字段返回结构化工具失败。目标参数仍由原工具验证。Session 的 `tool.started` 记录目标工具和 `invokedVia`，后续审批、结果和恢复均使用目标工具身份。
 
 搜索是能力发现，不代表授权；可调用范围始终是该 Host 当前注册的工具集合。入口不需要依赖不可恢复的“已搜索工具”内存授权表。
+
+### 2026-09-16：W1 任务内稳定选择与参数修复
+
+Host 仅在任务首次启动时按原始用户需求选择工具，并把有序工具 ID 写入 `conversation/task-tools-selected`（payload version 1）。计划批准、预算续期和错误修正继续使用该选择，不再对包含通用工具示例的 continuation 指令重新排序。重启后从持久记录恢复；没有记录的旧任务按其原始需求摘要建立选择。新任务或不同 Backend 独立选择。
+
+每次使用仍由当前注册表生成 schema、描述、版本、effect/risk 和查询阈值；持久记录只选择 ID，不提供执行合同或权限。被移除的工具不能恢复。真正的合同变化会改变 signature，使原有 context/session 复用逻辑重新发送完整上下文。未在 native 列表中的能力继续经 `tool.search` 与 `studio.tool.invoke` 执行。
+
+`tool.arguments-invalid` 的结果优先附当前精确工具版本的 schema（最多 4 KiB）。大 schema 只附明确标记 `complete:false` 的字段片段，省略部分仍为 unknown；仅缺少约束时才要求再搜索。完整/摘要/digest-only 结果路径均保留错误与修复控制信息。无匹配版本时不附合同，不自动改参数、不重放不确定写入。
 
 `AgentGameAuthoringCoordinator` 的 `modelToolIds` 若包含搜索并省略部分工具，也注册同一入口并在原 prepare/approval/execute 链前解析。未裁剪的完整目录保持原样。协调器回归测试使用真实 Document/History 验证发现后的编辑及撤销。
 

@@ -1,3 +1,4 @@
+import { basicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
 import { GestureRegressions } from './gesture-regressions.js';
 import { normalizeRotation, verifyRotation } from './gesture-rotation.js';
 import { assertAssemblyPlan, normalizeAssemblyArguments, planAssembly, inspectAssembly } from './assemblies.js';
@@ -518,7 +519,7 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
       const entityId = args.entityId as StableId; const target = requireEntity(scene, entityId);
       if (!isSceneGeometryKind(target.kind) || !target.appearance) throw new GameToolProtocolError('tool.material-target-invalid', 'Only geometry entities can use materials.');
       const component = ownedComponent(options.workspace, entityId, 'haiyue.render.material');
-      const replacement = options.workspace.componentRegistry.validate({ ...component, value: Object.freeze({ material: args.material, color: args.color ?? target.appearance.color }) as JsonObject });
+      const replacement = options.workspace.componentRegistry.validate({ ...component, value: Object.freeze({ ...(args.material === 'basic' ? { ...basicTransparencyOptions(target.appearance), ...basicTransparencyOptions(args) } : {}), material: args.material, color: args.color ?? target.appearance.color }) as JsonObject });
       const pbr = target.components?.find(item => item.type === 'haiyue.material.pbr');
       const operations: GameDocumentOperationV2[] = [{ op: 'component.replace', component: replacement }];
       if (pbr) operations.push({ op: 'component.replace', component: options.workspace.componentRegistry.validate({ ...pbr, enabled: args.material === 'pbr', value: { ...pbr.value, ...(args.color ? { baseColor: args.color } : {}) } }) });
@@ -1126,7 +1127,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
     case 'material.set': {
-      const next = await options.scene.setMaterial({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, material: args.material as never, ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}) }, signal);
+      const next = await options.scene.setMaterial({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, material: args.material as never, ...basicTransparencyOptions(args), ...(args.color ? { color: args.color as unknown as SceneMaterialColor } : {}) }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
     case 'component.add': {
@@ -1476,7 +1477,7 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'prefab.manage': return normalizePrefabArguments(raw);
     case 'transform.set': exact(raw, ['baseRevision', 'entityId', 'transform'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), transform: normalizeTransform(raw.transform) as unknown as JsonValue });
     case 'transform.batch': return normalizeTransformBatchArguments(raw);
-    case 'material.set': exact(raw, ['baseRevision', 'entityId', 'material'], ['color'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), material: raw.material, ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }) });
+    case 'material.set': exact(raw, ['baseRevision', 'entityId', 'material'], ['color', 'blending', 'depthWrite'], toolId); if (!isSceneMaterialKind(raw.material)) throw invalid('Material kind is invalid.'); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), material: raw.material, ...basicTransparencyOptions(raw), ...(raw.color === undefined ? {} : { color: normalizeMaterialColor(raw.color) as unknown as JsonValue }) });
     case 'component.add': exact(raw, ['baseRevision', 'entityId', 'type'], ['version', 'enabled', 'value'], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), entityId: stable(raw.entityId, 'entity id'), type: componentTypeValue(raw.type), version: componentVersionValue(raw.version ?? '1.0.0'), enabled: raw.enabled === undefined ? true : booleanValue(raw.enabled, 'enabled'), value: jsonObjectValue(raw.value ?? {}, 'component value') as JsonValue });
     case 'component.set': exact(raw, ['baseRevision', 'componentId', 'value'], ['enabled'], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), componentId: stable(raw.componentId, 'component id'), ...(raw.enabled === undefined ? {} : { enabled: booleanValue(raw.enabled, 'enabled') }), value: jsonObjectValue(raw.value, 'component value') as JsonValue });
     case 'component.remove': exact(raw, ['baseRevision', 'componentId'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), componentId: stable(raw.componentId, 'component id') });
@@ -1854,7 +1855,7 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
       const entity = requireEntity(snapshot, raw.entityId as StableId);
       if (!isSceneGeometryKind(entity.kind)) throw invalid('Only geometry entities can use materials.');
       const color = raw.color as readonly number[] | undefined;
-      return preview('Set material appearance', entity.id, `Apply ${raw.material}${color ? ` rgba(${color.join(', ')})` : ''} to ${entity.name}.`, `${entity.appearance?.material ?? 'none'} ${entity.appearance?.color?.join(',') ?? ''} → ${raw.material}${color ? ` ${color.join(',')}` : ''}`);
+      return preview('Set material appearance', entity.id, `Apply ${raw.material}${color ? ` rgba(${color.join(', ')})` : ''}${raw.material === 'basic' ? ` (${JSON.stringify({ ...basicTransparencyOptions(entity.appearance ?? {}), ...basicTransparencyOptions(raw) })})` : ''} to ${entity.name}.`, `${entity.appearance?.material ?? 'none'} ${entity.appearance?.color?.join(',') ?? ''} → ${raw.material}${color ? ` ${color.join(',')}` : ''} ${JSON.stringify(basicTransparencyOptions(raw))}`);
     }
     case 'component.add': {
       return preview('Add component', raw.entityId as string, `Add ${raw.type} to ${raw.entityId}.`, `+ ${raw.type}@${raw.version} ${canonicalStringify(raw.value as JsonObject)}`);

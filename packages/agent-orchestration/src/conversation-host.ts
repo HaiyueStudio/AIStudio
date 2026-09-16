@@ -165,6 +165,7 @@ export class StudioConversationHost {
   private readonly listeners = new Set<() => void>();
   private readonly backendSelections = new Map<StableId, BackendSelection>();
   private readonly taskRuns = new Map<StableId, ConversationTaskRunReadModel>();
+  private readonly taskToolSelections = new Map<string, readonly StableId[]>();
   private readonly restoredTaskAccounting = new Map<StableId, ConversationTaskAccountingReadModel>();
   private readonly playtestTasks = new Map<StableId, BoundedPlaytestTask>();
   private backends: readonly ConversationBackendReadModel[] = Object.freeze([]);
@@ -213,7 +214,7 @@ export class StudioConversationHost {
     if (this.projectionPersistenceFailure) throw new AggregateError([this.projectionPersistenceFailure], 'Conversation record persistence failed.');
   }
 
-  async initialize(): Promise<void> { await this.restoreProjection(); await this.restoreTaskRuns(); await this.migrateLegacySessions(); await this.restoreTaskAccounting(); await this.hydrateTaskPreviews(); await this.restoreExecutionGraphs(); await this.refreshBackends(); }
+  async initialize(): Promise<void> { await this.restoreProjection(); await this.restoreTaskRuns(); await this.restoreTaskToolSelections(); await this.migrateLegacySessions(); await this.restoreTaskAccounting(); await this.hydrateTaskPreviews(); await this.restoreExecutionGraphs(); await this.refreshBackends(); }
 
   subscribe(listener: () => void): Readonly<{ dispose(): void }> {
     this.assertActive();
@@ -361,6 +362,7 @@ export class StudioConversationHost {
     if (this.graphProjectionTimer) { clearTimeout(this.graphProjectionTimer); this.graphProjectionTimer = null; }
     this.pendingGraphSnapshots.clear(); this.latestGraphSnapshots.clear(); this.publishedTextOffsets.clear();
     this.pendingRecordContents.clear();
+    this.taskToolSelections.clear();
     this.questions.clear();
     this.plans.clear();
     this.approvedPlanTurns.clear();
@@ -411,7 +413,7 @@ export class StudioConversationHost {
     const initialProgressNodeId = this.nextNodeId('01-progress');
     const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
     const taskId = this.localId(`task:conversation:${this.nodeSequence + 1}`);
-    const tools = this.modelTools(prompt);
+    const tools = await this.taskModelTools(taskId, backendId, prompt);
     const project = this.options.projectContext?.() ?? null;
     await this.prepareKnowledge(project, controller.signal);
     const conversationKey = conversationKeyFor(project);
@@ -474,7 +476,7 @@ export class StudioConversationHost {
       this.taskRuns.get(taskId)?.acceptance.length ? taskContinuationRequest(this.taskRuns.get(taskId)!) : null,
       continuationInstruction,
     ].filter((value): value is string => Boolean(value)).join('\n\n');
-    const tools = this.modelTools(request);
+    const tools = await this.taskModelTools(taskId, backendId, goal);
     const wallTimeBudget = armWallTimeBudget(controller, account);
     wallTimeBudget.pause();
     this.active = { backendId, taskId, config, tools, providerStarted: false, account, sessionId: null, turnId: null, controller, wallTimeBudget, initialProgressNodeId, localSessionId, localTurnId, approvedPlan: plan, continuationRequested: false, continuationInstruction: null, budgetCheckpoint: null, conversationKey, projectId: project?.projectId ?? null, goal, decisions: plan ? [`Approved plan: ${plan.title}. ${plan.summary}`] : [correctingTools ? 'Correct failed tool arguments within the existing task budget.' : 'User approved continuation after a completed budget checkpoint.'], toolFacts: [], blockers: pendingBlockers, toolFailures: pendingFailures, contextCommitted: false, suspendedBarrierId: null };
@@ -1376,7 +1378,10 @@ export class StudioConversationHost {
 
   private async commitToolBody(batch: ActiveToolBatch, context: ToolExecutionContext, original: HostToolBody, signal: AbortSignal): Promise<HostToolBody> {
     let body = context.node.outputProjection === 'full' ? original : Object.freeze({ ...original, backendResult: projectToolModelResult(original.backendResult, context.node.outputProjection) });
-    if (body.status === 'failed') body = Object.freeze({ ...body, backendResult: Object.freeze({ ...body.backendResult, ...toolFailureFeedback(original.backendResult) }) });
+    if (body.status === 'failed') {
+      const definition = this.options.tools.definitions().find(item => item.id === context.toolId && item.version === context.node.toolVersion);
+      body = Object.freeze({ ...body, backendResult: Object.freeze({ ...body.backendResult, ...toolFailureFeedback(original.backendResult, definition) }) });
+    }
     if (context.toolId !== PLAN_PROGRESS_TOOL.id && this.active?.approvedPlan && original.status === 'completed') {
       const plan = [...this.nodes.values()].reverse().find(node => node.kind === 'plan' && node.content.taskId === this.active!.taskId && node.content.decision === 'approved');
       if (plan) {
@@ -2326,11 +2331,46 @@ export class StudioConversationHost {
     }
   }
 
-  private modelTools(request: string): readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] {
-    const definitions = this.options.tools.selectDefinitions?.(request).definitions ?? this.options.tools.definitions();
+  /** Freeze selection per task, but always rebuild contracts from the current registry.
+   * A changed schema/version/threshold changes the signature and forces normal session rebinding. */
+  private async taskModelTools(taskId: StableId, backendId: StableId, goal: string): Promise<AgentTurnInput['tools']> {
+    const key = `${backendId}\0${taskId}`;
+    const selected = this.taskToolSelections.get(key);
+    const tools = this.modelTools(goal, selected);
+    if (!selected) {
+      const toolIds = Object.freeze(tools.map(tool => tool.id));
+      await this.options.operationLog.append({ kind: 'conversation/task-tools-selected', severity: 'info', source: asStableId('studio.conversation-host'),
+        payload: { schemaVersion: 1, taskId, backendId, toolIds } });
+      this.taskToolSelections.set(key, toolIds);
+    }
+    return tools;
+  }
+
+  private async restoreTaskToolSelections(): Promise<void> {
+    if (!this.projectionPersistenceAvailable()) return;
+    const events = await queryRetainedOperationEvents(this.options.operationLog, ['conversation/task-tools-selected'], 5_000);
+    for (const event of events) {
+      const value = event.payload;
+      if (value.schemaVersion !== 1 || typeof value.taskId !== 'string' || typeof value.backendId !== 'string'
+        || !Array.isArray(value.toolIds) || value.toolIds.length < 1 || value.toolIds.length > 128 || value.toolIds.some(id => typeof id !== 'string')) continue;
+      try {
+        const taskId = asStableId(value.taskId); const backendId = asStableId(value.backendId);
+        if (!this.taskRuns.has(taskId)) continue;
+        const toolIds = value.toolIds.map(id => asStableId(id as string));
+        if (new Set(toolIds).size !== toolIds.length) continue;
+        // IDs select current definitions only; durable payloads never supply executable schemas or policy.
+        this.taskToolSelections.set(`${backendId}\0${taskId}`, Object.freeze(toolIds));
+      } catch { /* Invalid historical selections cannot become tool contracts. */ }
+    }
+  }
+
+  private modelTools(request: string, selectedIds?: readonly StableId[]): AgentTurnInput['tools'] {
+    const registered = new Map(this.options.tools.definitions().map(definition => [definition.id, definition]));
+    const definitions = selectedIds ? selectedIds.flatMap(id => { const definition = registered.get(id); return definition ? [definition] : []; })
+      : this.options.tools.selectDefinitions?.(request).definitions ?? this.options.tools.definitions();
     const tools: Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[] = [PLAN_TOOL_DEFINITION, PLAN_PROGRESS_TOOL, ...definitions].map((definition) => Object.freeze({
       id: definition.id,
-      description: `${definition.description}${Object.hasOwn(QUERY_LIMIT_DEFAULTS, definition.id) ? ` Current user query threshold: ${(this.options.queryLimits?.() ?? QUERY_LIMIT_DEFAULTS)[definition.id as keyof QueryLimits]}. Omit limit to use it; a larger request pauses for user choice, it is not a tool failure. Results may be paginated.` : ''} Effect: ${definition.effect}. Risk: ${definition.risk}.${definition.id === 'project.snapshot' ? ' Inspect this before planning or using a document revision.' : ''}`,
+      description: `${definition.description}${Object.hasOwn(QUERY_LIMIT_DEFAULTS, definition.id) ? ` Current user query threshold: ${(this.options.queryLimits?.() ?? QUERY_LIMIT_DEFAULTS)[definition.id as keyof QueryLimits]}. Omit limit to use it; a larger request pauses for user choice, it is not a tool failure. Results may be paginated.` : ''} Effect: ${definition.effect}. Risk: ${definition.risk}.${'version' in definition ? ` Version: ${definition.version}.` : ''}${definition.id === 'project.snapshot' ? ' Read when project identity or revision is missing or invalidated; reuse confirmed context and commit results otherwise.' : ''}`,
       inputSchema: definition.inputSchema,
     }));
     if (definitions.some((definition) => definition.id === 'tool.search')) tools.push(MODEL_TOOL_INVOKE_DEFINITION);

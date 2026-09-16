@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GAME_AUTHORING_TOOL_DEFINITIONS, MODEL_TOOL_INVOKE_DEFINITION, ToolCatalogRuntime, resolveModelToolInvocation, normalizeToolBatchRequest } from '../dist/index.js';
+import { GAME_AUTHORING_TOOL_DEFINITIONS, MODEL_CORE_TOOL_IDS, MODEL_TOOL_INVOKE_DEFINITION, ToolCatalogRuntime, resolveModelToolInvocation, normalizeToolBatchRequest } from '../dist/index.js';
 
 const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => []);
 const invocation = (toolId, args = {}) => ({ toolId, toolVersion: '1.0.0', arguments: args });
@@ -15,7 +15,8 @@ test('an exact tool id outranks descriptions that reference that tool', () => {
 });
 
 test('search returns an exact executable route for tools omitted from the initial native surface', () => {
-  const selection = catalog.selectDefinitions('做一个俄罗斯方块游戏');
+  // Exercise discovery from a deliberately core-only surface, independent of description ranking.
+  const selection = catalog.selectDefinitions('做一个俄罗斯方块游戏', [], MODEL_CORE_TOOL_IDS.length);
   for (const toolId of ['script.apply', 'play.start', 'play.input']) {
     assert.ok(!selection.selectedIds.includes(toolId));
     const match = catalog.search(toolId, { includeSchemas: true, limit: 1 })[0];

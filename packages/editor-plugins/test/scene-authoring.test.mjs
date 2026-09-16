@@ -305,3 +305,25 @@ test('shared geometry identity ignores instance names, placement and default spe
   const other = new SharedGeometryPool(); assert.notEqual(other.get('rounded-box'), a, 'Play and editor own separate pools');
   pool.clear(); assert.notEqual(pool.get('rounded-box'), a, 'clearing projection releases cache references');
 });
+
+
+test('Basic transparency persists through material edits, History and project reopening', async () => {
+ const f = await fixture();
+ try {
+  await f.workspace.newProject(f.projectRoot, 'Transparency');
+  let snapshot = await f.scene.createEntity({ commandId:asStableId('command:alpha-create'),baseRevision:1,kind:'cube',material:'basic',color:[0,0,0,.01] });
+  const entityId = snapshot.entities[0].id;
+  snapshot = await f.scene.setMaterial({commandId:asStableId('command:alpha-explicit'),baseRevision:2,entityId,material:'basic',blending:'normal',depthWrite:true});
+  assert.deepEqual(snapshot.entities[0].appearance,{material:'basic',color:[0,0,0,.01],blending:'normal',depthWrite:true});
+  snapshot = await f.scene.setMaterial({commandId:asStableId('command:alpha-color'),baseRevision:3,entityId,material:'basic',color:[1,0,0,.5]});
+  assert.equal(snapshot.entities[0].appearance.depthWrite,true);
+  await f.workspace.undo(4);
+  assert.equal(f.scene.snapshot().entities[0].appearance.color[3],.01);
+  await f.workspace.redo(5);
+  await f.workspace.save(); await f.workspace.openProject(f.projectRoot);
+  assert.deepEqual(f.scene.snapshot().entities[0].appearance,{material:'basic',color:[1,0,0,.5],blending:'normal',depthWrite:true});
+  const revision=f.scene.snapshot().revision;
+  await assert.rejects(f.scene.setMaterial({commandId:asStableId('command:alpha-invalid'),baseRevision:revision,entityId,material:'basic',blending:'transparent'}),/blending must/);
+  assert.equal(f.scene.snapshot().revision,revision);
+ } finally { await disposeFixture(f); }
+});

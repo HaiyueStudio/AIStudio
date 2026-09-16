@@ -74,5 +74,14 @@
     "title": "Presentation, effects and audio",
     "text": "Treat lighting, post-processing, particles, animation, HUD and audio as explicit versioned components. Add only supported component schemas from the registry, keep runtime ownership unambiguous, and verify structural state together with a screenshot or inspection artifact. Base-color textures supply image colors multiplied by the PBR baseColor tint. asset.assign creates a new base-color map binding with white tint to preserve the PNG colors; an existing PBR component keeps its explicitly authored tint. material.set synchronizes the effective PBR color. Inspect haiyue.material.pbr, not only the legacy haiyue.render.material appearance, when diagnosing a blue or tinted texture. A generated asset must be assigned to the intended mesh using texture.base-color. Both authoring and Play resolve controlled texture bytes locally and await upload; a texture load error is not a successful visual verification.",
     "sourceKind": "engine-doc"
+  },
+  {
+    "id": "basic-material-transparency",
+    "capabilityIds": [
+      "material.pbr"
+    ],
+    "title": "Basic 材质透明度 / alpha blending and depth writes",
+    "text": "Studio Basic material uses automatic transparency by default, including old documents that only have RGBA color. With color alpha below 1, edit and Play use normal alpha blending and disable depth writes; alpha 1 uses opaque rendering and depth writes. Author static appearance with material.set or component.configure on haiyue.render.material. Optional blending is auto, none (force opaque), normal or additive; optional depthWrite is auto, true or false. Omitted settings preserve authored overrides on color-only edits. Set both fields to auto to reset overrides. Runtime api.scene.setMaterialColor also updates automatic blending when alpha changes, preserving explicitly authored modes and isolating shared materials. Basic [0,0,0,0.01] is almost transparent black, not opaque black. Transparency changes visibility, not pointer picking; configure the interaction target/pickability separately if a transparent surface should not intercept clicks. PBR has separate haiyue.material.pbr alphaMode=blend and baseColor alpha; Basic blending options do not configure PBR. Verify transparent surfaces against a contrasting background in edit and Play; inspect color and explicit policy from the component data.",
+    "sourceKind": "engine-doc"
   }
 ]

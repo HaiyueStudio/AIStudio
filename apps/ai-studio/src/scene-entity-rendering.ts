@@ -1,8 +1,9 @@
+import { createAuthoringBasicMaterial, type BasicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
 import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { createAuthoringRoundedBox } from '@haiyue/ai-studio-editor-plugins/render';
 import { createAuthoringPlane } from '@haiyue/ai-studio-editor-plugins/render';
 import {
-  BasicMaterial, createBox3D, createSphere3D,
+  createBox3D, createSphere3D,
   type Entity, type HaiyueEngine, Mesh3D, PbrMaterial, type Scene,
 } from '@haiyue/engine';
 import { BlinnPhongMaterial, BlinnPhongRenderSystem, createCone3D, createCylinder3D, createIcosahedron3D, createTorus3D, NormalMaterial } from '@haiyue/engine/experimental';
@@ -12,7 +13,7 @@ import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-edito
 export interface RenderableSceneEntity {
   readonly components?: readonly Readonly<{ type: string; value: Readonly<Record<string, unknown>> }>[];
   readonly kind: SceneEntityKind;
-  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] }>;
+  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: readonly [number, number, number, number] } & BasicTransparencyOptions>;
   readonly light?: Readonly<{ color: readonly [number, number, number]; intensity: number; range?: number; direction?: readonly [number, number, number]; castShadow?: boolean }>;
 }
 
@@ -54,7 +55,7 @@ export function createGeometry(kind: SceneEntityKind, components?: RenderableSce
 
 function createMaterial(appearance: NonNullable<RenderableSceneEntity['appearance']>) {
   switch (appearance.material) {
-    case 'basic': return new BasicMaterial({ color: appearance.color });
+    case 'basic': return createAuthoringBasicMaterial(appearance.color, appearance);
     case 'pbr': return new PbrMaterial({ baseColor: appearance.color, metallic: 0.05, roughness: 0.65 });
     case 'blinn-phong': return new BlinnPhongMaterial({ diffuse: appearance.color });
     case 'normal': return new NormalMaterial({ space: 'world' });

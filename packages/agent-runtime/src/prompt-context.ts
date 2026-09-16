@@ -100,7 +100,7 @@ interface TaskSummaryProjection {
   readonly blockers: readonly string[];
 }
 
-const PROFILE_VERSION = '3.9.0';
+const PROFILE_VERSION = '3.10.0';
 const MAX_PROJECT_CONTEXT_BYTES = 16 * 1024;
 const MAX_MODEL_CONTEXT_BYTES = 96 * 1024;
 const MAX_SUMMARY_ITEMS = 12;
@@ -114,13 +114,13 @@ export const GENERAL_GAME_AUTHORING_MODULES: readonly PromptModuleDefinition[] =
     'Work only through the supplied Studio tools. Treat tool schemas, effects, risk, approval, document revision and task budgets as authoritative.',
     'Do not use shell, filesystem, network, package installation, hidden evaluation data, or unlisted capabilities. Never claim completion without readable acceptance evidence.',
   ]),
-  module('prompt.tools.structured-effects', '1.0.0', 'tool-contract', [
-    'Inspect before editing. Propose a user-readable plan before mutation. Re-read the current project revision before every edit and use only structured tool calls.',
+  module('prompt.tools.structured-effects', '1.1.0', 'tool-contract', [
+    'Establish the necessary project facts before editing. Propose a user-readable plan before mutation. Use the latest confirmed revision from supplied context or committed tool results with structured tool calls. Query again only when required facts are missing, the affected scope changes, external edits invalidate those facts, or a stale-revision error occurs. Never guess a revision or automatically rebase a rejected edit.',
     'A plan approval does not approve later high-risk effects. Report unavailable capabilities explicitly instead of inventing an implementation seam.',
   ]),
-  module('prompt.workflow.general-authoring', '1.6.0', 'workflow', [
-    'Discover capabilities with engine.docs.search before planning. Read current Studio signatures, prerequisites, coordinates and examples before unfamiliar code. Native exports do not imply Play availability. Reuse references; search diagnostic symbols for repair instead of inventing APIs.',
-    'Context is demand-driven: the initial scene is a discovery slice, not full scope. Selection is a hint; resolve the user target. For local behavior query that entity with hierarchy/components/scripts and script.get. Expand only to needed referenced objects, parents or motion owners; inspect behavior relationships for cross-object effects. Discover unknown targets via small hierarchy/componentTypes pages, then fetch matching IDs. Request camera/render/settings/assets only when relevant. Omitted means unknown, not absent. Re-query current revision before mutation and verify affected responsibilities; never default to whole-scene/all-projection snapshots.',
+  module('prompt.workflow.general-authoring', '1.7.0', 'workflow', [
+    'Use supplied tool schemas and already available same-version documentation. Search engine.docs.search when required capabilities, signatures, prerequisites or coordinates are unknown; simple property edits with sufficient facts need no documentation search. Read examples before unfamiliar code. Native exports do not imply Play availability. Reuse references; search diagnostic symbols for repair instead of inventing APIs.',
+    'Context is demand-driven: the initial scene is a discovery slice, not full scope. Selection is a hint; resolve the user target. For local behavior use supplied hierarchy/components/scripts facts and fetch missing details with scoped scene.query or script.get. Expand only to needed referenced objects, parents or motion owners; inspect behavior relationships for cross-object effects. Discover unknown targets via small hierarchy/componentTypes pages, then fetch matching IDs. Request camera/render/settings/assets only when relevant. Omitted means unknown, not absent. Verify affected responsibilities; never default to whole-scene/all-projection snapshots.',
     'Derive entities, state, input, simulation, presentation, audio and verification from the current request and project facts. Keep authored responsibilities explicit and composable.',
     'Appearance describes visible requirements, not one primitive. Decompose silhouette, independently colored surfaces, moving/interactive parts and repetition; plan parts, materials, parent-local transforms and motion owner. For repeated composites declare studio.plan.propose assemblies: stable assemblyId, required partKeys, relevant distinctColors, minimumInstances including prototype. Use assembly.create for one parent-first blueprint with named parts, color slots and requirements; assembly.inspect actual structure; assembly.instantiate exact prototypeDigest for additional placements. Do not substitute independent entity.create-many primitives. Use prefab.manage for existing subtrees. One material colors the whole primitive; compose parts when needed while preserving explicit implementation constraints.',
     'Choose evidence per acceptance criterion: play.inspect with scoped entityIds and task.evaluate for structure, transforms, rules and errors. Execute play.pointer-gesture or play.input plus play.step; check engine entities/camera, not just script counters/HUD. Reserve play.capture and multimodal review for appearance or data/render discrepancies, instead of screenshotting every test. Reuse same-stage images and matching state bundles. Search docs for data-first verification details. Never invent FPS/visual-analysis, drop visual requirements or call screenshot presence visual correctness.',
@@ -182,6 +182,7 @@ export class PromptContextRuntime {
   private readonly liveSessions = new Map<string, Readonly<{ sessionId: StableId; toolSignature: string; artifactIds: ReadonlySet<string>; baseline?: ProjectBaseline }>>();
   private readonly pendingContexts = new Map<string, Readonly<{ taskId: StableId; toolSignature: string; reusedSessionId: StableId | null; artifactIds: readonly StableId[]; baseline?: ProjectBaseline }>>();
   private initialized = false;
+  private profileArtifactId: StableId | null = null;
 
   constructor(private readonly log: OperationLog, prompts = new PromptModuleRegistry(), private readonly retrieval?: KnowledgeRetrievalRuntime) { this.prompts = prompts; }
 
@@ -213,9 +214,11 @@ export class PromptContextRuntime {
     const reuseSessionId = liveSession?.toolSignature === toolSignature ? liveSession.sessionId : null;
     const knowledge = await this.retrieveKnowledge(request, input.conversationKey, input.project);
     const puts: StoredContextArtifact[] = [];
+    this.profileArtifactId ??= (await this.log.putArtifact(this.prompts.profile as unknown as JsonValue, { schemaVersion: 'prompt-profile/1', pluginVersion: PROFILE_VERSION })).id;
     puts.push(await this.put('policy', CONTEXT_SOURCE, null, {
-      profile: this.prompts.profile, text: this.prompts.stablePrefix(),
-    } as unknown as JsonValue));
+      profile: { id: this.prompts.profile.id, version: this.prompts.profile.version, digest: this.prompts.profile.digest },
+      profileArtifactId: this.profileArtifactId, text: this.prompts.stablePrefix(),
+    }, [this.profileArtifactId]));
     puts.push(await this.put('capability-manifest', asStableId('studio.agent-tools'), input.project?.revision ?? null, {
       tools: input.tools.map((tool) => ({ id: tool.id, description: sanitizeText(tool.description, 1024), inputSchemaDigest: digest(canonicalStringify(tool.inputSchema)) })),
     }));
@@ -383,7 +386,7 @@ export class PromptContextRuntime {
     return this.retrieval.search({ query, allowedPermissionScopes: scopes as M13StableId[], projectRevision: project?.revision ?? null, limit: 8, tokenBudget: 2_048 });
   }
 
-  private async put(kind: ContextArtifactV2['kind'], source: StableId, documentRevision: number | null, projection: JsonValue): Promise<StoredContextArtifact> {
+  private async put(kind: ContextArtifactV2['kind'], source: StableId, documentRevision: number | null, projection: JsonValue, auditRefs: readonly StableId[] = []): Promise<StoredContextArtifact> {
     const result = await this.log.putArtifactDetailed(projection, { schemaVersion: 'context-artifact/2', pluginVersion: PROFILE_VERSION });
     const artifact: ContextArtifactV2 = Object.freeze({
       schemaVersion: 2, id: result.reference.id, kind, digest: `sha256:${result.reference.digest}` as M12Digest, source, documentRevision,
@@ -392,7 +395,7 @@ export class PromptContextRuntime {
     this.metadata.set(asStableId(artifact.id), artifact);
     await this.log.append({
       kind: result.localHit ? 'agent/context-artifact-reused' : 'agent/context-artifact-created', severity: 'info', source: CONTEXT_SOURCE,
-      payload: { artifact: artifact as unknown as JsonObject, localCasHit: result.localHit }, artifactRefs: [asStableId(artifact.id)],
+      payload: { artifact: artifact as unknown as JsonObject, localCasHit: result.localHit }, artifactRefs: [asStableId(artifact.id), ...auditRefs],
     });
     const record = await this.log.readArtifact(asStableId(artifact.id));
     return Object.freeze({ artifact, projection: record.value, localHit: result.localHit });

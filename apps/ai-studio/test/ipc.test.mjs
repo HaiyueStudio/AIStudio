@@ -38,6 +38,8 @@ test('IPC validator is versioned, allowlisted and never accepts renderer paths',
   })), /scene\/select payload/);
   assert.equal(validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'blinn-phong', color: [1, 0.2, 0.1, 1] })).channel, 'scene/material');
   assert.throws(() => validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'shader-code' })), /scene\/material payload/);
+  assert.equal(validateStudioIpcRequest(request('scene/material', { commandId:'command:alpha',baseRevision:2,entityId:'entity:test',material:'basic',blending:'normal',depthWrite:false })).payload.depthWrite, false);
+  assert.throws(() => validateStudioIpcRequest(request('scene/material', { commandId:'command:alpha',baseRevision:2,entityId:'entity:test',material:'basic',depthWrite:'false' })), /transparency/);
   assert.throws(() => validateStudioIpcRequest(request('scene/material', { commandId: 'command:material', baseRevision: 2, entityId: 'entity:test', material: 'pbr', color: [255, 0, 0, 1] })), /scene\/material payload/);
   assert.throws(() => validateStudioIpcRequest(request('viewport/report', {
     event: 'frame', message: 'spam', sceneRevision: 1,

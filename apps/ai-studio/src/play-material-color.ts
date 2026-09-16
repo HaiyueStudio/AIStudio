@@ -1,3 +1,4 @@
+import { copyBasicTransparencyPolicy, setAuthoringBasicMaterialColor } from '@haiyue/ai-studio-editor-plugins/render';
 import { Entity, Mesh3D, BasicMaterial, PbrMaterial } from '@haiyue/engine';
 import { BlinnPhongMaterial } from '@haiyue/engine/material';
 
@@ -15,9 +16,9 @@ export function setPlayMaterialColor(entity: Entity, value: unknown, entities: I
   if (!mesh || !(source instanceof PbrMaterial || source instanceof BasicMaterial || source instanceof BlinnPhongMaterial)) throw new Error('Target requires a Basic, PBR or Blinn-Phong Mesh3D; use instances.set for instanced colors.');
   let material: PbrMaterial | BasicMaterial | BlinnPhongMaterial = source;
   // Preserve textures/settings while isolating a target that shares a material with another object.
-  for (const other of entities) if (other !== entity && other.getComponent(Mesh3D)?.material === material) { material = material instanceof BasicMaterial ? new BasicMaterial({color: material.color, texture: material.texture, emissiveFactor: material.emissiveFactor, emissiveTexture: material.emissiveTexture, blending: material.blending, depthWrite: material.depthWrite, cullMode: material.cullMode, frontFace: material.frontFace, sampler: material.sampler}) : material.clone(); mesh.material = material; break; }
+  for (const other of entities) if (other !== entity && other.getComponent(Mesh3D)?.material === material) { material = material instanceof BasicMaterial ? new BasicMaterial({color: material.color, texture: material.texture, emissiveFactor: material.emissiveFactor, emissiveTexture: material.emissiveTexture, blending: material.blending, depthWrite: material.depthWrite, cullMode: material.cullMode, frontFace: material.frontFace, sampler: material.sampler}) : material.clone(); if (source instanceof BasicMaterial && material instanceof BasicMaterial) copyBasicTransparencyPolicy(source, material); mesh.material = material; break; }
   const color: [number, number, number, number] = [value[0], value[1], value[2], value[3]];
   if (material instanceof PbrMaterial) material.baseColor = color;
-  else if (material instanceof BasicMaterial) material.color = color;
+  else if (material instanceof BasicMaterial) setAuthoringBasicMaterialColor(material, color);
   else material.diffuse = color;
 }

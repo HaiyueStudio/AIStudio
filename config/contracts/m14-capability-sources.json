@@ -507,7 +507,10 @@
         "asset.generate-texture",
         "asset.import",
         "asset.assign",
-        "prefab.manage"
+        "prefab.manage",
+        "assembly.create",
+        "assembly.inspect",
+        "assembly.instantiate"
       ],
       "document": [
         "packages/editor-plugins/src/project/game-document.ts",

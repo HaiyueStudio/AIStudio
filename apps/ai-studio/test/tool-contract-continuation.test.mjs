@@ -15,7 +15,7 @@ const operation = stage => stage === 1
   ? { id: 'call:contract-plan', toolId: 'studio.plan.propose', args: plan }
   : { id: `call:contract-edit:${stage}`, toolId: 'entity.create', args: { baseRevision: 1, kind: 'cube', name: 'Approved Entity' } };
 
-for (const kind of ['harness', 'codex']) test(`${kind}: durable plan approval rotates a changed tool contract with full context and executes the approved edit`, { timeout: 20_000 }, async () => {
+for (const kind of ['harness', 'codex']) for (const changeContract of [false, true]) test(`${kind}: approval ${changeContract ? 'rotates an actually changed contract' : 'reuses the fixed task contract'} and executes once`, { timeout: 20_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'haiyue-tool-contract-'));
   const fixture = new ContinuationFixture(kind);
   const backend = kind === 'harness' ? new HarnessApiKeyBackend({ transport: fixture.harnessTransport(), clearApiKey: async () => {} }) : new CodexAppServerBackend({ transport: fixture, isolatedCwd: directory });
@@ -23,9 +23,9 @@ for (const kind of ['harness', 'codex']) test(`${kind}: durable plan approval ro
   const context = new PromptContextRuntime(log); const registry = new AgentBackendRegistry(); registry.register(backend);
   const turns = new AgentTurnRuntime(registry, log, context); const sessions = new DurableSessionRuntime(log);
   const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => []);
-  const selections = []; let executions = 0; let revision = 1; const prepared = new Map();
+  const selections = []; let contractRevision = 1; let executions = 0; let revision = 1; const prepared = new Map();
   const tools = {
-    definitions: () => GAME_AUTHORING_TOOL_DEFINITIONS,
+    definitions: () => GAME_AUTHORING_TOOL_DEFINITIONS.map(tool => tool.id === 'project.snapshot' && contractRevision === 2 ? { ...tool, description: tool.description + ' Updated registry contract.' } : tool),
     selectDefinitions(request) { const selected = catalog.selectDefinitions(request, ['entity.create']); selections.push(selected.selectedIds); return selected; },
     async prepare(call) {
       assert.equal(call.toolId, 'entity.create'); assert.equal(call.arguments.baseRevision, revision);
@@ -45,20 +45,27 @@ for (const kind of ['harness', 'codex']) test(`${kind}: durable plan approval ro
     if (fixture.error) throw fixture.error;
     const pending = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     assert.equal(executions, 0);
+    if (changeContract) contractRevision = 2;
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: pending.id, acceptedItemIds: pending.content.items.map(item => item.id), mode: 'approve' });
     await waitFor(() => fixture.error || !host.replay().busy && fixture.starts >= 2);
     if (fixture.error) throw fixture.error;
     assert.equal(fixture.starts, 2); assert.equal(executions, 1);
-    assert.notDeepEqual(selections[0], selections[1], 'the real catalog must change between planning and execution');
-    assert.notEqual(fixture.inputs[0].sessionId, fixture.inputs[1].sessionId);
+    assert.equal(selections.length, 1, 'approval must not rerank tools using generic execution guidance');
     assert.match(fixture.inputs[1].prompt, /already approved plan/);
-    assert.match(fixture.inputs[1].prompt, /FULL_PROJECT_CONTEXT/);
-    assert.match(fixture.inputs[1].prompt, /Work only through the supplied Studio tools/);
-    assert.doesNotMatch(fixture.inputs[1].prompt, /reference-only/);
+    if (changeContract) {
+      assert.notEqual(fixture.inputs[0].sessionId, fixture.inputs[1].sessionId);
+      assert.match(fixture.inputs[1].prompt, /FULL_PROJECT_CONTEXT/);
+      assert.match(fixture.inputs[1].prompt, /Work only through the supplied Studio tools/);
+      assert.doesNotMatch(fixture.inputs[1].prompt, /reference-only/);
+    } else {
+      assert.equal(fixture.inputs[0].sessionId, fixture.inputs[1].sessionId);
+      assert.match(fixture.inputs[1].prompt, /reference-only/);
+      assert.doesNotMatch(fixture.inputs[1].prompt, /FULL_PROJECT_CONTEXT/);
+    }
     assert.equal(nodes(host).some(node => node.kind === 'diagnostic' && /toolset-drift|operation-failed/.test(node.content.code)), false);
     assert.equal(new Set(nodes(host).filter(node => node.kind === 'plan').map(node => node.id)).size, 1);
     const contexts = await log.query({ kinds: ['agent/context-bundle-prepared'], limit: 10, traverseCorrelation: false });
-    assert.ok(contexts.events.some(event => event.payload.sessionReuse === 'tool-contract-changed'));
+    assert.ok(contexts.events.some(event => event.payload.sessionReuse === (changeContract ? 'tool-contract-changed' : 'same-tool-contract')));
     const sessionIds = fixture.inputs.map(input => input.sessionId);
     await waitFor(() => sessionIds.every(id => host.replay().executionGraphs.some(graph => graph.sessionId === id)));
     await host.dispose();

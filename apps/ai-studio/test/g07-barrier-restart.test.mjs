@@ -68,7 +68,7 @@ test('trusted script and runtime start barriers survive a real Electron process 
   }
 });
 
-test('a long durable plan releases the provider call and selects real catalog tools for its approved continuation', async () => {
+test('a long durable plan releases the provider call and preserves task tools for its approved continuation', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g07-provider-release-'));
   const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
   const sessions = new DurableSessionRuntime(log);
@@ -97,10 +97,11 @@ test('a long durable plan releases the provider call and selects real catalog to
     await waitFor(() => runtime.startCalls === 2);
     await waitFor(() => host.replay().busy === false);
     assert.equal(runtime.maxActiveCalls, 1);
-    assert.ok(selectedRequests.at(-1).length > 512);
-    assert.match(selectedRequests.at(-1), /already approved plan/);
-    assert.match(selectedRequests.at(-1), /pointer input and screenshot evidence/);
-    for (const id of ['project.snapshot', 'tool.search', 'play.input', 'play.capture']) assert.ok(runtime.inputs[1].tools.some(tool => tool.id === id));
+    assert.deepEqual(selectedRequests, ['Create a durable plan and wait for approval.']);
+    assert.match(runtime.inputs[1].prompt, /already approved plan/);
+    assert.match(runtime.inputs[1].prompt, /pointer input and screenshot evidence/);
+    assert.deepEqual(runtime.inputs[1].tools, runtime.inputs[0].tools);
+    for (const id of ['project.snapshot', 'tool.search', 'studio.tool.invoke']) assert.ok(runtime.inputs[1].tools.some(tool => tool.id === id));
     assert.equal(host.replay().events.some(event => event.node.kind === 'diagnostic' && event.node.content.code === 'conversation.operation-failed'), false);
     assert.equal(host.replay().events.some((event) => event.node.id === pending.id && event.node.status === 'completed'), true);
     const replay = await sessions.replay(sessionId);

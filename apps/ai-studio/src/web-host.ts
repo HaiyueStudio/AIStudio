@@ -1,3 +1,4 @@
+import { basicTransparencyOptions, type BasicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
 import { roundedBoxParameters } from '@haiyue/ai-studio-editor-plugins/render';
 import type { JsonObject, StableId } from '@haiyue/ai-studio-contracts';
 import { validateStudioIpcRequest, type StudioIpcRequest, type StudioIpcResponse } from './ipc.js';
@@ -14,7 +15,7 @@ type WebMaterialKind = 'basic' | 'pbr' | 'blinn-phong' | 'normal';
 interface WebEntity {
   components?: { id: StableId; type: StableId; version: string; enabled: boolean; value: JsonObject }[];
   id: StableId; name: string; kind: WebEntityKind; parentId: StableId | null; order: number; transform: Transform;
-  appearance?: { material: WebMaterialKind; color: [number, number, number, number] };
+  appearance?: { material: WebMaterialKind; color: [number, number, number, number] } & BasicTransparencyOptions;
   light?: { color: [number, number, number]; intensity: number; range?: number; direction?: [number, number, number]; castShadow?: boolean };
 }
 interface WebScript { id: StableId; entityId: StableId; text: string; textRevision: number; enabled?: boolean; order?: number; capabilities?: string[]; }
@@ -161,7 +162,7 @@ export class WebStudioHost {
         const entity = project.entities.find((item) => item.id === payload.entityId);
         if (!entity) throw new WebHostError('web-entity-missing', 'Selected entity no longer exists.');
         if (!isGeometryKind(entity.kind)) throw new WebHostError('web-material-target-invalid', 'Only geometry entities can use materials.');
-        this.commitMutation(project, true, () => { entity.appearance = { material: payload.material as WebMaterialKind, color: payload.color === undefined ? entity.appearance?.color ?? [0.16, 0.58, 1, 1] : webMaterialColor(payload.color) }; });
+        this.commitMutation(project, true, () => { entity.appearance = { ...(payload.material === 'basic' ? { ...basicTransparencyOptions(entity.appearance ?? {}), ...basicTransparencyOptions(payload) } : {}), material: payload.material as WebMaterialKind, color: payload.color === undefined ? entity.appearance?.color ?? [0.16, 0.58, 1, 1] : webMaterialColor(payload.color) }; });
         await this.appendLog('scene/material-edited', 'info', 'studio.web-host', entity.id);
         return this.sceneSnapshot();
       }

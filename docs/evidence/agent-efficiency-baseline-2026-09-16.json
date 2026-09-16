@@ -1,0 +1,60 @@
+{
+  "date": "2026-09-16",
+  "baseline": "babcb28 plus pre-existing working tree changes",
+  "scope": "local source audit, rebuilt package tests, mock-provider experiment and synthetic scheduler benchmark; no live provider request",
+  "nodeVersion": "v24.19.0",
+  "focusedTests": {
+    "files": [
+      "packages/harness-bridge/test/harness-upgrade.test.mjs",
+      "packages/agent-runtime/test/g04-prompt-context.test.mjs",
+      "packages/agent-runtime/test/g03-context-compaction.test.mjs",
+      "packages/game-authoring-tools/test/tool-batch-scheduler.test.mjs",
+      "packages/game-authoring-tools/test/g10-tool-catalog.test.mjs"
+    ],
+    "passed": 61,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 11981.58905
+  },
+  "policyProjection": {
+    "measurement": "UTF-8 JSON bytes, not provider tokens",
+    "currentProfileAndStablePrefixBytes": 9215,
+    "profileIdentityAndSingleStablePrefixBytes": 4374,
+    "reductionRatio": 0.5253391209983722
+  },
+  "toolSelection": {
+    "registeredTools": 58,
+    "coreToolCount": 12,
+    "defaultSelectedDefinitions": 20,
+    "fullCatalogSchemaBytes": 70887,
+    "planProposeDefinitionBytes": 6129,
+    "note": "Catalog bytes exclude Host-added plan tools, invoke and description suffixes. Continuation uses approvedPlanRequest with a synthetic one-item plan, not a real accepted user task.",
+    "cases": [
+      {"request": "把选中的立方体改成蓝色", "selectedSchemaBytes": 33731, "continuationSelectionChanged": true, "added": ["play.regression", "play.input", "play.inspect", "play.capture"], "removed": ["component.add", "component.configure", "script.propose", "script.apply"]},
+      {"request": "给按钮加一个自身呼吸动画", "selectedSchemaBytes": 30778, "continuationSelectionChanged": true, "added": ["camera.author", "entity.create-many", "play.regression", "play.input", "play.inspect", "play.capture"], "removed": ["asset.search", "asset.dependencies", "asset.generate-texture", "asset.import", "asset.assign", "script.propose"]},
+      {"request": "修复拖拽物体时相机也跟随旋转的问题", "selectedSchemaBytes": 29339, "continuationSelectionChanged": true, "added": ["entity.create", "entity.create-many", "play.regression", "play.inspect", "play.capture"], "removed": ["script.symbols", "camera.set", "script.propose", "script.patch", "script.apply"]}
+    ]
+  },
+  "harnessConcurrencyProbe": {
+    "method": "Mock fetch returns two native scene.query calls in one response. Consumer schedules each tool result 100ms after its request. No real model or editor is used.",
+    "modelRequestsObserved": 2,
+    "toolRequestArrivalMs": [73, 176],
+    "toolRequestsSeenBeforeFirstResultRelease": 1,
+    "advertisedParallelToolCalls": false
+  },
+  "schedulerBenchmark": {
+    "command": "node scripts/measure-m13-g06-batch.mjs",
+    "measurement": "local-protocol-fixture",
+    "simulatedReadCount": 3,
+    "simulatedBodyDelayMs": 90,
+    "serialWallTimeMs": 273,
+    "batchWallTimeMs": 94,
+    "maxConcurrencyObserved": 3,
+    "warning": "The script's modelCalls 3/1 fields are constants, not measured provider requests. This does not establish end-to-end DeepSeek speedup."
+  },
+  "limitations": [
+    "No live-provider latency, token, cost or success-rate experiment was performed.",
+    "No complete npm run check was run for this documentation-only analysis.",
+    "Byte measurements and fixture timings are not predictions of production token savings or latency."
+  ]
+}

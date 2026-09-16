@@ -1,9 +1,9 @@
+import { basicTransparencyOptions, createAuthoringBasicMaterial, type BasicTransparencyOptions } from './render/basic-transparency.js';
 import { SharedGeometryPool } from './render/shared-geometry.js';
 import { createAuthoringRoundedBox, roundedBoxParameters } from './render/rounded-box.js';
 import { createAuthoringPlane } from './render/plane.js';
 import { randomUUID } from 'node:crypto';
 import {
-  BasicMaterial,
   CartesianTransform3D,
   createBox3D,
   createSphere3D,
@@ -57,7 +57,7 @@ export interface SceneEntitySnapshot {
   readonly order: number;
   readonly transform: TransformSnapshot;
   readonly components?: readonly GameComponentInstanceV2[];
-  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: SceneMaterialColor }>;
+  readonly appearance?: Readonly<{ material: SceneMaterialKind; color: SceneMaterialColor } & BasicTransparencyOptions>;
   readonly light?: Readonly<{
     color: readonly [number, number, number]; intensity: number; range?: number;
     direction?: readonly [number, number, number]; castShadow?: boolean;
@@ -96,7 +96,7 @@ export interface RenameSceneEntityIntent {
   readonly entityId: StableId;
   readonly name: string;
 }
-export interface SetEntityMaterialIntent {
+export interface SetEntityMaterialIntent extends BasicTransparencyOptions {
   readonly commandId: StableId;
   readonly baseRevision: number;
   readonly entityId: StableId;
@@ -330,7 +330,7 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     try {
       if (!isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
       const target = this.sceneEntities.get(intent.entityId); if (!target) throw new Error(`Entity ${intent.entityId} does not exist.`); if (!isSceneGeometryKind(target.kind) || !target.appearance) throw new TypeError('Only geometry entities can use materials.');
-      const component = this.entityComponent(intent.entityId, 'haiyue.render.material'); const appearance = freezeAppearance({ ...target.appearance, material: intent.material, color: intent.color ?? target.appearance.color });
+      const component = this.entityComponent(intent.entityId, 'haiyue.render.material'); const appearance = freezeAppearance({ ...target.appearance, ...basicTransparencyOptions(intent), material: intent.material, color: intent.color ?? target.appearance.color });
       const pbr = target.components?.find(item => item.type === 'haiyue.material.pbr');
       const operations: GameDocumentOperationV2[] = [{ op: 'component.replace', component: { ...component, value: appearance as unknown as JsonObject } }];
       if (pbr) operations.push({ op: 'component.replace', component: this.workspace.componentRegistry.validate({ ...pbr, enabled: intent.material === 'pbr', value: { ...pbr.value, ...(intent.color ? { baseColor: intent.color } : {}) } }) });
@@ -700,7 +700,7 @@ export function isSceneEntityKind(value: unknown): value is SceneEntityKind { re
 function defaultAppearance(material: SceneMaterialKind = 'basic', color: SceneMaterialColor = [0.16, 0.58, 1, 1]): NonNullable<SceneEntitySnapshot['appearance']> { return freezeAppearance({ material, color }); }
 function freezeAppearance(value: NonNullable<SceneEntitySnapshot['appearance']>): NonNullable<SceneEntitySnapshot['appearance']> {
   if (!isSceneMaterialKind(value.material) || !Array.isArray(value.color) || value.color.length !== 4 || !value.color.every((item) => Number.isFinite(item) && item >= 0 && item <= 1)) throw new TypeError('Scene material appearance is invalid.');
-  return Object.freeze({ material: value.material, color: Object.freeze([...value.color] as [number, number, number, number]) });
+  return Object.freeze({ ...(value.material === 'basic' ? basicTransparencyOptions(value) : {}), material: value.material, color: Object.freeze([...value.color] as [number, number, number, number]) });
 }
 function defaultLight(kind: SceneLightKind): NonNullable<SceneEntitySnapshot['light']> {
   if (kind === 'directional-light') return Object.freeze({ color: Object.freeze([1, 1, 1] as const), intensity: 1, direction: Object.freeze([-0.5, -1, -0.35] as const), castShadow: true });
@@ -727,7 +727,7 @@ function createGeometry(kind: SceneGeometryKind, components: SceneEntitySnapshot
 
 function createMaterial(appearance: NonNullable<SceneEntitySnapshot['appearance']>) {
   switch (appearance.material) {
-    case 'basic': return new BasicMaterial({ color: appearance.color });
+    case 'basic': return createAuthoringBasicMaterial(appearance.color, appearance);
     case 'pbr': return new PbrMaterial({ baseColor: appearance.color, metallic: 0.05, roughness: 0.65 });
     case 'blinn-phong': return new BlinnPhongMaterial({ diffuse: appearance.color });
     case 'normal': return new NormalMaterial({ space: 'world' });
