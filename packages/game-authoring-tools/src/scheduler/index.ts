@@ -3,6 +3,7 @@ export type { ToolConcurrencyClassification } from './classify.js';
 export { normalizeToolBatchRequest, validateToolBatchRequest } from './normalize.js';
 export type { LegacyToolRequest, NormalizeToolBatchInput } from './normalize.js';
 export { ToolBatchScheduler } from './scheduler.js';
+export { MODEL_TOOL_BATCH_DEFINITION, resolveClosedToolBatch, explainBatchSchedule } from './closed.js';
 export { RollingToolBatchScheduler } from './rolling.js';
 export { EffectLockManager, effectLockKeys } from './effect-locks.js';
 export type { EffectLockLease, EffectLockSnapshot } from './effect-locks.js';

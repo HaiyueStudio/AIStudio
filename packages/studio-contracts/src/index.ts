@@ -1,3 +1,5 @@
+export * from './request-context.js';
+export * from './workflow.js';
 export type JsonPrimitive = null | boolean | number | string;
 export { isToolConcurrencyHintV1, type ToolConcurrencyHintV1 } from './tool-concurrency.js';
 export type * from './m14.js';
@@ -293,3 +295,4 @@ function freezeManifest(manifest: StudioPluginManifest): StudioPluginManifest {
     contributions: Object.freeze([...manifest.contributions]),
   });
 }
+export * from './subtask.js';

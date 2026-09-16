@@ -30,6 +30,30 @@ function delay(ms, signal) {
   });
 }
 
+test('rolling drain wakes from completion, waits for aborted work to exit, and handles synchronous throws', async () => {
+  const controller = new AbortController();
+  const scheduler = new RollingToolBatchScheduler({ signal: controller.signal, cancelled: (_node, diagnostic) => ({ status: 'cancelled', value: { diagnostic } }) });
+  const request = batch([{ toolCallId: 'call:active', toolId: 'scene.query' }, { toolCallId: 'call:pending', toolId: 'entity.create' }]);
+  let release;
+  const active = scheduler.enqueue(request.nodes[0], () => new Promise(resolve => { release = resolve; }));
+  const pending = scheduler.enqueue(request.nodes[1], () => { assert.fail('cancelled pending work must not start'); });
+  await Promise.resolve();
+  let drained = false;
+  const drain = scheduler.drain().then(value => { drained = true; return value; });
+  controller.abort(new Error('user cancellation'));
+  assert.equal((await pending).status, 'cancelled');
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(drained, false, 'abort cannot release an operation still running');
+  release({ status: 'completed', value: {} });
+  assert.equal((await active).status, 'cancelled', 'late result cannot publish success');
+  assert.equal((await drain).length, 2);
+  assert.equal((await scheduler.drain()).length, 2);
+  const throws = new RollingToolBatchScheduler({ cancelled: (_node, diagnostic) => ({ status: 'cancelled', value: { diagnostic } }) });
+  const result = throws.enqueue(request.nodes[0], () => { throw new Error('sync failure'); });
+  assert.equal((await result).status, 'cancelled');
+  await throws.drain();
+});
+
 test('registry classification only parallelizes explicitly safe observations and fails closed', () => {
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((definition) => typeof definition.concurrencySafe === 'boolean'));
   const query = GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'scene.query');
@@ -147,11 +171,12 @@ test('external cancellation and node timeout settle with bounded outcomes', asyn
   const cancelled = await new ToolBatchScheduler().execute(request, async (_node, signal) => { await delay(500, signal); return { status: 'completed', value: {} }; }, controller.signal);
   assert.equal(cancelled.outcomes[0].status, 'cancelled');
 
-  const timeoutStarted = Date.now();
-  const timedOut = await new ToolBatchScheduler({ nodeTimeoutMs: () => 10 }).execute(request, async () => { await new Promise((resolve) => setTimeout(resolve, 100)); return { status: 'completed', value: {} }; });
+  let abortObserved = false, executorExited = false;
+  const timedOut = await new ToolBatchScheduler({ nodeTimeoutMs: () => 10 }).execute(request, async (_node, signal) => { signal.addEventListener('abort', () => { abortObserved = true; }, { once: true }); await new Promise((resolve) => setTimeout(resolve, 100)); executorExited = true; return { status: 'completed', value: {} }; });
   assert.equal(timedOut.outcomes[0].status, 'cancelled');
   assert.equal(timedOut.outcomes[0].diagnostic.code, 'tool-batch.node-timeout');
-  assert.ok(Date.now() - timeoutStarted < 80, 'scheduler timeout must not trust an executor to observe AbortSignal');
+  assert.equal(abortObserved, true);
+  assert.equal(executorExited, true, 'timeout must drain the actual body before releasing the batch');
 });
 
 test('batch output limit is enforced and digest-only projection remains bounded', async () => {

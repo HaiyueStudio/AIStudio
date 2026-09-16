@@ -91,6 +91,7 @@ declare global {
     readonly haiyueStudio: Readonly<{
       invoke(request: StudioIpcRequest): Promise<StudioIpcResponse>;
       cancel(requestId: string): void;
+      onPreviewPending(listener: () => void): () => void;
       onConversationChanged(listener: () => void): () => void;
       onNotificationClicked?(listener: () => void): () => void;
     }>;
@@ -130,7 +131,7 @@ interface PreviewDisclosure {
 }
 interface PreviewGrant { readonly id: StableId; }
 interface ConsumedPreviewPlan extends Omit<PreviewDisclosure, 'scripts'> { readonly scripts: readonly (PreviewScriptDisclosure & Readonly<{ emittedText: string }>)[]; readonly behavior?: BehaviorRuntimePlan | null; readonly behaviorDiagnostic?: string; }
-interface AgentPreviewCommandReadModel { readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop' | 'step' | 'input' | 'physics-query' | 'inspect' | 'capture'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan; count?: number; event?: JsonObject; query?: JsonObject }> }
+interface AgentPreviewCommandReadModel { readonly ownership?: Readonly<{ revision: number; projectId: StableId | null; taskRuns: Parameters<AgentPreviewOwnership['update']>[1] }>; readonly pending: boolean; readonly command?: Readonly<{ id: StableId; kind: 'start' | 'stop' | 'step' | 'input' | 'physics-query' | 'inspect' | 'capture'; scene?: SceneSnapshot; plan?: ConsumedPreviewPlan; count?: number; event?: JsonObject; query?: JsonObject }> }
 let requestSequence = 0;
 let project: ProjectSnapshot | null = null;
 let scene: SceneSnapshot | null = null;
@@ -157,6 +158,10 @@ const conversationProjector = new ConversationProjector();
 let conversationRevision = -1;
 const observedAgentToolResults = new Set<StableId>();
 let agentPoll: AgentPollScheduler | null = null;
+let previewPoll: AgentPollScheduler | null = null;
+let disposePreviewPending: (() => void) | null = null;
+let previewOwnershipRevision = -1;
+let rendererDisposed = false;
 let disposeConversationChanged: (() => void) | null = null;
 let logViewer: LogViewerController | null = null;
 let logViewerSubscription: Readonly<{ dispose(): void }> | null = null;
@@ -781,6 +786,7 @@ async function boot(): Promise<void> {
     await viewport.initialize();
     document.body.dataset.webgpu = 'ready';
     await refresh();
+    startPreviewPolling();
     if (status.smoke) await runSmokeWorkflow();
     document.body.dataset.status = 'ready';
     document.body.dataset.startupStage = 'ready';
@@ -1148,6 +1154,9 @@ function bindUi(): void {
   element('run-approve').addEventListener('click', () => void approveProjectRun());
   element('run-fix-agent').addEventListener('click', () => void requestAgentScriptFix());
   window.addEventListener('beforeunload', () => {
+    rendererDisposed = true;
+    previewPoll?.stop(); previewPoll = null;
+    disposePreviewPending?.(); disposePreviewPending = null;
     scriptEditor?.dispose(); scriptEditor = null;
     disposeChatPanel(element('chat-content'));
     logicRequest?.abort(); logicPanel?.dispose(); logicPanel = null;
@@ -1167,16 +1176,25 @@ function bindUi(): void {
   }, { once: true });
 }
 
+function startPreviewPolling(): void {
+  previewPoll = new AgentPollScheduler({
+    intervalMs: 30_000,
+    poll: async () => { try { await processAgentPreviewCommand(); } finally { if (!rendererDisposed && agentPreviewOwnership.shouldClose) await stopPreview(); } },
+    onError: (cause) => setStatus(errorMessage(cause)),
+  });
+  disposePreviewPending = window.haiyueStudio.onPreviewPending(() => previewPoll?.trigger());
+  previewPoll.start();
+}
+
 async function pollAgent(): Promise<void> {
   try {
     const editorChanged = await refreshConversation(false);
     if (editorChanged) await refresh(false);
-    await processAgentPreviewCommand();
     // Resource enrichment must not hold the preview/approval handoff queue.
     if (editorChanged) void editorPanels?.refresh().catch(cause => setStatus(errorMessage(cause)));
   } finally {
     // A human handoff must reveal approval UI even if a scene/command refresh fails.
-    if (agentPreviewOwnership.shouldClose) await stopPreview();
+    if (agentPreviewOwnership.shouldClose) previewPoll?.trigger();
   }
 }
 
@@ -1188,7 +1206,10 @@ async function refreshConversation(force: boolean): Promise<boolean> {
   agentHistoryViewer?.setProject(replay.projectId ?? null, replay.historyStorage);
   conversationRevision = replay.revision;
   const snapshot = conversationProjector.reset(replay);
-  agentPreviewOwnership.update(replay.projectId ?? null, snapshot.taskRuns);
+  if (replay.revision >= previewOwnershipRevision) {
+    previewOwnershipRevision = replay.revision;
+    agentPreviewOwnership.update(replay.projectId ?? null, snapshot.taskRuns);
+  }
   renderPreviewTestProgress();
   if (agentHistoryWasBusy && !snapshot.busy) agentHistoryViewer?.refresh();
   agentHistoryWasBusy = snapshot.busy;
@@ -1197,7 +1218,9 @@ async function refreshConversation(force: boolean): Promise<boolean> {
   let editorChanged = false;
   for (const node of snapshot.nodes) {
     if (node.kind !== 'tool-result' || node.status !== 'completed') continue;
-    if (!observedAgentToolResults.has(node.id)) editorChanged = true;
+    if (!observedAgentToolResults.has(node.id) && node.content.documentChanged === true
+      && node.content.documentId === scene?.documentId && typeof node.content.documentRevision === 'number'
+      && node.content.documentRevision > documentRevision()) editorChanged = true;
     observedAgentToolResults.add(node.id);
   }
   renderChatPanel(element('chat-content'), presentChatPanel(snapshot), (intent) => void dispatchConversation(intent));
@@ -1286,6 +1309,11 @@ function renderPreviewTestProgress(): void {
 
 async function processAgentPreviewCommand(): Promise<void> {
   const value = await invoke<AgentPreviewCommandReadModel & JsonObject>('preview/agent-command');
+  if (rendererDisposed) return;
+  if (value.ownership && value.ownership.revision >= previewOwnershipRevision) {
+    previewOwnershipRevision = value.ownership.revision;
+    agentPreviewOwnership.update(value.ownership.projectId, value.ownership.taskRuns);
+  }
   const command = value.command;
   if (!value.pending || !command || command.id === handledPreviewCommand) return;
   handledPreviewCommand = command.id;
@@ -1327,16 +1355,19 @@ async function processAgentPreviewCommand(): Promise<void> {
           : command.kind === 'physics-query' ? await previewFrame.physicsQuery(command.query ?? Object.freeze({}))
             : command.kind === 'inspect' ? await previewFrame.inspect() : await previewFrame.capture();
       if (typeof result.tick === 'number') activity.tick = result.tick;
+      if (rendererDisposed) return;
       await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: result });
       activity.status = 'completed';
       return;
     }
+    if (rendererDisposed) return;
     await invoke('preview/agent-result', { commandId: command.id, ok: true, snapshot: previewSnapshot() });
     activity.status = 'completed';
   } catch (cause) {
     activity.status = 'failed'; activity.diagnostic = errorMessage(cause).slice(0, 240);
+    if (rendererDisposed) return;
     await invoke('preview/agent-result', { commandId: command.id, ok: false, message: errorMessage(cause) });
-  } finally { renderPreviewTestProgress(); }
+  } finally { if (!rendererDisposed) renderPreviewTestProgress(); }
 }
 
 function previewSnapshot(): JsonObject {

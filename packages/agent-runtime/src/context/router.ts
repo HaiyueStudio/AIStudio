@@ -183,9 +183,19 @@ export class ContextRouterRuntime {
     if (ids.length > MAX_EXTERNAL_INPUTS || new Set(ids).size !== ids.length) throw new ContextRouterError('context.router-inputs-invalid', `${kind} inputs are duplicate or exceed ${MAX_EXTERNAL_INPUTS}.`);
     if (kind === 'knowledge-hit' && ids.length > 0 && !knowledgePolicy) throw new ContextRouterError('context.knowledge-policy-required', 'Semantic knowledge inputs require an explicit permission and version policy.');
     const inputs: ContextFrameInputDraft[] = []; let bytes = 0;
+    const seen = new Set<string>();
     for (const id of ids) {
-      const artifact = await this.log.readArtifact(asStableId(id)); bytes += artifact.bytes;
-      if (kind === 'knowledge-hit') validateKnowledgeHitProjection(artifact.value, knowledgePolicy!);
+      const artifact = await this.log.readArtifact(asStableId(id));
+      if (kind === 'knowledge-hit') {
+        // Validate every candidate before deduplication: a denied/stale duplicate
+        // must never be hidden by an earlier authorized hit.
+        validateKnowledgeHitProjection(artifact.value, knowledgePolicy!);
+        const value = artifact.value as JsonObject, hit = value.hit as JsonObject;
+        const key = canonicalStringify({ citation: value.citation!, permissionScope: hit.permissionScope!, excerpt: value.excerpt!, capabilityIds: value.capabilityIds ?? [] });
+        if (seen.has(key)) continue;
+        seen.add(key);
+      }
+      bytes += artifact.bytes;
       inputs.push(Object.freeze({ kind, artifactId: id, digest: `sha256:${artifact.digest}` as M13Digest, sourceRevision, estimatedTokens: estimateTokens(artifact.bytes), required: false }));
     }
     return Object.freeze({ inputs: Object.freeze(inputs), bytes });

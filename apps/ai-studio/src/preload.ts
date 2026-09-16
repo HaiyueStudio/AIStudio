@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { STUDIO_CONVERSATION_CHANGED_CHANNEL, STUDIO_IPC_CANCEL_CHANNEL, STUDIO_IPC_CHANNEL, type StudioIpcRequest, type StudioIpcResponse } from './ipc.js';
+import { STUDIO_PREVIEW_PENDING_CHANNEL, STUDIO_CONVERSATION_CHANGED_CHANNEL, STUDIO_IPC_CANCEL_CHANNEL, STUDIO_IPC_CHANNEL, type StudioIpcRequest, type StudioIpcResponse } from './ipc.js';
 
 const api = Object.freeze({
   invoke(request: StudioIpcRequest): Promise<StudioIpcResponse> {
@@ -10,6 +10,11 @@ const api = Object.freeze({
     const handle = (): void => listener();
     ipcRenderer.on('studio:notification-clicked', handle);
     return () => ipcRenderer.removeListener('studio:notification-clicked', handle);
+  },
+  onPreviewPending(listener: () => void): () => void {
+    const handle = (): void => listener();
+    ipcRenderer.on(STUDIO_PREVIEW_PENDING_CHANNEL, handle);
+    return () => ipcRenderer.removeListener(STUDIO_PREVIEW_PENDING_CHANNEL, handle);
   },
   onConversationChanged(listener: () => void): () => void {
     const handle = (): void => listener();

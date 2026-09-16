@@ -7,7 +7,7 @@
   "properties": {
     "schemaVersion": { "const": 2 },
     "id": { "$ref": "#/definitions/stableId" },
-    "kind": { "enum": ["policy", "capability-manifest", "project-manifest", "document-delta", "task-summary", "playbook"] },
+    "kind": { "enum": ["policy", "capability-manifest", "project-manifest", "document-delta", "task-summary", "playbook", "knowledge-hit"] },
     "digest": { "$ref": "#/definitions/digest" },
     "source": { "$ref": "#/definitions/stableId" },
     "documentRevision": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }] },

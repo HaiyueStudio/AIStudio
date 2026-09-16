@@ -32,7 +32,7 @@ test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme
   assert.match(renderer, /renderScriptPanel\(entity \?\? null, \{ preservePreviewDisclosure: true \}\)/);
   assert.match(renderer, /if \(!options\.preservePreviewDisclosure\) previewDisclosure = null/);
   assert.match(renderer, /engine\?\.stop\(\)[\s\S]*onSubmittedWorkDone\(\)[\s\S]*engine\.destroy\(\)/);
-  assert.match(renderer, /await Promise\.all\(\[frame\.start\(previewScene, plan\), authoringCleanup\]\)/);
+  assert.match(renderer, /await Promise\.all\(\[frame\.start\(previewScene, plan, agentPreviewOwnership\.active\), authoringCleanup\]\)/);
   assert.doesNotMatch(renderer, /engineScene\.update\(performance\.now\(\), 0\)/);
   assert.match(previewRuntime, /beginManualRenderFrame\(engine\);[\s\S]*simulation\.advanceDisplayFrame/);
   assert.match(previewRuntime, /renderTarget[\s\S]*beginFrame\(\)/);
@@ -56,7 +56,7 @@ test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme
   assert.match(html, /id="geometry-resources"[\s\S]*id="material-resources"/);
   assert.match(renderer, /sphere[\s\S]*cone[\s\S]*directional-light[\s\S]*point-light/);
   assert.match(renderer, /async function preparePreview[\s\S]*scene\?\.entities\.some/);
-  assert.match(renderer, /const editorChanged = await refreshConversation\(false\);[\s\S]*if \(editorChanged\) await refresh\(\);/);
+  assert.match(renderer, /const editorChanged = await refreshConversation\(false\);[\s\S]*if \(editorChanged\) await refresh\(false\);/);
   assert.match(renderer, /if \(!command\.scene\) await refresh\(\);[\s\S]*const source = command\.scene \?\? scene;[\s\S]*startPreview\(command\.plan, source\)/);
   assert.doesNotMatch(styles, /#workspace\s*\{[^}]*grid-template-columns/);
   assert.match(styles, /--studio-accent:\s*var\(--hy-accent-color/);
@@ -66,5 +66,5 @@ test('editor panels use public HaiYue UI layout, tabs, dialog, select, and theme
   assert.match(renderer, /updateTransform\(entityId[\s\S]*component\.setPosition/);
   assert.match(renderer, /async function applyTransform[\s\S]*viewport\?\.updateTransform[\s\S]*renderProjectChrome\(\)/);
   assert.match(styles, /hy-border-beam/);
-  assert.equal(manifest.dependencies['@haiyue/ui'], '0.1.3');
+  assert.equal(manifest.dependencies['@haiyue/ui'], '0.1.4');
 });

@@ -1,4 +1,4 @@
-import { asStableId, type JsonObject } from '@haiyue/ai-studio-contracts';
+import { asStableId, isPlanTaskV1, type JsonObject } from '@haiyue/ai-studio-contracts';
 import { isRecord } from './value-utils.js';
 import { PlanProtocolError } from './plan-policy.js';
 
@@ -24,10 +24,16 @@ export function applyPlanProgress(args: JsonObject, items: readonly JsonObject[]
     }
     updates.set(raw.stepId, raw as JsonObject);
   }
-  return Object.freeze(items.map(item => {
+  const next: readonly JsonObject[] = items.map(item => {
     const update = updates.get(String(item.id));
     return update ? Object.freeze({ ...item, executionNeedsSync: false, executionStatus: update.status!, executionSummary: String(update.summary).trim() }) : item;
-  }));
+  });
+  for (const item of next) {
+    if (!isPlanTaskV1(item.execution) || !['in_progress', 'completed'].includes(String(item.executionStatus))) continue;
+    if (item.execution.dependsOn.some(id => !next.some(prior => isPlanTaskV1(prior.execution) && prior.execution.id === id && prior.status === 'accepted' && prior.executionStatus === 'completed')))
+      throw new PlanProtocolError('plan.dependency-incomplete', 'Complete each prerequisite before starting or completing its dependent step.');
+  }
+  return Object.freeze(next);
 }
 
 /** Store real operation outcomes alongside model-authored steps. Never infer semantic completion. */

@@ -1,5 +1,5 @@
 import { asStableId, type CostRecordV2, type PricingCatalogV1, type StableId, type TaskBudgetV2, type UsageRecordV2 } from '@haiyue/ai-studio-contracts';
-import { TaskBudgetController, type BudgetDecision } from './budget.js';
+import { TaskBudgetController, type BudgetDecision, type BudgetConsumption } from './budget.js';
 import { PricingEngine, type CostEstimate } from './pricing.js';
 import type { UsageLedgerSnapshot, UsageLedgerStore } from './usage-ledger.js';
 
@@ -50,6 +50,9 @@ export class TaskAccount {
   private readonly controller: TaskBudgetController;
   private readonly pricing: PricingEngine;
   private readonly turns = new Map<StableId, TurnBillingContext>();
+  private readonly reservationTurns = new Map<string, Set<string>>();
+  private readonly settledTurns = new Set<string>();
+  private readonly reservations = new Map<string, Partial<BudgetConsumption>>();
   private readonly committedTools = new Set<StableId>();
   private readonly latestCosts = new Map<StableId, CostEstimate>();
   private readonly costHistory = new Map<string, CostRecordV2>();
@@ -60,14 +63,54 @@ export class TaskAccount {
     this.pricing = new PricingEngine(options.pricingCatalog);
   }
 
-  beginTurn(): BudgetDecision { return this.controller.commit({ turns: 1 }); }
+  beginTurn(): BudgetDecision { const decision = this.preflightReserved({ turns: 1 }); return decision.allowed ? this.controller.commit({ turns: 1 }) : decision; }
+  /** Atomic conservative reservation; it is not fabricated provider usage. Unknown outcomes retain it. */
+  reserveWork(id: string, caps: Partial<BudgetConsumption>): boolean {
+    if (this.reservations.has(id) || !Object.keys(caps).length) return false;
+    const metrics = this.controller.consumption();
+    if (Object.entries(caps).some(([key, value]) => !Object.hasOwn(metrics, key) || !Number.isSafeInteger(value) || value! < 0)) return false;
+    if (!this.preflightReserved(caps, true).allowed) return false;
+    this.reservations.set(id, Object.freeze({ ...caps })); this.reservationTurns.set(id, new Set(this.taskLedgers().map(item => item.turnId))); return true;
+  }
+  /** Release only after a final, fully priced child ledger belonging to this parent task exists. */
+  settleWork(id: string, turnId: StableId): boolean {
+    if (!this.reservations.has(id) || this.reservationTurns.get(id)?.has(turnId) || this.settledTurns.has(turnId)) return false;
+    const ledger = this.taskLedgers().find(item => item.turnId === turnId);
+    this.reconcile();
+    if (!ledger?.record.final || ledger.record.inputTokens === null || ledger.record.outputTokens === null || this.latestCosts.get(turnId)?.record.amountMicros == null) return false;
+    this.settledTurns.add(turnId); this.reservationTurns.delete(id); return this.reservations.delete(id);
+  }
+  releaseUnstartedWork(id: string): void { this.reservations.delete(id); this.reservationTurns.delete(id); }
+  reservedWork(): Readonly<Partial<BudgetConsumption>> {
+    const total: Partial<Record<keyof BudgetConsumption, number>> = {};
+    for (const caps of this.reservations.values()) for (const [metric, value] of Object.entries(caps)) { const key = metric as keyof BudgetConsumption; total[key] = (total[key] ?? 0) + value; }
+    return Object.freeze(total);
+  }
+  private preflightReserved(extra: Partial<BudgetConsumption>, strict = false): BudgetDecision {
+    if (!strict && this.reservations.size === 0) return this.controller.preflight(extra);
+    const current = this.controller.state(); if (!current.allowed) return current;
+    const held = this.reservedWork(), used = this.controller.consumption();
+    const violations = Object.entries(this.controller.budget.limits).flatMap(([metric, limit]) => {
+      const key = metric as keyof BudgetConsumption, projected = used[key] + (held[key] ?? 0) + (extra[key] ?? 0);
+      return limit !== null && projected > limit ? [{ metric: key, current: used[key], projected, limit }] : [];
+    });
+    if (!strict && violations.length) {
+      const reservation = { ...extra };
+      for (const [metric, value] of Object.entries(held)) { const key = metric as keyof BudgetConsumption; reservation[key] = (reservation[key] ?? 0) + value; }
+      return this.controller.preflight(reservation);
+    }
+    // Optional child work never spends past soft/observe limits either.
+    return violations.length ? Object.freeze({ allowed: false, status: 'hard-exceeded', violations, warning: 'Outstanding child work reserves the remaining task budget.', hardStopLatched: false }) : current;
+  }
   bindTurn(turnId: StableId, context: TurnBillingContext): void { this.turns.set(turnId, Object.freeze({ ...context })); this.reconcile(); }
   preflightTool(toolCallId: StableId, observationBytes = 0): BudgetDecision {
     if (this.committedTools.has(toolCallId)) return this.controller.state();
-    return this.controller.preflight({ toolCalls: 1, observationBytes });
+    const decision = this.preflightReserved({ toolCalls: 1, observationBytes });
+    return decision.allowed ? this.controller.preflight({ toolCalls: 1, observationBytes }) : decision;
   }
   commitTool(toolCallId: StableId, observationBytes = 0): BudgetDecision {
     if (this.committedTools.has(toolCallId)) return this.controller.state();
+    const preflight = this.preflightTool(toolCallId, observationBytes); if (!preflight.allowed) return preflight;
     const decision = this.controller.commit({ toolCalls: 1, observationBytes });
     if (decision.allowed) this.committedTools.add(toolCallId);
     return decision;

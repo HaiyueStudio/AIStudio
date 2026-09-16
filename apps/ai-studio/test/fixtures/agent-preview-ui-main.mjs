@@ -20,6 +20,8 @@ try {
   await writeFile(path.join(root, 'verification-table-narrow.png'), (await win.webContents.capturePage()).toPNG());
   win.setContentSize(1100, 800);
   const manual = await win.webContents.executeJavaScript('window.previewUiFixture("manual")');
+  const editorInvalidation = await win.webContents.executeJavaScript('window.editorInvalidationFixture()');
+  const independentLane = await win.webContents.executeJavaScript('window.previewIndependentLaneFixture()');
   const handoff = await win.webContents.executeJavaScript('window.previewApprovalFixture("agent")');
   await writeFile(path.join(root, 'approval-return.png'), (await win.webContents.capturePage()).toPNG());
   const manualHandoff = await win.webContents.executeJavaScript('window.previewApprovalFixture("manual")');
@@ -31,7 +33,7 @@ try {
   const scriptPanel = await win.webContents.executeJavaScript('window.scriptPanelFixture()');
   const approvedRun = await win.webContents.executeJavaScript('window.previewRunConsentFixture(true)');
   const newRun = await win.webContents.executeJavaScript('window.previewRunConsentFixture(false)');
-  await writeFile(path.join(root, 'result.json'), JSON.stringify({ agent, manual, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table }, null, 2));
+  await writeFile(path.join(root, 'result.json'), JSON.stringify({ agent, manual, independentLane, editorInvalidation, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table }, null, 2));
   app.exit(0);
 } catch (error) { console.error(error); app.exit(1); }
 

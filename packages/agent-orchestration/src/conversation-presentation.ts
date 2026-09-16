@@ -61,7 +61,7 @@ export function localCompactionSummary(request: CompactionSummaryRequestV1): str
   const estimator = new ConservativeTokenEstimator();
   const source = [
     'Session summary (local extractive fallback; consult retained evidence for exact values).',
-    ...request.messages.map((message) => `[${message.role}] ${message.content.replace(/\s+/gu, ' ').trim()}`),
+    ...[...request.messages].reverse().map((message) => `[${message.role}] ${message.content.replace(/\s+/gu, ' ').trim()}`),
   ].join('\n');
   if (source.length === 0) return 'No compactable session content.';
 
@@ -90,11 +90,30 @@ export function completionSummary(status: 'completed' | 'cancelled' | 'failed' |
   return `${status}. ${completed}${incomplete}`.slice(0, 4_096);
 }
 export function boundedJson(value: JsonObject): string { const text = JSON.stringify(value); return text.length > 2_000 ? `${text.slice(0, 1_997)}...` : text; }
-export function projectToolModelResult(value: JsonObject, projection: 'summary' | 'digest-only'): JsonObject {
+export function projectToolModelResult(value: JsonObject, projection: 'summary' | 'digest-only', toolId?: StableId): JsonObject {
+  // A projection hint cannot erase the contract needed by the next call. Exact
+  // reads (especially script source), receipts, diagnostics and unknown tool
+  // contracts stay intact. Safe reductions are applied separately with proof
+  // that the same data is already present in native tool schemas.
+  if (toolId) return value;
   const serialized = canonicalStringify(value); const digest = sha256(serialized); const byteLength = Buffer.byteLength(serialized);
   if (projection === 'digest-only') return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength, ...toolFailureFeedback(value), ...interactionDiagnosticFeedback(value) });
   const resultValue = isRecord(value.value) ? value.value : value;
   return Object.freeze({ status: typeof value.status === 'string' ? value.status : 'completed', projection, digest, byteLength, keys: Object.freeze(Object.keys(resultValue).sort().slice(0, 32)), ...toolFailureFeedback(value), ...interactionDiagnosticFeedback(value) });
+}
+
+/** Remove only schemas identical to those actually sent in this provider turn. */
+export function compactNativeToolSchemas(value: JsonObject, toolId: StableId, nativeTools: readonly Readonly<{ id: StableId; inputSchema: JsonObject }>[]): JsonObject {
+  if (toolId !== 'tool.search' || value.status !== 'completed' || !isRecord(value.value) || !Array.isArray(value.value.matches)) return value;
+  const schemas = new Map(nativeTools.map(tool => [String(tool.id), canonicalStringify(tool.inputSchema)]));
+  let changed = false;
+  const matches = value.value.matches.map(match => {
+    if (!isRecord(match) || match.kind !== 'tool' || typeof match.id !== 'string' || !isRecord(match.inputSchema) || schemas.get(match.id) !== canonicalStringify(match.inputSchema as JsonObject)) return match;
+    const { inputSchema: _schema, ...retained } = match;
+    changed = true;
+    return { ...retained, schemaSource: 'native-tool', schemaDigest: `sha256:${sha256(canonicalStringify(_schema as JsonObject))}` };
+  });
+  return changed ? { ...value, value: { ...value.value, matches } as JsonObject } : value;
 }
 export function toolArgumentSummary(toolId: StableId, args: JsonObject): string {
   const raw = args as Record<string, unknown>;

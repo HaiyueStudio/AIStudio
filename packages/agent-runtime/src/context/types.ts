@@ -28,6 +28,8 @@ export interface ContextFrameInputDraft {
 }
 
 export interface CaptureContextFrameInput extends ContextMeasurementInput {
+  /** Actual request manifest replaces local transcript measurement for integrated backends. */
+  readonly actualRequest?: Readonly<{ artifactId: M13StableId; digest: M13Digest; estimatedTokens: number }>;
   readonly id?: M13StableId;
   readonly sessionId: M13StableId;
   readonly turnId: M13StableId;

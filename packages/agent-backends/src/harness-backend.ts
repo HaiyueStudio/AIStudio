@@ -22,6 +22,7 @@ import { backendEvent, toolSetSignature, TurnChannel } from './shared.js';
 
 export interface HarnessApiKeyBackendOptions { readonly transport: HarnessAgentTransport; readonly clearApiKey: () => Promise<void>; }
 export class HarnessApiKeyBackend implements AgentBackend, BackendSessionAdapter {
+  readonly requestContextMode = 'per-request' as const;
   readonly upstream = Object.freeze({ tag: 'dsh-v0.1.5-rc.2', commit: 'fb2c4b9e698e30edb738bca4cf0618587db7d203' });
   readonly descriptor: AgentBackendDescriptor = Object.freeze({ schemaVersion: 1, id: asStableId('backend:harness-api-key'), kind: 'harness-api-key', protocolVersion: 'dsh-v0.1.5-rc.2', capabilities: Object.freeze({ resume: true, questions: false, structuredTools: true, backendApprovals: false, usage: true, rateLimits: false }) });
   private readonly turns = new Map<StableId, TurnChannel>();
@@ -104,9 +105,10 @@ export class HarnessApiKeyBackend implements AgentBackend, BackendSessionAdapter
       const negotiation = await this.negotiate(input.config); if (!negotiation.effective) throw new AgentBackendProtocolError('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' '));
       const effective = negotiation.effective;
       for await (const raw of this.options.transport.start({
-        sessionId: input.sessionId, prompt: input.prompt, tools: input.tools, model: effective.model,
+        sessionId: input.sessionId, prompt: input.prompt, tools: input.tools, model: effective.model, requestContext: input.requestContext,
         reasoningEffort: harnessEffort(effective.reasoningEffort), maxTokens: effective.outputTokenLimit,
       }, signal)) {
+        if (raw.type === 'turn-end' && raw.diagnostic) channel.emit(backendEvent(this.descriptor.id, raw.sessionId, raw.turnId, 'diagnostic', raw.diagnostic));
         const value = normalizeHarnessEvent(this.descriptor.id, raw, raw.type === 'usage' ? ++usageSequence : usageSequence, effective);
         if (raw.type === 'turn-start') this.sessionToolSignatures.set(value.sessionId, tools);
         if (!this.turns.has(value.turnId)) this.turns.set(value.turnId, channel); channel.emit(value); terminal ||= value.kind === 'completed';
@@ -118,15 +120,17 @@ export class HarnessApiKeyBackend implements AgentBackend, BackendSessionAdapter
 }
 
 function normalizeHarnessEvent(backendId: StableId, raw: HarnessBridgeEvent, usageSequence: number, effective: NonNullable<BackendCapabilityNegotiationV2['effective']>): AgentBackendEvent {
+  if (raw.type === 'batch-boundary') return backendEvent(backendId, raw.sessionId, raw.turnId, 'status', { status: 'running', batchId: raw.batchId, stepId: raw.stepId, batchClosed: raw.closed });
+  if (raw.type === 'request-confirmed') return backendEvent(backendId, raw.sessionId, raw.turnId, 'status', { status: 'running', confirmedRequestId: raw.requestId });
+  if (raw.type === 'request-prepared') return backendEvent(backendId, raw.sessionId, raw.turnId, 'status', { status: 'running', requestId: raw.requestId });
   if (raw.type === 'turn-start') return backendEvent(backendId, raw.sessionId, raw.turnId, 'status', { status: 'running', model: effective.model, reasoningEffort: effective.reasoningEffort, outputTokenLimit: effective.outputTokenLimit });
   if (raw.type === 'text-delta') return backendEvent(backendId, raw.sessionId, raw.turnId, 'conversation-node', { nodeKind: 'text', status: 'streaming', delta: raw.text });
-  if (raw.type === 'tool-request') return backendEvent(backendId, raw.sessionId, raw.turnId, 'tool-request', { toolCallId: raw.toolCallId, toolId: raw.toolId, arguments: raw.arguments as JsonObject });
+  if (raw.type === 'tool-request') return backendEvent(backendId, raw.sessionId, raw.turnId, 'tool-request', { toolCallId: raw.toolCallId, toolId: raw.toolId, arguments: raw.arguments as JsonObject, ...(raw.batchId ? { batchId: raw.batchId, stepId: raw.stepId ?? raw.batchId } : {}) });
   if (raw.type === 'usage') return backendEvent(backendId, raw.sessionId, raw.turnId, 'usage', {
     eventId: `${raw.turnId}:usage:${usageSequence}`, sequence: usageSequence, mode: 'delta',
     inputTokens: raw.inputTokens + (raw.cacheReadTokens ?? 0) + (raw.cacheWriteTokens ?? 0), outputTokens: raw.outputTokens,
     cachedInputTokens: raw.cacheReadTokens ?? null, cacheWriteTokens: raw.cacheWriteTokens ?? null, reasoningTokens: raw.reasoningTokens ?? null,
   });
-  if (raw.diagnostic) return backendEvent(backendId, raw.sessionId, raw.turnId, 'diagnostic', raw.diagnostic);
   return backendEvent(backendId, raw.sessionId, raw.turnId, 'completed', { status: raw.status, finishReason: raw.finishReason });
 }
 function harnessEffort(value: M12ReasoningEffort): HarnessReasoningEffort { return value === 'xhigh' ? 'max' : value === 'off' || value === 'low' || value === 'high' ? value : 'high'; }

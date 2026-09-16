@@ -1,4 +1,4 @@
-import { asStableId, type JsonObject, type JsonValue, type M12ReasoningEffort, type StableId, type TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
+import { asStableId, isPlanTaskV1, type JsonObject, type JsonValue, type M12ReasoningEffort, type StableId, type TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 import {
   CONVERSATION_NODE_KINDS,
   type ApprovalCardReadModel,
@@ -287,7 +287,7 @@ function normalizeContent(kind: ConversationNodeKind, value: Record<string, unkn
     case 'question': return normalizeQuestion(value);
     case 'plan': return normalizePlan(value);
     case 'tool-call': return compact({ toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), target: text(value.target, 256), effect: enumValue(value.effect, ['observe', 'reversible-edit', 'trusted-code', 'runtime-start']), argumentsSummary: text(value.argumentsSummary, 2_048) });
-    case 'tool-result': return compact({ toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), summary: text(value.summary, 2_048), details: text(value.details, 4_096), resultStatus: enumValue(value.resultStatus ?? value.status, ['completed', 'failed', 'cancelled']) });
+    case 'tool-result': return compact({ documentChanged: typeof value.documentChanged === 'boolean' ? value.documentChanged : undefined, documentId: stableOptional(value.documentId), documentRevision: typeof value.documentRevision === 'number' && Number.isSafeInteger(value.documentRevision) && value.documentRevision >= 0 ? value.documentRevision : undefined, toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), summary: text(value.summary, 2_048), details: text(value.details, 4_096), resultStatus: enumValue(value.resultStatus ?? value.status, ['completed', 'failed', 'cancelled']) });
     case 'approval': return normalizeApproval(value);
     case 'diagnostic': return compact({ code: text(value.code, 96), message: text(value.message, 2_048), severity: enumValue(value.severity, ['info', 'warning', 'error']), retryable: typeof value.retryable === 'boolean' ? value.retryable : undefined });
     case 'completion': return compact({ summary: text(value.summary, 2_048), terminalStatus: enumValue(value.terminalStatus ?? value.status, ['completed', 'failed', 'cancelled', 'interrupted']) });
@@ -314,7 +314,7 @@ function normalizeQuestion(value: Record<string, unknown>): JsonObject {
 function normalizePlan(value: Record<string, unknown>): JsonObject {
   const items = Array.isArray(value.items) ? value.items.slice(0, 50).flatMap((item) => {
     if (!isRecord(item)) return [];
-    try { return [Object.freeze({ id: stable(item.id, 'plan item id'), label: text(item.label, 240) ?? 'Plan item', ...(typeof item.details === 'string' ? { details: safeText(item.details, 1_024) } : {}), status: enumValue(item.status, ['pending', 'accepted', 'rejected', 'completed']) ?? 'pending', ...(enumValue(item.executionStatus, ['pending', 'in_progress', 'completed', 'blocked']) ? { executionStatus: item.executionStatus as string } : {}), ...(item.executionNeedsSync === true ? { executionNeedsSync: true } : {}), ...(Array.isArray(item.executionOperationIds) ? { executionOperationIds: item.executionOperationIds.slice(-8).flatMap(id => { try { return [stable(id, 'operation id')]; } catch { return []; } }) } : {}), ...(typeof item.executionSummary === 'string' ? { executionSummary: safeText(item.executionSummary, 512) } : {}) })]; }
+    try { return [Object.freeze({ id: stable(item.id, 'plan item id'), label: text(item.label, 240) ?? 'Plan item', ...(isPlanTaskV1(item.execution) ? { execution: item.execution } : {}), ...(typeof item.details === 'string' ? { details: safeText(item.details, 1_024) } : {}), status: enumValue(item.status, ['pending', 'accepted', 'rejected', 'completed']) ?? 'pending', ...(enumValue(item.executionStatus, ['pending', 'in_progress', 'completed', 'blocked']) ? { executionStatus: item.executionStatus as string } : {}), ...(item.executionNeedsSync === true ? { executionNeedsSync: true } : {}), ...(Array.isArray(item.executionOperationIds) ? { executionOperationIds: item.executionOperationIds.slice(-8).flatMap(id => { try { return [stable(id, 'operation id')]; } catch { return []; } }) } : {}), ...(typeof item.executionSummary === 'string' ? { executionSummary: safeText(item.executionSummary, 512) } : {}) })]; }
     catch { return []; }
   }) : [];
   return compact({

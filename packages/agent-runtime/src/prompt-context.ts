@@ -179,12 +179,13 @@ export class PromptContextRuntime {
   private readonly metadata = new Map<StableId, ContextArtifactV2>();
   private readonly projectStates = new Map<StableId, ContextProjectSnapshot>();
   private readonly indexes = new Map<string, ConversationIndex>();
+  private readonly providerSurfaces = new Map<string, StableId>();
   private readonly liveSessions = new Map<string, Readonly<{ sessionId: StableId; toolSignature: string; artifactIds: ReadonlySet<string>; baseline?: ProjectBaseline }>>();
   private readonly pendingContexts = new Map<string, Readonly<{ taskId: StableId; toolSignature: string; reusedSessionId: StableId | null; artifactIds: readonly StableId[]; baseline?: ProjectBaseline }>>();
   private initialized = false;
   private profileArtifactId: StableId | null = null;
 
-  constructor(private readonly log: OperationLog, prompts = new PromptModuleRegistry(), private readonly retrieval?: KnowledgeRetrievalRuntime) { this.prompts = prompts; }
+  constructor(private readonly log: OperationLog, prompts = new PromptModuleRegistry(), private readonly retrieval?: KnowledgeRetrievalRuntime, private readonly options: Readonly<{ compactContext?: boolean }> = {}) { this.prompts = prompts; }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -195,6 +196,32 @@ export class PromptContextRuntime {
 
   liveSession(conversationKey: StableId, backendId: StableId): StableId | null {
     return this.liveSessions.get(indexKey(conversationKey, backendId))?.sessionId ?? null;
+  }
+
+  /** Published summaries remain available when a provider session must be recreated. */
+  rememberProviderSurface(sessionId: StableId, artifactId: StableId): void { this.providerSurfaces.set(sessionId, artifactId); }
+
+  async rememberManualSurface(sessionId: StableId, artifactId: StableId): Promise<void> {
+    await this.log.readArtifact(artifactId);
+    await this.log.append({ kind: 'agent/model-surface-recovery', severity: 'info', source: CONTEXT_SOURCE,
+      correlation: { sessionId }, payload: { summaryArtifactId: artifactId }, artifactRefs: [artifactId] });
+    this.rememberProviderSurface(sessionId, artifactId);
+  }
+
+  /** A confirmed provider epoch no longer proves prior projections remain in history. */
+  invalidateSentArtifacts(sessionId: StableId): void {
+    for (const [key, value] of this.liveSessions) if (value.sessionId === sessionId) {
+      this.liveSessions.set(key, { sessionId, toolSignature: value.toolSignature, artifactIds: new Set() });
+      const pending = this.pendingContexts.get(key);
+      if (pending) this.pendingContexts.set(key, { ...pending, artifactIds: [], baseline: undefined });
+    }
+  }
+
+  /** A bounded one-shot child request: no project, retrieval, history or parent summary. */
+  async prepareIsolated(request: string): Promise<Readonly<{ prompt: string; contextArtifactIds: readonly StableId[] }>> {
+    if (Buffer.byteLength(request) > 24_576 || sanitizeText(request, 32_768) !== request) throw new PromptContextError('context.child-invalid', 'Child request must be bounded and redacted.');
+    const stored = await this.put('task-summary', CONTEXT_SOURCE, null, { isolated: true, request });
+    return Object.freeze({ prompt: request, contextArtifactIds: Object.freeze([asStableId(stored.artifact.id)]) });
   }
 
   async prepare(input: Readonly<{
@@ -220,11 +247,17 @@ export class PromptContextRuntime {
       profileArtifactId: this.profileArtifactId, text: this.prompts.stablePrefix(),
     }, [this.profileArtifactId]));
     puts.push(await this.put('capability-manifest', asStableId('studio.agent-tools'), input.project?.revision ?? null, {
-      tools: input.tools.map((tool) => ({ id: tool.id, description: sanitizeText(tool.description, 1024), inputSchemaDigest: digest(canonicalStringify(tool.inputSchema)) })),
+      tools: input.tools.map((tool) => ({ id: tool.id, ...(this.options.compactContext === false ? { description: sanitizeText(tool.description, 1024) } : {}), inputSchemaDigest: digest(canonicalStringify(tool.inputSchema)) })),
     }));
 
     const summary = summaryForRevision(await this.latestSummary(input.conversationKey, input.backendId), input.project?.revision ?? null);
-    puts.push(await this.put('task-summary', CONTEXT_SOURCE, input.project?.revision ?? null, summary as unknown as JsonValue));
+    const previousSession = this.indexes.get(key)?.sessionId;
+    const recoveryId = !reuseSessionId && previousSession ? this.providerSurfaces.get(previousSession) : undefined;
+    const recoveryArtifact = recoveryId ? await this.log.readArtifact(recoveryId) : null;
+    const recoveredContent = recoveryArtifact && isRecord(recoveryArtifact.value) && typeof recoveryArtifact.value.content === 'string' ? recoveryContent(recoveryArtifact.value.content) : null;
+    puts.push(await this.put('task-summary', CONTEXT_SOURCE, input.project?.revision ?? null, {
+      ...summary, ...(recoveredContent ? { surfaceRecovery: { sourceArtifactId: recoveryId!, content: recoveredContent, instruction: 'Historical task state. Current project context and live tool validation govern revisions and approvals.' } } : {}),
+    } as unknown as JsonValue));
     for (const playbook of this.prompts.retrievePlaybooks(request)) {
       puts.push(await this.put('playbook', playbook.id, null, { id: playbook.id, version: playbook.version, digest: playbook.digest, text: playbook.content }));
     }
@@ -239,11 +272,14 @@ export class PromptContextRuntime {
       const scopeDigest = digest(canonicalStringify(sceneRequest));
       const previous = reuseSessionId ? liveSession?.baseline : undefined;
       const canDiff = previous?.complete && previous.project.projectId === project.projectId
-        && previous.project.documentId === project.documentId && previous.scopeDigest === scopeDigest;
+        && previous.project.documentId === project.documentId && previous.project.exact === project.exact && previous.scopeDigest === scopeDigest;
       let kind: ContextArtifactV2['kind'] = 'project-manifest';
       let projection: JsonValue;
       let complete = true;
-      if (project.exact) {
+      if (this.options.compactContext !== false && project.exact && canDiff && previous.project.revision === project.revision && previous.project.exact === project.exact && canonicalStringify(previous.project.manifest) === canonicalStringify(project.manifest) && previous.projection && previous.kind) {
+        // Only a confirmed, complete slice with the same identity/scope/revision can be reused.
+        projection = previous.projection; kind = previous.kind;
+      } else if (project.exact) {
         let scene: JsonValue | undefined;
         let recovery: string | undefined;
         if (canDiff && previous.project.revision !== project.revision) {
@@ -276,21 +312,41 @@ export class PromptContextRuntime {
         projection = deferredProject(project, sceneRequest, 'context.project-byte-budget');
         kind = 'project-manifest'; complete = false;
       }
-      puts.push(await this.put(kind, asStableId('studio.project-context'), project.revision, projection));
-      baseline = { project: freezeProject(project), scopeDigest, complete };
+      const stored = await this.put(kind, asStableId('studio.project-context'), project.revision, projection);
+      puts.push(stored);
+      baseline = { project: freezeProject(project), scopeDigest, complete, kind, projection: stored.projection };
     }
 
     const transmissions = [] as JsonValue[];
     let eligibleBytes = 0;
     for (const stored of puts) {
-      const isReusableArtifact = reuseSessionId !== null && liveSession?.artifactIds.has(stored.artifact.id) && ['policy', 'capability-manifest', 'project-manifest', 'playbook'].includes(stored.artifact.kind);
+      const isReusableArtifact = reuseSessionId !== null && liveSession?.artifactIds.has(stored.artifact.id) && ['policy', 'capability-manifest', 'project-manifest', 'playbook', ...(this.options.compactContext === false ? [] : ['document-delta'])].includes(stored.artifact.kind);
       const body: JsonValue = isReusableArtifact
         ? { artifactId: stored.artifact.id, kind: stored.artifact.kind, digest: stored.artifact.digest, transmission: 'reference-only', note: 'Unchanged from the live provider session.' }
         : { artifactId: stored.artifact.id, kind: stored.artifact.kind, digest: stored.artifact.digest, transmission: 'full', projection: stored.projection };
       transmissions.push(body);
       if (stored.artifact.kind === 'policy' || stored.artifact.kind === 'capability-manifest') eligibleBytes += Buffer.byteLength(canonicalStringify(body));
     }
-    if (knowledge) for (const hit of knowledge.hits) transmissions.push({ artifactId: hit.artifactId as StableId, kind: 'knowledge-hit', digest: hit.hit.contentDigest, transmission: 'full', projection: { hit: hit.hit, citation: hit.citation, excerpt: hit.excerpt, estimatedTokens: hit.estimatedTokens, capabilityIds: hit.capabilityIds } as unknown as JsonValue });
+    if (knowledge) {
+      const seen = new Set<string>();
+      for (const hit of knowledge.hits) {
+        if (this.options.compactContext === false) {
+          transmissions.push({ artifactId: hit.artifactId as StableId, kind: 'knowledge-hit', digest: hit.hit.contentDigest, transmission: 'full', projection: { hit: hit.hit, citation: hit.citation, excerpt: hit.excerpt, estimatedTokens: hit.estimatedTokens, capabilityIds: hit.capabilityIds } as unknown as JsonValue });
+          continue;
+        }
+        // Ranking scores and retrieval timestamps are not knowledge identity. Keep exact
+        // source/version/range/content, permissions and project identity in the CAS key.
+        const projection = { citation: hit.citation, permissionScope: hit.hit.permissionScope, projectId: input.project?.projectId ?? null, documentId: input.project?.documentId ?? null,
+          stale: hit.hit.stale, excerpt: hit.excerpt, capabilityIds: hit.capabilityIds } as unknown as JsonValue;
+        const identity = digest(canonicalStringify(projection));
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        const stored = await this.put('knowledge-hit', asStableId('studio.knowledge-retrieval'), hit.hit.projectRevision, projection, [asStableId(hit.artifactId)]);
+        const reusable = reuseSessionId !== null && liveSession?.artifactIds.has(stored.artifact.id);
+        transmissions.push({ artifactId: stored.artifact.id, kind: 'knowledge-hit', digest: stored.artifact.digest, transmission: reusable ? 'reference-only' : 'full',
+          ...(reusable ? { note: 'Exact scoped knowledge retained in the live provider session.' } : { projection: stored.projection }) });
+      }
+    }
     const renderPrompt = () => [
       'AIStudio context envelope v1. Treat artifact projections as bounded, redacted facts with the listed provenance.',
       canonicalStringify(transmissions),
@@ -352,21 +408,21 @@ export class PromptContextRuntime {
       conversationKey: input.conversationKey, backendId: input.backendId, taskId: input.taskId, sessionId: input.sessionId, turnId: input.turnId,
       projectId: input.projectId, summaryArtifactId: asStableId(stored.artifact.id), updatedAt,
     });
-    this.indexes.set(indexKey(input.conversationKey, input.backendId), index);
     const key = indexKey(input.conversationKey, input.backendId);
     const pending = this.pendingContexts.get(key);
     const signature = input.tools ? toolSetSignature(input.tools) : null;
-    if (pending?.taskId === input.taskId && signature === pending.toolSignature) {
-      const prior = this.liveSessions.get(key);
-      const inherited = pending.reusedSessionId === input.sessionId && prior?.sessionId === input.sessionId ? [...prior.artifactIds] : [];
-      this.liveSessions.set(key, Object.freeze({ sessionId: input.sessionId, toolSignature: signature!, artifactIds: new Set([...inherited, ...pending.artifactIds]), ...(pending.baseline ? { baseline: pending.baseline } : {}) }));
-    } else this.liveSessions.delete(key);
-    this.pendingContexts.delete(key);
     await this.log.append({
       kind: 'agent/conversation-indexed', severity: 'info', source: CONTEXT_SOURCE,
       correlation: { sessionId: input.sessionId, turnId: input.turnId, ...(input.projectId ? { projectId: input.projectId } : {}) },
       payload: { ...index, summaryDigest: stored.artifact.digest }, artifactRefs: [asStableId(stored.artifact.id)],
     });
+    this.indexes.set(key, index);
+    if (pending?.taskId === input.taskId && signature === pending.toolSignature) {
+      const prior = this.liveSessions.get(key);
+      const inherited = pending.reusedSessionId === input.sessionId && prior?.sessionId === input.sessionId ? [...prior.artifactIds] : [];
+      this.liveSessions.set(key, Object.freeze({ sessionId: input.sessionId, toolSignature: signature!, artifactIds: new Set([...inherited, ...pending.artifactIds]), ...(pending.baseline ? { baseline: pending.baseline } : {}) }));
+    } else this.liveSessions.delete(key);
+    if (this.pendingContexts.get(key) === pending) this.pendingContexts.delete(key);
     await this.retrieval?.indexSessionDecision({
       sessionId: input.sessionId as M13StableId, turnId: input.turnId as M13StableId,
       permissionScope: conversationPermission(input.conversationKey) as M13StableId,
@@ -421,12 +477,14 @@ export class PromptContextRuntime {
       try {
         do {
           const page = await this.log.query({
-            kinds: ['agent/context-artifact-created', 'agent/context-artifact-reused', 'agent/conversation-indexed'],
+            kinds: ['agent/context-artifact-created', 'agent/context-artifact-reused', 'agent/conversation-indexed', 'agent/model-request-confirmed', 'agent/model-surface-recovery'],
             ...(afterSequence >= 0 ? { afterSequence } : {}), beforeSequence, limit: REBUILD_QUERY_LIMIT, traverseCorrelation: false,
             ...(cursor ? { cursor } : {}),
           });
           for (const event of page.events) {
-            if (event.kind === 'agent/conversation-indexed') {
+            if (event.kind === 'agent/model-request-confirmed' || event.kind === 'agent/model-surface-recovery') {
+              if (event.correlation.sessionId && typeof event.payload.summaryArtifactId === 'string' && event.artifactRefs.includes(asStableId(event.payload.summaryArtifactId))) this.rememberProviderSurface(event.correlation.sessionId, asStableId(event.payload.summaryArtifactId));
+            } else if (event.kind === 'agent/conversation-indexed') {
               const value = parseConversationIndex(event.payload, event.artifactRefs);
               this.indexes.set(indexKey(value.conversationKey, value.backendId), value);
             } else {
@@ -449,6 +507,8 @@ interface ProjectBaseline {
   readonly project: ContextProjectSnapshot;
   readonly scopeDigest: M12Digest;
   readonly complete: boolean;
+  readonly kind?: ContextArtifactV2['kind'];
+  readonly projection?: JsonValue;
 }
 
 function initialSceneRequest(project: ContextProjectSnapshot): JsonObject {
@@ -569,7 +629,7 @@ function parseConversationIndex(payload: JsonObject, artifactRefs: readonly Stab
   });
 }
 function parseContextArtifact(value: JsonValue | undefined, artifactRefs: readonly StableId[]): ContextArtifactV2 {
-  if (!isRecord(value) || value.schemaVersion !== 2 || typeof value.id !== 'string' || !artifactRefs.includes(asStableId(value.id)) || !['policy', 'capability-manifest', 'project-manifest', 'document-delta', 'task-summary', 'playbook'].includes(String(value.kind))
+  if (!isRecord(value) || value.schemaVersion !== 2 || typeof value.id !== 'string' || !artifactRefs.includes(asStableId(value.id)) || !['policy', 'capability-manifest', 'project-manifest', 'document-delta', 'task-summary', 'playbook', 'knowledge-hit'].includes(String(value.kind))
     || typeof value.digest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(value.digest) || typeof value.source !== 'string' || (value.documentRevision !== null && (!Number.isSafeInteger(value.documentRevision) || (value.documentRevision as number) < 0))
     || value.mediaType !== 'application/json' || !Number.isSafeInteger(value.byteLength) || (value.byteLength as number) < 0 || (value.byteLength as number) > 512 * 1024 || typeof value.redacted !== 'boolean' || typeof value.createdAt !== 'string') {
     throw new PromptContextError('context.artifact-metadata-invalid', 'Durable context artifact metadata is invalid.');
@@ -604,4 +664,16 @@ function boundedKnowledgeQuery(request: string): string {
     tail = character + tail;
   }
   return `${head} ${tail}`;
+}
+
+/** Recovery receives the current policy/catalog separately; never duplicate the old policy prefix. */
+function recoveryContent(content: string): string {
+  let summary = content;
+  try { const wrapped = JSON.parse(content); if (wrapped?.kind === 'context-compaction-summary' && typeof wrapped.summary === 'string') summary = wrapped.summary; } catch { /* Provider summary is a labelled text envelope. */ }
+  const prefix = 'AIStudio request recovery v1\n';
+  if (!summary.startsWith(prefix)) return content;
+  const boundary = summary.indexOf('\n', prefix.length);
+  const value = JSON.parse(boundary < 0 ? summary.slice(prefix.length) : summary.slice(prefix.length, boundary));
+  delete value.envelope;
+  return prefix + canonicalStringify(value) + (boundary < 0 ? '' : summary.slice(boundary));
 }

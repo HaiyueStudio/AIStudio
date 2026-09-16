@@ -1,0 +1,155 @@
+{
+  "valid": [
+    {
+      "schemaId": "haiyue://contracts/plan-task/v1",
+      "value": {
+        "schemaVersion": 1,
+        "id": "task:read",
+        "dependsOn": [],
+        "inputs": [
+          "artifact:known"
+        ],
+        "artifacts": [
+          "result:read"
+        ],
+        "readScopes": [
+          "document:one"
+        ],
+        "writeScopes": [],
+        "verification": [
+          "inspect:result"
+        ],
+        "budget": {
+          "toolCalls": 4,
+          "wallTimeMs": 2000
+        },
+        "estimatedWorkMs": 100
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/tool-batch-input/v1",
+      "value": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "id": "node:read",
+            "toolId": "scene.query",
+            "toolVersion": "1.0.0",
+            "arguments": {},
+            "dependsOn": [],
+            "estimatedWorkMs": null,
+            "onFailure": "cancel-dependents"
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown-version",
+      "schemaId": "haiyue://contracts/plan-task/v1",
+      "value": {
+        "schemaVersion": 2,
+        "id": "task:read",
+        "dependsOn": [],
+        "inputs": [
+          "artifact:known"
+        ],
+        "artifacts": [
+          "result:read"
+        ],
+        "readScopes": [
+          "document:one"
+        ],
+        "writeScopes": [],
+        "verification": [
+          "inspect:result"
+        ],
+        "budget": {
+          "toolCalls": 4,
+          "wallTimeMs": 2000
+        },
+        "estimatedWorkMs": 100
+      }
+    },
+    {
+      "name": "secret-envelope",
+      "schemaId": "haiyue://contracts/plan-task/v1",
+      "value": {
+        "schemaVersion": 1,
+        "id": "task:read",
+        "dependsOn": [],
+        "inputs": [
+          "artifact:known"
+        ],
+        "artifacts": [
+          "result:read"
+        ],
+        "readScopes": [
+          "document:one"
+        ],
+        "writeScopes": [],
+        "verification": [
+          "inspect:result"
+        ],
+        "budget": {
+          "toolCalls": 4,
+          "wallTimeMs": 2000
+        },
+        "estimatedWorkMs": 100,
+        "apiKey": "fixture-only"
+      }
+    },
+    {
+      "name": "missing-field",
+      "schemaId": "haiyue://contracts/plan-task/v1",
+      "value": {
+        "schemaVersion": 1
+      }
+    },
+    {
+      "name": "unknown-version",
+      "schemaId": "haiyue://contracts/tool-batch-input/v1",
+      "value": {
+        "schemaVersion": 2,
+        "nodes": [
+          {
+            "id": "node:read",
+            "toolId": "scene.query",
+            "toolVersion": "1.0.0",
+            "arguments": {},
+            "dependsOn": [],
+            "estimatedWorkMs": null,
+            "onFailure": "cancel-dependents"
+          }
+        ]
+      }
+    },
+    {
+      "name": "secret-envelope",
+      "schemaId": "haiyue://contracts/tool-batch-input/v1",
+      "value": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "id": "node:read",
+            "toolId": "scene.query",
+            "toolVersion": "1.0.0",
+            "arguments": {},
+            "dependsOn": [],
+            "estimatedWorkMs": null,
+            "onFailure": "cancel-dependents"
+          }
+        ],
+        "apiKey": "fixture-only"
+      }
+    },
+    {
+      "name": "missing-field",
+      "schemaId": "haiyue://contracts/tool-batch-input/v1",
+      "value": {
+        "schemaVersion": 1
+      }
+    }
+  ]
+}

@@ -26,6 +26,9 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(preload, /studio:request/);
   assert.match(preload, /studio:cancel/);
   assert.match(preload, /studio:conversation-changed/);
+  assert.match(preload, /onPreviewPending\(listener\)/);
+  assert.match(preload, /studio:preview-pending/);
+  assert.match(preload, /removeListener\(PREVIEW_PENDING_CHANNEL/);
   assert.match(preload, /removeListener\(CONVERSATION_CHANGED_CHANNEL/);
   assert.doesNotMatch(preload, /child_process|node:fs|shell\.openExternal/);
   assert.doesNotMatch(preload, /event\.sender|webContents|conversation\/replay/);

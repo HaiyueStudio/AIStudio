@@ -7,6 +7,7 @@ import {
   BackendSessionRuntime,
   DurableSessionRuntime,
   ModelContextRuntime,
+  PromptContextRuntime,
 } from '@haiyue/ai-studio-agent-runtime';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
@@ -79,7 +80,7 @@ test('manual context compaction is durable and replayed into the execution graph
   backendSessions.register(backend);
   let turnIndex = 0;
   const runtime = {
-    context: contextFixture(),
+    context: contextFixture(log),
     accounting: accountingFixture(),
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
     sessions,
@@ -122,6 +123,8 @@ test('manual context compaction is durable and replayed into the execution graph
     assert.ok(after.transcript.some((item) => item.kind === 'compaction'));
     assert.equal(after.transcript.filter((item) => item.kind === 'message').length, transcriptBefore, 'human Transcript must remain lossless');
     assert.ok(after.context.latestCompaction?.after?.ratio < before.context.pressure.ratio);
+    const recovery = await log.query({ kinds: ['agent/model-surface-recovery'], limit: 10 });
+    assert.equal(recovery.events.at(-1).payload.summaryArtifactId, after.context.latestCompaction.summaryArtifactId);
 
     await host.dispatch({ type: 'conversation/request-compaction', sessionId, requestId: 'request:g09-context:1' });
     assert.equal(host.replay().executionGraphs[0].nodes.filter((node) => node.kind === 'compaction').length, after.nodes.filter((node) => node.kind === 'compaction').length, 'duplicate request ids must be idempotent');
@@ -162,10 +165,12 @@ function backendFixture() {
   };
 }
 
-function contextFixture() {
+function contextFixture(log) {
+  const recovery = new PromptContextRuntime(log);
   const profile = { id: 'prompt:game-authoring-general', version: '3.0.0', digest: `sha256:${'c'.repeat(64)}`, modules: [] };
   return {
     prompts: { profile },
+    rememberManualSurface: recovery.rememberManualSurface.bind(recovery),
     async prepare({ request }) { return { prompt: request, promptDigest: `sha256:${'d'.repeat(64)}`, promptProfile: profile, contextArtifactIds: [`artifact:sha256:${'e'.repeat(64)}`], contextDigest: `sha256:${'f'.repeat(64)}`, cache: { localArtifactHits: 0, localArtifactMisses: 1, deltaReuseBytes: 0, providerCacheEligibleBytes: 0, providerReportedHitTokens: null }, reusedSessionId: null }; },
     async commit() { return { id: `artifact:sha256:${'a'.repeat(64)}` }; },
   };

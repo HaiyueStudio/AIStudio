@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { validatePlanProposal, canonicalPlan, assertPlanDependencySelection } from '../dist/plan-policy.js';
+import { applyPlanProgress } from '../dist/plan-progress.js';
+import { normalizeConversationNode } from '@haiyue/ai-studio-shell/conversation';
+const execution = (id, dependsOn = []) => ({ schemaVersion: 1, id, dependsOn, inputs: ['artifact:known'], artifacts: ['expected:one'], readScopes: ['document:one'], writeScopes: [], verification: ['inspect:result'], budget: { toolCalls: 4, wallTimeMs: 2000 }, estimatedWorkMs: 100 });
+const proposal = { title: 'DAG', summary: 'Read then verify', assemblies: [], items: [{ label: 'Read', details: 'Known state', execution: execution('task:read') }, { label: 'Verify', details: 'Inspect result', execution: execution('task:verify', ['task:read']) }] };
+test('plan DAG survives canonical prompt and shell replay; partial approval and progress honor prerequisites', () => {
+  const plan = validatePlanProposal(proposal);
+  const items = plan.items.map((item, i) => ({ ...item, id: `item:${i}`, status: 'accepted' }));
+  assert.throws(() => assertPlanDependencySelection(items, new Set(['item:1'])), /prerequisites/);
+  assertPlanDependencySelection(items, new Set(['item:0', 'item:1']));
+  assert.deepEqual(JSON.parse(canonicalPlan({ ...plan, items })).items[1].execution.dependsOn, ['task:read']);
+  const normalized = normalizeConversationNode({ id: 'plan:w6', schemaVersion: 1, createdAt: '2026-09-16T00:00:00.000Z', updatedAt: '2026-09-16T00:00:00.000Z', kind: 'plan', status: 'completed', provenance: { backendId: 'backend:test', sessionId: 'session:test', turnId: 'turn:test' }, content: { title: 'DAG', items } });
+  assert.deepEqual(normalized.content.items[1].execution, proposal.items[1].execution);
+  const update = (stepId, status) => ({ stepId, status, summary: 'Real step boundary' });
+  assert.throws(() => applyPlanProgress({ updates: [update('item:1', 'in_progress')] }, items), /prerequisite/);
+  const next = applyPlanProgress({ updates: [update('item:1', 'in_progress'), update('item:0', 'completed')] }, items);
+  assert.equal(next[1].executionStatus, 'in_progress');
+  assert.throws(() => validatePlanProposal({ ...proposal, items: [{ ...proposal.items[0], execution: execution('task:read', ['task:verify']) }, proposal.items[1]] }), /cycles/);
+  assert.throws(() => validatePlanProposal({ ...proposal, items: [{ ...proposal.items[0], execution: { ...execution('task:read'), apiKey: 'fixture-secret' } }] }), /PlanTaskV1/);
+  assert.equal(validatePlanProposal({ ...proposal, items: [{ label: 'Simple', details: 'Direct task' }] }).items[0].execution, undefined);
+});

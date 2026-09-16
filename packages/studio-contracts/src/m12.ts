@@ -130,7 +130,7 @@ export interface TaskBudgetV2 {
 export interface ContextArtifactV2 {
   readonly schemaVersion: M12SchemaVersion;
   readonly id: M12StableId;
-  readonly kind: 'policy' | 'capability-manifest' | 'project-manifest' | 'document-delta' | 'task-summary' | 'playbook';
+  readonly kind: 'policy' | 'capability-manifest' | 'project-manifest' | 'document-delta' | 'task-summary' | 'playbook' | 'knowledge-hit';
   readonly digest: M12Digest;
   readonly source: M12StableId;
   readonly documentRevision: number | null;

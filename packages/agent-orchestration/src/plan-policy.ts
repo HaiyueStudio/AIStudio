@@ -1,12 +1,12 @@
 import { STRUCTURED_ASSERTION_SCHEMA, structuredAssertion, repairAssertionNotation, assertionCorrectionDetail } from './plan-assertion.js';
-import { asStableId, type StableId, type JsonObject, type TaskSpecV2 } from '@haiyue/ai-studio-contracts';
+import { asStableId, PLAN_TASK_SCHEMA, isPlanTaskV1, isAcyclicTaskGraph, type PlanTaskV1, type StableId, type JsonObject, type TaskSpecV2 } from '@haiyue/ai-studio-contracts';
 import { ASSEMBLY_EXPECTATIONS_SCHEMA, normalizeAssemblyExpectations, EVIDENCE_ASSERTION_PATTERN, isSupportedEvidenceAssertion, normalizePlayEvidenceAssertion, unavailablePlayEvidenceSignal } from '@haiyue/ai-studio-game-authoring-tools';
 import { isRecord } from './value-utils.js';
 
 export interface ApprovedPlanExecution {
   readonly title: string;
   readonly summary: string;
-  readonly items: readonly Readonly<{ id: StableId; label: string; details?: string; executionStatus?: string; executionSummary?: string }>[];
+  readonly items: readonly Readonly<{ id: StableId; label: string; details?: string; execution?: PlanTaskV1; executionStatus?: string; executionSummary?: string }>[];
   readonly assemblies?: readonly JsonObject[];
   readonly note?: string;
   attempts: number;
@@ -18,6 +18,7 @@ export function approvedPlanRequest(plan: ApprovedPlanExecution, projectOpen: bo
     projectOpen ? 'Execute the already approved plan against the current project.' : 'The project closed after approval; report that execution cannot continue.',
     canonicalPlan(plan),
     'After recovery, first reconcile the supplied step progress against retained tool outcomes with studio.plan.update, then continue remaining work. Do not rebuild completed objects or repeat broad queries. Use studio.plan.update with the exact approved item IDs to report concrete step progress before starting work and when finishing or blocking a step. Several independent steps may be in_progress. Progress is not acceptance evidence; do not mark the task accepted through this tool.',
+    'For an approved DAG, follow execution.dependsOn and preserve the known input references, expected artifacts, verification and scoped budgets. Use studio.tool.batch for a complete known-input DAG; no extra planning request is needed. Batch results follow input order even when independent reads complete out of order. Unknown output IDs and revisions require a subsequent batch.',
     'Submit independent operations together in the same model tool round: bundled engine.docs.search/read, tool.search and component.describe can run alongside low-risk scene edits. Submit adjacent independent low-risk entity.create calls (for example light and geometry) together at one exact baseRevision so Studio can commit them in one transaction. entity.create-many is also available for bounded bulk creation, with its own scoped approval barrier; use assembly tools for repeated composite objects. Wait for returned IDs, documentation/search refs and committed revisions before dependent calls, script changes or preview. Do not invent IDs, omit dependencies or rebase stale edits to force concurrency.',
     'Keep separate script owners for camera navigation, object manipulation and independent game rules; retain shared state only within a cohesive responsibility. Use declarative properties for initial transforms and penetrable decorative meshes. For reported interaction bugs, inspect project.snapshot interactionRegressions, preserve the failing trajectory and prelude with play.pointer-gesture caseLabel, and use play.regression replay after each revision. Rotation acceptance must use effects.rotationMatched and, when animation is required, effects.intermediateMotion from expect.rotation with exact members, world pivot/axis and signed angle. Counts and script-reported metrics do not establish correct motion. Include reverse directions, another camera angle and a multi-operation/inverse sequence as separate cases.',
     'Verify structure, transforms, game rules, interactions and runtime errors through play.inspect/play.pointer-gesture and task.evaluate. Scope entityIds to affected objects. Reserve play.capture and multimodal review for rendered appearance; reuse one capture for same-stage visual criteria. Do not replace visual requirements with data checks or count screenshot presence as visual correctness.',
@@ -25,7 +26,7 @@ export function approvedPlanRequest(plan: ApprovedPlanExecution, projectOpen: bo
   ].join('\n\n');
 }
 export function canonicalPlan(plan: ApprovedPlanExecution): string {
-  return JSON.stringify({ title: plan.title, summary: plan.summary, assemblies: plan.assemblies ?? [], items: plan.items.map((item) => ({ id: item.id, label: item.label, ...(item.executionStatus ? { executionStatus: item.executionStatus, executionSummary: item.executionSummary ?? '' } : {}), ...(item.details ? { details: item.details } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
+  return JSON.stringify({ title: plan.title, summary: plan.summary, assemblies: plan.assemblies ?? [], items: plan.items.map((item) => ({ id: item.id, label: item.label, ...(item.executionStatus ? { executionStatus: item.executionStatus, executionSummary: item.executionSummary ?? '' } : {}), ...(item.details ? { details: item.details } : {}), ...(item.execution ? { execution: item.execution } : {}) })), ...(plan.note ? { userNote: plan.note } : {}) });
 }
 export const PLAN_TOOL_ID = asStableId('studio.plan.propose');
 const ASSERTION_GUIDANCE = 'Prefer a structured comparison object: {"type":"state","signal":"effects.cameraChanged","operator":"equals","expected":false}. Studio serializes it into the approved evidence DSL. Never omit operator/expected. Legacy strings remain accepted. Prefer one atomic assertion per acceptance entry; put multiple conditions in separate entries. Legacy semicolon-separated assertions are expanded into independent required checks without dropping conditions. Use evidence <type> [signal <payload.path> <equals|gte|lte> <JSON value>]. Types: state, event-trace, runtime-errors, performance, screenshot, visual-analysis, lifecycle. Examples: evidence runtime-errors signal count equals 0; evidence state signal gameplay.0.value.metrics.score gte 1; evidence state signal gameplay.0.value.phase equals "ready". Signal paths must match the observation payload you will produce and inspect. Pointer gesture state uses gesture.interactions.<index>.type; event-trace uses interactions.<index>.type for the same events. Do not mix evidence types and paths. Put human-readable requirements in label. Preserve each requirement when correcting its assertion; do not omit criteria to bypass validation. Bare evidence <type> checks presence only, not correctness; visual correctness requires a real visual verifier. Current Play tools produce no visual-analysis evidence and no fps measurement. Performance exposes finite, tick, frame and timeMs. Screenshot presence cannot prove colors or shape: pair it with explicit structural/behavior assertions and state any remaining visual review limitation.';
@@ -40,6 +41,7 @@ export const PLAN_TOOL_DEFINITION = Object.freeze({
       summary: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_200 }),
       items: Object.freeze({ type: 'array', minItems: 1, maxItems: 20, items: Object.freeze({
         type: 'object', additionalProperties: false, required: Object.freeze(['label', 'details']), properties: Object.freeze({
+          execution: { ...PLAN_TASK_SCHEMA, description: 'Optional DAG metadata supplied with this original plan; omit for simple tasks. If used, give every item a unique execution.id and explicit dependsOn. Inputs must reference already known facts. Scope and budget estimates are advisory; Host tool policy remains authoritative.' },
           label: Object.freeze({ type: 'string', minLength: 1, maxLength: 240 }),
           details: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024 }),
         }),
@@ -55,19 +57,23 @@ export const PLAN_TOOL_DEFINITION = Object.freeze({
     }),
   }) as JsonObject,
 });
-export function validatePlanProposal(value: JsonObject): Readonly<{ title: string; summary: string; items: readonly Readonly<{ label: string; details?: string }>[]; acceptance: readonly PlanAcceptanceProposal[]; assemblies: readonly JsonObject[] }> {
+export function validatePlanProposal(value: JsonObject): Readonly<{ title: string; summary: string; items: readonly Readonly<{ label: string; details?: string; execution?: PlanTaskV1 }>[]; acceptance: readonly PlanAcceptanceProposal[]; assemblies: readonly JsonObject[] }> {
   const raw = value as Record<string, unknown>;
   if (Object.keys(raw).some((key) => !['title', 'summary', 'items', 'acceptance', 'assemblies'].includes(key)) || typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 160
     || typeof raw.summary !== 'string' || !raw.summary.trim() || raw.summary.length > 1_200 || !Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 20) {
     throw new PlanProtocolError('plan.payload-invalid', 'Plan requires a title, summary and 1-20 detailed items.');
   }
   const items = raw.items.map((value, index) => {
-    if (!isRecord(value) || Object.keys(value).some((key) => !['label', 'details'].includes(key)) || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 240
+    if (!isRecord(value) || Object.keys(value).some((key) => !['label', 'details', 'execution'].includes(key)) || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 240
       || typeof value.details !== 'string' || !value.details.trim() || value.details.length > 1_024) {
       throw new PlanProtocolError('plan.payload-invalid', `Plan item ${index + 1} requires bounded label and details fields.`);
     }
-    return Object.freeze({ label: value.label.trim(), details: value.details.trim() });
+    if (value.execution !== undefined && !isPlanTaskV1(value.execution)) throw new PlanProtocolError('plan.dag-invalid', 'Execution metadata must match PlanTaskV1.');
+    return Object.freeze({ label: value.label.trim(), details: value.details.trim(), ...(isPlanTaskV1(value.execution) ? { execution: value.execution } : {}) });
   });
+  if (items.some(item => item.execution) && Buffer.byteLength(JSON.stringify(value)) > 12 * 1024) throw new PlanProtocolError('plan.dag-limit', 'Keep the complete DAG plan within 12 KiB so the approval and recovery view can retain every step. Use concise artifact references.');
+  const tasks = items.flatMap(item => item.execution ? [item.execution] : []);
+  if (tasks.length && (tasks.length !== items.length || !isAcyclicTaskGraph(tasks))) throw new PlanProtocolError('plan.dag-invalid', 'Use execution metadata on every item with unique IDs, existing dependencies and no cycles.');
   const acceptance = raw.acceptance === undefined ? [] : !Array.isArray(raw.acceptance) || raw.acceptance.length < 1 || raw.acceptance.length > 50
     ? (() => { throw new PlanProtocolError('plan.payload-invalid', 'Plan acceptance requires 1-50 criteria.'); })()
     : raw.acceptance.flatMap((entry, index) => {
@@ -124,4 +130,10 @@ function splitAcceptanceAssertions(value: string): string[] {
   }
   parts.push(value.slice(start).trim());
   return parts;
+}
+
+/** A partial plan approval must include prerequisites; never silently expand user scope. */
+export function assertPlanDependencySelection(items: readonly Readonly<{ id: string; execution?: unknown }>[], selected: ReadonlySet<string>): void {
+  const tasks = items.filter(item => selected.has(item.id)).flatMap(item => isPlanTaskV1(item.execution) ? [item.execution] : []);
+  if (!isAcyclicTaskGraph(tasks)) throw new PlanProtocolError('plan.dependency-unapproved', 'Select the prerequisites of each approved step, or revise the plan.');
 }

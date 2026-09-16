@@ -32,10 +32,12 @@ export class ToolBatchScheduler {
     const records = request.nodes.map((node) => ({ node, state: 'pending' as 'pending' | 'running' | 'done', outcome: null as ToolBatchNodeOutcome | null }));
     const byId = new Map(records.map((record) => [record.node.id, record]));
     const running = new Set<Promise<void>>();
+    let cancellationProgress = false;
     let active = 0; let maxActive = 0; let completionOrdinal = 0; let stopBatch = false;
     try {
       await this.options.hooks?.onBatchStarted?.(request);
       while (records.some((record) => record.state !== 'done')) {
+        cancellationProgress = false;
         if (controller.signal.aborted) for (const record of records) if (record.state === 'pending') completeCancelled(record, abortDiagnostic(controller.signal));
         for (const record of records) {
           if (record.state !== 'pending') continue;
@@ -53,13 +55,13 @@ export class ToolBatchScheduler {
           let promise!: Promise<void>;
           promise = this.runNode(record.node, executor, controller.signal, () => ++completionOrdinal).then((outcome) => {
             record.outcome = outcome; record.state = 'done'; active -= 1;
-            if (outcome.status === 'failed' && record.node.onFailure === 'stop-batch') { stopBatch = true; controller.abort(new ToolBatchProtocolError('tool-batch.stopped', `Node ${record.node.id} stopped the batch.`)); }
+            if (outcome.status !== 'completed' && record.node.onFailure === 'stop-batch') { stopBatch = true; controller.abort(new ToolBatchProtocolError('tool-batch.stopped', `Node ${record.node.id} stopped the batch.`)); }
           }).finally(() => running.delete(promise));
           running.add(promise);
         }
         if (records.every((record) => record.state === 'done')) break;
         if (running.size > 0) await Promise.race(running);
-        else if (!launched) throw new ToolBatchProtocolError('tool-batch.deadlock', 'No batch node can make progress.');
+        else if (!launched && !cancellationProgress) throw new ToolBatchProtocolError('tool-batch.deadlock', 'No batch node can make progress.');
       }
       await Promise.allSettled([...running]);
       let totalBytes = 0;
@@ -73,10 +75,15 @@ export class ToolBatchScheduler {
       const execution = freezeExecution(request, outcomes, maxActive, Math.max(0, this.options.clock() - startedAt));
       await this.options.hooks?.onBatchCompleted?.(execution);
       return execution;
-    } finally { clearTimeout(timer); unlink(); }
+    } finally {
+      controller.abort(new ToolBatchProtocolError('tool-batch.closed', 'Batch scheduler closed.'));
+      await Promise.allSettled([...running]);
+      clearTimeout(timer); unlink();
+    }
 
     function completeCancelled(record: typeof records[number], reason: ReturnType<typeof diagnostic>): void {
       if (record.state !== 'pending') return;
+      cancellationProgress = true;
       record.state = 'done'; record.outcome = cancelledOutcome(record.node, reason);
     }
   }
@@ -87,7 +94,10 @@ export class ToolBatchScheduler {
     const timeoutMs = this.options.nodeTimeoutMs?.(node);
     const timer = timeoutMs && timeoutMs > 0 ? setTimeout(() => controller.abort(new ToolBatchProtocolError('tool-batch.node-timeout', `Node ${node.id} timed out.`, true)), timeoutMs) : null;
     try {
-      const result = await abortable(executor(node, controller.signal), controller.signal);
+      controller.signal.throwIfAborted();
+      const result = await executor(node, controller.signal);
+      // Cancellation requests shutdown; it cannot release a live effect lease early.
+      controller.signal.throwIfAborted();
       const latencyMs = Math.max(0, this.options.clock() - startedAt);
       const value = projectValue(result, node.outputProjection);
       const outputBytes = bytes(value);
@@ -130,11 +140,3 @@ function errorDiagnostic(cause: unknown) { return diagnostic(cause instanceof To
 function abortDiagnostic(signal: AbortSignal) { return errorDiagnostic(signal.reason ?? new ToolBatchProtocolError('tool-batch.cancelled', 'Tool batch was cancelled.', true)); }
 function bounded(value: number, min: number, max: number, name: string): number { if (!Number.isSafeInteger(value) || value < min || value > max) throw new ToolBatchProtocolError('tool-batch.limit-invalid', `${name} is outside its allowed range.`); return value; }
 function fuseAbort(parent: AbortSignal | undefined, child: AbortController): () => void { if (!parent) return () => {}; const abort = () => child.abort(parent.reason); if (parent.aborted) abort(); else parent.addEventListener('abort', abort, { once: true }); return () => parent.removeEventListener('abort', abort); }
-function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason);
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => reject(signal.reason ?? new ToolBatchProtocolError('tool-batch.cancelled', 'Tool batch was cancelled.', true));
-    signal.addEventListener('abort', abort, { once: true });
-    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
-  });
-}

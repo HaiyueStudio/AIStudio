@@ -1,3 +1,5 @@
+import { TextJournal } from './text-journal.js';
+import { RequestContextRuntime } from './context/request.js';
 import { isToolConcurrencyHintV1, asStableId, createStudioServiceToken, defineStudioPlugin, type AgentTurnConfigV2, type BackendCapabilityNegotiationV2, type JsonObject, type JsonValue, type M12Digest, type StableId, type StudioPluginActivationContext, type StudioPluginDefinition } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, operationLogServiceToken, sha256, type OperationLog } from '@haiyue/ai-studio-operation-log';
 import type { AgentModelCatalog } from './model-controls.js';
@@ -56,8 +58,11 @@ export interface AgentBackendStatus {
 export interface AgentLoginHandoff { readonly id: StableId; readonly kind: 'browser' | 'device-code'; readonly url?: string; readonly userCode?: string; }
 export interface AgentTurnInput {
   readonly taskId: StableId; readonly config: AgentTurnConfigV2;
+  /** Trusted one-shot child request bounds; never supplied by model arguments. */
+  readonly isolatedRequestLimits?: Readonly<{ inputTokens: number; outputTokens: number }>;
   readonly sessionId?: StableId; readonly prompt: string; readonly contextArtifactIds: readonly StableId[];
   readonly contextCache?: ContextCacheMetrics;
+  readonly requestContext?: import('@haiyue/ai-studio-contracts').ModelRequestContextPortV1;
   readonly tools: readonly import('./backends/types.js').BackendSessionToolV1[];
 }
 export interface AgentBackendEvent {
@@ -65,6 +70,7 @@ export interface AgentBackendEvent {
   readonly kind: AgentBackendEventKind; readonly payload: JsonObject;
 }
 export interface AgentBackend {
+  readonly requestContextMode?: 'per-request';
   readonly descriptor: AgentBackendDescriptor;
   readonly upstream?: Readonly<Record<string, string>>;
   modelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog>;
@@ -107,9 +113,13 @@ export class AgentBackendRegistry {
 
 export class AgentTurnRuntime {
   private readonly active = new Map<StableId, AbortController>();
+  private readonly textJournals = new Set<TextJournal>();
   private disposed = false;
   readonly usage = new UsageLedgerStore();
-  constructor(private readonly registry: AgentBackendRegistry, private readonly log: OperationLog, readonly context = new PromptContextRuntime(log)) {}
+  private readonly requests: RequestContextRuntime;
+  constructor(private readonly registry: AgentBackendRegistry, private readonly log: OperationLog, readonly context = new PromptContextRuntime(log), sessions?: DurableSessionRuntime, private readonly options: Readonly<{ batchTextWrites?: boolean }> = {}) {
+    this.requests = new RequestContextRuntime(log, context, sessions);
+  }
   async *start(backendId: StableId, input: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     this.assertActive();
     let preparedInput = input;
@@ -126,7 +136,21 @@ export class AgentTurnRuntime {
       status: negotiation.status, effective: negotiation.effective, diagnostics: negotiation.diagnostics.map((entry) => ({ code: entry.code, ...(entry.capability ? { capability: entry.capability } : {}) })),
     }, provenance: { backendId, upstream: backend.upstream ?? { protocolVersion: backend.descriptor.protocolVersion } } }, { signal });
     if (negotiation.status === 'rejected' || !negotiation.effective) throw new AgentBackendProtocolError('agent.config-rejected', negotiation.diagnostics.map((entry) => entry.message).join(' ') || 'Agent turn configuration was rejected.');
-    yield* this.consume(backend, backend.startTurn(preparedInput, signal), preparedInput, signal);
+    const requestContext = this.requests.port();
+    let confirmed = false, preparedOnce = false;
+    const limits = preparedInput.isolatedRequestLimits;
+    if (limits && (backend.requestContextMode !== 'per-request' || !Number.isSafeInteger(limits.inputTokens) || limits.inputTokens < 1 || !Number.isSafeInteger(limits.outputTokens) || limits.outputTokens < 1 || negotiation.effective.outputTokenLimit > limits.outputTokens)) throw new AgentBackendProtocolError('agent.child-bounds', 'Backend cannot enforce isolated request limits.');
+    const boundedContext: import('@haiyue/ai-studio-contracts').ModelRequestContextPortV1 = limits ? {
+      prepare: async (request, requestSignal) => {
+        // Serialized UTF-8 bytes + message framing is a conservative token bound; no guessed ratio.
+        if (preparedOnce || confirmed || request.previousUsage !== null || request.requestBytes + 1024 > limits.inputTokens || request.reservedOutputTokens > limits.outputTokens) throw new AgentBackendProtocolError('agent.child-budget', 'Isolated child request exceeds its single-request reservation.');
+        preparedOnce = true;
+        return requestContext.prepare(request, requestSignal);
+      },
+      confirm: async (id, requestSignal) => { confirmed = true; await requestContext.confirm(id, requestSignal); },
+      discard: () => requestContext.discard?.(),
+    } : requestContext;
+    yield* this.consume(backend, backend.startTurn({ ...preparedInput, requestContext: boundedContext }, signal), preparedInput, signal);
   }
   async *resume(backendId: StableId, sessionId: StableId, turnId: StableId, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     this.assertActive(); const backend = this.registry.get(backendId);
@@ -141,12 +165,26 @@ export class AgentTurnRuntime {
     const snapshot = ledger.reconcile({ eventId: `${turnId}:tool-output:${toolCallId}`, sequence: 1_500_000_000 + ledger.snapshot().acceptedEvents, mode: 'delta', toolCallId, toolOutputBytes: Buffer.byteLength(canonicalStringify(result)), observedAtMs });
     await this.appendUsageRecord(snapshot.record);
   }
-  async dispose(): Promise<void> { if (this.disposed) return; this.disposed = true; for (const controller of this.active.values()) controller.abort(new Error('Agent runtime disposed.')); this.active.clear(); await this.registry.dispose(); }
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const controller of this.active.values()) controller.abort(new Error('Agent runtime disposed.'));
+    this.active.clear(); this.requests.dispose();
+    try { await this.registry.dispose(); }
+    finally { await Promise.all([...this.textJournals].map(journal => journal.flush())); }
+  }
   private async *consume(backend: AgentBackend, events: AsyncIterable<AgentBackendEvent>, input?: AgentTurnInput, signal?: AbortSignal): AsyncIterable<AgentBackendEvent> {
     const controller = new AbortController(); const unlink = fuseAbort(signal, controller);
     let terminal = false; let coordinates: Readonly<{ sessionId: StableId; turnId: StableId }> | null = null;
     let ledger: UsageLedger | undefined; const startedAtMs = Date.now();
     let unfinishedFinishReason: NormalizedFinishReason = 'cancelled';
+    const textJournal = new TextJournal(async event => {
+      await this.log.append({ kind: `agent/${event.kind}`, severity: event.kind === 'diagnostic' ? 'error' : 'info', source: asStableId('studio.agent-runtime'),
+        correlation: eventCorrelation(event), payload: eventLogPayload(event),
+        provenance: { backendId: backend.descriptor.id, upstream: backend.upstream ?? { protocolVersion: backend.descriptor.protocolVersion } },
+      });
+    }, this.options.batchTextWrites !== false);
+    this.textJournals.add(textJournal);
     try {
       if (input) await this.log.append({ kind: 'agent/context-prepared', severity: 'info', source: asStableId('studio.agent-runtime'), payload: {
         backendId: backend.descriptor.id, taskId: input.taskId, promptDigest: sha256(input.prompt), promptBytes: Buffer.byteLength(input.prompt), contextArtifactIds: input.contextArtifactIds, toolIds: input.tools.map((tool) => tool.id),
@@ -168,11 +206,7 @@ export class AgentTurnRuntime {
         if (event.kind === 'completed') terminal = true;
         if (event.kind === 'completed' && ledger) ledger.markTerminal(normalizeFinishReason(event.payload.finishReason, event.payload.status), Date.now());
         this.active.set(event.turnId, controller);
-        await this.log.append({ kind: `agent/${event.kind}`, severity: event.kind === 'diagnostic' ? 'error' : 'info', source: asStableId('studio.agent-runtime'),
-          correlation: eventCorrelation(event),
-          payload: eventLogPayload(event),
-          provenance: { backendId: backend.descriptor.id, upstream: backend.upstream ?? { protocolVersion: backend.descriptor.protocolVersion } },
-        }, { signal: controller.signal.aborted ? undefined : controller.signal });
+        await textJournal.accept(event);
         if (ledger && (event.kind === 'tool-request' || event.kind === 'usage' || event.kind === 'completed')) await this.appendUsageRecord(ledger.snapshot().record, controller.signal.aborted ? undefined : controller.signal);
         yield event;
       }
@@ -181,11 +215,19 @@ export class AgentTurnRuntime {
       if (!controller.signal.aborted) unfinishedFinishReason = 'error';
       throw cause;
     } finally {
-      if (ledger?.snapshot().executionState === 'running') {
-        const finalized = ledger.markTerminal(unfinishedFinishReason, Date.now());
-        await this.appendUsageRecord(finalized.record);
+      try {
+        try { await textJournal.flush(); }
+        finally {
+          if (ledger?.snapshot().executionState === 'running') {
+            const finalized = ledger.markTerminal(unfinishedFinishReason, Date.now());
+            await this.appendUsageRecord(finalized.record);
+          }
+        }
+      } finally {
+        this.textJournals.delete(textJournal);
+        if (coordinates) this.active.delete(coordinates.turnId);
+        unlink();
       }
-      if (coordinates) this.active.delete(coordinates.turnId); unlink();
     }
   }
   private async appendUsageRecord(record: import('@haiyue/ai-studio-contracts').UsageRecordV2, signal?: AbortSignal): Promise<void> {
@@ -201,7 +243,7 @@ export interface AgentRuntimeService { readonly registry: AgentBackendRegistry; 
 export const agentRuntimeServiceToken = createStudioServiceToken<AgentRuntimeService>('studio.agent-runtime');
 export const agentBackendRegistryToken = createStudioServiceToken<AgentBackendRegistry>('studio.agent-backend-registry');
 
-export interface AgentRuntimePluginOptions { readonly createBackends: (context: StudioPluginActivationContext) => readonly AgentBackend[] | Promise<readonly AgentBackend[]>; }
+export interface AgentRuntimePluginOptions { readonly batchTextWrites?: boolean; readonly compactContext?: boolean; readonly createBackends: (context: StudioPluginActivationContext) => readonly AgentBackend[] | Promise<readonly AgentBackend[]>; }
 export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): StudioPluginDefinition<JsonObject> {
   return defineStudioPlugin({
     manifest: {
@@ -224,13 +266,13 @@ export function createAgentRuntimePlugin(options: AgentRuntimePluginOptions): St
         const knowledge = new KnowledgeRetrievalRuntime(log);
         resources.push(() => knowledge.dispose());
         await knowledge.initialize(); context.owner.assertActive();
-        const promptContext = new PromptContextRuntime(log, undefined, knowledge);
+        const promptContext = new PromptContextRuntime(log, undefined, knowledge, { compactContext: options.compactContext });
         await promptContext.initialize(); context.owner.assertActive();
-        const turns = new AgentTurnRuntime(registry, log, promptContext);
+        const sessions = new DurableSessionRuntime(log);
+        const turns = new AgentTurnRuntime(registry, log, promptContext, sessions, { batchTextWrites: options.batchTextWrites });
         resources.push(() => turns.dispose());
         const { TaskAccountingRegistry } = await import('./accounting.js');
         context.owner.assertActive();
-        const sessions = new DurableSessionRuntime(log);
         resources.push(() => sessions.dispose());
         const modelContexts = new ModelContextRuntime(log, sessions);
         resources.push(() => modelContexts.dispose());
@@ -374,3 +416,5 @@ function safeUsage(payload: JsonObject): JsonObject {
 }
 function pickNumeric(value: Record<string, unknown>): JsonObject { return Object.freeze(Object.fromEntries(Object.entries(value).filter(([, item]) => typeof item === 'number')) as Record<string, number>); }
 function pickScalars(value: Record<string, unknown>, keys: readonly string[]): JsonObject { const result: Record<string, JsonValue> = {}; for (const key of keys) { const item = value[key]; if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean' || item === null) result[key] = item; } return Object.freeze(result); }
+
+export { RequestContextRuntime } from './context/request.js';

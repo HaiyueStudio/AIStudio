@@ -68,6 +68,8 @@ export interface ToolBatchSchedulerOptions {
 export type ToolBatchExecutor = (node: ToolBatchNodeV1, signal: AbortSignal) => Promise<ToolBatchExecutorResult>;
 
 export interface RollingToolWorkResult<T> {
+  /** Trusted Host checkpoint: cancel queued work even without model-declared dependencies. */
+  readonly stopBatch?: boolean;
   readonly status: ToolBatchNodeStatus;
   readonly value: T;
 }

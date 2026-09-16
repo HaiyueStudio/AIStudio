@@ -1,3 +1,4 @@
+import { runSubtasks, SUBTASK_TOOL, type SubtaskOptions } from './subtasks.js';
 import { matchesRecoveredApproval } from './approval-recovery.js';
 import { toolConcurrencyHint, invocationConcurrencyHint } from './tool-concurrency.js';
 import { PLAN_PROGRESS_TOOL, applyPlanProgress, recordPlanOperation } from './plan-progress.js';
@@ -6,14 +7,14 @@ import { QUERY_LIMIT_DEFAULTS, QUERY_PAGE_SIZE, queryLimitRequest, parseQueryLim
 import { taskContinuationRequest, incompleteAcceptanceDetail } from './task-continuation.js';
 import { stringField, isRecord, errorCode, errorMessage } from './value-utils.js';
 import { budgetMetricLabel, budgetContinuationRequest, DEFAULT_TASK_BUDGET, assertBudgetAllowed, armWallTimeBudget, type WallTimeBudget } from './budget-policy.js';
-import { approvedPlanRequest, PLAN_TOOL_ID, PLAN_TOOL_DEFINITION, validatePlanProposal, PlanProtocolError, type ApprovedPlanExecution, type PlanAcceptanceProposal } from './plan-policy.js';
+import { approvedPlanRequest, PLAN_TOOL_ID, PLAN_TOOL_DEFINITION, validatePlanProposal, assertPlanDependencySelection, PlanProtocolError, type ApprovedPlanExecution, type PlanAcceptanceProposal } from './plan-policy.js';
 import { taskTimeline, taskTitle, acceptanceReadModel, acceptanceLabel, taskSpecFromPlan, taskSpecFromRun, productPhaseForTool, productToolTitle, advancePlaytest, observationArtifacts, evaluationResult, repairRequest, taskAccountingProjection } from './task-acceptance.js';
 import { queryRetainedOperationEvents } from './retained-events.js';
 import { compareExecutionGraphs } from '@haiyue/ai-studio-shell/conversation';
-import { queryAllowancePrompt, queryRequestDescription, approvalContent, presentationDigest, intentLogPayload, localCompactionSummary, questionOptions, terminalStatus, completionSummary, boundedJson, projectToolModelResult, toolArgumentSummary, toolResultSummary } from './conversation-presentation.js';
-import { asStableId, type AgentTurnConfigV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type ObservationArtifactV2, type StableId, type TaskBudgetV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
+import { queryAllowancePrompt, queryRequestDescription, approvalContent, presentationDigest, intentLogPayload, localCompactionSummary, questionOptions, terminalStatus, completionSummary, boundedJson, projectToolModelResult, compactNativeToolSchemas, toolArgumentSummary, toolResultSummary } from './conversation-presentation.js';
+import { asStableId, isSubtaskSelectionV1, isPlanTaskV1, type PlanTaskV1, type AgentTurnConfigV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type ObservationArtifactV2, type StableId, type TaskBudgetV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
 import { M12_DEFAULT_PRICING_CATALOG, type AgentBackend, type AgentBackendEvent, type AgentLoginHandoff, type AgentRuntimeService, type AgentTurnInput, type BackendSessionAdapter, type BudgetDecision, type CompactionSummaryRequestV1, type ContextCompactionRuntime, type ContextProjectSnapshot, type DurableSessionHandle, type PromptProfileSnapshot, type SessionReplaySnapshotV1, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
-import { BoundedPlaytestTask, GameToolProtocolError, MODEL_TOOL_INVOKE_DEFINITION, PlaytestLoopError, RollingToolBatchScheduler, isProjectIndependentRead, normalizeToolBatchRequest, resolveModelToolInvocation, type GameAuthoringToolService, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult, type LegacyToolRequest, type RollingToolWorkResult, type ToolBatchDiagnostic, type ToolBatchNodeStatus } from '@haiyue/ai-studio-game-authoring-tools';
+import { BoundedPlaytestTask, GameToolProtocolError, MODEL_TOOL_BATCH_DEFINITION, resolveClosedToolBatch, MODEL_TOOL_INVOKE_DEFINITION, PlaytestLoopError, RollingToolBatchScheduler, isProjectIndependentRead, normalizeToolBatchRequest, resolveModelToolInvocation, type GameAuthoringToolService, type GameToolApproval, type GameToolApprovalResolution, type GameToolPreparation, type GameToolResult, type LegacyToolRequest, type RollingToolWorkResult, type ToolBatchDiagnostic, type ToolBatchNodeStatus } from '@haiyue/ai-studio-game-authoring-tools';
 import { canonicalStringify, redactObject, sha256, type ConversationOperationLog } from '@haiyue/ai-studio-operation-log';
 import { normalizeConversationNode, normalizeTaskAccounting, normalizeTaskRun, projectExecutionGraph, validateConversationIntent, type ConversationBackendReadModel, type ConversationNodeReadModel, type ConversationProjectionEvent, type ConversationReplaySnapshot, type ConversationTaskAcceptanceReadModel, type ConversationTaskAccountingReadModel, type ConversationTaskEvidenceReadModel, type ConversationTaskPhase, type ConversationTaskRunReadModel, type ExecutionGraphReadModel } from '@haiyue/ai-studio-shell/conversation';
 import { migrateLegacySessions } from './legacy-session-migration.js';
@@ -58,7 +59,7 @@ interface PendingPlan {
   readonly turnId: StableId;
   readonly title: string;
   readonly summary: string;
-  readonly items: readonly Readonly<{ id: StableId; label: string; details?: string }>[];
+  readonly items: readonly Readonly<{ id: StableId; label: string; details?: string; execution?: PlanTaskV1 }>[];
   readonly acceptance: readonly PlanAcceptanceProposal[];
   readonly assemblies?: readonly JsonObject[];
   readonly resolve: (result: JsonObject) => void;
@@ -109,6 +110,9 @@ interface ActiveToolBatch {
   readonly sessionId: StableId;
   readonly turnId: StableId;
   readonly startedAtMs: number;
+  readonly sourceBatchId: string | null;
+  readonly closedNodes: readonly ToolBatchNodeV1[] | null;
+  readonly dependencyOpIds: Map<string, StableId>;
   readonly calls: LegacyToolRequest[];
   readonly contexts: Map<StableId, ToolExecutionContext>;
   readonly bodies: HostToolBody[];
@@ -142,6 +146,11 @@ export interface ConversationHostOptions {
   /** Best-effort local retrieval refresh. Failure degrades to exact context and must never block a turn. */
   readonly prepareKnowledge?: (project: ContextProjectSnapshot | null, signal?: AbortSignal) => Promise<void>;
   readonly knowledgeRefreshTimeoutMs?: number;
+  /** Disable W4 result deduplication without changing execution or approval policy. */
+  readonly compactToolResults?: boolean;
+  readonly batchTextWrites?: boolean;
+  /** W7 is absent/default-off until composition supplies a qualified isolated provider port. */
+  readonly subtasks?: SubtaskOptions;
   readonly queryLimits?: () => QueryLimits;
   readonly sessionRecovery?: Readonly<{ recover(handle: DurableSessionHandle, claimId?: StableId): Promise<unknown> }>;
   readonly openLoginHandoff?: (backendId: StableId, handoff: AgentLoginHandoff) => Promise<void>;
@@ -178,9 +187,16 @@ export class StudioConversationHost {
   private disposed = false;
   private stopping = false;
   private disposeResult: Promise<void> | null = null;
+  private readonly recoveredSubtaskTasks = new Set<StableId>();
+  private subtaskReceiptTaskId: StableId | null = null;
+  private readonly subtaskReceipts = new Map<string, Promise<JsonObject>>();
   private readonly pendingWork = new Set<Promise<unknown>>();
   private latestTaskId: StableId | null = null;
   private budgetTemplate: TaskBudgetV2 = DEFAULT_TASK_BUDGET;
+  private readonly pendingTextProjections = new Map<StableId, Readonly<{ node: ConversationNodeReadModel; rawContent: JsonObject }>>();
+  private textProjectionTimer: ReturnType<typeof setTimeout> | null = null;
+  private textProjectionBytes = 0;
+  private textProjectionWriteTail: Promise<void> | null = null;
   private projectionWriteTail: Promise<void> = Promise.resolve();
   private projectionPersistenceFailure: unknown = null;
   private readonly durableSessions = new Map<StableId, Promise<DurableSessionHandle>>();
@@ -211,6 +227,7 @@ export class StudioConversationHost {
   }
 
   async flushRecords(): Promise<void> {
+    this.flushTextProjections();
     await this.projectionWriteTail;
     if (this.projectionPersistenceFailure) throw new AggregateError([this.projectionPersistenceFailure], 'Conversation record persistence failed.');
   }
@@ -222,6 +239,10 @@ export class StudioConversationHost {
     this.listeners.add(listener);
     let active = true;
     return Object.freeze({ dispose: () => { if (active) { active = false; this.listeners.delete(listener); } } });
+  }
+
+  previewTasks(): readonly Pick<ConversationTaskRunReadModel, 'taskId' | 'status' | 'phase' | 'backendId' | 'sessionId' | 'turnId' | 'acceptance' | 'timeline'>[] {
+    return [...this.taskRuns.values()].slice(-50).map(({ taskId, status, phase, backendId, sessionId, turnId, acceptance, timeline }) => ({ taskId, status, phase, backendId, sessionId, turnId, acceptance, timeline: timeline.slice(-12) }));
   }
 
   replay(): ConversationReplaySnapshot {
@@ -371,6 +392,7 @@ export class StudioConversationHost {
     this.manualCompactors.clear();
     this.capturedContextTurns.clear();
     this.listeners.clear();
+    this.flushTextProjections();
     this.disposed = true;
     await this.projectionWriteTail;
     await Promise.allSettled([...this.durableSessions.values()].map(async (handle) => (await handle).dispose()));
@@ -559,6 +581,7 @@ export class StudioConversationHost {
     const initialProgressNodeId = this.nextNodeId('progress');
     const priorTaskId = this.options.runtime.usage.get(turnId)?.snapshot().taskId ?? [...this.taskRuns.values()].find((item) => item.sessionId === sessionId && item.turnId === turnId)?.taskId;
     const taskId = priorTaskId ?? asStableId(`task:resume:${this.nodeSequence + 1}`); const config = this.turnConfig(backendId, taskId);
+    this.recoveredSubtaskTasks.add(taskId);
     const existingAccount = this.options.runtime.accounting.get(taskId);
     const budget = Object.freeze({ ...this.budgetTemplate, id: config.taskBudgetId, limits: Object.freeze({ ...this.budgetTemplate.limits }) });
     const account = existingAccount ?? this.options.runtime.accounting.open({ taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
@@ -607,6 +630,7 @@ export class StudioConversationHost {
     try {
       for await (const event of stream) {
         lastCoordinates = Object.freeze({ sessionId: event.sessionId, turnId: event.turnId });
+        if (event.kind !== 'conversation-node') await this.flushTextRecords();
         await this.ensureSessionTurnStarted(event);
         if (signal.aborted && event.kind !== 'usage' && event.kind !== 'completed') continue;
         if (this.active) {
@@ -617,8 +641,20 @@ export class StudioConversationHost {
           this.active.account.bindTurn(event.turnId, { provider: backend.descriptor.kind === 'harness-api-key' ? 'deepseek' : 'openai', model, billingMode: backend.descriptor.kind === 'harness-api-key' ? 'api' : 'subscription' });
           if (this.active.approvedPlan) this.approvedPlanTurns.add(turnKey(event.sessionId, event.turnId));
         }
+        if (!signal.aborted && event.kind === 'tool-request' && event.payload.toolId === SUBTASK_TOOL.id) {
+          if (batch) { await this.drainToolBatch(batch); batch = null; }
+          await this.publishAssistantSegment(event.sessionId, event.turnId);
+          await this.executeSubtasks(backend, event, signal);
+          continue;
+        }
+        if (!signal.aborted && event.kind === 'tool-request' && event.payload.toolId === MODEL_TOOL_BATCH_DEFINITION.id) {
+          if (batch) { await this.drainToolBatch(batch); batch = null; }
+          await this.publishAssistantSegment(event.sessionId, event.turnId);
+          await this.executeClosedBatch(backend, event, signal);
+          continue;
+        }
         if (!signal.aborted && event.kind === 'tool-request') {
-          if (!batch || batch.sessionId !== event.sessionId || batch.turnId !== event.turnId) {
+          if (!batch || batch.sessionId !== event.sessionId || batch.turnId !== event.turnId || batch.sourceBatchId !== (event.payload.batchId ?? null)) {
             if (batch) await this.drainToolBatch(batch);
             await this.publishAssistantSegment(event.sessionId, event.turnId);
             batch = this.createToolBatch(backend, event, signal);
@@ -626,7 +662,9 @@ export class StudioConversationHost {
           this.enqueueTool(batch, event, signal);
           continue;
         }
-        if (batch) { await this.drainToolBatch(batch); batch = null; }
+        if (batch && !(batch.sourceBatchId && (event.kind === 'conversation-node' || event.kind === 'usage'))) { await this.drainToolBatch(batch); batch = null; }
+        if (event.kind === 'status' && typeof event.payload.requestId === 'string') await this.captureSessionContextFrame(event);
+        if (event.kind === 'status' && typeof event.payload.confirmedRequestId === 'string') await this.confirmRequestSurface(event);
         if (!signal.aborted) await this.captureEvent(backend, event, signal);
         else if (event.kind === 'completed') await this.commitContext(event, terminalStatus(event.payload.status));
         if (event.kind === 'completed') await this.finalizeSessionTurn(event.sessionId, event.turnId, terminalStatus(event.payload.status), event.payload);
@@ -642,6 +680,7 @@ export class StudioConversationHost {
         if (!streamFailed) { streamFailed = true; throw cause; }
         await this.options.operationLog.append({ kind: 'conversation/batch-cleanup-failed', severity: 'error', source: asStableId('studio.conversation-host'), correlation: lastCoordinates ?? {}, payload: { code: errorCode(cause), message: errorMessage(cause) } }).catch(() => undefined);
       } finally {
+        await this.flushTextRecords();
         if (!streamFailed && lastCoordinates && !this.finalizedSessionTurns.has(turnKey(lastCoordinates.sessionId, lastCoordinates.turnId))) await this.finalizeSessionTurn(lastCoordinates.sessionId, lastCoordinates.turnId, 'interrupted').catch(() => undefined);
       }
     }
@@ -782,20 +821,131 @@ export class StudioConversationHost {
     return true;
   }
 
-  private createToolBatch(backend: AgentBackend, event: AgentBackendEvent, signal: AbortSignal): ActiveToolBatch {
+  private async executeSubtasks(backend: AgentBackend, event: AgentBackendEvent, signal: AbortSignal): Promise<void> {
+    const active = this.active;
+    if (!active) throw new Error('No active parent task for delegation.');
+    if (this.subtaskReceiptTaskId !== active.taskId) { this.subtaskReceipts.clear(); this.subtaskReceiptTaskId = active.taskId; }
+    const callId = stablePayloadId(event.payload.toolCallId, 'subtask tool call');
+    assertBudgetAllowed(active.account.preflightTool(callId));
+    assertBudgetAllowed(active.account.commitTool(callId));
+    const handle = await this.ensureDurableSession(event.sessionId);
+    const nodeId = asStableId(`node:${sha256(callId)}`);
+    await handle.append({ kind: 'tool.started', turnId: event.turnId, nodeId, payload: { toolCallId: callId, toolId: SUBTASK_TOOL.id, candidateOnly: true } });
+    let resultArtifactId: StableId | null = null;
+    try {
+      const project = this.options.projectContext?.();
+      const revision = (): number | null => {
+        const current = this.options.projectContext?.();
+        return current && current.documentId === project?.documentId && current.projectId === project?.projectId ? current.revision : null;
+      };
+      const key = sha256(canonicalStringify({ taskId: active.taskId, backendId: event.backendId, model: active.config.model, projectId: project?.projectId ?? null, documentId: project?.documentId ?? null, revision: revision(), selection: isSubtaskSelectionV1(event.payload.arguments) ? { schemaVersion: 1, taskIds: [...event.payload.arguments.taskIds].sort() } : event.payload.arguments ?? null, plan: active.approvedPlan?.items.map(item => ({ id: item.id, label: item.label, details: item.details ?? '', execution: item.execution ?? null })) as unknown as JsonObject[] ?? [] }));
+      let work = this.subtaskReceipts.get(key);
+      if (!work) {
+        work = this.subtaskReceipts.size >= 32 ? Promise.resolve({ status: 'not-delegated', reason: 'receipt-capacity' }) : runSubtasks(this.recoveredSubtaskTasks.has(active.taskId) ? undefined : this.options.subtasks, {
+          selection: event.payload.arguments, approved: active.approvedPlan?.items ?? [], backendId: event.backendId, model: active.config.model,
+          sessionId: event.sessionId, turnId: event.turnId, callId, account: active.account, revision, signal,
+          audit: async (kind, payload) => {
+            const artifact = await this.options.operationLog.putArtifact(payload, { schemaVersion: 'subtask-record/1' });
+            await this.options.operationLog.append({ kind: `conversation/subtask-${kind}`, severity: 'info', source: asStableId('studio.conversation-host'),
+              correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId: callId }, payload: { taskId: active.taskId, artifactId: artifact.id }, artifactRefs: [artifact.id] });
+          },
+        }).catch(async () => {
+          await this.options.operationLog.append({ kind: 'conversation/subtask-failed', severity: 'warning', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId: callId }, payload: { code: 'subtask.failed-or-cancelled', retryAutomatically: false } });
+          return { status: 'failed', reason: 'subtask.failed-or-cancelled', instruction: 'No candidate was applied. Continue in the parent; do not automatically repeat child requests.' };
+        });
+        this.subtaskReceipts.set(key, work);
+      }
+      const result = await work;
+      signal.throwIfAborted();
+      const artifact = await this.options.operationLog.putArtifact(result, { schemaVersion: 'subtask-result/1' });
+      resultArtifactId = artifact.id;
+      await this.options.operationLog.append({ kind: 'conversation/subtask-result', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId: callId }, payload: { taskId: active.taskId, artifactId: artifact.id, candidateOnly: true }, artifactRefs: [artifact.id] });
+      signal.throwIfAborted();
+      if (revision() !== (project?.revision ?? null)) throw new Error('Subtask context changed before delivery.');
+      await backend.submitToolResult(callId, result, signal);
+      await this.options.runtime.turns.recordToolResult(event.turnId, callId, result);
+      await handle.append({ kind: 'tool.completed', turnId: event.turnId, nodeId, payload: { toolCallId: callId, toolId: SUBTASK_TOOL.id, status: result.status ?? 'failed', candidateOnly: true, resultArtifactId: artifact.id } });
+      await this.recordTaskAccounting(active.account, event.sessionId, event.turnId);
+    } catch (cause) {
+      await handle.append({ kind: 'tool.outcome-unknown', turnId: event.turnId, nodeId, payload: { toolCallId: callId, toolId: SUBTASK_TOOL.id, code: 'subtask.delivery-unknown', candidateOnly: true, resultArtifactId } });
+      await this.options.runtime.turns.cancel(event.backendId, event.sessionId, event.turnId).catch(() => undefined);
+      throw cause;
+    }
+  }
+
+  /** The envelope owns no editor effect lock. Every member enters the ordinary Host execution path. */
+  private async executeClosedBatch(backend: AgentBackend, event: AgentBackendEvent, signal: AbortSignal): Promise<void> {
+    const outerCallId = stablePayloadId(event.payload.toolCallId, 'batch tool call');
+    let closed: ReturnType<typeof resolveClosedToolBatch>;
+    try {
+      closed = resolveClosedToolBatch(event.payload.arguments, { id: `batch:${sha256(`${event.sessionId}:${event.turnId}:${outerCallId}`)}`, sessionId: event.sessionId, turnId: event.turnId }, this.options.tools.definitions());
+    } catch (cause) {
+      // Even invalid envelopes consume one attempt; valid envelopes account each actual member.
+      const account = this.active?.account;
+      if (account) { assertBudgetAllowed(account.preflightTool(outerCallId)); assertBudgetAllowed(account.commitTool(outerCallId)); }
+      await this.options.operationLog.append({ kind: 'conversation/tool-failed', severity: 'error', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId: outerCallId }, payload: { toolId: MODEL_TOOL_BATCH_DEFINITION.id, stage: 'batch-admission', code: errorCode(cause), message: errorMessage(cause) } });
+      const failure = { status: 'failed', error: { code: errorCode(cause), message: errorMessage(cause) } };
+      await backend.submitToolResult(outerCallId, failure, signal);
+      await this.options.runtime.turns.recordToolResult(event.turnId, outerCallId, failure);
+      return;
+    }
+    const results = new Map<string, JsonObject>();
+    const memberBackend = Object.create(backend) as AgentBackend;
+    memberBackend.submitToolResult = async (id, result) => { results.set(id, result); };
+    const handle = await this.ensureDurableSession(event.sessionId);
+    const batch = this.createToolBatch(memberBackend, event, signal, closed);
+    try {
+      await handle.append({ kind: 'tool-batch.planned', turnId: event.turnId, batchId: batch.id,
+        payload: { protocol: 'closed-tool-batch/1', outerCallId, closed: true, schedule: closed.schedule as unknown as JsonValue } });
+      await handle.append({ kind: 'tool.started', turnId: event.turnId, batchId: batch.id, nodeId: asStableId(`node:${sha256(outerCallId)}`), payload: { toolCallId: outerCallId, toolId: MODEL_TOOL_BATCH_DEFINITION.id, transportOnly: true } });
+      await batch.startTail;
+      const pending = new Set(closed.request.nodes);
+      while (pending.size) {
+        let advanced = false;
+        for (const node of pending) if (node.dependsOn.every(id => batch.dependencyOpIds.has(id))) {
+          await this.appendToolPlan(batch, node); pending.delete(node); advanced = true;
+        }
+        if (!advanced) throw new GameToolProtocolError('tool-batch.dependency-unrecorded', 'Could not durably admit the complete dependency graph.');
+      }
+      for (const node of closed.request.nodes) this.enqueueTool(batch, { ...event, payload: {
+        toolCallId: node.toolCallId, toolId: node.toolId, toolVersion: node.toolVersion, arguments: node.arguments,
+        dependsOn: node.dependsOn, onFailure: node.onFailure,
+      } }, signal, node);
+    } finally { await this.drainToolBatch(batch); }
+    const value: JsonObject = { schemaVersion: 1, batchId: batch.id, closed: true, schedule: closed.schedule as unknown as JsonValue,
+      results: closed.members.map(member => ({ id: member.id, toolCallId: member.toolCallId, result: results.get(member.toolCallId) ?? { status: 'cancelled' } })),
+    };
+    try {
+      await backend.submitToolResult(outerCallId, value, signal.aborted ? undefined : signal);
+      await this.options.runtime.turns.recordToolResult(event.turnId, outerCallId, value);
+      if (this.active) await this.recordTaskAccounting(this.active.account, event.sessionId, event.turnId);
+      await handle.append({ kind: 'tool.completed', turnId: event.turnId, batchId: batch.id, nodeId: asStableId(`node:${sha256(outerCallId)}`),
+        payload: { toolCallId: outerCallId, toolId: MODEL_TOOL_BATCH_DEFINITION.id, transportOnly: true, status: 'completed', delivery: 'confirmed', resultDigest: sha256(canonicalStringify(value)) } });
+      if (batch.bodies.some(body => body.cancelTurnAfterCommit)) await this.options.runtime.turns.cancel(event.backendId, event.sessionId, event.turnId).catch(() => undefined);
+    } catch (cause) {
+      // Member receipts remain authoritative after an ambiguous outer delivery. Recovery must not replay edits.
+      await handle.append({ kind: 'tool.outcome-unknown', turnId: event.turnId, batchId: batch.id, nodeId: asStableId(`node:${sha256(outerCallId)}`),
+        payload: { toolCallId: outerCallId, toolId: MODEL_TOOL_BATCH_DEFINITION.id, code: 'tool-batch.delivery-unknown', memberCallIds: closed.members.map(member => member.toolCallId), message: errorMessage(cause) } });
+      await this.options.runtime.turns.cancel(event.backendId, event.sessionId, event.turnId).catch(() => undefined);
+      throw cause;
+    }
+  }
+
+  private createToolBatch(backend: AgentBackend, event: AgentBackendEvent, signal: AbortSignal, closed?: ReturnType<typeof resolveClosedToolBatch>): ActiveToolBatch {
     this.toolBatchSequence += 1;
-    const id = asStableId(`batch:${event.turnId}:${this.toolBatchSequence}`);
+    const id = closed ? asStableId(closed.request.id) : asStableId(`batch:${event.turnId}:${this.toolBatchSequence}`);
     const contexts = new Map<StableId, ToolExecutionContext>();
     const scheduler = new RollingToolBatchScheduler<HostToolWork>({
-      maxNodes: 64, maxConcurrency: 4, maxWallTimeMs: 60_000, signal,
+      maxNodes: 64, maxConcurrency: closed?.request.maxConcurrency ?? 4, maxWallTimeMs: 60_000, signal,
       cancelled: (node, diagnostic) => Object.freeze({ status: 'cancelled', value: this.cancelledToolBody(contexts.get(asStableId(node.id)), diagnostic) }),
     });
-    const batch: ActiveToolBatch = { id, backend, sessionId: event.sessionId, turnId: event.turnId, startedAtMs: Date.now(), calls: [], contexts, bodies: [], scheduler, transactionGroup: null, transactionTail: null, startTail: Promise.resolve(), commitTail: Promise.resolve(), drain: null, outputBytes: 0 };
+    if (closed) scheduler.declare(closed.request);
+    const batch: ActiveToolBatch = { sourceBatchId: typeof event.payload.batchId === 'string' ? event.payload.batchId : null, closedNodes: closed?.request.nodes ?? null, dependencyOpIds: new Map(), id, backend, sessionId: event.sessionId, turnId: event.turnId, startedAtMs: Date.now(), calls: [], contexts, bodies: [], scheduler, transactionGroup: null, transactionTail: null, startTail: Promise.resolve(), commitTail: Promise.resolve(), drain: null, outputBytes: 0 };
     batch.startTail = this.startToolBatchSession(batch);
     return batch;
   }
 
-  private enqueueTool(batch: ActiveToolBatch, event: AgentBackendEvent, signal: AbortSignal): void {
+  private enqueueTool(batch: ActiveToolBatch, event: AgentBackendEvent, signal: AbortSignal, admittedNode?: ToolBatchNodeV1): void {
     const toolCallId = stablePayloadId(event.payload.toolCallId, 'tool call');
     let toolId = stablePayloadId(event.payload.toolId, 'tool');
     let args = isRecord(event.payload.arguments) ? event.payload.arguments as JsonObject : Object.freeze({});
@@ -816,21 +966,20 @@ export class StudioConversationHost {
       ...(event.payload.onFailure === 'stop-batch' ? { onFailure: 'stop-batch' as const } : {}),
     });
     batch.calls.push(call);
-    const request = normalizeToolBatchRequest({ id: batch.id, sessionId: batch.sessionId, turnId: batch.turnId, calls: batch.calls, maxConcurrency: 4, maxResultBytes: 1024 * 1024 }, this.options.tools.definitions());
-    const node = request.nodes.at(-1)!;
+    const request = admittedNode ? null : normalizeToolBatchRequest({ id: batch.id, sessionId: batch.sessionId, turnId: batch.turnId, calls: batch.calls, maxConcurrency: 4, maxResultBytes: 1024 * 1024 }, this.options.tools.definitions());
+    const node = admittedNode ?? request!.nodes.at(-1)!;
     const provenance = Object.freeze({ backendId: event.backendId, sessionId: event.sessionId, turnId: event.turnId, stepId: toolCallId });
     const toolNodeId = this.nextNodeId('tool-call');
     const context: ToolExecutionContext = Object.freeze({ backend: batch.backend, event, toolCallId, toolId, args, provenance, toolNodeId, node, ...(invocationError ? { invocationError } : {}) });
     batch.contexts.set(asStableId(node.id), context);
     this.project(toolNodeId, 'tool-call', 'pending', provenance, Object.freeze({ toolCallId, toolId, executionClass: node.executionClass, argumentsSummary: toolArgumentSummary(toolId, args), ...(this.options.recordProjectId ? { parameters: args } : {}) }));
     const dispatched = batch.startTail.then(async () => {
-      const handle = await this.ensureDurableSession(batch.sessionId);
-      await handle.append({ kind: 'tool-batch.planned', turnId: batch.turnId, batchId: batch.id, nodeId: node.id, dependsOn: node.dependsOn, projectRevision: this.options.projectContext?.()?.revision ?? null,
-        payload: Object.freeze({ profile: 'tool-node-plan/1', toolCallId, toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, effects: node.effects, effectKeys: node.effectKeys, expectedRevision: node.expectedRevision }) });
+      if (!batch.closedNodes) await this.appendToolPlan(batch, node);
       await this.appendToolSessionOp(batch, context, 'tool.started', Object.freeze({ toolCallId, toolId, toolVersion: node.toolVersion, executionClass: node.executionClass, effects: node.effects, effectKeys: node.effectKeys, expectedRevision: node.expectedRevision, ...(invokedVia ? { invokedVia } : {}) }));
     });
     batch.startTail = dispatched;
-    const transactionEligible = node.executionClass === 'exclusive-mutation' && typeof this.options.tools.executeTransaction === 'function';
+    const transactionEligible = node.executionClass === 'exclusive-mutation' && typeof this.options.tools.executeTransaction === 'function'
+      && (!batch.closedNodes || node.dependsOn.length === 0 && node.onFailure !== 'stop-batch' && !batch.closedNodes.some(member => member.dependsOn.includes(node.id)));
     let group: BatchTransactionGroup | null = null;
     if (transactionEligible) {
       group = batch.transactionGroup ?? { id: asStableId(`transaction-group:${batch.id}:${batch.calls.length}`), entries: [], flush: null };
@@ -841,15 +990,17 @@ export class StudioConversationHost {
     }
     const precedingTransaction = batch.transactionTail;
     const work = batch.scheduler.enqueue(node, async (batchSignal): Promise<RollingToolWorkResult<HostToolWork>> => {
-      await dispatched;
+      // Closed graphs share one durable dispatch fence, avoiding serial journal latency between independent bodies.
+      await (batch.closedNodes ? batch.startTail : dispatched);
       if (precedingTransaction && !isProjectIndependentRead(node)) await precedingTransaction;
       if (batchSignal.aborted) return Object.freeze({ status: 'cancelled', value: this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.cancelled', message: 'Tool batch was cancelled before execution.', retryable: true })) });
+      if (this.active?.suspendedBarrierId) return Object.freeze({ status: 'cancelled', value: this.cancelledToolBody(context, { code: 'barrier.waiting-user', message: 'An earlier member opened a durable user checkpoint.', retryable: true }), stopBatch: true });
       if (group) {
         const prepared = await this.prepareMutationWork(context, group, batchSignal);
-        return Object.freeze({ status: isPreparedMutationWork(prepared) ? 'completed' : prepared.status, value: prepared });
+        return Object.freeze({ status: isPreparedMutationWork(prepared) ? 'completed' : prepared.status, value: prepared, stopBatch: !isPreparedMutationWork(prepared) && prepared.cancelTurnAfterCommit });
       }
       const body = await this.executeToolBody(context, batchSignal);
-      return Object.freeze({ status: body.status, value: body });
+      return Object.freeze({ status: body.status, value: body, stopBatch: body.cancelTurnAfterCommit });
     });
     if (group) group.entries.push(Object.freeze({ context, work }));
     batch.commitTail = batch.commitTail.then(async () => {
@@ -891,9 +1042,27 @@ export class StudioConversationHost {
     await handle.append({ kind: 'tool-batch.started', turnId: batch.turnId, batchId: batch.id, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: Object.freeze({ limits }) });
   }
 
+  private toolDependencyOps(batch: ActiveToolBatch, node: ToolBatchNodeV1): readonly StableId[] {
+    return node.dependsOn.map(id => {
+      const opId = batch.dependencyOpIds.get(id);
+      if (!opId) throw new GameToolProtocolError('tool-batch.dependency-unrecorded', 'A prerequisite must be durably planned before dependent work.');
+      return opId;
+    });
+  }
+
+  private async appendToolPlan(batch: ActiveToolBatch, node: ToolBatchNodeV1): Promise<void> {
+    const handle = await this.ensureDurableSession(batch.sessionId);
+    const snapshot = await handle.append({ kind: 'tool-batch.planned', turnId: batch.turnId, batchId: batch.id, nodeId: node.id,
+      dependsOn: this.toolDependencyOps(batch, node), projectRevision: this.options.projectContext?.()?.revision ?? null,
+      payload: { profile: 'tool-node-plan/1', toolCallId: node.toolCallId, toolId: node.toolId, toolVersion: node.toolVersion,
+        executionClass: node.executionClass, effects: node.effects, effectKeys: node.effectKeys, expectedRevision: node.expectedRevision, dependsOnNodeIds: node.dependsOn } });
+    const opId = snapshot?.ops?.at(-1)?.id;
+    if (opId) batch.dependencyOpIds.set(node.id, asStableId(opId));
+  }
+
   private async appendToolSessionOp(batch: ActiveToolBatch, context: ToolExecutionContext, kind: 'tool.started' | 'tool.completed' | 'tool.outcome-unknown', payload: JsonObject): Promise<void> {
     const handle = await this.ensureDurableSession(batch.sessionId);
-    await handle.append({ kind, turnId: batch.turnId, batchId: batch.id, nodeId: context.node.id, dependsOn: context.node.dependsOn, projectRevision: this.options.projectContext?.()?.revision ?? null, payload });
+    await handle.append({ kind, turnId: batch.turnId, batchId: batch.id, nodeId: context.node.id, dependsOn: this.toolDependencyOps(batch, context.node), projectRevision: this.options.projectContext?.()?.revision ?? null, payload });
   }
 
   private ensureDurableSession(sessionId: StableId): Promise<DurableSessionHandle> {
@@ -1052,8 +1221,34 @@ export class StudioConversationHost {
     });
   }
 
+  private async confirmRequestSurface(event: AgentBackendEvent): Promise<void> {
+    const page = await this.options.operationLog.query({ kinds: ['agent/model-request-confirmed'], sessionId: event.sessionId, turnId: event.turnId, limit: 200, traverseCorrelation: false });
+    const record = page.events.find(e => e.payload.requestId === event.payload.confirmedRequestId);
+    if (typeof record?.payload.summaryArtifactId !== 'string') return;
+    const artifact = await this.options.operationLog.readArtifact(asStableId(record.payload.summaryArtifactId));
+    const content = (artifact.value as { content?: unknown }).content;
+    if (typeof content !== 'string') throw new Error('Confirmed provider context summary is invalid.');
+    const handle = await this.ensureDurableSession(event.sessionId);
+    if (!isCompleteDurableSessionHandle(handle)) return;
+    const snapshot = await handle.snapshot();
+    if (snapshot.recovery.openToolNodeIds.length || snapshot.recovery.openBatchIds.length || snapshot.recovery.unresolvedBarrierIds.length) throw new Error('Provider context confirmation crossed an unresolved boundary.');
+    if (!snapshot.surface.nodes.length) return;
+    let compactor = this.manualCompactors.get(event.sessionId);
+    if (!compactor) {
+      compactor = this.options.runtime.modelContexts.createCompactor(async request => ({ summary: localCompactionSummary(request) }));
+      this.manualCompactors.set(event.sessionId, compactor);
+    }
+    const prepared = artifact.value as unknown as { before: import('@haiyue/ai-studio-contracts').ContextPressureV1; reason: 'manual' | 'automatic-threshold' };
+    await compactor.publishRequest(event.sessionId, { requestId: asStableId(String(event.payload.confirmedRequestId)), summary: content, before: prepared.before,
+      after: record.payload.pressure as unknown as import('@haiyue/ai-studio-contracts').ContextPressureV1, reason: prepared.reason });
+    this.captureGraphSnapshot(await handle.snapshot(), true);
+  }
+
   private async captureSessionContextFrame(event: AgentBackendEvent): Promise<void> {
-    const key = turnKey(event.sessionId, event.turnId);
+    const perRequest = this.options.runtime.registry.get(event.backendId).requestContextMode === 'per-request';
+    const requestId = typeof event.payload.requestId === 'string' ? event.payload.requestId : null;
+    if (perRequest && !requestId) return;
+    const key = requestId ?? turnKey(event.sessionId, event.turnId);
     if (this.capturedContextTurns.has(key)) return;
     const frames = this.options.runtime.modelContexts?.frames;
     if (!frames) return;
@@ -1061,7 +1256,18 @@ export class StudioConversationHost {
     const binding = [...snapshot.session.backendBindings].reverse().find((item) => item.backendId === event.backendId && item.status === 'active');
     if (!binding) return;
     try {
+      let actualRequest: import('@haiyue/ai-studio-agent-runtime').CaptureContextFrameInput['actualRequest'];
+      if (requestId) {
+        const page = await this.options.operationLog.query({ kinds: ['agent/model-request-prepared'], sessionId: event.sessionId, turnId: event.turnId, limit: 200, traverseCorrelation: false });
+        const record = page.events.find(e => e.payload.requestId === requestId);
+        if (!record || typeof record.payload.contextArtifactId !== 'string') throw new Error('Actual request evidence is missing.');
+        const artifact = await this.options.operationLog.readArtifact(asStableId(record.payload.contextArtifactId));
+        const pressure = record.payload.pressure as { usedInputTokens?: number };
+        if (!Number.isSafeInteger(pressure?.usedInputTokens)) throw new Error('Actual request measurement is invalid.');
+        actualRequest = { artifactId: artifact.id, digest: `sha256:${artifact.digest}`, estimatedTokens: pressure.usedInputTokens! };
+      }
       await frames.capture({
+        ...(actualRequest ? { actualRequest } : {}),
         sessionId: event.sessionId,
         turnId: event.turnId,
         backendBindingId: binding.bindingId,
@@ -1127,6 +1333,7 @@ export class StudioConversationHost {
     this.captureGraphSnapshot(await handle.snapshot(), true);
     await this.options.operationLog.append({ kind: 'conversation/manual-compaction-finished', severity: result.status === 'failed' ? 'error' : result.status === 'deferred' ? 'warning' : 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId }, payload: { requestId, status: result.status, compactionId: result.compactionId, decision: result.preview.decision, beforeRatio: result.preview.pressure.ratio, afterRatio: result.record?.after?.ratio ?? null } }, { signal });
     if (result.status !== 'completed') throw new Error(`Context compaction ${result.status}: ${result.preview.decision}.`);
+    if (result.record?.summaryArtifactId) await this.options.runtime.context.rememberManualSurface(sessionId, asStableId(result.record.summaryArtifactId));
   }
 
   private unpublishedAssistantText(sessionId: StableId, turnId: StableId): string {
@@ -1378,7 +1585,19 @@ export class StudioConversationHost {
   }
 
   private async commitToolBody(batch: ActiveToolBatch, context: ToolExecutionContext, original: HostToolBody, signal: AbortSignal): Promise<HostToolBody> {
-    let body = context.node.outputProjection === 'full' ? original : Object.freeze({ ...original, backendResult: projectToolModelResult(original.backendResult, context.node.outputProjection) });
+    let body = context.node.outputProjection === 'full' ? original : Object.freeze({ ...original, backendResult: projectToolModelResult(original.backendResult, context.node.outputProjection, context.toolId) });
+    if (this.options.compactToolResults !== false) {
+      const compacted = compactNativeToolSchemas(body.backendResult, context.toolId, this.active?.tools ?? []);
+      // Do not spend extra artifacts/bytes for a reduction smaller than its receipt.
+      if (compacted !== body.backendResult && Buffer.byteLength(canonicalStringify(body.backendResult)) - Buffer.byteLength(canonicalStringify(compacted)) > 512) {
+        const artifact = await this.options.operationLog.putArtifact(original.backendResult, { schemaVersion: 'tool-model-result/1' });
+        const projected = Object.freeze({ ...compacted, artifactRef: { id: artifact.id, digest: `sha256:${artifact.digest}`, bytes: artifact.bytes } });
+        await this.options.operationLog.append({ kind: 'agent/tool-result-projected', severity: 'info', source: asStableId('studio.conversation-host'),
+          correlation: { sessionId: context.event.sessionId, turnId: context.event.turnId, toolCallId: context.toolCallId },
+          payload: { toolId: context.toolId, projection: 'native-schema-deduplication', artifactId: artifact.id, originalBytes: Buffer.byteLength(canonicalStringify(original.backendResult)), projectedBytes: Buffer.byteLength(canonicalStringify(projected)) }, artifactRefs: [artifact.id] }, { signal });
+        body = Object.freeze({ ...body, backendResult: projected });
+      }
+    }
     if (body.status === 'failed') {
       const definition = this.options.tools.definitions().find(item => item.id === context.toolId && item.version === context.node.toolVersion);
       body = Object.freeze({ ...body, backendResult: Object.freeze({ ...body.backendResult, ...toolFailureFeedback(original.backendResult, definition) }) });
@@ -1394,7 +1613,7 @@ export class StudioConversationHost {
     }
     const transaction = transactionResultIdentity(original.backendResult);
     const nextBytes = Buffer.byteLength(canonicalStringify(body.backendResult));
-    if (batch.outputBytes + nextBytes > 1024 * 1024 && body.status === 'completed') body = this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.result-limit', message: 'Batch model-facing result limit exceeded.', retryable: false }), body.latencyMs, 'failed');
+    if (batch.outputBytes + nextBytes > (batch.closedNodes ? 768 * 1024 : 1024 * 1024) && body.status === 'completed') body = this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.result-limit', message: 'Batch model-facing result limit exceeded.', retryable: false }), body.latencyMs, 'failed');
     batch.outputBytes += Buffer.byteLength(canonicalStringify(body.backendResult));
     if (this.active && original.status === 'completed' && original.mutation && Number.isSafeInteger(original.backendResult.afterRevision)) {
       this.updateTaskRun(this.active.taskId, { documentRevision: original.backendResult.afterRevision as number });
@@ -1441,7 +1660,8 @@ export class StudioConversationHost {
     }
     this.project(context.toolNodeId, 'tool-call', body.toolCallStatus, context.provenance, this.executionContent(context, original, body.toolCallContent));
     this.project(this.nextNodeId('tool-result'), 'tool-result', body.resultStatus, context.provenance, this.executionContent(context, original, body.resultContent));
-    await this.options.runtime.turns.recordToolResult(context.event.turnId, context.toolCallId, body.backendResult);
+    // Closed members are internal results; count the actual provider envelope once, including its metadata.
+    if (!batch.closedNodes) await this.options.runtime.turns.recordToolResult(context.event.turnId, context.toolCallId, body.backendResult);
     const account = this.active?.account;
     if (account) await this.recordTaskAccounting(account, context.event.sessionId, context.event.turnId);
     const usageRecord = this.options.runtime.usage?.get(context.event.turnId)?.snapshot().record;
@@ -1458,7 +1678,7 @@ export class StudioConversationHost {
       summary: stringField(body.resultContent.summary, '工具调用已结束。').slice(0, 2048),
     }).value : {};
     await this.appendToolSessionOp(batch, context, 'tool.completed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, status: body.status, ...terminalDetail, latencyMs: body.latencyMs, outputBytes: Buffer.byteLength(canonicalStringify(body.backendResult)), resultDigest: sha256(canonicalStringify(body.backendResult)), ...(transaction ?? {}), ...(usageRecord ? { usageRecordId: usageRecord.id } : {}), ...(costRecord ? { costRecordId: costRecord.id, costAttribution: 'turn-shared' } : { costAttribution: 'unavailable' }) }));
-    if (body.cancelTurnAfterCommit) await this.options.runtime.turns.cancel(context.event.backendId, context.event.sessionId, context.event.turnId).catch(() => undefined);
+    if (body.cancelTurnAfterCommit && !batch.closedNodes) await this.options.runtime.turns.cancel(context.event.backendId, context.event.sessionId, context.event.turnId).catch(() => undefined);
     this.changed();
     return body;
   }
@@ -1623,11 +1843,11 @@ export class StudioConversationHost {
     const proposal = validatePlanProposal(args);
     const nodeId = this.nextNodeId('plan');
     const items = Object.freeze(proposal.items.map((item, index) => Object.freeze({
-      id: asStableId(`plan-item:${this.nodeSequence}:${index + 1}`), label: item.label, ...(item.details ? { details: item.details } : {}),
+      id: asStableId(`plan-item:${this.nodeSequence}:${index + 1}`), label: item.label, ...(item.details ? { details: item.details } : {}), ...(item.execution ? { execution: item.execution } : {}),
     })));
     const content = Object.freeze({
       taskId: this.active?.taskId ?? null, title: proposal.title, summary: proposal.summary, toolCallId, assemblies: proposal.assemblies as JsonValue,
-      items: Object.freeze(items.map((item) => Object.freeze({ ...item, status: 'pending' }))),
+      items: Object.freeze(items.map((item) => Object.freeze({ ...item, status: 'pending' }))) as unknown as JsonValue,
       acceptance: Object.freeze(proposal.acceptance.map((item) => Object.freeze({ ...item }))),
     });
     await this.requestQuestionBarrier({ sessionId, turnId, nodeId, kind: 'plan-review', reason: proposal.summary, scopeDigest: sha256(canonicalStringify(args)) });
@@ -1671,6 +1891,7 @@ export class StudioConversationHost {
     if (acceptedItemIds.some((id) => !pending.items.some((item) => item.id === id))) throw new Error('Plan selection contains an unknown item.');
     if (mode === 'approve' && accepted.size === 0) throw new Error('Approve at least one plan item or request a revision.');
     if (mode === 'revise' && !note?.trim()) throw new Error('Add guidance before requesting a revised plan.');
+    if (mode === 'approve') assertPlanDependencySelection(pending.items, accepted);
     await this.resolvePlanBarrier(pending.sessionId, pending.turnId, pending.nodeId, mode === 'approve' ? 'answered' : 'answered', Object.freeze({ mode, acceptedItemIds: Object.freeze([...accepted]), ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) }));
     this.plans.delete(nodeId);
     if (mode === 'approve') this.approvedPlanTurns.add(turnKey(pending.sessionId, pending.turnId));
@@ -1761,6 +1982,7 @@ export class StudioConversationHost {
     if (acceptedItemIds.some((id) => !items.some((item) => item.id === id))) throw new Error('Plan selection contains an unknown item.');
     if (mode === 'approve' && accepted.size === 0) throw new Error('Approve at least one plan item or request a revision.');
     if (mode === 'revise' && !note?.trim()) throw new Error('Add guidance before requesting a revised plan.');
+    if (mode === 'approve') assertPlanDependencySelection(items.map(item => ({ id: String(item.id), execution: item.execution })), accepted);
     const handle = await this.ensureDurableSession(node.provenance.sessionId); const snapshot = await handle.snapshot();
     if (!snapshot.recovery.unresolvedBarrierIds.includes(nodeId)) throw new Error('Plan is stale or already resolved.');
     const resolution = Object.freeze({ mode, acceptedItemIds: Object.freeze([...accepted]), ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) });
@@ -1805,7 +2027,7 @@ export class StudioConversationHost {
     const plan = [...this.nodes.values()].filter(candidate => candidate.kind === 'plan' && candidate.status === 'completed' && candidate.content.decision === 'approved'
       && (run ? candidate.content.taskId === run.taskId : candidate.provenance.sessionId === provenance.sessionId)).at(-1);
     if (!plan && !run?.acceptance.length) return null;
-    const items = Array.isArray(plan?.content.items) ? plan.content.items.filter(isRecord).filter((item) => item.status === 'accepted').map((item, index) => Object.freeze({ id: typeof item.id === 'string' ? asStableId(item.id) : asStableId(`plan-item:recovered:${index + 1}`), label: typeof item.label === 'string' ? item.label.slice(0, 256) : `Recovered step ${index + 1}`, ...(typeof item.executionStatus === 'string' ? { executionStatus: item.executionStatus, executionSummary: String(item.executionSummary ?? '').slice(0, 512) } : {}), ...(typeof item.details === 'string' ? { details: item.details.slice(0, 2_048) } : {}) })) : [];
+    const items = Array.isArray(plan?.content.items) ? plan.content.items.filter(isRecord).filter((item) => item.status === 'accepted').map((item, index) => Object.freeze({ id: typeof item.id === 'string' ? asStableId(item.id) : asStableId(`plan-item:recovered:${index + 1}`), label: typeof item.label === 'string' ? item.label.slice(0, 256) : `Recovered step ${index + 1}`, ...(typeof item.executionStatus === 'string' ? { executionStatus: item.executionStatus, executionSummary: String(item.executionSummary ?? '').slice(0, 512) } : {}), ...(typeof item.details === 'string' ? { details: item.details.slice(0, 2_048) } : {}), ...(isPlanTaskV1(item.execution) ? { execution: item.execution } : {}) })) : [];
     return { assemblies: Array.isArray(plan?.content.assemblies) ? plan.content.assemblies.filter(isRecord) as JsonObject[] : [], title: typeof plan?.content.title === 'string' ? plan.content.title : run?.title ?? 'Recovered approved plan', summary: typeof plan?.content.summary === 'string' ? plan.content.summary : 'Restored from the durable approved plan and acceptance checkpoint.', items: Object.freeze(items), ...(typeof plan?.content.note === 'string' ? { note: plan.content.note } : {}), attempts: 0, mutationCount: 0 };
   }
 
@@ -1986,7 +2208,18 @@ export class StudioConversationHost {
     this.eventSequence += 1;
     this.events.push(Object.freeze({ schemaVersion: 1, sequence: this.eventSequence, source: 'live', node }));
     if (this.events.length > 2_000) this.events.splice(0, this.events.length - 2_000);
-    this.persistProjection(node, rawContent);
+    if (kind === 'text' && status === 'streaming' && this.options.batchTextWrites !== false) {
+      this.pendingTextProjections.set(id, { node, rawContent });
+      this.textProjectionBytes += Math.max(0, Buffer.byteLength(String(content.text ?? '')) - Buffer.byteLength(String(previous?.content.text ?? '')));
+      if (this.textProjectionBytes >= 8192) this.flushTextProjections();
+      else if (!this.textProjectionTimer) {
+        this.textProjectionTimer = setTimeout(() => this.flushTextProjections(), 250);
+        this.textProjectionTimer.unref?.();
+      }
+    } else {
+      this.flushTextProjections();
+      this.persistProjection(node, rawContent);
+    }
     const graphSnapshot = this.latestGraphSnapshots.get(provenance.sessionId);
     if (graphSnapshot) this.captureGraphSnapshot(graphSnapshot);
     this.changed();
@@ -2010,6 +2243,7 @@ export class StudioConversationHost {
   }
 
   private async startRecoveredContinuation(backendId: StableId, seed: RecoveredContinuationSeed): Promise<void> {
+    this.recoveredSubtaskTasks.add(seed.taskId);
     const run = this.taskRuns.get(seed.taskId);
     if (!run) throw new Error(`Recovered task ${seed.taskId} is unavailable.`);
     const config = this.turnConfig(backendId, seed.taskId);
@@ -2021,6 +2255,23 @@ export class StudioConversationHost {
       playtest.advance('editing'); this.playtestTasks.set(run.taskId, playtest);
     }
     await this.continueTask(backendId, seed.plan, run.taskId, config, account, conversationKeyFor(this.options.projectContext?.() ?? null), run.requestSummary, seed.instruction);
+  }
+
+  private flushTextProjections(): void {
+    if (this.textProjectionTimer) clearTimeout(this.textProjectionTimer);
+    this.textProjectionTimer = null;
+    for (const { node, rawContent } of this.pendingTextProjections.values()) this.persistProjection(node, rawContent);
+    if (this.pendingTextProjections.size) this.textProjectionWriteTail = this.projectionWriteTail;
+    this.pendingTextProjections.clear(); this.textProjectionBytes = 0;
+  }
+
+  private async flushTextRecords(): Promise<void> {
+    this.flushTextProjections();
+    const checkpoint = this.textProjectionWriteTail;
+    if (!checkpoint) return;
+    await checkpoint;
+    if (this.textProjectionWriteTail === checkpoint) this.textProjectionWriteTail = null;
+    if (this.projectionPersistenceFailure) throw new AggregateError([this.projectionPersistenceFailure], 'Text checkpoint persistence failed.');
   }
 
   private persistProjection(node: ConversationNodeReadModel, rawContent: JsonObject = node.content): void {
@@ -2251,12 +2502,14 @@ export class StudioConversationHost {
       this.active.continuationRequested = false;
       this.active.continuationInstruction = null;
     }
+    if (!timeline && Object.entries(patch).every(([key, value]) => (value === current[key as keyof ConversationTaskRunReadModel] || value !== undefined && current[key as keyof ConversationTaskRunReadModel] !== undefined && canonicalStringify(value as JsonValue) === canonicalStringify(current[key as keyof ConversationTaskRunReadModel] as JsonValue)))) return;
     const nextTimeline = timeline ? Object.freeze([...current.timeline, taskTimeline(timeline.phase, timeline.status, timeline.title, timeline.detail, timeline)].slice(-400)) : current.timeline;
     const next = Object.freeze({ ...current, ...patch, schemaVersion: 1 as const, taskId, revision: current.revision + 1, updatedAt: new Date().toISOString(), timeline: nextTimeline });
     this.taskRuns.set(taskId, next); this.persistTaskRun(next); this.changed();
   }
 
   private persistTaskRun(run: ConversationTaskRunReadModel): void {
+    this.flushTextProjections();
     if (!this.projectionPersistenceAvailable()) return;
     const persisted = Object.freeze({ ...run, evidence: Object.freeze(run.evidence.map(({ previewDataUrl: _preview, ...item }) => Object.freeze(item))) });
     const write = async (): Promise<void> => {
@@ -2375,6 +2628,8 @@ export class StudioConversationHost {
       inputSchema: definition.inputSchema,
       concurrency: toolConcurrencyHint(registered.get(definition.id)),
     }));
+    tools.push(MODEL_TOOL_BATCH_DEFINITION);
+    if (this.options.subtasks?.enabled) tools.push(SUBTASK_TOOL);
     if (definitions.some((definition) => definition.id === 'tool.search')) tools.push(Object.freeze({ ...MODEL_TOOL_INVOKE_DEFINITION, concurrency: invocationConcurrencyHint([...registered.values()]) }));
     return Object.freeze(tools);
   }
@@ -2427,6 +2682,12 @@ export class StudioConversationHost {
     void work.finally(() => this.pendingWork.delete(work)).catch(() => undefined);
   }
   private executionContent(context: ToolExecutionContext, body: HostToolBody, content: JsonObject): JsonObject {
+    const result = body.backendResult;
+    // Only committed document revisions invalidate editor projections. Runtime-owner
+    // tools and reads may succeed without changing the authoring document.
+    content = Object.freeze({ ...content, documentChanged: result.status === 'completed' && typeof result.beforeRevision === 'number' && typeof result.afterRevision === 'number' && result.afterRevision !== result.beforeRevision,
+      ...(typeof result.documentId === 'string' ? { documentId: result.documentId } : {}),
+      ...(typeof result.afterRevision === 'number' ? { documentRevision: result.afterRevision } : {}) });
     if (!this.options.recordProjectId) return content;
     return Object.freeze({ ...content, parameters: context.args, result: body.backendResult, executionStartedAt: new Date(Date.parse(body.finishedAt) - body.latencyMs).toISOString(), executionFinishedAt: body.finishedAt, durationMs: body.latencyMs });
   }

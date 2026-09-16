@@ -1,0 +1,124 @@
+{
+  "valid": [
+    {
+      "schemaId": "haiyue://contracts/subtask-selection/v1",
+      "value": {
+        "schemaVersion": 1,
+        "taskIds": [
+          "task:first",
+          "task:second"
+        ]
+      }
+    },
+    {
+      "schemaId": "haiyue://contracts/subtask-candidate/v1",
+      "value": {
+        "schemaVersion": 1,
+        "taskId": "task:first",
+        "baseRevision": 7,
+        "artifacts": [
+          {
+            "key": "result:first",
+            "kind": "test",
+            "content": "Candidate only",
+            "sources": [
+              "artifact:known"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "subtask-selection-unknown-version",
+      "schemaId": "haiyue://contracts/subtask-selection/v1",
+      "value": {
+        "schemaVersion": 2,
+        "taskIds": [
+          "task:first",
+          "task:second"
+        ]
+      }
+    },
+    {
+      "name": "subtask-selection-secret-bearing",
+      "schemaId": "haiyue://contracts/subtask-selection/v1",
+      "value": {
+        "schemaVersion": 1,
+        "taskIds": [
+          "task:first",
+          "task:second"
+        ],
+        "apiKey": "fixture-only"
+      }
+    },
+    {
+      "name": "subtask-selection-missing-schema",
+      "schemaId": "haiyue://contracts/subtask-selection/v1",
+      "value": {
+        "taskIds": [
+          "task:first",
+          "task:second"
+        ]
+      }
+    },
+    {
+      "name": "subtask-candidate-unknown-version",
+      "schemaId": "haiyue://contracts/subtask-candidate/v1",
+      "value": {
+        "schemaVersion": 2,
+        "taskId": "task:first",
+        "baseRevision": 7,
+        "artifacts": [
+          {
+            "key": "result:first",
+            "kind": "test",
+            "content": "Candidate only",
+            "sources": [
+              "artifact:known"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "subtask-candidate-secret-bearing",
+      "schemaId": "haiyue://contracts/subtask-candidate/v1",
+      "value": {
+        "schemaVersion": 1,
+        "taskId": "task:first",
+        "baseRevision": 7,
+        "artifacts": [
+          {
+            "key": "result:first",
+            "kind": "test",
+            "content": "Candidate only",
+            "sources": [
+              "artifact:known"
+            ]
+          }
+        ],
+        "apiKey": "fixture-only"
+      }
+    },
+    {
+      "name": "subtask-candidate-missing-schema",
+      "schemaId": "haiyue://contracts/subtask-candidate/v1",
+      "value": {
+        "taskId": "task:first",
+        "baseRevision": 7,
+        "artifacts": [
+          {
+            "key": "result:first",
+            "kind": "test",
+            "content": "Candidate only",
+            "sources": [
+              "artifact:known"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

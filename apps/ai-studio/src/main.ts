@@ -24,6 +24,7 @@ import { createScriptPreviewPlugin, scriptPreviewServiceToken } from '@haiyue/ai
 import { createStudioWorkspaceLayoutPlugin, studioWorkspaceLayoutToken } from '@haiyue/ai-studio-shell';
 import {
   STUDIO_CONVERSATION_CHANGED_CHANNEL,
+  STUDIO_PREVIEW_PENDING_CHANNEL,
   STUDIO_IPC_CANCEL_CHANNEL,
   STUDIO_IPC_CHANNEL,
   StudioIpcRouter,
@@ -137,7 +138,12 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
           const history = await ProjectAgentHistory.open({ projectId: binding.projectId ?? asStableId('project:workspace-empty'), directory: historyDirectory(binding), source: operationLog, storage: binding.storageKey ? 'project' : 'unsaved' });
           return { log: history.log, query: input => history.query(input), detail: id => history.detail(id), flush: () => history.flush(), dispose: () => history.dispose(), relocate: next => history.relocate(historyDirectory(next)) };
         },
-        hostOptions: (binding, scopedLog) => ({
+        hostOptions: (binding, scopedLog) => {
+          const exactProjectContext = Object.freeze({
+            query: ({ revision, request }: { revision: number; request: JsonObject }) => workspace.queryScene({ ...request, revision } as never) as unknown as JsonValue,
+            diff: ({ fromRevision, toRevision, request }: { fromRevision: number; toRevision: number; request: JsonObject }) => workspace.diffScene({ ...request, fromRevision, toRevision } as never) as unknown as JsonValue,
+          });
+          return ({
           runtime: agentRuntime,
           tools: gameTools,
           queryLimits: () => queryPreferences.snapshot(),
@@ -153,10 +159,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
               manifest: Object.freeze({
                 schemaVersion: 1, project: Object.freeze({ id: project.projectId, documentId: project.documentId, name: project.name, revision: project.revision, savedRevision: project.savedRevision, dirty: project.dirty, counts: project.counts, registryDigest: project.registryDigest }),
               }) as unknown as JsonObject,
-              exact: Object.freeze({
-                query: ({ revision, request }: { revision: number; request: JsonObject }) => workspace.queryScene({ ...request, revision } as never) as unknown as JsonValue,
-                diff: ({ fromRevision, toRevision, request }: { fromRevision: number; toRevision: number; request: JsonObject }) => workspace.diffScene({ ...request, fromRevision, toRevision } as never) as unknown as JsonValue,
-              }),
+              exact: exactProjectContext,
             });
           },
           prepareKnowledge: (project, signal) => knowledgeSources.refresh(project, signal),
@@ -173,7 +176,8 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
               if (mainWindow) await dialog.showMessageBox(mainWindow, options); else await dialog.showMessageBox(options);
             }
           },
-        }),
+          });
+        },
       });
       context.effects.own('conversation.dispose', () => conversation.dispose());
       const isolatedNotifications = smoke || process.env.HAIYUE_STUDIO_DISABLE_NOTIFICATIONS === '1';
@@ -212,7 +216,9 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         }, 50);
       };
       const conversationChanges = conversation.subscribe(notifyRenderer);
-      const previewChanges = agentPreview.subscribePending(notifyRenderer);
+      const previewChanges = agentPreview.subscribePending(() => {
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send(STUDIO_PREVIEW_PENDING_CHANNEL);
+      });
       const router = new StudioIpcRouter({
         notifications,
         queryPreferences,

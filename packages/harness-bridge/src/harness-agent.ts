@@ -1,3 +1,4 @@
+import { HarnessRequestContext, REQUEST_REBUILD } from './request-context.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context, Fiber } from '@deepseek-ai/cordis';
 import { isToolConcurrencyHintV1, type ToolConcurrencyHintV1, type StudioKernelHost, type StudioPluginActivationContext } from '@haiyue/ai-studio-contracts';
@@ -15,6 +16,7 @@ import ToolRuntime, { type ToolDefinition } from '@deepseek-ai/dsh-tools';
 export interface HarnessBridgeTool { readonly id: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>; readonly concurrency?: ToolConcurrencyHintV1; }
 export type HarnessReasoningEffort = 'off' | 'low' | 'high' | 'max';
 export interface HarnessBridgeTurnInput {
+  readonly requestContext?: import('@haiyue/ai-studio-contracts').ModelRequestContextPortV1;
   readonly sessionId?: string; readonly prompt: string; readonly tools: readonly HarnessBridgeTool[];
   readonly model: string; readonly reasoningEffort: HarnessReasoningEffort; readonly maxTokens: number;
 }
@@ -41,9 +43,12 @@ export type HarnessBridgeSessionInspection =
   | Readonly<{ state: 'available'; sessionId: string; model: string; lastConfirmedOpId: string | null }>
   | Readonly<{ state: 'missing'; sessionId: string; diagnostic: Readonly<{ code: string; message: string }> }>;
 export type HarnessBridgeEvent =
+  | Readonly<{ type: 'batch-boundary'; sessionId: string; turnId: string; batchId: string; stepId: string; closed: boolean }>
+  | Readonly<{ type: 'request-prepared'; sessionId: string; turnId: string; requestId: string }>
+  | Readonly<{ type: 'request-confirmed'; sessionId: string; turnId: string; requestId: string }>
   | Readonly<{ type: 'turn-start'; sessionId: string; turnId: string }>
   | Readonly<{ type: 'text-delta'; sessionId: string; turnId: string; text: string }>
-  | Readonly<{ type: 'tool-request'; sessionId: string; turnId: string; toolCallId: string; toolId: string; arguments: Readonly<Record<string, unknown>> }>
+  | Readonly<{ type: 'tool-request'; sessionId: string; turnId: string; toolCallId: string; toolId: string; batchId?: string; stepId?: string; arguments: Readonly<Record<string, unknown>> }>
   | Readonly<{ type: 'usage'; sessionId: string; turnId: string; inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number }>
   | Readonly<{ type: 'turn-end'; sessionId: string; turnId: string; status: 'completed' | 'cancelled' | 'failed' | 'interrupted'; finishReason: 'stop' | 'length' | 'cancelled' | 'error' | 'unknown'; diagnostic?: Readonly<{ code: string; message: string }> }>;
 
@@ -70,6 +75,8 @@ export interface PinnedHarnessAgentTransportOptions {
   readonly baseURL?: string;
   /** W2 rollout: 1 restores serial dispatch; 2–4 enable bounded, registry-approved reads. */
   readonly maxParallelToolCalls?: 1 | 2 | 3 | 4;
+  /** Explicit capacity for a custom endpoint; absence remains unknown. */
+  readonly contextWindow?: number;
 }
 
 interface HarnessRequestFailure { readonly code: string; readonly providerRetryAfterMs?: number; }
@@ -98,6 +105,7 @@ export function harnessRequestRetryDelayMs(failure: HarnessRequestFailure, polic
 
 export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAgentTransportOptions): Promise<HarnessAgentTransport> {
   const maxParallelToolCalls = options.maxParallelToolCalls ?? 4;
+  if (options.contextWindow !== undefined && (!Number.isSafeInteger(options.contextWindow) || options.contextWindow < 1024 || options.contextWindow > 100_000_000)) throw new TypeError('Invalid Harness context capacity.');
   if (![1, 2, 3, 4].includes(maxParallelToolCalls)) throw new TypeError('Harness maxParallelToolCalls must be 1–4.');
   const parent = harnessOwnerContext(options.owner);
   const root = parent.root;
@@ -140,7 +148,7 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
     let transport: PinnedHarnessTransport | undefined;
     await context.plugin({
       name: 'studio:harness-agent-client', inject: ['agents', 'sessions', 'llm', 'systemPrompt', 'tools', 'agentLoop'],
-      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, resolved.baseURL === PUBLIC_BASE_URL, options.resolveApiKey, () => disposeHarnessScope(scope), maxParallelToolCalls); },
+      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, resolved.baseURL === PUBLIC_BASE_URL, options.resolveApiKey, () => disposeHarnessScope(scope), maxParallelToolCalls, options.contextWindow); },
     });
     harnessOwnerContext(options.owner);
     if (!transport) throw new Error('Harness transport did not activate.');
@@ -159,19 +167,26 @@ async function disposeHarnessScope(scope: Fiber): Promise<void> {
 
 class PinnedHarnessTransport implements HarnessAgentTransport {
   readonly upstream = Object.freeze({ tag: 'dsh-v0.1.5-rc.2' as const, commit: 'fb2c4b9e698e30edb738bca4cf0618587db7d203' as const });
+  private readonly requestContexts = new Map<string, HarnessRequestContext>();
   private readonly handles = new Map<string, AgentHandle>();
   private readonly selections = new Map<string, ModelSelectionRef>();
   private readonly sessionModels = new Map<string, string>();
   private readonly sessionBoundaries = new Map<string, string>();
   private readonly sessionToolSignatures = new Map<string, string>();
+  private readonly stepBatches = new Map<string, Readonly<{ batchId: string; stepId: string }>>();
   private readonly streams = new Map<string, AsyncEventQueue<HarnessBridgeEvent>>();
   private readonly results = new Map<string, Deferred<Readonly<Record<string, unknown>>>>();
   private disposed = false;
   private disposal?: Promise<void>;
   private readonly assistantAttempts = new Map<string, Readonly<{ attemptId: string; revision: number; turn: number }>>();
-  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number; contextWindow?: number }>[], private readonly officialEndpoint: boolean, private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>, private readonly maxParallelToolCalls: number) {
+  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number; contextWindow?: number }>[], private readonly officialEndpoint: boolean, private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>, private readonly maxParallelToolCalls: number, private readonly contextWindow?: number) {
     if (!models.some((entry) => entry.id === model)) throw new Error(`Harness default model ${model} is not in the pinned catalog.`);
     context.effect(() => () => this.release(), 'studio.harness-transport.dispose');
+    const contexts = this.requestContexts;
+    context.on('llm/stream', async function* (request, next) {
+      const guard = request.sessionId ? contexts.get(String(request.sessionId)) : undefined;
+      if (guard) yield* guard.stream(request, next); else yield* next();
+    });
     context.on('session/event', (session, event) => this.onSessionEvent(String(session.id), event));
     context.on('agent/assistant-stream', ({ agent, frame }) => this.onAssistantStream(String(agent.id), frame));
   }
@@ -186,7 +201,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     const catalog = this.models.find((entry) => entry.id === model);
     if (!catalog) throw new Error(`Harness model ${model} is not in the pinned catalog.`);
     return Object.freeze({
-      maxInputTokens: this.officialEndpoint ? catalog.contextWindow ?? null : null,
+      maxInputTokens: this.contextWindow ?? (this.officialEndpoint ? catalog.contextWindow ?? null : null),
       nativeCompaction: false,
       parallelToolCalls: this.maxParallelToolCalls > 1,
       codeMode: false,
@@ -228,7 +243,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     handle.agent.cancel({ kind: 'disposed' });
     await handle.dispose();
     this.assistantAttempts.delete(sessionId);
-    this.handles.delete(sessionId); this.selections.delete(sessionId); this.sessionModels.delete(sessionId); this.sessionBoundaries.delete(sessionId); this.sessionToolSignatures.delete(sessionId);
+    this.stepBatches.delete(sessionId); this.requestContexts.delete(sessionId); this.handles.delete(sessionId); this.selections.delete(sessionId); this.sessionModels.delete(sessionId); this.sessionBoundaries.delete(sessionId); this.sessionToolSignatures.delete(sessionId);
   }
   async *start(input: HarnessBridgeTurnInput, signal?: AbortSignal): AsyncIterable<HarnessBridgeEvent> {
     this.assertActive();
@@ -239,12 +254,13 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     if (this.streams.has(sessionId)) throw new Error(`Harness session ${sessionId} already has an active turn.`);
     const selection = this.selections.get(sessionId); if (selection) selection.current = { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) };
     handle.agent.options.maxTokens = input.maxTokens;
+    this.requestContexts.get(sessionId)!.port = input.requestContext;
     const queue = new AsyncEventQueue<HarnessBridgeEvent>(); this.streams.set(sessionId, queue);
     const abort = (): void => handle!.agent.cancel({ kind: 'user' });
     if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
     handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: input.prompt }], source: { kind: 'user' } }));
     try { yield* queue; }
-    finally { signal?.removeEventListener('abort', abort); if (this.streams.get(sessionId) === queue) { this.streams.delete(sessionId); this.assistantAttempts.delete(sessionId); } }
+    finally { signal?.removeEventListener('abort', abort); if (this.streams.get(sessionId) === queue) { this.streams.delete(sessionId); this.stepBatches.delete(sessionId); this.assistantAttempts.delete(sessionId); } }
   }
   async submitToolResult(toolCallId: string, result: Readonly<Record<string, unknown>>, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw signal.reason; const pending = this.results.get(toolCallId); if (!pending) throw new Error(`Harness tool call ${toolCallId} is not pending.`); this.results.delete(toolCallId); pending.resolve(Object.freeze({ ...result }));
@@ -260,7 +276,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.'));
     this.results.clear();
     this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.')));
-    this.streams.clear(); this.handles.clear(); this.selections.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear();
+    this.streams.clear(); this.stepBatches.clear(); this.requestContexts.clear(); this.handles.clear(); this.selections.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear();
     this.assistantAttempts.clear();
   }
   private async ensureHandle(sessionId: string, input: Pick<HarnessBridgeSessionOpenInput, 'model' | 'reasoningEffort' | 'maxTokens' | 'tools'>, signal?: AbortSignal): Promise<AgentHandle> {
@@ -273,10 +289,13 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     const selection: ModelSelectionRef = { current: { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) }, assembled: undefined };
     handle = await this.context.agents.create({
       sessionId: SessionId(sessionId), agentOptions: { provider: 'deepseek-official', model: input.model, maxTokens: input.maxTokens }, signal,
-      setup: (agentContext) => {
+      setup: (agentContext, agent) => {
+        const requestContext = new HarnessRequestContext(agent.session, model => this.sessionCapabilities(model).maxInputTokens, (requestId, turnId, confirmed) => this.streams.get(sessionId)?.push({ type: confirmed ? 'request-confirmed' : 'request-prepared', sessionId, turnId, requestId }));
+        this.requestContexts.set(sessionId, requestContext);
         installModelSelection(agentContext, selection);
         const failedAttempts = new Map<string, number>();
         agentContext.on('agent/request-error', async (payload, next) => {
+          if (payload.failure.code === REQUEST_REBUILD && requestContext.rebuild()) return Object.freeze({ kind: 'retry' as const });
           const key = `${payload.turn}:${payload.step}`;
           const attempt = failedAttempts.get(key) ?? 0;
           const delayMs = harnessRequestRetryDelayMs(payload.failure, payload.retryPolicy, attempt);
@@ -306,7 +325,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
         if (!queue) throw new Error('Harness tool call has no active Studio turn.');
         const callId = String(execution.callId); const pending = deferred<Readonly<Record<string, unknown>>>(); this.results.set(callId, pending);
         const turn = latestTurn(execution.agent);
-        queue?.push(Object.freeze({ type: 'tool-request', sessionId: String(execution.agent?.id ?? ''), turnId: turnId(String(execution.agent?.id ?? ''), turn), toolCallId: callId, toolId: tool.id, arguments: isRecord(args) ? Object.freeze({ ...args }) : Object.freeze({}) }));
+        queue?.push(Object.freeze({ type: 'tool-request', sessionId: String(execution.agent?.id ?? ''), turnId: turnId(String(execution.agent?.id ?? ''), turn), toolCallId: callId, toolId: tool.id, ...this.stepBatches.get(String(execution.agent?.id ?? '')), arguments: isRecord(args) ? Object.freeze({ ...args }) : Object.freeze({}) }));
         const abort = (): void => pending.reject(execution.signal.reason); execution.signal.addEventListener('abort', abort, { once: true });
         try { return await pending.promise; } finally { execution.signal.removeEventListener('abort', abort); this.results.delete(callId); }
       },
@@ -314,12 +333,21 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   }
   private onSessionEvent(sessionId: string, event: SessionEvent): void {
     const queue = this.streams.get(sessionId); if (!queue) return;
-    if (event.type === 'turn/start') queue.push(Object.freeze({ type: 'turn-start', sessionId, turnId: turnId(sessionId, event.data.turn) }));
+    if (event.type === 'step/start' || event.type === 'step/end') {
+      const stepId = `step:${createHash('sha256').update(`${sessionId}:${event.data.turn}:${event.data.step}`).digest('hex')}`;
+      const batchId = `batch:${stepId.slice(5)}`;
+      if (event.type === 'step/start') this.stepBatches.set(sessionId, { batchId, stepId });
+      else this.stepBatches.delete(sessionId);
+      queue.push({ type: 'batch-boundary', sessionId, turnId: turnId(sessionId, event.data.turn), batchId, stepId, closed: event.type === 'step/end' });
+    }
+    else if (event.type === 'turn/start') queue.push(Object.freeze({ type: 'turn-start', sessionId, turnId: turnId(sessionId, event.data.turn) }));
     else if (event.type === 'assistant/message' && event.data.usage) queue.push(Object.freeze({ type: 'usage', sessionId, turnId: turnId(sessionId, event.data.turn), ...event.data.usage }));
     else if (event.type === 'turn/end') {
+      try { this.requestContexts.get(sessionId)?.finish(); } catch (cause) { queue.fail(cause); return; }
       const reason = event.data.reason; const status = reason.kind === 'completed' || reason.kind === 'max-tokens' ? 'completed' : reason.kind === 'aborted' ? 'cancelled' : reason.kind === 'interrupted' ? 'interrupted' : 'failed';
       const diagnostic = reason.kind === 'error' ? Object.freeze({ code: reason.error.code, message: reason.error.message }) : undefined;
       const finishReason = reason.kind === 'completed' ? 'stop' : reason.kind === 'max-tokens' ? 'length' : reason.kind === 'aborted' ? 'cancelled' : reason.kind === 'error' ? 'error' : 'unknown';
+      this.stepBatches.delete(sessionId);
       this.assistantAttempts.delete(sessionId);
       queue.push(Object.freeze({ type: 'turn-end', sessionId, turnId: turnId(sessionId, event.data.turn), status, finishReason, ...(diagnostic ? { diagnostic } : {}) })); queue.close();
     }

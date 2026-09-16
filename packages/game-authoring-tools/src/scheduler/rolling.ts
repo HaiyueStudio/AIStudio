@@ -1,5 +1,6 @@
 import { requiresSerialOrder } from './classify.js';
-import type { ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
+import type { ToolBatchNodeV1, ToolBatchRequestV1 } from '@haiyue/ai-studio-contracts';
+import { validateToolBatchRequest } from './normalize.js';
 import { ToolBatchProtocolError, type RollingToolBatchOptions, type RollingToolWorkResult, type ToolBatchDiagnostic } from './types.js';
 
 interface RollingEntry<T> {
@@ -20,6 +21,8 @@ export class RollingToolBatchScheduler<T> {
   private readonly cancelled: RollingToolBatchOptions<T>['cancelled'];
   private active = 0;
   private stopBatch = false;
+  private declared: readonly ToolBatchNodeV1[] | null = null;
+  private readonly idleWaiters = new Set<() => void>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private unlink: () => void;
 
@@ -29,12 +32,22 @@ export class RollingToolBatchScheduler<T> {
     this.maxWallTimeMs = bounded(options.maxWallTimeMs ?? 60_000, 1, 24 * 60 * 60 * 1000, 'maxWallTimeMs');
     this.cancelled = options.cancelled;
     this.unlink = fuseAbort(options.signal, this.controller);
+    this.controller.signal.addEventListener('abort', () => this.pump(), { once: true });
+  }
+
+  /** Admit a fully validated graph before any body starts; forward dependencies are now bounded. */
+  declare(request: ToolBatchRequestV1): void {
+    if (this.entries.length || this.declared) throw new ToolBatchProtocolError('tool-batch.already-started', 'Declare a closed batch before enqueueing work.');
+    validateToolBatchRequest(request);
+    if (request.nodes.length > this.maxNodes) throw new ToolBatchProtocolError('tool-batch.node-limit', 'Closed batch exceeds node budget.');
+    this.declared = request.nodes;
   }
 
   enqueue(node: ToolBatchNodeV1, run: (signal: AbortSignal) => Promise<RollingToolWorkResult<T>>): Promise<RollingToolWorkResult<T>> {
+    if (this.declared && this.declared[this.entries.length] !== node) throw new ToolBatchProtocolError('tool-batch.member-mismatch', 'Closed batch members must match the admitted graph in order.');
     if (this.entries.length >= this.maxNodes) return Promise.resolve(this.cancelled(node, diagnostic('tool-batch.node-limit', `Batch exceeds maxNodes ${this.maxNodes}.`, false)));
     if (this.entries.some((entry) => entry.node.id === node.id || entry.node.toolCallId === node.toolCallId)) return Promise.resolve(this.cancelled(node, diagnostic('tool-batch.node-duplicate', 'Tool batch node and call ids must be unique.', false)));
-    if (node.dependsOn.some((id) => !this.entries.some((entry) => entry.node.id === id))) return Promise.resolve(this.cancelled(node, diagnostic('tool-batch.dependency-forward', `Streaming node ${node.id} has an unavailable dependency.`, false)));
+    if (!this.declared && node.dependsOn.some((id) => !this.entries.some((entry) => entry.node.id === id))) return Promise.resolve(this.cancelled(node, diagnostic('tool-batch.dependency-forward', `Streaming node ${node.id} has an unavailable dependency.`, false)));
     if (!this.timer) {
       this.timer = setTimeout(() => this.controller.abort(new ToolBatchProtocolError('tool-batch.timeout', 'Tool batch wall-time limit expired.', true)), this.maxWallTimeMs);
       this.timer.unref?.();
@@ -47,8 +60,9 @@ export class RollingToolBatchScheduler<T> {
   }
 
   async drain(): Promise<readonly RollingToolWorkResult<T>[]> {
+    if (this.declared && this.entries.length !== this.declared.length) this.controller.abort(new ToolBatchProtocolError('tool-batch.incomplete', 'Closed batch admission was interrupted.'));
     this.pump();
-    while (this.entries.some((entry) => entry.state !== 'done')) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (this.entries.some((entry) => entry.state !== 'done')) await new Promise<void>((resolve) => this.idleWaiters.add(resolve));
     if (this.timer) clearTimeout(this.timer);
     this.timer = null; this.unlink(); this.unlink = () => {};
     return Object.freeze(this.entries.map((entry) => entry.result!));
@@ -58,6 +72,7 @@ export class RollingToolBatchScheduler<T> {
     if (this.controller.signal.aborted) {
       for (const entry of this.entries) if (entry.state === 'pending') this.finish(entry, this.cancelled(entry.node, errorDiagnostic(this.controller.signal.reason)));
     }
+    if (this.declared && this.entries.length !== this.declared.length && !this.controller.signal.aborted) return;
     for (const entry of this.entries) {
       if (entry.state !== 'pending') continue;
       const dependency = entry.node.dependsOn.map((id) => this.entries.find((candidate) => candidate.node.id === id)).find((candidate) => candidate?.state === 'done' && candidate.result?.status !== 'completed');
@@ -69,10 +84,18 @@ export class RollingToolBatchScheduler<T> {
       if (entry.state !== 'pending' || !entry.node.dependsOn.every((id) => this.entries.find((candidate) => candidate.node.id === id)?.result?.status === 'completed')) continue;
       if (!canDispatch(this.entries, index)) continue;
       entry.state = 'running'; this.active += 1;
-      void abortable(entry.run(this.controller.signal), this.controller.signal).then((result) => {
-        if (result.status === 'failed' && entry.node.onFailure === 'stop-batch') { this.stopBatch = true; this.controller.abort(new ToolBatchProtocolError('tool-batch.stopped', `Node ${entry.node.id} stopped the batch.`)); }
+      void Promise.resolve().then(() => { this.controller.signal.throwIfAborted(); return entry.run(this.controller.signal); }).then((result) => {
+        if (this.controller.signal.aborted) { this.finish(entry, this.cancelled(entry.node, errorDiagnostic(this.controller.signal.reason))); return; }
+        if (result.stopBatch || result.status !== 'completed' && entry.node.onFailure === 'stop-batch') { this.stopBatch = true; this.controller.abort(new ToolBatchProtocolError('tool-batch.stopped', `Node ${entry.node.id} stopped the batch.`)); }
         this.finish(entry, result);
-      }, (cause) => this.finish(entry, this.cancelled(entry.node, errorDiagnostic(cause))));
+      }, (cause) => {
+        if (entry.node.onFailure === 'stop-batch') this.controller.abort(cause);
+        this.finish(entry, this.cancelled(entry.node, errorDiagnostic(cause)));
+      });
+    }
+    if (this.entries.every((entry) => entry.state === 'done')) {
+      for (const resolve of this.idleWaiters) resolve();
+      this.idleWaiters.clear();
     }
   }
 
@@ -92,11 +115,3 @@ function diagnostic(code: string, message: string, retryable: boolean): ToolBatc
 function errorDiagnostic(cause: unknown): ToolBatchDiagnostic { return diagnostic(cause instanceof ToolBatchProtocolError ? cause.code : 'tool-batch.cancelled', cause instanceof Error ? cause.message : String(cause), cause instanceof ToolBatchProtocolError && cause.retryable); }
 function bounded(value: number, min: number, max: number, name: string): number { if (!Number.isSafeInteger(value) || value < min || value > max) throw new ToolBatchProtocolError('tool-batch.limit-invalid', `${name} is outside its allowed range.`); return value; }
 function fuseAbort(parent: AbortSignal | undefined, child: AbortController): () => void { if (!parent) return () => {}; const abort = () => child.abort(parent.reason); if (parent.aborted) abort(); else parent.addEventListener('abort', abort, { once: true }); return () => parent.removeEventListener('abort', abort); }
-function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason);
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => reject(signal.reason ?? new ToolBatchProtocolError('tool-batch.cancelled', 'Tool batch was cancelled.', true));
-    signal.addEventListener('abort', abort, { once: true });
-    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
-  });
-}

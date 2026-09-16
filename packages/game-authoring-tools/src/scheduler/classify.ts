@@ -38,7 +38,9 @@ export function isProjectIndependentRead(node: Pick<ToolBatchNodeV1, 'toolId' | 
 
 /** Only registry-derived nodes may enter a scheduler; caller-supplied classes are not authority. */
 export function requiresSerialOrder(left: ToolBatchNodeV1, right: ToolBatchNodeV1): boolean {
-  if (left.executionClass === 'parallel-read' && right.executionClass === 'parallel-read') return false;
+  if (left.executionClass === 'parallel-read' && right.executionClass === 'parallel-read') {
+    return !isProjectIndependentRead(left) && !isProjectIndependentRead(right) && left.expectedRevision !== right.expectedRevision;
+  }
   if (left.executionClass === 'exclusive-mutation' && isProjectIndependentRead(right)) return false;
   if (right.executionClass === 'exclusive-mutation' && isProjectIndependentRead(left)) return false;
   return true;

@@ -13,23 +13,46 @@ const ACTIVE_ASSET_SOURCE = asStableId('knowledge-source:active-assets') as M13S
  * Script text and binary asset bodies are never indexed. */
 export class StudioKnowledgeSourceLoader {
   private builtinsReady = false;
+  private initialization: Promise<void> | null = null;
+  private refreshTail: Promise<void> = Promise.resolve();
+  private indexedKey: string | null = null;
+  private indexedOwner: object | null = null;
 
   constructor(private readonly knowledge: KnowledgeRetrievalRuntime, private readonly workspace: ProjectWorkspace) {}
 
   async initialize(signal?: AbortSignal): Promise<void> {
-    await this.knowledge.initialize();
-    await this.refreshBuiltins(signal);
+    if (!this.initialization) {
+      this.initialization = (async () => { await this.knowledge.initialize(); await this.refreshBuiltins(signal); })().catch(cause => { this.initialization = null; throw cause; });
+    }
+    await this.initialization;
+    signal?.throwIfAborted();
   }
 
-  async refresh(project: ContextProjectSnapshot | null, signal?: AbortSignal): Promise<void> {
+  refresh(project: ContextProjectSnapshot | null, signal?: AbortSignal): Promise<void> {
+    // Serialize the two active-source slots: an older refresh cannot finish over a
+    // newer revision. Queued identical revisions reuse the successful checkpoint.
+    const work = this.refreshTail.then(() => this.refreshRevision(project, signal));
+    this.refreshTail = work.catch(() => undefined);
+    return work;
+  }
+
+  private async refreshRevision(project: ContextProjectSnapshot | null, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     await this.initialize(signal);
+    const owner = project?.exact ?? project;
+    const key = project ? canonicalStringify({ projectId: project.projectId, documentId: project.documentId, revision: project.revision, manifest: project.manifest }) : 'closed';
     if (!project) {
+      if (this.indexedKey === key && this.indexedOwner === owner) return;
+      this.indexedKey = null; this.indexedOwner = null;
       await this.knowledge.tombstone(ACTIVE_PROJECT_SOURCE, 'project-closed', signal);
       await this.knowledge.tombstone(ACTIVE_ASSET_SOURCE, 'project-closed', signal);
+      signal?.throwIfAborted(); this.indexedKey = key; this.indexedOwner = owner;
       return;
     }
     const document = this.workspace.gameSnapshot();
     if (document.id !== project.documentId || document.revision !== project.revision) throw new Error('Knowledge refresh observed a project revision mismatch; exact context remains authoritative.');
+    if (this.indexedKey === key && this.indexedOwner === owner) return;
+    this.indexedKey = null; this.indexedOwner = null;
     const registry = this.workspace.componentRegistry.snapshot();
     const definitions = new Map(registry.definitions.map((definition) => [`${definition.type}@${definition.version}`, definition]));
     const componentTypes = [...new Set(document.components.map((component) => `${component.type}@${component.version}`))].sort();
@@ -67,6 +90,10 @@ export class StudioKnowledgeSourceLoader {
       packageVersion: null, projectRevision: project.revision, permissionScope, capabilityIds: [asStableId('asset.import')],
       claimKeys: Object.freeze([`project:${project.projectId}:assets`]), relatedSourceIds: [ACTIVE_PROJECT_SOURCE], authorized: true, verified: true,
     }, signal);
+    signal?.throwIfAborted();
+    const current = this.workspace.gameSnapshot();
+    if (current.id !== project.documentId || current.revision !== project.revision) throw new Error('Project changed during knowledge refresh; exact context remains authoritative.');
+    this.indexedKey = key; this.indexedOwner = owner;
   }
 
   private async refreshBuiltins(signal?: AbortSignal): Promise<void> {

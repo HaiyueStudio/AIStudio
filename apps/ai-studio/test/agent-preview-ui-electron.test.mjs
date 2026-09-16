@@ -43,6 +43,37 @@ test('production preview controls distinguish Agent ownership and restore manual
       fixtureTask.acceptance = original;
       return { rows, headers, retained, columns: [...table.tBodies[0].rows].every(row => row.cells.length === 3) };
     };
+    window.editorInvalidationFixture = async () => {
+      const previousProject = project, previousScene = scene;
+      project = { document: { projectId: 'project:w5', revision: 4 } }; scene = { documentId: 'document:w5' };
+      const decisions = [];
+      try {
+        for (const [id, changed, revision, documentId] of [['read', false, 5, 'document:w5'], ['write', true, 5, 'document:w5'], ['write', true, 5, 'document:w5'], ['stale', true, 4, 'document:w5'], ['foreign', true, 7, 'document:other']]) {
+          const node = { schemaVersion: 1, id: 'result:' + id, kind: 'tool-result', status: 'completed', createdAt: new Date().toISOString(), provenance: { backendId: 'backend:w5', sessionId: 'session:w5', turnId: 'turn:w5' }, content: { toolId: 'fixture.tool', toolCallId: 'call:w5', resultStatus: 'completed', documentChanged: changed, documentId, documentRevision: revision } };
+          window.haiyueStudio = { async invoke() { return { ok: true, payload: { revision: conversationRevision + 1, connection: 'connected', busy: false, backendId: null, backends: [], taskRuns: [], executionGraphs: [], events: [{ schemaVersion: 1, sequence: 1, source: 'live', node }] } }; } };
+          decisions.push(await refreshConversation(false));
+        }
+      } finally { project = previousProject; scene = previousScene; }
+      return decisions;
+    };
+    window.previewIndependentLaneFixture = async () => {
+      await window.previewUiFixture('agent');
+      let releaseReplay, replayStarted = false, acked = false, push;
+      previewFrame = { async inspect() { return { tick: 1 }; } };
+      window.haiyueStudio = { onPreviewPending(listener) { push = listener; return () => {}; }, cancel() {}, async invoke(request) {
+        if (request.channel === 'conversation/replay') { replayStarted = true; return new Promise(resolve => { releaseReplay = () => resolve({ ok: true, payload: { revision: conversationRevision } }); }); }
+        if (request.channel === 'preview/agent-command') return { ok: true, payload: { pending: !acked, command: { id: 'command:independent', kind: 'inspect' } } };
+        if (request.channel === 'preview/agent-result') acked = true;
+        return { ok: true, payload: {} };
+      } };
+      const replay = pollAgent();
+      startPreviewPolling(); push(); push();
+      for (let i = 0; i < 100 && !acked; i++) await new Promise(resolve => setTimeout(resolve, 5));
+      const result = { replayStarted, ackedBeforeReplay: acked };
+      releaseReplay(); await replay;
+      previewPoll.stop(); previewPoll = null; disposePreviewPending?.();
+      return result;
+    };
     window.previewApprovalFixture = async (mode, failRefresh = false) => {
       await window.previewUiFixture(mode);
       const waitingTask = { ...fixtureTask, status: 'waiting-user' };
@@ -57,9 +88,13 @@ test('production preview controls distinguish Agent ownership and restore manual
         return { ok: true, payload: request.channel === 'conversation/replay' ? { revision: conversationRevision }
           : request.channel === 'preview/agent-command' ? { pending: false, command: null } : {} };
       }, cancel() {} };
+      window.haiyueStudio.onPreviewPending = () => () => {};
+      startPreviewPolling();
       let refreshError = null;
       try { await pollAgent(); } catch (cause) { refreshError = cause.message; }
       if (!failRefresh) await pollAgent(); // repeated pushes cannot dispose/report twice
+      await new Promise(resolve => setTimeout(resolve, 100));
+      previewPoll.stop(); previewPoll = null; disposePreviewPending?.();
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       return { display: getComputedStyle(element('play-page')).display, editorDisplay: getComputedStyle(element('app')).display, playing, page: document.body.dataset.page, hidden: element('play-page').hidden,
         owned: agentPreviewOwnership.active, taskStatus: waitingTask.status, disposed, restored, refreshError,
@@ -133,7 +168,7 @@ test('production preview controls distinguish Agent ownership and restore manual
     child.once('exit', code => { clearTimeout(timer); resolve({ code, output }); });
   });
   assert.equal(result.code, 0, result.output);
-  const { agent, manual, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
+  const { agent, manual, independentLane, editorInvalidation, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
   assert.deepEqual(table.headers, ['测试用例', '期望效果', '状态']);
   assert.equal(table.retained, true); assert.equal(table.columns, true); assert.equal(table.narrow, true);
   assert.deepEqual(table.rows.map(row => row[2]), ['待验证', '通过', '未通过', '待验证', '进行中', '通过']);
@@ -170,5 +205,7 @@ test('production preview controls distinguish Agent ownership and restore manual
   for (const name of ['waiting', 'manual', 'missing']) assert.deepEqual(exits[name].cancels, []);
   assert.match(exits.stale.status, /预览已退出.*未能确认任务停止/);
   assert.match(exits.missing.status, /预览已退出.*未能确认任务停止/);
+  assert.deepEqual(editorInvalidation, [false, true, false, false, false]);
+  assert.deepEqual(independentLane, { replayStarted: true, ackedBeforeReplay: true });
   console.log(`[agent-preview-ui] evidence: ${root}`);
 });

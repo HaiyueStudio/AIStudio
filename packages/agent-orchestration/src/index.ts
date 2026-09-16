@@ -12,3 +12,6 @@ export type { LegacySessionMigrationInput, LegacySessionMigrationResult } from '
 export { queryRetainedOperationEvents } from './retained-events.js';
 export * from './behavior/project.js';
 export * from './editor-project.js';
+export { runSubtasks, SUBTASK_TOOL } from './subtasks.js';
+export type { SubtaskOptions, SubtaskPort, SubtaskFact } from './subtasks.js';
+export { createRuntimeSubtaskPort } from './subtask-runtime-port.js';

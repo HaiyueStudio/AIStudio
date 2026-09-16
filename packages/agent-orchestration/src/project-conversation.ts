@@ -85,6 +85,11 @@ export class ProjectConversationController {
     await this.host.dispatch(value, signal);
   }
 
+  previewOwnership(): Readonly<{ revision: number; projectId: StableId | null; taskRuns: ReturnType<StudioConversationHost['previewTasks']> }> {
+    this.assertActive();
+    return { revision: this.revision, projectId: this.binding?.projectId ?? null, taskRuns: this.changing ? [] : this.host?.previewTasks() ?? [] };
+  }
+
   replay(): ConversationReplaySnapshot & Readonly<{ projectId: StableId | null; historyStorage: 'project' | 'unsaved' | 'none' }> {
     this.assertActive();
     const snapshot = this.host?.replay() ?? { connection: 'connected' as const, busy: false, backendId: null, backends: [], taskAccounting: null, taskRuns: [], executionGraphs: [], events: [] };

@@ -196,7 +196,8 @@ test('pinned Harness agent composition fails closed without a credential and dis
   assert.equal((await transport.inspectSession(opened.sessionId)).state, 'missing');
   const events = [];
   for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [], model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8_192 })) events.push(event);
-  assert.deepEqual(events.map((event) => event.type), ['turn-start', 'turn-end']);
+  assert.deepEqual(events.map((event) => event.type), ['turn-start', 'batch-boundary', 'batch-boundary', 'turn-end']);
+  assert.deepEqual(events.filter(event => event.type === 'batch-boundary').map(event => event.closed), [false, true]);
   assert.equal(events.at(-1).status, 'failed');
   assert.ok(events.at(-1).diagnostic?.code);
   await transport.dispose();

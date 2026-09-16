@@ -137,6 +137,51 @@ export class ContextCompactionRuntime {
     finally { unlink(); this.pending.delete(execution); this.controllers.delete(id); this.active.delete(id); }
   }
 
+  /** Mirror an already confirmed, protocol-safe provider replacement into the same durable Surface/record lifecycle. */
+  async publishRequest(sessionId: M13StableId, input: Readonly<{ requestId: M13StableId; summary: string; before: ContextPressureV1; after: ContextPressureV1; reason: CompactionRecordV1['reason'] }>): Promise<void> {
+    this.assertActive();
+    const id = stable(sessionId, 'session id');
+    if (this.active.has(id)) throw new ContextCompactionError('context.compaction-active', 'Compaction is already active.');
+    this.active.add(id);
+    const execution = (async () => {
+      let snapshot = await this.sessions.replay(id);
+      if (snapshot.ops.some(op => op.kind === 'compaction.completed' && op.payload.requestId === input.requestId)) return;
+      if (snapshot.recovery.openToolNodeIds.length || snapshot.recovery.openBatchIds.length || snapshot.recovery.unresolvedBarrierIds.length || !snapshot.surface.nodes.length) throw new ContextCompactionError('context.compaction-unsafe', 'Request replacement requires a closed tool and interaction boundary.');
+      const nodes = snapshot.surface.nodes;
+      const sourceOpIds = unique(nodes.flatMap(n => n.replacedSourceOpIds.length ? [...n.replacedSourceOpIds] : [n.originOpId])).sort();
+      const sequences = snapshot.ops.filter(op => sourceOpIds.includes(op.id)).map(op => op.sequence);
+      const range: CompactionRangePreviewV1 = { startNodeId: nodes[0]!.id, endNodeId: nodes.at(-1)!.id, nodeIds: nodes.map(n => n.id), sourceOpIds,
+        coveredStartSequence: sequences.length ? Math.min(...sequences) : 0, coveredEndSequence: sequences.length ? Math.max(...sequences) : snapshot.surface.throughSequence, coveredTokens: input.before.usedInputTokens ?? 0, targetSummaryTokens: 0, minimumSummaryTokens: 1, maximumSummaryTokens: this.maximumSummaryBytes };
+      const pinnedFacts = this.collectPinnedFacts(snapshot, []);
+      const content = structuredSummary(input.summary, range, pinnedFacts);
+      if (Buffer.byteLength(content) > this.maximumSummaryBytes) throw new ContextCompactionError('context.compaction-summary-invalid', 'Confirmed request summary exceeds the artifact bound.');
+      const artifact = await this.log.putArtifact({ schemaVersion: 1, kind: 'surface-summary', role: 'assistant', content }, { schemaVersion: 'agent-surface-summary/1' });
+      const compactionId = this.nextUniqueId('compaction', new Set(snapshot.ops.map(op => op.nodeId).filter((v): v is M13StableId => v !== null)));
+      const base: CompactionRecordV1 = { id: compactionId, reason: input.reason, coveredStartSequence: range.coveredStartSequence, coveredEndSequence: range.coveredEndSequence,
+        before: input.before, after: null, sourceSurfaceGeneration: snapshot.surface.generation, targetSurfaceGeneration: null, summaryArtifactId: null,
+        pinnedFactDigests: pinnedFacts.map(f => f.digest), validation: 'pending', diagnostic: null };
+      let parent: M13StableId | null = null;
+      let published = false;
+      try {
+        for (const phase of ['requested', 'started'] as const) {
+          snapshot = await this.sessions.append(id, { kind: `compaction.${phase}`, nodeId: compactionId, parentOpId: parent, dependsOn: parent ? [parent] : [], payload: { phase, requestId: input.requestId, compaction: base as unknown as JsonValue } });
+          parent = snapshot.ops.at(-1)!.id;
+        }
+        const record: CompactionRecordV1 = { ...base, after: input.after, targetSurfaceGeneration: base.sourceSurfaceGeneration + 1, summaryArtifactId: artifact.id, validation: 'passed' };
+        const operation: SurfaceOpV1 = { op: 'replace', id: this.nextUniqueId('surface-node', new Set(nodes.map(n => n.id))), sourceOpIds, startNodeId: range.startNodeId, endNodeId: range.endNodeId, replacementArtifactId: artifact.id, reason: 'compaction' };
+        snapshot = await this.sessions.append(id, { kind: 'compaction.summary-created', nodeId: compactionId, parentOpId: parent, dependsOn: [parent!], artifactRefs: [artifact.id],
+          payload: { phase: 'summary-created', requestId: input.requestId, compaction: record as unknown as JsonValue, surfaceOperation: operation as unknown as JsonValue } });
+        published = true; parent = snapshot.ops.at(-1)!.id;
+        await this.sessions.append(id, { kind: 'compaction.completed', nodeId: compactionId, parentOpId: parent, dependsOn: [parent], payload: { phase: 'completed', requestId: input.requestId, compaction: record as unknown as JsonValue } });
+      } catch (cause) {
+        if (!published && parent) await this.sessions.append(id, { kind: 'compaction.failed', nodeId: compactionId, parentOpId: parent, dependsOn: [parent], payload: { phase: 'failed', requestId: input.requestId, compaction: failedRecord(base, 'context.compaction-unsafe') as unknown as JsonValue } });
+        throw cause;
+      }
+    })();
+    this.pending.add(execution);
+    try { await execution; } finally { this.pending.delete(execution); this.active.delete(id); }
+  }
+
   async recover(sessionId: M13StableId): Promise<readonly CompactionHistoryEntryV1[]> {
     this.assertActive();
     const id = stable(sessionId, 'session id');

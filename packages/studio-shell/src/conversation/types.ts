@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, M12ReasoningEffort, StableId, StudioDisposable, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
+import type { PlanTaskV1, JsonObject, JsonValue, M12ReasoningEffort, StableId, StudioDisposable, TaskBudgetV2 } from '@haiyue/ai-studio-contracts';
 import type { ExecutionGraphReadModel } from './execution-graph-types.js';
 
 export const CONVERSATION_NODE_KINDS = Object.freeze([
@@ -234,6 +234,7 @@ export interface PlanItemReadModel {
   readonly id: StableId;
   readonly label: string;
   readonly details?: string;
+  readonly execution?: PlanTaskV1;
   readonly status: 'pending' | 'accepted' | 'rejected' | 'completed';
 }
 

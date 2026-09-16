@@ -39,7 +39,7 @@ export class ContextFrameRuntime {
     const turnId = stable(input.turnId, 'turn id');
     const external = await this.validateInputs(input.inputs ?? []);
     const additional = validInteger(input.additionalInputTokens ?? 0, 'additional input tokens') + external.reduce((sum, entry) => sum + entry.estimatedTokens, 0);
-    const automatic = this.compactions ? await this.compactions.compact(sessionId, {
+    const automatic = this.compactions && !input.actualRequest ? await this.compactions.compact(sessionId, {
       reason: 'automatic-threshold',
       backendBindingId: input.backendBindingId,
       reservedOutputTokens: input.reservedOutputTokens,
@@ -55,7 +55,7 @@ export class ContextFrameRuntime {
     if (input.projectRevision !== null && (!Number.isSafeInteger(input.projectRevision) || input.projectRevision < 0)) throw new ContextPolicyError('context.frame-invalid', 'Context Frame project revision is invalid.');
     const surfaceEntries: Array<Readonly<{ nodeId: M13StableId; messageArtifactId: M13StableId; digest: M13Digest; role: string; estimatedTokens: number }>> = [];
     let surfaceTokens = 0;
-    for (const node of snapshot.surface.nodes) {
+    for (const node of input.actualRequest ? [] : snapshot.surface.nodes) {
       const artifact = await this.log.readArtifact(node.messageArtifactId as StableId);
       const value = artifact.value;
       if (!isRecord(value) || typeof value.content !== 'string') throw new ContextPolicyError('context.surface-invalid', `Surface artifact ${node.messageArtifactId} is invalid.`);
@@ -72,8 +72,11 @@ export class ContextFrameRuntime {
       surfaceDigest: snapshot.surface.digest,
       nodes: Object.freeze(surfaceEntries),
     });
-    const surfaceArtifact = await this.log.putArtifact(surfaceManifest, { schemaVersion: 'model-surface-context-input/1' });
-    const estimatedUsed = surfaceTokens + additional;
+    const surfaceArtifact = input.actualRequest ? await this.log.readArtifact(input.actualRequest.artifactId as StableId) : await this.log.putArtifact(surfaceManifest, { schemaVersion: 'model-surface-context-input/1' });
+    if (input.actualRequest) {
+      if (`sha256:${surfaceArtifact.digest}` !== input.actualRequest.digest) throw new ContextPolicyError('context.input-digest-mismatch', 'Actual request manifest digest mismatch.');
+    }
+    const estimatedUsed = input.actualRequest ? validInteger(input.actualRequest.estimatedTokens, 'actual request tokens') : surfaceTokens + additional;
     const providerUsed = input.providerUsedInputTokens === undefined || input.providerUsedInputTokens === null ? null : validInteger(input.providerUsedInputTokens, 'provider used input tokens');
     const measured = automatic?.status === 'completed' && automatic.record?.after ? Object.freeze({ pressure: automatic.record.after, usableInputTokens: automatic.record.after.maxInputTokens === null ? null : automatic.record.after.maxInputTokens - automatic.record.after.reservedOutputTokens - automatic.record.after.reservedSafetyTokens }) : this.pressure.calculate({
       maxInputTokens: binding.capabilities.maxInputTokens,
@@ -85,10 +88,10 @@ export class ContextFrameRuntime {
     if (measured.pressure.state === 'emergency') throw new ContextPolicyError('context.emergency-request-blocked', 'Context pressure is at or above 92%; a new model request is blocked until context is compacted.');
     const surfaceInput = Object.freeze({
       kind: 'surface' as const,
-      artifactId: surfaceArtifact.id,
-      digest: `sha256:${surfaceArtifact.digest}` as M13Digest,
+      artifactId: input.actualRequest?.artifactId ?? surfaceArtifact.id,
+      digest: input.actualRequest?.digest ?? `sha256:${surfaceArtifact.digest}` as M13Digest,
       sourceRevision: null,
-      estimatedTokens: surfaceTokens,
+      estimatedTokens: input.actualRequest?.estimatedTokens ?? surfaceTokens,
       required: true,
     });
     const inputs = Object.freeze([surfaceInput, ...external]);

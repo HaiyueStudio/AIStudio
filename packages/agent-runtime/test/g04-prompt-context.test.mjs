@@ -354,7 +354,7 @@ test('failed preparations and commits for different tasks cannot establish cache
     await runtime.commit({ conversationKey, backendId, taskId: 'task:different', tools, sessionId: 'session:wrong', turnId: 'turn:wrong', projectId: input.project.projectId });
     const retry = await runtime.prepare(input);
     assert.equal(retry.reusedSessionId, null); assert.match(retry.prompt, /UNSENT_SOURCE/);
-    await assert.rejects(runtime.prepare({ ...input, tools: Array.from({ length: 150 }, (_, i) => ({ ...tools[0], id: `tool:${i}`, description: 'required '.repeat(120) })) }), error => error.code === 'context.prompt-budget-exceeded');
+    await assert.rejects(runtime.prepare({ ...input, tools: Array.from({ length: 1500 }, (_, i) => ({ ...tools[0], id: `tool:${i}`, description: 'required '.repeat(120) })) }), error => error.code === 'context.prompt-budget-exceeded');
     await runtime.commit({ conversationKey, backendId, taskId, tools, sessionId: 'session:failed', turnId: 'turn:failed', projectId: input.project.projectId });
     assert.equal((await runtime.prepare(input)).reusedSessionId, null);
   } finally { await fixture.log.close(); await rm(fixture.root, { recursive: true, force: true }); }
@@ -363,7 +363,7 @@ test('failed preparations and commits for different tasks cannot establish cache
 test('the envelope budget defers a bounded scene when request and visible history use the remaining space', async () => {
   const fixture = await openFixture();
   try {
-    const runtime = new PromptContextRuntime(fixture.log);
+    const runtime = new PromptContextRuntime(fixture.log, undefined, undefined, { compactContext: false });
     const facts = Array.from({ length: 12 }, (_, i) => `${i}:` + 'v'.repeat(495));
     await runtime.commit({ conversationKey, backendId, taskId: 'task:history', sessionId: 'session:history', turnId: 'turn:history', projectId: null, goals: facts, decisions: facts, toolFacts: facts, acceptance: facts, blockers: facts });
     const longTools = Array.from({ length: 22 }, (_, i) => ({ ...tools[0], id: `tool:long-${i}`, description: 'd'.repeat(1000) }));

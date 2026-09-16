@@ -35,16 +35,21 @@ export interface PocAgentGameAuthoringProfileOptions {
   readonly codexLoginMode?: 'browser' | 'device-code';
   readonly behaviorSource?: GameBehaviorSource;
   readonly harnessMaxParallelToolCalls?: 1 | 2 | 3 | 4;
+  readonly harnessContextWindow?: number;
+  readonly compactContext?: boolean;
+  readonly batchTextWrites?: boolean;
 }
 
 export function createPocAgentGameAuthoringPlugins(options: PocAgentGameAuthoringProfileOptions): readonly StudioPluginDefinition<any>[] {
   const tools = createGameAuthoringToolsPlugin({ preview: options.preview, documentation: options.documentation, textureRenderer: options.textureRenderer, behaviorSource: options.behaviorSource });
   const agent = createAgentRuntimePlugin({
+    compactContext: options.compactContext,
+    batchTextWrites: options.batchTextWrites,
     createBackends: async (context) => {
       if (options.backend === 'codex-app-server') {
         return Object.freeze([new CodexAppServerBackend({ loginMode: options.codexLoginMode ?? 'browser' })]);
       }
-      const transport = await createPinnedHarnessAgentTransport({ owner: context, resolveApiKey: options.resolveDeepSeekApiKey, maxParallelToolCalls: options.harnessMaxParallelToolCalls });
+      const transport = await createPinnedHarnessAgentTransport({ owner: context, resolveApiKey: options.resolveDeepSeekApiKey, maxParallelToolCalls: options.harnessMaxParallelToolCalls, contextWindow: options.harnessContextWindow });
       return Object.freeze([new HarnessApiKeyBackend({ transport, clearApiKey: options.clearDeepSeekApiKey })]);
     },
   });

@@ -278,6 +278,10 @@ W1 实施记录见 [agent-efficiency-w1.md](./agent-efficiency-w1.md)。下文�
 
 W2 只读并发实施记录见 [agent-efficiency-w2.md](./agent-efficiency-w2.md)。
 
+W5 等待与持久化实施记录见 [agent-efficiency-w5.md](./agent-efficiency-w5.md)。
+
+W6 计划 DAG 与完整批次实施记录见 [agent-efficiency-w6.md](./agent-efficiency-w6.md)。
+
 | 包 | 优先级 / 规模 | 修改落点 | 验收条件 |
 | --- | --- | --- | --- |
 | W0 基线 | P0 / 小 | bridge request instrumentation；runtime usage；现有 evals | 精确区分 turn 与 model request，分项记录 TTFT、工具/审批/持久化等待、上下文字节/token |
@@ -334,3 +338,9 @@ W2 只读并发实施记录见 [agent-efficiency-w2.md](./agent-efficiency-w2.md
 第一轮优先交付 W0/W1/W2，并完成 W3 的真实请求边界验证。这样可以先解决已证明的 policy 重复、工具集合漂移和 Harness 串行限制，同时防止“本地压缩看起来成功、实际请求仍膨胀”。后续再做 DAG、多 Agent，避免先增加规划层和上下文复制成本。
 
 局部实验记录见 [agent-efficiency-baseline-2026-09-16.json](../evidence/agent-efficiency-baseline-2026-09-16.json)。以上比例目标均需真实任务评测，不能当作已交付性能承诺。
+
+W3 实现和验证说明见 [agent-efficiency-w3.md](./agent-efficiency-w3.md)。真实请求边界使用公开 Harness hooks 与 Surface replacement，新增 provider epoch 确认及失败回滚。
+
+W4 实现与验证说明见 [agent-efficiency-w4.md](./agent-efficiency-w4.md)：确认后的精确工作集复用、按 provenance 去重知识、native schema 去重及工具结果字段保全。
+
+W7 实现与启用门槛见 [W7：按需启用的隔离子任务](./agent-efficiency-w7.md)。默认关闭，真实模型 A/B 收益尚未验证。

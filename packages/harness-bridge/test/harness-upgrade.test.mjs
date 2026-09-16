@@ -51,6 +51,11 @@ test('0.1.5 streams and tool results keep their session and turn across repeated
     assert.equal(events.filter((event) => event.type === 'turn-start').length, 1);
     assert.equal(events.filter((event) => event.type === 'tool-request').length, 1);
     assert.equal(events.filter((event) => event.type === 'text-delta').length, 2, 'durable assistant messages must not duplicate transient text');
+    const boundaries = events.filter(event => event.type === 'batch-boundary');
+    assert.deepEqual(boundaries.map(event => event.closed), [false, true, false, true]);
+    const call = events.find(event => event.type === 'tool-request');
+    assert.equal(call.batchId, boundaries[0].batchId); assert.equal(call.stepId, boundaries[0].stepId);
+    assert.equal(boundaries[0].batchId, boundaries[1].batchId); assert.notEqual(boundaries[0].batchId, boundaries[2].batchId);
     const accounting = events.filter((event) => event.type === 'usage');
     assert.equal(accounting.length, 2);
     assert.ok(accounting.every((event) => event.inputTokens === 20 && event.cacheReadTokens === 80 && event.outputTokens === 7));

@@ -1,0 +1,71 @@
+{
+  "valid": [
+    {
+      "schemaId": "haiyue://contracts/context-artifact/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "artifact:w4-knowledge",
+        "kind": "knowledge-hit",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source": "studio.knowledge-retrieval",
+        "documentRevision": null,
+        "mediaType": "application/json",
+        "byteLength": 256,
+        "redacted": false,
+        "createdAt": "2026-09-16T00:00:00.000Z"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "W4 unknown knowledge artifact version",
+      "schemaId": "haiyue://contracts/context-artifact/v2",
+      "value": {
+        "schemaVersion": 99,
+        "id": "artifact:w4-knowledge",
+        "kind": "knowledge-hit",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source": "studio.knowledge-retrieval",
+        "documentRevision": null,
+        "mediaType": "application/json",
+        "byteLength": 256,
+        "redacted": false,
+        "createdAt": "2026-09-16T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "W4 invalid knowledge artifact digest",
+      "schemaId": "haiyue://contracts/context-artifact/v2",
+      "value": {
+        "schemaVersion": 2,
+        "id": "artifact:w4-knowledge",
+        "kind": "knowledge-hit",
+        "digest": "invalid",
+        "source": "studio.knowledge-retrieval",
+        "documentRevision": null,
+        "mediaType": "application/json",
+        "byteLength": 256,
+        "redacted": false,
+        "createdAt": "2026-09-16T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "W4 secret-bearing knowledge artifact",
+      "schemaId": "haiyue://contracts/context-artifact/v2",
+      "invalidReason": "forbidden-secret-key",
+      "value": {
+        "schemaVersion": 2,
+        "id": "artifact:w4-knowledge",
+        "kind": "knowledge-hit",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source": "studio.knowledge-retrieval",
+        "documentRevision": null,
+        "mediaType": "application/json",
+        "byteLength": 256,
+        "redacted": false,
+        "createdAt": "2026-09-16T00:00:00.000Z",
+        "authorization": "Bearer FIXTURE_CANARY"
+      }
+    }
+  ]
+}

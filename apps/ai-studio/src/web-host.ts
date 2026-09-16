@@ -59,6 +59,8 @@ export function installWebStudioHost(): void {
   Object.defineProperty(window, 'haiyueStudio', { configurable: false, enumerable: false, writable: false, value: Object.freeze({
     invoke: (request: StudioIpcRequest) => host.handle(request),
     cancel: (requestId: string) => host.cancel(requestId),
+    // Web mode has no Agent preview command producer.
+    onPreviewPending: (_listener: () => void) => () => {},
     onConversationChanged: (listener: () => void) => host.onConversationChanged(listener),
   }) });
 }

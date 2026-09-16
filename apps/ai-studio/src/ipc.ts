@@ -23,6 +23,7 @@ import type { ProjectBehaviorController, ProjectConversationController, ProjectE
 
 export const STUDIO_IPC_CHANNEL = 'studio:request' as const;
 export const STUDIO_IPC_CANCEL_CHANNEL = 'studio:cancel' as const;
+export const STUDIO_PREVIEW_PENDING_CHANNEL = 'studio:preview-pending' as const;
 export const STUDIO_CONVERSATION_CHANGED_CHANNEL = 'studio:conversation-changed' as const;
 export const STUDIO_IPC_SCHEMA_VERSION = 1 as const;
 
@@ -89,7 +90,7 @@ export interface StudioIpcRouterOptions {
   readonly selection: SceneSelectionService;
   readonly scripts: ScriptPreviewStudioService;
   readonly operationLog: OperationLog;
-  readonly conversation: Pick<StudioConversationHost, 'dispatch' | 'replay' | 'cancelPending'> & Partial<Pick<ProjectConversationController, 'prepareProjectChange' | 'syncProject' | 'queryHistory' | 'readHistory'>>;
+  readonly conversation: Pick<StudioConversationHost, 'dispatch' | 'replay' | 'cancelPending'> & Partial<Pick<ProjectConversationController, 'prepareProjectChange' | 'syncProject' | 'queryHistory' | 'readHistory' | 'previewOwnership'>>;
   readonly agentPreview: AgentPreviewBroker;
   readonly behavior?: ProjectBehaviorController;
   readonly editor?: ProjectEditorController;
@@ -304,11 +305,12 @@ export class StudioIpcRouter {
         return Object.freeze({ recorded: true });
       }
       case 'preview/agent-command': {
-        const value = this.options.agentPreview.command(), command = value.command as JsonObject | undefined;
-        if (value.pending !== true || command?.kind !== 'start' || !command.plan) return value;
+        const pending = this.options.agentPreview.command();
+        const value = { ...pending, ...(this.options.conversation.previewOwnership ? { ownership: this.options.conversation.previewOwnership() } : {}) }, command = pending.command as JsonObject | undefined;
+        if (pending.pending !== true || command?.kind !== 'start' || !command.plan) return toJson(value);
         const plan = await this.observedPlan(command.plan as unknown as PreviewPlan, request, signal);
         if ((this.options.agentPreview.command().command as JsonObject | undefined)?.id !== command.id) throw new Error('behavior.play-stale');
-        return toJson({ ...value, command: { ...command, plan } });
+        return toJson({ ...value, ...(this.options.conversation.previewOwnership ? { ownership: this.options.conversation.previewOwnership() } : {}), command: { ...command, plan } });
       }
       case 'preview/agent-result': {
         const commandId = request.payload.commandId as StableId;
