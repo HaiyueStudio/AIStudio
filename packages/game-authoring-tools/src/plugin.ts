@@ -13,7 +13,7 @@ import type { GameBehaviorSource } from './behavior.js';
 export interface GameAuthoringToolService {
   assertAssemblyPlan?(expectations: readonly JsonObject[], toolId: string, args: JsonObject): void;
   definitions(): ReturnType<GameAuthoringToolRuntime['definitions']>;
-  selectDefinitions?(request: string, expandedIds?: readonly StableId[]): ToolSchemaSelection;
+  selectDefinitions?(request: string, expandedIds?: readonly StableId[], selection?: Readonly<{ entityIds: readonly StableId[]; revision: number }>): ToolSchemaSelection;
   snapshot(): GameToolRuntimeSnapshot;
   prepare(call: GameToolCall, signal?: AbortSignal): Promise<GameToolPreparation>;
   approval(id: StableId): GameToolApproval | undefined;

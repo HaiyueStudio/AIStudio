@@ -1,6 +1,7 @@
+import { taskIntent, intentConstraints, type TaskIntent } from './task-intent.js';
 import { asStableId, type StableId, type JsonObject, type TaskSpecV2, type ObservationArtifactV2, type EvaluationResultV2 } from '@haiyue/ai-studio-contracts';
 import type { TaskAccount } from '@haiyue/ai-studio-agent-runtime';
-import { BoundedPlaytestTask, PlaytestLoopError } from '@haiyue/ai-studio-game-authoring-tools';
+import { BoundedPlaytestTask, PlaytestLoopError, parseEvidenceAssertion } from '@haiyue/ai-studio-game-authoring-tools';
 import { sha256 } from '@haiyue/ai-studio-operation-log';
 import { normalizeTaskAccounting, type ConversationTaskPhase, type ConversationTaskRunReadModel, type ConversationTaskAcceptanceReadModel, type ConversationTaskAccountingReadModel } from '@haiyue/ai-studio-shell/conversation';
 import type { PlanAcceptanceProposal } from './plan-policy.js';
@@ -18,28 +19,29 @@ export function acceptanceLabel(assertion: string): string {
 }
 /** Derive evidence acquisition from the approved assertion, including restored tasks. */
 export function verificationRoute(item: Readonly<{ assertion: string; category: string }>): Readonly<{ method: string; tool: string; guidance: string }> {
-  const type = /^evidence\s+([a-z-]+)/u.exec(item.assertion)?.[1];
+  const parsed = parseEvidenceAssertion(item.assertion);
+  const type = parsed?.type;
   if (item.category === 'visual' || type === 'screenshot' || type === 'visual-analysis') return {
     method: 'visual-review', tool: 'play.capture', guidance: 'Inspect rendered appearance; reuse a same-stage capture. Screenshot presence alone does not prove correctness. Report any unavailable visual verifier.',
   };
   if (type === 'lifecycle') return { method: 'data', tool: 'play.stop', guidance: 'Verify owned preview cleanup from lifecycle evidence.' };
-  if (/^evidence\s+state\s+signal\s+(?:effects|gesture)\./u.test(item.assertion) || /^evidence\s+event-trace\s+signal\s+interactions\./u.test(item.assertion)) return { method: 'data', tool: 'play.pointer-gesture', guidance: 'Use the final gesture state/event-trace artifact; effects compare actual before/after engine data. Plain play.inspect does not contain gesture effects. Keep the observationIds for this test stage.' };
+  if (type === 'state' && /^(?:effects|gesture)\./u.test(parsed?.signal ?? '') || type === 'event-trace' && /^interactions\./u.test(parsed?.signal ?? '')) return { method: 'data', tool: 'play.pointer-gesture', guidance: 'Use the final gesture state/event-trace artifact; effects compare actual before/after engine data. Plain play.inspect does not contain gesture effects. Keep the observationIds for this test stage.' };
   return { method: 'data', tool: 'play.inspect', guidance: 'Use engine state and deterministic assertions, not screenshots. Scope entityIds; for interactions execute real action/pointer input and compare before/after entities and camera, not script metrics alone.' };
 }
 function acceptanceCapabilities(acceptance: readonly Readonly<{ assertion: string; category: string }>[]): TaskSpecV2['requiredCapabilities'] {
   const capabilities = new Set<TaskSpecV2['requiredCapabilities'][number]>(['task.evaluate']);
   for (const item of acceptance) {
     capabilities.add(verificationRoute(item).method === 'visual-review' ? 'play.capture' : 'play.inspect');
-    if (/^evidence\s+(?:state|event-trace|runtime-errors|performance|visual-analysis|lifecycle)(?:\s|$)/u.test(item.assertion)) capabilities.add('play.inspect');
+    if (['state', 'event-trace', 'runtime-errors', 'performance', 'visual-analysis', 'lifecycle'].includes(parseEvidenceAssertion(item.assertion)?.type ?? '')) capabilities.add('play.inspect');
   }
   return Object.freeze([...capabilities]);
 }
-export function taskSpecFromPlan(active: Readonly<{ taskId: StableId; goal: string; account: TaskAccount }>, acceptance: readonly PlanAcceptanceProposal[]): TaskSpecV2 {
+export function taskSpecFromPlan(active: Readonly<{ taskId: StableId; goal: string; account: TaskAccount }>, acceptance: readonly PlanAcceptanceProposal[], intent?: TaskIntent): TaskSpecV2 {
   const criteria = acceptance.map((item, index) => Object.freeze({ id: asStableId(`acceptance:${active.taskId}:${index + 1}`), required: item.required, visibility: 'agent' as const, category: item.category, assertion: item.assertion }));
-  return Object.freeze({ schemaVersion: 2, id: active.taskId, request: active.goal.slice(0, 20_000), visibleConstraints: Object.freeze([]), budgetId: active.account.options.budget.id, requiredCapabilities: acceptanceCapabilities(acceptance), acceptance: Object.freeze(criteria) });
+  return Object.freeze({ schemaVersion: 2, id: active.taskId, request: active.goal.slice(0, 20_000), visibleConstraints: intentConstraints(intent ?? taskIntent(active.goal, [], null)), budgetId: active.account.options.budget.id, requiredCapabilities: acceptanceCapabilities(acceptance), acceptance: Object.freeze(criteria) });
 }
-export function taskSpecFromRun(run: ConversationTaskRunReadModel): TaskSpecV2 {
-  return Object.freeze({ schemaVersion: 2, id: run.taskId, request: run.requestSummary, visibleConstraints: Object.freeze([]), budgetId: asStableId(`budget:${run.taskId}`), requiredCapabilities: acceptanceCapabilities(run.acceptance), acceptance: Object.freeze(run.acceptance.map((item) => Object.freeze({ id: item.id, required: item.required, visibility: item.visibility, category: item.category, assertion: item.assertion }))) });
+export function taskSpecFromRun(run: ConversationTaskRunReadModel, intent?: TaskIntent): TaskSpecV2 {
+  return Object.freeze({ schemaVersion: 2, id: run.taskId, request: (intent?.request ?? run.requestSummary).slice(0, 20_000), visibleConstraints: intentConstraints(intent ?? taskIntent(run.requestSummary, [], null)), budgetId: asStableId(`budget:${run.taskId}`), requiredCapabilities: acceptanceCapabilities(run.acceptance), acceptance: Object.freeze(run.acceptance.map((item) => Object.freeze({ id: item.id, required: item.required, visibility: item.visibility, category: item.category, assertion: item.assertion }))) });
 }
 export function productPhaseForTool(toolId: StableId): Extract<ConversationTaskPhase, 'editing' | 'validating' | 'playing' | 'evaluating'> | null {
   if (toolId === 'preview.validate') return 'validating';

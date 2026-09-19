@@ -1,7 +1,7 @@
 export type WorkspaceLanguage = 'en' | 'zh-CN';
 const zh = {
-  logic: '逻辑', resources: '资源', workspace: '项目工作区', advanced: '高级编辑', close: '关闭', inspect: '层级与属性', script: '脚本',
-  mode: '工作区布局', intent: '逻辑 / 资源布局', classic: '经典布局', search: '查找对象', entity: '选择对象', noEntities: '项目中还没有对象', noMatches: '没有匹配的对象',
+  logic: '实体', resources: '资源', workspace: '项目工作区', advanced: '高级编辑', close: '关闭', inspect: '层级与属性', script: '脚本',
+  mode: '工作区布局', intent: '实体 / 资源布局', classic: '经典布局', search: '查找对象', entity: '选择对象', noEntities: '项目中还没有对象', noMatches: '没有匹配的对象',
   choose: '选择一个对象查看来源', events: '事件入口', pending: '行为分析尚未就绪。可先查看已有脚本与组件配置。', noEvents: '当前分析没有列出事件入口；这不代表对象没有行为。',
   stale: '此记录对应旧版本，已停止将它作为当前项目内容显示。', more: '内容已截断，完整结构需通过行为查询查看。',
   sources: '来源', 'source-script': '脚本', 'source-declarative-component': '组件配置', 'source-runtime-adapter': '运行适配器', unknown: '未知关系', established: '静态结构',
@@ -14,8 +14,8 @@ const zh = {
   manualInspect: '查看层级与属性', manualScript: '打开脚本编辑', sourceHint: '此处显示来源位置，具体定位由项目服务校验版本。',
 };
 const en: Record<keyof typeof zh, string> = {
-  logic:'Logic',resources:'Resources',workspace:'Project workspace',advanced:'Advanced',close:'Close',inspect:'Hierarchy & properties',script:'Script',
-  mode:'Workspace layout',intent:'Logic / Resources',classic:'Classic layout',search:'Find an entity',entity:'Select an entity',noEntities:'This project has no entities yet',noMatches:'No matching entities',
+  logic:'Entities',resources:'Resources',workspace:'Project workspace',advanced:'Advanced',close:'Close',inspect:'Hierarchy & properties',script:'Script',
+  mode:'Workspace layout',intent:'Entities / Resources',classic:'Classic layout',search:'Find an entity',entity:'Select an entity',noEntities:'This project has no entities yet',noMatches:'No matching entities',
   choose:'Select an entity to inspect its sources',events:'Event entries',pending:'Behavior analysis is not ready. Existing scripts and component settings remain available.',noEvents:'The analysis lists no event entries. This does not establish that the entity has no behavior.',
   stale:'This record belongs to an older version and is no longer shown as current project content.',more:'Content is truncated. Use behavior queries to inspect the complete structure.',
   sources:'Sources','source-script':'Script','source-declarative-component':'Component settings','source-runtime-adapter':'Runtime adapter',unknown:'Unknown relation',established:'Static structure',

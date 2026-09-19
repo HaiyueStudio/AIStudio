@@ -38,8 +38,18 @@ export class BoundedPlaytestTask {
   private terminalEvidenceIdsValue: readonly StableId[] = Object.freeze([]);
   private diagnosticValue: string | null = null;
 
-  constructor(readonly task: TaskSpecV2, readonly repairLimit: number) {
+  private taskValue: TaskSpecV2;
+  constructor(task: TaskSpecV2, readonly repairLimit: number) {
+    this.taskValue = task;
     if (!Number.isSafeInteger(repairLimit) || repairLimit < 0 || repairLimit > 100) throw new TypeError('Repair limit must be between zero and one hundred.');
+  }
+
+  get task(): TaskSpecV2 { return this.taskValue; }
+  /** User supplements may add constraints, never replace approved acceptance or reset repairs. */
+  retainConstraints(values: TaskSpecV2['visibleConstraints']): void {
+    const constraints = [...new Set([...this.taskValue.visibleConstraints, ...values])];
+    if (constraints.length > 128 || constraints.some(value => !value || value.length > 2048)) throw new PlaytestLoopError('task.constraints-invalid', 'User constraints exceed TaskSpec limits.');
+    this.taskValue = Object.freeze({ ...this.taskValue, visibleConstraints: Object.freeze(constraints) });
   }
 
   snapshot(): PlaytestTaskSnapshot {

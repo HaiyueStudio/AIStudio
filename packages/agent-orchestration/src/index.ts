@@ -15,3 +15,5 @@ export * from './editor-project.js';
 export { runSubtasks, SUBTASK_TOOL } from './subtasks.js';
 export type { SubtaskOptions, SubtaskPort, SubtaskFact } from './subtasks.js';
 export { createRuntimeSubtaskPort } from './subtask-runtime-port.js';
+export { qualifySubtasks } from './subtask-qualification.js';
+export type { SubtaskQualification, QualificationIdentity } from './subtask-qualification.js';

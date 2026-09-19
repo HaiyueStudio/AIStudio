@@ -18,7 +18,8 @@ export function assertBudgetAllowed(decision: Readonly<{ allowed: boolean; warni
 export class BudgetStopError extends Error { readonly code = 'budget.hard-stop'; constructor(message: string) { super(message); this.name = 'BudgetStopError'; } }
 export interface WallTimeBudget { pause(): void; resume(): void; resetAfterContinuation(): void; dispose(): void; }
 export function armWallTimeBudget(controller: AbortController, account: TaskAccount): WallTimeBudget {
-  if (account.options.budget.enforcement !== 'hard') return Object.freeze({ pause() {}, resume() {}, resetAfterContinuation() {}, dispose() {} });
+  const activity = account.trackWallTime();
+  if (account.options.budget.enforcement !== 'hard') return Object.freeze({ pause: activity.pause, resume: activity.resume, resetAfterContinuation() {}, dispose: activity.dispose });
   let remaining = (account.snapshot().budget.limits.wallTimeMs ?? Number.MAX_SAFE_INTEGER) - account.snapshot().consumption.wallTimeMs;
   let armedAt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -37,6 +38,7 @@ export function armWallTimeBudget(controller: AbortController, account: TaskAcco
   return Object.freeze({
     pause(): void {
       if (disposed) return;
+      activity.pause();
       pauseDepth += 1;
       if (pauseDepth !== 1 || timer === null) return;
       clearTimeout(timer); timer = null;
@@ -44,6 +46,7 @@ export function armWallTimeBudget(controller: AbortController, account: TaskAcco
     },
     resume(): void {
       if (disposed || pauseDepth === 0) return;
+      activity.resume();
       pauseDepth -= 1;
       if (pauseDepth === 0) arm();
     },
@@ -54,6 +57,6 @@ export function armWallTimeBudget(controller: AbortController, account: TaskAcco
       remaining = Math.max(1, (snapshot.budget.limits.wallTimeMs ?? Number.MAX_SAFE_INTEGER) - snapshot.consumption.wallTimeMs);
       if (pauseDepth === 0) arm();
     },
-    dispose(): void { if (disposed) return; disposed = true; if (timer !== null) clearTimeout(timer); timer = null; },
+    dispose(): void { if (disposed) return; disposed = true; if (timer !== null) clearTimeout(timer); timer = null; activity.dispose(); },
   });
 }

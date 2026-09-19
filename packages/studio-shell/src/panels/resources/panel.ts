@@ -1,5 +1,5 @@
 import type { HYTabs, HYTabChangeDetail } from '@haiyue/ui/tabs';
-import { DEFAULT_RESOURCE_QUERY, EMPTY_RESOURCE_PANEL, RESOURCE_ACTION_LABELS, RESOURCE_KIND_LABELS, RESOURCE_PRIMARY_CATEGORIES, resourceActions, resourceCategoryLabel, resourceUsageLabel, type ResourcePanelData, type ResourcePanelIntent, type ResourcePanelItem, type ResourcePanelQuery } from './model.js';
+import { DEFAULT_RESOURCE_QUERY, EMPTY_RESOURCE_PANEL, RESOURCE_ACTION_LABELS, RESOURCE_PRIMARY_CATEGORIES, resourceActions, resourceCategoryLabel, resourceUsageLabel, type ResourcePanelData, type ResourcePanelIntent, type ResourcePanelItem, type ResourcePanelQuery } from './model.js';
 
 export type ResourceThumbnailRenderer = (canvas: HTMLCanvasElement, item: ResourcePanelItem, signal: AbortSignal) => void | Promise<void>;
 
@@ -19,6 +19,7 @@ export class ResourceExplorerPanel {
   readonly root: HTMLElement;
   private data = EMPTY_RESOURCE_PANEL;
   private selected: string | null = null;
+  private category = DEFAULT_RESOURCE_QUERY.category!;
   private busy = false;
   private querying = false;
   private closed = false;
@@ -37,26 +38,17 @@ export class ResourceExplorerPanel {
 <p data-resource="status" role="status" aria-live="polite"></p><p data-resource="error" role="alert" hidden></p>
 <hy-tabs data-resource="tabs" class="resource-tabs" aria-label="资源分类"><div data-resource="content" slot="Geometry">
 <form data-resource="filters"><div class="resource-searchbar"><input data-resource="search" type="search" aria-label="搜索资源" maxlength="256" placeholder="搜索几何体…"><button type="submit">搜索</button><button type="button" data-resource="import" hidden>导入项目资源</button></div>
-<details class="resource-more" data-resource="more"><summary>更多筛选</summary><div class="resource-filters"><label>分类<select data-resource="category"></select></label><label>种类<select data-resource="kind"></select></label><label>状态<select data-resource="availability"></select></label><label class="resource-unused"><input data-resource="unused" type="checkbox">仅未使用的文件资产</label><label data-resource="import-options">导入类型<select data-resource="import-kind"></select></label></div></details></form>
+</form>
 <div class="resource-columns"><section aria-label="资源列表"><div class="resource-list-heading"><p data-resource="count"></p><div class="resource-toolbar" data-resource="pagination"><button type="button" data-resource="first">首页</button><button type="button" data-resource="next">下一页</button></div></div><ul data-resource="list" class="resource-list"></ul></section><section data-resource="detail" class="resource-detail" aria-label="资源详情" tabindex="-1" hidden></section></div>
 </div></hy-tabs>`;
     parent.append(this.root);
-    this.options('kind', [['', '全部种类'], ...Object.entries(RESOURCE_KIND_LABELS)]);
-    this.options('availability', [['', '全部状态'], ['available', '可用'], ['unavailable', '不可用']]);
-    this.options('import-kind', [['texture', '纹理'], ['model', '模型'], ['audio', '音频'], ['animation', '动画']]);
-    this.options('category', [['', '全部分类'], ...RESOURCE_PRIMARY_CATEGORIES.map(value => [value, resourceCategoryLabel(value)] as [string, string])]);
-    this.get<HTMLSelectElement>('category').value = DEFAULT_RESOURCE_QUERY.category!;
     this.syncCategory();
     const on = (key: string, event: string, run: (event: Event) => void) => this.get(key).addEventListener(event, run, { signal: this.lifetime.signal });
     on('filters', 'submit', event => { event.preventDefault(); this.syncCategory(); this.send({ type: 'query', query: this.query() }); });
-    for (const key of ['category', 'kind', 'availability', 'unused']) on(key, 'change', () => { this.syncCategory(); this.send({ type: 'query', query: this.query() }); });
     on('tabs', 'tab-change', event => {
       const value = (event as CustomEvent<HYTabChangeDetail>).detail.value;
       if (this.busy && !this.querying) { this.syncCategory(); return; }
-      this.get<HTMLSelectElement>('category').value = value === 'all' ? '' : value;
-      // A category switch starts at page one with no invisible filters from another tab.
-      for (const key of ['kind', 'availability']) this.get<HTMLSelectElement>(key).value = '';
-      this.get<HTMLInputElement>('unused').checked = false;
+      this.category = value === 'all' ? '' : value;
       this.selected = null; this.assignmentUsage = null; this.usageOffset = 0;
       this.syncCategory(); this.send({ type: 'query', query: this.query() });
     });
@@ -64,7 +56,7 @@ export class ResourceExplorerPanel {
     on('cancel', 'click', () => this.send({ type: 'cancel' }));
     on('first', 'click', () => this.send({ type: 'query', query: this.query() }));
     on('next', 'click', () => { if (this.data.nextCursor) this.send({ type: 'query', query: { ...this.query(), cursor: this.data.nextCursor } }); });
-    on('import', 'click', () => { if (this.data.viewToken) this.send({ type: 'import', viewToken: this.data.viewToken, kind: this.get<HTMLSelectElement>('import-kind').value as 'texture' | 'model' | 'audio' | 'animation' }); });
+    on('import', 'click', () => { if (this.data.viewToken && this.importKind()) this.send({ type: 'import', viewToken: this.data.viewToken, kind: this.importKind()! }); });
     this.render();
   }
   update(data: ResourcePanelData): void {
@@ -72,10 +64,8 @@ export class ResourceExplorerPanel {
     if (data.items.length > 100 || data.categories.length > 128 || data.items.some(item => item.locations.length > 1000 || item.metadata.length > 32)) throw Error('Resource panel projection exceeds display budget.');
     if (data.projectKey !== this.data.projectKey) {
       this.clearRows(); this.generation++; this.busy = false; this.querying = false; this.selected = null; this.usageOffset = 0; this.assignmentUsage = null; this.message = '';
-      this.get<HTMLInputElement>('search').value = ''; this.get<HTMLInputElement>('unused').checked = false;
-      for (const key of ['kind', 'availability']) this.get<HTMLSelectElement>(key).value = '';
-      this.get<HTMLSelectElement>('category').value = DEFAULT_RESOURCE_QUERY.category!;
-      this.get<HTMLDetailsElement>('more').open = false;
+      this.get<HTMLInputElement>('search').value = '';
+      this.category = DEFAULT_RESOURCE_QUERY.category!;
     }
     // Loading is a state transition, not an empty query result. Only settled
     // results (or a project switch above) may remove existing resource cards.
@@ -83,39 +73,31 @@ export class ResourceExplorerPanel {
       data = { ...data, items: this.data.items, total: this.data.total, nextCursor: null, viewToken: null };
     }
     this.data = data;
-    const category = this.get<HTMLSelectElement>('category').value;
-    const categories = [...new Set([...RESOURCE_PRIMARY_CATEGORIES, ...data.categories, ...(category ? [category] : [])])];
-    this.options('category', [['', '全部分类'], ...categories.map(value => [value, resourceCategoryLabel(value)] as [string, string])]);
-    this.get<HTMLSelectElement>('category').value = category;
     this.syncCategory();
     if (!data.items.some(item => item.entry.catalogEntryId === this.selected)) { this.selected = null; this.usageOffset = 0; }
     this.render();
   }
   dispose(): void { if (this.closed) return; this.closed = true; this.generation++; this.lifetime.abort(); this.renderScope.abort(); this.clearRows(); this.root.remove(); }
   private get<T extends HTMLElement = HTMLElement>(key: string): T { return this.root.querySelector<T>(`[data-resource="${key}"]`)!; }
-  private options(key: string, rows: readonly (readonly [string, string])[]): void {
-    const select = this.get<HTMLSelectElement>(key);
-    if (JSON.stringify([...select.options].map(option => [option.value, option.textContent])) === JSON.stringify(rows)) return;
-    select.replaceChildren(...rows.map(([value, label]) => { const option = this.document.createElement('option'); option.value = value; option.textContent = label; return option; }));
+  private importKind(): 'texture' | 'model' | 'audio' | 'animation' | null {
+    return ({ Texture: 'texture', Model: 'model', Audio: 'audio', Animation: 'animation', Lighting: 'texture' } as Record<string, 'texture' | 'model' | 'audio' | 'animation'>)[this.category] ?? null;
   }
   private syncCategory(): void {
-    const category = this.get<HTMLSelectElement>('category').value, tabs = this.get<HYTabs>('tabs');
+    const category = this.category, tabs = this.get<HYTabs>('tabs');
     const options = RESOURCE_PRIMARY_CATEGORIES.map(value => ({ value: String(value), label: resourceCategoryLabel(value) }));
     if (!options.some(option => option.value === category)) options.push({ value: category || 'all', label: category ? resourceCategoryLabel(category) : '全部资源' });
     if (JSON.stringify(tabs.options) !== JSON.stringify(options)) tabs.options = options;
     tabs.value = category || 'all'; this.get('content').slot = tabs.value;
     this.get<HTMLInputElement>('search').placeholder = `搜索${category ? resourceCategoryLabel(category) : '资源'}…`;
-    const kind = ({ Texture: 'texture', Model: 'model', Audio: 'audio', Animation: 'animation', Lighting: 'texture' } as Record<string, string>)[category];
-    if (kind) this.get<HTMLSelectElement>('import-kind').value = kind;
-    this.get('import').hidden = Boolean(category && !kind);
+    const kind = this.importKind();
+    this.get('import').hidden = !kind;
     this.get('import').textContent = kind ? `导入${resourceCategoryLabel(kind === 'texture' ? 'Texture' : category)}` : '导入项目资源';
-    this.get('import-options').hidden = Boolean(category);
   }
   private query(): ResourcePanelQuery {
-    const text = this.get<HTMLInputElement>('search').value, category = this.get<HTMLSelectElement>('category').value;
-    const kind = this.get<HTMLSelectElement>('kind').value as ResourcePanelQuery['kind'], status = this.get<HTMLSelectElement>('availability').value as ResourcePanelQuery['status'];
-    return { limit: 25, ...(text ? { text } : {}), ...(category ? { category } : {}), ...(kind ? { kind } : {}), ...(status ? { status } : {}), ...(this.get<HTMLInputElement>('unused').checked ? { unused: true } : {}) };
+    const text = this.get<HTMLInputElement>('search').value;
+    return { limit: 25, ...(text ? { text } : {}), ...(this.category ? { category: this.category } : {}) };
   }
+
   private send(intent: ResourcePanelIntent): void {
     if (this.closed || this.busy && intent.type !== 'cancel' && !(this.querying && intent.type === 'query')) return;
     const generation = ++this.generation;

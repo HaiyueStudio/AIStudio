@@ -1,3 +1,4 @@
+import { taskIntent, isTaskIntent, questionAmendment, intentRequirements, intentConstraints, intentContext, assertIntentAllows, type TaskIntent } from './task-intent.js';
 import { runSubtasks, SUBTASK_TOOL, type SubtaskOptions } from './subtasks.js';
 import { matchesRecoveredApproval } from './approval-recovery.js';
 import { toolConcurrencyHint, invocationConcurrencyHint } from './tool-concurrency.js';
@@ -174,6 +175,10 @@ export class StudioConversationHost {
   private readonly approvedPlanTurns = new Set<string>();
   private readonly listeners = new Set<() => void>();
   private readonly backendSelections = new Map<StableId, BackendSelection>();
+  private readonly taskIntents = new Map<StableId, TaskIntent>();
+  private readonly preparingControllers = new Set<AbortController>();
+  private readonly intentGuardRevisions = new Map<StableId, number>();
+  private readonly invalidTaskIntents = new Set<StableId>();
   private readonly taskRuns = new Map<StableId, ConversationTaskRunReadModel>();
   private readonly taskToolSelections = new Map<string, readonly StableId[]>();
   private readonly restoredTaskAccounting = new Map<StableId, ConversationTaskAccountingReadModel>();
@@ -320,7 +325,10 @@ export class StudioConversationHost {
           if (ids.length !== 1 || ![pending.continueOptionId, pending.stopOptionId].includes(ids[0] as StableId)) throw new Error('Choose a query allowance option.');
         }
         try {
-          if (pending.kind === 'backend') await pending.backend.answerQuestion(pending.backendNodeId, intent.answer, signal);
+          if (pending.kind === 'backend') {
+            if (this.active) await this.retainIntentAmendment(this.active.taskId, questionAmendment(intent.answer, this.nodes.get(intent.nodeId)?.content.options));
+            await pending.backend.answerQuestion(pending.backendNodeId, intent.answer, signal);
+          }
           else {
             const optionIds = Array.isArray(intent.answer.optionIds) ? intent.answer.optionIds : [];
             if (optionIds.length !== 1 || (optionIds[0] !== pending.continueOptionId && optionIds[0] !== pending.stopOptionId)) throw new Error('Budget continuation answer is invalid.');
@@ -401,6 +409,7 @@ export class StudioConversationHost {
   }
 
   cancelPending(reason = 'Renderer owner changed.'): void {
+    for (const controller of this.preparingControllers) controller.abort(new Error(reason));
     const active = this.active;
     const liveBarrierNodeIds = new Set<StableId>([
       ...[...this.approvals.values()].map((pending) => pending.nodeId),
@@ -436,11 +445,19 @@ export class StudioConversationHost {
     const initialProgressNodeId = this.nextNodeId('01-progress');
     const provenance = Object.freeze({ backendId, sessionId: localSessionId, turnId: localTurnId });
     const taskId = this.localId(`task:conversation:${this.nodeSequence + 1}`);
-    const tools = await this.taskModelTools(taskId, backendId, prompt);
     const project = this.options.projectContext?.() ?? null;
-    await this.prepareKnowledge(project, controller.signal);
+    const intent = taskIntent(prompt, project?.focusEntityIds ?? [], project?.revision ?? null, [], project?.documentId ?? null);
+    this.taskIntents.set(taskId, intent);
     const conversationKey = conversationKeyFor(project);
-    const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request: prompt, tools, project });
+    this.preparingControllers.add(controller);
+    let tools: AgentTurnInput['tools'];
+    let context: Awaited<ReturnType<AgentRuntimeService['context']['prepare']>>;
+    try {
+      const knowledgeReady = this.prepareKnowledge(project, controller.signal);
+      tools = await this.taskModelTools(taskId, backendId, prompt, project);
+      context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request: prompt, requirements: intentContext(intent), tools, project, knowledgeReady, signal: controller.signal });
+    } finally { this.preparingControllers.delete(controller); }
+    controller.signal.throwIfAborted();
     if (this.stopping) return;
     const config = this.turnConfig(backendId, taskId, context.promptProfile);
     const budget = Object.freeze({ ...this.budgetTemplate, id: config.taskBudgetId, limits: Object.freeze({ ...this.budgetTemplate.limits }) });
@@ -522,8 +539,9 @@ export class StudioConversationHost {
       }
       assertBudgetAllowed(beginDecision);
       wallTimeBudget.resetAfterContinuation(); wallTimeBudget.resume();
-      await this.prepareKnowledge(project, controller.signal);
-      const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project });
+      const knowledgeReady = this.prepareKnowledge(project, controller.signal);
+      const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project, knowledgeReady, signal: controller.signal,
+        ...(this.taskIntents.has(taskId) ? { requirements: intentContext(this.taskIntents.get(taskId)!) } : {}) });
       if (this.stopping) { wallTimeBudget.dispose(); return; }
       const playtest = this.playtestTasks.get(taskId);
       if (playtest?.snapshot().phase === 'repairing') playtest.advance('editing');
@@ -838,11 +856,13 @@ export class StudioConversationHost {
         const current = this.options.projectContext?.();
         return current && current.documentId === project?.documentId && current.projectId === project?.projectId ? current.revision : null;
       };
-      const key = sha256(canonicalStringify({ taskId: active.taskId, backendId: event.backendId, model: active.config.model, projectId: project?.projectId ?? null, documentId: project?.documentId ?? null, revision: revision(), selection: isSubtaskSelectionV1(event.payload.arguments) ? { schemaVersion: 1, taskIds: [...event.payload.arguments.taskIds].sort() } : event.payload.arguments ?? null, plan: active.approvedPlan?.items.map(item => ({ id: item.id, label: item.label, details: item.details ?? '', execution: item.execution ?? null })) as unknown as JsonObject[] ?? [] }));
+      const constraints = this.taskIntents.has(active.taskId) ? intentConstraints(this.taskIntents.get(active.taskId)!) : [];
+      const key = sha256(canonicalStringify({ constraints, taskId: active.taskId, backendId: event.backendId, model: active.config.model, projectId: project?.projectId ?? null, documentId: project?.documentId ?? null, revision: revision(), selection: isSubtaskSelectionV1(event.payload.arguments) ? { schemaVersion: 1, taskIds: [...event.payload.arguments.taskIds].sort() } : event.payload.arguments ?? null, plan: active.approvedPlan?.items.map(item => ({ id: item.id, label: item.label, details: item.details ?? '', execution: item.execution ?? null })) as unknown as JsonObject[] ?? [] }));
       let work = this.subtaskReceipts.get(key);
       if (!work) {
         work = this.subtaskReceipts.size >= 32 ? Promise.resolve({ status: 'not-delegated', reason: 'receipt-capacity' }) : runSubtasks(this.recoveredSubtaskTasks.has(active.taskId) ? undefined : this.options.subtasks, {
-          selection: event.payload.arguments, approved: active.approvedPlan?.items ?? [], backendId: event.backendId, model: active.config.model,
+          selection: event.payload.arguments, constraints, approved: active.approvedPlan?.items ?? [], backendId: event.backendId, model: active.config.model,
+          profileDigest: active.config.promptProfile.digest, registryDigest: `sha256:${sha256(canonicalStringify(this.options.tools.definitions() as unknown as JsonValue))}`,
           sessionId: event.sessionId, turnId: event.turnId, callId, account: active.account, revision, signal,
           audit: async (kind, payload) => {
             const artifact = await this.options.operationLog.putArtifact(payload, { schemaVersion: 'subtask-record/1' });
@@ -1616,6 +1636,9 @@ export class StudioConversationHost {
     if (batch.outputBytes + nextBytes > (batch.closedNodes ? 768 * 1024 : 1024 * 1024) && body.status === 'completed') body = this.cancelledToolBody(context, Object.freeze({ code: 'tool-batch.result-limit', message: 'Batch model-facing result limit exceeded.', retryable: false }), body.latencyMs, 'failed');
     batch.outputBytes += Buffer.byteLength(canonicalStringify(body.backendResult));
     if (this.active && original.status === 'completed' && original.mutation && Number.isSafeInteger(original.backendResult.afterRevision)) {
+      const intent = this.taskIntents.get(this.active.taskId);
+      const before = this.intentGuardRevisions.get(this.active.taskId) ?? intent?.revision;
+      if (before === original.backendResult.beforeRevision) this.intentGuardRevisions.set(this.active.taskId, original.backendResult.afterRevision as number);
       this.updateTaskRun(this.active.taskId, { documentRevision: original.backendResult.afterRevision as number });
     }
     // Checkpoint/approval/error payloads are not executed product results. Consume
@@ -1884,6 +1907,20 @@ export class StudioConversationHost {
     });
   }
 
+  private async retainIntentAmendment(taskId: StableId, text: string): Promise<void> {
+    if (!text.trim()) return;
+    const run = this.taskRuns.get(taskId);
+    const prior = this.taskIntents.get(taskId) ?? taskIntent(run?.requestSummary ?? '', [], null);
+    if (prior.amendments.at(-1) === text.trim()) return;
+    const next = taskIntent(prior.request, prior.selection, prior.revision, [...prior.amendments, text.trim()], prior.documentId);
+    const constraints = intentConstraints(next);
+    this.playtestTasks.get(taskId)?.retainConstraints(constraints);
+    this.taskIntents.set(taskId, next);
+    if (run) this.updateTaskRun(taskId, {});
+    await this.projectionWriteTail;
+    if (this.projectionPersistenceFailure) throw new Error('User constraint persistence failed.');
+  }
+
   private async resolvePlan(nodeId: StableId, acceptedItemIds: readonly StableId[], note: string | undefined, mode: 'approve' | 'revise'): Promise<void> {
     const pending = this.plans.get(nodeId);
     if (!pending) throw new Error('Plan is stale or already resolved.');
@@ -1892,6 +1929,7 @@ export class StudioConversationHost {
     if (mode === 'approve' && accepted.size === 0) throw new Error('Approve at least one plan item or request a revision.');
     if (mode === 'revise' && !note?.trim()) throw new Error('Add guidance before requesting a revised plan.');
     if (mode === 'approve') assertPlanDependencySelection(pending.items, accepted);
+    if (note?.trim() && this.active) await this.retainIntentAmendment(this.active.taskId, note.trim());
     await this.resolvePlanBarrier(pending.sessionId, pending.turnId, pending.nodeId, mode === 'approve' ? 'answered' : 'answered', Object.freeze({ mode, acceptedItemIds: Object.freeze([...accepted]), ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) }));
     this.plans.delete(nodeId);
     if (mode === 'approve') this.approvedPlanTurns.add(turnKey(pending.sessionId, pending.turnId));
@@ -1908,7 +1946,7 @@ export class StudioConversationHost {
       };
       this.active.decisions.push(`Approved plan: ${pending.title}. ${pending.summary}`);
       if (pending.acceptance.length) {
-        const taskSpec = taskSpecFromPlan(this.active, pending.acceptance);
+        const taskSpec = taskSpecFromPlan(this.active, pending.acceptance, this.taskIntents.get(this.active.taskId));
         const playtest = new BoundedPlaytestTask(taskSpec, this.active.account.options.budget.limits.repairIterations);
         playtest.advance('editing'); this.playtestTasks.set(this.active.taskId, playtest);
       }
@@ -1961,6 +1999,8 @@ export class StudioConversationHost {
       const ids = Array.isArray(answer.optionIds) ? answer.optionIds : [];
       if (ids.length !== 1 || ![quota.expandOptionId, quota.capOptionId].includes(ids[0])) throw new Error('Choose a query allowance option.');
     }
+    const amendmentRun = this.barrierTaskRunFor(node.provenance);
+    if (amendmentRun && typeof node.content.backendNodeId === 'string') await this.retainIntentAmendment(amendmentRun.taskId, questionAmendment(answer, node.content.options));
     const answerText = canonicalStringify(answer).slice(0, 8_192);
     await handle.appendMessage({ role: 'user', content: `Recovered barrier answer: ${answerText}`, turnId: node.provenance.turnId, projectRevision: this.options.projectContext?.()?.revision ?? null });
     await handle.append({ kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(answerText), resolvedBy: 'user-after-restart', recovered: true } });
@@ -1983,6 +2023,8 @@ export class StudioConversationHost {
     if (mode === 'approve' && accepted.size === 0) throw new Error('Approve at least one plan item or request a revision.');
     if (mode === 'revise' && !note?.trim()) throw new Error('Add guidance before requesting a revised plan.');
     if (mode === 'approve') assertPlanDependencySelection(items.map(item => ({ id: String(item.id), execution: item.execution })), accepted);
+    const amendmentRun = this.taskRunFor(node.provenance.sessionId, node.provenance.turnId);
+    if (amendmentRun && note?.trim()) await this.retainIntentAmendment(amendmentRun.taskId, note.trim());
     const handle = await this.ensureDurableSession(node.provenance.sessionId); const snapshot = await handle.snapshot();
     if (!snapshot.recovery.unresolvedBarrierIds.includes(nodeId)) throw new Error('Plan is stale or already resolved.');
     const resolution = Object.freeze({ mode, acceptedItemIds: Object.freeze([...accepted]), ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) });
@@ -2251,10 +2293,10 @@ export class StudioConversationHost {
     const account = this.options.runtime.accounting.get(seed.taskId) ?? this.options.runtime.accounting.open({ taskId: seed.taskId, budget, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
     if (seed.budgetGranted && account.snapshot().budgetDecision.status === 'hard-exceeded') assertBudgetAllowed(account.authorizeContinuation());
     if (run.acceptance.length > 0 && !this.playtestTasks.has(run.taskId)) {
-      const playtest = new BoundedPlaytestTask(taskSpecFromRun(run), run.repairLimit);
+      const playtest = new BoundedPlaytestTask(taskSpecFromRun(run, this.taskIntents.get(run.taskId)), run.repairLimit);
       playtest.advance('editing'); this.playtestTasks.set(run.taskId, playtest);
     }
-    await this.continueTask(backendId, seed.plan, run.taskId, config, account, conversationKeyFor(this.options.projectContext?.() ?? null), run.requestSummary, seed.instruction);
+    await this.continueTask(backendId, seed.plan, run.taskId, config, account, conversationKeyFor(this.options.projectContext?.() ?? null), this.taskIntents.get(run.taskId)?.request ?? run.requestSummary, seed.instruction);
   }
 
   private flushTextProjections(): void {
@@ -2384,6 +2426,20 @@ export class StudioConversationHost {
   }
 
   private beforeProductTool(taskId: StableId, toolId: StableId, args: JsonObject, turnId: StableId, toolCallId: StableId): void {
+    if (['play.stop', 'preview.stop'].includes(toolId)) return;
+    if (this.invalidTaskIntents.has(taskId) && (toolId === 'task.evaluate' || this.options.tools.definitions().find(item => item.id === toolId)?.effect !== 'observe')) throw new PlaytestLoopError('intent.retained-invalid', 'Retained user constraints are unavailable. Recover their source before editing.');
+    const intent = this.taskIntents.get(taskId);
+    if (intent) {
+      const definition = this.options.tools.definitions().find(item => item.id === toolId);
+      if (definition) {
+        if ((definition.effect !== 'observe' || toolId === 'task.evaluate') && intentRequirements(intent).some(r => r.predicate === 'preserve-others')) {
+          const current = this.options.projectContext?.();
+          const expected = this.intentGuardRevisions.get(taskId) ?? intent.revision;
+          if (!current || current.revision !== expected || intent.documentId !== null && current.documentId !== intent.documentId) throw new PlaytestLoopError('intent.baseline-invalidated', 'The preservation baseline changed outside verified task edits. Rebind the requirement before editing or accepting completion.');
+        }
+        assertIntentAllows(intent, definition.effect, toolId, args);
+      }
+    }
     // Inspection and cleanup do not restart a completed or blocked acceptance loop.
     if (['play.stop', 'preview.stop'].includes(toolId)) return;
     if (toolId === 'script.propose' && ['playing', 'evaluating'].includes(this.playtestTasks.get(taskId)?.snapshot().phase ?? '')) return;
@@ -2512,9 +2568,12 @@ export class StudioConversationHost {
     this.flushTextProjections();
     if (!this.projectionPersistenceAvailable()) return;
     const persisted = Object.freeze({ ...run, evidence: Object.freeze(run.evidence.map(({ previewDataUrl: _preview, ...item }) => Object.freeze(item))) });
+    const intent = this.taskIntents.get(run.taskId);
+    const intentGuardRevision = this.intentGuardRevisions.get(run.taskId) ?? intent?.revision ?? null;
     const write = async (): Promise<void> => {
+      const intentArtifact = intent ? await this.options.operationLog.putArtifact(intent as unknown as JsonObject, { schemaVersion: 'intent-constraints/1' }) : null;
       const artifact = await this.options.operationLog.putArtifact(persisted as unknown as JsonObject, { schemaVersion: 'conversation-task/1' });
-      await this.options.operationLog.append({ kind: 'conversation/task-projected', severity: run.status === 'failed' || run.status === 'blocked' ? 'warning' : 'info', source: asStableId('studio.conversation-host'), correlation: { ...(run.sessionId ? { sessionId: run.sessionId } : {}), ...(run.turnId ? { turnId: run.turnId } : {}) }, payload: { taskId: run.taskId, revision: run.revision, status: run.status, phase: run.phase, artifactId: artifact.id }, artifactRefs: [artifact.id] });
+      await this.options.operationLog.append({ kind: 'conversation/task-projected', severity: run.status === 'failed' || run.status === 'blocked' ? 'warning' : 'info', source: asStableId('studio.conversation-host'), correlation: { ...(run.sessionId ? { sessionId: run.sessionId } : {}), ...(run.turnId ? { turnId: run.turnId } : {}) }, payload: { taskId: run.taskId, revision: run.revision, status: run.status, phase: run.phase, artifactId: artifact.id, ...(intentArtifact ? { intentArtifactId: intentArtifact.id, intentGuardRevision } : {}) }, artifactRefs: [artifact.id, ...(intentArtifact ? [intentArtifact.id] : [])] });
     };
     this.projectionWriteTail = this.projectionWriteTail.then(write, write).catch((cause) => { this.projectionPersistenceFailure ??= cause; });
   }
@@ -2527,13 +2586,24 @@ export class StudioConversationHost {
       try {
         const run = normalizeTaskRun((await this.options.operationLog.readArtifact(id)).value); const prior = this.taskRuns.get(run.taskId);
         if (run.sessionId && run.updatedAt > (this.restoredGraphSessions.get(run.sessionId) ?? '')) this.restoredGraphSessions.set(run.sessionId, run.updatedAt);
-        if (!prior || run.revision > prior.revision) this.taskRuns.set(run.taskId, run);
+        if (!prior || run.revision > prior.revision) {
+          this.taskRuns.set(run.taskId, run);
+          if (event.payload.intentArtifactId !== undefined) {
+            this.invalidTaskIntents.add(run.taskId);
+            if (typeof event.payload.intentArtifactId !== 'string' || !event.artifactRefs.includes(asStableId(event.payload.intentArtifactId))) throw new Error('Unreferenced retained intent.');
+            const retained = (await this.options.operationLog.readArtifact(asStableId(event.payload.intentArtifactId))).value;
+            if (!isTaskIntent(retained)) throw new Error('Invalid retained intent.');
+            this.taskIntents.set(run.taskId, taskIntent(retained.request, retained.selection, retained.revision, retained.amendments, retained.documentId));
+            if (Number.isSafeInteger(event.payload.intentGuardRevision) && Number(event.payload.intentGuardRevision) >= (retained.revision ?? 0)) this.intentGuardRevisions.set(run.taskId, Number(event.payload.intentGuardRevision));
+            this.invalidTaskIntents.delete(run.taskId);
+          }
+        }
       } catch { /* corrupt/future projections stay hidden */ }
     }
     this.latestTaskId = [...this.taskRuns.values()].sort((left, right) => left.startedAt.localeCompare(right.startedAt) || left.taskId.localeCompare(right.taskId)).at(-1)?.taskId ?? null;
     for (const run of [...this.taskRuns.values()]) {
       if (run.acceptance.length && !this.playtestTasks.has(run.taskId) && run.status !== 'completed') {
-        const restored = new BoundedPlaytestTask(taskSpecFromRun(run), run.repairLimit); restored.advance('editing'); this.playtestTasks.set(run.taskId, restored);
+        const restored = new BoundedPlaytestTask(taskSpecFromRun(run, this.taskIntents.get(run.taskId)), run.repairLimit); restored.advance('editing'); this.playtestTasks.set(run.taskId, restored);
       }
       if (run.status === 'running' || run.status === 'waiting-user') this.updateTaskRun(run.taskId, { status: 'blocked', phase: 'blocked', terminalDiagnostic: 'task.interrupted-by-restart', resumable: run.sessionId !== null && run.turnId !== null }, { phase: 'blocked', status: 'warning', title: '任务因 Studio 重启中断', detail: '已完成产物和证据均已保留；可从最后一个安全检查点恢复。', turnId: run.turnId });
     }
@@ -2587,10 +2657,10 @@ export class StudioConversationHost {
 
   /** Freeze selection per task, but always rebuild contracts from the current registry.
    * A changed schema/version/threshold changes the signature and forces normal session rebinding. */
-  private async taskModelTools(taskId: StableId, backendId: StableId, goal: string): Promise<AgentTurnInput['tools']> {
+  private async taskModelTools(taskId: StableId, backendId: StableId, goal: string, project?: ContextProjectSnapshot | null): Promise<AgentTurnInput['tools']> {
     const key = `${backendId}\0${taskId}`;
     const selected = this.taskToolSelections.get(key);
-    const tools = this.modelTools(goal, selected);
+    const tools = this.modelTools(goal, selected, project);
     if (!selected) {
       const toolIds = Object.freeze(tools.map(tool => tool.id));
       await this.options.operationLog.append({ kind: 'conversation/task-tools-selected', severity: 'info', source: asStableId('studio.conversation-host'),
@@ -2618,10 +2688,10 @@ export class StudioConversationHost {
     }
   }
 
-  private modelTools(request: string, selectedIds?: readonly StableId[]): AgentTurnInput['tools'] {
+  private modelTools(request: string, selectedIds?: readonly StableId[], project?: ContextProjectSnapshot | null): AgentTurnInput['tools'] {
     const registered = new Map(this.options.tools.definitions().map(definition => [definition.id, definition]));
     const definitions = selectedIds ? selectedIds.flatMap(id => { const definition = registered.get(id); return definition ? [definition] : []; })
-      : this.options.tools.selectDefinitions?.(request).definitions ?? this.options.tools.definitions();
+      : this.options.tools.selectDefinitions?.(request, [], project ? { entityIds: project.focusEntityIds ?? [], revision: project.revision } : undefined).definitions ?? this.options.tools.definitions();
     const tools: AgentTurnInput['tools'][number][] = [PLAN_TOOL_DEFINITION, PLAN_PROGRESS_TOOL, ...definitions].map((definition) => Object.freeze({
       id: definition.id,
       description: `${definition.description}${Object.hasOwn(QUERY_LIMIT_DEFAULTS, definition.id) ? ` Current user query threshold: ${(this.options.queryLimits?.() ?? QUERY_LIMIT_DEFAULTS)[definition.id as keyof QueryLimits]}. Omit limit to use it; a larger request pauses for user choice, it is not a tool failure. Results may be paginated.` : ''} Effect: ${definition.effect}. Risk: ${definition.risk}.${'version' in definition ? ` Version: ${definition.version}.` : ''}${definition.id === 'project.snapshot' ? ' Read when project identity or revision is missing or invalidated; reuse confirmed context and commit results otherwise.' : ''}`,
@@ -2635,6 +2705,7 @@ export class StudioConversationHost {
   }
 
   private async prepareKnowledge(project: ContextProjectSnapshot | null, signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return;
     if (!this.options.prepareKnowledge) return;
     const timeoutMs = this.options.knowledgeRefreshTimeoutMs ?? 1_500;
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10_000) throw new TypeError('Knowledge refresh timeout must be 1-10000 milliseconds.');

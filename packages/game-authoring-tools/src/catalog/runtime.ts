@@ -1,6 +1,6 @@
 import { QUERY_PAGE_SIZE } from '../query-limits.js';
 import { asStableId, type ComponentDefinitionV2, type JsonObject, type M13StableId, type StableId } from '@haiyue/ai-studio-contracts';
-import { LocalHashEmbeddingProvider, tokenize } from '@haiyue/ai-studio-agent-runtime';
+import { LocalHashEmbeddingProvider, tokenize, requestRouting } from '@haiyue/ai-studio-agent-runtime';
 import type { GameToolDefinition } from '../types.js';
 import { MODEL_TOOL_INVOKE_DEFINITION } from './invocation.js';
 
@@ -81,18 +81,30 @@ export class ToolCatalogRuntime {
     return Object.freeze([...toolMatches, ...componentMatches].filter((entry) => entry.score > 0.05).sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, limit));
   }
 
-  selectDefinitions(request: string, expandedIds: readonly StableId[] = [], limit = MODEL_CORE_TOOL_IDS.length + 8): ToolSchemaSelection {
+  selectDefinitions(request: string, expandedIds: readonly StableId[] = [], limit = MODEL_CORE_TOOL_IDS.length + 8, appearanceTarget: 'geometry' | 'component' | 'unknown' = 'unknown'): ToolSchemaSelection {
     if (!Number.isSafeInteger(limit) || limit < MODEL_CORE_TOOL_IDS.length || limit > 40) throw new TypeError('Tool schema selection limit is invalid.');
     const selected = new Set<StableId>(MODEL_CORE_TOOL_IDS.filter((id) => this.byId.has(id)));
+    const intent = requestRouting(request);
+    const eligible = (id: StableId): boolean => {
+      const definition = this.byId.get(id);
+      return Boolean(definition && (!intent.readOnly || definition.effect === 'observe') && (!intent.noCreate || !/^(?:entity\.create|assembly\.|prefab\.)/u.test(id)));
+    };
     for (const id of expandedIds) if (this.byId.has(id)) selected.add(id);
     // Continuations name concrete next tools. Give their registered schemas
     // priority over fuzzy matches so every approval need not rediscover them.
     for (const match of request.matchAll(/[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+/gu)) {
       const definition = this.byId.get(match[0] as StableId);
-      if (definition && selected.size < limit) selected.add(definition.id);
+      if (definition && eligible(definition.id) && selected.size < limit) selected.add(definition.id);
     }
-    for (const id of explicitIntentToolIds(request)) if (this.byId.has(id) && selected.size < limit) selected.add(id);
-    for (const match of this.rank(request.trim() || 'project inspect', Math.max(limit, 24), false)) if (match.kind === 'tool' && selected.size < limit) selected.add(match.id);
+    for (const id of explicitIntentToolIds(request)) if (eligible(id) && selected.size < limit) selected.add(id);
+    // Narrow requests need discovery plus relevant schemas, not arbitrary hash-vector matches
+    // to fill every free slot. Types remain grounded by scene/component reads before edits.
+    if (!intent.readOnly && intent.appearance) {
+      const appearanceTools = appearanceTarget === 'geometry' ? ['material.set'] : appearanceTarget === 'component' ? ['component.get', 'component.configure'] : ['material.set', 'component.get', 'component.configure'];
+      for (const id of appearanceTools.map(id => asStableId(id))) if (eligible(id) && selected.size < limit) selected.add(id);
+    } else if (!intent.readOnly) {
+      for (const match of this.rank(request.trim() || 'project inspect', Math.max(limit, 24), false)) if (match.kind === 'tool' && eligible(match.id) && selected.size < limit) selected.add(match.id);
+    }
     const definitions = Object.freeze(this.tools.filter((definition) => selected.has(definition.id)));
     const fixedSchemaBytes = this.tools.reduce((sum, definition) => sum + schemaBytes(definition), 0);
     const selectedSchemaBytes = definitions.reduce((sum, definition) => sum + schemaBytes(definition), 0);

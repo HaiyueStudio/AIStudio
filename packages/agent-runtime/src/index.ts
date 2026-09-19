@@ -418,3 +418,5 @@ function pickNumeric(value: Record<string, unknown>): JsonObject { return Object
 function pickScalars(value: Record<string, unknown>, keys: readonly string[]): JsonObject { const result: Record<string, JsonValue> = {}; for (const key of keys) { const item = value[key]; if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean' || item === null) result[key] = item; } return Object.freeze(result); }
 
 export { RequestContextRuntime } from './context/request.js';
+export { requestRouting } from './request-routing.js';
+export { contextRead } from './context-read.js';

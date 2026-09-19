@@ -1,0 +1,122 @@
+{
+  "limitations": "Existing dist, local tools-only catalog (no components); bytes are serialized tool schemas, not provider tokens or full HTTP bytes. No model/network calls. Hashes identify inputs, not a proof that source and dist correspond.",
+  "provenance": {
+    "packages/agent-runtime/src/request-routing.ts": "50e80c5ae75419bf8b044fbf91f1e661551f8d36712bdf7d336fedb40a70bfa4",
+    "packages/agent-runtime/dist/request-routing.js": "e85ea20fa8acf43c7cce6266e54addd154be9cf12bd1bf4cab8c138aac38ff6e",
+    "packages/game-authoring-tools/src/runtime.ts": "fc60a1c39072663f15af5aa3df3c2589e3022e40e1cb0247340c8bfbdee3e46e",
+    "packages/game-authoring-tools/dist/runtime.js": "a891b62b3de83801f081a2da590bf8155be670553200f8b2012c67b66a5d83f9",
+    "packages/game-authoring-tools/src/catalog/runtime.ts": "87eb610334234a3ab898ef00a7b2d5b81a39bc4ad709a17b02ed069240f6fd24",
+    "packages/game-authoring-tools/dist/catalog/runtime.js": "b10294868ff4af4052bddf34c30a9dcc19872c8d55965a90a945fc11df5f7165",
+    "packages/game-authoring-tools/src/definitions.ts": "38f4bd0cd32e5bd75d940ee1b0570f50c7f6985db9fef4c7cfc3fd5f67758635",
+    "packages/game-authoring-tools/dist/definitions.js": "16562a1e5ef226db81070e6540239adfbcad5279ece78e44984b6baf5ca17f58",
+    "packages/agent-runtime/src/accounting.ts": "0b4f2c3d028edb5525b2d4207717989437e4b9fc6c94c9aac6ab860886f1ece4",
+    "packages/agent-runtime/dist/accounting.js": "2f998f2f170759be32feea79072feb7861ed514b415ee9e0ea54a8cb0087feb5",
+    "packages/agent-runtime/src/budget.ts": "a1a0402cd89c7d70893ddac0ed9f29178dd5747d1516629067ac825b20e53493",
+    "packages/agent-runtime/dist/budget.js": "ea8e9f863ea3e4694dade997fd778cd8645edc3ae055e7a14355894034f530fa",
+    "packages/agent-runtime/src/usage-ledger.ts": "3d2d36c58cd9e7d96702e3c2c01c8fa5f9bc6f05c47ec38b22b75e082d3a9072",
+    "packages/agent-runtime/dist/usage-ledger.js": "f051b8c636b0ed30e75f37cd7714e2001c10f62957caabfa7735aa789b75f119",
+    "packages/agent-runtime/src/activity-clock.ts": "e1f18a336c00f35292274df54325cb39ca29609c200f481ac2fe72f94c107e9b",
+    "packages/agent-runtime/dist/activity-clock.js": "6272f00ba8a1b5b17e1e3cb79e6653e4d9372f62c2b19a18a8bb5862e65594af",
+    "packages/agent-orchestration/src/budget-policy.ts": "6b9640897b094fd7dffd5727ebff36b6f12cc4c26409655fcfd61dedfd703dde",
+    "packages/agent-orchestration/dist/budget-policy.js": "1424e32fd4e3a31b3b18bdfa5ee5c4d1ea0d9c4a63c19e56b96f1a87f9ec96c5"
+  },
+  "selection": [
+    {
+      "request": "不要创建任何实体，只检查按钮颜色",
+      "toolCount": 12,
+      "schemaBytes": 11197,
+      "selectedIds": [
+        "project.snapshot",
+        "scene.query",
+        "scene.diff",
+        "scene.get-many",
+        "engine.docs.search",
+        "engine.docs.read",
+        "tool.search",
+        "engine.capabilities.describe",
+        "component.describe",
+        "diagnostics.query",
+        "history.query",
+        "task.evaluate"
+      ]
+    },
+    {
+      "request": "解释一下什么是相机",
+      "toolCount": 12,
+      "schemaBytes": 11197,
+      "selectedIds": [
+        "project.snapshot",
+        "scene.query",
+        "scene.diff",
+        "scene.get-many",
+        "engine.docs.search",
+        "engine.docs.read",
+        "tool.search",
+        "engine.capabilities.describe",
+        "component.describe",
+        "diagnostics.query",
+        "history.query",
+        "task.evaluate"
+      ]
+    },
+    {
+      "request": "把选中的按钮改成红色，保持其他对象不变",
+      "toolCount": 15,
+      "schemaBytes": 13975,
+      "selectedIds": [
+        "project.snapshot",
+        "scene.query",
+        "scene.diff",
+        "scene.get-many",
+        "engine.docs.search",
+        "engine.docs.read",
+        "tool.search",
+        "engine.capabilities.describe",
+        "component.describe",
+        "component.get",
+        "diagnostics.query",
+        "history.query",
+        "material.set",
+        "component.configure",
+        "task.evaluate"
+      ]
+    }
+  ],
+  "overlappingIntervals": {
+    "intervalsMs": [
+      [
+        0,
+        100
+      ],
+      [
+        0,
+        100
+      ],
+      [
+        0,
+        100
+      ]
+    ],
+    "unionMs": 100,
+    "reportedWallTimeMs": 100
+  },
+  "reservation": {
+    "limit": 200,
+    "reservationsAccepted": [
+      true,
+      true
+    ],
+    "reportedUsage": 50,
+    "remainingCommitmentExpected": 150,
+    "reservedWork": {
+      "inputTokens": 150
+    },
+    "nextTurnDecision": {
+      "allowed": true,
+      "status": "within",
+      "violations": [],
+      "warning": null,
+      "hardStopLatched": false
+    }
+  }
+}

@@ -3,6 +3,7 @@ import { ResourceExplorerPanel } from '../../../../packages/studio-shell/dist/pa
 import { defineTabsComponents } from '@haiyue/ui/tabs';
 defineTabsComponents();
 let pending = Promise.resolve(), data, block = null;
+let serviceQuery = { limit: 25 };
 const intents = [];
 const panel = new ResourceExplorerPanel(document, document.getElementById('host'), intent => {
   intents.push(intent);
@@ -22,7 +23,12 @@ const idle = async () => {
   }
   throw Error('Resource panel did not settle');
 };
-const query = async (key, value) => { get(key).value = value; get(key).dispatchEvent(new Event('change')); await idle(); };
+// Exercise additional service filters through fixture projections, not removed UI controls.
+const query = async (key, value) => {
+  serviceQuery = { ...serviceQuery };
+  if (value) serviceQuery[key] = value; else delete serviceQuery[key];
+  update(await window.resourceBridge.intent({ type: 'query', query: serviceQuery })); await idle();
+};
 const tab = async value => { await idle(); const button = get('tabs').shadowRoot.querySelector(`[data-value="${value}"]`); assert(button, `tab ${value} exists`); button.click(); await idle(); assert(get('tabs').value === value, `tab ${value} selected`); };
 const select = predicate => {
   const item = data.items.find(predicate); assert(item, 'real catalog item exists');

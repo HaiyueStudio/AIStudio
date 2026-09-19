@@ -72,6 +72,7 @@ import { defineDialogComponents, type HYDialog } from '@haiyue/ui/dialog';
 import { defineDrawerComponents, type HYDrawer } from '@haiyue/ui/drawer';
 import { defineSelectComponents, type HYSelect } from '@haiyue/ui/select';
 import { defineSplitComponents, type HYSplit, type HYSplitRatioChangeDetail } from '@haiyue/ui/split';
+import { defineHistoryControlsComponents, type HYHistoryControls } from '@haiyue/ui/history-controls';
 import { defineTabsComponents, type HYTabs } from '@haiyue/ui/tabs';
 import { defineTreeComponents, type HYTree } from '@haiyue/ui/tree';
 
@@ -187,7 +188,7 @@ let currentStatusKey: string | null = document.body.dataset.shell === 'web' ? 's
 
 const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>> = Object.freeze({
   'zh-CN': Object.freeze({
-    newProject: '新建', openProject: '打开', saveProject: '保存', run: '▶ 运行', stop: '■ 停止', runTitle: '运行项目', stopTitle: '停止运行', undo: '撤销', redo: '重做', settings: '设置',
+    newProject: '新建', openProject: '打开', saveProject: '保存', run: '▶ 运行', stop: '■ 停止', runTitle: '运行项目', stopTitle: '停止运行', settings: '设置',
     agentPreviewNotice: 'Agent 正在操作预览，请勿直接关闭或操作画面。测试结束或需要你确认时会自动返回编辑器。', agentPreviewRunning: 'Agent 测试中', stopAgentPreview: '停止任务并退出', playPage: '独立运行预览', playRunning: '运行中', playPaused: '已暂停', playStarting: '正在启动…', device: '设备', devicePreset: '设备预设', responsive: '自适应', custom: '自定义', width: '宽', height: '高', customWidth: '自定义宽度', customHeight: '自定义高度', applySize: '应用', rotateDevice: '旋转设备', pause: '⏸ 暂停', resume: '▶ 继续', fullscreen: '全屏', exitFullscreen: '退出全屏', exitPlay: '退出运行',
     scene: '场景', createEmpty: '+ 空物体', createCube: '+ 立方体', inspector: '检查器', noSelection: '未选择物体',
     transformHistory: 'Transform 修改会通过历史记录提交。', position: '位置', rotation: '旋转', scale: '缩放', applyTransform: '应用 Transform',
@@ -207,7 +208,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     allowOnce: '仅允许一次', allowAlways: '始终允许', reject: '拒绝', agentBackend: 'AI 后端', jumpLatest: '跳到最新 AI 消息', noProject: '未打开项目',
   }),
   en: Object.freeze({
-    newProject: 'New', openProject: 'Open', saveProject: 'Save', run: '▶ Run', stop: '■ Stop', runTitle: 'Run project', stopTitle: 'Stop project', undo: 'Undo', redo: 'Redo', settings: 'Settings',
+    newProject: 'New', openProject: 'Open', saveProject: 'Save', run: '▶ Run', stop: '■ Stop', runTitle: 'Run project', stopTitle: 'Stop project', settings: 'Settings',
     agentPreviewNotice: 'Agent is testing this preview. Please leave it open and avoid interacting. It will return to the editor automatically when testing finishes or your approval is needed.', agentPreviewRunning: 'Agent testing', stopAgentPreview: 'Stop task and exit', playPage: 'Standalone play preview', playRunning: 'Running', playPaused: 'Paused', playStarting: 'Starting…', device: 'Device', devicePreset: 'Device preset', responsive: 'Responsive', custom: 'Custom', width: 'W', height: 'H', customWidth: 'Custom width', customHeight: 'Custom height', applySize: 'Apply', rotateDevice: 'Rotate device', pause: '⏸ Pause', resume: '▶ Resume', fullscreen: 'Fullscreen', exitFullscreen: 'Exit fullscreen', exitPlay: 'Exit play',
     scene: 'Scene', createEmpty: '+ Empty', createCube: '+ Cube', inspector: 'Inspector', noSelection: 'No entity selected',
     transformHistory: 'Transform values are committed through History.', position: 'Position', rotation: 'Rotation', scale: 'Scale', applyTransform: 'Apply Transform',
@@ -807,6 +808,7 @@ function setupUiPreferences(): void {
   defineDialogComponents();
   defineDrawerComponents();
   defineSelectComponents();
+  defineHistoryControlsComponents();
   language = readStoredLanguage();
   theme = readStoredTheme();
   applyTheme(theme);
@@ -847,6 +849,7 @@ function applyLocale(): void {
   notificationSettings?.refreshLocale();
   querySettings?.refreshLocale();
   document.documentElement.lang = language;
+  element<HYHistoryControls>('history-controls').setAttribute('locale', language);
   document.body.dataset.language = language;
   intentWorkspace?.setLanguage(language);
   logicPanel?.setLanguage(language);
@@ -1118,8 +1121,15 @@ function bindUi(): void {
   element('open-project').addEventListener('click', () => void action(async () => { await invoke('project/open'); await refresh(); }));
   element('save-project').addEventListener('click', () => void saveProject());
   element('run-project').addEventListener('click', () => void toggleProjectRun());
-  element('undo').addEventListener('click', () => void action(async () => { await invoke('history/undo', { baseRevision: documentRevision() }); await refresh(); }));
-  element('redo').addEventListener('click', () => void action(async () => { await invoke('history/redo', { baseRevision: documentRevision() }); await refresh(); }));
+  const historyControls = element<HYHistoryControls>('history-controls');
+  for (const direction of ['undo', 'redo'] as const) historyControls.addEventListener(`${direction}-request`, () => {
+    if (historyControls.busy || !(direction === 'undo' ? historyControls.canUndo : historyControls.canRedo)) return;
+    historyControls.busy = true;
+    void action(async () => {
+      try { await invoke(`history/${direction}`, { baseRevision: documentRevision() }); await refresh(); }
+      finally { historyControls.busy = false; }
+    });
+  });
   element('create-empty').addEventListener('click', () => void createEntity('empty'));
   element('create-cube').addEventListener('click', () => void createEntity('cube'));
   element('apply-transform').addEventListener('click', () => void action(applyTransform));
@@ -1828,8 +1838,8 @@ function render(): void {
 }
 
 function renderProjectChrome(): void {
-  element<HTMLButtonElement>('undo').disabled = !project?.history.canUndo;
-  element<HTMLButtonElement>('redo').disabled = !project?.history.canRedo;
+  element<HYHistoryControls>('history-controls').canUndo = Boolean(project?.history.canUndo);
+  element<HYHistoryControls>('history-controls').canRedo = Boolean(project?.history.canRedo);
   const saveButton = element<HTMLButtonElement>('save-project');
   saveButton.disabled = !project?.document;
   saveButton.textContent = `${t('saveProject')}${project?.document?.dirty ? ' •' : ''}`;
@@ -2058,16 +2068,24 @@ async function runSmokeWorkflow(): Promise<void> {
   if (!document.querySelector('#studio-advanced-panel .advanced-authoring-panel') || element('studio-advanced-panel').getBoundingClientRect().height < 100) throw new Error('Public advanced inspector is not visible.');
   intentWorkspace?.closeAdvanced();
   intentWorkspace?.setMode('classic');
+  const beforeTransformX = scene?.entities.find(entity => entity.id === picked)?.transform.position.x;
   element<HTMLInputElement>('position-x').value = '0.4'; element<HTMLInputElement>('position-y').value = '0.2';
   element<HTMLInputElement>('rotation-y').value = '30';
   await applyTransform();
   if (scene?.entities.find(entity => entity.id === picked)?.transform.position.x !== 0.4) throw new Error('Retained manual edit did not reach Document.');
   intentWorkspace?.setMode('intent');
   project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
-  await invoke('history/undo', { baseRevision: documentRevision() });
-  project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
-  await invoke('history/redo', { baseRevision: documentRevision() });
-  project = await invoke<ProjectSnapshot & JsonObject>('project/snapshot');
+  await refresh();
+  const controls = element<HYHistoryControls>('history-controls');
+  for (const [index, expectedX] of [[0, beforeTransformX], [1, 0.4]] as const) {
+    const revision = documentRevision();
+    const button = controls.shadowRoot!.querySelectorAll('button')[index]!;
+    if (button.disabled) throw new Error('Shared history control is unexpectedly disabled.');
+    button.click(); button.click(); // Busy state must prevent a duplicate request.
+    const deadline = Date.now() + 5000;
+    while (controls.busy && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+    if (controls.busy || documentRevision() !== revision + 1 || scene?.entities.find(entity => entity.id === picked)?.transform.position.x !== expectedX) throw new Error('Shared history control did not apply exactly one edit.');
+  }
   scene = await invoke<SceneSnapshot & JsonObject>('scene/material', {
     commandId: 'command:smoke-material-blinn-phong', baseRevision: documentRevision(), entityId: picked, material: 'blinn-phong',
   });

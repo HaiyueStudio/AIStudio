@@ -4,6 +4,7 @@ import { canonicalStringify, OperationLogError, redactJson, sha256, type Operati
 import type { KnowledgeRetrievalRuntime, KnowledgeSearchResult } from './retrieval/index.js';
 import type { AgentTurnInput } from './index.js';
 import { toolSetSignature } from './tool-set.js';
+import { contextRead } from './context-read.js';
 
 export type PromptModuleLayer = 'policy' | 'tool-contract' | 'workflow';
 export interface PromptModuleDefinition {
@@ -231,6 +232,11 @@ export class PromptContextRuntime {
     request: string;
     tools: readonly Readonly<{ id: StableId; description: string; inputSchema: JsonObject }>[];
     project: ContextProjectSnapshot | null;
+    /** Index refresh dependency only; exact facts and static artifacts are independent. */
+    knowledgeReady?: Promise<void>;
+    signal?: AbortSignal;
+    /** Required source-bound constraints are a separate artifact, never truncated with request text. */
+    requirements?: string;
   }>): Promise<PreparedTurnContext> {
     await this.initialize();
     const request = sanitizeText(input.request, 32_768);
@@ -239,7 +245,14 @@ export class PromptContextRuntime {
     const liveSession = this.liveSessions.get(key);
     const toolSignature = toolSetSignature(input.tools);
     const reuseSessionId = liveSession?.toolSignature === toolSignature ? liveSession.sessionId : null;
-    const knowledge = await this.retrieveKnowledge(request, input.conversationKey, input.project);
+    input.signal?.throwIfAborted();
+    // Observe rejection immediately while static/required context is prepared. Optional
+    // knowledge has a bounded wait, but required exact scene facts still fail closed.
+    const knowledgeWork = contextRead(async signal => {
+      await input.knowledgeReady;
+      signal.throwIfAborted();
+      return this.retrieveKnowledge(request, input.conversationKey, input.project, signal);
+    }, input.signal, 3_000).then(value => ({ value, error: null }), error => ({ value: null, error }));
     const puts: StoredContextArtifact[] = [];
     this.profileArtifactId ??= (await this.log.putArtifact(this.prompts.profile as unknown as JsonValue, { schemaVersion: 'prompt-profile/1', pluginVersion: PROFILE_VERSION })).id;
     puts.push(await this.put('policy', CONTEXT_SOURCE, null, {
@@ -258,6 +271,10 @@ export class PromptContextRuntime {
     puts.push(await this.put('task-summary', CONTEXT_SOURCE, input.project?.revision ?? null, {
       ...summary, ...(recoveredContent ? { surfaceRecovery: { sourceArtifactId: recoveryId!, content: recoveredContent, instruction: 'Historical task state. Current project context and live tool validation govern revisions and approvals.' } } : {}),
     } as unknown as JsonValue));
+    if (input.requirements) {
+      if (Buffer.byteLength(input.requirements) > 32_768 || sanitizeText(input.requirements, 32_768) !== input.requirements) throw new PromptContextError('context.requirements-invalid', 'Required intent context must be bounded and redacted.');
+      puts.push(await this.put('task-summary', CONTEXT_SOURCE, input.project?.revision ?? null, { requiredUserConstraints: input.requirements }));
+    }
     for (const playbook of this.prompts.retrievePlaybooks(request)) {
       puts.push(await this.put('playbook', playbook.id, null, { id: playbook.id, version: playbook.version, digest: playbook.digest, text: playbook.content }));
     }
@@ -284,7 +301,7 @@ export class PromptContextRuntime {
         let recovery: string | undefined;
         if (canDiff && previous.project.revision !== project.revision) {
           try {
-            scene = await project.exact.diff({ fromRevision: previous.project.revision, toRevision: project.revision, request: sceneRequest });
+            scene = await contextRead(async () => project.exact!.diff({ fromRevision: previous.project.revision, toRevision: project.revision, request: sceneRequest }), input.signal, 10_000);
             if (jsonBytes(scene) > MAX_PROJECT_CONTEXT_BYTES - 2048 || !completeScene(scene)) {
               recovery = 'context.delta-requires-snapshot'; scene = undefined;
             } else kind = 'document-delta';
@@ -293,7 +310,7 @@ export class PromptContextRuntime {
             recovery = cause.code;
           }
         }
-        const snapshot = scene === undefined ? await boundedSceneQuery(project, sceneRequest) : undefined;
+        const snapshot = scene === undefined ? await contextRead(async () => boundedSceneQuery(project, sceneRequest), input.signal, 10_000) : undefined;
         scene ??= snapshot!.scene;
         complete = completeScene(scene);
         projection = { identity: project.manifest, context: {
@@ -317,6 +334,15 @@ export class PromptContextRuntime {
       baseline = { project: freezeProject(project), scopeDigest, complete, kind, projection: stored.projection };
     }
 
+    const knowledgeResult = await knowledgeWork;
+    input.signal?.throwIfAborted();
+    const knowledge = knowledgeResult.value;
+    if (knowledgeResult.error) {
+      await this.log.append({ kind: 'knowledge/retrieval-degraded', severity: 'warning', source: CONTEXT_SOURCE,
+        payload: { code: 'context.knowledge-unavailable', fallback: 'required-exact-context' } });
+      puts.push(await this.put('task-summary', CONTEXT_SOURCE, input.project?.revision ?? null,
+        { knowledgeStatus: 'unavailable', instruction: 'Optional retrieval failed or timed out. Use the exact context and bounded discovery tools; do not assume missing knowledge is absent.' }));
+    }
     const transmissions = [] as JsonValue[];
     let eligibleBytes = 0;
     for (const stored of puts) {
@@ -378,6 +404,7 @@ export class PromptContextRuntime {
       payload: { taskId: input.taskId, backendId: input.backendId, conversationKey: input.conversationKey, contextArtifactIds: ids, contextDigest, promptDigest: digest(prompt), promptBytes: Buffer.byteLength(prompt), reusedSessionId: reuseSessionId, sessionReuse: reuseSessionId ? 'same-tool-contract' : liveSession ? 'tool-contract-changed' : 'no-live-contract', toolSignature, cache },
       artifactRefs: ids,
     });
+    input.signal?.throwIfAborted();
     if (input.project) this.projectStates.set(input.project.projectId, freezeProject(input.project));
     this.pendingContexts.set(key, { taskId: input.taskId, toolSignature, reusedSessionId: reuseSessionId, artifactIds: ids, ...(baseline ? { baseline } : {}) });
     return Object.freeze({ prompt, promptDigest: digest(prompt), promptProfile: this.prompts.profile, contextArtifactIds: ids, contextDigest, cache, reusedSessionId: reuseSessionId });
@@ -431,7 +458,7 @@ export class PromptContextRuntime {
     return stored.artifact;
   }
 
-  private async retrieveKnowledge(request: string, conversationKey: StableId, project: ContextProjectSnapshot | null): Promise<KnowledgeSearchResult | null> {
+  private async retrieveKnowledge(request: string, conversationKey: StableId, project: ContextProjectSnapshot | null, signal?: AbortSignal): Promise<KnowledgeSearchResult | null> {
     if (!this.retrieval || !request.trim()) return null;
     const query = boundedKnowledgeQuery(request);
     if (query !== request) await this.log.append({
@@ -439,7 +466,7 @@ export class PromptContextRuntime {
       payload: { strategy: 'utf8-head-tail-v1', requestBytes: Buffer.byteLength(request), queryBytes: Buffer.byteLength(query) },
     });
     const scopes = [asStableId('knowledge:engine-local'), conversationPermission(conversationKey), ...(project ? [projectPermission(project.projectId)] : [])];
-    return this.retrieval.search({ query, allowedPermissionScopes: scopes as M13StableId[], projectRevision: project?.revision ?? null, limit: 8, tokenBudget: 2_048 });
+    return this.retrieval.search({ query, allowedPermissionScopes: scopes as M13StableId[], projectRevision: project?.revision ?? null, limit: 8, tokenBudget: 2_048, ...(signal ? { signal } : {}) });
   }
 
   private async put(kind: ContextArtifactV2['kind'], source: StableId, documentRevision: number | null, projection: JsonValue, auditRefs: readonly StableId[] = []): Promise<StoredContextArtifact> {

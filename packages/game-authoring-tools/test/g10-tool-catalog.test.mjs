@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BUILTIN_COMPONENT_DEFINITIONS } from '@haiyue/ai-studio-editor-plugins';
-import { GAME_AUTHORING_TOOL_DEFINITIONS, MODEL_CORE_TOOL_IDS, ToolCatalogRuntime } from '../dist/index.js';
+import { GAME_AUTHORING_TOOL_DEFINITIONS, MODEL_CORE_TOOL_IDS, ToolCatalogRuntime, GameAuthoringToolRuntime } from '../dist/index.js';
 
 test('registry-owned hybrid catalog finds semantic capabilities across Chinese and English queries', () => {
   const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => BUILTIN_COMPONENT_DEFINITIONS);
@@ -71,4 +71,27 @@ test('continuations receive explicitly named tool schemas ahead of fuzzy discove
  assert.equal(selected.definitions.length,MODEL_CORE_TOOL_IDS.length+3);
  assert.doesNotThrow(()=>catalog.selectDefinitions('unknown.'+'long'.repeat(1000)));
  assert.equal(catalog.selectDefinitions('unknown.tool').selectedIds.includes('unknown.tool'),false);
+});
+
+test('P1 read-only routing omits mutation schemas and appearance retains geometry and typed UI discovery',()=>{
+ const catalog=new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS,()=>[]);
+ for(const request of ['不要创建任何实体，只检查按钮颜色','解释一下什么是相机','Explain how to create a camera']) {
+  const selected=catalog.selectDefinitions(request);assert.ok(selected.definitions.every(d=>d.effect==='observe'));assert.ok(selected.definitions.length<20);
+ }
+ const color=catalog.selectDefinitions('把选中的按钮改成红色，保持其他对象不变');
+ for(const id of ['scene.get-many','component.describe','component.get','component.configure','material.set']) assert.ok(color.selectedIds.includes(id),id);
+ for(const id of ['entity.create','script.apply','play.regression']) assert.ok(!color.selectedIds.includes(id),id);
+ assert.ok(color.definitions.length<20);
+});
+
+test('P1 selected geometry and UI bind different native schemas against the actual document revision',()=>{
+ const request='把选中的按钮改成红色';
+ const catalog=new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS,()=>[]);
+ for(const kind of ['geometry','ui','stale','missing']) {
+  const document={revision:7,entities:[{id:'entity:button',componentIds:['component:appearance']}],components:[{id:'component:appearance',type:kind==='geometry'?'haiyue.render.geometry':'haiyue.ui.hud'}]};
+  const runtime={assertActive(){},catalog,options:{workspace:{gameSnapshot:()=>document}}};
+  const selected=GameAuthoringToolRuntime.prototype.selectDefinitions.call(runtime,request,[],{revision:kind==='stale'?6:7,entityIds:[kind==='missing'?'entity:missing':'entity:button']});
+  assert.equal(selected.selectedIds.includes('material.set'),kind!=='ui');
+  assert.equal(selected.selectedIds.includes('component.configure'),kind!=='geometry');
+ }
 });

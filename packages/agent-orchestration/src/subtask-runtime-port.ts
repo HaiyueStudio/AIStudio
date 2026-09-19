@@ -7,7 +7,7 @@ export function createRuntimeSubtaskPort(runtime: AgentRuntimeService, backendId
   const backend = runtime.registry.get(backendId);
   // Codex's native filesystem/tools need a separate verified sandbox capability before admission.
   if (backend.descriptor.kind !== 'harness-api-key' || backend.requestContextMode !== 'per-request') throw new Error('Backend has no verified isolated one-shot subtask capability.');
-  return Object.freeze({ backendId, model: config.model, async run(input, signal) {
+  return Object.freeze({ backendId, model: config.model, async run(input, signal, bindTurn) {
     const account = runtime.accounting.get(input.parentTaskId);
     if (!account) throw new Error('Subtasks require the existing parent task account.');
     const price = account.options.pricingCatalog.entries.find(entry => entry.provider === 'deepseek' && entry.model === config.model);
@@ -23,6 +23,7 @@ export function createRuntimeSubtaskPort(runtime: AgentRuntimeService, backendId
       for await (const event of runtime.turns.start(backendId, { taskId: input.parentTaskId, config: { ...config, outputTokenLimit: input.caps.outputTokens! },
         ...prepared, tools: [candidateTool], isolatedRequestLimits: { inputTokens: input.caps.inputTokens!, outputTokens: input.caps.outputTokens! } }, signal)) {
         sessionId = event.sessionId; turnId = event.turnId;
+        bindTurn(turnId);
         account.bindTurn(turnId, { provider: 'deepseek', model: config.model, billingMode: 'api' });
         if (event.kind === 'tool-request') {
           if (candidate === null && event.payload.toolId === candidateTool.id) candidate = event.payload.arguments;

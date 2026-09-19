@@ -1,3 +1,4 @@
+import { qualificationFixture } from '../../../packages/agent-orchestration/test/fixtures/qualification.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -202,8 +203,8 @@ async function fixture(run, options = {}) {
     async execute(id) { const p = preparations.get(id); f.executed.push(p.toolId); return { schemaVersion: 1, callId: p.callId, toolId: p.toolId, status: p.toolId === 'play.inspect' || p.toolId === f.executionFailure ? 'failed' : 'completed', value: p.toolId === 'play.inspect' ? { message: 'Play is not active.' } : {}, documentId: p.documentId, beforeRevision: 1, afterRevision: 1 }; },
   };
   f.enableTransactions = () => { tools.executeTransaction = async () => assert.fail('A rejected workflow must not commit a transaction.'); };
-  f.host = new StudioConversationHost({ ...options, runtime, tools, operationLog: wrap(log, { async append(op, options) { if (op.kind === 'agent/tool-batch-completed' && f.failAudit) { f.failAudit = false; throw new Error('Fixture completion audit failed.'); } return log.append(op, options); } }), isProjectOpen: () => true, projectContext: () => ({ projectId: 'project:lifecycle', documentId: 'document:lifecycle', revision: 1, manifest: {} }) });
-  f.start = async () => { await f.host.initialize(); await f.host.dispatch({ type: 'conversation/send', backendId, prompt: 'Inspect the current project.' }); };
+  f.host = new StudioConversationHost({ ...options, runtime, tools, operationLog: wrap(log, { async append(op, options) { if (op.kind === 'agent/tool-batch-completed' && f.failAudit) { f.failAudit = false; throw new Error('Fixture completion audit failed.'); } return log.append(op, options); } }), isProjectOpen: () => true, projectContext: () => ({ projectId: 'project:lifecycle', documentId: 'document:lifecycle', revision: 1, manifest: {}, focusEntityIds: f.focusEntityIds ?? [] }) });
+  f.start = async (prompt = 'Complete the project task and implement the approved changes.') => { await f.host.initialize(); await f.host.dispatch({ type: 'conversation/send', backendId, prompt }); };
   f.finished = () => waitFor(() => !f.host.replay().busy);
   f.assertClosed = async (batches, tools) => {
     const snapshot = await sessions.replay(sessionId);
@@ -224,13 +225,17 @@ test('W7 Host only delegates approved plan items, caches candidate receipts and 
   let childCalls = 0;
   const ids = ['first', 'second'];
   const proposal = { title: 'Design isolated candidates', summary: 'Large independent proposals', items: ids.map(id => ({ label: `Design ${id}`, details: 'Produce a candidate only', execution: { schemaVersion: 1, id: `task:${id}`, dependsOn: [], inputs: [`fact:${id}`], artifacts: [`result:${id}`], readScopes: ['document:lifecycle'], writeScopes: [], verification: ['parent:review'], budget: { toolCalls: 1, wallTimeMs: 1000 }, estimatedWorkMs: 20000 } })) };
-  const { sha256 } = await import('@haiyue/ai-studio-operation-log');
-  const subtasks = { enabled: true, caps: { inputTokens: 1000, outputTokens: 1000, estimatedCostMicros: 1000, wallTimeMs: 1000 }, qualify: async () => 'evidence:fixture-only', facts: async (refs, revision) => refs.map(ref => ({ ref, content: ref, digest: sha256(ref), revision })), port: { backendId, model: 'fixture-model', async run(input) { childCalls++; return { turnId: `turn:child:${childCalls}`, candidate: { schemaVersion: 1, taskId: input.planTaskId, baseRevision: 1, artifacts: input.artifactKeys.map(key => ({ key, kind: 'proposal', content: 'Candidate', sources: input.facts.map(f => f.ref) })) } }; } } };
+  const { sha256, canonicalStringify } = await import('@haiyue/ai-studio-operation-log');
+  const q=qualificationFixture({backendId,model:'fixture-model',profileDigest:`sha256:${'a'.repeat(64)}`,registryDigest:`sha256:${sha256(canonicalStringify(GAME_AUTHORING_TOOL_DEFINITIONS))}`});
+  const subtasks = { enabled: true, caps: { inputTokens: 1000, outputTokens: 1000, estimatedCostMicros: 1000, wallTimeMs: 1000 }, qualify:q.qualify,qualification:q.qualification, facts: async (refs, revision) => refs.map(ref => ({ ref, content: ref, digest: sha256(ref), revision })), port: { backendId, model: 'fixture-model', async run(input) { childCalls++; return { turnId: `turn:child:${childCalls}`, candidate: { schemaVersion: 1, taskId: input.planTaskId, baseRevision: 1, artifacts: input.artifactKeys.map(key => ({ key, kind: 'proposal', content: 'Candidate', sources: input.facts.map(f => f.ref) })) } }; } } };
   await fixture(async f => {
     f.program = async function* () {
       for (const [id, toolId, arguments_] of [['call:unapproved', 'studio.task.delegate', { schemaVersion: 1, taskIds: ids.map(id => `task:${id}`) }], ['call:plan', 'studio.plan.propose', proposal], ['call:delegate', 'studio.task.delegate', { schemaVersion: 1, taskIds: ids.map(id => `task:${id}`) }], ['call:repeat', 'studio.task.delegate', { schemaVersion: 1, taskIds: [...ids].reverse().map(id => `task:${id}`) }]]) {
         const result = f.result(id); yield event('tool-request', { toolCallId: id, toolId, arguments: arguments_ }); await result;
       }
+      assert.equal(childCalls,2,'unchanged delegation reused its receipt');
+      await f.host.retainIntentAmendment(f.host.active.taskId,'不要创建任何实体');
+      const amended=f.result('call:amended');yield event('tool-request',{toolCallId:'call:amended',toolId:'studio.task.delegate',arguments:{schemaVersion:1,taskIds:ids.map(id=>`task:${id}`)}});await amended;
     };
     await f.start(); await waitFor(() => nodes(f.host).some(n => n.kind === 'plan' && n.status === 'pending'));
     const plan = nodes(f.host).find(n => n.kind === 'plan' && n.status === 'pending');
@@ -239,8 +244,45 @@ test('W7 Host only delegates approved plan items, caches candidate receipts and 
     assert.equal(f.results.get('call:unapproved').reason, 'unapproved-task');
     assert.equal(f.results.get('call:delegate').status, 'completed');
     assert.deepEqual(f.results.get('call:repeat'), f.results.get('call:delegate'));
-    assert.equal(childCalls, 2); assert.deepEqual(f.executed, []); assert.deepEqual(f.prepared, []);
-    const replay = await f.snapshot(); assert.equal(replay.ops.filter(op => op.kind === 'tool.completed' && op.payload.toolId === 'studio.task.delegate').length, 3);
+    assert.equal(f.results.get('call:amended').status,'completed');assert.equal(childCalls, 4,'new user constraints invalidate old child receipts'); assert.deepEqual(f.executed, []); assert.deepEqual(f.prepared, []);
+    const replay = await f.snapshot(); assert.equal(replay.ops.filter(op => op.kind === 'tool.completed' && op.payload.toolId === 'studio.task.delegate').length, 4);
     assert.equal(replay.ops.some(op => op.kind === 'document.committed'), false);
   }, { subtasks });
+});
+
+for(const transaction of [false,true])test(`P1 Host enforces read-only constraints before preparation despite an approved plan (transaction=${transaction})`,async()=>{
+ await fixture(async f=>{
+  if(transaction)f.enableTransactions();
+  f.program=async function*(){
+   for(const [id,toolId,args] of [['call:plan','studio.plan.propose',plan],['call:edit','entity.create',{baseRevision:1,kind:'cube'}]]) {
+    const result=f.result(id);yield event('tool-request',{toolCallId:id,toolId,arguments:args});await result;
+   }
+  };
+  await f.start('不要创建任何实体，只检查按钮颜色');await waitFor(()=>nodes(f.host).some(n=>n.kind==='plan'&&n.status==='pending'));
+  const pending=nodes(f.host).find(n=>n.kind==='plan'&&n.status==='pending');
+  await f.host.dispatch({type:'conversation/accept-plan',nodeId:pending.id,acceptedItemIds:pending.content.items.map(i=>i.id),mode:'approve'});
+  await f.finished();assert.equal(f.results.get('call:edit').error.code,'intent.constraint-blocked');assert.deepEqual(f.prepared,[]);assert.deepEqual(f.executed,[]);
+ });
+});
+test('P1 Host retains original constraints, submission selection and plan amendments on restart',async()=>{
+ await fixture(async f=>{
+  f.focusEntityIds=['entity:button'];
+  f.program=async function*(){const result=f.result('call:plan');yield event('tool-request',{toolCallId:'call:plan',toolId:'studio.plan.propose',arguments:plan});await result;};
+  const request='把选中的按钮改成红色，保持其他对象不变';
+  await f.start(request);await waitFor(()=>nodes(f.host).some(n=>n.kind==='plan'&&n.status==='pending'));
+  f.focusEntityIds=['entity:other'];
+  const pending=nodes(f.host).find(n=>n.kind==='plan'&&n.status==='pending');
+  await f.host.dispatch({type:'conversation/accept-plan',nodeId:pending.id,acceptedItemIds:pending.content.items.map(i=>i.id),mode:'approve',note:'不要创建任何实体'});
+  await f.finished();await f.host.projectionWriteTail;
+  const restored=new StudioConversationHost({...f.host.options});
+  try{
+   await restored.restoreTaskRuns();const run=[...restored.taskRuns.values()].at(-1),intent=restored.taskIntents.get(run.taskId);
+   assert.equal(intent.request,request);assert.deepEqual(intent.selection,['entity:button']);assert.deepEqual(intent.amendments,['不要创建任何实体']);
+   assert.deepEqual(restored.playtestTasks.get(run.taskId).task.visibleConstraints,['保持其他对象不变','不要创建任何实体']);
+   assert.throws(()=>restored.beforeProductTool(run.taskId,'material.set',{entityId:'entity:other'},turnId,'call:restored'),/preserv/i);
+   restored.options.projectContext=()=>({documentId:intent.documentId,revision:2});
+   assert.throws(()=>restored.beforeProductTool(run.taskId,'task.evaluate',{},turnId,'call:evaluate'),/baseline changed/);
+   assert.doesNotThrow(()=>restored.beforeProductTool(run.taskId,'play.stop',{},turnId,'call:stop'));
+  }finally{await restored.dispose();}
+ });
 });

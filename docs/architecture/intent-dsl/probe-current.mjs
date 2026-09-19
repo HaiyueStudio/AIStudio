@@ -23,8 +23,9 @@ function setup(limit = 10000) {
   });
   return { usage, account };
 }
-function record(f, id, tokens, ms, final = true) {
+function record(f, id, tokens, ms, final = true, reservationId) {
   const ledger = f.usage.open({ taskId: 'task:audit', sessionId: `session:${id}`, turnId: `turn:${id}`, providerRequestDigest: null, startedAtMs: 0 });
+  if (reservationId && !f.account.bindWork(reservationId, `turn:${id}`)) throw new Error('Could not bind probe reservation.');
   ledger.reconcile({ eventId: `event:${id}`, sequence: 1, mode: 'cumulative', inputTokens: tokens, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0, reasoningTokens: 0, observedAtMs: ms });
   if (final) ledger.markTerminal('stop', ms);
   f.account.bindTurn(`turn:${id}`, { provider: 'deepseek', model: 'deepseek-v4-flash', billingMode: 'api' });
@@ -33,13 +34,16 @@ const time = setup();
 for (const id of ['parent', 'child-a', 'child-b']) record(time, id, 0, 100);
 const budget = setup(200);
 const reservationsAccepted = [budget.account.reserveWork('child:a', { inputTokens: 100 }), budget.account.reserveWork('child:b', { inputTokens: 100 })];
-record(budget, 'child-a', 50, 10, false);
+record(budget, 'child-a', 50, 10, false, 'child:a');
 const files = [
+  'packages/agent-runtime/src/request-routing.ts', 'packages/agent-runtime/dist/request-routing.js',
+  'packages/game-authoring-tools/src/runtime.ts', 'packages/game-authoring-tools/dist/runtime.js',
   'packages/game-authoring-tools/src/catalog/runtime.ts', 'packages/game-authoring-tools/dist/catalog/runtime.js',
   'packages/game-authoring-tools/src/definitions.ts', 'packages/game-authoring-tools/dist/definitions.js',
   'packages/agent-runtime/src/accounting.ts', 'packages/agent-runtime/dist/accounting.js',
   'packages/agent-runtime/src/budget.ts', 'packages/agent-runtime/dist/budget.js',
   'packages/agent-runtime/src/usage-ledger.ts', 'packages/agent-runtime/dist/usage-ledger.js',
+  'packages/agent-runtime/src/activity-clock.ts', 'packages/agent-runtime/dist/activity-clock.js',
   'packages/agent-orchestration/src/budget-policy.ts', 'packages/agent-orchestration/dist/budget-policy.js',
 ];
 const sha256 = (file) => createHash('sha256').update(readFileSync(new URL(`../../../${file}`, import.meta.url))).digest('hex');

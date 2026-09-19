@@ -463,10 +463,8 @@ function event(kind, payload) { return { schemaVersion: 1, backendId, sessionId,
 function eventAt(nextSessionId, nextTurnId, kind, payload) { return { schemaVersion: 1, backendId, sessionId: nextSessionId, turnId: nextTurnId, kind, payload }; }
 function digest(character) { return character.repeat(64); }
 function modelCatalog() { return { schemaVersion: 1, backendId, protocolVersion: 'fixture', source: 'fixture', models: [{ id: 'fixture-model', label: 'Fixture model', description: 'fixture', reasoningEfforts: ['off', 'low', 'high'], defaultReasoningEffort: 'high', maxOutputTokens: 8192, isDefault: true }] }; }
-function accountingFixture() {
-  const accounts = new Map();
-  return { open({ taskId, budget }) { const snapshot = () => ({ taskId, budget, budgetDecision: { allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }, consumption: { inputTokens: 0, outputTokens: 0, estimatedCostMicros: 0, wallTimeMs: 0, turns: 1, toolCalls: 0, repairIterations: 0, observationBytes: 0 }, usage: { inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, reasoningTokens: null, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 0 }, cost: { status: 'unknown', amountMicros: null, currency: null, cacheSavingMicros: null, explanation: 'fixture', final: false }, turnIds: [] }); const account = { options: { taskId, budget }, beginTurn: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), bindTurn() {}, preflightTool: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), commitTool: () => ({ allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }), expireWallTime: () => ({ allowed: false, status: 'hard-exceeded', violations: [], warning: 'expired', hardStopLatched: true }), reconcile: snapshot, snapshot }; accounts.set(taskId, account); return account; }, get(id) { return accounts.get(id); } };
-}
+function accountingFixture() { return new TaskAccountingRegistry(new UsageLedgerStore()); }
+
 function contextFixture() {
   let liveSession = null; const commits = [];
   const profile = { id: 'prompt:game-authoring-general', version: '3.0.0', digest: `sha256:${'c'.repeat(64)}`, modules: [] };

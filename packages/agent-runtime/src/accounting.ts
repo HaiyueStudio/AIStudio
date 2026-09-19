@@ -1,5 +1,6 @@
 import { asStableId, type CostRecordV2, type PricingCatalogV1, type StableId, type TaskBudgetV2, type UsageRecordV2 } from '@haiyue/ai-studio-contracts';
-import { TaskBudgetController, type BudgetDecision, type BudgetConsumption } from './budget.js';
+import { TaskBudgetController, budgetedInputTokens, type BudgetDecision, type BudgetConsumption } from './budget.js';
+import { ActivityClock, activeDuration } from './activity-clock.js';
 import { PricingEngine, type CostEstimate } from './pricing.js';
 import type { UsageLedgerSnapshot, UsageLedgerStore } from './usage-ledger.js';
 
@@ -7,6 +8,8 @@ export interface TaskAccountingOptions {
   readonly taskId: StableId;
   readonly budget: TaskBudgetV2;
   readonly pricingCatalog: PricingCatalogV1;
+  /** Trusted clock injection for deterministic timing tests. */
+  readonly now?: () => number;
 }
 
 export interface TaskCostSummary {
@@ -52,7 +55,12 @@ export class TaskAccount {
   private readonly turns = new Map<StableId, TurnBillingContext>();
   private readonly reservationTurns = new Map<string, Set<string>>();
   private readonly settledTurns = new Set<string>();
+  private readonly workTurns = new Map<string, StableId>();
+  private readonly turnWork = new Map<StableId, string>();
   private readonly reservations = new Map<string, Partial<BudgetConsumption>>();
+  private readonly wallReservations = new Map<string, ActivityClock>();
+  private readonly activityScopes: ActivityClock[] = [];
+  private readonly accounted = new Map<StableId, { inputTokens: number; outputTokens: number; estimatedCostMicros: number }>();
   private readonly committedTools = new Set<StableId>();
   private readonly latestCosts = new Map<StableId, CostEstimate>();
   private readonly costHistory = new Map<string, CostRecordV2>();
@@ -72,21 +80,54 @@ export class TaskAccount {
     if (!this.preflightReserved(caps, true).allowed) return false;
     this.reservations.set(id, Object.freeze({ ...caps })); this.reservationTurns.set(id, new Set(this.taskLedgers().map(item => item.turnId))); return true;
   }
+  /** Exact ownership is established by the trusted adapter as soon as a turn exists. */
+  bindWork(id: string, turnId: StableId): boolean {
+    if (!this.reservations.has(id) || this.reservationTurns.get(id)?.has(turnId) || this.settledTurns.has(turnId)) return false;
+    if (this.workTurns.has(id)) return this.workTurns.get(id) === turnId;
+    if (this.turnWork.has(turnId) || !this.taskLedgers().some(item => item.turnId === turnId)) return false;
+    this.workTurns.set(id, turnId); this.turnWork.set(turnId, id); return true;
+  }
   /** Release only after a final, fully priced child ledger belonging to this parent task exists. */
   settleWork(id: string, turnId: StableId): boolean {
-    if (!this.reservations.has(id) || this.reservationTurns.get(id)?.has(turnId) || this.settledTurns.has(turnId)) return false;
+    if (!this.reservations.has(id) || this.workTurns.get(id) !== turnId || this.settledTurns.has(turnId)) return false;
     const ledger = this.taskLedgers().find(item => item.turnId === turnId);
     this.reconcile();
-    if (!ledger?.record.final || ledger.record.inputTokens === null || ledger.record.outputTokens === null || this.latestCosts.get(turnId)?.record.amountMicros == null) return false;
-    this.settledTurns.add(turnId); this.reservationTurns.delete(id); return this.reservations.delete(id);
+    if (ledger?.executionState !== 'terminal' || !ledger.record.final || ledger.record.inputTokens === null || ledger.record.outputTokens === null || this.latestCosts.get(turnId)?.record.amountMicros == null) return false;
+    this.settledTurns.add(turnId); this.reservationTurns.delete(id); this.workTurns.delete(id); return this.reservations.delete(id);
   }
-  releaseUnstartedWork(id: string): void { this.reservations.delete(id); this.reservationTurns.delete(id); }
+  releaseUnstartedWork(id: string): void { if (this.workTurns.has(id)) return; this.reservations.delete(id); this.reservationTurns.delete(id); }
+  /** One wall-time commitment for the scheduler's entire bounded batch, not one per lane. */
+  reserveWallTime(id: string, cap: number): (() => void) | null {
+    if (!this.reserveWork(id, { wallTimeMs: cap })) return null;
+    const activity = new ActivityClock(this.now()); this.wallReservations.set(id, activity); this.activityScopes.push(activity);
+    let closed = false;
+    return () => {
+      if (closed) return; closed = true;
+      activity.finish(this.now()); this.wallReservations.delete(id); this.reservations.delete(id); this.reservationTurns.delete(id); this.reconcile();
+    };
+  }
+  /** Host owns the scope: preparation/tool waits count, nested human waits do not. */
+  trackWallTime(): Readonly<{ pause(): void; resume(): void; dispose(): void }> {
+    const activity = new ActivityClock(this.now()); this.activityScopes.push(activity);
+    return Object.freeze({ pause: () => activity.pause(this.now()), resume: () => activity.resume(this.now()), dispose: () => { activity.finish(this.now()); this.reconcile(); } });
+  }
   reservedWork(): Readonly<Partial<BudgetConsumption>> {
+    this.reconcile();
     const total: Partial<Record<keyof BudgetConsumption, number>> = {};
-    for (const caps of this.reservations.values()) for (const [metric, value] of Object.entries(caps)) { const key = metric as keyof BudgetConsumption; total[key] = (total[key] ?? 0) + value; }
+    for (const [id, caps] of this.reservations) {
+      const turnId = this.workTurns.get(id), consumed = turnId ? this.accounted.get(turnId) : undefined;
+      const ledger = turnId ? this.usageStore.get(turnId)?.snapshot() : undefined;
+      for (const [metric, value] of Object.entries(caps)) {
+        const key = metric as keyof BudgetConsumption;
+        const credit = key === 'wallTimeMs' ? (this.wallReservations.has(id) ? activeDuration(this.wallReservations.get(id)!.intervals(this.now())) : ledger?.record.wallTimeMs ?? 0)
+          : key === 'inputTokens' || key === 'outputTokens' || key === 'estimatedCostMicros' ? consumed?.[key] ?? 0 : 0;
+        total[key] = (total[key] ?? 0) + Math.max(0, value - credit);
+      }
+    }
     return Object.freeze(total);
   }
   private preflightReserved(extra: Partial<BudgetConsumption>, strict = false): BudgetDecision {
+    this.reconcile();
     if (!strict && this.reservations.size === 0) return this.controller.preflight(extra);
     const current = this.controller.state(); if (!current.allowed) return current;
     const held = this.reservedWork(), used = this.controller.consumption();
@@ -126,22 +167,38 @@ export class TaskAccount {
     const aggregate = aggregateUsage(snapshots);
     const estimates: CostEstimate[] = [];
     for (const snapshot of snapshots) {
-      const context = this.turns.get(snapshot.turnId);
-      if (!context) continue;
-      const estimate = this.pricing.estimate({ ...context, usage: snapshot.record }); estimates.push(estimate); this.latestCosts.set(snapshot.turnId, estimate); this.costHistory.set(estimate.record.id, estimate.record);
+      const context = this.turns.get(snapshot.turnId) ?? { provider: 'unknown', model: 'unknown', billingMode: 'unknown' as const };
+      const estimate = this.pricing.estimate({ ...context, usage: snapshot.record });
+      estimates.push(estimate); this.latestCosts.set(snapshot.turnId, estimate); this.costHistory.set(estimate.record.id, estimate.record);
+      const previous = this.accounted.get(snapshot.turnId);
+      this.accounted.set(snapshot.turnId, {
+        inputTokens: budgetedInputTokens(snapshot.record) ?? previous?.inputTokens ?? 0,
+        outputTokens: snapshot.record.outputTokens ?? previous?.outputTokens ?? 0,
+        estimatedCostMicros: estimate.record.amountMicros ?? previous?.estimatedCostMicros ?? 0,
+      });
     }
     this.lastCost = aggregateCost(estimates, snapshots.length > 0 && snapshots.every((entry) => entry.record.final));
-    const synthetic = syntheticUsage(this.options.taskId, aggregate, this.lastCost.final);
-    this.controller.reconcileUsage(synthetic, this.lastCost.amountMicros);
+    // Audit totals remain nullable. Budgeting still counts known siblings when one turn is unknown.
+    const charged = [...this.accounted.values()];
+    const synthetic = syntheticUsage(this.options.taskId, { ...aggregate,
+      inputTokens: charged.reduce((sum, item) => sum + item.inputTokens, 0), cachedInputTokens: 0, cacheWriteTokens: 0,
+      outputTokens: charged.reduce((sum, item) => sum + item.outputTokens, 0), wallTimeMs: this.taskWallTime(snapshots),
+    }, this.lastCost.final);
+    this.controller.reconcileUsage(synthetic, charged.reduce((sum, item) => sum + item.estimatedCostMicros, 0));
     return this.snapshot();
   }
   snapshot(): TaskAccountingSnapshot {
-    const ledgers = this.taskLedgers(); const usage = aggregateUsage(ledgers);
+    const ledgers = this.taskLedgers(); const usage = Object.freeze({ ...aggregateUsage(ledgers), wallTimeMs: this.taskWallTime(ledgers) });
+    this.controller.reconcileWallTime(usage.wallTimeMs);
     return Object.freeze({ taskId: this.options.taskId, budget: this.controller.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage, cost: this.lastCost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
   }
   costRecords(): readonly CostRecordV2[] { return Object.freeze([...this.costHistory.values()].sort((a, b) => a.id.localeCompare(b.id))); }
   latestCostRecord(turnId: StableId): CostRecordV2 | undefined { return this.latestCosts.get(turnId)?.record; }
   private taskLedgers(): readonly UsageLedgerSnapshot[] { return this.usageStore.snapshots().filter((entry) => entry.taskId === this.options.taskId); }
+  private now(): number { return this.options.now?.() ?? Date.now(); }
+  private taskWallTime(ledgers: readonly UsageLedgerSnapshot[]): number {
+    return activeDuration([...ledgers.flatMap(entry => entry.activeIntervals), ...this.activityScopes.flatMap(scope => scope.intervals(this.now()))]);
+  }
 }
 
 export class TaskAccountingError extends Error { constructor(readonly code: string, message: string) { super(message); this.name = 'TaskAccountingError'; } }
@@ -152,7 +209,7 @@ function aggregateUsage(values: readonly UsageLedgerSnapshot[]): TaskAccountingS
     inputTokens: sumKnown(records.map((entry) => entry.inputTokens)), cachedInputTokens: sumKnown(records.map((entry) => entry.cachedInputTokens)),
     cacheWriteTokens: sumKnown(records.map((entry) => entry.cacheWriteTokens)), outputTokens: sumKnown(records.map((entry) => entry.outputTokens)), reasoningTokens: sumKnown(records.map((entry) => entry.reasoningTokens)),
     toolInputBytes: records.reduce((sum, entry) => sum + entry.toolInputBytes, 0), toolOutputBytes: records.reduce((sum, entry) => sum + entry.toolOutputBytes, 0),
-    wallTimeMs: records.reduce((sum, entry) => sum + entry.wallTimeMs, 0),
+    wallTimeMs: activeDuration(values.flatMap(entry => entry.activeIntervals)),
     ...(records.some((entry) => entry.contextCache) ? { contextCache: Object.freeze({
       localArtifactHits: records.reduce((sum, entry) => sum + (entry.contextCache?.localArtifactHits ?? 0), 0),
       localArtifactMisses: records.reduce((sum, entry) => sum + (entry.contextCache?.localArtifactMisses ?? 0), 0),

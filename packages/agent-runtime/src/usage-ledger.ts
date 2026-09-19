@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { asStableId, type M12Digest, type StableId, type UsageRecordV2 } from '@haiyue/ai-studio-contracts';
+import { ActivityClock, activeDuration } from './activity-clock.js';
 
 export type NormalizedFinishReason = 'stop' | 'length' | 'tool-calls' | 'cancelled' | 'content-filter' | 'error' | 'unknown';
 export interface UsageUpdate {
@@ -29,6 +30,8 @@ export interface UsageLedgerSnapshot {
   readonly duplicateEvents: number;
   readonly outOfOrderEvents: number;
   readonly lateReconciliations: number;
+  /** In-memory task accounting metadata, not a provider usage envelope. */
+  readonly activeIntervals: readonly (readonly [number, number])[];
 }
 
 export class UsageLedger {
@@ -40,9 +43,8 @@ export class UsageLedger {
   private highestArrivalSequence = -1;
   private executionState: 'running' | 'terminal' = 'running';
   private finishReason: NormalizedFinishReason | null = null;
-  private terminalAtMs: number | null = null;
   private pausedAtMs: number | null = null;
-  private pausedDurationMs = 0;
+  private readonly activity: ActivityClock;
   private pauseDepth = 0;
 
   constructor(private readonly identity: {
@@ -54,6 +56,7 @@ export class UsageLedger {
     readonly contextCache?: UsageRecordV2['contextCache'];
   }) {
     assertTime(identity.startedAtMs, 'start time');
+    this.activity = new ActivityClock(identity.startedAtMs);
   }
 
   reconcile(update: UsageUpdate): UsageLedgerSnapshot {
@@ -72,6 +75,7 @@ export class UsageLedger {
     if (this.executionState === 'terminal') return;
     if (observedAtMs < this.identity.startedAtMs) throw new UsageLedgerError('usage.pause-time-invalid', 'Pause time precedes the turn start.');
     this.pauseDepth += 1;
+    this.activity.pause(observedAtMs);
     if (this.pauseDepth === 1) this.pausedAtMs = observedAtMs;
   }
 
@@ -80,8 +84,8 @@ export class UsageLedger {
     if (this.executionState === 'terminal' || this.pauseDepth === 0) return;
     if (this.pausedAtMs !== null && observedAtMs < this.pausedAtMs) throw new UsageLedgerError('usage.resume-time-invalid', 'Resume time precedes the active pause.');
     this.pauseDepth -= 1;
+    this.activity.resume(observedAtMs);
     if (this.pauseDepth === 0 && this.pausedAtMs !== null) {
-      this.pausedDurationMs += observedAtMs - this.pausedAtMs;
       this.pausedAtMs = null;
     }
   }
@@ -90,9 +94,9 @@ export class UsageLedger {
     assertTime(observedAtMs, 'terminal time');
     if (!finishReasons.has(finishReason)) throw new UsageLedgerError('usage.finish-reason-invalid', 'Finish reason is invalid.');
     if (this.executionState === 'running') {
-      if (this.pausedAtMs !== null) this.pausedDurationMs += Math.max(0, observedAtMs - this.pausedAtMs);
+      this.activity.finish(observedAtMs);
       this.pausedAtMs = null; this.pauseDepth = 0;
-      this.executionState = 'terminal'; this.finishReason = finishReason; this.terminalAtMs = observedAtMs; this.appendRecord(observedAtMs);
+      this.executionState = 'terminal'; this.finishReason = finishReason; this.appendRecord(observedAtMs);
     }
     return this.snapshot();
   }
@@ -105,12 +109,14 @@ export class UsageLedger {
       taskId: this.identity.taskId, sessionId: this.identity.sessionId, turnId: this.identity.turnId, record,
       finishReason: this.finishReason, executionState: this.executionState, acceptedEvents: this.updates.size,
       duplicateEvents: this.duplicateEvents, outOfOrderEvents: this.outOfOrderEvents, lateReconciliations: this.lateReconciliations,
+      activeIntervals: this.activity.intervals(),
     });
   }
 
   private appendRecord(observedAtMs: number, update?: UsageUpdate): void { this.recordsValue.push(this.aggregate(observedAtMs, update)); }
 
   private aggregate(observedAtMs: number, update?: UsageUpdate): UsageRecordV2 {
+    this.activity.observe(observedAtMs);
     const updates = [...this.updates.values()].sort((a, b) => a.sequence - b.sequence || a.eventId.localeCompare(b.eventId));
     const cumulative = updates.filter((entry) => entry.mode === 'cumulative').at(-1);
     const deltas = cumulative ? updates.filter((entry) => entry.mode === 'delta' && entry.sequence > cumulative.sequence) : updates.filter((entry) => entry.mode === 'delta');
@@ -136,16 +142,13 @@ export class UsageLedger {
       taskId: this.identity.taskId, sessionId: this.identity.sessionId, turnId: this.identity.turnId,
       ...(update?.stepId ? { stepId: update.stepId } : {}), ...(update?.toolCallId ? { toolCallId: update.toolCallId } : {}),
       ...counts,
-      wallTimeMs: Math.max(0, Math.floor((this.terminalAtMs ?? observedAtMs) - this.identity.startedAtMs - this.pausedDurationAt(this.terminalAtMs ?? observedAtMs))),
+      wallTimeMs: activeDuration(this.activity.intervals()),
       providerRequestDigest: this.identity.providerRequestDigest,
       ...(this.identity.contextCache ? { contextCache: Object.freeze({ ...this.identity.contextCache, providerReportedHitTokens: counts.cachedInputTokens }) } : {}),
       final,
     });
   }
 
-  private pausedDurationAt(observedAtMs: number): number {
-    return this.pausedDurationMs + (this.pausedAtMs === null ? 0 : Math.max(0, observedAtMs - this.pausedAtMs));
-  }
 }
 
 export class UsageLedgerStore {

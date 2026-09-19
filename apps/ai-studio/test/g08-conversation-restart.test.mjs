@@ -6,6 +6,7 @@ import path from 'node:path';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { ConversationProjector } from '@haiyue/ai-studio-shell';
 import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
+import { TaskAccountingRegistry, UsageLedgerStore } from '@haiyue/ai-studio-agent-runtime';
 
 const backendId = 'backend:g08-restart';
 const sessionId = 'session:g08-restart';
@@ -58,18 +59,16 @@ function runtimeFixture(response = 'Restart-safe response.') {
     async status() { return { state: 'ready', authMode: 'api-key', rateLimits: [] }; },
     async authenticate() { return null; }, async logout() {}, async cancelTurn() {}, async submitToolResult() {}, async answerQuestion() {}, async resolveBackendApproval() {}, async dispose() {},
   };
-  const accounts = new Map();
   return {
     context: { prompts: { profile: { id: 'prompt:g08', version: '1.0.0', digest: `sha256:${'a'.repeat(64)}`, modules: [] } }, async prepare({ request }) { return { prompt: request, promptDigest: `sha256:${'b'.repeat(64)}`, promptProfile: this.prompts.profile, contextArtifactIds: [], contextDigest: `sha256:${'c'.repeat(64)}`, cache: { localArtifactHits: 0, localArtifactMisses: 0, deltaReuseBytes: 0, providerCacheEligibleBytes: 0, providerReportedHitTokens: null } }; }, async commit() {} },
     registry: { descriptors: () => [backend.descriptor], get: () => backend },
-    accounting: { open({ taskId, budget }) { const consumption = { inputTokens: 0, outputTokens: 0, estimatedCostMicros: 0, wallTimeMs: 0, turns: 1, toolCalls: 0, repairIterations: 0, observationBytes: 0 }; const snapshot = () => ({ taskId, budget, budgetDecision: decision(), consumption, usage: { inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, reasoningTokens: null, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 0 }, cost: { status: 'unknown', amountMicros: null, currency: null, cacheSavingMicros: null, explanation: 'fixture', final: false }, turnIds: [] }); const account = { options: { taskId, budget }, beginTurn: decision, bindTurn() {}, preflightTool: decision, commitTool: decision, expireWallTime: decision, reconcile: snapshot, snapshot }; accounts.set(taskId, account); return account; }, get(id) { return accounts.get(id); } },
+    accounting: new TaskAccountingRegistry(new UsageLedgerStore()),
     turns: { async *start() { yield event('status', { status: 'running' }); yield event('conversation-node', { status: 'streaming', delta: response }); yield event('completed', { status: 'completed' }); }, async *resume() {}, async cancel() {}, async recordToolResult() {} },
   };
 }
 
 function toolsFixture() { return { definitions: () => [] }; }
 function event(kind, payload) { return { schemaVersion: 1, backendId, sessionId, turnId, kind, payload }; }
-function decision() { return { allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false }; }
 function openLog(root) { return OperationLog.open({ rootDirectory: root, appVersion: 'g08-test', flushPolicy: 'always' }); }
 async function readTree(root) { const values = []; for (const entry of await readdir(root, { withFileTypes: true })) { const target = path.join(root, entry.name); if (entry.isDirectory()) values.push(await readTree(target)); else values.push(await readFile(target, 'utf8')); } return values.join('\n'); }
 async function waitFor(predicate) { for (let index = 0; index < 200; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for G08 fixture state.'); }

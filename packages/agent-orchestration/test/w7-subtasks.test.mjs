@@ -1,3 +1,4 @@
+import { qualificationFixture } from './fixtures/qualification.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -10,8 +11,9 @@ function fixture() {
  const ledger = new UsageLedgerStore(), account = new TaskAccountingRegistry(ledger).open({taskId:'task:parent',budget:DEFAULT_TASK_BUDGET,pricingCatalog:M12_DEFAULT_PRICING_CATALOG});
  const controller = new AbortController(); let revision=7,calls=0,active=0,peak=0; const audits=[],received=[];
  const candidate = input => ({schemaVersion:1,taskId:input.planTaskId,baseRevision:input.baseRevision,artifacts:input.artifactKeys.map(key=>({key,kind:'test',content:'Candidate test',sources:input.facts.map(f=>f.ref)}))});
- const options={enabled:true,qualify:async()=> 'evidence:trusted-real-ab',caps:{inputTokens:3000,outputTokens:1000,estimatedCostMicros:10000,wallTimeMs:1000},facts:async(refs,rev)=>refs.map(ref=>({ref,content:ref,digest:sha256(ref),revision:rev})),port:{backendId:'backend:test',model:'fixture-model',async run(input,signal){calls++;active++;peak=Math.max(peak,active);received.push(input);await delay(12);active--;signal.throwIfAborted();return {candidate:candidate(input),turnId:`turn:${input.planTaskId}`};}}};
- const input={selection:{schemaVersion:1,taskIds:['task:first','task:second']},approved:[task('first'),task('second')],backendId:'backend:test',model:'fixture-model',sessionId:'session:parent',turnId:'turn:parent',callId:'call:delegate',account,revision:()=>revision,signal:controller.signal,audit:async(kind,payload)=>audits.push({kind,payload})};
+ const q=qualificationFixture();
+ const options={enabled:true,qualify:q.qualify,qualification:q.qualification,caps:{inputTokens:3000,outputTokens:1000,estimatedCostMicros:10000,wallTimeMs:1000},facts:async(refs,rev)=>refs.map(ref=>({ref,content:ref,digest:sha256(ref),revision:rev})),port:{backendId:'backend:test',model:'fixture-model',async run(input,signal){calls++;active++;peak=Math.max(peak,active);received.push(input);await delay(12);active--;signal.throwIfAborted();return {candidate:candidate(input),turnId:`turn:${input.planTaskId}`};}}};
+ const input={profileDigest:q.identity.profileDigest,registryDigest:q.identity.registryDigest,selection:{schemaVersion:1,taskIds:['task:first','task:second']},approved:[task('first'),task('second')],backendId:'backend:test',model:'fixture-model',sessionId:'session:parent',turnId:'turn:parent',callId:'call:delegate',account,revision:()=>revision,signal:controller.signal,audit:async(kind,payload)=>audits.push({kind,payload})};
  return {options,input,account,ledger,controller,audits,received,candidate,set revision(v){revision=v},get calls(){return calls},get peak(){return peak}};
 }
 for(const mode of ['disabled','provider-mismatch','small','coupled','writes','overlap','unqualified','unapproved','budget','bad-facts','secret-facts']) test(`W7 rejects ${mode} before any child request`,async()=>{
@@ -49,5 +51,35 @@ test('W7 reservations are atomic across concurrent batches and a journal failure
 });
 test('W7 final real ledger releases its own reservation once; missing and parent ledgers cannot release it',()=>{
  const f=fixture();const add=(id)=>{const l=f.ledger.open({taskId:'task:parent',sessionId:'session:child',turnId:id,providerRequestDigest:null,startedAtMs:0});f.account.bindTurn(id,{provider:'deepseek',model:'deepseek-v4-flash',billingMode:'api'});l.reconcile({eventId:`event:${id}`,sequence:1,mode:'cumulative',inputTokens:10,cachedInputTokens:0,cacheWriteTokens:0,outputTokens:2,reasoningTokens:0,observedAtMs:2});l.markTerminal('stop',3);};
- add('turn:parent');assert.equal(f.account.reserveWork('child:first',{inputTokens:100}),true);assert.equal(f.account.settleWork('child:first','turn:parent'),false);assert.equal(f.account.settleWork('child:first','turn:missing'),false);add('turn:new');assert.equal(f.account.settleWork('child:first','turn:new'),true);assert.equal(f.account.reserveWork('child:second',{inputTokens:100}),true);assert.equal(f.account.settleWork('child:second','turn:new'),false);
+ add('turn:parent');assert.equal(f.account.reserveWork('child:first',{inputTokens:100}),true);assert.equal(f.account.bindWork('child:first','turn:parent'),false);assert.equal(f.account.settleWork('child:first','turn:parent'),false);assert.equal(f.account.settleWork('child:first','turn:missing'),false);add('turn:new');assert.equal(f.account.settleWork('child:first','turn:new'),false);assert.equal(f.account.bindWork('child:first','turn:new'),true);assert.equal(f.account.settleWork('child:first','turn:new'),true);assert.equal(f.account.reserveWork('child:second',{inputTokens:100}),true);assert.equal(f.account.bindWork('child:second','turn:new'),false);assert.equal(f.account.settleWork('child:second','turn:new'),false);
+});
+
+for (const mode of ['failed-known', 'invalid-known', 'cancelled-known', 'failed-unknown']) test(`P0 child settlement after drained port: ${mode}`, async () => {
+ const f=fixture(); let exited=0;
+ f.options.port.run=async(input,signal,bindTurn)=>{
+  const turnId=`turn:${input.planTaskId}`,now=Date.now();
+  const l=f.ledger.open({taskId:'task:parent',sessionId:`session:${input.planTaskId}`,turnId,providerRequestDigest:null,startedAtMs:now});
+  bindTurn(turnId);
+  if(mode!=='failed-unknown') l.reconcile({eventId:`usage:${turnId}`,sequence:1,mode:'cumulative',inputTokens:50,cachedInputTokens:0,cacheWriteTokens:0,outputTokens:5,reasoningTokens:0,observedAtMs:now,final:true});
+  f.account.bindTurn(turnId,{provider:'deepseek',model:'deepseek-v4-flash',billingMode:'api'});
+  await delay(5); l.markTerminal(mode==='cancelled-known'?'cancelled':'error',Date.now());exited++;
+  if(mode==='cancelled-known')f.controller.abort(new Error('cancel-known'));
+  if(mode==='invalid-known')return {candidate:{invalid:true},turnId};
+  throw new Error('Child returned no structured candidate.');
+ };
+ const work=runSubtasks(f.options,f.input);
+ if(mode==='cancelled-known')await assert.rejects(work,/cancel-known/);
+ else {const result=await work;assert.equal(result.status,'partial');assert.deepEqual(result.candidates,[]);}
+ assert.equal(exited,2);
+ if(mode==='failed-unknown')assert.equal(f.account.reservedWork().inputTokens,6000);
+ else {assert.deepEqual(f.account.reservedWork(),{});assert.equal(f.account.snapshot().usage.inputTokens,100);assert.equal(f.account.beginTurn().allowed,true);}
+ assert.equal(f.account.reservedWork().wallTimeMs,undefined,'known drained elapsed time never keeps an unknown token reservation alive');
+});
+
+test('P1 W7 includes global user constraints in every isolated objective and never truncates them',async()=>{
+ const f=fixture();f.input.constraints=['不要创建任何实体','保持其他对象不变'];
+ assert.equal((await runSubtasks(f.options,f.input)).status,'completed');
+ assert.ok(f.received.every(item=>f.input.constraints.every(c=>item.objective.includes(c))));
+ const large=fixture();large.input.constraints=['x'.repeat(4096)];
+ assert.equal((await runSubtasks(large.options,large.input)).reason,'constraint-context-budget');assert.equal(large.calls,0);
 });

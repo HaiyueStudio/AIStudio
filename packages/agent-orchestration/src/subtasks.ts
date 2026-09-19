@@ -1,7 +1,8 @@
-import { asStableId, isPlanTaskV1, isSubtaskCandidateV1, isSubtaskSelectionV1, SUBTASK_SELECTION_SCHEMA, type JsonObject, type PlanTaskV1, type StableId, type SubtaskCandidateV1, type TaskBudgetV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
-import type { TaskAccount } from '@haiyue/ai-studio-agent-runtime';
+import { asStableId, isPlanTaskV1, isSubtaskCandidateV1, isSubtaskSelectionV1, SUBTASK_SELECTION_SCHEMA, type JsonObject, type PlanTaskV1, type StableId, type SubtaskCandidateV1, type TaskBudgetV2, type TaskSpecV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
+import { contextRead, type TaskAccount } from '@haiyue/ai-studio-agent-runtime';
 import { RollingToolBatchScheduler } from '@haiyue/ai-studio-game-authoring-tools';
 import { canonicalStringify, redactObject, sha256 } from '@haiyue/ai-studio-operation-log';
+import { qualifySubtasks, type SubtaskQualification } from './subtask-qualification.js';
 
 export const SUBTASK_TOOL = Object.freeze({ id: asStableId('studio.task.delegate'), description: 'Request candidate artifacts from 2-4 independent, already approved large plan tasks. No document writes or automatic acceptance. Use only when the Host has qualified this model for measured net benefit.', inputSchema: SUBTASK_SELECTION_SCHEMA, concurrency: { schemaVersion: 1 as const, mode: 'exclusive' as const } });
 type Caps = Pick<TaskBudgetV2['limits'], 'inputTokens' | 'outputTokens' | 'estimatedCostMicros' | 'wallTimeMs'>;
@@ -11,8 +12,10 @@ export interface SubtaskPort {
   readonly model: string;
   /** Trusted adapter must enforce these caps before dispatch, use an isolated context, no tools,
    * filesystem, shell, approvals or recursive delegation, and write actual Usage/Cost to the
-   * parent's runtime ledger. Resolve only after provider exit; unknown usage retains reserves. */
-  run(input: Readonly<{ parentTaskId: StableId; childId: StableId; planTaskId: string; objective: string; baseRevision: number; facts: readonly SubtaskFact[]; artifactKeys: readonly string[]; caps: Caps }>, signal: AbortSignal): Promise<Readonly<{ candidate: unknown; turnId: StableId }>>;
+   * parent's runtime ledger. Bind the exact turn on its first event, including failed turns.
+   * Resolve/reject only after provider exit; unknown usage retains remaining reserves. */
+  run(input: Readonly<{ parentTaskId: StableId; childId: StableId; planTaskId: string; objective: string; baseRevision: number; facts: readonly SubtaskFact[]; artifactKeys: readonly string[]; caps: Caps }>, signal: AbortSignal,
+    bindTurn: (turnId: StableId) => void): Promise<Readonly<{ candidate: unknown; turnId: StableId }>>;
 }
 export interface SubtaskOptions {
   readonly enabled: boolean;
@@ -20,6 +23,7 @@ export interface SubtaskOptions {
   /** Composition-owned A/B gate; returns a retained real-provider evidence reference, or null.
    * Must compare latency, total tokens (including merge), cost and quality for this model/task class. */
   readonly qualify: (backendId: StableId, model: string) => Promise<string | null>;
+  readonly qualification?: SubtaskQualification;
   /** Resolve exact approved refs from immutable, redacted context; never a full transcript. */
   readonly facts: (refs: readonly string[], revision: number, signal: AbortSignal) => Promise<readonly SubtaskFact[]>;
   readonly caps: Caps;
@@ -27,9 +31,12 @@ export interface SubtaskOptions {
 export interface SubtaskPlanItem { readonly id: string; readonly label: string; readonly details?: string; readonly execution?: PlanTaskV1; readonly executionStatus?: string; }
 export interface SubtaskRunInput {
   readonly selection: unknown;
+  readonly constraints?: TaskSpecV2['visibleConstraints'];
   readonly approved: readonly SubtaskPlanItem[];
   readonly backendId: StableId;
   readonly model: string;
+  readonly profileDigest: string;
+  readonly registryDigest: string;
   readonly sessionId: StableId;
   readonly turnId: StableId;
   readonly callId: StableId;
@@ -52,10 +59,19 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
   const tasks = items.map(item => item!.execution!);
   if (tasks.some(task => task.writeScopes.length || task.dependsOn.length || !task.inputs.length || !task.artifacts.length || task.artifacts.length > 8 || (task.estimatedWorkMs ?? 0) < 10_000)
     || tasks.reduce((sum, task) => sum + (task.estimatedWorkMs ?? 0), 0) < 30_000) return fallback('small-or-coupled-task');
+  const objectives = items.map(item => `${item!.label}\n${item!.details ?? ''}${input.constraints?.length ? `\nMandatory user constraints: ${JSON.stringify(input.constraints)}` : ''}`);
+  if (objectives.some(objective => objective.length > 4096)) return fallback('constraint-context-budget');
   const outputs = tasks.flatMap(task => task.artifacts);
   if (new Set(outputs).size !== outputs.length) return fallback('overlapping-artifacts');
-  const evidence = await options.qualify(input.backendId, input.model);
-  if (!evidence || evidence.length > 512) return fallback('unqualified-model');
+  let evidence: string | null = null;
+  try {
+    evidence = await contextRead(async signal => {
+      const ref = await options.qualify(input.backendId, input.model);
+      signal.throwIfAborted();
+      return ref ? qualifySubtasks(options.qualification, ref, { backendId: input.backendId, model: input.model, profileDigest: input.profileDigest, registryDigest: input.registryDigest }, tasks, signal) : null;
+    }, input.signal);
+  } catch { input.signal.throwIfAborted(); }
+  if (!evidence) return fallback('unqualified-model');
   input.signal.throwIfAborted();
   const revision = input.revision();
   if (revision === null) return fallback('missing-revision');
@@ -75,7 +91,7 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
   if (input.revision() !== revision) return fallback('stale-context');
   const prefix = sha256(`${input.sessionId}:${input.turnId}:${input.callId}`);
   const ids = tasks.map(task => asStableId(`child:${sha256(`${prefix}:${task.id}`)}`));
-  const capsReservation = { inputTokens: caps.inputTokens!, outputTokens: caps.outputTokens!, estimatedCostMicros: caps.estimatedCostMicros!, wallTimeMs: caps.wallTimeMs! };
+  const capsReservation = { inputTokens: caps.inputTokens!, outputTokens: caps.outputTokens!, estimatedCostMicros: caps.estimatedCostMicros! };
   const reservations: string[] = [];
   const snapshot = input.account.reconcile();
   if (snapshot.consumption.turns + tasks.length > (snapshot.budget.limits.turns ?? Number.MAX_SAFE_INTEGER)) return fallback('shared-budget');
@@ -83,6 +99,8 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
     if (!input.account.reserveWork(id, capsReservation)) { for (const reserved of reservations) input.account.releaseUnstartedWork(reserved); return fallback('shared-budget'); }
     reservations.push(id);
   }
+  const closeWallReservation = input.account.reserveWallTime(`wall:${prefix}`, caps.wallTimeMs!);
+  if (!closeWallReservation) { for (const reserved of reservations) input.account.releaseUnstartedWork(reserved); return fallback('shared-budget'); }
   const started = new Set<string>();
   const scheduler = new RollingToolBatchScheduler<SubtaskCandidateV1 | null>({ maxConcurrency: 2, maxNodes: 4, maxWallTimeMs: caps.wallTimeMs!, signal: input.signal,
     cancelled: () => ({ status: 'cancelled', value: null }) });
@@ -97,9 +115,19 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
       if (!input.account.beginTurn().allowed) return { status: 'cancelled', value: null };
       await input.audit('started', { childId: node.id, taskId: tasks[index]!.id });
       signal.throwIfAborted(); started.add(node.id);
-      const response = await options.port.run({ parentTaskId: input.account.options.taskId, childId: asStableId(node.id), planTaskId: tasks[index]!.id, objective: `${items[index]!.label}\n${items[index]!.details ?? ''}`.slice(0, 4096), baseRevision: revision,
-        facts: Object.freeze(facts[index]!.map(fact => Object.freeze(fact))), artifactKeys: Object.freeze([...tasks[index]!.artifacts]), caps }, signal);
-      input.account.settleWork(node.id, response.turnId);
+      let childTurn: StableId | null = null;
+      let response: Awaited<ReturnType<SubtaskPort['run']>>;
+      try {
+        response = await options.port.run({ parentTaskId: input.account.options.taskId, childId: asStableId(node.id), planTaskId: tasks[index]!.id, objective: objectives[index]!, baseRevision: revision,
+          facts: Object.freeze(facts[index]!.map(fact => Object.freeze(fact))), artifactKeys: Object.freeze([...tasks[index]!.artifacts]), caps }, signal, turnId => {
+          if ((childTurn !== null && childTurn !== turnId) || !input.account.bindWork(node.id, turnId)) throw new Error('Child turn does not belong to its reservation.');
+          childTurn = turnId;
+        });
+        if (childTurn !== null && response.turnId !== childTurn) throw new Error('Child response changed its bound turn.');
+      } finally {
+        // A drained failed/cancelled child can still have a complete, priced ledger.
+        if (childTurn !== null) input.account.settleWork(node.id, childTurn);
+      }
       signal.throwIfAborted();
       if (input.revision() !== revision) return { status: 'cancelled', value: null };
       const candidate = response.candidate;
@@ -123,5 +151,6 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
   } finally {
     await scheduler.drain();
     for (const id of reservations) if (!started.has(id)) input.account.releaseUnstartedWork(id);
+    closeWallReservation();
   }
 }

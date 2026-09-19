@@ -128,7 +128,24 @@ export class GameAuthoringToolRuntime {
   assertAssemblyPlan(expectations: readonly JsonObject[], toolId: string, args: JsonObject): void { this.assertActive(); assertAssemblyPlan(this.options.workspace.gameSnapshot(), expectations, toolId, args); }
 
   definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
-  selectDefinitions(request: string, expandedIds: readonly StableId[] = []): ToolSchemaSelection { this.assertActive(); return this.catalog.selectDefinitions(request, expandedIds); }
+  selectDefinitions(request: string, expandedIds: readonly StableId[] = [], selection?: Readonly<{ entityIds: readonly StableId[]; revision: number }>): ToolSchemaSelection {
+    this.assertActive();
+    let target: 'geometry' | 'component' | 'unknown' = 'unknown';
+    // Only an explicit selection reference binds this hint. Resolve component types from
+    // the existing immutable document service; never infer geometry from the word button.
+    if (selection?.entityIds.length && selection.entityIds.length <= 128 && /选中|selected|selection/iu.test(request)) {
+      const document = this.options.workspace.gameSnapshot();
+      if (document?.revision === selection.revision) {
+        const entities = selection.entityIds.map(id => document.entities.find(e => e.id === id));
+        if (entities.every(Boolean)) {
+          const types = entities.map(e => document.components.filter(c => e!.componentIds.includes(c.id)).map(c => c.type));
+          if (types.every(t => t.includes('haiyue.render.geometry') && !t.some(id => id.startsWith('haiyue.ui.')))) target = 'geometry';
+          else if (types.every(t => !t.includes('haiyue.render.geometry'))) target = 'component';
+        }
+      }
+    }
+    return this.catalog.selectDefinitions(request, expandedIds, undefined, target);
+  }
   snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: GAME_AUTHORING_TOOL_DEFINITIONS, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, activeApprovalGrants: this.approvalGrants.size, effectLocks: this.effectLocks.snapshot(), disposed: this.disposed }); }
 
   async prepare(value: unknown, signal?: AbortSignal): Promise<GameToolPreparation> {

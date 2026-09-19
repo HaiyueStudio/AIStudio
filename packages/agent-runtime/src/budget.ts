@@ -58,6 +58,12 @@ export class TaskBudgetController {
     return this.state();
   }
 
+  reconcileWallTime(wallTimeMs: number): void {
+    validateReservation({ wallTimeMs });
+    this.consumptionValue = Object.freeze({ ...this.consumptionValue, wallTimeMs });
+    if (this.violations(this.consumptionValue).length && this.budget.enforcement === 'hard') this.hardStopLatched = true;
+  }
+
   authorizeContinuation(): BudgetDecision {
     if (this.budgetValue.enforcement !== 'hard' || !this.hardStopLatched) throw new BudgetError('budget.continuation-unavailable', 'A hard budget stop must be pending before continuation can be authorized.');
     const limits = Object.fromEntries(metrics.map((metric) => {
@@ -117,7 +123,7 @@ const metrics: readonly BudgetMetric[] = ['inputTokens', 'outputTokens', 'estima
  * input. A missing cache-write counter is conservatively treated as zero,
  * because that subtracts no unverified tokens.
  */
-function budgetedInputTokens(usage: UsageRecordV2): number | null {
+export function budgetedInputTokens(usage: UsageRecordV2): number | null {
   if (usage.inputTokens === null) return null;
   if (usage.cachedInputTokens === null) return usage.inputTokens;
   return Math.max(0, usage.inputTokens - usage.cachedInputTokens - (usage.cacheWriteTokens ?? 0));

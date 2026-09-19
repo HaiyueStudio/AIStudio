@@ -20,10 +20,10 @@ app.whenReady().then(async () => {
   const evaluate = code => window.webContents.executeJavaScript(`(async()=>{const {panel,get,assert,intents,idle,query,tab,select,action,update}=window.resourceTest;${code}})()`);
   const update = async data => evaluate(`update(${JSON.stringify(data)});await idle();`);
   const screenshot = async name => { await evaluate('await idle();'); await writeFile(path.join(directory, name), (await window.webContents.capturePage()).toPNG()); };
-  await evaluate(`assert(JSON.stringify(get('tabs').options.map(o=>o.label))===JSON.stringify(['几何体','纹理','材质','脚本','模型']),'five primary tabs in requested order');assert(get('tabs').value==='Geometry','default geometry tab');assert(window.resourceTest.data.items.every(item=>item.entry.category==='Geometry'),'initial query matches tab');assert(!get('more').open && get('import').hidden,'compact initial controls');
+  await evaluate(`assert(JSON.stringify(get('tabs').options.map(o=>o.label))===JSON.stringify(['几何体','纹理','材质','脚本','模型']),'five primary tabs in requested order');assert(get('tabs').value==='Geometry','default geometry tab');assert(window.resourceTest.data.items.every(item=>item.entry.category==='Geometry'),'initial query matches tab');assert(!get('more') && !get('kind') && !get('unused') && get('import').hidden,'compact initial controls');
     for(const category of ['Texture','Material','Script','Model','Geometry']) { await tab(category);assert(intents.at(-1).query.category===category && !intents.at(-1).query.cursor,'tab queries category at first page');assert(window.resourceTest.data.items.every(item=>item.entry.category===category),'server filtered tab results');assert(get('content').slot===category,'active content in tab panel');assert(get('detail').hidden,'selection clears across tabs'); }
-    await tab('Texture');assert(get('import').textContent==='导入纹理' && get('import-kind').value==='texture','texture import context');await tab('Model');assert(get('import').textContent==='导入模型' && get('import-kind').value==='model','model import context');
-    await query('kind','asset');get('unused').checked=true;await tab('Geometry');assert(!intents.at(-1).query.kind && !intents.at(-1).query.unused,'tab clears incompatible filters');
+    await tab('Texture');assert(get('import').textContent==='导入纹理' && !get('import').hidden,'texture import context');await tab('Model');assert(get('import').textContent==='导入模型' && !get('import').hidden,'model import context');
+    get('import').click();await idle();assert(intents.at(-1).kind==='model','model import uses selected category');await tab('Texture');get('import').click();await idle();assert(intents.at(-1).kind==='texture' && !get('error').hidden,'texture import retains real failure feedback');await tab('Geometry');assert(!intents.at(-1).query.kind && !intents.at(-1).query.unused,'category queries have no hidden filters');
     get('tabs').shadowRoot.querySelector('[data-value="Geometry"]').focus();`);
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
   await evaluate(`await idle();assert(get('tabs').value==='Texture','native arrow key switches tab');assert(get('tabs').shadowRoot.activeElement?.dataset.value==='Texture','tab keyboard focus retained');await tab('Geometry');`);
@@ -49,7 +49,7 @@ app.whenReady().then(async () => {
   assert.equal(controller.last.target.kind, 'component'); assert.equal(controller.last.target.field, '/diffuseAssetId');
   await screenshot('resource-desktop.png');
   await update(await controller.reopen());
-  await evaluate(`assert(window.resourceTest.data.items.length===1,'same asset after reopen');select(item=>item.entry.kind==='asset');await action('asset.inspect');assert(get('detail').textContent.includes('已核验'),'file digest verified');get('import').click();await idle();assert(!get('error').hidden && get('error').textContent.includes('资源操作失败'),'real import failure visible');`);
+  await evaluate(`assert(window.resourceTest.data.items.length===1,'same asset after reopen');select(item=>item.entry.kind==='asset');await action('asset.inspect');assert(get('detail').textContent.includes('已核验'),'file digest verified');`);
   await update(await controller.missing());
   await evaluate(`select(item=>item.entry.kind==='asset');await action('asset.inspect');assert(get('detail').textContent.includes('文件缺失'),'missing file visible');assert(!panel.root.querySelector('[data-resource-action="asset.assign"]'),'missing file unavailable');`);
   await screenshot('resource-missing.png');
@@ -60,15 +60,16 @@ app.whenReady().then(async () => {
     if (!count) await evaluate(`assert(get('list').textContent.includes('还没有项目资源'),'empty project');`);
     if (count === 1) await evaluate(`get('list').querySelector('button').focus();`);
     if (count === 1000) {
-      await evaluate(`const first=window.resourceTest.data.items[0].entry.catalogEntryId;get('kind').value='instance';get('next').click();await idle();assert(window.resourceTest.data.items[0].entry.catalogEntryId!==first,'real cursor paging');await query('category','Script');assert(window.resourceTest.data.total===200,'200 scripts searchable');select(item=>item.entry.category==='Script');await action('resource.locate');`);
+      await evaluate(`await tab('Script');assert(window.resourceTest.data.total>=200 && window.resourceTest.data.items.every(item=>item.entry.category==='Script'),'scripts and templates visible without kind filter');const first=window.resourceTest.data.items[0].entry.catalogEntryId;get('next').click();await idle();assert(window.resourceTest.data.items[0].entry.catalogEntryId!==first,'real cursor paging in selected category');select(item=>item.entry.category==='Script' && item.entry.kind==='instance');await action('resource.locate');`);
       assert.equal(controller.last.location.target.kind, 'script');
     }
   }
-  await evaluate(`get('search').value='not-present';get('filters').requestSubmit();await idle();assert(window.resourceTest.data.total===0,'search empty state');get('search').value='';get('filters').requestSubmit();await idle();await query('kind','preset');assert(window.resourceTest.data.items.every(item=>item.entry.status==='unavailable'),'unsupported preset');select(()=>true);assert(!panel.root.querySelector('[data-resource-action="preset.apply"]'),'no invented preset workflow');await query('kind','instance');`);
+  await evaluate(`get('search').value='not-present';get('filters').requestSubmit();await idle();assert(window.resourceTest.data.total===0,'search empty state');get('search').value='';get('filters').requestSubmit();await idle();await query('category','');await query('kind','preset');assert(window.resourceTest.data.items.every(item=>item.entry.status==='unavailable'),'unsupported preset');select(()=>true);assert(!panel.root.querySelector('[data-resource-action="preset.apply"]'),'no invented preset workflow');await query('kind','instance');`);
   window.webContents.debugger.attach('1.3');
   const tree = await window.webContents.debugger.sendCommand('Accessibility.getFullAXTree');
   const names = tree.nodes.filter(node => !node.ignored).map(node => node.name?.value);
-  for (const name of ['项目资源', '搜索资源', '资源分类', '几何体', '纹理', '材质', '脚本', '模型', '更多筛选', '资源列表']) assert.ok(names.includes(name), `AX name ${name}`);
+  for (const name of ['项目资源', '搜索资源', '资源分类', '几何体', '纹理', '材质', '脚本', '模型', '资源列表']) assert.ok(names.includes(name), `AX name ${name}`);
+  assert.ok(!names.includes('更多筛选'), 'removed filter disclosure absent from accessibility tree');
   await writeFile(path.join(directory, 'accessibility.json'), JSON.stringify(tree, null, 2)); window.webContents.debugger.detach();
   await evaluate(`get('list').querySelector('button').focus();`);
   const key = keyCode => { window.webContents.sendInputEvent({ type: 'keyDown', keyCode }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode }); };

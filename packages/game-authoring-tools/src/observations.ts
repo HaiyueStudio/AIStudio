@@ -175,7 +175,7 @@ function evaluateAcceptance(
   observations: readonly Readonly<{ artifact: ObservationArtifactV2; payload: JsonValue }>[],
   currentRevision: number,
 ): EvaluationResultV2['acceptanceResults'][number] {
-  const parsed = parseAssertion(acceptance.assertion);
+  const parsed = parseEvidenceAssertion(acceptance.assertion);
   if (!parsed) return Object.freeze({ acceptanceId: acceptance.id, status: 'blocked', evidenceIds: Object.freeze([]), diagnostic: 'evaluation.assertion-unsupported' });
   const candidates = observations.filter((item) => item.artifact.taskId === taskId && item.artifact.type === parsed.type);
   if (!candidates.length) return Object.freeze({ acceptanceId: acceptance.id, status: 'fail', evidenceIds: Object.freeze([]), diagnostic: `evaluation.evidence-missing:${parsed.type}` });
@@ -194,23 +194,23 @@ function evaluateAcceptance(
   return Object.freeze({ acceptanceId: acceptance.id, status: passed ? 'pass' : 'fail', evidenceIds: Object.freeze([latest.artifact.id]), diagnostic: passed ? null : `evaluation.condition-failed:${parsed.signal}:${parsed.operator}` });
 }
 
-type ParsedAssertion = Readonly<{ type: ObservationArtifactV2['type']; signal?: string; operator?: 'equals' | 'gte' | 'lte'; expected?: JsonValue }>;
+export type ParsedEvidenceAssertion = Readonly<{ type: ObservationArtifactV2['type']; signal?: string; operator?: 'equals' | 'gte' | 'lte'; expected?: JsonValue }>;
 export const EVIDENCE_ASSERTION_PATTERN = '^evidence\\s+(state|event-trace|runtime-errors|performance|screenshot|visual-analysis|lifecycle)(?:\\s+signal\\s+([A-Za-z0-9_.-]{1,160})\\s+(equals|gte|lte)\\s+(.+))?$';
 const evidenceAssertionPattern = new RegExp(EVIDENCE_ASSERTION_PATTERN, 'u');
 /** Use the evaluator's parser when validating a proposed plan, before asking the user to approve it. */
-export function isSupportedEvidenceAssertion(value: string): boolean { return parseAssertion(value) !== null; }
+export function isSupportedEvidenceAssertion(value: string): boolean { return parseEvidenceAssertion(value) !== null; }
 /** Normalize only a known projection wrapper, before the plan is approved.
  * persistInspection projects state.gesture.interactions into event-trace.interactions.
  * Keep the evidence type, index, predicate and expected value unchanged. */
 export function normalizePlayEvidenceAssertion(value: string): string {
-  const parsed = parseAssertion(value);
+  const parsed = parseEvidenceAssertion(value);
   if (parsed?.type === 'state' && /^gesture\.final\.effects\./u.test(parsed.signal ?? '')) return value.replace(/^(evidence\s+state\s+signal\s+)gesture\.final\.(effects\.)/u, '$1$2');
   if (parsed?.type !== 'event-trace' || !/^gesture\.interactions(?:\.|$)/u.test(parsed.signal ?? '')) return value;
   return value.replace(/^(evidence\s+event-trace\s+signal\s+)gesture\.(interactions)(?=\.|\s)/u, '$1$2');
 }
 /** Reserved engine-owned fields only; gameplay/physics extension payloads remain open. */
 export function unavailablePlayEvidenceSignal(assertion: string): string | null {
-  const parsed = parseAssertion(assertion);
+  const parsed = parseEvidenceAssertion(assertion);
   if (!parsed?.signal) return null;
   const path = parsed.signal;
   if (parsed.type === 'state' && /^gesture\.(?:final\.)?effects(?:\.|$)/u.test(path)) return `${path} is a result wrapper, not an observation signal. Gesture effects are at effects.* on its final state artifact. Correct the plan before approval; an approved assertion must be reapproved, not silently rewritten or repaired through gameplay.`;
@@ -226,7 +226,7 @@ export function unavailablePlayEvidenceSignal(assertion: string): string | null 
   }
   return null;
 }
-function parseAssertion(value: string): ParsedAssertion | null {
+export function parseEvidenceAssertion(value: string): ParsedEvidenceAssertion | null {
   const match = evidenceAssertionPattern.exec(value.trim());
   if (!match) return null;
   if (!match[2]) return Object.freeze({ type: match[1] as ObservationArtifactV2['type'] });

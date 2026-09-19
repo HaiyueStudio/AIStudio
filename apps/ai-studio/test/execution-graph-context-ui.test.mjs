@@ -8,6 +8,8 @@ import {
   DurableSessionRuntime,
   ModelContextRuntime,
   PromptContextRuntime,
+  TaskAccountingRegistry,
+  UsageLedgerStore,
 } from '@haiyue/ai-studio-agent-runtime';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
@@ -176,18 +178,7 @@ function contextFixture(log) {
   };
 }
 
-function accountingFixture() {
-  const accounts = new Map();
-  return {
-    open({ taskId, budget }) {
-      const decision = { allowed: true, status: 'within', violations: [], warning: null, hardStopLatched: false };
-      const snapshot = () => ({ taskId, budget, budgetDecision: decision, consumption: { inputTokens: 0, outputTokens: 0, estimatedCostMicros: 0, wallTimeMs: 0, turns: 1, toolCalls: 0, repairIterations: 0, observationBytes: 0 }, usage: { inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, reasoningTokens: null, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 0 }, cost: { status: 'unknown', amountMicros: null, currency: null, cacheSavingMicros: null, explanation: 'Fixture provider has no billing data.', final: false }, turnIds: [] });
-      const account = { options: { taskId, budget }, beginTurn: () => decision, bindTurn() {}, preflightTool: () => decision, commitTool: () => decision, expireWallTime: () => decision, reconcile: snapshot, snapshot };
-      accounts.set(taskId, account); return account;
-    },
-    get(taskId) { return accounts.get(taskId); },
-  };
-}
+function accountingFixture() { return new TaskAccountingRegistry(new UsageLedgerStore()); }
 
 async function waitFor(predicate) {
   for (let index = 0; index < 400; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); }

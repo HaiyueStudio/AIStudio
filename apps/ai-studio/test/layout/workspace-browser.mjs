@@ -146,8 +146,8 @@ try {
     }
     change('workspace-kind', 'all'); change('workspace-category', 'geometry'); get('fixture-create').click();
     assert(manualCalls === 1 && get('fixture-create') === original['fixture-create'], 'existing control listener retained');
-    workspace.setLanguage('en'); assert(workspaceTab('logic').textContent === 'Logic' && get('workspace-category').options[2].textContent === 'Lights', 'English labels');
-    workspace.setLanguage('zh-CN'); assert(workspaceTab('logic').textContent === '逻辑', 'Chinese labels');
+    workspace.setLanguage('en'); assert(workspaceTab('logic').textContent === 'Entities' && get('workspace-category').options[2].textContent === 'Lights', 'English labels');
+    workspace.setLanguage('zh-CN'); assert(workspaceTab('logic').textContent === '实体', 'Chinese labels');
     workspace.setMode('classic');
     assert(get('workspace-split').firstElementChild === original['left-sidebar-split'] || original['left-sidebar-split'].parentElement === get('workspace-split'), 'classic hierarchy restored');
     assert(original['viewport-panel'].parentElement === get('authoring-split') && original['assets-panel'].parentElement === get('authoring-split'), 'classic authoring restored');
