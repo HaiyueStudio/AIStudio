@@ -1,3 +1,4 @@
+import { response as messagesResponse, results } from '../../../packages/harness-bridge/test/fixtures/messages.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -15,7 +16,7 @@ import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const nodes = host => [...new Map(host.replay().events.map(item => [item.node.id, item.node])).values()];
 async function waitFor(predicate) { const end = Date.now() + 10000; while (!predicate()) { if (Date.now() > end) throw new Error('Host did not dispatch independent reads before their results.'); await delay(5); } }
-function response(delta, reason) { return new Response(`data: ${JSON.stringify({ id: 'host-parallel', choices: [{ index: 0, delta, finish_reason: reason }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } }); }
+function response(delta, reason) { return messagesResponse({ text: delta.content, calls: (delta.tool_calls ?? []).map(c => ({ id: c.id, name: c.function.name, arguments: c.function.arguments })), tokens: { input_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 10 } }); }
 
 for (const failOne of [false, true]) test(`pinned Harness → backend → Host runs four reads before any result and preserves ordered durable outcomes (failure=${failOne})`, { timeout: 20000 }, async t => {
   const directory = await mkdtemp(path.join(await realpath(tmpdir()), 'haiyue-w2-host-'));
@@ -50,7 +51,7 @@ for (const failOne of [false, true]) test(`pinned Harness → backend → Host r
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const body = JSON.parse(init.body); requests.push(body);
     if (requests.length > 1) return response({ content: failOne ? 'One read failed.' : 'Read complete.' }, 'stop');
-    const name = id => body.tools.find(tool => tool.function.description.endsWith(`Studio tool id: ${id}`)).function.name;
+    const name = id => body.tools.find(tool => tool.description.endsWith(`Studio tool id: ${id}`)).name;
     return response({ content: 'Reading independent snapshots.', tool_calls: Array.from({ length: 4 }, (_, index) => ({ index, id: `call-w2-${index}`, type: 'function', function: { name: name(index === 3 ? 'studio.tool.invoke' : 'scene.query'), arguments: JSON.stringify(index === 3 ? { toolId: 'scene.get-many', toolVersion: '1.0.0', arguments: { entityIds: ['entity:w2'] } } : { revision: 1, projection: ['hierarchy'] }) } })) }, 'tool_calls');
   });
   const hostOptions = { runtime: { registry, turns, sessions, context, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage) }, tools, operationLog: log,
@@ -66,7 +67,7 @@ for (const failOne of [false, true]) test(`pinned Harness → backend → Host r
     assert.equal(requests.length, 2);
     assert.deepEqual(delivered.map(item => item.id), [0, 1, 2, 3].map(i => `call-w2-${i}`));
     assert.equal(delivered[1].result.status, failOne ? 'failed' : 'completed');
-    assert.deepEqual(requests[1].messages.filter(item => item.role === 'tool').map(item => item.tool_call_id), delivered.map(item => item.id));
+    assert.deepEqual(results(requests[1]).map(item => item.tool_use_id), delivered.map(item => item.id));
     assert.equal(nodes(host).some(node => node.kind === 'tool-call' && node.status === 'pending'), false);
     const snapshot = await sessions.replay(started[0].sessionId);
     assert.equal(snapshot.ops.filter(op => op.kind === 'tool.started').length, 4);

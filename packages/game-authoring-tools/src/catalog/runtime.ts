@@ -38,6 +38,9 @@ export interface ToolSchemaSelection {
 interface CapabilityGroup { readonly id: string; readonly aliases: readonly string[]; readonly toolPrefixes: readonly string[]; readonly capabilities: readonly string[]; }
 
 const GROUPS: readonly CapabilityGroup[] = Object.freeze([
+  group('web', ['web', 'search', 'fetch', '网络搜索', '网页', '抓取'], ['official.web.'], ['official.web']),
+  group('browser', ['browser', 'chromium', '浏览器'], ['official.browser.'], ['official.browser']),
+  group('node', ['nodejs', 'node.js', '脚本执行'], ['official.code.'], ['official.code']),
   group('behavior', ['behavior', 'logic', 'provenance', 'event', 'explain', '行为', '逻辑', '来源', '事件', '解释'], ['behavior.'], ['behavior']),
   group('scene', ['scene', 'entity', 'hierarchy', 'prefab', 'assembly', 'composite', '组合', '原型', '场景', '实体', '层级', '预制体'], ['scene.', 'entity.', 'prefab.', 'assembly.'], ['scene', 'hierarchy']),
   group('spatial', ['transform', 'position', 'rotation', 'scale', 'align', 'layout', '变换', '位置', '旋转', '缩放', '对齐', '布局'], ['transform.'], ['transform']),
@@ -85,9 +88,11 @@ export class ToolCatalogRuntime {
     if (!Number.isSafeInteger(limit) || limit < MODEL_CORE_TOOL_IDS.length || limit > 40) throw new TypeError('Tool schema selection limit is invalid.');
     const selected = new Set<StableId>(MODEL_CORE_TOOL_IDS.filter((id) => this.byId.has(id)));
     const intent = requestRouting(request);
+    const explicit = explicitIntentToolIds(request);
+    const named = new Set([...request.matchAll(/[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+/gu)].map(match => match[0]));
     const eligible = (id: StableId): boolean => {
       const definition = this.byId.get(id);
-      return Boolean(definition && (!intent.readOnly || definition.effect === 'observe') && (!intent.noCreate || !/^(?:entity\.create|assembly\.|prefab\.)/u.test(id)));
+      return Boolean(definition && (!id.startsWith('official.') || named.has(id) || explicit.includes(id)) && (!intent.readOnly || definition.effect === 'observe') && (!intent.noCreate || !/^(?:entity\.create|assembly\.|prefab\.)/u.test(id)));
     };
     for (const id of expandedIds) if (this.byId.has(id)) selected.add(id);
     // Continuations name concrete next tools. Give their registered schemas
@@ -96,7 +101,7 @@ export class ToolCatalogRuntime {
       const definition = this.byId.get(match[0] as StableId);
       if (definition && eligible(definition.id) && selected.size < limit) selected.add(definition.id);
     }
-    for (const id of explicitIntentToolIds(request)) if (eligible(id) && selected.size < limit) selected.add(id);
+    for (const id of explicit) if (eligible(id) && selected.size < limit) selected.add(id);
     // Narrow requests need discovery plus relevant schemas, not arbitrary hash-vector matches
     // to fill every free slot. Types remain grounded by scene/component reads before edits.
     if (!intent.readOnly && intent.appearance) {
@@ -115,6 +120,10 @@ export class ToolCatalogRuntime {
 function explicitIntentToolIds(request: string): readonly StableId[] {
   const lower = request.toLocaleLowerCase();
   const ids: StableId[] = [];
+  if (/https?:\/\/|\bfetch\b|抓取|读取网页/u.test(lower)) ids.push(asStableId('official.web.fetch'));
+  if (/\b(?:web|internet|online)\s+search\b|网络搜索|联网|搜索网页|网上查/u.test(lower)) ids.push(asStableId('official.web.search'));
+  if (/\bbrowser\b|\bchromium\b|浏览器/u.test(lower)) ids.push(asStableId('official.browser.list_pages'), asStableId('official.browser.navigate'), asStableId('official.browser.snapshot'));
+  if (/\bnode(?:\.js|js)\b/u.test(lower)) ids.push(asStableId('official.code.run'));
   if (/\b(?:screenshot|screen-shot|capture)\b|截图|截屏/u.test(lower)) ids.push(asStableId('play.capture'));
   if (/\b(?:input|keyboard|pointer|touch|mouse|gamepad)\b|输入|键盘|触控|鼠标|点击|拖拽/u.test(lower)) ids.push(asStableId('play.input'));
   if (/\b(?:physics|raycast|rigid|collision|gravity)\b|物理|碰撞|重力|刚体|射线/u.test(lower)) ids.push(asStableId('component.configure'), asStableId('play.physics-query'));

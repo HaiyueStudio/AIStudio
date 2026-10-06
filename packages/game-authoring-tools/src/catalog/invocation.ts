@@ -5,7 +5,7 @@ import { GameToolProtocolError, type GameToolDefinition } from '../types.js';
 /** A stable transport entry, not an editor effect. Resolve it before policy and scheduling. */
 export const MODEL_TOOL_INVOKE_DEFINITION = Object.freeze({
   id: asStableId('studio.tool.invoke'),
-  description: 'Call a registered Studio tool discovered by tool.search(includeSchemas=true) when it is absent from the supplied native tools. Copy the exact toolId and toolVersion from the search invocation, and supply arguments matching its inputSchema. Studio applies the target tool\'s validation, effects, risk, plan approval, exact authorization, revision checks and task budget. This entry grants no additional capabilities and cannot call itself, shell, filesystem, network or unregistered tools.',
+  description: 'Call a registered Studio tool discovered by tool.search(includeSchemas=true) when it is absent from the supplied native tools. Copy the exact toolId and toolVersion from the search invocation, and supply arguments matching its inputSchema. Studio applies the target tool\'s validation, effects, risk, plan approval, exact authorization, revision checks and task budget. This entry grants no additional capabilities and cannot call itself or unregistered tools; external capabilities require a reviewed, enabled provider and the same Host authorization.',
   inputSchema: Object.freeze({
     type: 'object', additionalProperties: false, required: ['toolId', 'toolVersion', 'arguments'],
     properties: {

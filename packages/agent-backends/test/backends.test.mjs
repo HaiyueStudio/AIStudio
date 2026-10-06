@@ -8,7 +8,7 @@ import { CODEX_DISABLED_FEATURES, CODEX_ENABLED_FEATURES, CodexAppServerBackend,
 
 const promptProfile = Object.freeze({ id: asStableId('prompt:fixture'), version: '2.0.0', digest: `sha256:${'a'.repeat(64)}` });
 function turnInput(backendId, model, reasoningEffort = 'high') { return { taskId: asStableId('task:fixture'), config: { schemaVersion: 2, backendId, model, reasoningEffort, outputTokenLimit: 8_192, taskBudgetId: asStableId('budget:fixture'), promptProfile, requestedCapabilities: ['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] }, prompt: 'Create a cube', contextArtifactIds: [], tools: [{ id: asStableId('studio.entity.create'), description: 'Create entity', inputSchema: { type: 'object' } }] }; }
-const harnessInput = turnInput(asStableId('backend:harness-api-key'), 'deepseek-v4-flash');
+const harnessInput = turnInput(asStableId('backend:harness-api-key'), 'deepseek-flash');
 const input = turnInput(asStableId('backend:codex-app-server'), 'gpt-5.6-sol');
 
 test('Harness and Codex normalize equivalent multi-step turns to the same semantic event kinds', async () => {
@@ -22,7 +22,7 @@ test('Harness and Codex normalize equivalent multi-step turns to the same semant
   assert.deepEqual(codexEvents.map((item) => item.kind), ['status', 'conversation-node', 'tool-request', 'usage', 'completed']);
   assert.deepEqual(semanticProjection(codexEvents), semanticProjection(harnessEvents));
   for (const events of [harnessEvents, codexEvents]) {
-    assert.equal(events[0].payload.model, events === harnessEvents ? 'deepseek-v4-flash' : 'gpt-5.6-sol');
+    assert.equal(events[0].payload.model, events === harnessEvents ? 'deepseek-flash' : 'gpt-5.6-sol');
     assert.equal(events[0].payload.reasoningEffort, 'high');
     const usage = events.find((item) => item.kind === 'usage').payload;
     assert.deepEqual({ inputTokens: usage.inputTokens, cachedInputTokens: usage.cachedInputTokens, cacheWriteTokens: usage.cacheWriteTokens, outputTokens: usage.outputTokens, reasoningTokens: usage.reasoningTokens }, { inputTokens: 3, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 2, reasoningTokens: 0 });
@@ -58,9 +58,9 @@ test('both backends advertise model/reasoning capabilities and reject unsupporte
 test('Backend Session adapters expose honest Harness/Codex capacity, boundary and compaction capabilities', async () => {
   const harnessTransport = fakeHarnessTransport();
   const harness = new HarnessApiKeyBackend({ transport: harnessTransport, clearApiKey: async () => {} });
-  const harnessCapabilities = await harness.capabilities('deepseek-v4-flash');
+  const harnessCapabilities = await harness.capabilities('deepseek-flash');
   assert.deepEqual({ maxInputTokens: harnessCapabilities.maxInputTokens, nativeCompaction: harnessCapabilities.nativeCompaction, transport: harnessCapabilities.nativeCompactionTransport, mirror: harnessCapabilities.nativeCompactionMirror }, { maxInputTokens: null, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
-  const harnessOpened = await harness.open({ studioSessionId: 'session:g04-harness', model: 'deepseek-v4-flash', tools: harnessInput.tools, surfaceGeneration: 0, surfaceDigest: `sha256:${'a'.repeat(64)}`, lastConfirmedOpId: 'op:g04-harness-root' });
+  const harnessOpened = await harness.open({ studioSessionId: 'session:g04-harness', model: 'deepseek-flash', tools: harnessInput.tools, surfaceGeneration: 0, surfaceDigest: `sha256:${'a'.repeat(64)}`, lastConfirmedOpId: 'op:g04-harness-root' });
   assert.equal((await harness.inspect(harnessOpened.remoteSessionId)).lastConfirmedOpId, 'op:g04-harness-root');
   await harness.confirmBoundary(harnessOpened.remoteSessionId, 'op:g04-harness-next');
   assert.equal((await harness.inspect(harnessOpened.remoteSessionId)).lastConfirmedOpId, 'op:g04-harness-next');
@@ -339,8 +339,8 @@ test('the opt-in Codex real smoke covers auth, text, dynamic tool, question and 
 function fakeHarnessTransport() {
   const sessions = new Map();
   const capabilities = { maxInputTokens: null, nativeCompaction: false, parallelToolCalls: false, codeMode: false, providerUsage: 'reported', providerCache: 'reported', nativeCompactionTransport: 'unavailable', nativeCompactionMirror: 'fallback-required', diagnostic: { code: 'harness.compaction-driver-unavailable', message: 'Studio fallback required.' } };
-  return { upstream: { tag: 'dsh-v0.1.5-rc.2', commit: 'fb2c4b9e698e30edb738bca4cf0618587db7d203' }, configured: async () => true,
-    modelCatalog: () => [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', description: 'fixture', maxTokens: 384_000 }],
+  return { upstream: { tag: 'dsh-v0.2.0-rc.2', commit: '639ed015397290b3745d163aafe02ffee4aa3f84' }, configured: async () => true,
+    modelCatalog: () => [{ id: 'deepseek-flash', name: 'DeepSeek Flash', description: 'fixture', maxTokens: 384_000 }],
     sessionCapabilities: () => capabilities,
     openSession: async (value) => { const sessionId = value.sessionId ?? `thread:session:${sessions.size + 1}`; sessions.set(sessionId, { model: value.model, boundary: value.lastConfirmedOpId }); return { sessionId, capabilities }; },
     inspectSession: async (sessionId) => sessions.has(sessionId) ? { state: 'available', sessionId, model: sessions.get(sessionId).model, lastConfirmedOpId: sessions.get(sessionId).boundary } : { state: 'missing', sessionId, diagnostic: { code: 'harness.session-missing', message: 'missing' } },

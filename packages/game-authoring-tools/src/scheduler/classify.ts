@@ -16,6 +16,7 @@ export function classifyToolConcurrency(definition: GameToolDefinition | undefin
   try {
     const approval = definition.requiresApproval ? ['approval' as const] : [];
     if (RUNTIME_STATE_TOOL_IDS.has(definition.id)) return frozen('runtime-barrier', unique(['runtime-control', ...approval]), ['runtime:preview']);
+    if (definition.effect === 'external-side-effect') return frozen('unknown-exclusive', ['external-side-effect', ...approval], ['official:external']);
     if (definition.effect === 'trusted-code') return frozen('trusted-code-barrier', unique(['trusted-code', ...(definition.id === 'script.apply' ? ['document-mutation' as const] : []), ...approval]), effectKeys(args, 'script'));
     if (definition.effect === 'runtime-start') return frozen('runtime-barrier', unique(['runtime-control', ...approval]), ['runtime:preview']);
     if (definition.effect === 'reversible-edit') return frozen(definition.requiresApproval ? 'approval-barrier' : 'exclusive-mutation', unique(['document-mutation', ...approval]), effectKeys(args, 'document'));
@@ -27,8 +28,8 @@ export function classifyToolConcurrency(definition: GameToolDefinition | undefin
   }
 }
 
-// These handlers read the bundled documentation or fixed registries, never scene state.
-const PROJECT_INDEPENDENT_READS = new Set(['engine.docs.search', 'engine.docs.read', 'tool.search', 'component.describe']);
+// Reviewed reads independent of scene state. Browser observations and arbitrary providers remain barriers.
+const PROJECT_INDEPENDENT_READS = new Set(['engine.docs.search', 'engine.docs.read', 'tool.search', 'component.describe', 'official.web.search', 'official.web.fetch']);
 
 export function isProjectIndependentRead(node: Pick<ToolBatchNodeV1, 'toolId' | 'executionClass' | 'effects' | 'arguments' | 'expectedRevision'>): boolean {
   return PROJECT_INDEPENDENT_READS.has(node.toolId) && node.executionClass === 'parallel-read'

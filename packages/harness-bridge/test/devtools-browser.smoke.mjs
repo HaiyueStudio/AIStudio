@@ -1,0 +1,41 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { createHarnessStudioRoot } from '../dist/index.js';
+import { harnessOwnerContext } from '../dist/ownership.js';
+import { createPinnedHarnessAgentTransport, createHarnessExtendedTools } from '../dist/harness-agent.js';
+test('experimental DevTools uses lazy isolated Chrome and reviewed native tools', { timeout: 60000 }, async t => {
+ const server=createServer((_req,res)=>res.end('<html><body><button onclick="this.textContent=\'Clicked\'">Try</button></body></html>'));
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const owner=createHarnessStudioRoot(), port=createHarnessExtendedTools({browser:{backend:'chrome-devtools',executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}});
+ const transport=await createPinnedHarnessAgentTransport({owner,officialTools:port,resolveApiKey:async()=>null});t.after(()=>owner.dispose());
+ const input={sessionId:'session:devtools',model:'deepseek-flash',reasoningEffort:'off',maxTokens:1024,tools:[],prompt:'Inspect controlled fixture.',lastConfirmedOpId:'op:devtools'};
+ await transport.openSession(input);
+ const ctx=harnessOwnerContext(owner), agent=ctx.agents.get(input.sessionId);
+ assert.equal(ctx.tools.schemas(agent).filter(t=>t.name.startsWith('mcp__')).length,0);
+ let i=0;const run=(name,args={})=>port.execute({sessionId:input.sessionId,turnId:'turn:devtools',callId:`call:devtools-${++i}`,toolId:`official.browser.${name}`,arguments:args},new AbortController().signal);
+ await assert.rejects(run('snapshot',{pageId:1,filePath:'/private/tmp/no'}),/file-destination-denied/);
+ await assert.rejects(run('navigate',{pageId:1,url:'file:///etc/passwd'}),/url-denied/);
+ await assert.rejects(run('navigate',{pageId:1,initScript:'alert(1)'}),/file-destination-denied/);
+ await assert.rejects(run('list_pages',{unknown:true}),/arguments-denied/);
+ const pages=await run('list_pages');assert.ok(pages.content.length);
+ const nav=await run('new_page',{url:`http://127.0.0.1:${server.address().port}/`});
+ const pageId=Number(/(\d+): http/.exec(JSON.stringify(nav))?.[1]);assert.ok(Number.isInteger(pageId),JSON.stringify(nav));
+ const snapshot=await run('snapshot',{pageId});assert.match(JSON.stringify(snapshot),/Try/);
+ const uid=/uid=([^\s]+) button/.exec(snapshot.content.map(b=>b.text).join('\n'))?.[1];assert.ok(uid,JSON.stringify(snapshot));
+ await run('click',{pageId,uid});assert.match(JSON.stringify(await run('snapshot',{pageId})),/Clicked/);
+ await transport.openSession({...input,sessionId:'session:devtools-other'});
+ const other=await port.execute({sessionId:'session:devtools-other',turnId:'turn:other',callId:'call:other',toolId:'official.browser.list_pages',arguments:{}},new AbortController().signal);
+ assert.doesNotMatch(JSON.stringify(other),/127.0.0.1/);
+ await transport.closeSession('session:devtools-other');
+ await transport.closeSession(input.sessionId);assert.equal(ctx.agents.get(input.sessionId),undefined);
+});
+test('DevTools initialization cancellation drains and can recreate the session resource',{timeout:30000},async t=>{
+ const owner=createHarnessStudioRoot(),port=createHarnessExtendedTools({browser:{backend:'chrome-devtools',executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}});
+ const transport=await createPinnedHarnessAgentTransport({owner,officialTools:port,resolveApiKey:async()=>null});t.after(()=>owner.dispose());
+ const sessionId='session:devtools-cancel';await transport.openSession({sessionId,model:'deepseek-flash',reasoningEffort:'off',maxTokens:1024,tools:[],prompt:'Fixture.'});
+ const controller=new AbortController();const call={sessionId,turnId:'turn:init',callId:'call:init',toolId:'official.browser.list_pages',arguments:{}};
+ const pending=assert.rejects(port.execute(call,controller.signal));const timer=setTimeout(()=>controller.abort(),20);
+ try{await pending;}finally{clearTimeout(timer);}
+ const result=await port.execute({...call,callId:'call:retry'},new AbortController().signal);assert.ok(result.content.length);
+});

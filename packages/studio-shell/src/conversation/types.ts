@@ -244,7 +244,7 @@ export interface ApprovalCardReadModel {
   readonly toolId: string;
   readonly toolVersion: string;
   readonly target: string;
-  readonly effect: 'reversible-edit' | 'trusted-code' | 'runtime-start';
+  readonly effect: 'reversible-edit' | 'trusted-code' | 'runtime-start' | 'external-side-effect';
   readonly risk: 'medium' | 'high';
   readonly argumentsSummary: string;
   readonly previewDiff: string;

@@ -5,6 +5,45 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { BackendSessionRuntime, DurableSessionRuntime } from '@haiyue/ai-studio-agent-runtime';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
+import { createHarnessStudioRoot } from '@haiyue/ai-studio-harness-bridge';
+import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
+import { HarnessApiKeyBackend } from '@haiyue/ai-studio-agent-backends';
+
+test('real pinned Harness rebinds after runtime loss without rewriting Studio history or replaying effects', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'haiyue-harness-v4-reload-'));
+  const cleanup = [];
+  t.after(async () => { for (const dispose of cleanup.reverse()) await dispose(); await rm(directory, { recursive: true, force: true }); });
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('Recovery must not replay model requests or tools.'));
+  async function boot() {
+    const owner = createHarnessStudioRoot(); cleanup.push(() => owner.dispose());
+    const transport = await createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => 'fixture-only' });
+    const backend = new HarnessApiKeyBackend({ transport, clearApiKey: async () => {} });
+    const log = await openLog(directory); cleanup.push(() => log.close());
+    const sessions = new DurableSessionRuntime(log); cleanup.push(() => sessions.dispose());
+    const bindings = new BackendSessionRuntime(sessions, [backend]); cleanup.push(() => bindings.dispose());
+    return { owner, transport, sessions, bindings, log };
+  }
+  const first = await boot();
+  const session = await first.sessions.create({ id: 'session:harness-v4-recovery', projectId: 'project:v4', documentId: 'document:v4', activeGoal: 'Retain original constraints.', taskBudgetId: null });
+  await session.appendMessage({ role: 'user', content: 'Inspect only; preserve the original selection and do not edit.' });
+  await session.checkpoint();
+  const before = await first.bindings.ensure(session.id, input('backend:harness-api-key', 'deepseek-flash'));
+  const original = await first.sessions.replay(session.id);
+  // Simulate lost provider memory rather than graceful binding detachment.
+  await first.owner.dispose(); await first.sessions.dispose(); await first.log.close();
+  const second = await boot();
+  const after = await second.bindings.ensure(session.id, input('backend:harness-api-key', 'deepseek-flash'));
+  assert.equal(after.action, 'rebound');
+  assert.equal(after.recovery, 'checkpoint-replay-required');
+  assert.notEqual(after.binding.remoteSessionId, before.binding.remoteSessionId);
+  const replay = await second.sessions.replay(session.id);
+  assert.deepEqual(replay.transcript, original.transcript);
+  assert.deepEqual(replay.surface.nodes, original.surface.nodes);
+  assert.equal(replay.surface.generation, original.surface.generation);
+  assert.ok(replay.surface.throughSequence > original.surface.throughSequence, 'Rebinding appends facts without changing model-visible history.');
+  assert.equal(replay.ops.filter(op => op.kind === 'tool.started').length, 0);
+  assert.equal((await second.transport.inspectSession(after.binding.remoteSessionId)).state, 'available');
+});
 
 test('main process reload rebinds missing Harness/Codex remotes from one Studio Session truth', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g04-app-reload-'));

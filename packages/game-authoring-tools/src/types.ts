@@ -2,30 +2,10 @@ import type { JsonObject, JsonValue, StableId } from '@haiyue/ai-studio-contract
 import type { SceneSnapshot } from '@haiyue/ai-studio-editor-plugins';
 import type { PreviewPlan, PreviewRuntimeSnapshot } from '@haiyue/ai-studio-script-preview';
 
-export type GameToolEffect = 'observe' | 'reversible-edit' | 'trusted-code' | 'runtime-start';
-export type GameToolRisk = 'low' | 'medium' | 'high';
+export type { StudioToolDefinitionV1 as GameToolDefinition, StudioToolEffectV1 as GameToolEffect, StudioToolRiskV1 as GameToolRisk } from '@haiyue/ai-studio-contracts';
+import type { StudioToolDefinitionV1 as GameToolDefinition, StudioToolEffectV1 as GameToolEffect, StudioToolRiskV1 as GameToolRisk } from '@haiyue/ai-studio-contracts';
 export type GameToolApprovalResolution = 'allow-once' | 'allow-always' | 'reject' | 'cancel';
 export type GameToolApprovalDecision = 'pending' | GameToolApprovalResolution | 'expired' | 'stale' | 'unavailable';
-
-export interface GameToolDefinition {
-  readonly schemaVersion: 1;
-  readonly id: StableId;
-  readonly version: '1.0.0';
-  readonly title: string;
-  readonly description: string;
-  readonly effect: GameToolEffect;
-  readonly risk: GameToolRisk;
-  readonly requiredCapabilities: readonly StableId[];
-  readonly inputSchema: JsonObject;
-  readonly outputSchema: JsonObject;
-  readonly redactedFields: readonly string[];
-  readonly presentation: Readonly<{ intent: string; result: string }>;
-  readonly timeoutMs: number;
-  readonly maxResultBytes: number;
-  readonly requiresApproval: boolean;
-  /** Registry-owned concurrency declaration. Only explicitly safe observations may be scheduled in parallel. */
-  readonly concurrencySafe: boolean;
-}
 
 export interface GameToolCall {
   readonly schemaVersion: 1;

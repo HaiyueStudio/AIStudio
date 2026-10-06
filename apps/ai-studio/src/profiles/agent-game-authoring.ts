@@ -2,7 +2,8 @@ import { asStableId, type StudioPluginDefinition } from '@haiyue/ai-studio-contr
 import { HarnessApiKeyBackend, CodexAppServerBackend } from '@haiyue/ai-studio-agent-backends';
 import { createAgentRuntimePlugin } from '@haiyue/ai-studio-agent-runtime';
 import { createGameAuthoringToolsPlugin, type GamePreviewControl, type GameBehaviorSource, type CanvasTextureRenderer, type EngineDocumentation } from '@haiyue/ai-studio-game-authoring-tools';
-import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
+import { createPinnedHarnessAgentTransport, createHarnessExtendedTools, type HarnessExtendedToolOptions } from '@haiyue/ai-studio-harness-bridge/agent';
+import { operationLogServiceToken, type OperationLog } from '@haiyue/ai-studio-operation-log';
 
 export interface PocEditorProfile {
   readonly id: 'poc-editor-harness' | 'poc-editor-codex';
@@ -27,6 +28,8 @@ export function selectPocEditorProfile(value: string | undefined): PocEditorProf
 
 export interface PocAgentGameAuthoringProfileOptions {
   readonly backend: PocEditorProfile['backend'];
+  readonly officialTools?: import('@haiyue/ai-studio-contracts').OfficialToolProviderV1;
+  readonly extendedTools?: Omit<HarnessExtendedToolOptions, 'storeArtifact'>;
   readonly preview: GamePreviewControl;
   readonly textureRenderer?: CanvasTextureRenderer;
   readonly documentation?: EngineDocumentation;
@@ -41,7 +44,17 @@ export interface PocAgentGameAuthoringProfileOptions {
 }
 
 export function createPocAgentGameAuthoringPlugins(options: PocAgentGameAuthoringProfileOptions): readonly StudioPluginDefinition<any>[] {
-  const tools = createGameAuthoringToolsPlugin({ preview: options.preview, documentation: options.documentation, textureRenderer: options.textureRenderer, behaviorSource: options.behaviorSource });
+  if (options.officialTools && options.extendedTools) throw new Error('Configure one official tool provider.');
+  let artifactLog: OperationLog | undefined;
+  const officialTools = options.officialTools ?? (options.backend === 'harness-api-key' && options.extendedTools ? createHarnessExtendedTools({ ...options.extendedTools, async storeArtifact(value, call, signal) {
+    signal.throwIfAborted();
+    if (!artifactLog) throw new Error('official.artifact-store-unavailable');
+    const artifact = await artifactLog.putArtifact(value, { schemaVersion: 'official-node-output/1' });
+    signal.throwIfAborted();
+    await artifactLog.append({ kind: 'tool/official-artifact', severity: 'info', source: asStableId('studio.official-tools'), correlation: { sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.callId }, payload: { toolId: call.toolId, artifactId: artifact.id }, artifactRefs: [artifact.id] }, { signal });
+    return { id: artifact.id, digest: artifact.digest, bytes: artifact.bytes };
+  } }) : undefined);
+  const tools = createGameAuthoringToolsPlugin({ officialTools, preview: options.preview, documentation: options.documentation, textureRenderer: options.textureRenderer, behaviorSource: options.behaviorSource });
   const agent = createAgentRuntimePlugin({
     compactContext: options.compactContext,
     batchTextWrites: options.batchTextWrites,
@@ -49,7 +62,8 @@ export function createPocAgentGameAuthoringPlugins(options: PocAgentGameAuthorin
       if (options.backend === 'codex-app-server') {
         return Object.freeze([new CodexAppServerBackend({ loginMode: options.codexLoginMode ?? 'browser' })]);
       }
-      const transport = await createPinnedHarnessAgentTransport({ owner: context, resolveApiKey: options.resolveDeepSeekApiKey, maxParallelToolCalls: options.harnessMaxParallelToolCalls, contextWindow: options.harnessContextWindow });
+      artifactLog = context.services.get(operationLogServiceToken).log;
+      const transport = await createPinnedHarnessAgentTransport({ officialTools, owner: context, resolveApiKey: options.resolveDeepSeekApiKey, maxParallelToolCalls: options.harnessMaxParallelToolCalls, contextWindow: options.harnessContextWindow });
       return Object.freeze([new HarnessApiKeyBackend({ transport, clearApiKey: options.clearDeepSeekApiKey })]);
     },
   });

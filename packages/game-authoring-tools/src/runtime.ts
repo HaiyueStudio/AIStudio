@@ -1,3 +1,4 @@
+import { OfficialToolAdapter } from './official-tools.js';
 import { basicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
 import { GestureRegressions } from './gesture-regressions.js';
 import { normalizeRotation, verifyRotation } from './gesture-rotation.js';
@@ -38,6 +39,7 @@ import {
 } from './types.js';
 
 export interface GameAuthoringToolRuntimeOptions {
+  readonly officialTools?: import('@haiyue/ai-studio-contracts').OfficialToolProviderV1;
   readonly workspace: ProjectWorkspace;
   readonly documentation?: EngineDocumentation;
   readonly textureRenderer?: CanvasTextureRenderer;
@@ -97,6 +99,11 @@ interface StoredPrefab {
 interface StoredPrefabRegistry { readonly schemaVersion: 1; readonly prefabs: readonly StoredPrefab[]; }
 
 export class GameAuthoringToolRuntime {
+  private readonly official?: OfficialToolAdapter;
+  private readonly allDefinitions: readonly GameToolDefinition[];
+  private readonly definitionsById: ReadonlyMap<StableId, GameToolDefinition>;
+  private readonly executingPreparations = new Set<StableId>();
+  private readonly executions = new Set<Promise<GameToolResult>>();
   private readonly preparations = new Map<StableId, StoredPreparation>();
   private readonly proposals = new Map<StableId, ScriptEditProposal>();
   private readonly previewPlans = new Map<StableId, PreviewPlan>();
@@ -116,18 +123,21 @@ export class GameAuthoringToolRuntime {
 
   constructor(private readonly options: GameAuthoringToolRuntimeOptions) {
     if (options.timeoutCeilingMs !== undefined && (!Number.isSafeInteger(options.timeoutCeilingMs) || options.timeoutCeilingMs < 1 || options.timeoutCeilingMs > 20_000)) throw new TypeError('Tool timeout ceiling must be between one millisecond and twenty seconds.');
+    this.official = options.officialTools ? new OfficialToolAdapter(options.officialTools, GAME_AUTHORING_TOOL_DEFINITIONS) : undefined;
+    this.allDefinitions = Object.freeze([...GAME_AUTHORING_TOOL_DEFINITIONS, ...(this.official?.definitions ?? [])]);
+    this.definitionsById = new Map(this.allDefinitions.map(d => [d.id, d]));
     this.regressions = new GestureRegressions(options.operationLog);
     this.observations = new PlayObservationRepository(options.operationLog, options.observationByteLimit);
     this.evaluator = new DeterministicTaskEvaluator(this.observations, () => requireDocument(options.workspace).revision);
     this.effectLocks = options.effectLocks ?? new EffectLockManager();
     this.transactions = new SceneTransactionCoordinator(options.workspace, options.operationLog, this.effectLocks);
-    this.catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => options.workspace.componentRegistry.snapshot().definitions);
+    this.catalog = new ToolCatalogRuntime(this.allDefinitions, () => options.workspace.componentRegistry.snapshot().definitions);
     this.behavior = new BehaviorToolReader(options.behaviorSource, () => requireDocument(options.workspace));
   }
 
   assertAssemblyPlan(expectations: readonly JsonObject[], toolId: string, args: JsonObject): void { this.assertActive(); assertAssemblyPlan(this.options.workspace.gameSnapshot(), expectations, toolId, args); }
 
-  definitions(): readonly GameToolDefinition[] { this.assertActive(); return GAME_AUTHORING_TOOL_DEFINITIONS; }
+  definitions(): readonly GameToolDefinition[] { this.assertActive(); return this.allDefinitions; }
   selectDefinitions(request: string, expandedIds: readonly StableId[] = [], selection?: Readonly<{ entityIds: readonly StableId[]; revision: number }>): ToolSchemaSelection {
     this.assertActive();
     let target: 'geometry' | 'component' | 'unknown' = 'unknown';
@@ -146,14 +156,14 @@ export class GameAuthoringToolRuntime {
     }
     return this.catalog.selectDefinitions(request, expandedIds, undefined, target);
   }
-  snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: GAME_AUTHORING_TOOL_DEFINITIONS, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, activeApprovalGrants: this.approvalGrants.size, effectLocks: this.effectLocks.snapshot(), disposed: this.disposed }); }
+  snapshot(): GameToolRuntimeSnapshot { return Object.freeze({ definitions: this.allDefinitions, pendingPreparations: this.preparations.size, pendingApprovals: [...this.preparations.values()].filter((item) => item.approval?.decision === 'pending').length, activeCalls: this.active.size, activeApprovalGrants: this.approvalGrants.size, effectLocks: this.effectLocks.snapshot(), disposed: this.disposed }); }
 
   async prepare(value: unknown, signal?: AbortSignal): Promise<GameToolPreparation> {
     this.assertActive();
     const call = validateToolCall(value);
     const project = this.options.workspace.snapshot().document;
     if (project) callProjects.set(call, { projectId: project.projectId, documentId: project.documentId });
-    let definition = GAME_AUTHORING_TOOL_BY_ID.get(call.toolId);
+    let definition = this.definitionsById.get(call.toolId);
     if (!definition || call.toolVersion !== definition.version) {
       await this.options.operationLog.append({
         kind: 'tool/call-rejected', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(call),
@@ -168,9 +178,9 @@ export class GameAuthoringToolRuntime {
     }, signal);
     try {
       const document = requireDocument(this.options.workspace);
-      let args = normalizeArguments(definition.id, call.arguments, document.revision);
+      let args = this.official?.has(definition.id) ? this.official.arguments(definition, call.arguments) : normalizeArguments(definition.id, call.arguments, document.revision);
       definition = resolveComponentToolPolicy(definition, args, this.options.workspace);
-      enforceLogHealth(definition.id, definition.effect, this.options.operationLog.status());
+      enforceLogHealth(definition.id, this.official?.has(definition.id) ? 'external-side-effect' : definition.effect, this.options.operationLog.status());
       await this.appendFact(definition, {
         kind: 'tool/pre-policy-passed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
         payload: { toolId: definition.id, effect: definition.effect, documentId: document.documentId, currentRevision: document.revision },
@@ -185,7 +195,7 @@ export class GameAuthoringToolRuntime {
           args = Object.freeze({ ...args, proposalId: refreshed.id });
         }
       }
-      const preview = buildPreview(definition.id, args, this.options.scene, this.proposals, this.previewPlans);
+      const preview = this.official?.has(definition.id) ? this.official.preview(definition, args) : buildPreview(definition.id, args, this.options.scene, this.proposals, this.previewPlans);
       const argumentsDigest = sha256(canonicalStringify(args));
       const previewDigest = sha256(canonicalStringify(preview as unknown as JsonObject));
       const preparationId = asStableId(`tool-preparation:${randomUUID()}`);
@@ -259,7 +269,16 @@ export class GameAuthoringToolRuntime {
     return stored.approval;
   }
 
-  async execute(preparationId: StableId, signal?: AbortSignal): Promise<GameToolResult> {
+  execute(preparationId: StableId, signal?: AbortSignal): Promise<GameToolResult> {
+    if (this.executingPreparations.has(preparationId)) return Promise.reject(new GameToolProtocolError('tool.preparation-consumed', 'Preparation is already executing.'));
+    this.executingPreparations.add(preparationId);
+    const promise = this.executeOnce(preparationId, signal);
+    this.executions.add(promise);
+    void promise.finally(() => { this.executions.delete(promise); this.executingPreparations.delete(preparationId); }).catch(() => {});
+    return promise;
+  }
+
+  private async executeOnce(preparationId: StableId, signal?: AbortSignal): Promise<GameToolResult> {
     this.assertActive();
     const stored = this.preparations.get(preparationId);
     if (!stored) throw new GameToolProtocolError('tool.preparation-missing', `Preparation ${preparationId} is missing or consumed.`);
@@ -324,16 +343,19 @@ export class GameAuthoringToolRuntime {
   }
 
   private async executeWithEffectLock(stored: StoredPreparation, signal?: AbortSignal): Promise<GameToolResult> {
+    this.assertActive();
     const classification = classifyToolConcurrency(stored.definition, stored.arguments);
     if (classification.executionClass === 'parallel-read') return this.executeStored(stored, signal);
     const ownerId = asStableId(`effect-lock:${sha256(stored.call.id).slice(0, 24)}`);
     const keys = effectLockKeys(classification.executionClass, classification.effectKeys);
     const lease = await this.effectLocks.acquire(ownerId, keys, signal);
-    await this.appendFact(stored.definition, {
-      kind: 'tool/effect-lock-acquired', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId),
-      payload: { toolId: stored.definition.id, executionClass: classification.executionClass, effectKeys: keys, waitMs: lease.waitMs },
-    }, signal);
-    try { return await this.executeStored(stored, signal); }
+    try {
+      await this.appendFact(stored.definition, {
+        kind: 'tool/effect-lock-acquired', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId),
+        payload: { toolId: stored.definition.id, executionClass: classification.executionClass, effectKeys: keys, waitMs: lease.waitMs },
+      }, signal);
+      return await this.executeStored(stored, signal);
+    }
     finally {
       lease.release();
       await this.options.operationLog.append({
@@ -359,11 +381,14 @@ export class GameAuthoringToolRuntime {
     this.disposed = true;
     for (const controller of this.active.values()) controller.abort(new GameToolProtocolError('tool.runtime-disposed', 'Game tool runtime disposed.'));
     this.active.clear(); this.gestureProgress.clear(); this.preparations.clear(); this.proposals.clear(); this.previewPlans.clear(); this.approvalGrants.clear();
-    return this.disposal = this.behavior.dispose();
+    return this.disposal = Promise.allSettled([...this.executions]).then(() => this.behavior.dispose());
   }
 
   private async executeStored(stored: StoredPreparation, signal?: AbortSignal): Promise<GameToolResult> {
-    enforceLogHealth(stored.definition.id, stored.definition.effect, this.options.operationLog.status());
+    this.assertActive();
+    if (stored.view.status !== 'ready') return this.finishWithoutExecution(stored, 'cancelled');
+    signal?.throwIfAborted();
+    enforceLogHealth(stored.definition.id, this.official?.has(stored.definition.id) ? 'external-side-effect' : stored.definition.effect, this.options.operationLog.status());
     if (stored.reusedPreviewConsent && this.options.scripts.canReuse?.(stored.arguments.planId as StableId) !== true) {
       this.preparations.delete(stored.view.id);
       throw new GameToolProtocolError('approval.stale', 'Preview consent changed after preparation; validate and authorize the current executable set again.', true);
@@ -389,7 +414,8 @@ export class GameAuthoringToolRuntime {
     const timer = setTimeout(() => controller.abort(new GameToolProtocolError('tool.timeout', `Tool ${stored.definition.id} exceeded ${timeoutMs} ms.`, true)), timeoutMs);
     try {
       await this.appendFact(stored.definition, { kind: 'tool/execution-started', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest } }, controller.signal);
-      const value = await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, this.catalog, this.behavior, this.gestureProgress, this.regressions, controller.signal);
+      controller.signal.throwIfAborted();
+      const value = this.official?.has(stored.definition.id) ? await this.official.execute(stored.definition, stored.call, stored.arguments, controller.signal) : await executeHandler(stored, this.options, this.proposals, this.previewPlans, this.observations, this.evaluator, this.catalog, this.behavior, this.gestureProgress, this.regressions, controller.signal);
       if (controller.signal.aborted) throw controller.signal.reason ?? new GameToolProtocolError('tool.cancelled', 'Tool call was cancelled.');
       assertResultBudget(value, stored.definition.maxResultBytes);
       const after = requireDocument(this.options.workspace);
@@ -426,7 +452,7 @@ export class GameAuthoringToolRuntime {
     try { await this.options.operationLog.append(event, { signal }); }
     catch (cause) {
       if (signal?.aborted) throw signal.reason ?? cause;
-      if (definition.effect === 'observe') return;
+      if (definition.effect === 'observe' && !this.official?.has(definition.id)) return;
       throw new GameToolProtocolError('tool.log-unavailable', `Operation Log rejected ${definition.id}: ${errorMessage(cause)}`);
     }
   }

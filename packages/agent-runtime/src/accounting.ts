@@ -62,6 +62,7 @@ export class TaskAccount {
   private readonly activityScopes: ActivityClock[] = [];
   private readonly accounted = new Map<StableId, { inputTokens: number; outputTokens: number; estimatedCostMicros: number }>();
   private readonly committedTools = new Set<StableId>();
+  private readonly unknownAuxiliary = new Set<string>();
   private readonly latestCosts = new Map<StableId, CostEstimate>();
   private readonly costHistory = new Map<string, CostRecordV2>();
   private lastCost: TaskCostSummary = unknownCost('No provider usage has been received yet.', false);
@@ -96,6 +97,12 @@ export class TaskAccount {
     this.settledTurns.add(turnId); this.reservationTurns.delete(id); this.workTurns.delete(id); return this.reservations.delete(id);
   }
   releaseUnstartedWork(id: string): void { if (this.workTurns.has(id)) return; this.reservations.delete(id); this.reservationTurns.delete(id); }
+  /** Auxiliary providers without usage reporting retain their known output cap as a reservation. */
+  reserveAuxiliary(id: string, outputTokens: number): boolean {
+    if (!this.reserveWork(id, { outputTokens })) return false;
+    this.unknownAuxiliary.add(id); return true;
+  }
+  releaseUnsentAuxiliary(id: string): void { this.unknownAuxiliary.delete(id); this.releaseUnstartedWork(id); }
   /** One wall-time commitment for the scheduler's entire bounded batch, not one per lane. */
   reserveWallTime(id: string, cap: number): (() => void) | null {
     if (!this.reserveWork(id, { wallTimeMs: cap })) return null;
@@ -190,7 +197,9 @@ export class TaskAccount {
   snapshot(): TaskAccountingSnapshot {
     const ledgers = this.taskLedgers(); const usage = Object.freeze({ ...aggregateUsage(ledgers), wallTimeMs: this.taskWallTime(ledgers) });
     this.controller.reconcileWallTime(usage.wallTimeMs);
-    return Object.freeze({ taskId: this.options.taskId, budget: this.controller.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage, cost: this.lastCost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
+    const incomplete = this.unknownAuxiliary.size > 0;
+    const cost = incomplete ? Object.freeze({ ...this.lastCost, status: 'unknown' as const, amountMicros: null, cacheSavingMicros: null, explanation: 'Auxiliary search usage/cost is not reported by the provider; task totals are incomplete.' }) : this.lastCost;
+    return Object.freeze({ taskId: this.options.taskId, budget: this.controller.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage: incomplete ? Object.freeze({ ...usage, inputTokens: null, outputTokens: null }) : usage, cost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
   }
   costRecords(): readonly CostRecordV2[] { return Object.freeze([...this.costHistory.values()].sort((a, b) => a.id.localeCompare(b.id))); }
   latestCostRecord(turnId: StableId): CostRecordV2 | undefined { return this.latestCosts.get(turnId)?.record; }

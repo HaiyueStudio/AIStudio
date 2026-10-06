@@ -1,3 +1,4 @@
+import { response as messagesResponse, results } from './fixtures/messages.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -11,10 +12,10 @@ const tools = [
   { id: 'studio.tool.invoke', description: 'Discovered tool', inputSchema: { type: 'object' }, concurrency: { schemaVersion: 1, mode: 'invoke', targets: [{ toolId: 'scene.query', toolVersion: '1.0.0' }] } },
   { id: 'unknown.tool', description: 'Unknown', inputSchema: { type: 'object' } },
 ];
-const input = { sessionId: 'session:parallel', model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8192, prompt: 'Read independent data.', tools };
-const call = (index, tool = 0, args = {}) => ({ index, id: `call-${index}`, type: 'function', function: { name: harnessToolName(tools[tool].id, tool), arguments: JSON.stringify(args) } });
+const input = { sessionId: 'session:parallel', model: 'deepseek-flash', reasoningEffort: 'high', maxTokens: 8192, prompt: 'Read independent data.', tools };
+const call = (index, tool = 0, args = {}) => ({ id: `call-${index}`, name: harnessToolName(tools[tool].id, tool), arguments: args });
 const invoke = (toolId = 'scene.query', toolVersion = '1.0.0', extra = {}) => ({ toolId, toolVersion, arguments: {}, ...extra });
-function response(calls) { return new Response(`data: ${JSON.stringify({ id: 'parallel-response', choices: [{ index: 0, delta: calls ? { content: 'inspecting', tool_calls: calls } : { content: 'done' }, finish_reason: calls ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 } })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } }); }
+function response(calls) { return messagesResponse({ text: calls ? 'inspecting' : 'done', calls: calls ?? [], tokens: { input_tokens: 20, output_tokens: 5 } }); }
 async function waitFor(predicate) { const until = Date.now() + 4000; while (!predicate()) { if (Date.now() > until) throw new Error('Concurrent dispatch did not arrive before results were released.'); await delay(5); } }
 async function fixture(t, calls, options = {}) {
   const requests = [];
@@ -40,7 +41,7 @@ for (const cap of [1, 2, 4]) test(`real pinned Harness dispatch is bounded at ${
   }
   await f.running;
   assert.equal(f.requests.length, 2);
-  assert.deepEqual(f.requests[1].messages.filter(item => item.role === 'tool').map(item => item.tool_call_id), Array.from({ length: 6 }, (_, i) => `call-${i}`));
+  assert.deepEqual(results(f.requests[1]).map(item => item.tool_use_id), Array.from({ length: 6 }, (_, i) => `call-${i}`));
   assert.ok(f.requests[0].tools.every(tool => !JSON.stringify(tool).includes('concurrency')), 'host metadata is not a model-facing schema');
   assert.equal(f.events.at(-1).status, 'completed');
 });

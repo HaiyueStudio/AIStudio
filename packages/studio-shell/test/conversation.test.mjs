@@ -438,3 +438,14 @@ test('assembly plan requirements survive replay and invalid requirements remain 
   const invalid = normalizeConversationNode({...original,content:{...original.content,assemblies:[{...assemblies[0],minimumInstances:0}]}});
   assert.equal(invalid.content.assemblies.length,1); assert.equal(invalid.content.assemblies[0].invalid,true);
 });
+
+test('asynchronous question owner survives replay and the card supports a free-text reply', () => {
+ const original=node('node:async-question','question','pending',{asyncQuestion:true,taskId:'task:owner',prompt:'Pick a color',options:[{id:'option:blue',label:'Blue'}],allowFreeform:true,secretField:'discard'});
+ const normalized=normalizeConversationNode(original);
+ assert.equal(normalized.content.taskId,'task:owner');assert.equal(normalized.content.secretField,undefined);
+ const model=presentChatPanel(new ConversationProjector().reset(snapshot([projection(1,normalized,'replay')])));
+ assert.match(model.cards[0].title,/异步问题/);
+ const fake=fakeDom(), intents=[];renderChatPanel(fake.root,model,intent=>intents.push(intent));
+ const reply=fake.find('textarea');reply.value='Prefer green';fake.findButton('提交答复').click();
+ assert.deepEqual(intents[0],{type:'conversation/answer-question',nodeId:'node:async-question',answer:{text:'Prefer green'}});
+});

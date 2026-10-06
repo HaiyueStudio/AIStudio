@@ -873,6 +873,15 @@ function renderCard(document: Document, card: ChatCardReadModel, dispatch: (inte
   const title = document.createElement('h3'); title.textContent = card.title; content.append(title);
   const body = document.createElement('p'); body.textContent = card.body; content.append(body);
   if (card.kind === 'question') { body.className = 'chat-question-context'; body.style.whiteSpace = 'pre-wrap'; body.style.overflowWrap = 'anywhere'; body.style.maxHeight = 'none'; }
+  if (card.kind === 'question' && card.question?.allowFreeform && card.status === 'pending') {
+    const reply = document.createElement('textarea'); reply.placeholder = '也可以填写你的答复'; reply.maxLength = 1800; reply.setAttribute('aria-label', '问题答复');
+    const submit = document.createElement('button'); submit.type = 'button'; submit.textContent = '提交答复';
+    submit.addEventListener('click', () => {
+      const text = reply.value.trim(); if (!text) { reply.focus(); return; }
+      dispatch(Object.freeze({ type: 'conversation/answer-question', nodeId: card.id, answer: Object.freeze({ text }) }));
+    });
+    content.append(reply, submit);
+  }
   if (card.details) {
     const details = document.createElement('details'); details.className = 'chat-tool-details';
     const summary = document.createElement('summary'); summary.textContent = card.details.summary;
@@ -967,7 +976,7 @@ function questionCard(base: CardBase, node: ConversationNodeReadModel): ChatCard
     id: `answer:${option.id}`, label: option.label, enabled: node.status === 'pending',
     intent: Object.freeze({ type: 'conversation/answer-question', nodeId: node.id, answer: Object.freeze({ optionIds: Object.freeze([option.id]) }) as JsonObject }),
   }));
-  return Object.freeze({ ...base, title: node.content.queryLimit ? '查询额度确认' : 'Question', body: question?.prompt ?? 'Invalid question payload.', tone: 'warning', actions: Object.freeze(actions), ...(question ? { question } : {}) });
+  return Object.freeze({ ...base, title: node.content.queryLimit ? '查询额度确认' : node.content.asyncQuestion === true ? '异步问题 · 可继续只读工作' : 'Question', body: question?.prompt ?? 'Invalid question payload.', tone: 'warning', actions: Object.freeze(actions), ...(question ? { question } : {}) });
 }
 
 function planCard(base: CardBase, node: ConversationNodeReadModel): ChatCardReadModel {

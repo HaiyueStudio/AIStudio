@@ -1,6 +1,12 @@
 import { isModelRequestPreparationV1, type JsonObject, type ModelRequestContextPortV1, type ModelRequestContextV1, type ModelRequestPreparationV1 } from '@haiyue/ai-studio-contracts';
-import { LlmError, createUserMessage, type GenerateOptions, type Message, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
-import { deriveEventMessage, Session, type SurfaceEvent, type SessionEvent } from '@deepseek-ai/dsh-session';
+import { LlmError, createUserMessage, type GenerateOptions, type RequestMessage, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
+import { isSurfaceEvent, Session, type SurfaceEvent, type SessionEvent } from '@deepseek-ai/dsh-session';
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'studio.request-context': { kind: 'studio.request-context'; form: 'recall' };
+  }
+}
 
 export const REQUEST_REBUILD = 'STUDIO_CONTEXT_REBUILD';
 
@@ -11,25 +17,41 @@ export class HarnessRequestContext {
   private usage: ModelRequestContextV1['previousUsage'] = null;
   private staged?: ModelRequestPreparationV1;
   private original?: readonly SurfaceEvent[];
+  private readonly activeSurface = new Map<number, SurfaceEvent>();
+  private currentTurn = 0;
   constructor(private readonly session: Session, private readonly capacity: (model: string) => number | null, private readonly prepared: (id: string, turnId: string, confirmed?: boolean) => void) {}
 
+  get turn(): number { return this.currentTurn; }
+
+  /** Maintain only the active Surface from committed events, never scan the full log. */
+  observe(event: SessionEvent): void {
+    if (event.type === 'turn/start') this.currentTurn = event.data.turn;
+    if (!isSurfaceEvent(event)) return;
+    this.activeSurface.set(event.seq, event);
+    if (event.surfaceOp !== 'append') {
+      const retained = new Set<number>(this.session.surface.nodes);
+      for (const seq of this.activeSurface.keys()) if (!retained.has(seq)) this.activeSurface.delete(seq);
+    }
+  }
+
   async *stream(request: GenerateOptions, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk> {
-    const events = this.session.snapshotEvents();
-    const turn = [...events].reverse().find(e => e.type === 'turn/start');
-    if (!turn || turn.type !== 'turn/start') throw new Error('Request has no turn boundary.');
+    if (!this.currentTurn) throw new Error('Request has no turn boundary.');
     // Size includes replay payload and complete tool schemas without exporting hidden reasoning.
     const requestBytes = Buffer.byteLength(JSON.stringify({ model: request.model, messages: request.messages, tools: request.tools ?? [], maxTokens: request.maxTokens, reasoningEffort: request.reasoningEffort }));
     const names = new Map(request.messages.flatMap(m => m.content.flatMap(b => b.type === 'tool-call' ? [[String(b.id), b.name] as const] : [])));
     const projection: ModelRequestContextV1 = {
-      schemaVersion: 1, sessionId: String(this.session.id), turnId: `${this.session.id}:turn:${turn.data.turn}`, model: request.model,
+      schemaVersion: 1, sessionId: String(this.session.id), turnId: `${this.session.id}:turn:${this.currentTurn}`, model: request.model,
       epoch: this.epoch + (this.original ? 1 : 0), maxInputTokens: this.capacity(request.model), reservedOutputTokens: request.maxTokens ?? 8192,
       requestBytes, previousUsage: this.usage,
       tools: (request.tools ?? []) as unknown as readonly JsonObject[],
-      messages: request.messages.map(message => ({ id: String(message.id), requestBytes: Buffer.byteLength(JSON.stringify(message)), failed: failedToolResult(message), role: message.source.kind === 'tool' ? 'tool' : message.role,
+      messages: request.messages.map(message => {
+        if (!message.id || !message.source) throw new LlmError('Studio context requires identified session messages.', 'context.unidentified-message');
+        return { id: String(message.id), requestBytes: Buffer.byteLength(JSON.stringify(message)), failed: failedToolResult(message), role: message.role === 'developer' ? 'system' : message.role,
         text: message.content.filter(block => block.type !== 'reasoning').map(block => block.type === 'text' ? block.text : JSON.stringify(block)).join('\n'),
         toolCallIds: message.content.flatMap(block => block.type === 'tool-call' ? [String(block.id)] : []),
-        toolName: message.source.kind === 'tool' ? names.get(String(message.source.callId)) ?? null : null,
-        resultFor: message.source.kind === 'tool' ? String(message.source.callId) : null })),
+        toolName: message.role === 'tool' ? names.get(String(message.toolCallId)) ?? null : null,
+        resultFor: message.role === 'tool' ? String(message.toolCallId) : null };
+      }),
     };
     try {
       const prepared = this.port ? await this.port.prepare(projection, request.signal) : this.defaultPreparation(projection);
@@ -74,19 +96,19 @@ export class HarnessRequestContext {
     this.staged = undefined;
     if (!replacement) return false;
     const surface = this.surface();
-    const start = surface.findIndex(e => e.type !== 'system/message');
-    const end = surface.findIndex(e => deriveEventMessage(e)?.id === replacement.throughMessageId);
-    if (start < 0 || end < start || surface.slice(start, end + 1).some(e => e.type === 'system/message')) throw new Error('Prepared replacement range is stale.');
+    const start = surface.findIndex(e => !protectedEvent(e));
+    const end = surface.findIndex(e => this.session.deriveEventMessage(e)?.id === replacement.throughMessageId);
+    if (start < 0 || end < start || surface.slice(start, end + 1).some(protectedEvent)) throw new Error('Prepared replacement range is stale.');
     const open = new Set<string>();
     for (const event of surface.slice(start, end + 1)) {
-      const m = deriveEventMessage(event);
-      for (const block of m?.content ?? []) { if (block.type === 'tool-call') open.add(String(block.id)); if (block.type === 'tool-result') open.delete(String(block.toolCallId)); }
+      const m = this.session.deriveEventMessage(event);
+      for (const block of m?.content ?? []) if (block.type === 'tool-call') open.add(String(block.id));
+      if (m?.role === 'tool') open.delete(String(m.toolCallId));
     }
     if (open.size) throw new Error('Prepared replacement splits a tool call/result pair.');
-    const message = createUserMessage({ content: [{ type: 'text', text: replacement.summary }], source: { kind: 'plugin', plugin: 'studio.request-context', form: 'recall' } });
+    const message = createUserMessage({ content: [{ type: 'text', text: replacement.summary }], source: { kind: 'studio.request-context', form: 'recall' } });
     const intent = { surfaceOp: { op: 'replace' as const, startSeq: surface[start]!.seq, endSeq: surface[end]!.seq }, sourceEventSeqs: surface.slice(start, end + 1).map(e => e.seq) };
-    // Validate against a detached public Session before changing the live history.
-    Session.create(this.session.id, this.session.snapshotEvents()).append('user/message', message, intent);
+    // Session.append validates the complete replacement before its atomic publication.
     this.session.append('user/message', message, intent);
     this.original = surface;
     return true;
@@ -98,7 +120,11 @@ export class HarnessRequestContext {
     return { id: 'bridge-request' };
   }
   private surface(): SurfaceEvent[] {
-    return this.session.surface.nodes.map(seq => this.session.eventAt(seq)!).filter((e): e is SurfaceEvent => ['system/message', 'user/message', 'assistant/message', 'tool/result'].includes(e.type));
+    return this.session.surface.nodes.map(seq => {
+      const event = this.activeSurface.get(seq);
+      if (!event) throw new Error('Studio Surface projection is incomplete.');
+      return event;
+    });
   }
   private rollback(): void {
     this.port?.discard?.();
@@ -107,30 +133,38 @@ export class HarnessRequestContext {
     const original = this.original;
     const current = this.surface();
     // Restore the complete original non-system sequence, including exact native tool pairing.
-    const retained = original.filter(e => e.type !== 'system/message');
-    const replaced = current.filter(e => e.type !== 'system/message');
+    const retained = original.filter(e => !protectedEvent(e));
+    const replaced = current.filter(e => !protectedEvent(e));
     if (retained[0]?.type !== 'user/message' || !replaced.length) throw new Error('Request Surface cannot be rolled back safely.');
+    if (current.slice(current.indexOf(replaced[0]!), current.indexOf(replaced.at(-1)!) + 1).some(protectedEvent)) throw new Error('Request rollback would replace protected context.');
+    // Validate only the retained Surface, not another copy of the entire transcript.
+    // No await occurs between this validation and the append-only restoration.
+    const validation = Session.create(this.session.id);
+    for (const event of retained) appendRetained(validation, event);
     const restore = (session: Session): void => {
       session.append('user/message', retained[0]!.data as Extract<SessionEvent, { type: 'user/message' }>['data'], {
         surfaceOp: { op: 'replace', startSeq: replaced[0]!.seq, endSeq: replaced.at(-1)!.seq }, sourceEventSeqs: replaced.map(e => e.seq),
       });
-      for (const event of retained.slice(1)) {
-        if (event.type === 'user/message') session.append(event.type, event.data, { surfaceOp: 'append' });
-        else if (event.type === 'assistant/message') session.append(event.type, { turn: event.data.turn, step: event.data.step, message: event.data.message, stream: event.data.stream }, { surfaceOp: 'append' });
-        else if (event.type === 'tool/result') session.append(event.type, event.data, { surfaceOp: 'append' });
-      }
+      for (const event of retained.slice(1)) appendRetained(session, event);
     };
-    restore(Session.create(this.session.id, this.session.snapshotEvents()));
     restore(this.session);
     this.original = undefined;
   }
 }
 
-function failedToolResult(message: Message): boolean {
-  if (message.source.kind !== 'tool') return false;
-  return message.content.some(block => block.type === 'tool-result' && (block.isError === true || block.content.some(part => {
+function protectedEvent(event: SurfaceEvent): boolean { return event.type === 'system/message' || event.type === 'developer/message'; }
+function appendRetained(session: Session, event: SurfaceEvent): void {
+  if (event.type === 'user/message') session.append(event.type, event.data, { surfaceOp: 'append' });
+  else if (event.type === 'assistant/message') {
+    const { usage: _usage, ...data } = event.data;
+    session.append(event.type, data, { surfaceOp: 'append' });
+  } else if (event.type === 'tool/result') session.append(event.type, event.data, { surfaceOp: 'append' });
+}
+function failedToolResult(message: RequestMessage): boolean {
+  if (message.role !== 'tool') return false;
+  return message.isError === true || message.content.some(part => {
     if (part.type !== 'text') return false;
     try { const value: unknown = JSON.parse(part.text); return value !== null && typeof value === 'object' && 'status' in value && ['failed', 'cancelled', 'rejected'].includes(String(value.status)); }
     catch { return false; }
-  })));
+  });
 }

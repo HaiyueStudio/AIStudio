@@ -1,3 +1,4 @@
+import { response as messagesResponse, results, resultText } from '../../../packages/harness-bridge/test/fixtures/messages.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -11,7 +12,7 @@ import { AgentBackendRegistry, AgentTurnRuntime, DurableSessionRuntime, PromptCo
 import { GAME_AUTHORING_TOOL_DEFINITIONS } from '@haiyue/ai-studio-game-authoring-tools';
 import { OperationLog, sha256, canonicalStringify } from '@haiyue/ai-studio-operation-log';
 import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
-function response(delta, reason) { return new Response(`data: ${JSON.stringify({ id: 'w6', choices: [{ index: 0, delta, finish_reason: reason }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } }); }
+function response(delta, reason) { return messagesResponse({ text: delta.content, calls: (delta.tool_calls ?? []).map(c => ({ id: c.id, name: c.function.name, arguments: c.function.arguments })), tokens: { input_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 10 } }); }
 
 
 for (const mode of ['reads', 'transaction', 'failure']) test(`W6 pinned Harness closed DAG through Host and durable replay: ${mode}`, { timeout: 30000 }, async t => {
@@ -58,23 +59,23 @@ for (const mode of ['reads', 'transaction', 'failure']) test(`W6 pinned Harness 
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const body = JSON.parse(init.body); requests.push(body);
     if (requests.length === 1 && mode === 'transaction') {
-      const name = body.tools.find(t => t.function.description.endsWith('Studio tool id: studio.plan.propose')).function.name;
+      const name = body.tools.find(t => t.description.endsWith('Studio tool id: studio.plan.propose')).name;
       return response({ tool_calls: [{ index: 0, id: 'call-w6-plan', type: 'function', function: { name, arguments: JSON.stringify({ title: 'Create', summary: 'Two independent edits with docs', assemblies: [], items: [{ label: 'Create', details: 'Create two cubes' }] }) } }] }, 'tool_calls');
     }
     if (requests.length === (mode === 'transaction' ? 3 : 2)) {
-      const messages = body.messages.filter(m => m.role === 'tool');
-      assert.equal(messages.at(-1).tool_call_id, 'call-w6-batch');
-      result = JSON.parse(messages.at(-1).content);
+      const messages = results(body);
+      assert.equal(messages.at(-1).tool_use_id, 'call-w6-batch');
+      result = JSON.parse(resultText(messages.at(-1)));
       assert.deepEqual(result.results.map(r => r.id), nodes.map(n => n.id));
       return response({ content: 'Finished the bounded batch.' }, 'stop');
     }
-    const name = body.tools.find(t => t.function.description.endsWith('Studio tool id: studio.tool.batch')).function.name;
+    const name = body.tools.find(t => t.description.endsWith('Studio tool id: studio.tool.batch')).name;
     return response({ tool_calls: [{ index: 0, id: 'call-w6-batch', type: 'function', function: { name, arguments: JSON.stringify({ schemaVersion: 1, nodes }) } }] }, 'tool_calls');
   });
   const host = new StudioConversationHost({ runtime: { registry, turns, sessions, context, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage) }, tools, operationLog: log,
     isProjectOpen: () => true, projectContext: () => ({ projectId: 'project:w6', documentId: 'document:w6', revision, manifest: {} }) });
   try {
-    await host.initialize(); await host.dispatch({ type: 'agent/configure', budget: host.settings().budget, backendId: backend.descriptor.id, model: 'deepseek-v4-flash', reasoningEffort: 'off', outputTokenLimit: 8192 });
+    await host.initialize(); await host.dispatch({ type: 'agent/configure', budget: host.settings().budget, backendId: backend.descriptor.id, model: 'deepseek-flash', reasoningEffort: 'off', outputTokenLimit: 8192 });
     await host.dispatch({ type: 'conversation/send', backendId: backend.descriptor.id, prompt: 'Execute the known-input fixture DAG.' });
     let approved = false;
     for (let i = 0; host.replay().busy && i < 2500; i++) {

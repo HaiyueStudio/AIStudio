@@ -1,3 +1,4 @@
+import { response as messagesResponse, results, resultText } from '../../../packages/harness-bridge/test/fixtures/messages.mjs';
 import { qualificationFixture } from '../../../packages/agent-orchestration/test/fixtures/qualification.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,12 +16,12 @@ for (const mode of ['candidate', 'over-budget', 'no-structured-result']) test(`W
  const backend=new HarnessApiKeyBackend({transport,clearApiKey:async()=>{}}),registry=new AgentBackendRegistry();registry.register(backend);
  const log=await OperationLog.open({rootDirectory:directory,appVersion:'w7-test'}),context=new PromptContextRuntime(log),turns=new AgentTurnRuntime(registry,log,context),accounting=new TaskAccountingRegistry(turns.usage);
  const account=accounting.open({taskId:'task:parent',budget:DEFAULT_TASK_BUDGET,pricingCatalog:M12_DEFAULT_PRICING_CATALOG});let requests=0;const detached=[];
- t.mock.method(globalThis,'fetch',async(_url,init)=>{requests++;const body=JSON.parse(init.body);assert.equal(body.tools.length,1);assert.ok(body.max_tokens<=2048);const prompt=body.messages.find(m=>m.role==='user').content;assert.equal(prompt.includes('parent-history-marker'),false);const fact=prompt.includes('fact:first')?'first':'second';assert.equal(prompt.includes(`fact:${fact==='first'?'second':'first'}`),false);
- const delta=mode==='no-structured-result'?{content:'No structured result'}:{tool_calls:[{index:0,id:`candidate-${fact}`,type:'function',function:{name:body.tools[0].function.name,arguments:JSON.stringify({schemaVersion:1,taskId:`task:${fact}`,baseRevision:7,artifacts:[{key:`result:${fact}`,kind:'proposal',content:'Candidate from isolated fact',sources:[`fact:${fact}`]}]})}}]};
- return new Response(`data: ${JSON.stringify({id:`w7-${requests}`,choices:[{index:0,delta,finish_reason:mode==='no-structured-result'?'stop':'tool_calls'}],usage:{prompt_tokens:100,prompt_cache_hit_tokens:0,prompt_cache_miss_tokens:100,completion_tokens:10,completion_tokens_details:{reasoning_tokens:0},total_tokens:110}})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
+ t.mock.method(globalThis,'fetch',async(_url,init)=>{requests++;const body=JSON.parse(init.body);assert.equal(body.tools.length,1);assert.ok(body.max_tokens<=2048);const prompt=body.messages.filter(m=>m.role==='user').flatMap(m=>m.content).filter(b=>b.type==='text').map(b=>b.text).join('\n');assert.equal(prompt.includes('parent-history-marker'),false);const fact=prompt.includes('fact:first')?'first':'second';assert.equal(prompt.includes(`fact:${fact==='first'?'second':'first'}`),false);
+ const delta=mode==='no-structured-result'?{content:'No structured result'}:{tool_calls:[{index:0,id:`candidate-${fact}`,type:'function',function:{name:body.tools[0].name,arguments:JSON.stringify({schemaVersion:1,taskId:`task:${fact}`,baseRevision:7,artifacts:[{key:`result:${fact}`,kind:'proposal',content:'Candidate from isolated fact',sources:[`fact:${fact}`]}]})}}]};
+ return messagesResponse({ text: delta.content, calls: (delta.tool_calls ?? []).map(c => ({ id: c.id, name: c.function.name, arguments: c.function.arguments })), tokens: { input_tokens:100, cache_read_input_tokens:0, cache_creation_input_tokens:0, output_tokens:10 } });
  });
  try{
- const config={schemaVersion:2,backendId:backend.descriptor.id,model:'deepseek-v4-flash',reasoningEffort:'off',outputTokenLimit:2048,taskBudgetId:DEFAULT_TASK_BUDGET.id,promptProfile:context.prompts.profile,requestedCapabilities:[]};
+ const config={schemaVersion:2,backendId:backend.descriptor.id,model:'deepseek-flash',reasoningEffort:'off',outputTokenLimit:2048,taskBudgetId:DEFAULT_TASK_BUDGET.id,promptProfile:context.prompts.profile,requestedCapabilities:[]};
  const port=createRuntimeSubtaskPort({registry,turns,context,accounting},backend.descriptor.id,config,async id=>{detached.push(id);await backend.detach(id);});
  const approved=['first','second'].map(name=>({id:`item:${name}`,label:`Design ${name}`,execution:{schemaVersion:1,id:`task:${name}`,dependsOn:[],inputs:[`fact:${name}`],artifacts:[`result:${name}`],readScopes:['document:test'],writeScopes:[],verification:['parent:verify'],budget:{toolCalls:1,wallTimeMs:10000},estimatedWorkMs:20000}}));
  const q=qualificationFixture({backendId:backend.descriptor.id,model:config.model});

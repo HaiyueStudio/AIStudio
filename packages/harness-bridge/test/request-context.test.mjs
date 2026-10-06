@@ -1,14 +1,14 @@
+import { response as messagesResponse, results } from './fixtures/messages.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarnessStudioRoot } from '../dist/index.js';
 import { createPinnedHarnessAgentTransport, harnessToolName } from '../dist/harness-agent.js';
 
 const tool = { id: 'scene.query', description: 'Read', inputSchema: { type: 'object' } };
-const base = { sessionId: 'session:request-context', model: 'deepseek-v4-flash', reasoningEffort: 'off', maxTokens: 1024, tools: [tool] };
+const base = { sessionId: 'session:request-context', model: 'deepseek-flash', reasoningEffort: 'off', maxTokens: 1024, tools: [tool] };
 function response(call, code) {
   if (code) return new Response(JSON.stringify({ error: { message: 'fixture rejected', type: 'invalid_request_error' } }), { status: code });
-  const delta = call ? { content: 'Read', tool_calls: [{ index: 0, id: call, type: 'function', function: { name: harnessToolName(tool.id, 0), arguments: '{}' } }] } : { content: 'Done' };
-  return new Response(`data: ${JSON.stringify({ id: 'fixture', choices: [{ index: 0, delta, finish_reason: call ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 123, completion_tokens: 5, total_tokens: 128 } })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } });
+  return messagesResponse({ text: call ? 'Read' : 'Done', calls: call ? [{ id: call, name: harnessToolName(tool.id, 0), arguments: {} }] : [], tokens: { input_tokens: 123, output_tokens: 5 } });
 }
 async function fixture(t, fetcher) {
   const requests = []; t.mock.method(globalThis, 'fetch', async (_url, init) => { const value = JSON.parse(init.body); requests.push(value); return fetcher(requests.length, value); });
@@ -35,7 +35,7 @@ test('actual request gate runs before first HTTP and every tool step; rebuild sh
   assert.equal(confirmations.length, 2);
   assert.deepEqual(preparations.map(r => r.epoch), [0, 1, 1]);
   assert.ok(JSON.stringify(f.requests[1]).length < JSON.stringify(f.requests[0]).length / 5);
-  assert.equal(f.requests[2].messages.find(m => m.role === 'tool').tool_call_id, 'call:one');
+  assert.equal(results(f.requests[2])[0].tool_use_id, 'call:one');
   assert.equal(preparations.at(-1).previousUsage.inputTokens, 123);
 });
 test('provider failure after replacement restores original history and epoch without confirming a candidate', async t => {

@@ -164,6 +164,7 @@ let disposePreviewPending: (() => void) | null = null;
 let previewOwnershipRevision = -1;
 let rendererDisposed = false;
 let disposeConversationChanged: (() => void) | null = null;
+let disposeSyncWake: (() => void) | null = null;
 let logViewer: LogViewerController | null = null;
 let logViewerSubscription: Readonly<{ dispose(): void }> | null = null;
 let handledPreviewCommand: StableId | null = null;
@@ -770,13 +771,17 @@ async function boot(): Promise<void> {
   bindUi();
   setupLogViewer();
   agentPoll = new AgentPollScheduler({
-    intervalMs: 30_000,
+    intervalMs: null,
     poll: pollAgent,
     onError: (cause) => setStatus(errorMessage(cause)),
     schedule: (task, delayMs) => window.setTimeout(task, delayMs),
     cancel: (handle) => window.clearTimeout(handle as number),
   });
   disposeConversationChanged = window.haiyueStudio.onConversationChanged(() => agentPoll?.trigger());
+  const wakeSync = () => { if (!rendererDisposed && document.visibilityState !== 'hidden') { agentPoll?.trigger(); previewPoll?.trigger(); } };
+  window.addEventListener('focus', wakeSync);
+  document.addEventListener('visibilitychange', wakeSync);
+  disposeSyncWake = () => { window.removeEventListener('focus', wakeSync); document.removeEventListener('visibilitychange', wakeSync); };
   disposeNotificationClicked = window.haiyueStudio.onNotificationClicked?.(() => { void navigateNotification().catch(cause => setStatus(errorMessage(cause))); }) ?? null;
   agentPoll.start();
   document.body.dataset.agentSync = 'push-single-flight';
@@ -1175,6 +1180,7 @@ function bindUi(): void {
     agentHistoryViewer?.dispose(); agentHistoryViewer = null;
     agentPoll?.stop(); agentPoll = null;
     disposeConversationChanged?.(); disposeConversationChanged = null;
+    disposeSyncWake?.(); disposeSyncWake = null;
     disposeNotificationClicked?.(); disposeNotificationClicked = null;
     querySettings?.dispose(); querySettings = null;
     notificationSettings?.dispose(); notificationSettings = null;
@@ -1188,7 +1194,7 @@ function bindUi(): void {
 
 function startPreviewPolling(): void {
   previewPoll = new AgentPollScheduler({
-    intervalMs: 30_000,
+    intervalMs: null,
     poll: async () => { try { await processAgentPreviewCommand(); } finally { if (!rendererDisposed && agentPreviewOwnership.shouldClose) await stopPreview(); } },
     onError: (cause) => setStatus(errorMessage(cause)),
   });

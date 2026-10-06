@@ -50,3 +50,12 @@ async function waitFor(predicate) {
   for (let index = 0; index < 100; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); }
   throw new Error('Timed out waiting for Agent poll scheduler state.');
 }
+
+test('push-only refresh is idle after success, coalesces events, and retries only failures', async()=>{
+ const tasks=new Map();let id=0,calls=0,fail=false;const errors=[];
+ const scheduler=new AgentPollScheduler({intervalMs:null,poll:async()=>{calls++;if(fail)throw new Error('temporary');},onError:e=>errors.push(e),schedule:(run,delay)=>{tasks.set(++id,{run,delay});return id;},cancel:key=>tasks.delete(key)});
+ const flush=async()=>{const [key,task]=tasks.entries().next().value;tasks.delete(key);task.run();await new Promise(setImmediate);};
+ scheduler.start();await flush();assert.equal(calls,1);assert.equal(tasks.size,0,'no successful idle polling timer');
+ scheduler.trigger();scheduler.trigger();assert.equal(tasks.size,1);fail=true;await flush();assert.equal([...tasks.values()][0].delay,1000);await flush();assert.equal([...tasks.values()][0].delay,2000);
+ fail=false;scheduler.trigger();await flush();assert.equal(tasks.size,0);assert.equal(errors.length,2);scheduler.stop();scheduler.trigger();assert.equal(tasks.size,0);
+});

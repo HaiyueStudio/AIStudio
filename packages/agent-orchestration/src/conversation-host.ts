@@ -1,4 +1,7 @@
+import { TEAM_STATUS_TOOL, teamAdmission } from './team-admission.js';
+import { ASYNC_QUESTION_TOOL, parseAsyncQuestion, validateAsyncAnswer } from './async-question.js';
 import { taskIntent, isTaskIntent, questionAmendment, intentRequirements, intentConstraints, intentContext, assertIntentAllows, type TaskIntent } from './task-intent.js';
+import { compactExternalResult } from './external-result-projection.js';
 import { runSubtasks, SUBTASK_TOOL, type SubtaskOptions } from './subtasks.js';
 import { matchesRecoveredApproval } from './approval-recovery.js';
 import { toolConcurrencyHint, invocationConcurrencyHint } from './tool-concurrency.js';
@@ -152,6 +155,10 @@ export interface ConversationHostOptions {
   readonly batchTextWrites?: boolean;
   /** W7 is absent/default-off until composition supplies a qualified isolated provider port. */
   readonly subtasks?: SubtaskOptions;
+  /** Experimental Studio-owned nonblocking questions; durable Session required. */
+  readonly asyncQuestions?: boolean;
+  /** Team readiness entry only; execution still requires qualified W7 ports. */
+  readonly experimentalTeam?: boolean;
   readonly queryLimits?: () => QueryLimits;
   readonly sessionRecovery?: Readonly<{ recover(handle: DurableSessionHandle, claimId?: StableId): Promise<unknown> }>;
   readonly openLoginHandoff?: (backendId: StableId, handoff: AgentLoginHandoff) => Promise<void>;
@@ -166,6 +173,8 @@ export interface ConversationHostSettings {
 /** Headless workflow owner for backend streams, tool execution, approvals and replayable read models. The composition root owns initialization and disposal. */
 export class StudioConversationHost {
   private readonly events: ConversationProjectionEvent[] = [];
+  private readonly cancelledAsyncTasks = new Set<StableId>();
+  private readonly resolvingAsyncQuestions = new Set<StableId>();
   private readonly nodes = new Map<StableId, ConversationNodeReadModel>();
   private readonly pendingRecordContents = new Map<StableId, JsonObject>();
   private readonly approvals = new Map<StableId, PendingApproval>();
@@ -308,6 +317,17 @@ export class StudioConversationHost {
         const matchesBackendTurn = active?.sessionId === intent.sessionId && active.turnId === intent.turnId;
         const matchesInitialProgress = active?.localSessionId === intent.sessionId && active.localTurnId === intent.turnId;
         if (!active || active.backendId !== intent.backendId || (!matchesBackendTurn && !matchesInitialProgress)) throw new Error('Active turn coordinates changed.');
+        this.cancelledAsyncTasks.add(active.taskId);
+        const question = this.pendingAsyncQuestion(active.taskId);
+        if (question && !this.resolvingAsyncQuestions.has(question.id)) {
+          this.resolvingAsyncQuestions.add(question.id);
+          try {
+            const handle = await this.ensureDurableSession(question.provenance.sessionId);
+            await handle.append({ kind: 'question.resolved', turnId: question.provenance.turnId, nodeId: question.id, payload: { questionId: question.id, resolution: 'cancelled', resolvedBy: 'user', asynchronous: true } });
+            await handle.checkpoint(); this.finishNode(question.id, 'cancelled');
+          } finally { this.resolvingAsyncQuestions.delete(question.id); }
+        }
+        for (let index = this.queuedPrompts.length - 1; index >= 0; index--) if (this.queuedPrompts[index]?.recovered?.taskId === active.taskId) this.queuedPrompts.splice(index, 1);
         active.controller.abort(new Error('Turn cancelled by user.'));
         if (active.sessionId && active.turnId) await this.options.runtime.turns.cancel(intent.backendId, active.sessionId, active.turnId);
         return;
@@ -318,6 +338,7 @@ export class StudioConversationHost {
         return;
       case 'conversation/reconnect': await this.refreshBackends(); return;
       case 'conversation/answer-question': {
+        if (this.nodes.get(intent.nodeId)?.content.asyncQuestion === true) { await this.resolveAsyncQuestion(intent.nodeId, intent.answer); return; }
         const pending = this.questions.get(intent.nodeId);
         if (!pending) { await this.resolveRecoveredQuestion(intent.nodeId, intent.answer); return; }
         if (pending.kind === 'query-limit') {
@@ -755,6 +776,11 @@ export class StudioConversationHost {
       if (this.nodes.has(textId)) this.finishNode(textId, status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed');
       if (this.active?.suspendedBarrierId) {
         await this.options.operationLog.append({ kind: 'conversation/barrier-provider-released', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId }, payload: { barrierId: this.active.suspendedBarrierId, terminalStatus: status, providerActiveCalls: 0 } }).catch(() => undefined);
+        return;
+      }
+      if (status === 'completed' && this.active && this.queuedPrompts.some(prompt => prompt.recovered?.taskId === this.active?.taskId)) return;
+      if (status === 'completed' && this.active && this.pendingAsyncQuestion(this.active.taskId)) {
+        this.updateTaskRun(this.active.taskId, { status: 'waiting-user', resumable: true, terminalDiagnostic: null }, { phase: this.taskRuns.get(this.active.taskId)?.phase ?? 'planning', status: 'warning', title: '等待异步答复', detail: '只读工作已结束；答复后按原任务预算继续。', turnId: event.turnId });
         return;
       }
       const checkpoint = this.active?.budgetCheckpoint;
@@ -1528,7 +1554,7 @@ export class StudioConversationHost {
     const status: ToolBatchNodeStatus = result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed';
     const backendResult = Object.freeze({ status: result.status, value: result.value, documentId: result.documentId, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, ...(result.transaction ? { transaction: result.transaction as unknown as JsonValue } : {}) });
     const fact = `${context.toolId}: ${summary} [${result.status}; r${result.beforeRevision}→r${result.afterRevision}${result.historyLabel ? `; History: ${result.historyLabel}` : ''}${result.transaction ? `; transaction: ${result.transaction.transactionId}` : ''}]`;
-    return this.makeToolBody(context, status, backendResult, 'completed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, target: preparation.preview.target, effect: preparation.effect, argumentsSummary: `${toolArgumentSummary(context.toolId, context.args)} ${preparation.preview.summary}`.slice(0, 2048) }), status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, resultStatus: result.status, summary, details: boundedJson(result.value), ...(result.transaction ? { transactionId: result.transaction.transactionId } : {}) }), result.value, fact, status === 'failed' ? `${context.toolId}: ${stringField(result.value.code, 'tool.failed')}` : null, Boolean(definition && definition.effect !== 'observe' && result.status === 'completed'), false, Date.now() - startedAtMs);
+    return this.makeToolBody(context, status, backendResult, 'completed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, target: preparation.preview.target, effect: preparation.effect, argumentsSummary: `${toolArgumentSummary(context.toolId, context.args)} ${preparation.preview.summary}`.slice(0, 2048) }), status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId: context.toolCallId, toolId: context.toolId, resultStatus: result.status, summary, details: boundedJson(result.value), ...(result.transaction ? { transactionId: result.transaction.transactionId } : {}) }), result.value, fact, status === 'failed' ? `${context.toolId}: ${stringField(result.value.code, 'tool.failed')}` : null, Boolean(definition && definition.effect !== 'observe' && definition.effect !== 'external-side-effect' && result.status === 'completed'), false, Date.now() - startedAtMs);
   }
 
   private async executeToolBody(context: ToolExecutionContext, signal: AbortSignal): Promise<HostToolBody> {
@@ -1568,6 +1594,15 @@ export class StudioConversationHost {
       if (preflight.status === 'soft-exceeded') this.project(this.nextNodeId('diagnostic'), 'diagnostic', 'completed', provenance, Object.freeze({ code: 'budget.soft-warning', message: preflight.warning ?? 'Soft task budget is exceeded; execution is continuing.', severity: 'warning', retryable: false }));
       assertBudgetAllowed(preflight); assertBudgetAllowed(account.commitTool(toolCallId));
       stage = 'prepare';
+      if (toolId === TEAM_STATUS_TOOL.id) {
+        if (!this.options.experimentalTeam || Object.keys(args).length) throw new PlanProtocolError('team.unavailable', 'Team inspection is disabled or arguments are invalid.');
+        const result = teamAdmission(this.options.subtasks);
+        return this.makeToolBody(context, 'completed', { status: 'completed', value: result }, 'completed', { toolCallId, toolId, effect: 'observe', argumentsSummary: 'Team 准入检查' }, 'completed', { toolCallId, toolId, resultStatus: 'completed', summary: String(result.status) }, result, null, null, false, false, Date.now() - startedAtMs);
+      }
+      if (toolId === ASYNC_QUESTION_TOOL.id) {
+        const result = await this.askAsyncQuestion(args, provenance, signal);
+        return this.makeToolBody(context, 'completed', { status: 'completed', value: result }, 'completed', { toolCallId, toolId, effect: 'observe', argumentsSummary: '异步询问用户' }, 'completed', { toolCallId, toolId, resultStatus: 'completed', summary: '问题已发出，可继续独立只读工作。' }, result, null, null, false, false, Date.now() - startedAtMs);
+      }
       if (toolId === PLAN_TOOL_ID) {
         const result = await this.awaitPlan(toolCallId, event.sessionId, event.turnId, args, provenance, signal);
         if (result === 'suspended') return this.suspendedToolBody(context, 'plan-review', Date.now() - startedAtMs);
@@ -1593,7 +1628,18 @@ export class StudioConversationHost {
         return this.suspendedToolBody(context, 'tool-approval', Date.now() - startedAtMs);
       }
       stage = 'execute';
-      const result = await this.options.tools.execute(preparation.id, signal);
+      const auxiliary = toolId === 'official.web.search' ? `auxiliary:${toolCallId}` : null;
+      if (auxiliary && !account.reserveAuxiliary(auxiliary, 2048)) {
+        await this.options.tools.cancel(toolCallId);
+        return this.cancelledToolBody(context, Object.freeze({ code: 'budget.auxiliary-output-limit', message: 'Insufficient remaining output budget for the auxiliary search request.', retryable: false }), Date.now() - startedAtMs);
+      }
+      let result: GameToolResult;
+      try { result = await this.options.tools.execute(preparation.id, signal); }
+      catch (cause) {
+        if (auxiliary && errorCode(cause) === 'official.web.credentials-missing') account.releaseUnsentAuxiliary(auxiliary);
+        throw cause;
+      }
+      if (auxiliary && result.value.cached === true) account.releaseUnsentAuxiliary(auxiliary);
       const body = this.toolResultBody(context, preparation, result, startedAtMs);
       return args.limit !== context.args.limit ? Object.freeze({ ...body, backendResult: Object.freeze({ ...body.backendResult, queryLimit: { requested: context.args.limit ?? null, appliedPageSize: args.limit ?? null, message: toolId === 'engine.docs.search' ? 'Allowance metadata only; these fields are not tool arguments. For another page, submit value.nextCall.arguments unchanged. Studio restores the saved search; do not invent query/count/cursor fields.' : 'Allowance metadata only; these fields are not tool arguments. Follow nextCursor with the original query arguments for remaining results; transport byte/page limits still apply.' } }) }) : body;
     } catch (cause) {
@@ -1607,14 +1653,20 @@ export class StudioConversationHost {
   private async commitToolBody(batch: ActiveToolBatch, context: ToolExecutionContext, original: HostToolBody, signal: AbortSignal): Promise<HostToolBody> {
     let body = context.node.outputProjection === 'full' ? original : Object.freeze({ ...original, backendResult: projectToolModelResult(original.backendResult, context.node.outputProjection, context.toolId) });
     if (this.options.compactToolResults !== false) {
-      const compacted = compactNativeToolSchemas(body.backendResult, context.toolId, this.active?.tools ?? []);
+      const schemas = compactNativeToolSchemas(body.backendResult, context.toolId, this.active?.tools ?? []);
+      // Earlier batch bodies have completed durable publication and backend submission. Never reuse
+      // pending/failed results, another batch, or another provider context across compaction/recovery.
+      const delivered = batch.bodies.flatMap(previous => previous.status === 'completed' && previous.resultValue
+        && typeof previous.toolCallContent.toolId === 'string' && typeof previous.toolCallContent.toolCallId === 'string'
+        ? [{ toolId: previous.toolCallContent.toolId, callId: previous.toolCallContent.toolCallId, value: previous.resultValue }] : []);
+      const compacted = compactExternalResult(schemas, context.toolId, delivered);
       // Do not spend extra artifacts/bytes for a reduction smaller than its receipt.
       if (compacted !== body.backendResult && Buffer.byteLength(canonicalStringify(body.backendResult)) - Buffer.byteLength(canonicalStringify(compacted)) > 512) {
         const artifact = await this.options.operationLog.putArtifact(original.backendResult, { schemaVersion: 'tool-model-result/1' });
         const projected = Object.freeze({ ...compacted, artifactRef: { id: artifact.id, digest: `sha256:${artifact.digest}`, bytes: artifact.bytes } });
         await this.options.operationLog.append({ kind: 'agent/tool-result-projected', severity: 'info', source: asStableId('studio.conversation-host'),
           correlation: { sessionId: context.event.sessionId, turnId: context.event.turnId, toolCallId: context.toolCallId },
-          payload: { toolId: context.toolId, projection: 'native-schema-deduplication', artifactId: artifact.id, originalBytes: Buffer.byteLength(canonicalStringify(original.backendResult)), projectedBytes: Buffer.byteLength(canonicalStringify(projected)) }, artifactRefs: [artifact.id] }, { signal });
+          payload: { toolId: context.toolId, projection: compacted === schemas ? 'native-schema-deduplication' : 'external-result-lossless', artifactId: artifact.id, originalBytes: Buffer.byteLength(canonicalStringify(original.backendResult)), projectedBytes: Buffer.byteLength(canonicalStringify(projected)) }, artifactRefs: [artifact.id] }, { signal });
         body = Object.freeze({ ...body, backendResult: projected });
       }
     }
@@ -1989,6 +2041,49 @@ export class StudioConversationHost {
     if (decision !== 'reject') this.scheduleRecoveredContinuation(node, `The user approved ${String(node.content.toolId ?? 'the pending Studio tool')} after its durable barrier. Re-inspect the authoritative project revision, retry only that pending operation with the same arguments, and continue the already approved plan without repeating completed edits.`, this.recoveredApprovedPlan(node.provenance), false);
   }
 
+  private pendingAsyncQuestion(taskId: StableId): ConversationNodeReadModel | undefined {
+    return [...this.nodes.values()].find(node => node.kind === 'question' && node.status === 'pending' && node.content.asyncQuestion === true && node.content.taskId === taskId);
+  }
+
+  private async askAsyncQuestion(args: JsonObject, provenance: ConversationNodeReadModel['provenance'], signal: AbortSignal): Promise<JsonObject> {
+    if (!this.options.asyncQuestions || !this.options.runtime.sessions || !this.active) throw new PlanProtocolError('question.unavailable', 'Asynchronous questions are not enabled.');
+    if (this.queuedPrompts.some(prompt => prompt.recovered?.taskId === this.active?.taskId)) throw new PlanProtocolError('question.reply-queued', 'A reply is already queued for this task. Finish the current read-only work; the reply will enter the next turn.');
+    const parsed = parseAsyncQuestion(args);
+    const existing = this.pendingAsyncQuestion(this.active.taskId);
+    if (existing) return { pending: true, questionId: existing.id, instruction: 'One question is already pending. Do not poll; continue independent reads or finish the turn.' };
+    signal.throwIfAborted();
+    const nodeId = this.nextNodeId('async-question');
+    const content: JsonObject = { asyncQuestion: true, taskId: this.active.taskId, prompt: parsed.prompt,
+      options: parsed.options.map((label, index) => ({ id: `${nodeId}:option:${index}`, label })), allowFreeform: true, multiple: false };
+    await this.requestQuestionBarrier({ sessionId: provenance.sessionId, turnId: provenance.turnId, nodeId, kind: 'backend-question', reason: parsed.prompt, scopeDigest: sha256(canonicalStringify(content)) });
+    this.project(nodeId, 'question', 'pending', provenance, content);
+    await this.flushRecords();
+    return { pending: true, questionId: nodeId, instruction: 'No answer or authorization yet. Continue independent reads; editing waits for the reply. Finish when no independent work remains.' };
+  }
+
+  private async resolveAsyncQuestion(nodeId: StableId, answer: JsonObject): Promise<void> {
+    const node = this.nodes.get(nodeId);
+    if (!node || node.status !== 'pending' || node.content.asyncQuestion !== true || this.resolvingAsyncQuestions.has(nodeId)) throw new Error('Question is stale or already answered.');
+    validateAsyncAnswer(answer, node.content.options as readonly JsonObject[]);
+    const run = this.barrierTaskRunFor(node.provenance);
+    if (!run || this.cancelledAsyncTasks.has(run.taskId) || run.terminalDiagnostic === 'task.cancelled') throw new Error('The owning task is unavailable or cancelled.');
+    if (this.queuedPrompts.length >= 16) throw new Error('The Agent message queue is full.');
+    this.resolvingAsyncQuestions.add(nodeId);
+    try {
+      const handle = await this.ensureDurableSession(node.provenance.sessionId);
+      const snapshot = await handle.snapshot();
+      if (!snapshot.recovery.unresolvedBarrierIds.includes(nodeId)) throw new Error('Question is stale or already answered.');
+      const amendment = questionAmendment(answer, node.content.options);
+      await this.retainIntentAmendment(run.taskId, amendment);
+      await handle.appendMessage({ role: 'user', content: `Async question ${nodeId}: ${amendment}`, turnId: node.provenance.turnId, projectRevision: this.options.projectContext?.()?.revision ?? null });
+      await handle.append({ kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(canonicalStringify(answer)), resolvedBy: 'user', asynchronous: true } });
+      await handle.checkpoint();
+      if (this.cancelledAsyncTasks.has(run.taskId)) { this.finishNode(nodeId, 'cancelled'); return; }
+      this.finishNode(nodeId, 'completed');
+      this.scheduleRecoveredContinuation(node, `The user answered "${String(node.content.prompt)}": ${amendment}. Re-read authoritative state and incorporate this reply. Preserve completed work and existing approvals; this reply grants no tool or budget authorization.`, this.recoveredApprovedPlan(node.provenance), false);
+    } finally { this.resolvingAsyncQuestions.delete(nodeId); }
+  }
+
   private async resolveRecoveredQuestion(nodeId: StableId, answer: JsonObject): Promise<void> {
     const node = this.nodes.get(nodeId);
     if (!node || node.kind !== 'question' || node.status !== 'pending') throw new Error('Question is stale or already answered.');
@@ -2040,6 +2135,9 @@ export class StudioConversationHost {
   private taskRunFor(sessionId: StableId, turnId: StableId): ConversationTaskRunReadModel | undefined { return [...this.taskRuns.values()].find((run) => run.sessionId === sessionId && run.turnId === turnId); }
 
   private barrierTaskRunFor(provenance: ConversationNodeReadModel['provenance']): ConversationTaskRunReadModel | undefined {
+    const asyncNode = [...this.nodes.values()].find(node => node.kind === 'question' && node.content.asyncQuestion === true && node.provenance.backendId === provenance.backendId && node.provenance.sessionId === provenance.sessionId && node.provenance.turnId === provenance.turnId);
+    const owner = typeof asyncNode?.content.taskId === 'string' ? this.taskRuns.get(asStableId(asyncNode.content.taskId)) : undefined;
+    if (owner && owner.backendId === provenance.backendId && owner.sessionId === provenance.sessionId) return owner;
     const current = this.taskRunFor(provenance.sessionId, provenance.turnId);
     if (current) return current;
     const budget = [...this.nodes.values()].find(node => node.kind === 'question' && node.provenance.backendId === provenance.backendId && node.provenance.sessionId === provenance.sessionId && node.provenance.turnId === provenance.turnId && Array.isArray(node.content.options) && node.content.options.some(option => isRecord(option) && typeof option.id === 'string' && option.id.includes('budget-continue')));
@@ -2427,6 +2525,7 @@ export class StudioConversationHost {
 
   private beforeProductTool(taskId: StableId, toolId: StableId, args: JsonObject, turnId: StableId, toolCallId: StableId): void {
     if (['play.stop', 'preview.stop'].includes(toolId)) return;
+    if ((this.pendingAsyncQuestion(taskId) || this.queuedPrompts.some(prompt => prompt.recovered?.taskId === taskId)) && (toolId === 'task.evaluate' || this.options.tools.definitions().find(item => item.id === toolId)?.effect !== 'observe')) throw new PlanProtocolError('question.reply-required', 'An asynchronous clarification is pending. Continue independent read-only work or finish this turn; the reply will resume the task.');
     if (this.invalidTaskIntents.has(taskId) && (toolId === 'task.evaluate' || this.options.tools.definitions().find(item => item.id === toolId)?.effect !== 'observe')) throw new PlaytestLoopError('intent.retained-invalid', 'Retained user constraints are unavailable. Recover their source before editing.');
     const intent = this.taskIntents.get(taskId);
     if (intent) {
@@ -2700,6 +2799,8 @@ export class StudioConversationHost {
     }));
     tools.push(MODEL_TOOL_BATCH_DEFINITION);
     if (this.options.subtasks?.enabled) tools.push(SUBTASK_TOOL);
+    if (this.options.experimentalTeam && /team|团队|协作|并行/i.test(request)) tools.push(TEAM_STATUS_TOOL);
+    if (this.options.asyncQuestions && this.options.runtime.sessions) tools.push(ASYNC_QUESTION_TOOL);
     if (definitions.some((definition) => definition.id === 'tool.search')) tools.push(Object.freeze({ ...MODEL_TOOL_INVOKE_DEFINITION, concurrency: invocationConcurrencyHint([...registered.values()]) }));
     return Object.freeze(tools);
   }

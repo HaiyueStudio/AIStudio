@@ -29,7 +29,7 @@ test('G10 profile composes common tools with exactly one selected backend and no
   assert.equal(new Set(POC_COMMON_PLUGIN_IDS).size, POC_COMMON_PLUGIN_IDS.length);
 });
 
-test('product Harness profile loads sessions under the Studio root and rolls back failed replay', async (t) => {
+for (const extendedTools of [undefined, { web: true, browser: {}, node: {} }]) test(`product Harness profile${extendedTools ? ' with Web/Browser/Node' : ''} loads sessions under the Studio root and rolls back failed replay`, async (t) => {
   const log = await OperationLog.open({ rootDirectory: await mkdtemp(path.join(tmpdir(), 'studio-profile-owner-')), appVersion: 'test' });
   const root = createHarnessStudioRoot();
   t.after(async () => { try { await root.dispose(); } finally { await log.close(); } });
@@ -44,7 +44,7 @@ test('product Harness profile loads sessions under the Studio root and rolls bac
   const observer = fixturePlugin('fixture.runtime-observer', [{ id: 'studio.agent-runtime', version: '1.0.0' }], [], (context) => {
     runtime = context.services.get(agentRuntimeServiceToken);
   });
-  const agent = createPocAgentGameAuthoringPlugins({ backend: 'harness-api-key', preview: {}, resolveDeepSeekApiKey: async () => null, clearDeepSeekApiKey: async () => {} })
+  const agent = createPocAgentGameAuthoringPlugins({ backend: 'harness-api-key', extendedTools, preview: {}, resolveDeepSeekApiKey: async () => null, clearDeepSeekApiKey: async () => {} })
     .find((plugin) => plugin.manifest.id === 'studio.agent-runtime.plugin');
   const catalog = [operationLog, agent, observer];
   const profile = { schemaVersion: 1, id: 'profile:harness-owner', bundles: [{ id: 'bundle:harness-owner', rows: catalog.map((plugin, index) => ({ id: `row:owner-${index}`, pluginId: plugin.manifest.id, enabled: true, config: {} })) }], patches: [] };
@@ -52,7 +52,7 @@ test('product Harness profile loads sessions under the Studio root and rolls bac
   assert.ok(root.snapshot().resources.fibers > catalog.length, 'upstream plugins belong to the same registry');
   const backend = runtime.registry.get('backend:harness-api-key');
   assert.equal((await backend.status()).state, 'auth-required');
-  const session = await backend.open({ studioSessionId: 'session:owner-fixture', model: 'deepseek-v4-flash', tools: [], surfaceGeneration: 1, surfaceDigest: `sha256:${'a'.repeat(64)}`, lastConfirmedOpId: 'op:owner-fixture' });
+  const session = await backend.open({ studioSessionId: 'session:owner-fixture', model: 'deepseek-flash', tools: [], surfaceGeneration: 1, surfaceDigest: `sha256:${'a'.repeat(64)}`, lastConfirmedOpId: 'op:owner-fixture' });
   assert.equal((await backend.inspect(session.remoteSessionId)).state, 'available');
   await root.replace({ ...profile, bundles: [] }, []);
   await assert.rejects(backend.status(), /disposed/);

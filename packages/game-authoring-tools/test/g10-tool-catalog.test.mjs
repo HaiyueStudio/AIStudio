@@ -95,3 +95,14 @@ test('P1 selected geometry and UI bind different native schemas against the actu
   assert.equal(selected.selectedIds.includes('component.configure'),kind!=='geometry');
  }
 });
+
+test('external schemas are demand-selected, discoverable, and cannot crowd out ordinary editor tools',()=>{
+ const base=GAME_AUTHORING_TOOL_DEFINITIONS.find(d=>d.id==='scene.query');
+ const extras=['official.web.search','official.web.fetch','official.browser.navigate','official.browser.snapshot','official.browser.click','official.code.run'].map(id=>({...base,id,title:id,description:'Create entity transform scene material script browser web node.js',requiredCapabilities:['official.external']}));
+ const catalog=new ToolCatalogRuntime([...GAME_AUTHORING_TOOL_DEFINITIONS,...extras],()=>[]);
+ assert.ok(catalog.selectDefinitions('创建实体，设置材质并编写游戏脚本').definitions.every(d=>!d.id.startsWith('official.')));
+ for(const [prompt,id] of [['网络搜索相关资料','official.web.search'],['读取网页 https://example.com','official.web.fetch'],['用浏览器打开预览','official.browser.navigate'],['用 Node.js 计算数据','official.code.run']])assert.ok(catalog.selectDefinitions(prompt).selectedIds.includes(id),prompt);
+ assert.ok(!catalog.selectDefinitions('用浏览器打开预览').selectedIds.includes('official.browser.click'));
+ assert.ok(catalog.selectDefinitions('official.browser.click').selectedIds.includes('official.browser.click'));
+ assert.equal(catalog.search('official.browser.click',{includeSchemas:true})[0].invocation.toolId,'official.browser.click');
+});

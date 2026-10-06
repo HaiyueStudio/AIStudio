@@ -16,7 +16,7 @@ const packageKey = (name) => `node_modules/${name}`;
 
 assert.match(pins.deepseekHarness.tag, /^dsh-v\d+\.\d+\.\d+-rc\.\d+$/);
 assert.match(pins.deepseekHarness.commit, /^[0-9a-f]{40}$/);
-assert.equal(pins.deepseekHarness.commit, 'fb2c4b9e698e30edb738bca4cf0618587db7d203');
+assert.equal(pins.deepseekHarness.commit, '639ed015397290b3745d163aafe02ffee4aa3f84');
 assert.equal(pins.deepseekHarness.license, 'MIT');
 assert.deepEqual(new Set(compatibility.deepseekHarness.requiredPackages), new Set(pins.deepseekHarness.packages.map(({ name }) => name)));
 assert.deepEqual(new Set(pins.deepseekHarness.packages.map(({ name }) => name)), new Set(Object.keys(bridgePackage.dependencies).filter((name) => name.startsWith('@deepseek-ai/'))));
@@ -42,6 +42,15 @@ for (const packagePin of pins.deepseekHarness.packages) {
   }
 }
 
+for (const pin of pins.deepseekHarness.externalToolPackages ?? []) {
+  const entry = lock.packages[packageKey(pin.name)];
+  assert.equal(entry?.version, pin.version, `${pin.name} external tool version changed`);
+  assert.equal(entry.integrity, pin.integrity, `${pin.name} external tool integrity changed`);
+  const manifest = JSON.parse(await readFile(path.join(root, packageKey(pin.name), 'package.json'), 'utf8'));
+  assert.equal(manifest.version, pin.version);
+  assert.equal(manifest.license, pin.license, `${pin.name} external tool license changed`);
+}
+
 // Check the full Harness closure, including optional peers: npm can otherwise
 // retain a nested old prerelease even when every direct dependency was updated.
 for (const [location, installed] of Object.entries(lock.packages)) {
@@ -50,7 +59,7 @@ for (const [location, installed] of Object.entries(lock.packages)) {
   const name = match[1];
   assert.equal(location, packageKey(name), `${name} has a second runtime instance`);
   assert.equal(installed.version, rootPackage.overrides[name], `${name} transitive version is not pinned`);
-  assert.equal(installed.version, name === '@deepseek-ai/cordis' ? '4.0.2' : pins.deepseekHarness.tag.slice(5));
+  assert.equal(installed.version, name === '@deepseek-ai/cordis' ? '4.0.4' : pins.deepseekHarness.tag.slice(5));
 }
 
 assert.equal(rootPackage.devDependencies[pins.codex.package], pins.codex.version);

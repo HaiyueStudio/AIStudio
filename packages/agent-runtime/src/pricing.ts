@@ -27,7 +27,10 @@ export class PricingEngine {
     const entry = this.catalog.entries.find((candidate) => candidate.provider === options.provider && candidate.model === options.model);
     if (!entry) return unknown(id, options.usage.id, `No pricing entry exists for ${options.provider}/${options.model}.`);
     const usage = options.usage;
-    if ([usage.inputTokens, usage.cachedInputTokens, usage.outputTokens, usage.reasoningTokens].some((value) => value === null)) return unknown(id, usage.id, 'Provider usage is incomplete, so cost cannot be estimated.');
+    // Messages may report total output without a reasoning breakdown. When
+    // reasoning is included in output, that unknown split is not a missing billable quantity.
+    if ([usage.inputTokens, usage.cachedInputTokens, usage.outputTokens].some((value) => value === null)
+      || (entry.reasoningBilling === 'separate-as-output' && usage.reasoningTokens === null)) return unknown(id, usage.id, 'Provider usage is incomplete, so cost cannot be estimated.');
     const cached = usage.cachedInputTokens!;
     const cacheWrite = usage.cacheWriteTokens ?? 0;
     if (cached + cacheWrite > usage.inputTokens!) return unknown(id, usage.id, 'Cached and cache-write input tokens exceed total input tokens.');

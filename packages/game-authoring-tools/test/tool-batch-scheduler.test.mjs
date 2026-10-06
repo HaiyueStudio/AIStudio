@@ -246,3 +246,15 @@ test('independent reads remain registry-limited and revision assertions forbid c
   // A forward dependency on a static read no longer creates a spurious barrier cycle.
   assert.doesNotThrow(() => batch([{ toolCallId: 'call:write', toolId: 'entity.create', dependsOn: ['call:docs'] }, { toolCallId: 'call:docs', toolId: 'engine.docs.search' }]));
 });
+
+test('independent Web work overlaps a document mutation while browser actions stay serialized',async()=>{
+ const base=GAME_AUTHORING_TOOL_DEFINITIONS.find(d=>d.id==='scene.query');
+ const web={...base,id:'official.web.fetch',effect:'observe',requiresApproval:false,concurrencySafe:true};
+ const browser={...base,id:'official.browser.navigate',effect:'external-side-effect',requiresApproval:true,concurrencySafe:false};
+ const definitions=[...GAME_AUTHORING_TOOL_DEFINITIONS,web,browser];
+ const request=normalizeToolBatchRequest({id:'batch:external',...ids,calls:[{toolCallId:'call:edit',toolId:'entity.create',arguments:{baseRevision:1,kind:'cube'}},{toolCallId:'call:web',toolId:web.id,arguments:{url:'https://example.com'}},{toolCallId:'call:browser',toolId:browser.id,arguments:{url:'https://example.com'}}],maxConcurrency:4,maxResultBytes:65536,createdAt:'2026-10-06T00:00:00.000Z'},definitions);
+ const gates=new Map(request.nodes.slice(0,2).map(n=>[n.toolId,Promise.withResolvers()]));let active=0,max=0;const started=[];
+ const both=Promise.withResolvers();
+ const pending=new ToolBatchScheduler().execute(request,async node=>{started.push(node.toolId);active++;max=Math.max(max,active);if(started.length===2)both.resolve();if(node.toolId===browser.id)assert.equal(active,1);await gates.get(node.toolId)?.promise;active--;return {status:'completed',value:{}};});
+ await both.promise;assert.deepEqual(started,['entity.create',web.id]);for(const gate of gates.values())gate.resolve();const result=await pending;assert.equal(max,2);assert.equal(result.outcomes.length,3);assert.equal(started.at(-1),browser.id);
+});

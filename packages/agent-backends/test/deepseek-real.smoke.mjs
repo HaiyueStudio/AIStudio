@@ -16,7 +16,7 @@ const backend = new HarnessApiKeyBackend({ transport, clearApiKey: async () => {
 const config = Object.freeze({
   schemaVersion: 2,
   backendId: 'backend:harness-api-key',
-  model: 'deepseek-v4-flash',
+  model: 'deepseek-flash',
   reasoningEffort: 'high',
   outputTokenLimit: 8_192,
   taskBudgetId: 'budget:g07-deepseek-real',

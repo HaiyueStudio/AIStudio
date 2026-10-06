@@ -112,6 +112,17 @@ test('packaged pricing catalog cannot drift from the reviewed JSON source', asyn
   assert.deepEqual(M12_DEFAULT_PRICING_CATALOG, raw);
 });
 
+test('Messages output remains priceable without inventing reasoning usage; separately billed reasoning stays unknown', () => {
+  const usage = Object.freeze({ schemaVersion: 2, id: 'usage:messages', taskId: 'task:messages', sessionId: 'session:messages', turnId: 'turn:messages', inputTokens: 1_000_000, cachedInputTokens: 400_000, cacheWriteTokens: 0, outputTokens: 100_000, reasoningTokens: null, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 1, providerRequestDigest: null, final: true });
+  const request = { provider: 'deepseek', model: 'deepseek-flash', usage, billingMode: 'api' };
+  const engine = new PricingEngine(M12_DEFAULT_PRICING_CATALOG);
+  assert.equal(engine.estimate(request).record.amountMicros, 302_400);
+  assert.equal(usage.reasoningTokens, null, 'Accounting must preserve an unreported breakdown.');
+  const separate = new PricingEngine({ ...M12_DEFAULT_PRICING_CATALOG, entries: M12_DEFAULT_PRICING_CATALOG.entries.map(entry => ({ ...entry, reasoningBilling: 'separate-as-output' })) });
+  assert.equal(separate.estimate(request).record.status, 'unknown');
+  assert.equal(engine.estimate({ ...request, usage: { ...usage, outputTokens: null } }).record.status, 'unknown');
+});
+
 test('task accounting aggregates turns, cache savings and a final cost without confusing subscription limits', () => {
   const store = new UsageLedgerStore(); const registry = new TaskAccountingRegistry(store);
   const account = registry.open({ taskId: asStableId('task:account'), budget: { ...budget('hard'), id: asStableId('budget:account'), limits: { ...budget('hard').limits, turns: 3, toolCalls: 3, inputTokens: 1_000_000, outputTokens: 1_000_000, estimatedCostMicros: 1_000_000 } }, pricingCatalog: M12_DEFAULT_PRICING_CATALOG });
@@ -189,3 +200,16 @@ function budget(enforcement) {
 function usageRecord(overrides) {
   return Object.freeze({ schemaVersion: 2, id: asStableId('usage:budget'), taskId: asStableId('task:budget'), sessionId: asStableId('session:budget'), turnId: asStableId('turn:budget'), inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0, reasoningTokens: 0, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 1, providerRequestDigest: null, final: true, ...overrides });
 }
+
+test('auxiliary searches reserve bounded output and keep missing usage/cost unknown across reconciliation', () => {
+  const store=new UsageLedgerStore();const account=new TaskAccountingRegistry(store).open({taskId:asStableId('task:auxiliary'),budget:{...budget('hard'),limits:{...budget('hard').limits,outputTokens:4096}},pricingCatalog:M12_DEFAULT_PRICING_CATALOG});
+  const ledger=store.open({taskId:asStableId('task:auxiliary'),sessionId:asStableId('session:auxiliary'),turnId:asStableId('turn:auxiliary'),providerRequestDigest:null,startedAtMs:0});
+  account.bindTurn(asStableId('turn:auxiliary'),{provider:'deepseek',model:'deepseek-flash',billingMode:'api'});
+  ledger.reconcile({eventId:'usage:auxiliary',sequence:1,mode:'cumulative',inputTokens:2,cachedInputTokens:0,cacheWriteTokens:0,outputTokens:2,reasoningTokens:0,observedAtMs:1,final:true});
+  assert.equal(account.reserveAuxiliary('search:one',2048),true);
+  assert.equal(account.reserveAuxiliary('search:two',2048),false);
+  assert.equal(account.reservedWork().outputTokens,2048);
+  assert.equal(account.reconcile().cost.amountMicros,null);assert.equal(account.snapshot().usage.outputTokens,null);
+  account.releaseUnsentAuxiliary('search:one');assert.equal(account.reservedWork().outputTokens,undefined);
+  assert.equal(account.reconcile().usage.outputTokens,2);
+});

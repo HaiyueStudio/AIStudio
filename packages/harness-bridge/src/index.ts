@@ -486,6 +486,6 @@ function countEffects(effects: readonly { children: readonly unknown[] }[]): num
 }
 
 
-export function harnessBridgeUpstreamIdentity(): Readonly<{ cordis: '4.0.2'; harness: '0.1.5-rc.2' }> {
-  return Object.freeze({ cordis: '4.0.2', harness: '0.1.5-rc.2' });
+export function harnessBridgeUpstreamIdentity(): Readonly<{ cordis: '4.0.4'; harness: '0.2.0-rc.2' }> {
+  return Object.freeze({ cordis: '4.0.4', harness: '0.2.0-rc.2' });
 }

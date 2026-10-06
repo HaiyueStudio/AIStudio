@@ -37,6 +37,7 @@ import { RecoveryClaimStore } from './session-orchestrator/index.js';
 import { createWorkspaceRecoveryAuthority } from './session-orchestrator/workspace-recovery.js';
 import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
 import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
+import { extendedToolsConfiguration } from './extended-tools-config.js';
 import { installStdioErrorGuards } from './stdio-safety.js';
 import { StudioKnowledgeSourceLoader } from './knowledge-source-loader.js';
 import { DesktopNotificationService } from './desktop-notifications.js';
@@ -145,6 +146,8 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
           });
           return ({
           runtime: agentRuntime,
+            asyncQuestions: agentProfile.backend === 'harness-api-key' && process.env.AI_STUDIO_EXPERIMENTAL_ASYNC_QUESTIONS === '1',
+            experimentalTeam: agentProfile.backend === 'harness-api-key' && process.env.AI_STUDIO_EXPERIMENTAL_TEAM === '1',
           tools: gameTools,
           queryLimits: () => queryPreferences.snapshot(),
           operationLog: scopedLog,
@@ -307,6 +310,7 @@ async function boot(): Promise<void> {
     createScriptPreviewPlugin(),
     ...createPocAgentGameAuthoringPlugins({
       backend: agentProfile.backend,
+      ...(agentProfile.backend === 'harness-api-key' ? { extendedTools: await extendedToolsConfiguration() } : {}),
       documentation: await loadEngineDocumentation(),
       preview: agentPreview,
       textureRenderer: { render: renderCanvasTexture },

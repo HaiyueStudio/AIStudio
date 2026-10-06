@@ -1,3 +1,4 @@
+import { response as messagesResponse, results, resultText } from '../../../packages/harness-bridge/test/fixtures/messages.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -11,7 +12,7 @@ import { AgentBackendRegistry, AgentTurnRuntime, DurableSessionRuntime, PromptCo
 import { GAME_AUTHORING_TOOL_DEFINITIONS } from '@haiyue/ai-studio-game-authoring-tools';
 import { OperationLog, sha256, canonicalStringify } from '@haiyue/ai-studio-operation-log';
 import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
-function response(delta, reason) { return new Response(`data: ${JSON.stringify({ id: 'w4', choices: [{ index: 0, delta, finish_reason: reason }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } }); }
+function response(delta, reason) { return messagesResponse({ text: delta.content, calls: (delta.tool_calls ?? []).map(c => ({ id: c.id, name: c.function.name, arguments: c.function.arguments })), tokens: { input_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 10 } }); }
 
 for (const enabled of [true, false]) test(`W4 real Harness delivery preserves next-step fields, raw evidence and rollback flag (${enabled})`, { timeout: 30000 }, async t => {
   const directory = await mkdtemp(path.join(await realpath(tmpdir()), 'haiyue-w4-host-'));
@@ -35,26 +36,26 @@ for (const enabled of [true, false]) test(`W4 real Harness delivery preserves ne
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const body = JSON.parse(init.body); requests.push(body);
     if (requests.length === 2) {
-      firstResult = JSON.parse(body.messages.find(m => m.role === 'tool').content);
+      firstResult = JSON.parse(resultText(results(body)[0]));
       assert.equal(firstResult.afterRevision, 7); assert.equal(firstResult.value.nextCursor, 'cursor:next');
       assert.equal(firstResult.value.matches[0].nextTool, 'scene.query');
       assert.deepEqual(firstResult.value.matches[1].inputSchema, omitted.inputSchema);
       assert.equal(firstResult.value.matches[0].inputSchema === undefined, enabled);
     }
     if (requests.length === 3) {
-      const result = JSON.parse(body.messages.filter(m => m.role === 'tool').at(-1).content);
+      const result = JSON.parse(resultText(results(body).at(-1)));
       assert.equal(result.value.entities[0].id, 'entity:target'); assert.equal(result.afterRevision, 7);
       return response({ content: 'Inspection finished.' }, 'stop');
     }
     const id = requests.length === 1 ? 'tool.search' : firstResult.value.matches[0].nextTool;
-    const name = body.tools.find(t => t.function.description.endsWith(`Studio tool id: ${id}`)).function.name;
+    const name = body.tools.find(t => t.description.endsWith(`Studio tool id: ${id}`)).name;
     const args = id === 'tool.search' ? { text: 'scene', includeSchemas: true } : { revision: firstResult.afterRevision, projection: ['hierarchy'] };
     return response({ tool_calls: [{ index: 0, id: `call-w4-${requests.length}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] }, 'tool_calls');
   });
   const host = new StudioConversationHost({ runtime: { registry, turns, sessions, context, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage) }, tools, operationLog: log, compactToolResults: enabled,
     isProjectOpen: () => true, projectContext: () => ({ projectId: 'project:w4', documentId: 'document:w4', revision: 7, manifest: { revision: 7 } }) });
   try {
-    await host.initialize(); await host.dispatch({ type: 'agent/configure', budget: host.settings().budget, backendId: backend.descriptor.id, model: 'deepseek-v4-flash', reasoningEffort: 'off', outputTokenLimit: 8192 });
+    await host.initialize(); await host.dispatch({ type: 'agent/configure', budget: host.settings().budget, backendId: backend.descriptor.id, model: 'deepseek-flash', reasoningEffort: 'off', outputTokenLimit: 8192 });
     await host.dispatch({ type: 'conversation/send', backendId: backend.descriptor.id, prompt: 'Discover scene tools and inspect the current scene; do not modify it.' });
     const end = Date.now() + 12000; while (host.replay().busy && Date.now() < end) await delay(5);
     assert.equal(host.replay().busy, false); assert.equal(requests.length, 3, JSON.stringify(host.replay().events.filter(e => e.node.kind === 'diagnostic'))); assert.deepEqual(executed, ['tool.search', 'scene.query']);

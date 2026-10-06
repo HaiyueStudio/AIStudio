@@ -286,7 +286,7 @@ function normalizeContent(kind: ConversationNodeKind, value: Record<string, unkn
     case 'progress': return compact({ label: text(value.label, 160), message: text(value.message, 1_024), current: finite(value.current), total: finite(value.total) });
     case 'question': return normalizeQuestion(value);
     case 'plan': return normalizePlan(value);
-    case 'tool-call': return compact({ toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), target: text(value.target, 256), effect: enumValue(value.effect, ['observe', 'reversible-edit', 'trusted-code', 'runtime-start']), argumentsSummary: text(value.argumentsSummary, 2_048) });
+    case 'tool-call': return compact({ toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), target: text(value.target, 256), effect: enumValue(value.effect, ['observe', 'reversible-edit', 'trusted-code', 'runtime-start', 'external-side-effect']), argumentsSummary: text(value.argumentsSummary, 2_048) });
     case 'tool-result': return compact({ documentChanged: typeof value.documentChanged === 'boolean' ? value.documentChanged : undefined, documentId: stableOptional(value.documentId), documentRevision: typeof value.documentRevision === 'number' && Number.isSafeInteger(value.documentRevision) && value.documentRevision >= 0 ? value.documentRevision : undefined, toolCallId: stableOptional(value.toolCallId), toolId: text(value.toolId, 128), summary: text(value.summary, 2_048), details: text(value.details, 4_096), resultStatus: enumValue(value.resultStatus ?? value.status, ['completed', 'failed', 'cancelled']) });
     case 'approval': return normalizeApproval(value);
     case 'diagnostic': return compact({ code: text(value.code, 96), message: text(value.message, 2_048), severity: enumValue(value.severity, ['info', 'warning', 'error']), retryable: typeof value.retryable === 'boolean' ? value.retryable : undefined });
@@ -308,7 +308,7 @@ function normalizeQuestion(value: Record<string, unknown>): JsonObject {
     expandOptionId: text(q.expandOptionId, 160) ?? null, capOptionId: text(q.capOptionId, 160) ?? null,
     requestText: text(q.requestText, 8_192) ?? null,
   }) : undefined;
-  return Object.freeze({ ...(queryLimit ? { queryLimit } : {}), prompt: text(value.prompt, 2_048) ?? 'The Agent needs more information.', options: Object.freeze(options), allowFreeform: value.allowFreeform === true, multiple: value.multiple === true });
+  return Object.freeze({ ...(value.asyncQuestion === true && typeof value.taskId === 'string' ? { asyncQuestion: true, taskId: stable(value.taskId, 'async question owner') } : {}), ...(queryLimit ? { queryLimit } : {}), prompt: text(value.prompt, 2_048) ?? 'The Agent needs more information.', options: Object.freeze(options), allowFreeform: value.allowFreeform === true, multiple: value.multiple === true });
 }
 
 function normalizePlan(value: Record<string, unknown>): JsonObject {
@@ -355,7 +355,7 @@ function normalizePlanAssemblies(value: unknown): JsonValue {
 }
 
 function normalizeApproval(value: Record<string, unknown>): JsonObject {
-  const effect = enumValue(value.effect, ['reversible-edit', 'trusted-code', 'runtime-start']);
+  const effect = enumValue(value.effect, ['reversible-edit', 'trusted-code', 'runtime-start', 'external-side-effect']);
   const risk = enumValue(value.risk, ['medium', 'high']);
   const decision = enumValue(value.decision, ['pending', 'allow-once', 'allow-always', 'reject', 'cancel', 'expired', 'stale', 'unavailable']);
   if (!effect || !risk || !decision) return Object.freeze({ summary: 'Invalid approval payload; actions are disabled.', decision: 'unavailable' });

@@ -1,3 +1,4 @@
+import { response as messagesResponse, results, resultText } from '../../../packages/harness-bridge/test/fixtures/messages.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -14,7 +15,7 @@ import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 
 const nodes = host => [...new Map(host.replay().events.map(item => [item.node.id, item.node])).values()];
 async function waitFor(predicate) { const end = Date.now() + 10000; while (!predicate()) { if (Date.now() > end) throw new Error('Host did not dispatch independent reads before their results.'); await delay(5); } }
-function response(delta, reason) { return new Response(`data: ${JSON.stringify({ id: 'host-parallel', choices: [{ index: 0, delta, finish_reason: reason }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } }); }
+function response(delta, reason) { return messagesResponse({ text: delta.content, calls: (delta.tool_calls ?? []).map(c => ({ id: c.id, name: c.function.name, arguments: c.function.arguments })), tokens: { input_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 10 } }); }
 
 test('W3 actual requests compact within one Harness turn and publish the confirmed Surface and per-request frames', { timeout: 30000 }, async t => {
   const directory = await mkdtemp(path.join(await realpath(tmpdir()), 'haiyue-w3-host-'));
@@ -42,14 +43,14 @@ test('W3 actual requests compact within one Harness turn and publish the confirm
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const body = JSON.parse(init.body); requests.push(body);
     if (requests.length > 3) return response({ content: 'Inspection finished.' }, 'stop');
-    const name = body.tools.find(t => t.function.description.endsWith('Studio tool id: scene.query')).function.name;
+    const name = body.tools.find(t => t.description.endsWith('Studio tool id: scene.query')).name;
     return response({ content: 'Inspect next slice.', tool_calls: [{ index: 0, id: `call-w3-${requests.length}`, type: 'function', function: { name, arguments: JSON.stringify({ revision: 7, projection: ['hierarchy'] }) } }] }, 'tool_calls');
   });
   const host = new StudioConversationHost({ runtime: { registry, turns, sessions, context, modelContexts, usage: turns.usage, accounting: new TaskAccountingRegistry(turns.usage) }, tools, operationLog: log,
     isProjectOpen: () => true, projectContext: () => ({ projectId: 'project:w3', documentId: 'document:w3', revision: 7, manifest: { revision: 7 } }) });
   try {
-    await host.initialize(); await host.dispatch({ type: 'agent/configure', budget: host.settings().budget, backendId: backend.descriptor.id, model: 'deepseek-v4-flash', reasoningEffort: 'off', outputTokenLimit: 8192 }); await host.dispatch({ type: 'conversation/send', backendId: backend.descriptor.id, prompt: 'Inspect scene facts; do not modify the project.' });
-    await waitFor(() => !host.replay().busy);
+    await host.initialize(); await host.dispatch({ type: 'agent/configure', budget: host.settings().budget, backendId: backend.descriptor.id, model: 'deepseek-flash', reasoningEffort: 'off', outputTokenLimit: 8192 }); await host.dispatch({ type: 'conversation/send', backendId: backend.descriptor.id, prompt: 'Inspect scene facts; do not modify the project.' });
+    await waitFor(() => !host.replay().busy).catch(cause => { t.diagnostic(JSON.stringify({ requests: requests.length, nodes: nodes(host).slice(-8) }).slice(-6000)); throw cause; });
     assert.equal(requests.length, 4, JSON.stringify(nodes(host).filter(n => n.kind === 'diagnostic')));
     const prepared = await log.query({ kinds: ['agent/model-request-prepared'], sessionId, limit: 20 });
     const replacements = prepared.events.filter(e => e.payload.replacementPrepared).length;
@@ -58,7 +59,7 @@ test('W3 actual requests compact within one Harness turn and publish the confirm
     const candidate = prepared.events.find(e => e.payload.replacementPrepared);
     assert.ok(prepared.events.at(-1).payload.requestBytes < candidate.payload.requestBytes * 0.8);
     assert.match(JSON.stringify(requests[2]), /AIStudio request recovery/);
-    assert.equal(requests.at(-1).messages.filter(m => m.role === 'tool').at(-1).tool_call_id, 'call-w3-3');
+    assert.equal(results(requests.at(-1)).at(-1).tool_use_id, 'call-w3-3');
     const snapshot = await sessions.replay(sessionId);
     assert.equal(snapshot.surface.generation, replacements);
     assert.equal(snapshot.ops.filter(op => op.kind === 'compaction.completed').length, replacements);

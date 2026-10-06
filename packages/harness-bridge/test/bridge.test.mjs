@@ -162,7 +162,7 @@ test('profile replacement is deterministic and 100 cycles leave no owned resourc
 test('fixed Cordis compatibility and lazy closure remain explicit', async () => {
   const result = await runHarnessBridgeUpstreamConformance();
   assert.deepEqual(result.disposed, ['second', 'first']);
-  assert.deepEqual(result.identity, { cordis: '4.0.2', harness: '0.1.5-rc.2' });
+  assert.deepEqual(result.identity, { cordis: '4.0.4', harness: '0.2.0-rc.2' });
   const source = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /dsh-agent|dsh-llm|dsh-tools|agent-backends/);
   const declarations = await readFile(new URL('../dist/index.d.ts', import.meta.url), 'utf8');
@@ -178,16 +178,14 @@ test('pinned Harness agent composition fails closed without a credential and dis
   assert.deepEqual(
     transport.modelCatalog().map(({ id, maxTokens }) => ({ id, maxTokens })),
     [
-      { id: 'deepseek-v4-flash', maxTokens: 256_000 },
       { id: 'deepseek-flash', maxTokens: 256_000 },
       { id: 'deepseek-v4-pro', maxTokens: 256_000 },
-      { id: 'deepseek-v4-flash-vision-exp', maxTokens: 256_000 },
     ],
   );
   assert.equal(await transport.configured(), false);
-  const capabilities = transport.sessionCapabilities('deepseek-v4-flash');
+  const capabilities = transport.sessionCapabilities('deepseek-flash');
   assert.deepEqual({ maxInputTokens: capabilities.maxInputTokens, nativeCompaction: capabilities.nativeCompaction, transport: capabilities.nativeCompactionTransport, mirror: capabilities.nativeCompactionMirror }, { maxInputTokens: 1_000_000, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
-  const opened = await transport.openSession({ model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8_192, tools: [], lastConfirmedOpId: 'op:harness-root' });
+  const opened = await transport.openSession({ model: 'deepseek-flash', reasoningEffort: 'high', maxTokens: 8_192, tools: [], lastConfirmedOpId: 'op:harness-root' });
   assert.equal((await transport.inspectSession(opened.sessionId)).lastConfirmedOpId, 'op:harness-root');
   await transport.confirmSessionBoundary(opened.sessionId, 'op:harness-next');
   assert.equal((await transport.inspectSession(opened.sessionId)).lastConfirmedOpId, 'op:harness-next');
@@ -195,7 +193,7 @@ test('pinned Harness agent composition fails closed without a credential and dis
   await transport.closeSession(opened.sessionId);
   assert.equal((await transport.inspectSession(opened.sessionId)).state, 'missing');
   const events = [];
-  for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [], model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8_192 })) events.push(event);
+  for await (const event of transport.start({ prompt: 'credential-boundary-smoke', tools: [], model: 'deepseek-flash', reasoningEffort: 'high', maxTokens: 8_192 })) events.push(event);
   assert.deepEqual(events.map((event) => event.type), ['turn-start', 'batch-boundary', 'batch-boundary', 'turn-end']);
   assert.deepEqual(events.filter(event => event.type === 'batch-boundary').map(event => event.closed), [false, true]);
   assert.equal(events.at(-1).status, 'failed');
@@ -219,7 +217,7 @@ test('Harness requires an existing owner and one live transport is attached to i
   assert.ok(firstFibers > 1, 'Harness plugins must be visible in the Studio root registry');
   await assert.rejects(createPinnedHarnessAgentTransport({ owner, resolveApiKey: async () => null }), /already has a live Harness transport/);
   assert.equal(owner.snapshot().resources.fibers, firstFibers);
-  const input = { sessionId: 'session:shared-name', model: 'deepseek-v4-flash', reasoningEffort: 'high', maxTokens: 8192, tools: [], lastConfirmedOpId: 'op:first' };
+  const input = { sessionId: 'session:shared-name', model: 'deepseek-flash', reasoningEffort: 'high', maxTokens: 8192, tools: [], lastConfirmedOpId: 'op:first' };
   await first.openSession(input);
   await first.dispose();
   assert.equal(owner.snapshot().resources.fibers, 0);

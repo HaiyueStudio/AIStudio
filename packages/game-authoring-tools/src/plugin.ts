@@ -3,7 +3,6 @@ import { asStableId, createStudioServiceToken, defineStudioPlugin, type JsonObje
 import { projectWorkspaceServiceToken, sceneAuthoringToken } from '@haiyue/ai-studio-editor-plugins';
 import { diagnosticsQueryServiceToken, operationLogServiceToken } from '@haiyue/ai-studio-operation-log';
 import { scriptPreviewServiceToken } from '@haiyue/ai-studio-script-preview';
-import { GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
 import { GameAuthoringToolRuntime } from './runtime.js';
 import type { GamePreviewControl, GameToolApproval, GameToolApprovalResolution, GameToolCall, GameToolPreparation, GameToolResult, GameToolRuntimeSnapshot, GameToolTransactionInput, GameToolTransactionResult } from './types.js';
 import type { ToolSchemaSelection } from './catalog/index.js';
@@ -23,7 +22,7 @@ export interface GameAuthoringToolService {
   cancel(callId: StableId): Promise<void>;
 }
 
-export interface GameAuthoringToolsPluginOptions { readonly documentation?: EngineDocumentation; readonly preview: GamePreviewControl; readonly textureRenderer?: CanvasTextureRenderer; readonly behaviorSource?: GameBehaviorSource; }
+export interface GameAuthoringToolsPluginOptions { readonly officialTools?: import('@haiyue/ai-studio-contracts').OfficialToolProviderV1; readonly documentation?: EngineDocumentation; readonly preview: GamePreviewControl; readonly textureRenderer?: CanvasTextureRenderer; readonly behaviorSource?: GameBehaviorSource; }
 
 export const gameAuthoringToolServiceToken = createStudioServiceToken<GameAuthoringToolService>('studio.game-authoring-tools');
 export const gameAuthoringToolContributionKind = asStableId('studio.contribution.agent-tool');
@@ -46,7 +45,7 @@ export function createGameAuthoringToolsPlugin(options: GameAuthoringToolsPlugin
     },
     activate(context) {
       const runtime = new GameAuthoringToolRuntime({
-        workspace: context.services.get(projectWorkspaceServiceToken), scene: context.services.get(sceneAuthoringToken),
+        officialTools: options.officialTools, workspace: context.services.get(projectWorkspaceServiceToken), scene: context.services.get(sceneAuthoringToken),
         scripts: context.services.get(scriptPreviewServiceToken), diagnostics: context.services.get(diagnosticsQueryServiceToken),
         operationLog: context.services.get(operationLogServiceToken).log, preview: options.preview, textureRenderer: options.textureRenderer, documentation: options.documentation,
         ...(options.behaviorSource ? { behaviorSource: options.behaviorSource } : {}),
@@ -56,7 +55,7 @@ export function createGameAuthoringToolsPlugin(options: GameAuthoringToolsPlugin
         approval: runtime.approval.bind(runtime), decide: runtime.decide.bind(runtime), execute: runtime.execute.bind(runtime), executeTransaction: runtime.executeTransaction.bind(runtime), cancel: runtime.cancel.bind(runtime),
       });
       context.services.provide(gameAuthoringToolServiceToken, service);
-      for (const definition of GAME_AUTHORING_TOOL_DEFINITIONS) context.contributions.register({ id: definition.id, kind: gameAuthoringToolContributionKind, value: definition, priority: 100 });
+      for (const definition of runtime.definitions()) context.contributions.register({ id: definition.id, kind: gameAuthoringToolContributionKind, value: definition, priority: 100 });
       context.effects.own('game-authoring-tools.dispose', () => runtime.dispose());
     },
   });
