@@ -1,0 +1,96 @@
+[
+  {
+    "id": "@browserbasehq/stagehand@4.1.0",
+    "name": "@browserbasehq/stagehand",
+    "version": "4.1.0",
+    "size": 1038509,
+    "unpackedSize": 3444313,
+    "shasum": "cabb2bf8b0987a220340d45072e70b4c2295e8e9",
+    "integrity": "sha512-PJikMBVoaCRh6TFD7GcmeISmsMq4IwUu1BD5FOsGUVDUxrVqZomWa6W6dF+a/zu4xRZu2Z2xX1nXVMDaCuZWsw==",
+    "filename": "browserbasehq-stagehand-4.1.0.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1073,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 7651,
+        "mode": 420
+      },
+      {
+        "path": "dist/assets/stagehand-extension.zip",
+        "size": 440798,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/blank.html",
+        "size": 261,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/content-script.js",
+        "size": 35292,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/manifest.json",
+        "size": 679,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/offscreen/service-worker-heartbeat.html",
+        "size": 308,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/offscreen/service-worker-heartbeat.js",
+        "size": 797,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/service-worker.js",
+        "size": 2033846,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/wake-service-worker.html",
+        "size": 63,
+        "mode": 420
+      },
+      {
+        "path": "dist/extension/wake-service-worker.js",
+        "size": 164,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.mts",
+        "size": 248173,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.mts.map",
+        "size": 23198,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.mjs",
+        "size": 209202,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.mjs.map",
+        "size": 441321,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1487,
+        "mode": 420
+      }
+    ],
+    "entryCount": 16,
+    "bundled": []
+  }
+]

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: first request includes tool schemas, overhead and unknown capacity; 92% blocks before confirmation
+ok 1 - first request includes tool schemas, overhead and unknown capacity; 92% blocks before confirmation
+  ---
+  duration_ms: 757.360148
+  type: 'test'
+  ...
+# Subtest: compaction hydrates references, retains current request and keeps native latest call/result pair outside replacement
+ok 2 - compaction hydrates references, retains current request and keeps native latest call/result pair outside replacement
+  ---
+  duration_ms: 1799.774788
+  type: 'test'
+  ...
+# Subtest: usage calibrates the next request without treating billed history as context; failed preparation leaves reuse unchanged
+ok 3 - usage calibrates the next request without treating billed history as context; failed preparation leaves reuse unchanged
+  ---
+  duration_ms: 830.923916
+  type: 'test'
+  ...
+# Subtest: manual Surface summary feeds the real request even below the automatic threshold
+ok 4 - manual Surface summary feeds the real request even below the automatic threshold
+  ---
+  duration_ms: 824.135362
+  type: 'test'
+  ...
+# Subtest: a later success for the same tool cannot erase the latest error for a different target
+ok 5 - a later success for the same tool cannot erase the latest error for a different target
+  ---
+  duration_ms: 447.068418
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5655.420262

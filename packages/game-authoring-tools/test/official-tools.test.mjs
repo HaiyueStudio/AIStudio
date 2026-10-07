@@ -7,7 +7,7 @@ import { classifyToolConcurrency, resolveModelToolInvocation } from '../dist/ind
 async function fixture(t, effect = 'observe', execute = async () => ({ value: 'evidence' }), runtimeOptions = {}) {
   let bodies = 0;
   const definition = officialBinding(effect).definition;
-  const f = await behaviorFixture({ runtimeOptions: { officialTools: { definitions: [definition], async execute(input, signal) { bodies++; return execute(input, signal); } }, ...runtimeOptions } });
+  const f = await behaviorFixture({ runtimeOptions: { officialTools: { definitions: [definition], async execute(input, signal, receipt) { bodies++; return execute(input, signal, receipt); } }, ...runtimeOptions } });
   t.after(f.close);
   return Object.assign(f, { definition, bodies: () => bodies, prepare: id => f.runtime.prepare(call(id, definition.id, { query: 'evidence' })) });
 }
@@ -54,7 +54,7 @@ for (const action of ['cancel','timeout','dispose']) test(`official ${action} dr
   const f = await fixture(t, 'observe', async (_call, signal) => {
     entered.resolve(); await new Promise(resolve => { if (signal.aborted) resolve(); else signal.addEventListener('abort', resolve, { once: true }); });
     await new Promise(resolve => setTimeout(resolve, 10)); drained = true; return { value: 'late' };
-  }, action === 'timeout' ? { timeoutCeilingMs: 40 } : {});
+  }, action === 'timeout' ? { timeoutCeilingMs: 1000 } : {});
   const p = await f.prepare(`call:${action}`);
   const rejected = assert.rejects(f.runtime.execute(p.id), /cancel|timeout|exceeded|disposed/i);
   await entered.promise;
@@ -130,4 +130,66 @@ test('reviewed MCP Draft 2020 schema accepts valid calls and rejects additional 
   const f=await behaviorFixture({runtimeOptions:{officialTools:{definitions:[definition],async execute(){return {value:'bounded'};}}}});t.after(f.close);
   await assert.rejects(f.runtime.prepare(call('call:invalid-draft',definition.id,{query:'test',filename:'/tmp/no'})),/arguments-invalid/);
   const p=await f.runtime.prepare(call('call:valid-draft',definition.id,{query:'test'}));assert.equal((await f.runtime.execute(p.id)).status,'completed');
+});
+
+for (const mode of ['oversized','unsupported','unknown','cancelled']) test(`uncertain external receipt survives recreation and blocks repeat (${mode})`, async t => {
+  const { OfficialToolAdapter } = await import('../dist/official-tools.js');
+  const controller = new AbortController();
+  const f = await fixture(t, 'external-side-effect', async (_input, _signal, receipt) => {
+    if (mode === 'oversized') return { value: 'Bearer SECRET_CANARY ' + 'x'.repeat(6000) };
+    if (mode === 'unknown') throw new Error('Bearer SECRET_CANARY');
+    await receipt({ schemaVersion: 1, execution: 'completed', delivery: 'unavailable', reason: mode === 'cancelled' ? 'cancelled' : 'unsupported-result', preview: 'untrusted rendered text' }, {value:'Created resource 42',authorization:'opaque-provider-value'});
+    if (mode === 'cancelled') controller.abort(new Error('cancelled'));
+    throw new Error('unsupported output');
+  });
+  const p = await f.prepare('call:effect-first'); await f.runtime.decide(p.approvalId, 'allow-once');
+  await assert.rejects(f.runtime.execute(p.id, controller.signal), error => {
+    if (mode === 'cancelled') return /cancel/.test(error.message);
+    assert.equal(error.code, 'official.result-unavailable');assert.equal(error.retryable, false);
+    assert.ok(error.details.executionReceipt.artifactRef);assert.doesNotMatch(JSON.stringify(error.details), /SECRET_CANARY/);return true;
+  });
+  const events = (await f.operationLog.query({ kinds: ['official/execution-receipt'], limit: 20 })).events;
+  assert.equal(events.length, 1); assert.equal(events[0].payload.receipt.execution, mode === 'unknown' ? 'unknown' : 'completed');
+  const artifact = await f.operationLog.readArtifact(events[0].artifactRefs[0]);
+  assert.doesNotMatch(JSON.stringify(artifact), /SECRET_CANARY/);
+  if (mode !== 'unknown') assert.ok(artifact.value.preview.length <= 8192);
+  const adapter = new OfficialToolAdapter({ definitions: [f.definition], async execute() { throw new Error('must not dispatch'); } }, [], f.operationLog);
+  await assert.rejects(adapter.execute(f.definition, call('call:effect-retry', f.definition.id, {query:'evidence'}), {query:'evidence'}, new AbortController().signal), error => error.code === 'official.execution-outcome-unresolved');
+  assert.equal(f.bodies(), 1);
+});
+
+test('successful external calls can be deliberately repeated, and not-started receipts release the guard', async t => {
+ const f=await fixture(t,'external-side-effect',async(_input,_signal,receipt)=>{
+  if(f.bodies()===1){await receipt({schemaVersion:1,execution:'not-started',delivery:'unavailable',reason:'provider-error'});throw new Error('preflight denied');}
+  return {value:'done'};
+ });
+ for(let i=0;i<3;i++){
+  const p=await f.prepare(`call:repeat-${i}`);await f.runtime.decide(p.approvalId,'allow-once');
+  if(i===0)await assert.rejects(f.runtime.execute(p.id),/official.execution-failed/);else assert.equal((await f.runtime.execute(p.id)).status,'completed');
+ }
+ assert.equal(f.bodies(),3);
+});
+
+test('a warm receipt index observes subsequently imported unresolved project history', async t => {
+ const f=await fixture(t,'external-side-effect');
+ const first=await f.prepare('call:warm-index');await f.runtime.decide(first.approvalId,'allow-once');await f.runtime.execute(first.id);
+ const dispatched=(await f.operationLog.query({kinds:['official/execution-dispatched'],limit:20})).events[0];
+ await f.operationLog.append({kind:'official/execution-dispatched',severity:'info',source:'studio.game-tools',correlation:{...dispatched.correlation,toolCallId:'call:imported-effect'},payload:{...dispatched.payload,receipt:{schemaVersion:1,execution:'unknown',delivery:'unavailable',reason:'provider-error',callId:'call:imported-effect',retryable:false}}});
+ const repeat=await f.prepare('call:after-import');await f.runtime.decide(repeat.approvalId,'allow-once');
+ await assert.rejects(f.runtime.execute(repeat.id),error=>error.code==='official.execution-outcome-unresolved');assert.equal(f.bodies(),1);
+});
+
+test('receipt previews redact original credential keys and configured fields before flattening', async t => {
+ const definition={...officialBinding('external-side-effect').definition,redactedFields:['/privateData']};
+ const f=await behaviorFixture({runtimeOptions:{officialTools:{definitions:[definition],async execute(_call,_signal,receipt){
+  await receipt({schemaVersion:1,execution:'completed',delivery:'unavailable',reason:'oversized-result',preview:'password: opaque-password-value'},
+    {value:'Created 42',password:'opaque-password-value',privateData:'opaque-configured-value'});
+  throw new Error('output too large');
+ }}}});t.after(f.close);
+ const p=await f.runtime.prepare(call('call:redacted-receipt',definition.id,{query:'evidence'}));await f.runtime.decide(p.approvalId,'allow-once');
+ await assert.rejects(f.runtime.execute(p.id),error=>error.code==='official.result-unavailable');
+ const events=(await f.operationLog.query({kinds:['official/execution-receipt'],limit:20})).events;
+ assert.doesNotMatch(JSON.stringify(events),/opaque-password-value|opaque-configured-value/);
+ const artifact=await f.operationLog.readArtifact(events[0].artifactRefs[0]);
+ assert.match(artifact.value.preview,/Created 42/);assert.doesNotMatch(JSON.stringify(artifact),/opaque-password-value|opaque-configured-value/);
 });

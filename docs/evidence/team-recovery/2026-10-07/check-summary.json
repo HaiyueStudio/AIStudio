@@ -1,0 +1,34 @@
+{
+  "command": "TMPDIR=/private/tmp npm run check",
+  "exitCode": 1,
+  "files": 74,
+  "passed": 408,
+  "failed": 1,
+  "skipped": 0,
+  "cancelled": 0,
+  "failures": [
+    {
+      "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+      "log": "collected-20.tap",
+      "elapsedMs": 63408,
+      "exitCode": 1,
+      "tests": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "cancelled": 0
+    }
+  ],
+  "limitation": "Designated Windows 10.0.19045 / i7-7700 / 8 logical CPU acceptance attempted on macOS 25.6.0 / i7-9750H / 12 logical CPUs. Assertion retained.",
+  "focused": {
+    "passed": 88,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "capability": {
+    "groups": 18,
+    "passed": 345,
+    "failed": 0
+  }
+}

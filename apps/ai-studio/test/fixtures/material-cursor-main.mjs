@@ -18,18 +18,33 @@ app.whenReady().then(async()=>{
  const control=new BrowserWindowPreviewControl(window);await control.ready();
  console.log('material test preparing author');
  const {scene,plan}=await window.webContents.executeJavaScript('window.materialTest.prepare()');
- await window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
- const authorImage=await window.webContents.capturePage({x:0,y:480,width:640,height:480});await writeFile(path.join(root,'author.png'),authorImage.toPNG());
- const authorPixels=await window.webContents.executeJavaScript(`window.materialTest.pixels(${JSON.stringify(authorImage.toPNG().toString('base64'))})`);
+ // A compositor frame may still contain the placeholder material while the texture uploads.
+ // Wait for the actual material signal; pixel acceptance thresholds below remain unchanged.
+ const materialReady=pixels=>pixels.yellow>10000&&pixels.dark>1000&&pixels.dominant.length===3;
+ let authorImage,authorPixels;
+ for(let i=0;i<600;i++){
+  await window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(resolve))');
+  authorImage=await window.webContents.capturePage({x:0,y:480,width:640,height:480});
+  authorPixels=await window.webContents.executeJavaScript(`window.materialTest.pixels(${JSON.stringify(authorImage.toPNG().toString('base64'))})`);
+  if(materialReady(authorPixels))break;
+  await new Promise(resolve=>setTimeout(resolve,40));
+ }
+ await writeFile(path.join(root,'author.png'),authorImage.toPNG());
+ assert.ok(materialReady(authorPixels),`Author material did not become ready: ${JSON.stringify(authorPixels)}`);
  await window.webContents.executeJavaScript('window.materialTest.disposeAuthor()');
  await window.webContents.executeJavaScript(`window.addEventListener('message',e=>{if(e.data?.protocol==='haiyue-preview/1')console.log('preview event',e.data.type,e.data.message??'')})`);
  console.log('material test starting preview');
  await control.start(scene,plan);
  console.log('material test capturing');
  const inspect=await control.inspect();assert.equal(inspect.value.renderEffects.owners.materials,1);assert.equal(inspect.value.renderEffects.owners.textures,1);
- let capture; for(let i=0;i<600;i++){try{await control.step(1);capture=await control.capture();if(capture.byteLength>1000)break;}catch(error){if(!/No rendered Play frame/.test(error.message))throw error;}await new Promise(r=>setTimeout(r,40));} assert.ok(capture?.byteLength>1000);
+ let capture,previewPixels;
+ for(let i=0;i<600;i++){
+  try{await control.step(1);capture=await control.capture();previewPixels=await window.webContents.executeJavaScript(`window.materialTest.pixels(${JSON.stringify(capture.base64)})`);if(capture.byteLength>1000&&materialReady(previewPixels))break;}
+  catch(error){if(!/No rendered Play frame/.test(error.message))throw error;}
+  await new Promise(r=>setTimeout(r,40));
+ }
+ assert.ok(capture?.byteLength>1000);assert.ok(previewPixels&&materialReady(previewPixels),`Play material did not become ready: ${JSON.stringify(previewPixels)}`);
  await writeFile(path.join(root,'preview.png'),Buffer.from(capture.base64,'base64'));
- const previewPixels=await window.webContents.executeJavaScript(`window.materialTest.pixels(${JSON.stringify(capture.base64)})`);
  for(const pixels of [previewPixels,authorPixels]){assert.ok(pixels.yellow>10000,JSON.stringify(pixels));assert.ok(pixels.dark>1000,JSON.stringify(pixels));assert.ok(pixels.blue<500,JSON.stringify(pixels));}
  assert.ok(Math.abs(previewPixels.yellow-authorPixels.yellow)/previewPixels.yellow<.15 && previewPixels.dominant.every((v,i)=>Math.abs(v-authorPixels.dominant[i])<=3),JSON.stringify({previewPixels,authorPixels}));
  assert.equal(await window.webContents.executeJavaScript('window.materialTest.cursor()'),true);

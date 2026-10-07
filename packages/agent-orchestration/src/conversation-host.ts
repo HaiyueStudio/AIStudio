@@ -1,3 +1,6 @@
+import { ResultArtifacts, RESULT_READ_TOOL, type ResultScope } from './result-artifacts.js';
+import { independentQuestionEdit, questionBlockedSteps, validateQuestionSteps } from './question-dependencies.js';
+import { parseContinuationRecord, type ContinuationRecord } from './continuation-record.js';
 import { TEAM_STATUS_TOOL, teamAdmission } from './team-admission.js';
 import { ASYNC_QUESTION_TOOL, parseAsyncQuestion, validateAsyncAnswer } from './async-question.js';
 import { taskIntent, isTaskIntent, questionAmendment, intentRequirements, intentConstraints, intentContext, assertIntentAllows, type TaskIntent } from './task-intent.js';
@@ -13,7 +16,7 @@ import { stringField, isRecord, errorCode, errorMessage } from './value-utils.js
 import { budgetMetricLabel, budgetContinuationRequest, DEFAULT_TASK_BUDGET, assertBudgetAllowed, armWallTimeBudget, type WallTimeBudget } from './budget-policy.js';
 import { approvedPlanRequest, PLAN_TOOL_ID, PLAN_TOOL_DEFINITION, validatePlanProposal, assertPlanDependencySelection, PlanProtocolError, type ApprovedPlanExecution, type PlanAcceptanceProposal } from './plan-policy.js';
 import { taskTimeline, taskTitle, acceptanceReadModel, acceptanceLabel, taskSpecFromPlan, taskSpecFromRun, productPhaseForTool, productToolTitle, advancePlaytest, observationArtifacts, evaluationResult, repairRequest, taskAccountingProjection } from './task-acceptance.js';
-import { queryRetainedOperationEvents } from './retained-events.js';
+import { queryRetainedOperationEvents, retainedOperationEvents } from './retained-events.js';
 import { compareExecutionGraphs } from '@haiyue/ai-studio-shell/conversation';
 import { queryAllowancePrompt, queryRequestDescription, approvalContent, presentationDigest, intentLogPayload, localCompactionSummary, questionOptions, terminalStatus, completionSummary, boundedJson, projectToolModelResult, compactNativeToolSchemas, toolArgumentSummary, toolResultSummary } from './conversation-presentation.js';
 import { asStableId, isSubtaskSelectionV1, isPlanTaskV1, type PlanTaskV1, type AgentTurnConfigV2, type JsonObject, type JsonValue, type M12ReasoningEffort, type ObservationArtifactV2, type StableId, type TaskBudgetV2, type ToolBatchNodeV1 } from '@haiyue/ai-studio-contracts';
@@ -134,7 +137,7 @@ interface RecoveredContinuationSeed {
   readonly plan: ApprovedPlanExecution | null;
   readonly budgetGranted: boolean;
 }
-interface QueuedConversationPrompt { readonly backendId: StableId; readonly prompt: string; readonly recovered?: RecoveredContinuationSeed; }
+interface QueuedConversationPrompt { readonly continuationId?: StableId; readonly resumeNode?: ConversationNodeReadModel; readonly backendId: StableId; readonly prompt: string; readonly recovered?: RecoveredContinuationSeed; }
 
 type BarrierWaitResult = 'suspended';
 
@@ -155,6 +158,7 @@ export interface ConversationHostOptions {
   readonly batchTextWrites?: boolean;
   /** W7 is absent/default-off until composition supplies a qualified isolated provider port. */
   readonly subtasks?: SubtaskOptions;
+  readonly subtaskFactory?: (config: AgentTurnConfigV2, facts: SubtaskOptions['facts']) => SubtaskOptions;
   /** Experimental Studio-owned nonblocking questions; durable Session required. */
   readonly asyncQuestions?: boolean;
   /** Team readiness entry only; execution still requires qualified W7 ports. */
@@ -202,6 +206,7 @@ export class StudioConversationHost {
   private stopping = false;
   private disposeResult: Promise<void> | null = null;
   private readonly recoveredSubtaskTasks = new Set<StableId>();
+  private productSubtasks: { taskId: StableId; options: SubtaskOptions } | null = null;
   private subtaskReceiptTaskId: StableId | null = null;
   private readonly subtaskReceipts = new Map<string, Promise<JsonObject>>();
   private readonly pendingWork = new Set<Promise<unknown>>();
@@ -226,10 +231,15 @@ export class StudioConversationHost {
   private readonly manualCompactionRequests = new Map<StableId, Promise<void>>();
   private graphProjectionTimer: ReturnType<typeof setTimeout> | null = null;
   private toolBatchSequence = 0;
+  private readonly continuationRecords = new Map<StableId, ContinuationRecord>();
+  private readonly continuationStates = new Map<StableId, string>();
+  private initializing = true;
   private readonly queuedPrompts: QueuedConversationPrompt[] = [];
   private queuedPromptDrainActive = false;
 
+  private readonly resultArtifacts: ResultArtifacts;
   constructor(private readonly options: ConversationHostOptions) {
+    this.resultArtifacts = new ResultArtifacts(options.operationLog);
     if (options.initialSettings) {
       this.backendId = options.initialSettings.backendId; this.budgetTemplate = options.initialSettings.budget;
       for (const { backendId, ...selection } of options.initialSettings.selections) this.backendSelections.set(backendId, selection);
@@ -246,7 +256,12 @@ export class StudioConversationHost {
     if (this.projectionPersistenceFailure) throw new AggregateError([this.projectionPersistenceFailure], 'Conversation record persistence failed.');
   }
 
-  async initialize(): Promise<void> { await this.restoreProjection(); await this.restoreTaskRuns(); await this.restoreTaskToolSelections(); await this.migrateLegacySessions(); await this.restoreTaskAccounting(); await this.hydrateTaskPreviews(); await this.restoreExecutionGraphs(); await this.refreshBackends(); }
+  async initialize(): Promise<void> { await this.restoreProjection(); this.restoreInterruptedSubtasks(); await this.restoreTaskRuns(); await this.restoreTaskToolSelections(); await this.migrateLegacySessions(); await this.restoreTaskAccounting(); await this.hydrateTaskPreviews(); await this.restoreExecutionGraphs(); await this.refreshBackends(); await this.restoreContinuations(); this.initializing = false; this.drainQueuedPrompts(); }
+
+  private restoreInterruptedSubtasks(): void {
+    for (const node of this.nodes.values()) if (node.kind === 'progress' && node.content.subtask === true && ['pending', 'streaming'].includes(node.status))
+      this.project(node.id, 'progress', 'failed', node.provenance, { ...node.content, label: '子任务已中断', message: '上次执行已退出；不会自动重发。父任务需检查保留的候选结果。' });
+  }
 
   subscribe(listener: () => void): Readonly<{ dispose(): void }> {
     this.assertActive();
@@ -274,6 +289,8 @@ export class StudioConversationHost {
     });
   }
 
+  private readonly resolvingBarriers = new Set<string>();
+
   async dispatch(value: unknown, signal?: AbortSignal): Promise<void> {
     this.assertActive();
     const intent = validateConversationIntent(value);
@@ -281,7 +298,10 @@ export class StudioConversationHost {
       kind: 'conversation/intent', severity: 'info', source: asStableId('studio.conversation-host'), correlation: {},
       payload: intentLogPayload(intent),
     }, { signal });
-    switch (intent.type) {
+    const barrierKey = intent.type === 'conversation/resolve-approval' ? intent.approvalId : intent.type === 'conversation/answer-question' || intent.type === 'conversation/accept-plan' ? intent.nodeId : undefined;
+    if (barrierKey && this.resolvingBarriers.has(barrierKey)) throw new Error('Barrier resolution is already in progress.');
+    if (barrierKey) this.resolvingBarriers.add(barrierKey);
+    try { switch (intent.type) {
       case 'conversation/send':
         if (intent.backendId !== this.backendId) throw new Error('Selected backend changed before send.');
         if (this.active || this.queuedPromptDrainActive) {
@@ -327,7 +347,7 @@ export class StudioConversationHost {
             await handle.checkpoint(); this.finishNode(question.id, 'cancelled');
           } finally { this.resolvingAsyncQuestions.delete(question.id); }
         }
-        for (let index = this.queuedPrompts.length - 1; index >= 0; index--) if (this.queuedPrompts[index]?.recovered?.taskId === active.taskId) this.queuedPrompts.splice(index, 1);
+        for (let index = this.queuedPrompts.length - 1; index >= 0; index--) if (this.queuedPrompts[index]?.recovered?.taskId === active.taskId) { const queued = this.queuedPrompts[index]!; if (queued.continuationId) await this.continuationState(queued.continuationId, 'cancelled'); this.queuedPrompts.splice(index, 1); }
         active.controller.abort(new Error('Turn cancelled by user.'));
         if (active.sessionId && active.turnId) await this.options.runtime.turns.cancel(intent.backendId, active.sessionId, active.turnId);
         return;
@@ -397,7 +417,7 @@ export class StudioConversationHost {
         await this.refreshBackends(); return;
       }
       case 'logs/export-bug-bundle': throw new Error('Bug bundle export is handled by the log IPC owner.');
-    }
+    } } finally { if (barrierKey) this.resolvingBarriers.delete(barrierKey); }
   }
 
   dispose(): Promise<void> {
@@ -414,6 +434,8 @@ export class StudioConversationHost {
     this.pendingGraphSnapshots.clear(); this.latestGraphSnapshots.clear(); this.publishedTextOffsets.clear();
     this.pendingRecordContents.clear();
     this.taskToolSelections.clear();
+    this.productSubtasks = null;
+    this.resultArtifacts.dispose();
     this.questions.clear();
     this.plans.clear();
     this.approvedPlanTurns.clear();
@@ -599,15 +621,19 @@ export class StudioConversationHost {
       const priorTask = this.options.runtime.usage.get(turnId)?.snapshot().taskId;
       const ended = [...this.nodes.values()].some(node => node.kind === 'completion' && node.provenance.sessionId === sessionId && node.provenance.turnId === turnId);
       if (ended || priorTask && this.taskRuns.has(priorTask)) throw new Error('This turn is no longer the current task checkpoint. Continue from the latest task state.');
-      await this.resume(backendId, sessionId, turnId); return;
+      await this.resume(backendId, sessionId, turnId);
+      for (const record of this.continuationRecords.values()) if (!record.taskId && record.node.provenance.sessionId === sessionId && record.node.provenance.turnId === turnId && ['claimed', 'interrupted'].includes(this.continuationStates.get(record.id) ?? '')) await this.continuationState(record.id, this.stopping ? 'interrupted' : 'completed');
+      return;
     }
     if (run.backendId !== backendId || !run.resumable || !['blocked', 'failed', 'cancelled'].includes(run.status)) throw new Error('Task checkpoint is stale or is not resumable.');
     const plan = this.recoveredApprovedPlan({ backendId, sessionId, turnId });
     this.acceptanceContinuations.set(run.taskId, 0);
     this.queuedPromptDrainActive = true;
+    const interrupted = [...this.continuationRecords.values()].filter(record => record.taskId === run.taskId && ['claimed', 'interrupted'].includes(this.continuationStates.get(record.id) ?? ''));
     try {
-      await this.startRecoveredContinuation(backendId, { taskId: run.taskId, plan, budgetGranted: false,
-        instruction: run.acceptance.length ? 'The user requested continuation of the unfinished task. Start a fresh execution turn from the checkpoint below.' : 'Resume the visible request from the current project. Establish user-approved acceptance criteria before further mutation; do not replay the old turn.' });
+      await this.startRecoveredContinuation(backendId, { taskId: run.taskId, plan: plan ?? interrupted.at(-1)?.plan ?? null, budgetGranted: false,
+        instruction: [run.acceptance.length ? 'The user requested continuation of the unfinished task. Start a fresh execution turn from the checkpoint below.' : 'Resume the visible request from the current project. Establish user-approved acceptance criteria before further mutation; do not replay the old turn.', ...interrupted.map(record => record.instruction)].join('\n') });
+      for (const record of interrupted) await this.continuationState(record.id, this.stopping ? 'interrupted' : 'completed');
     } finally { this.queuedPromptDrainActive = false; this.changed(); this.drainQueuedPrompts(); }
   }
 
@@ -884,13 +910,19 @@ export class StudioConversationHost {
       };
       const constraints = this.taskIntents.has(active.taskId) ? intentConstraints(this.taskIntents.get(active.taskId)!) : [];
       const key = sha256(canonicalStringify({ constraints, taskId: active.taskId, backendId: event.backendId, model: active.config.model, projectId: project?.projectId ?? null, documentId: project?.documentId ?? null, revision: revision(), selection: isSubtaskSelectionV1(event.payload.arguments) ? { schemaVersion: 1, taskIds: [...event.payload.arguments.taskIds].sort() } : event.payload.arguments ?? null, plan: active.approvedPlan?.items.map(item => ({ id: item.id, label: item.label, details: item.details ?? '', execution: item.execution ?? null })) as unknown as JsonObject[] ?? [] }));
+      if (this.options.subtaskFactory && this.productSubtasks?.taskId !== active.taskId) this.productSubtasks = { taskId: active.taskId, options: this.options.subtaskFactory(active.config,
+        (refs, revision, signal) => this.resultArtifacts.facts(refs, revision, this.resultScope(this.active!.sessionId ?? event.sessionId, this.active!.turnId ?? event.turnId), signal)) };
+      const subtaskOptions = this.productSubtasks?.options ?? this.options.subtasks;
       let work = this.subtaskReceipts.get(key);
       if (!work) {
-        work = this.subtaskReceipts.size >= 32 ? Promise.resolve({ status: 'not-delegated', reason: 'receipt-capacity' }) : runSubtasks(this.recoveredSubtaskTasks.has(active.taskId) ? undefined : this.options.subtasks, {
-          selection: event.payload.arguments, constraints, approved: active.approvedPlan?.items ?? [], backendId: event.backendId, model: active.config.model,
+        work = this.subtaskReceipts.size >= 32 ? Promise.resolve({ status: 'not-delegated', reason: 'receipt-capacity' }) : runSubtasks((this.recoveredSubtaskTasks.has(active.taskId) || this.queuedPrompts.some(prompt => prompt.recovered?.taskId === active.taskId)) ? undefined : subtaskOptions, {
+          selection: event.payload.arguments, constraints, approved: (active.approvedPlan?.items ?? []).filter(item => { const question = this.pendingAsyncQuestion(active.taskId); if (!question) return true; const blocked = questionBlockedSteps(active.approvedPlan!.items, question.content.blockedStepIds as string[] ?? []); return blocked !== null && !blocked.has(item.id); }), backendId: event.backendId, model: active.config.model,
           profileDigest: active.config.promptProfile.digest, registryDigest: `sha256:${sha256(canonicalStringify(this.options.tools.definitions() as unknown as JsonValue))}`,
           sessionId: event.sessionId, turnId: event.turnId, callId, account: active.account, revision, signal,
           audit: async (kind, payload) => {
+            if (typeof payload.childId === 'string') this.project(asStableId(`subtask:${sha256(payload.childId)}`), 'progress', kind === 'candidate' ? 'completed' : kind === 'cancelled' ? 'cancelled' : kind === 'failed' ? 'failed' : 'pending',
+              { backendId: event.backendId, sessionId: event.sessionId, turnId: event.turnId },
+              { label: kind === 'candidate' ? '子任务候选已返回，等待父任务核验' : kind === 'cancelled' ? '子任务已取消' : kind === 'failed' ? '子任务失败' : '子任务处理中', message: String(payload.taskId ?? payload.childId), subtask: true, candidateOnly: true, childId: payload.childId });
             const artifact = await this.options.operationLog.putArtifact(payload, { schemaVersion: 'subtask-record/1' });
             await this.options.operationLog.append({ kind: `conversation/subtask-${kind}`, severity: 'info', source: asStableId('studio.conversation-host'),
               correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId: callId }, payload: { taskId: active.taskId, artifactId: artifact.id }, artifactRefs: [artifact.id] });
@@ -1502,10 +1534,10 @@ export class StudioConversationHost {
       }
       return Object.freeze({ kind: 'prepared-mutation', context, preparation, startedAtMs, group });
     } catch (cause) {
-      const diagnostic = Object.freeze({ code: errorCode(cause), message: errorMessage(cause) });
+      const diagnostic = Object.freeze({ code: errorCode(cause), message: errorMessage(cause), ...(cause instanceof GameToolProtocolError && cause.details ? { details: cause.details, retryable: cause.retryable } : {}) });
       await this.options.operationLog.append({ kind: 'conversation/tool-failed', severity: signal.aborted ? 'warning' : 'error', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId }, payload: { toolId, stage, argumentKeys: Object.freeze(Object.keys(context.args).sort()), code: diagnostic.code, message: diagnostic.message } }).catch(() => undefined);
       const status: ToolBatchNodeStatus = signal.aborted ? 'cancelled' : 'failed';
-      return this.makeToolBody(context, status, Object.freeze({ status: 'failed', error: diagnostic }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, target: 'Current project', effect: context.node.executionClass, argumentsSummary: toolArgumentSummary(toolId, context.args) }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, resultStatus: status, summary: diagnostic.message }), null, null, `${toolId}: ${diagnostic.code}`, false, false, Date.now() - startedAtMs);
+      return this.makeToolBody(context, status, Object.freeze({ status: 'failed', error: diagnostic }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, target: 'Current project', effect: context.node.executionClass, argumentsSummary: toolArgumentSummary(toolId, context.args) }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, resultStatus: status, summary: diagnostic.message, ...(cause instanceof GameToolProtocolError && cause.details ? { details: cause.details } : {}) }), null, null, `${toolId}: ${diagnostic.code}`, false, false, Date.now() - startedAtMs);
     }
   }
 
@@ -1572,6 +1604,9 @@ export class StudioConversationHost {
         const record = plan && [...this.nodes.values()].reverse().find(node => node.kind === 'plan' && node.content.decision === 'approved' && (!node.content.taskId || node.content.taskId === this.active?.taskId)
           && Array.isArray(node.content.items) && plan.items.length > 0 && plan.items.every(item => (node.content.items as readonly JsonObject[]).some(candidate => candidate.id === item.id && candidate.status === 'accepted')));
         if (!plan || !record || !this.active || !this.approvedPlanTurns.has(turnKey(event.sessionId, event.turnId))) throw new PlanProtocolError('plan.approval-required', 'Approve a plan before reporting progress.');
+        const question = this.pendingAsyncQuestion(this.active.taskId);
+        const blocked = question ? questionBlockedSteps(plan.items, question.content.blockedStepIds as string[] ?? []) : new Set<string>();
+        if (question && (Array.isArray(args.updates) ? args.updates.filter(isRecord) : []).some(update => ['in_progress', 'completed'].includes(String(update.status)) && (!blocked || blocked.has(String(update.stepId))))) throw new PlanProtocolError('question.reply-required', 'This plan step depends on a pending answer.');
         const items = applyPlanProgress(args, record.content.items as readonly JsonObject[]);
         this.project(record.id, 'plan', record.status, record.provenance, Object.freeze({ ...record.content, taskId: this.active.taskId, items, progressNeedsSync: items.some(item => item.executionNeedsSync === true), progressToolsSinceUpdate: 0, progressUpdatedAt: new Date().toISOString() }));
         this.active.approvedPlan = { ...plan, items: plan.items.map(item => { const updated = items.find(candidate => candidate.id === item.id)!; return Object.freeze({ ...item, executionStatus: String(updated.executionStatus ?? 'pending'), executionSummary: String(updated.executionSummary ?? '') }); }) };
@@ -1596,8 +1631,12 @@ export class StudioConversationHost {
       stage = 'prepare';
       if (toolId === TEAM_STATUS_TOOL.id) {
         if (!this.options.experimentalTeam || Object.keys(args).length) throw new PlanProtocolError('team.unavailable', 'Team inspection is disabled or arguments are invalid.');
-        const result = teamAdmission(this.options.subtasks);
+        const result = teamAdmission(this.productSubtasks?.options ?? this.options.subtasks, !!this.options.subtaskFactory, this.active?.approvedPlan);
         return this.makeToolBody(context, 'completed', { status: 'completed', value: result }, 'completed', { toolCallId, toolId, effect: 'observe', argumentsSummary: 'Team 准入检查' }, 'completed', { toolCallId, toolId, resultStatus: 'completed', summary: String(result.status) }, result, null, null, false, false, Date.now() - startedAtMs);
+      }
+      if (toolId === RESULT_READ_TOOL.id) {
+        const result = await this.resultArtifacts.read(args, this.resultScope(event.sessionId, event.turnId));
+        return this.makeToolBody(context, 'completed', { status: 'completed', value: result }, 'completed', { toolCallId, toolId, effect: 'observe', argumentsSummary: '读取工具结果片段' }, 'completed', { toolCallId, toolId, resultStatus: 'completed', summary: '已读取结果片段' }, result, null, null, false, false, Date.now() - startedAtMs);
       }
       if (toolId === ASYNC_QUESTION_TOOL.id) {
         const result = await this.askAsyncQuestion(args, provenance, signal);
@@ -1621,6 +1660,10 @@ export class StudioConversationHost {
       args = queryArgs;
       stage = 'workflow';
       if (this.active) this.beforeProductTool(this.active.taskId, toolId, args, event.turnId, toolCallId);
+      if (definition?.effect === 'observe' && this.options.compactToolResults !== false) {
+        const reused = await this.resultArtifacts.reuse(toolId, args, this.resultScope(event.sessionId, event.turnId));
+        if (reused) return this.makeToolBody(context, 'completed', reused, 'completed', { toolCallId, toolId, effect: 'observe', argumentsSummary: toolArgumentSummary(toolId, args) }, 'completed', { toolCallId, toolId, resultStatus: 'completed', summary: '复用有效期内的已保存结果' }, reused, null, null, false, false, Date.now() - startedAtMs);
+      }
       stage = 'prepare';
       const preparation = await this.options.tools.prepare({ schemaVersion: 1, id: toolCallId, sessionId: event.sessionId, turnId: event.turnId, ...(this.active?.taskId ? { taskId: this.active.taskId } : {}), toolId, toolVersion: context.node.toolVersion, arguments: args }, signal);
       stage = 'approval'; if (preparation.approvalId && await this.awaitApproval(preparation, provenance, signal) === 'suspended') {
@@ -1628,6 +1671,7 @@ export class StudioConversationHost {
         return this.suspendedToolBody(context, 'tool-approval', Date.now() - startedAtMs);
       }
       stage = 'execute';
+      if (this.active) this.assertQuestionAllows(this.active.taskId, toolId, args);
       const auxiliary = toolId === 'official.web.search' ? `auxiliary:${toolCallId}` : null;
       if (auxiliary && !account.reserveAuxiliary(auxiliary, 2048)) {
         await this.options.tools.cancel(toolCallId);
@@ -1643,10 +1687,10 @@ export class StudioConversationHost {
       const body = this.toolResultBody(context, preparation, result, startedAtMs);
       return args.limit !== context.args.limit ? Object.freeze({ ...body, backendResult: Object.freeze({ ...body.backendResult, queryLimit: { requested: context.args.limit ?? null, appliedPageSize: args.limit ?? null, message: toolId === 'engine.docs.search' ? 'Allowance metadata only; these fields are not tool arguments. For another page, submit value.nextCall.arguments unchanged. Studio restores the saved search; do not invent query/count/cursor fields.' : 'Allowance metadata only; these fields are not tool arguments. Follow nextCursor with the original query arguments for remaining results; transport byte/page limits still apply.' } }) }) : body;
     } catch (cause) {
-      const diagnostic = Object.freeze({ code: errorCode(cause), message: errorMessage(cause) });
+      const diagnostic = Object.freeze({ code: errorCode(cause), message: errorMessage(cause), ...(cause instanceof GameToolProtocolError && cause.details ? { details: cause.details, retryable: cause.retryable } : {}) });
       await this.options.operationLog.append({ kind: 'conversation/tool-failed', severity: signal.aborted ? 'warning' : 'error', source: asStableId('studio.conversation-host'), correlation: { sessionId: event.sessionId, turnId: event.turnId, toolCallId }, payload: { toolId, stage, argumentKeys: Object.freeze(Object.keys(args).sort()), code: diagnostic.code, message: diagnostic.message } }).catch(() => undefined);
       const status: ToolBatchNodeStatus = signal.aborted ? 'cancelled' : 'failed';
-      return this.makeToolBody(context, status, Object.freeze({ status: 'failed', error: diagnostic }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, target: 'Current project', effect: context.node.executionClass, argumentsSummary: toolArgumentSummary(toolId, args) }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, resultStatus: status, summary: diagnostic.message }), null, null, `${toolId}: ${diagnostic.code}`, false, false, Date.now() - startedAtMs);
+      return this.makeToolBody(context, status, Object.freeze({ status: 'failed', error: diagnostic }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, target: 'Current project', effect: context.node.executionClass, argumentsSummary: toolArgumentSummary(toolId, args) }), status === 'cancelled' ? 'cancelled' : 'failed', Object.freeze({ toolCallId, toolId, resultStatus: status, summary: diagnostic.message, ...(cause instanceof GameToolProtocolError && cause.details ? { details: cause.details } : {}) }), null, null, `${toolId}: ${diagnostic.code}`, false, false, Date.now() - startedAtMs);
     }
   }
 
@@ -1667,6 +1711,13 @@ export class StudioConversationHost {
         await this.options.operationLog.append({ kind: 'agent/tool-result-projected', severity: 'info', source: asStableId('studio.conversation-host'),
           correlation: { sessionId: context.event.sessionId, turnId: context.event.turnId, toolCallId: context.toolCallId },
           payload: { toolId: context.toolId, projection: compacted === schemas ? 'native-schema-deduplication' : 'external-result-lossless', artifactId: artifact.id, originalBytes: Buffer.byteLength(canonicalStringify(original.backendResult)), projectedBytes: Buffer.byteLength(canonicalStringify(projected)) }, artifactRefs: [artifact.id] }, { signal });
+        body = Object.freeze({ ...body, backendResult: projected });
+      }
+    }
+    if (this.options.compactToolResults !== false && body.status === 'completed') {
+      const projected = await this.resultArtifacts.project(original.backendResult, context.toolId, context.args, this.resultScope(context.event.sessionId, context.event.turnId));
+      if (projected.projection === 'artifact-summary') {
+        await this.options.operationLog.append({ kind: 'agent/result-savings', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: context.event.sessionId, turnId: context.event.turnId, toolCallId: context.toolCallId }, payload: { originalBytes: Buffer.byteLength(canonicalStringify(body.backendResult)), projectedBytes: Buffer.byteLength(canonicalStringify(projected)) } });
         body = Object.freeze({ ...body, backendResult: projected });
       }
     }
@@ -2033,12 +2084,16 @@ export class StudioConversationHost {
     const handle = await this.ensureDurableSession(node.provenance.sessionId);
     const snapshot = await handle.snapshot();
     if (!snapshot.recovery.unresolvedBarrierIds.includes(approvalId)) throw new Error('Approval is stale or already resolved.');
-    await handle.append({ kind: 'approval.resolved', turnId: node.provenance.turnId, nodeId: node.id, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { approvalId, resolution: decision, denied: decision === 'reject', resolvedBy: 'user-after-restart', recovered: true } });
-    await handle.checkpoint();
     const run = this.taskRunFor(node.provenance.sessionId, node.provenance.turnId);
+    const resolved = { ...node, status: 'completed' as const, content: { ...node.content, documentId: node.content.documentId ?? snapshot.session.documentId ?? null, taskId: node.content.taskId ?? run?.taskId ?? null, decision } };
+    const resolution = { kind: 'approval.resolved', turnId: node.provenance.turnId, nodeId: node.id, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { approvalId, resolution: decision, denied: decision === 'reject', resolvedBy: 'user-after-restart', recovered: true } };
+    const continuation = decision !== 'reject' ? await this.appendContinuationResolution(handle, { ...resolution, kind: 'approval.resolved' }, resolved,
+      `The user approved ${String(node.content.toolId ?? 'the pending Studio tool')} after its durable barrier. Re-inspect the authoritative project revision, retry only that pending operation with the same arguments, and continue the already approved plan without repeating completed edits.`) : null;
+    if (!continuation) await handle.append({ ...resolution, kind: 'approval.resolved' });
+    await handle.checkpoint();
     this.project(node.id, 'approval', 'completed', node.provenance, Object.freeze({ ...node.content, documentId: node.content.documentId ?? snapshot.session.documentId ?? null, taskId: node.content.taskId ?? run?.taskId ?? null, decision }));
     if (run) this.updateTaskRun(run.taskId, decision === 'reject' ? { status: 'cancelled', phase: 'cancelled', resumable: false, terminalDiagnostic: 'approval.rejected-after-restart' } : { status: 'running', resumable: true, terminalDiagnostic: null }, { phase: decision === 'reject' ? 'cancelled' : run.phase, status: decision === 'reject' ? 'warning' : 'complete', title: decision === 'reject' ? '恢复后的授权已拒绝' : '恢复后的授权已确认', detail: decision === 'reject' ? '未提交工作已停止，已有产物保持不变。' : 'Studio 将从持久检查点重新校验并恢复。', turnId: node.provenance.turnId });
-    if (decision !== 'reject') this.scheduleRecoveredContinuation(node, `The user approved ${String(node.content.toolId ?? 'the pending Studio tool')} after its durable barrier. Re-inspect the authoritative project revision, retry only that pending operation with the same arguments, and continue the already approved plan without repeating completed edits.`, this.recoveredApprovedPlan(node.provenance), false);
+    if (continuation) this.queueContinuation(continuation);
   }
 
   private pendingAsyncQuestion(taskId: StableId): ConversationNodeReadModel | undefined {
@@ -2049,16 +2104,17 @@ export class StudioConversationHost {
     if (!this.options.asyncQuestions || !this.options.runtime.sessions || !this.active) throw new PlanProtocolError('question.unavailable', 'Asynchronous questions are not enabled.');
     if (this.queuedPrompts.some(prompt => prompt.recovered?.taskId === this.active?.taskId)) throw new PlanProtocolError('question.reply-queued', 'A reply is already queued for this task. Finish the current read-only work; the reply will enter the next turn.');
     const parsed = parseAsyncQuestion(args);
+    const blockedStepIds = validateQuestionSteps(this.active.approvedPlan?.items ?? [], parsed.blockedStepIds);
     const existing = this.pendingAsyncQuestion(this.active.taskId);
     if (existing) return { pending: true, questionId: existing.id, instruction: 'One question is already pending. Do not poll; continue independent reads or finish the turn.' };
     signal.throwIfAborted();
     const nodeId = this.nextNodeId('async-question');
-    const content: JsonObject = { asyncQuestion: true, taskId: this.active.taskId, prompt: parsed.prompt,
+    const content: JsonObject = { asyncQuestion: true, taskId: this.active.taskId, blockedStepIds: [...blockedStepIds], prompt: parsed.prompt,
       options: parsed.options.map((label, index) => ({ id: `${nodeId}:option:${index}`, label })), allowFreeform: true, multiple: false };
     await this.requestQuestionBarrier({ sessionId: provenance.sessionId, turnId: provenance.turnId, nodeId, kind: 'backend-question', reason: parsed.prompt, scopeDigest: sha256(canonicalStringify(content)) });
     this.project(nodeId, 'question', 'pending', provenance, content);
     await this.flushRecords();
-    return { pending: true, questionId: nodeId, instruction: 'No answer or authorization yet. Continue independent reads; editing waits for the reply. Finish when no independent work remains.' };
+    return { pending: true, questionId: nodeId, blockedStepIds: [...(questionBlockedSteps(this.active.approvedPlan?.items ?? [], blockedStepIds) ?? [])], instruction: 'No answer or authorization yet. Bound steps and their dependents wait. Continue independent reads or approved entity-local transform/material steps with disjoint scopes; mark the step in_progress first. Finish when no independent work remains.' };
   }
 
   private async resolveAsyncQuestion(nodeId: StableId, answer: JsonObject): Promise<void> {
@@ -2076,11 +2132,11 @@ export class StudioConversationHost {
       const amendment = questionAmendment(answer, node.content.options);
       await this.retainIntentAmendment(run.taskId, amendment);
       await handle.appendMessage({ role: 'user', content: `Async question ${nodeId}: ${amendment}`, turnId: node.provenance.turnId, projectRevision: this.options.projectContext?.()?.revision ?? null });
-      await handle.append({ kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(canonicalStringify(answer)), resolvedBy: 'user', asynchronous: true } });
+      const continuation = await this.appendContinuationResolution(handle, { kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(canonicalStringify(answer)), resolvedBy: 'user', asynchronous: true } }, { ...node, status: 'completed' }, `The user answered "${String(node.content.prompt)}": ${amendment}. Re-read authoritative state and incorporate this reply. Preserve completed work and existing approvals; this reply grants no tool or budget authorization.`);
       await handle.checkpoint();
-      if (this.cancelledAsyncTasks.has(run.taskId)) { this.finishNode(nodeId, 'cancelled'); return; }
+      if (this.cancelledAsyncTasks.has(run.taskId)) { await this.continuationState(continuation.id, 'cancelled'); this.finishNode(nodeId, 'cancelled'); return; }
       this.finishNode(nodeId, 'completed');
-      this.scheduleRecoveredContinuation(node, `The user answered "${String(node.content.prompt)}": ${amendment}. Re-read authoritative state and incorporate this reply. Preserve completed work and existing approvals; this reply grants no tool or budget authorization.`, this.recoveredApprovedPlan(node.provenance), false);
+      this.queueContinuation(continuation);
     } finally { this.resolvingAsyncQuestions.delete(nodeId); }
   }
 
@@ -2098,16 +2154,22 @@ export class StudioConversationHost {
     if (amendmentRun && typeof node.content.backendNodeId === 'string') await this.retainIntentAmendment(amendmentRun.taskId, questionAmendment(answer, node.content.options));
     const answerText = canonicalStringify(answer).slice(0, 8_192);
     await handle.appendMessage({ role: 'user', content: `Recovered barrier answer: ${answerText}`, turnId: node.provenance.turnId, projectRevision: this.options.projectContext?.()?.revision ?? null });
-    await handle.append({ kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(answerText), resolvedBy: 'user-after-restart', recovered: true } });
+    const optionIds = Array.isArray(answer.optionIds) ? answer.optionIds : [];
+    const budgetOptions = Array.isArray(node.content.options) ? node.content.options.filter(isRecord).filter(option => typeof option.id === 'string' && /budget-(?:continue|stop)/.test(option.id)) : [];
+    if (budgetOptions.length && (optionIds.length !== 1 || !budgetOptions.some(option => option.id === optionIds[0]))) throw new Error('Budget continuation answer is invalid.');
+    const stop = budgetOptions.length > 0 && String(optionIds[0]).includes('budget-stop');
+    const resolution = { kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(answerText), resolvedBy: 'user-after-restart', recovered: true } };
+    const budgetGranted = budgetOptions.length > 0 && String(optionIds[0]).includes('budget-continue');
+    const resolvedNode = { ...node, status: 'completed' as const, content: { ...node.content, ...(isRecord(quota) ? { queryLimit: { ...quota, selectedLimit: optionIds[0] === quota.expandOptionId ? quota.requested : quota.limit } as JsonObject } : {}) } };
+    const continuation = stop ? null : await this.appendContinuationResolution(handle, { ...resolution, kind: 'question.resolved' }, resolvedNode, `The user answered the durable ${String(node.content.prompt ?? 'Studio question')}: ${answerText}. ${isRecord(quota) ? `Retry ${quota.toolId} with the pending arguments ${quota.requestText}. Studio applies the selected quantity automatically; do not repeat this approval. ` : ''}Continue from the authoritative project and Session checkpoint without repeating completed edits.`, budgetGranted);
+    if (!continuation) await handle.append({ ...resolution, kind: 'question.resolved' });
     await handle.checkpoint();
     if (isRecord(quota)) this.recordQueryLimitAnswer(nodeId, answer);
     this.finishNode(nodeId, 'completed');
-    const optionIds = Array.isArray(answer.optionIds) ? answer.optionIds : [];
-    const stop = optionIds.some((id) => typeof id === 'string' && id.includes('budget-stop'));
     const run = this.barrierTaskRunFor(node.provenance);
     if (run) this.updateTaskRun(run.taskId, stop ? { status: 'cancelled', phase: 'cancelled', resumable: false, terminalDiagnostic: 'budget.stopped-after-restart' } : { status: 'running', resumable: true, terminalDiagnostic: null }, { phase: stop ? 'cancelled' : run.phase, status: stop ? 'warning' : 'complete', title: stop ? '已停止并保留结果' : '恢复后的问题已回答', detail: stop ? '所有已提交 transaction、产物和证据均已保留。' : 'Studio 将从持久检查点恢复。', turnId: node.provenance.turnId });
     if (run && /(?:^|:)turn:approved-plan:\d+$/u.test(node.provenance.turnId)) await this.finalizeSessionTurn(node.provenance.sessionId, node.provenance.turnId, stop ? 'cancelled' : 'completed', { reason: '用户停止续期，已完成修改保留。' });
-    if (!stop) this.scheduleRecoveredContinuation(node, `The user answered the durable ${String(node.content.prompt ?? 'Studio question')}: ${answerText}. ${isRecord(quota) ? `Retry ${quota.toolId} with the pending arguments ${quota.requestText}. Studio applies the selected quantity automatically; do not repeat this approval. ` : ''}Continue from the authoritative project and Session checkpoint without repeating completed edits.`, this.recoveredApprovedPlan(node.provenance), Array.isArray(node.content.options) && node.content.options.some((option) => isRecord(option) && typeof option.id === 'string' && option.id.includes('budget-continue')));
+    if (continuation) this.queueContinuation(continuation);
   }
 
   private async resolveRecoveredPlan(nodeId: StableId, acceptedItemIds: readonly StableId[], note: string | undefined, mode: 'approve' | 'revise'): Promise<void> {
@@ -2124,12 +2186,13 @@ export class StudioConversationHost {
     if (!snapshot.recovery.unresolvedBarrierIds.includes(nodeId)) throw new Error('Plan is stale or already resolved.');
     const resolution = Object.freeze({ mode, acceptedItemIds: Object.freeze([...accepted]), ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) });
     await handle.appendMessage({ role: 'user', content: `Recovered plan decision: ${canonicalStringify(resolution)}`, turnId: node.provenance.turnId, projectRevision: this.options.projectContext?.()?.revision ?? null });
-    await handle.append({ kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(canonicalStringify(resolution)), resolvedBy: 'user-after-restart', recovered: true } });
+    const resolved = { ...node, status: 'completed' as const, content: Object.freeze({ ...node.content, items: Object.freeze(items.map((item) => Object.freeze({ ...item, status: mode === 'approve' && typeof item.id === 'string' && accepted.has(asStableId(item.id)) ? 'accepted' : 'rejected' }))), decision: mode === 'approve' ? 'approved' : 'revision-requested', ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) }) };
+    const continuation = await this.appendContinuationResolution(handle, { kind: 'question.resolved', turnId: node.provenance.turnId, nodeId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { questionId: nodeId, resolution: 'answered', answerDigest: sha256(canonicalStringify(resolution)), resolvedBy: 'user-after-restart', recovered: true } }, resolved,
+      mode === 'approve' ? `The user approved the persisted plan${note?.trim() ? ` with this note: ${note.trim().slice(0, 1024)}` : ''}. Execute only accepted steps, revalidate revision and do not repeat completed edits.` : `The user requested a revised plan: ${note!.trim().slice(0, 1024)}. Re-plan without executing the rejected proposal.`, false, mode === 'approve' ? this.recoveredApprovedPlan(node.provenance, resolved) : null);
     await handle.checkpoint();
     this.project(node.id, 'plan', 'completed', node.provenance, Object.freeze({ ...node.content, items: Object.freeze(items.map((item) => Object.freeze({ ...item, status: mode === 'approve' && typeof item.id === 'string' && accepted.has(asStableId(item.id)) ? 'accepted' : 'rejected' }))), decision: mode === 'approve' ? 'approved' : 'revision-requested', ...(note?.trim() ? { note: note.trim().slice(0, 2_048) } : {}) }));
     const run = this.taskRunFor(node.provenance.sessionId, node.provenance.turnId); if (run) this.updateTaskRun(run.taskId, { status: 'running', phase: mode === 'approve' ? 'editing' : 'planning', resumable: true, terminalDiagnostic: null }, { phase: mode === 'approve' ? 'editing' : 'planning', status: 'complete', title: mode === 'approve' ? '恢复后的方案已批准' : '恢复后的方案要求修订', detail: 'Studio 将从持久检查点继续。', turnId: node.provenance.turnId });
-    const plan = mode === 'approve' ? this.recoveredApprovedPlan(node.provenance) : null;
-    this.scheduleRecoveredContinuation(node, mode === 'approve' ? `The user approved the persisted plan${note?.trim() ? ` with this note: ${note.trim().slice(0, 1_024)}` : ''}. Execute only the accepted steps, do not request the same plan again, and revalidate the current project revision before mutation.` : `The user requested a revised plan: ${note!.trim().slice(0, 1_024)}. Re-plan from the current authoritative project without executing the rejected proposal.`, plan, false);
+    this.queueContinuation(continuation);
   }
 
   private taskRunFor(sessionId: StableId, turnId: StableId): ConversationTaskRunReadModel | undefined { return [...this.taskRuns.values()].find((run) => run.sessionId === sessionId && run.turnId === turnId); }
@@ -2147,24 +2210,66 @@ export class StudioConversationHost {
     return [...this.taskRuns.values()].find(run => run.backendId === provenance.backendId && (run.taskId === budget.content.taskId || run.timeline.some(item => item.turnId === provenance.turnId && item.title === '预算检查点')));
   }
 
-  private scheduleRecoveredResume(provenance: ConversationNodeReadModel['provenance']): void {
-    if (this.active) return;
-    this.track(this.resume(provenance.backendId, provenance.sessionId, provenance.turnId).catch((cause) => this.captureFailure(provenance.backendId, cause, provenance.sessionId, provenance.turnId)));
+  private async appendContinuationResolution(handle: DurableSessionHandle, input: Parameters<DurableSessionHandle['append']>[0], node: ConversationNodeReadModel, instruction: string, budgetGranted = false, plan: ApprovedPlanExecution | null = this.recoveredApprovedPlan(node.provenance)): Promise<ContinuationRecord> {
+    const run = this.barrierTaskRunFor(node.provenance);
+    await this.flushRecords();
+    const record = parseContinuationRecord({ schemaVersion: 1, id: `continuation:${sha256(`${node.provenance.sessionId}:${node.id}`)}`, node,
+      taskId: run?.taskId ?? null, instruction, budgetGranted, plan });
+    const artifact = await this.options.operationLog.putArtifact(record as unknown as JsonObject, { schemaVersion: 'conversation-continuation/1' });
+    // The authorization decision and its continuation reference are ONE durable Session op.
+    await handle.append({ ...input, artifactRefs: [...(input.artifactRefs ?? []), artifact.id], payload: { ...input.payload, continuationId: record.id, continuationArtifactId: artifact.id } });
+    this.continuationRecords.set(record.id, record);
+    await handle.checkpoint();
+    return record;
   }
 
-  private scheduleRecoveredContinuation(node: ConversationNodeReadModel, instruction: string, plan: ApprovedPlanExecution | null, budgetGranted: boolean): void {
-    const run = this.barrierTaskRunFor(node.provenance);
-    if (!run) {
-      if (budgetGranted) throw new Error('Budget checkpoint task is unavailable. Continue from the latest task checkpoint.');
-      this.scheduleRecoveredResume(node.provenance); return;
-    }
-    this.queuedPrompts.unshift(Object.freeze({ backendId: node.provenance.backendId, prompt: instruction, recovered: Object.freeze({ taskId: run.taskId, instruction, plan, budgetGranted }) }));
+  private queueContinuation(record: ContinuationRecord): void {
+    if (this.continuationStates.has(record.id) || this.queuedPrompts.some(item => item.continuationId === record.id)) return;
+    const recovered = record.taskId ? { taskId: record.taskId, instruction: record.instruction, plan: record.plan, budgetGranted: record.budgetGranted } : undefined;
+    this.queuedPrompts.push(Object.freeze({ continuationId: record.id, backendId: record.node.provenance.backendId, prompt: record.instruction,
+      ...(recovered ? { recovered } : { resumeNode: record.node }) }));
     this.changed(); this.drainQueuedPrompts();
   }
 
-  private recoveredApprovedPlan(provenance: ConversationNodeReadModel['provenance']): ApprovedPlanExecution | null {
+  private async continuationState(id: StableId, state: 'claimed' | 'completed' | 'interrupted' | 'cancelled'): Promise<void> {
+    const record = this.continuationRecords.get(id); if (!record) throw new Error('continuation.record-missing');
+    await this.options.operationLog.append({ kind: 'conversation/continuation-state', severity: state === 'interrupted' ? 'warning' : 'info', source: asStableId('studio.conversation-host'),
+      correlation: { sessionId: record.node.provenance.sessionId, turnId: record.node.provenance.turnId }, payload: { continuationId: id, taskId: record.taskId, state } });
+    this.continuationStates.set(id, state);
+  }
+
+  private async restoreContinuations(): Promise<void> {
+    if (!this.projectionPersistenceAvailable()) return;
+    for await (const event of retainedOperationEvents(this.options.operationLog, ['agent/session-op', 'conversation/continuation-state'])) {
+      if (event.kind === 'conversation/continuation-state') {
+        if (typeof event.payload.continuationId === 'string' && ['claimed', 'completed', 'interrupted', 'cancelled'].includes(String(event.payload.state))) this.continuationStates.set(asStableId(event.payload.continuationId), String(event.payload.state));
+        continue;
+      }
+      const op = event.payload.sessionOp;
+      if (!isRecord(op) || !['question.resolved', 'approval.resolved'].includes(String(op.kind)) || !isRecord(op.payload) || typeof op.payload.continuationArtifactId !== 'string') continue;
+      const ref = asStableId(op.payload.continuationArtifactId);
+      if (!event.artifactRefs.includes(ref)) throw new Error('continuation.reference-invalid');
+      const record = parseContinuationRecord((await this.options.operationLog.readArtifact(ref)).value);
+      if (record.id !== op.payload.continuationId || record.node.provenance.sessionId !== op.sessionId || record.node.provenance.turnId !== op.turnId || record.node.id !== op.nodeId) throw new Error('continuation.provenance-invalid');
+      this.continuationRecords.set(record.id, record);
+    }
+    for (const record of this.continuationRecords.values()) {
+      const state = this.continuationStates.get(record.id);
+      if (state === 'completed' || state === 'cancelled') continue;
+      if (this.nodes.get(record.node.id)?.status !== 'completed') this.project(record.node.id, record.node.kind, 'completed', record.node.provenance, record.node.content);
+      if (record.taskId && this.taskRuns.get(record.taskId)?.terminalDiagnostic === 'task.cancelled') { await this.continuationState(record.id, 'cancelled'); continue; }
+      if (state) {
+        if (record.taskId && this.taskRuns.has(record.taskId)) this.updateTaskRun(record.taskId, { status: 'blocked', phase: 'blocked', resumable: true, terminalDiagnostic: 'continuation.interrupted' }, { phase: 'blocked', status: 'warning', title: '续跑已启动后中断', detail: '已保留用户决定与执行记录；请从检查点恢复，不能自动重放可能已执行的操作。', turnId: record.node.provenance.turnId });
+        else this.project(this.nextNodeId('continuation-interrupted'), 'diagnostic', 'completed', record.node.provenance, { code: 'continuation.interrupted', message: 'Continuation was claimed before restart. Resume from its recorded checkpoint; do not repeat external operations.', severity: 'warning', retryable: true });
+        continue;
+      }
+      this.queueContinuation(record);
+    }
+  }
+
+  private recoveredApprovedPlan(provenance: ConversationNodeReadModel['provenance'], resolvedPlan?: ConversationNodeReadModel): ApprovedPlanExecution | null {
     const run = this.barrierTaskRunFor(provenance);
-    const plan = [...this.nodes.values()].filter(candidate => candidate.kind === 'plan' && candidate.status === 'completed' && candidate.content.decision === 'approved'
+    const plan = resolvedPlan ?? [...this.nodes.values()].filter(candidate => candidate.kind === 'plan' && candidate.status === 'completed' && candidate.content.decision === 'approved'
       && (run ? candidate.content.taskId === run.taskId : candidate.provenance.sessionId === provenance.sessionId)).at(-1);
     if (!plan && !run?.acceptance.length) return null;
     const items = Array.isArray(plan?.content.items) ? plan.content.items.filter(isRecord).filter((item) => item.status === 'accepted').map((item, index) => Object.freeze({ id: typeof item.id === 'string' ? asStableId(item.id) : asStableId(`plan-item:recovered:${index + 1}`), label: typeof item.label === 'string' ? item.label.slice(0, 256) : `Recovered step ${index + 1}`, ...(typeof item.executionStatus === 'string' ? { executionStatus: item.executionStatus, executionSummary: String(item.executionSummary ?? '').slice(0, 512) } : {}), ...(typeof item.details === 'string' ? { details: item.details.slice(0, 2_048) } : {}), ...(isPlanTaskV1(item.execution) ? { execution: item.execution } : {}) })) : [];
@@ -2347,7 +2452,11 @@ export class StudioConversationHost {
     this.nodes.set(id, node);
     this.eventSequence += 1;
     this.events.push(Object.freeze({ schemaVersion: 1, sequence: this.eventSequence, source: 'live', node }));
-    if (this.events.length > 2_000) this.events.splice(0, this.events.length - 2_000);
+    if (this.events.length > 2_000) {
+      const cutoff = this.events.length - 2_000;
+      const retained = this.events.filter((event, index) => index >= cutoff || isRecord(event.node) && event.node.status === 'pending' && ['question', 'approval', 'plan'].includes(String(event.node.kind)) && typeof event.node.id === 'string' && (this.nodes.get(asStableId(event.node.id)) as unknown) === event.node);
+      this.events.splice(0, this.events.length, ...retained);
+    }
     if (kind === 'text' && status === 'streaming' && this.options.batchTextWrites !== false) {
       this.pendingTextProjections.set(id, { node, rawContent });
       this.textProjectionBytes += Math.max(0, Buffer.byteLength(String(content.text ?? '')) - Buffer.byteLength(String(previous?.content.text ?? '')));
@@ -2370,11 +2479,19 @@ export class StudioConversationHost {
   private durableBarrierMode(): boolean { return Boolean(this.options.sessionRecovery && this.options.runtime.sessions && this.projectionPersistenceAvailable()); }
 
   private drainQueuedPrompts(): void {
-    if (this.disposed || this.stopping || this.active || this.queuedPromptDrainActive || this.queuedPrompts.length === 0) return;
+    if (this.initializing || this.disposed || this.stopping || this.active || this.queuedPromptDrainActive || this.queuedPrompts.length === 0) return;
     const next = this.queuedPrompts.shift()!;
     this.queuedPromptDrainActive = true;
     this.changed();
-    const work = next.recovered ? this.startRecoveredContinuation(next.backendId, next.recovered) : this.start(next.backendId, next.prompt);
+    const work = (async () => {
+      if (next.continuationId) await this.continuationState(next.continuationId, 'claimed');
+      try {
+        if (next.recovered) await this.startRecoveredContinuation(next.backendId, next.recovered);
+        else if (next.resumeNode) await this.resume(next.backendId, next.resumeNode.provenance.sessionId, next.resumeNode.provenance.turnId);
+        else await this.start(next.backendId, next.prompt);
+        if (next.continuationId) await this.continuationState(next.continuationId, this.stopping ? 'interrupted' : 'completed');
+      } catch (cause) { if (next.continuationId) await this.continuationState(next.continuationId, 'interrupted'); throw cause; }
+    })();
     this.track(work.catch((cause) => this.captureFailure(next.backendId, cause)).finally(() => {
       this.queuedPromptDrainActive = false;
       this.changed();
@@ -2446,30 +2563,40 @@ export class StudioConversationHost {
 
   private async restoreProjection(): Promise<void> {
     if (!this.projectionPersistenceAvailable()) return;
-    const status = this.options.operationLog.status();
-    const afterSequence = status.nextSequence > 5_000 ? status.nextSequence - 5_001 : undefined;
-    let cursor: string | undefined;
-    const restored: ConversationNodeReadModel[] = [];
-    do {
-      const page = await this.options.operationLog.query({ kinds: ['conversation/node-projected'], limit: 200, traverseCorrelation: false, ...(afterSequence === undefined ? {} : { afterSequence }), ...(cursor ? { cursor } : {}) });
-      for (const event of page.events) {
-        const artifactId = event.artifactRefs[0]; if (!artifactId) continue;
+    type ProjectionFact = import('@haiyue/ai-studio-operation-log').DurableOperationEvent;
+    const recent = new Map<StableId, ProjectionFact>();
+    const pending = new Map<StableId, ProjectionFact>();
+    for await (const event of retainedOperationEvents(this.options.operationLog, ['conversation/node-projected'])) {
+      if (!event.artifactRefs[0]) continue;
+      let { nodeId, nodeKind, nodeStatus } = event.payload;
+      if (typeof nodeId !== 'string' || typeof nodeKind !== 'string' || typeof nodeStatus !== 'string') {
         try {
-          const node = normalizeConversationNode((await this.options.operationLog.readArtifact(artifactId)).value);
-          if (this.options.recordProjectId && (node.status === 'pending' || node.status === 'streaming') && typeof event.payload.executionDataArtifactId === 'string') {
-            const data = (await this.options.operationLog.readArtifact(asStableId(event.payload.executionDataArtifactId))).value;
-            if (isRecord(data)) this.pendingRecordContents.set(node.id, data as JsonObject);
-          } else this.pendingRecordContents.delete(node.id);
-          restored.push(node);
-        }
-        catch { /* A missing/corrupt artifact is already surfaced by Operation Log health and stays hidden from the renderer. */ }
+          const legacy = normalizeConversationNode((await this.options.operationLog.readArtifact(event.artifactRefs[0])).value);
+          nodeId = legacy.id; nodeKind = legacy.kind; nodeStatus = legacy.status;
+        } catch { continue; }
       }
-      cursor = page.nextCursor;
-    } while (cursor && restored.length < 2_000);
-    for (const node of restored.slice(-2_000)) {
+      const id = asStableId(nodeId as string);
+      recent.delete(id); recent.set(id, event);
+      if (recent.size > 2_000) recent.delete(recent.keys().next().value!);
+      if (['approval', 'question', 'plan'].includes(String(nodeKind)) && nodeStatus === 'pending') pending.set(id, event);
+      else pending.delete(id);
+      const suffix = Number(/:(\d+)$/u.exec(id)?.[1]);
+      if (Number.isSafeInteger(suffix)) this.nodeSequence = Math.max(this.nodeSequence, suffix);
+    }
+    const restored: ConversationNodeReadModel[] = [];
+    // Scan facts once, then hydrate only the recent transcript and unresolved interactions.
+    const selected = [...new Map([...recent, ...pending]).values()].sort((a, b) => a.sequence - b.sequence);
+    for (const event of selected) try {
+      const node = normalizeConversationNode((await this.options.operationLog.readArtifact(event.artifactRefs[0]!)).value);
+      if (this.options.recordProjectId && (node.status === 'pending' || node.status === 'streaming') && typeof event.payload.executionDataArtifactId === 'string') {
+        const data = (await this.options.operationLog.readArtifact(asStableId(event.payload.executionDataArtifactId))).value;
+        if (isRecord(data)) this.pendingRecordContents.set(node.id, data as JsonObject);
+      }
+      restored.push(node);
+    } catch { /* Operation Log health exposes corrupt artifacts; never infer an authorization. */ }
+    for (const node of restored) {
       this.nodes.set(node.id, node);
-      this.eventSequence += 1;
-      this.events.push(Object.freeze({ schemaVersion: 1, sequence: this.eventSequence, source: 'replay', node }));
+      this.events.push(Object.freeze({ schemaVersion: 1, sequence: ++this.eventSequence, source: 'replay', node }));
       const suffix = /:(\d+)$/u.exec(node.id)?.[1]; if (suffix) this.nodeSequence = Math.max(this.nodeSequence, Number(suffix));
     }
     for (const node of [...this.nodes.values()]) {
@@ -2523,9 +2650,14 @@ export class StudioConversationHost {
       requestedCapabilities: Object.freeze(['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] as const) });
   }
 
+  private assertQuestionAllows(taskId: StableId, toolId: StableId, args: JsonObject): void {
+    const question = this.pendingAsyncQuestion(taskId);
+    if ((question || this.queuedPrompts.some(prompt => prompt.recovered?.taskId === taskId)) && (toolId === 'task.evaluate' || this.options.tools.definitions().find(item => item.id === toolId)?.effect !== 'observe') && !(question && independentQuestionEdit(this.active?.approvedPlan?.items ?? [], question.content.blockedStepIds as string[] ?? [], toolId, args))) throw new PlanProtocolError('question.reply-required', 'An asynchronous clarification is pending. Continue independent read-only work or finish this turn; the reply will resume the task.');
+  }
+
   private beforeProductTool(taskId: StableId, toolId: StableId, args: JsonObject, turnId: StableId, toolCallId: StableId): void {
     if (['play.stop', 'preview.stop'].includes(toolId)) return;
-    if ((this.pendingAsyncQuestion(taskId) || this.queuedPrompts.some(prompt => prompt.recovered?.taskId === taskId)) && (toolId === 'task.evaluate' || this.options.tools.definitions().find(item => item.id === toolId)?.effect !== 'observe')) throw new PlanProtocolError('question.reply-required', 'An asynchronous clarification is pending. Continue independent read-only work or finish this turn; the reply will resume the task.');
+    this.assertQuestionAllows(taskId, toolId, args);
     if (this.invalidTaskIntents.has(taskId) && (toolId === 'task.evaluate' || this.options.tools.definitions().find(item => item.id === toolId)?.effect !== 'observe')) throw new PlaytestLoopError('intent.retained-invalid', 'Retained user constraints are unavailable. Recover their source before editing.');
     const intent = this.taskIntents.get(taskId);
     if (intent) {
@@ -2679,21 +2811,34 @@ export class StudioConversationHost {
 
   private async restoreTaskRuns(): Promise<void> {
     if (!this.projectionPersistenceAvailable()) return;
-    const events = await queryRetainedOperationEvents(this.options.operationLog, ['conversation/task-projected'], 5_000);
-    for (const event of events) {
+    const latest = new Map<string, import('@haiyue/ai-studio-operation-log').DurableOperationEvent>();
+    const intents = new Map<string, import('@haiyue/ai-studio-operation-log').DurableOperationEvent>();
+    for await (const event of retainedOperationEvents(this.options.operationLog, ['conversation/task-projected'])) {
+      if (typeof event.payload.taskId === 'string') {
+        latest.set(event.payload.taskId, event);
+        if (event.payload.intentArtifactId !== undefined) intents.set(event.payload.taskId, event);
+      }
+      else if (event.artifactRefs[0]) try {
+        // Legacy projections did not index their task id in the event payload.
+        const run = normalizeTaskRun((await this.options.operationLog.readArtifact(event.artifactRefs[0])).value);
+        latest.set(run.taskId, event);
+      } catch { /* Corrupt legacy artifacts do not restore a task. */ }
+    }
+    for (const event of latest.values()) {
       const id = event.artifactRefs[0]; if (!id) continue;
       try {
         const run = normalizeTaskRun((await this.options.operationLog.readArtifact(id)).value); const prior = this.taskRuns.get(run.taskId);
         if (run.sessionId && run.updatedAt > (this.restoredGraphSessions.get(run.sessionId) ?? '')) this.restoredGraphSessions.set(run.sessionId, run.updatedAt);
         if (!prior || run.revision > prior.revision) {
           this.taskRuns.set(run.taskId, run);
-          if (event.payload.intentArtifactId !== undefined) {
+          const intentEvent = event.payload.intentArtifactId !== undefined ? event : intents.get(run.taskId);
+          if (intentEvent) {
             this.invalidTaskIntents.add(run.taskId);
-            if (typeof event.payload.intentArtifactId !== 'string' || !event.artifactRefs.includes(asStableId(event.payload.intentArtifactId))) throw new Error('Unreferenced retained intent.');
-            const retained = (await this.options.operationLog.readArtifact(asStableId(event.payload.intentArtifactId))).value;
+            if (typeof intentEvent.payload.intentArtifactId !== 'string' || !intentEvent.artifactRefs.includes(asStableId(intentEvent.payload.intentArtifactId))) throw new Error('Unreferenced retained intent.');
+            const retained = (await this.options.operationLog.readArtifact(asStableId(intentEvent.payload.intentArtifactId))).value;
             if (!isTaskIntent(retained)) throw new Error('Invalid retained intent.');
             this.taskIntents.set(run.taskId, taskIntent(retained.request, retained.selection, retained.revision, retained.amendments, retained.documentId));
-            if (Number.isSafeInteger(event.payload.intentGuardRevision) && Number(event.payload.intentGuardRevision) >= (retained.revision ?? 0)) this.intentGuardRevisions.set(run.taskId, Number(event.payload.intentGuardRevision));
+            if (Number.isSafeInteger(intentEvent.payload.intentGuardRevision) && Number(intentEvent.payload.intentGuardRevision) >= (retained.revision ?? 0)) this.intentGuardRevisions.set(run.taskId, Number(intentEvent.payload.intentGuardRevision));
             this.invalidTaskIntents.delete(run.taskId);
           }
         }
@@ -2787,6 +2932,12 @@ export class StudioConversationHost {
     }
   }
 
+  private resultScope(sessionId: StableId, turnId: StableId): ResultScope {
+    const project = this.options.projectContext?.();
+    return { sessionId, turnId, documentId: project?.documentId ?? null, revision: project?.revision ?? null,
+      permissions: sha256(canonicalStringify(this.options.tools.definitions() as unknown as JsonValue)) };
+  }
+
   private modelTools(request: string, selectedIds?: readonly StableId[], project?: ContextProjectSnapshot | null): AgentTurnInput['tools'] {
     const registered = new Map(this.options.tools.definitions().map(definition => [definition.id, definition]));
     const definitions = selectedIds ? selectedIds.flatMap(id => { const definition = registered.get(id); return definition ? [definition] : []; })
@@ -2798,7 +2949,8 @@ export class StudioConversationHost {
       concurrency: toolConcurrencyHint(registered.get(definition.id)),
     }));
     tools.push(MODEL_TOOL_BATCH_DEFINITION);
-    if (this.options.subtasks?.enabled) tools.push(SUBTASK_TOOL);
+    if (this.options.compactToolResults !== false) tools.push(RESULT_READ_TOOL);
+    if (this.options.subtasks?.enabled || this.options.subtaskFactory) tools.push(SUBTASK_TOOL);
     if (this.options.experimentalTeam && /team|团队|协作|并行/i.test(request)) tools.push(TEAM_STATUS_TOOL);
     if (this.options.asyncQuestions && this.options.runtime.sessions) tools.push(ASYNC_QUESTION_TOOL);
     if (definitions.some((definition) => definition.id === 'tool.search')) tools.push(Object.freeze({ ...MODEL_TOOL_INVOKE_DEFINITION, concurrency: invocationConcurrencyHint([...registered.values()]) }));

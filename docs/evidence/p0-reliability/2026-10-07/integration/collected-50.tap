@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: confirmed exact working set avoids repeat queries; scope, revision, owner, manifest and provider epoch fence reuse
+ok 1 - confirmed exact working set avoids repeat queries; scope, revision, owner, manifest and provider epoch fence reuse
+  ---
+  duration_ms: 3461.076975
+  type: 'test'
+  ...
+# Subtest: truncated working sets and changed project identity are never treated as complete confirmed context
+ok 2 - truncated working sets and changed project identity are never treated as complete confirmed context
+  ---
+  duration_ms: 1221.434518
+  type: 'test'
+  ...
+# Subtest: knowledge deduplicates ranking changes only after confirmation; CAS digest supports W3 hydration and restart
+ok 3 - knowledge deduplicates ranking changes only after confirmation; CAS digest supports W3 hydration and restart
+  ---
+  duration_ms: 3305.641425
+  type: 'test'
+  ...
+# Subtest: router deduplicates equivalent knowledge ranges but validates all permissions and keeps distinct ranges
+ok 4 - router deduplicates equivalent knowledge ranges but validates all permissions and keeps distinct ranges
+  ---
+  duration_ms: 409.495274
+  type: 'test'
+  ...
+# Subtest: a failed durable context commit never confirms a working-set or knowledge transmission
+ok 5 - a failed durable context commit never confirms a working-set or knowledge transmission
+  ---
+  duration_ms: 912.065485
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10445.746252

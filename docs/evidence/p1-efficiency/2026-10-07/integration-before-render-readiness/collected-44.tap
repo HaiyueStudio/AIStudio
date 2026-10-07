@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: identical TaskRun patches have no revision, notification or durable-write cost; timeline facts remain
+ok 1 - identical TaskRun patches have no revision, notification or durable-write cost; timeline facts remain
+  ---
+  duration_ms: 151.639302
+  type: 'test'
+  ...
+# Subtest: 100 live text updates use two durable projections with terminal recovery and full execution data
+ok 2 - 100 live text updates use two durable projections with terminal recovery and full execution data
+  ---
+  duration_ms: 201.686751
+  type: 'test'
+  ...
+# Subtest: dispose flushes an unfinished text checkpoint and fallback persists every delta
+ok 3 - dispose flushes an unfinished text checkpoint and fallback persists every delta
+  ---
+  duration_ms: 387.100024
+  type: 'test'
+  ...
+# Subtest: only a successful changed document revision marks a result for editor refresh
+ok 4 - only a successful changed document revision marks a result for editor refresh
+  ---
+  duration_ms: 25.103739
+  type: 'test'
+  ...
+# Subtest: tool boundaries wait for text checkpoints only, without joining unrelated history writes
+ok 5 - tool boundaries wait for text checkpoints only, without joining unrelated history writes
+  ---
+  duration_ms: 132.706257
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1852.28624

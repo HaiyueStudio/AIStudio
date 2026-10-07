@@ -1,0 +1,172 @@
+TAP version 13
+# Subtest: one turn exposes stable model rounds for repeated tool exchanges and the final reply
+ok 1 - one turn exposes stable model rounds for repeated tool exchanges and the final reply
+  ---
+  duration_ms: 110.314118
+  type: 'test'
+  ...
+# Subtest: projects a deterministic graph, transcript and modification evidence chain
+ok 2 - projects a deterministic graph, transcript and modification evidence chain
+  ---
+  duration_ms: 23.998581
+  type: 'test'
+  ...
+# Subtest: shows actual overlapping tool intervals as parallel and preserves dependency order
+ok 3 - shows actual overlapping tool intervals as parallel and preserves dependency order
+  ---
+  duration_ms: 6.296859
+  type: 'test'
+  ...
+# Subtest: keeps barriers, compaction and outcome-unknown visible in graph and transcript
+ok 4 - keeps barriers, compaction and outcome-unknown visible in graph and transcript
+  ---
+  duration_ms: 9.857459
+  type: 'test'
+  ...
+# Subtest: reports sequence gaps and dangling references without crashing
+ok 5 - reports sequence gaps and dangling references without crashing
+  ---
+  duration_ms: 2.951189
+  type: 'test'
+  ...
+# Subtest: projects a 1000-tool graph within a bounded unit-test budget
+ok 6 - projects a 1000-tool graph within a bounded unit-test budget
+  ---
+  duration_ms: 799.370203
+  type: 'test'
+  ...
+# Subtest: session history orders actual execution time instead of unrelated operation counts
+ok 7 - session history orders actual execution time instead of unrelated operation counts
+  ---
+  duration_ms: 48.545199
+  type: 'test'
+  ...
+# Subtest: a task retains its full chain when an approval continuation starts a new provider session
+ok 8 - a task retains its full chain when an approval continuation starts a new provider session
+  ---
+  duration_ms: 29.93867
+  type: 'test'
+  ...
+# Subtest: task membership separates different requests that reuse one provider session, even with identical titles
+ok 9 - task membership separates different requests that reuse one provider session, even with identical titles
+  ---
+  duration_ms: 25.528634
+  type: 'test'
+  ...
+# Subtest: legacy sessions stay inspectable and invalid task membership is rejected
+ok 10 - legacy sessions stay inspectable and invalid task membership is rejected
+  ---
+  duration_ms: 14.076378
+  type: 'test'
+  ...
+# Subtest: current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors
+ok 11 - current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors
+  ---
+  duration_ms: 17.736593
+  type: 'test'
+  ...
+# Subtest: plan answers without barrierKind finish the original review and release the active frontier on replay
+ok 12 - plan answers without barrierKind finish the original review and release the active frontier on replay
+  ---
+  duration_ms: 21.04834
+  type: 'test'
+  ...
+# Subtest: answers only resolve the matching question and retain genuinely pending user input
+ok 13 - answers only resolve the matching question and retain genuinely pending user input
+  ---
+  duration_ms: 4.165948
+  type: 'test'
+  ...
+# Subtest: terminal details retain explicit causes and aggregate only matching structural children on replay
+ok 14 - terminal details retain explicit causes and aggregate only matching structural children on replay
+  ---
+  duration_ms: 10.659878
+  type: 'test'
+  ...
+# Subtest: terminal detail handles structured diagnostics, missing historical causes and successful retry
+ok 15 - terminal detail handles structured diagnostics, missing historical causes and successful retry
+  ---
+  duration_ms: 14.331572
+  type: 'test'
+  ...
+# Subtest: a late budget answer cannot reopen a released turn; only turn.started can resume execution
+ok 16 - a late budget answer cannot reopen a released turn; only turn.started can resume execution
+  ---
+  duration_ms: 11.767502
+  type: 'test'
+  ...
+# Subtest: assistant text does not finish a turn before the explicit terminal event
+ok 17 - assistant text does not finish a turn before the explicit terminal event
+  ---
+  duration_ms: 3.133248
+  type: 'test'
+  ...
+# Subtest: blocked acceptance keeps the goal active while its current turn works, then shows the actual blocker
+ok 18 - blocked acceptance keeps the goal active while its current turn works, then shows the actual blocker
+  ---
+  duration_ms: 23.023732
+  type: 'test'
+  ...
+# Subtest: blocked goal shows its current human barrier, without treating a released provider as active work
+ok 19 - blocked goal shows its current human barrier, without treating a released provider as active work
+  ---
+  duration_ms: 4.213345
+  type: 'test'
+  ...
+# Subtest: old or unrelated active turns cannot revive a stopped task, and explicit host failure remains failed
+ok 20 - old or unrelated active turns cannot revive a stopped task, and explicit host failure remains failed
+  ---
+  duration_ms: 9.855005
+  type: 'test'
+  ...
+# Subtest: persisted confirmation checkpoints project waiting, approved continuation, completion and rejection
+ok 21 - persisted confirmation checkpoints project waiting, approved continuation, completion and rejection
+  ---
+  duration_ms: 71.229978
+  type: 'test'
+  ...
+# Subtest: legacy checkpoint marker requires a correlated barrier and never masks an explicit cancellation or failure
+ok 22 - legacy checkpoint marker requires a correlated barrier and never masks an explicit cancellation or failure
+  ---
+  duration_ms: 8.212262
+  type: 'test'
+  ...
+# Subtest: PNG storage errors keep their concrete cause while active acceptance stays in progress
+ok 23 - PNG storage errors keep their concrete cause while active acceptance stays in progress
+  ---
+  duration_ms: 12.280325
+  type: 'test'
+  ...
+# Subtest: siblings align with their first child and reserve all rows of preceding branches
+ok 24 - siblings align with their first child and reserve all rows of preceding branches
+  ---
+  duration_ms: 8.975284
+  type: 'test'
+  ...
+# Subtest: branch layout handles shared dependencies, filtering and collapsed tools without overlap
+ok 25 - branch layout handles shared dependencies, filtering and collapsed tools without overlap
+  ---
+  duration_ms: 7.47798
+  type: 'test'
+  ...
+# Subtest: model rounds show their public explanation and exact tool intent/results without cross-turn leakage
+ok 26 - model rounds show their public explanation and exact tool intent/results without cross-turn leakage
+  ---
+  duration_ms: 8.237094
+  type: 'test'
+  ...
+# Subtest: node content accepts legacy projections and rejects malformed or unbounded detail fields
+ok 27 - node content accepts legacy projections and rejects malformed or unbounded detail fields
+  ---
+  duration_ms: 13.717793
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1895.880776

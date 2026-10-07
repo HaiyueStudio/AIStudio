@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: catalog projection removes only identical native schemas and keeps discovery invocation and pagination
+ok 1 - catalog projection removes only identical native schemas and keeps discovery invocation and pagination
+  ---
+  duration_ms: 7.991468
+  type: 'test'
+  ...
+# Subtest: projection hints preserve the complete next-step contract, source, evidence and diagnostics
+ok 2 - projection hints preserve the complete next-step contract, source, evidence and diagnostics
+  ---
+  duration_ms: 2.290773
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3557.192422

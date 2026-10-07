@@ -6,6 +6,7 @@ import path from 'node:path';
 import { asStableId } from '@haiyue/ai-studio-contracts';
 import {
   OperationLog,
+  scanRetainedEvents,
   OperationLogError,
   canonicalStringify,
   createOperationLogPlugin,
@@ -70,6 +71,11 @@ test('sequence windows keep large retained journals within the query scan budget
   const middle = await log.query({ ...allQuery, afterSequence: 0, beforeSequence: 4 });
   assert.equal(middle.scanned, 3);
   assert.deepEqual(middle.events.map((item) => item.sequence), [1, 2, 3]);
+  const scanned=[];
+  for await (const item of scanRetainedEvents(log,['document/command-committed'])) scanned.push(item.sequence);
+  assert.deepEqual(scanned,[0,1,2,3,4,5]);
+  const increment=[];for await (const item of scanRetainedEvents(log,['document/command-committed'],4)) increment.push(item.sequence);
+  assert.deepEqual(increment,[4,5]);
   await log.close();
 });
 

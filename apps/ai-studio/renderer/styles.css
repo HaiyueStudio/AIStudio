@@ -313,6 +313,7 @@ header { background: var(--studio-surface-elevated); border-color: var(--studio-
 .chat-attention-list { margin: 0; padding: 0; min-height: 0; overflow: auto; list-style: none; }
 .chat-attention-list > .chat-card:first-child { margin-top: 0; }
 .chat-attention .chat-card-content > p { max-height: 5em; overflow: auto; overflow-wrap: anywhere; }
+.chat-attention .chat-card[data-kind="plan"] .chat-card-content > p { max-height: 3em; }
 .chat-feed { min-height: 0; max-height: none; margin: 0; }
 .chat-card { padding: 0; border-left: 0; background: transparent; }
 .chat-card-content { padding: 7px; border-left: 3px solid color-mix(in srgb, var(--studio-accent) 72%, var(--studio-border)); border-radius: 7px; background: color-mix(in srgb, var(--studio-surface) 88%, var(--studio-accent)); }
@@ -325,8 +326,9 @@ header { background: var(--studio-surface-elevated); border-color: var(--studio-
 .chat-plan-items li { padding: 7px; border: 1px solid var(--studio-border); border-radius: 6px; background: var(--studio-input); }
 .chat-plan-items label { display: flex; gap: 7px; align-items: center; cursor: pointer; }
 .chat-plan-items p { margin: 5px 0 0 24px; color: var(--studio-text-secondary); }
-.chat-plan-review { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: end; margin: 7px 0; padding: 7px; border: 1px solid var(--studio-border-strong); border-radius: 6px; background: var(--studio-surface); box-shadow: 0 4px 12px color-mix(in srgb, #000 24%, transparent); }
-.chat-plan-review textarea { grid-column: 1 / -1; min-height: 54px; resize: vertical; border: 1px solid var(--studio-border-strong); border-radius: 5px; background: var(--studio-input); color: var(--studio-text); padding: 7px; }
+.chat-plan-review { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; align-items: end; margin: 7px 0; padding: 7px; border: 1px solid var(--studio-border-strong); border-radius: 6px; background: var(--studio-surface); box-shadow: 0 4px 12px color-mix(in srgb, #000 24%, transparent); }
+.chat-plan-review > p { grid-column: 1 / -1; margin: 0; }
+.chat-plan-review textarea { grid-column: 1 / -1; min-height: 44px; resize: vertical; border: 1px solid var(--studio-border-strong); border-radius: 5px; background: var(--studio-input); color: var(--studio-text); padding: 7px; }
 .chat-jump-latest { color: var(--studio-accent); }
 #logs-panel { margin: 0; border: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); color: var(--studio-text-secondary); }
 #logs-panel .panel-tools { padding: 8px; flex-wrap: wrap; }
@@ -577,3 +579,10 @@ body[data-page="play"] #app { display: none; }
 .execution-detail-section { margin: 1em 0; }
 .execution-detail-section > strong { display: block; margin-bottom: .4em; color: var(--studio-text-secondary); }
 .transcript-item > .studio-markdown { display: block; }
+
+/* Tool settings share the dialog form without forcing long capability text into its compact label column. */
+#tool-settings { min-width: 0; }
+.settings-form #tool-settings label { grid-template-columns: 24px minmax(0, 1fr); margin: 8px 0; }
+#tool-settings input[type="checkbox"] { width: 18px; }
+.settings-form #tool-settings .tool-backend-setting { display: grid; grid-template-columns: minmax(0, 1fr); }
+#tool-settings p, #tool-settings span { overflow-wrap: anywhere; }

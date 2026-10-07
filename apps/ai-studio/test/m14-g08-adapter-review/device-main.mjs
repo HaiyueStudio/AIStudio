@@ -74,7 +74,8 @@ app.whenReady().then(async () => {
     await writeFile(path.join(output, `${fixture.kind}-window.png`), (await window.webContents.capturePage()).toPNG());
     const capture = await command('capture');
     assert.equal(capture.tick, 20); assert.ok(capture.byteLength > 1000);
-    const png = Buffer.from(capture.base64, 'base64'); assert.equal(png.readUInt32BE(16), 480); assert.equal(png.readUInt32BE(20), 320);
+    // Analysis screenshots retain half-size pixels; simulation and viewport stay 480 x 320.
+    const png = Buffer.from(capture.base64, 'base64'); assert.equal(png.readUInt32BE(16), 240); assert.equal(png.readUInt32BE(20), 160);
     const bitmap = nativeImage.createFromBuffer(png).toBitmap(); let bluePixels = 0, whitePixels = 0;
     for (let i = 0; i < bitmap.length; i += 4) {
       if (bitmap[i] > 160 && bitmap[i + 1] > 60 && bitmap[i + 2] < 80) bluePixels++;

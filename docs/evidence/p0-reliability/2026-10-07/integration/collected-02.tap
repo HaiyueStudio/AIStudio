@@ -1,0 +1,17 @@
+TAP version 13
+# [agent-preview-ui] evidence: /private/tmp/haiyue-preview-owner-ui-5nQkZe
+# Subtest: production preview controls distinguish Agent ownership and restore manual input
+ok 1 - production preview controls distinguish Agent ownership and restore manual input
+  ---
+  duration_ms: 7926.690171
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8463.498393

@@ -1,3 +1,4 @@
+export { scanRetainedEvents } from './retained-events.js';
 export { canonicalStringify, sha256 } from './canonical.js';
 export { OperationLogPolicyError, redactJson, redactObject } from './redaction.js';
 export { OperationLog, OperationLogError } from './operation-log.js';
@@ -14,3 +15,4 @@ export type { OperationLogService } from './plugin.js';
 export type * from './types.js';
 export * from './behavior-history.js';
 export { projectLogQuery } from './project-query.js';
+export { createTeamSessionJournal } from './team-session-journal.js';

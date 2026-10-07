@@ -1,0 +1,5 @@
+import { mountToolSettings } from '../../dist/tool-settings-ui.js';
+let language='zh-CN';window.toolRequests=[];
+const settings={preferences:{web:true,browser:false,node:true,browserBackend:'playwright'},active:{web:true,browser:false,node:true,browserBackend:'playwright'},restartRequired:false,capabilities:{web:{enabled:true,backend:'deepseek/http',reason:'ready; search requires credentials'},browser:{enabled:false,backend:'playwright',reason:'browser-executable-unavailable'},node:{enabled:true,backend:'restricted-node',reason:'ready'},parallel:{enabled:false,backend:'candidate-only',reason:'qualification-bundle-unavailable'}}};
+const view=mountToolSettings(document,document.querySelector('main'),{language:()=>language,async invoke(method,payload){window.toolRequests.push({method,payload});if(method==='tools/configure')return {...settings,preferences:payload.preferences,restartRequired:true};return settings;}});
+window.toolEnglish=()=>{language='en';view.refreshLocale();};window.toolDispose=()=>view.dispose();

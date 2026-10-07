@@ -1,21 +1,21 @@
 {
-  "schemaVersion": 1,
-  "verifiedAt": "2026-10-06",
+  "schemaVersion": 2,
   "candidate": "0.2.1-alpha.1",
   "productionUpgraded": false,
-  "report": {
-    "candidate": "0.2.1-alpha.1",
-    "installExitCode": 0,
-    "testExitCode": 0,
-    "productionLockUnchanged": true,
-    "scope": "isolated compiled bridge compatibility; no paid provider, GUI or production upgrade",
-    "passed": true
+  "validationReport": {
+    "path": "docs/evidence/p2-experimental/2026-10-07/alpha/report.json",
+    "schemaVersion": 2,
+    "requiredStages": [
+      "install",
+      "app-build",
+      "source-typecheck",
+      "bridge",
+      "restore",
+      "process-matrix"
+    ],
+    "rule": "Read passed and every stage result from the report; a report reference is not an admission grant."
   },
-  "tests": {
-    "passed": 56,
-    "failed": 0
-  },
-  "candidateLockSha256": "6c31d6500768031e0c8fa5527a8321d305ee3a01a52f289328d16f8ad59a953d",
+  "candidateLockSha256": "fb720a5537f2f9585475582c56a709e9feccf66e012817777b8e7bbc39b74fd3",
   "packages": [
     {
       "name": "@deepseek-ai/cordis",
@@ -284,9 +284,9 @@
     }
   ],
   "limitations": [
-    "compiled bridge runtime probe only",
-    "no alpha app typecheck",
-    "no paid provider calls",
-    "no alpha Electron/browser/Node process matrix"
+    "local macOS process matrix only; no Windows acceptance",
+    "no paid provider calls or real-provider parallel qualification",
+    "no native Team or Stagehand runtime admission",
+    "production still uses the rc.2 closure"
   ]
 }

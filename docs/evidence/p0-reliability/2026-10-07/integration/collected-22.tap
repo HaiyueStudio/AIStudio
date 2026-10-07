@@ -1,0 +1,48 @@
+TAP version 13
+# material test process started
+# material test app ready
+# material test loading host
+# material test preparing author
+# material test starting preview
+# [material-window] preview event started 
+# [material-window] preview event state 
+# material test capturing
+# [material-window] preview event paused 
+# [material-window] preview event inspection 
+# [material-window] preview event state 
+# [material-window] preview event stepped 
+# [material-window] preview event inspection 
+# [material-window] preview event capture 
+# [material-window] preview event cleanup-complete 
+# {"root":"/private/tmp/haiyue-material-cursor-wYEVQD","previewPixels":{"yellow":68679,"dark":20921,"blue":0,"dominant":[167,139,89]},"authorPixels":{"yellow":63248,"dark":26352,"blue":0,"dominant":[167,139,89]},"cursor":true,"cleanup":true}
+# material test process started
+# material test app ready
+# material test loading host
+# material test preparing author
+# material test starting preview
+# [material-window] preview event started 
+# [material-window] preview event state 
+# material test capturing
+# [material-window] preview event paused 
+# [material-window] preview event inspection 
+# [material-window] preview event state 
+# [material-window] preview event stepped 
+# [material-window] preview event inspection 
+# [material-window] preview event capture 
+# [material-window] preview event cleanup-complete 
+# {"root":"/private/tmp/haiyue-material-cursor-wYEVQD","previewPixels":{"yellow":68679,"dark":20921,"blue":0,"dominant":[167,139,89]},"authorPixels":{"yellow":63248,"dark":26352,"blue":0,"dominant":[167,139,89]},"cursor":true,"cleanup":true}
+# Subtest: authoring and isolated Play display the same grid texture; agent pointer states align and release
+ok 1 - authoring and isolated Play display the same grid texture; agent pointer states align and release
+  ---
+  duration_ms: 10174.732751
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10865.91084

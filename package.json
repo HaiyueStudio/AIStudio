@@ -129,7 +129,23 @@
     "@deepseek-ai/dsh-web-search-deepseek": "0.2.0-rc.2",
     "@deepseek-ai/dsh-win32-process": "0.2.0-rc.2",
     "@playwright/mcp": "0.0.80",
-    "@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp": "0.2.0-rc.2"
+    "@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-experimental-agent-team": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-subagent": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-chunked-list": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-util-time": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-commands": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-compaction": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-compaction-image-offload": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format-catalog": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format-v0-to-v1": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format-v1-to-v2": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format-v2-to-v3": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format-v3-to-v4": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-query": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-title": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tool-todo": "0.2.0-rc.2"
   },
   "allowScripts": {
     "electron@43.5.1": true

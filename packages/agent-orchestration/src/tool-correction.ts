@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from '@haiyue/ai-studio-contracts';
+import { isOfficialToolReceiptV1, type JsonObject, type JsonValue } from '@haiyue/ai-studio-contracts';
 import type { GameToolDefinition } from '@haiyue/ai-studio-game-authoring-tools';
 import { redactObject } from '@haiyue/ai-studio-operation-log';
 import { isRecord, stringField } from './value-utils.js';
@@ -28,7 +28,7 @@ export function toolCorrectionGuidance(code: string): string | null {
 export function toolFailureFeedback(result: JsonObject, definition?: Pick<GameToolDefinition, 'id' | 'version' | 'inputSchema'>): JsonObject {
   if (result.status !== 'failed') return {};
   const raw = isRecord(result.error) ? result.error : isRecord(result.value) ? result.value : {};
-  const error = redactObject({ code: stringField(raw.code, 'tool.failed').slice(0, 160), message: stringField(raw.message, 'Tool failed without a diagnostic.').slice(0, 2048), retryable: raw.retryable === true }).value;
+  const error = redactObject({ code: stringField(raw.code, 'tool.failed').slice(0, 160), message: stringField(raw.message, 'Tool failed without a diagnostic.').slice(0, 2048), retryable: raw.retryable === true, ...receiptFeedback(raw) }).value;
   const instruction = toolCorrectionGuidance(String(error.code));
   const contract = error.code === 'tool.arguments-invalid' && definition ? correctionContract(definition, String(error.message)) : null;
   return { error, ...(instruction ? { correction: { action: 'revise-and-resubmit', instruction, automaticReplay: false, ...(contract ? { toolContract: contract } : {}) } } : {}) };
@@ -69,4 +69,17 @@ export function interactionDiagnosticFeedback(result: JsonObject): JsonObject {
     mismatches: Array.isArray(d.mismatches) ? d.mismatches.slice(0, 2).map(x => String(x).slice(0, 200)) : [],
     nextAction: String(d.nextAction ?? '').slice(0, 600), repeatedFailureCount: typeof d.repeatedFailureCount === 'number' ? d.repeatedFailureCount : 0,
   }).value };
+}
+
+/** Outcome receipts are control evidence and must survive summary/digest projection. */
+function receiptFeedback(error: JsonObject): JsonObject {
+  if (!['official.result-unavailable', 'official.execution-outcome-unresolved'].includes(String(error.code)) || !isRecord(error.details) || !isRecord(error.details.executionReceipt)) return {};
+  const raw = error.details.executionReceipt;
+  const receipt = redactObject({ schemaVersion: raw.schemaVersion, execution: raw.execution, delivery: raw.delivery, reason: raw.reason,
+    ...(typeof raw.preview === 'string' ? { preview: raw.preview.slice(0, 8192) } : {}) } as JsonObject).value;
+  if (!isOfficialToolReceiptV1(receipt)) return {};
+  const ref = raw.artifactRef;
+  const artifactRef = isRecord(ref) && typeof ref.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(ref.id) && typeof ref.digest === 'string' && /^[a-f0-9]{64}$/.test(ref.digest) ? { id: ref.id, digest: ref.digest } : null;
+  return { details: { executionReceipt: { ...receipt, ...(typeof raw.callId === 'string' ? { callId: raw.callId.slice(0, 128) } : {}), ...(artifactRef ? { artifactRef } : {}) },
+    instruction: 'Do not repeat this operation automatically; inspect its receipt and current state.' } };
 }

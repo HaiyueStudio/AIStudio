@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: catalog projects frozen four-kind contracts from actual registry and Document without changing History
+ok 1 - catalog projects frozen four-kind contracts from actual registry and Document without changing History
+  ---
+  duration_ms: 845.803593
+  type: 'test'
+  ...
+# Subtest: Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
+ok 2 - Lighting template, unsupported preset, real instance and environment asset follow separate existing workflows and reopen
+  ---
+  duration_ms: 3593.885009
+  type: 'test'
+  ...
+# Subtest: unknown usage, partial component references and zero references cannot be confused by unused filtering
+ok 3 - unknown usage, partial component references and zero references cannot be confused by unused filtering
+  ---
+  duration_ms: 3896.307233
+  type: 'test'
+  ...
+# Subtest: forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
+ok 4 - forged kinds, references, operations, versions, getters and stale bindings never reach mutation ports
+  ---
+  duration_ms: 1253.207309
+  type: 'test'
+  ...
+# Subtest: missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+ok 5 - missing and replaced bytes retain manifest identity, show failure, block assignment and can be rechecked
+  ---
+  duration_ms: 2128.775372
+  type: 'test'
+  ...
+# Subtest: project inventory excludes templates and duplicate entities, follows tools, undo, redo and project replacement
+ok 6 - project inventory excludes templates and duplicate entities, follows tools, undo, redo and project replacement
+  ---
+  duration_ms: 4064.094522
+  type: 'test'
+  ...
+# Subtest: identical geometry resources group uses and stay stable across rename and copy-on-write edits
+ok 7 - identical geometry resources group uses and stay stable across rename and copy-on-write edits
+  ---
+  duration_ms: 1859.590475
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18602.344819

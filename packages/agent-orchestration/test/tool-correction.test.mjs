@@ -80,9 +80,9 @@ test('compact failed tool delivery attaches a contract only for the exact dispat
   const context = { toolId: definition.id, toolCallId: 'call:repair', toolNodeId: 'node:repair', args: { requestedCount: 3 }, node: { outputProjection: 'digest-only', toolVersion: definition.version },
     event: { backendId: 'backend:test', sessionId: 'session:test', turnId: 'turn:test' }, provenance: {}, backend: { async submitToolResult(_id, result) { delivered.push(result); } } };
   const body = host.makeToolBody(context, 'failed', { status: 'failed', error: { code: 'tool.arguments-invalid', message: 'Use limit, not requestedCount.' } }, 'failed', {}, 'failed', {}, null, null, null, false, false, 1);
-  await host.commitToolBody({ outputBytes: 0 }, context, body, new AbortController().signal);
+  await host.commitToolBody({ outputBytes: 0, bodies: [] }, context, body, new AbortController().signal);
   assert.deepEqual(delivered[0].correction.toolContract.inputSchema, definition.inputSchema);
-  await host.commitToolBody({ outputBytes: 0 }, { ...context, node: { ...context.node, toolVersion: '0.0.0' } }, body, new AbortController().signal);
+  await host.commitToolBody({ outputBytes: 0, bodies: [] }, { ...context, node: { ...context.node, toolVersion: '0.0.0' } }, body, new AbortController().signal);
   assert.equal(delivered[1].correction.toolContract, undefined);
 });
 
@@ -133,7 +133,7 @@ test('real tool commit returns failure feedback to backend; corrected success cl
   host.project=(...args)=>projected.push(args);
   const context={toolId:failure.toolId,toolCallId:'call:bad',toolNodeId:'node:bad',args:{title:'Cube'},node:{outputProjection:'digest-only'},event:{backendId:'backend:test',sessionId:'session:test',turnId:'turn:test'},provenance:{backendId:'backend:test',sessionId:'session:test',turnId:'turn:test'},backend:{async submitToolResult(id,result){delivered.push({id,result});}}};
   const body={status:'failed',backendResult:{status:'failed',error:{code:failure.code,message:failure.message}},toolCallStatus:'failed',toolCallContent:{},resultStatus:'failed',resultContent:{summary:failure.message},resultValue:null,fact:null,blocker:`${failure.toolId}: ${failure.code}`,mutation:false,cancelTurnAfterCommit:false,latencyMs:1,finishedAt:new Date().toISOString()};
-  const batch={outputBytes:0}; const signal=new AbortController().signal;
+  const batch={outputBytes:0,bodies:[]}; const signal=new AbortController().signal;
   await host.commitToolBody(batch,context,body,signal);
   assert.equal(delivered[0].result.error.message,failure.message);
   assert.equal(delivered[0].result.correction.action,'revise-and-resubmit');
@@ -160,7 +160,7 @@ test('evaluation budget checkpoint is delivered and opens continuation instead o
   const signal=new AbortController().signal;
   const body=await host.executeToolBody(context,signal);
   assert.equal(body.resultValue.code,'budget.continuation-required');
-  await host.commitToolBody({outputBytes:0},context,body,signal);
+  await host.commitToolBody({outputBytes:0,bodies:[]},context,body,signal);
   assert.equal(executed,0);assert.equal(cancellations,1);assert.equal(delivered[0].status,'cancelled');
   await host.captureEvent({}, {...context.event,kind:'completed',payload:{status:'cancelled'}},signal);
   assert.equal(asked,1);assert.equal(host.taskRuns.get('task:correction').status,'running');
@@ -176,12 +176,12 @@ test('failed/cancelled evaluation payloads are not consumed; completed results s
  for(const status of ['failed','cancelled']){
   const value={code:status==='cancelled'?'barrier.waiting-user':'evaluation.evidence-selection-invalid',message:'not an evaluation'};
   const body=host.makeToolBody(context,status,{status,value},status,{},status,{},value,null,null,false,false,1);
-  await host.commitToolBody({outputBytes:0},context,body,signal);
+  await host.commitToolBody({outputBytes:0,bodies:[]},context,body,signal);
  }
  assert.equal(captured.length,0);
  const value={schemaVersion:2,status:'pass'};
  const body=host.makeToolBody(context,'completed',{status:'completed',value},'completed',{},'completed',{},value,null,null,false,false,1);
- const projected=await host.commitToolBody({outputBytes:1024*1024},context,body,signal);
+ const projected=await host.commitToolBody({outputBytes:1024*1024,bodies:[]},context,body,signal);
  assert.equal(projected.status,'failed');assert.deepEqual(captured[0][2],value);
 });
 
@@ -207,4 +207,13 @@ test('the reported missing predicate reaches the model and schedules bounded cor
  const corrected={...input,acceptance:[{...input.acceptance[0],assertion:{type:'state',signal:'state.entities.0.rotation',operator:'equals',expected:[0,0,0]}}]};
  const result=validatePlanProposal(corrected);assert.equal(result.acceptance.length,1);assert.equal(result.acceptance[0].required,true);
  assert.equal(result.acceptance[0].assertion,'evidence state signal state.entities.0.rotation equals [0,0,0]');
+});
+
+test('outcome receipts survive every error projection and never trigger automatic correction',()=>{
+ const result={status:'failed',error:{code:'official.result-unavailable',message:'Already executed',retryable:false,details:{executionReceipt:{schemaVersion:1,execution:'completed',delivery:'unavailable',reason:'oversized-result',preview:'Created 42',artifactRef:{id:'artifact:receipt',digest:'a'.repeat(64)}}}}};
+ for(const mode of ['summary','digest-only']){
+  const value=projectToolModelResult(result,mode);assert.equal(value.error.details.executionReceipt.execution,'completed');
+  assert.equal(value.error.details.executionReceipt.artifactRef.id,'artifact:receipt');assert.equal(value.error.retryable,false);assert.equal(value.correction,undefined);
+ }
+ assert.equal(toolCorrectionGuidance('official.result-unavailable'),null);
 });

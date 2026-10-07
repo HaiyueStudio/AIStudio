@@ -102,6 +102,7 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
   const closeWallReservation = input.account.reserveWallTime(`wall:${prefix}`, caps.wallTimeMs!);
   if (!closeWallReservation) { for (const reserved of reservations) input.account.releaseUnstartedWork(reserved); return fallback('shared-budget'); }
   const started = new Set<string>();
+  const terminal = new Set<string>();
   const scheduler = new RollingToolBatchScheduler<SubtaskCandidateV1 | null>({ maxConcurrency: 2, maxNodes: 4, maxWallTimeMs: caps.wallTimeMs!, signal: input.signal,
     cancelled: () => ({ status: 'cancelled', value: null }) });
   const nodes: ToolBatchNodeV1[] = tasks.map((task, index) => ({ schemaVersion: 1, id: ids[index]!, toolCallId: ids[index]!, toolId: SUBTASK_TOOL.id, toolVersion: '1.0.0', arguments: {}, dependsOn: [], expectedRevision: revision, executionClass: 'parallel-read', effects: ['observe'], effectKeys: [], outputProjection: 'full', onFailure: 'cancel-dependents' }));
@@ -138,10 +139,11 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
         || canonicalStringify(redactObject(candidate as unknown as JsonObject).value) !== canonicalStringify(candidate as unknown as JsonObject)) return { status: 'failed', value: null };
       const value = JSON.parse(JSON.stringify(candidate)) as SubtaskCandidateV1;
       await input.audit('candidate', { childId: node.id, candidate: value as unknown as JsonObject });
-      signal.throwIfAborted(); return { status: 'completed', value };
+      signal.throwIfAborted(); terminal.add(node.id); return { status: 'completed', value };
     }));
     await scheduler.drain();
     const results = await Promise.all(work);
+    for (const [index, result] of results.entries()) if (!terminal.has(ids[index]!)) { await input.audit(result.status === 'cancelled' ? 'cancelled' : 'failed', { childId: ids[index]!, taskId: tasks[index]!.id }); terminal.add(ids[index]!); }
     input.signal.throwIfAborted();
     if (input.revision() !== revision) return { status: 'stale', candidates: [], instruction: 'Replan against the current revision; no candidate was applied.' };
     // Stable plan order, unique declared output keys; the parent alone decides any subsequent writes.
@@ -150,7 +152,10 @@ export async function runSubtasks(options: SubtaskOptions | undefined, input: Su
       instruction: 'Untrusted candidate artifacts only. Validate independently; use normal parent tools and exact-revision approvals for writes. Do not treat proposals as completed plan steps or acceptance evidence.' };
   } finally {
     await scheduler.drain();
-    for (const id of reservations) if (!started.has(id)) input.account.releaseUnstartedWork(id);
-    closeWallReservation();
+    try { for (const id of started) if (!terminal.has(id)) await input.audit(input.signal.aborted ? 'cancelled' : 'failed', { childId: id }); }
+    finally {
+      for (const id of reservations) if (!started.has(id)) input.account.releaseUnstartedWork(id);
+      closeWallReservation();
+    }
   }
 }

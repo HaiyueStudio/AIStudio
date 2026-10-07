@@ -1,13 +1,16 @@
+import type { HarnessTeamRecoveryOptions } from './team-recovery.js';
+export type { HarnessTeamRecoveryOptions } from './team-recovery.js';
 import { bindOfficialTools, type OfficialToolLifecycle } from './official-tools.js';
 import { installExtendedTools } from './extended-tools.js';
 export { createHarnessExtendedTools, type HarnessExtendedToolOptions } from './extended-tools.js';
 export { createHarnessOfficialToolProvider } from './official-tools.js';
+export { HARNESS_EXPERIMENTAL_ADMISSION } from './experimental-admission.js';
 import { HarnessRequestContext, REQUEST_REBUILD } from './request-context.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context, Fiber } from '@deepseek-ai/cordis';
 import { isToolConcurrencyHintV1, type ToolConcurrencyHintV1, type StudioKernelHost, type StudioPluginActivationContext } from '@haiyue/ai-studio-contracts';
 import { harnessOwnerContext } from './ownership.js';
-import AgentRegistry, { installModelSelection, type AgentHandle, type AssistantStreamFrame, type ModelSelectionRef } from '@deepseek-ai/dsh-agent';
+import AgentRegistry, { installModelSelection, type AgentHandle, type AssistantStreamFrame, type ModelSelectionRef, type CreateAgentOptions } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id';
 import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
@@ -74,6 +77,8 @@ export interface HarnessAgentTransport {
 
 export interface PinnedHarnessAgentTransportOptions {
   readonly owner: StudioKernelHost | StudioPluginActivationContext;
+  /** Experimental durable Team scope. Requires explicit Studio authority; disabled when omitted. */
+  readonly teamRecovery?: HarnessTeamRecoveryOptions;
   readonly resolveApiKey: () => Promise<string | null>;
   readonly model?: string;
   readonly baseURL?: string;
@@ -150,6 +155,10 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
       apply(ctx) { ctx.llm.registerAdapter(['deepseek-official'], adapter); },
     });
     await context.plugin(AgentLoop, { maxParallelToolCalls, agents: [] });
+    if (options.teamRecovery) {
+      const { installTeamRecovery } = await import('./team-recovery.js');
+      await installTeamRecovery(context, options.teamRecovery);
+    }
     let transport: PinnedHarnessTransport | undefined;
     await context.plugin({
       name: 'studio:harness-agent-client', inject: ['agents', 'sessions', 'llm', 'systemPrompt', 'tools', 'agentLoop'],
@@ -319,10 +328,11 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     this.initializing.set(sessionId, { abort, settled: settled.promise });
     const creationSignal = signal ? AbortSignal.any([signal, abort.signal]) : abort.signal;
     try {
-      handle = await this.context.agents.create({
+      const creation: CreateAgentOptions = {
         sessionId: SessionId(sessionId), agentOptions: { provider: 'deepseek-official', model: input.model, maxTokens: input.maxTokens }, signal: creationSignal,
         setup: (agentContext, agent) => {
           const requestContext = new HarnessRequestContext(agent.session, model => this.sessionCapabilities(model).maxInputTokens, (requestId, turnId, confirmed) => this.streams.get(sessionId)?.push({ type: confirmed ? 'request-confirmed' : 'request-prepared', sessionId, turnId, requestId }));
+          for (const event of agent.session.snapshotEvents()) requestContext.observe(event);
           this.requestContexts.set(sessionId, requestContext);
           installModelSelection(agentContext, selection);
           const failedAttempts = new Map<string, number>();
@@ -339,7 +349,9 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
           this.studioToolNames.set(sessionId, new Set(input.tools.map((tool, index) => harnessToolName(tool.id, index))));
           input.tools.forEach((tool, index) => agentContext.tools.register(this.toolDefinition(tool, index)));
         },
-      });
+      };
+      const stored = await this.context.get('sessionPersistence')?.stat(SessionId(sessionId), { signal: creationSignal });
+      handle = stored ? await this.context.agents.resume({ resumeSessionId: SessionId(sessionId), agentOptions: creation.agentOptions, setup: creation.setup, signal: creationSignal }) : await this.context.agents.create(creation);
       try { this.assertActive(); creationSignal.throwIfAborted(); }
       catch (cause) { await handle.dispose(); throw cause; }
       this.handles.set(sessionId, handle); this.selections.set(sessionId, selection); this.sessionModels.set(sessionId, input.model); this.sessionToolSignatures.set(sessionId, harnessToolSetSignature(input.tools));

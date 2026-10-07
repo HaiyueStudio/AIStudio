@@ -1,0 +1,526 @@
+TAP version 13
+# Subtest: official native tool through real Host: read
+ok 1 - official native tool through real Host: read
+  ---
+  duration_ms: 7603.247482
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: approve
+ok 2 - official native tool through real Host: approve
+  ---
+  duration_ms: 8602.194245
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: reject
+ok 3 - official native tool through real Host: reject
+  ---
+  duration_ms: 8045.511554
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: budget
+ok 4 - official native tool through real Host: budget
+  ---
+  duration_ms: 7140.063354
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: cancel
+ok 5 - official native tool through real Host: cancel
+  ---
+  duration_ms: 5941.616437
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: auxiliary
+ok 6 - official native tool through real Host: auxiliary
+  ---
+  duration_ms: 6158.710289
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: auxiliary-budget
+ok 7 - official native tool through real Host: auxiliary-budget
+  ---
+  duration_ms: 5823.531449
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: deduplicate
+ok 8 - official native tool through real Host: deduplicate
+  ---
+  duration_ms: 7153.57965
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: deduplicate-off
+ok 9 - official native tool through real Host: deduplicate-off
+  ---
+  duration_ms: 7166.217109
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: oversized
+ok 10 - official native tool through real Host: oversized
+  ---
+  duration_ms: 6105.323877
+  type: 'test'
+  ...
+# Subtest: question validation and Team admission never manufacture an answer or qualification
+ok 11 - question validation and Team admission never manufacture an answer or qualification
+  ---
+  duration_ms: 7.318599
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (live)
+ok 12 - nonblocking question continues reads and resumes exact owner once (live)
+  ---
+  duration_ms: 3603.457957
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (late)
+ok 13 - nonblocking question continues reads and resumes exact owner once (late)
+  ---
+  duration_ms: 4443.621195
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (restart)
+ok 14 - nonblocking question continues reads and resumes exact owner once (restart)
+  ---
+  duration_ms: 5155.349686
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (cancel)
+ok 15 - nonblocking question continues reads and resumes exact owner once (cancel)
+  ---
+  duration_ms: 2545.271871
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (active-restart)
+ok 16 - nonblocking question continues reads and resumes exact owner once (active-restart)
+  ---
+  duration_ms: 4689.008321
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (cancel-race)
+ok 17 - nonblocking question continues reads and resumes exact owner once (cancel-race)
+  ---
+  duration_ms: 2995.857356
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (queued-restart)
+ok 18 - nonblocking question continues reads and resumes exact owner once (queued-restart)
+  ---
+  duration_ms: 4369.595245
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (resolution-crash)
+ok 19 - nonblocking question continues reads and resumes exact owner once (resolution-crash)
+  ---
+  duration_ms: 4669.001364
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (claimed-crash)
+ok 20 - nonblocking question continues reads and resumes exact owner once (claimed-crash)
+  ---
+  duration_ms: 5392.783121
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (long-history)
+ok 21 - nonblocking question continues reads and resumes exact owner once (long-history)
+  ---
+  duration_ms: 93978.782858
+  type: 'test'
+  ...
+# Subtest: nonblocking question continues reads and resumes exact owner once (duplicate-answer)
+ok 22 - nonblocking question continues reads and resumes exact owner once (duplicate-answer)
+  ---
+  duration_ms: 2716.213524
+  type: 'test'
+  ...
+# Subtest: continuation payload validates versions, ownership IDs, terminal decisions and secret-free content
+ok 23 - continuation payload validates versions, ownership IDs, terminal decisions and secret-free content
+  ---
+  duration_ms: 12.709257
+  type: 'test'
+  ...
+# Subtest: failed tool projections retain diagnostics and correction instructions while successful payloads remain compact
+ok 24 - failed tool projections retain diagnostics and correction instructions while successful payloads remain compact
+  ---
+  duration_ms: 18.322204
+  type: 'test'
+  ...
+# Subtest: reported malformed acceptance item gives precise repair instructions without silently changing requirements
+ok 25 - reported malformed acceptance item gives precise repair instructions without silently changing requirements
+  ---
+  duration_ms: 12.719653
+  type: 'test'
+  ...
+# Subtest: argument repair includes exact registry fields and enums without another discovery call
+ok 26 - argument repair includes exact registry fields and enums without another discovery call
+  ---
+  duration_ms: 2.056801
+  type: 'test'
+  ...
+# Subtest: large repair schemas remain bounded and explicitly partial; no values or references are invented
+ok 27 - large repair schemas remain bounded and explicitly partial; no values or references are invented
+  ---
+  duration_ms: 1.632898
+  type: 'test'
+  ...
+# Subtest: compact failed tool delivery attaches a contract only for the exact dispatched version
+ok 28 - compact failed tool delivery attaches a contract only for the exact dispatched version
+  ---
+  duration_ms: 14.302148
+  type: 'test'
+  ...
+# Subtest: ending after a correctable tool failure schedules a budgeted continuation and preserves failure history
+ok 29 - ending after a correctable tool failure schedules a budgeted continuation and preserves failure history
+  ---
+  duration_ms: 3.394136
+  type: 'test'
+  ...
+# Subtest: backend completion enters correction before the task is marked blocked
+ok 30 - backend completion enters correction before the task is marked blocked
+  ---
+  duration_ms: 2.684546
+  type: 'test'
+  ...
+# Subtest: automatic correction respects cancellation, human barriers, other failures and configured budgets
+ok 31 - automatic correction respects cancellation, human barriers, other failures and configured budgets
+  ---
+  duration_ms: 5.099596
+  type: 'test'
+  ...
+# Subtest: real tool commit returns failure feedback to backend; corrected success clears only the resolved blocker
+ok 32 - real tool commit returns failure feedback to backend; corrected success clears only the resolved blocker
+  ---
+  duration_ms: 2.729358
+  type: 'test'
+  ...
+# Subtest: evaluation budget checkpoint is delivered and opens continuation instead of parsing a diagnostic as evaluation
+ok 33 - evaluation budget checkpoint is delivered and opens continuation instead of parsing a diagnostic as evaluation
+  ---
+  duration_ms: 4.78275
+  type: 'test'
+  ...
+# Subtest: failed/cancelled evaluation payloads are not consumed; completed results survive model projection limits
+ok 34 - failed/cancelled evaluation payloads are not consumed; completed results survive model projection limits
+  ---
+  duration_ms: 3.273679
+  type: 'test'
+  ...
+# Subtest: a successful gesture with failed behavior retains compact diagnostics and gets evidence-led correction
+ok 35 - a successful gesture with failed behavior retains compact diagnostics and gets evidence-led correction
+  ---
+  duration_ms: 4.295684
+  type: 'test'
+  ...
+# Subtest: the reported missing predicate reaches the model and schedules bounded correction before task failure
+ok 36 - the reported missing predicate reaches the model and schedules bounded correction before task failure
+  ---
+  duration_ms: 4.624185
+  type: 'test'
+  ...
+# Subtest: outcome receipts survive every error projection and never trigger automatic correction
+ok 37 - outcome receipts survive every error projection and never trigger automatic correction
+  ---
+  duration_ms: 2.336937
+  type: 'test'
+  ...
+# Subtest: official tools share discovery, exact schema/version validation, preparation, approval and durable results
+ok 38 - official tools share discovery, exact schema/version validation, preparation, approval and durable results
+  ---
+  duration_ms: 1468.051331
+  type: 'test'
+  ...
+# Subtest: official reject never reaches provider and cannot be reused
+ok 39 - official reject never reaches provider and cannot be reused
+  ---
+  duration_ms: 724.165327
+  type: 'test'
+  ...
+# Subtest: official cancel never reaches provider and cannot be reused
+ok 40 - official cancel never reaches provider and cannot be reused
+  ---
+  duration_ms: 674.765453
+  type: 'test'
+  ...
+# Subtest: official exact authorization becomes stale after document change and cannot join a Document transaction
+ok 41 - official exact authorization becomes stale after document change and cannot join a Document transaction
+  ---
+  duration_ms: 899.954016
+  type: 'test'
+  ...
+# Subtest: official cancel drains the provider without late success
+ok 42 - official cancel drains the provider without late success
+  ---
+  duration_ms: 771.088752
+  type: 'test'
+  ...
+# Subtest: official timeout drains the provider without late success
+ok 43 - official timeout drains the provider without late success
+  ---
+  duration_ms: 1674.182825
+  type: 'test'
+  ...
+# Subtest: official dispose drains the provider without late success
+ok 44 - official dispose drains the provider without late success
+  ---
+  duration_ms: 734.835642
+  type: 'test'
+  ...
+# Subtest: official schemas reject forged policy/credentials; outputs are bounded and redacted before delivery
+ok 45 - official schemas reject forged policy/credentials; outputs are bounded and redacted before delivery
+  ---
+  duration_ms: 759.530116
+  type: 'test'
+  ...
+# Subtest: cancelling an official call while queued prevents its body after the prior operation drains
+ok 46 - cancelling an official call while queued prevents its body after the prior operation drains
+  ---
+  duration_ms: 904.167185
+  type: 'test'
+  ...
+# Subtest: official log failure releases acquired effect locks without executing the provider
+ok 47 - official log failure releases acquired effect locks without executing the provider
+  ---
+  duration_ms: 770.69476
+  type: 'test'
+  ...
+# Subtest: official large output fails safely before model-visible completion
+ok 48 - official large output fails safely before model-visible completion
+  ---
+  duration_ms: 691.411477
+  type: 'test'
+  ...
+# Subtest: official error output fails safely before model-visible completion
+ok 49 - official error output fails safely before model-visible completion
+  ---
+  duration_ms: 691.206182
+  type: 'test'
+  ...
+# Subtest: official results reject non-JSON values instead of silently converting or dropping them
+ok 50 - official results reject non-JSON values instead of silently converting or dropping them
+  ---
+  duration_ms: 662.771407
+  type: 'test'
+  ...
+# Subtest: official provider failure envelopes become failed Host executions, not completed calls
+ok 51 - official provider failure envelopes become failed Host executions, not completed calls
+  ---
+  duration_ms: 773.88699
+  type: 'test'
+  ...
+# Subtest: script error diagnostics are bounded and redacted: repairable error
+ok 52 - script error diagnostics are bounded and redacted: repairable error
+  ---
+  duration_ms: 690.540112
+  type: 'test'
+  ...
+# Subtest: script error diagnostics are bounded and redacted: secret
+ok 53 - script error diagnostics are bounded and redacted: secret
+  ---
+  duration_ms: 719.847171
+  type: 'test'
+  ...
+# Subtest: reviewed MCP Draft 2020 schema accepts valid calls and rejects additional arguments
+ok 54 - reviewed MCP Draft 2020 schema accepts valid calls and rejects additional arguments
+  ---
+  duration_ms: 851.501712
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (oversized)
+ok 55 - uncertain external receipt survives recreation and blocks repeat (oversized)
+  ---
+  duration_ms: 860.424841
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (unsupported)
+ok 56 - uncertain external receipt survives recreation and blocks repeat (unsupported)
+  ---
+  duration_ms: 842.759974
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (unknown)
+ok 57 - uncertain external receipt survives recreation and blocks repeat (unknown)
+  ---
+  duration_ms: 759.585794
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (cancelled)
+ok 58 - uncertain external receipt survives recreation and blocks repeat (cancelled)
+  ---
+  duration_ms: 735.881581
+  type: 'test'
+  ...
+# Subtest: successful external calls can be deliberately repeated, and not-started receipts release the guard
+ok 59 - successful external calls can be deliberately repeated, and not-started receipts release the guard
+  ---
+  duration_ms: 1297.471103
+  type: 'test'
+  ...
+# Subtest: native schemas are hidden; only selected Studio wrappers reach the model and execute the full official pipeline once
+ok 60 - native schemas are hidden; only selected Studio wrappers reach the model and execute the full official pipeline once
+  ---
+  duration_ms: 376.125916
+  type: 'test'
+  ...
+# Subtest: raw, unknown, nested and schema-drift dispatch cannot bypass the Host
+ok 61 - raw, unknown, nested and schema-drift dispatch cannot bypass the Host
+  ---
+  duration_ms: 53.808168
+  type: 'test'
+  ...
+# Subtest: cancel drains official work and prevents late success
+ok 62 - cancel drains official work and prevents late success
+  ---
+  duration_ms: 66.231217
+  type: 'test'
+  ...
+# Subtest: closeSession drains official work and prevents late success
+ok 63 - closeSession drains official work and prevents late success
+  ---
+  duration_ms: 67.633401
+  type: 'test'
+  ...
+# Subtest: dispose drains official work and prevents late success
+ok 64 - dispose drains official work and prevents late success
+  ---
+  duration_ms: 51.054638
+  type: 'test'
+  ...
+# Subtest: official pre/post policies remain authoritative and errors expose no raw provider diagnostics
+ok 65 - official pre/post policies remain authoritative and errors expose no raw provider diagnostics
+  ---
+  duration_ms: 53.946885
+  type: 'test'
+  ...
+# Subtest: nested Studio wrappers from official pre-policy are rejected before they can wait on the Host
+ok 66 - nested Studio wrappers from official pre-policy are rejected before they can wait on the Host
+  ---
+  duration_ms: 67.386206
+  type: 'test'
+  ...
+# Subtest: oversized native output reports completed execution with a bounded receipt
+ok 67 - oversized native output reports completed execution with a bounded receipt
+  ---
+  duration_ms: 55.10941
+  type: 'test'
+  ...
+# Subtest: native policy receipts distinguish preflight refusal from uncertain post-execution effects
+ok 68 - native policy receipts distinguish preflight refusal from uncertain post-execution effects
+  ---
+  duration_ms: 42.818031
+  type: 'test'
+  ...
+# Subtest: concurrent append is monotonic and restart replay equals the live projection
+ok 69 - concurrent append is monotonic and restart replay equals the live projection
+  ---
+  duration_ms: 1075.685445
+  type: 'test'
+  ...
+# Subtest: sequence windows keep large retained journals within the query scan budget
+ok 70 - sequence windows keep large retained journals within the query scan budget
+  ---
+  duration_ms: 188.364508
+  type: 'test'
+  ...
+# Subtest: exact approval and tool lookups use bounded indexes across large journals and restart
+ok 71 - exact approval and tool lookups use bounded indexes across large journals and restart
+  ---
+  duration_ms: 644.188636
+  type: 'test'
+  ...
+# Subtest: source redaction, taint, immutable artifacts and bug bundle contain no secret canary
+ok 72 - source redaction, taint, immutable artifacts and bug bundle contain no secret canary
+  ---
+  duration_ms: 232.997999
+  type: 'test'
+  ...
+# Subtest: offline bug bundle verification rejects artifact tampering
+ok 73 - offline bug bundle verification rejects artifact tampering
+  ---
+  duration_ms: 215.494818
+  type: 'test'
+  ...
+# Subtest: artifact references are persist-before-reference and approved reads are capability bounded
+ok 74 - artifact references are persist-before-reference and approved reads are capability bounded
+  ---
+  duration_ms: 80.094819
+  type: 'test'
+  ...
+# Subtest: partial crash tail is quarantined, reported and recovered without losing committed events
+ok 75 - partial crash tail is quarantined, reported and recovered without losing committed events
+  ---
+  duration_ms: 148.939966
+  type: 'test'
+  ...
+# Subtest: derived index failure stays writable and the journal rebuilds the projection on restart
+ok 76 - derived index failure stays writable and the journal rebuilds the projection on restart
+  ---
+  duration_ms: 52.000004
+  type: 'test'
+  ...
+# Subtest: derived index checkpoints are amortized instead of rewriting the full projection per event
+ok 77 - derived index checkpoints are amortized instead of rewriting the full projection per event
+  ---
+  duration_ms: 775.093377
+  type: 'test'
+  ...
+# Subtest: checksum mismatch is isolated and fails closed for future protected operations
+ok 78 - checksum mismatch is isolated and fails closed for future protected operations
+  ---
+  duration_ms: 111.965603
+  type: 'test'
+  ...
+# Subtest: cancel, oversized payload and injected disk-full produce structured failures
+ok 79 - cancel, oversized payload and injected disk-full produce structured failures
+  ---
+  duration_ms: 30.043952
+  type: 'test'
+  ...
+# Subtest: rotation and quota retire complete segments while preserving monotonic restart
+ok 80 - rotation and quota retire complete segments while preserving monotonic restart
+  ---
+  duration_ms: 368.926849
+  type: 'test'
+  ...
+# Subtest: legacy schema migrates on read and bounded correlation traversal plus cursors are deterministic
+ok 81 - legacy schema migrates on read and bounded correlation traversal plus cursors are deterministic
+  ---
+  duration_ms: 99.841227
+  type: 'test'
+  ...
+# Subtest: plugin manifest exposes only the headless service seam
+ok 82 - plugin manifest exposes only the headless service seam
+  ---
+  duration_ms: 1.376921
+  type: 'test'
+  ...
+# Subtest: project queries isolate scan budgets, correlation traversal, cursors, status and exported events across restart
+ok 83 - project queries isolate scan budgets, correlation traversal, cursors, status and exported events across restart
+  ---
+  duration_ms: 621.251328
+  type: 'test'
+  ...
+# Subtest: legacy session-only rows get an isolated project index without rewriting their durable journal
+ok 84 - legacy session-only rows get an isolated project index without rewriting their durable journal
+  ---
+  duration_ms: 161.730426
+  type: 'test'
+  ...
+# Subtest: official mappings require complete versioned policy and reject escalation, unknown fields and secrets
+ok 85 - official mappings require complete versioned policy and reject escalation, unknown fields and secrets
+  ---
+  duration_ms: 10.097861
+  type: 'test'
+  ...
+# Subtest: official receipts separate execution/delivery and reject unknown versions, fields and credentials
+ok 86 - official receipts separate execution/delivery and reject unknown versions, fields and credentials
+  ---
+  duration_ms: 1.363111
+  type: 'test'
+  ...
+1..86
+# tests 86
+# suites 0
+# pass 86
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 246261.051802

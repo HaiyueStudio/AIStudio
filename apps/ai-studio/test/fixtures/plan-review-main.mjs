@@ -6,7 +6,11 @@ const directory = process.env.HAIYUE_PLAN_REVIEW_ROOT;
 app.setPath('userData', path.join(directory, 'user-data'));
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 700, height: 800, show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
-  const evaluate = code => window.webContents.executeJavaScript(code);
+  window.webContents.on('console-message', event => { if (event.level === 'error') console.error(event.message); });
+  const evaluate = async code => {
+    try { return await window.webContents.executeJavaScript(code); }
+    catch (cause) { throw new Error(`Plan review evaluation failed: ${code}`, { cause }); }
+  };
   const frame = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   const click = async label => { const point = await evaluate(`window.reviewButtonPoint(${JSON.stringify(label)})`); window.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 }); window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 }); await frame(); };
   await window.loadFile(path.join(directory, 'index.html')); window.showInactive();
@@ -25,10 +29,13 @@ app.whenReady().then(async () => {
   }
   assert.deepEqual(await evaluate('window.reviewIntents'), []);
   await evaluate('document.querySelector(".chat-plan-items input").checked=false; document.querySelector(".chat-plan-review textarea").value="优先完成基础交互"');
-  await click('批准并执行'); await click('批准并执行');
+  await click('批准并执行');
+  await evaluate('window.showReview()'); await frame();
+  assert.equal(await evaluate('window.reviewButton("正在提交…").disabled'), true);
+  await click('正在提交…');
   const approved = await evaluate('window.reviewIntents'); assert.equal(approved.length, 1); assert.equal(approved[0].type, 'conversation/accept-plan'); assert.equal(approved[0].nodeId, 'node:plan'); assert.equal(approved[0].mode, 'approve'); assert.equal(approved[0].acceptedItemIds.length, 19); assert.equal(approved[0].note, '优先完成基础交互'); assert.ok(!approved[0].acceptedItemIds.includes('plan:item-0'));
-  await evaluate('window.showReview(); document.querySelector(".chat-plan-review textarea").value="调整为横屏"'); await frame(); await click('补充后重新规划');
-  const revised = await evaluate('window.reviewIntents.at(-1)'); assert.equal(revised.mode, 'revise'); assert.deepEqual(revised.acceptedItemIds, []); assert.equal(revised.note, '调整为横屏');
+  await evaluate('window.showReview("plan", "pending", true, "node:revise-plan"); document.querySelector(".chat-plan-review textarea").value="调整为横屏"'); await frame(); await click('补充后重新规划');
+  const revised = await evaluate('window.reviewIntents.at(-1)'); assert.equal(revised.mode, 'revise'); assert.equal(revised.nodeId, 'node:revise-plan'); assert.deepEqual(revised.acceptedItemIds, []); assert.equal(revised.note, '调整为横屏');
   for (const kind of ['question', 'approval']) { await evaluate(`window.showReview(${JSON.stringify(kind)})`); await frame(); assert.equal(await evaluate(`document.querySelector('.chat-attention [data-kind=${kind}]') !== null`), true); }
   await evaluate('window.showReview("plan", "completed")'); await frame(); assert.equal(await evaluate('document.querySelector(".chat-attention") === null && !!document.querySelector(".chat-feed [data-kind=plan]")'), true); assert.equal(await evaluate('!!window.reviewButton("批准并执行")'), false);
   await evaluate('window.showReview("plan", "pending", false)'); await frame(); await evaluate('window.reviewButtonPoint("批准并执行")');

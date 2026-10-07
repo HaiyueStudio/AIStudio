@@ -1,0 +1,106 @@
+TAP version 13
+# Subtest: prompt profile is deterministic, versioned and genre neutral
+ok 1 - prompt profile is deterministic, versioned and genre neutral
+  ---
+  duration_ms: 4.825839
+  type: 'test'
+  ...
+# Subtest: same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest
+ok 2 - same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest
+  ---
+  duration_ms: 1194.191009
+  type: 'test'
+  ...
+# Subtest: policy is transmitted once with a readable full audit profile and conditional discovery guidance
+ok 3 - policy is transmitted once with a readable full audit profile and conditional discovery guidance
+  ---
+  duration_ms: 262.811589
+  type: 'test'
+  ...
+# Subtest: exact project source replaces legacy full manifests with bounded scene snapshot then revision diff
+ok 4 - exact project source replaces legacy full manifests with bounded scene snapshot then revision diff
+  ---
+  duration_ms: 458.90114
+  type: 'test'
+  ...
+# Subtest: restart rebuilds context metadata and conversation indexes through bounded sequence windows
+ok 5 - restart rebuilds context metadata and conversation indexes through bounded sequence windows
+  ---
+  duration_ms: 884.33086
+  type: 'test'
+  ...
+# Subtest: secret canaries are absent from artifacts, summaries, prompt logs and exported bug bundles
+ok 6 - secret canaries are absent from artifacts, summaries, prompt logs and exported bug bundles
+  ---
+  duration_ms: 480.924711
+  type: 'test'
+  ...
+# Subtest: usage ledger distinguishes provider cache eligibility from reported cache evidence
+ok 7 - usage ledger distinguishes provider cache eligibility from reported cache evidence
+  ---
+  duration_ms: 1.381604
+  type: 'test'
+  ...
+# Subtest: summary compaction keeps bounded visible facts and ignores hidden-reasoning-shaped input
+ok 8 - summary compaction keeps bounded visible facts and ignores hidden-reasoning-shaped input
+  ---
+  duration_ms: 314.887036
+  type: 'test'
+  ...
+# Subtest: all seven canonical game requests use one profile without cross-genre prompt leakage
+ok 9 - all seven canonical game requests use one profile without cross-genre prompt leakage
+  ---
+  duration_ms: 1173.374711
+  type: 'test'
+  ...
+# Subtest: tool contract changes start with full context while preserving approved decisions and current project state
+ok 10 - tool contract changes start with full context while preserving approved decisions and current project state
+  ---
+  duration_ms: 1291.755345
+  type: 'test'
+  ...
+# Subtest: unknown turn contracts retain visible history but cannot authorize provider session reuse
+ok 11 - unknown turn contracts retain visible history but cannot authorize provider session reuse
+  ---
+  duration_ms: 431.960447
+  type: 'test'
+  ...
+# Subtest: tool contract fingerprint ignores object key order but preserves descriptions, schemas and ordered tool identities
+ok 12 - tool contract fingerprint ignores object key order but preserves descriptions, schemas and ordered tool identities
+  ---
+  duration_ms: 0.491397
+  type: 'test'
+  ...
+# Subtest: impact slices stay bounded across a large scene, focus changes, and provider contract changes
+ok 13 - impact slices stay bounded across a large scene, focus changes, and provider contract changes
+  ---
+  duration_ms: 1034.374829
+  type: 'test'
+  ...
+# Subtest: oversized pages keep authentic cursors; oversized single items and incomplete diffs are deferred safely
+ok 14 - oversized pages keep authentic cursors; oversized single items and incomplete diffs are deferred safely
+  ---
+  duration_ms: 848.712467
+  type: 'test'
+  ...
+# Subtest: failed preparations and commits for different tasks cannot establish cached provider facts
+ok 15 - failed preparations and commits for different tasks cannot establish cached provider facts
+  ---
+  duration_ms: 769.630151
+  type: 'test'
+  ...
+# Subtest: the envelope budget defers a bounded scene when request and visible history use the remaining space
+ok 16 - the envelope budget defers a bounded scene when request and visible history use the remaining space
+  ---
+  duration_ms: 362.105527
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9701.321853

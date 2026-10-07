@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: local hybrid retrieval returns current cited knowledge and keeps exact context before semantic hits
+ok 1 - local hybrid retrieval returns current cited knowledge and keeps exact context before semantic hits
+  ---
+  duration_ms: 935.378667
+  type: 'test'
+  ...
+# Subtest: permission, version, revision, conflict and secret boundaries fail closed
+ok 2 - permission, version, revision, conflict and secret boundaries fail closed
+  ---
+  duration_ms: 346.144616
+  type: 'test'
+  ...
+# Subtest: content hash updates create tombstones, graph traversal recalls related decisions, and replay rebuilds the same index digest
+ok 3 - content hash updates create tombstones, graph traversal recalls related decisions, and replay rebuilds the same index digest
+  ---
+  duration_ms: 342.919139
+  type: 'test'
+  ...
+# Subtest: long Chinese requests and approved-plan repair continuations keep full model instructions while bounding retrieval
+ok 4 - long Chinese requests and approved-plan repair continuations keep full model instructions while bounding retrieval
+  ---
+  duration_ms: 3808.222683
+  type: 'test'
+  ...
+# Subtest: hybrid retrieval covers distinct relevant sources before repeating chunks of a long guide
+ok 5 - hybrid retrieval covers distinct relevant sources before repeating chunks of a long guide
+  ---
+  duration_ms: 667.81011
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7229.118256

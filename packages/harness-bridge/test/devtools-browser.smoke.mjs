@@ -14,10 +14,10 @@ test('experimental DevTools uses lazy isolated Chrome and reviewed native tools'
  const ctx=harnessOwnerContext(owner), agent=ctx.agents.get(input.sessionId);
  assert.equal(ctx.tools.schemas(agent).filter(t=>t.name.startsWith('mcp__')).length,0);
  let i=0;const run=(name,args={})=>port.execute({sessionId:input.sessionId,turnId:'turn:devtools',callId:`call:devtools-${++i}`,toolId:`official.browser.${name}`,arguments:args},new AbortController().signal);
- await assert.rejects(run('snapshot',{pageId:1,filePath:'/private/tmp/no'}),/file-destination-denied/);
+ await assert.rejects(run('snapshot',{pageId:1,filePath:'/private/tmp/no'}),/arguments-invalid/);
  await assert.rejects(run('navigate',{pageId:1,url:'file:///etc/passwd'}),/url-denied/);
- await assert.rejects(run('navigate',{pageId:1,initScript:'alert(1)'}),/file-destination-denied/);
- await assert.rejects(run('list_pages',{unknown:true}),/arguments-denied/);
+ await assert.rejects(run('navigate',{pageId:1,initScript:'alert(1)'}),/arguments-invalid/);
+ await assert.rejects(run('list_pages',{unknown:true}),/arguments-invalid/);
  const pages=await run('list_pages');assert.ok(pages.content.length);
  const nav=await run('new_page',{url:`http://127.0.0.1:${server.address().port}/`});
  const pageId=Number(/(\d+): http/.exec(JSON.stringify(nav))?.[1]);assert.ok(Number.isInteger(pageId),JSON.stringify(nav));

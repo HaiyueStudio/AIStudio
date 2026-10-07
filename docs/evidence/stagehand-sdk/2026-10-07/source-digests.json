@@ -1,0 +1,12 @@
+{
+  "packages/harness-bridge/spikes/stagehand-sdk/README.md": "7a8029827d24b755cba0105f662bbc264a767a990ba224fe9b416818cd6f3a38",
+  "packages/harness-bridge/spikes/stagehand-sdk/UPSTREAM-LICENSE.txt": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be",
+  "packages/harness-bridge/spikes/stagehand-sdk/client-model.mjs": "cbeb54118b2cff00f1edd4d0edf7f2db44884120a855a7dd68986aabb07d7b02",
+  "packages/harness-bridge/spikes/stagehand-sdk/host-gateway.mjs": "6c80f6624acb95a41e617df88e75bbd8c464fce72287c3ae938bd43b762bf68a",
+  "packages/harness-bridge/spikes/stagehand-sdk/native-worker.js.txt": "705de62e19cd234665e2b8097abb9e222d01d816248b95ef011961531e13397c",
+  "packages/harness-bridge/spikes/stagehand-sdk/package-lock.json": "4f9c4b1b85da952a898b645202a1a3512ea67741c6ce3ae5d3d87294a6f45f60",
+  "packages/harness-bridge/spikes/stagehand-sdk/package.json": "5b58a12ac8a1e8cddd6ed85238f70ea19f0f43672e49bb0e4fd4946021b491e0",
+  "packages/harness-bridge/spikes/stagehand-sdk/patch-worker.mjs": "68a5658d745101e01241a743ffd46afa7608d7d1fe0dd24d51d8f6b875a023f7",
+  "packages/harness-bridge/spikes/stagehand-sdk/probe.test.mjs": "b4fcb6aa2c53ae67a4251240ec183c168d788e319808dadac8d18876bf2484a9",
+  "packages/harness-bridge/spikes/stagehand-sdk/upstream-review.json": "fe5263cc4258057ff4b3bdf39f4c8af990af29719c817d87df0d823eb4c8c9eb"
+}

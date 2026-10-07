@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: plan schema explains executable assertions and the difference between evidence presence and correctness
+ok 1 - plan schema explains executable assertions and the difference between evidence presence and correctness
+  ---
+  duration_ms: 11.797287
+  type: 'test'
+  ...
+# Subtest: invalid assertions identify the field and teach correction without removing acceptance requirements
+ok 2 - invalid assertions identify the field and teach correction without removing acceptance requirements
+  ---
+  duration_ms: 2.516433
+  type: 'test'
+  ...
+# Subtest: plan validation preserves corrected requirements and still rejects invalid criterion metadata
+ok 3 - plan validation preserves corrected requirements and still rejects invalid criterion metadata
+  ---
+  duration_ms: 1.71349
+  type: 'test'
+  ...
+# Subtest: plans reject evidence with no production producer before user approval
+ok 4 - plans reject evidence with no production producer before user approval
+  ---
+  duration_ms: 0.621827
+  type: 'test'
+  ...
+# Subtest: semicolon-separated conditions from the reported cube plan become separate executable checks
+ok 5 - semicolon-separated conditions from the reported cube plan become separate executable checks
+  ---
+  duration_ms: 1.015837
+  type: 'test'
+  ...
+# Subtest: compound parsing preserves semicolons inside JSON strings and nested values
+ok 6 - compound parsing preserves semicolons inside JSON strings and nested values
+  ---
+  duration_ms: 0.919209
+  type: 'test'
+  ...
+# Subtest: compound validation rejects an invalid member without silently dropping requirements
+ok 7 - compound validation rejects an invalid member without silently dropping requirements
+  ---
+  duration_ms: 1.395894
+  type: 'test'
+  ...
+# Subtest: approved assembly requirements are structured and retained across plan serialization
+ok 8 - approved assembly requirements are structured and retained across plan serialization
+  ---
+  duration_ms: 1.428483
+  type: 'test'
+  ...
+# Subtest: reject unavailable engine-owned evidence paths before approving a plan
+ok 9 - reject unavailable engine-owned evidence paths before approving a plan
+  ---
+  duration_ms: 1.2091
+  type: 'test'
+  ...
+# Subtest: event-trace gesture wrapper is normalized before approval without changing the requirement
+ok 10 - event-trace gesture wrapper is normalized before approval without changing the requirement
+  ---
+  duration_ms: 0.659238
+  type: 'test'
+  ...
+# Subtest: structured comparisons serialize deterministically before approval without altering expected JSON types
+ok 11 - structured comparisons serialize deterministically before approval without altering expected JSON types
+  ---
+  duration_ms: 1.597515
+  type: 'test'
+  ...
+# Subtest: notation repair handles symbolic comparisons and trailing JSON commas without inventing missing values
+ok 12 - notation repair handles symbolic comparisons and trailing JSON commas without inventing missing values
+  ---
+  duration_ms: 1.487423
+  type: 'test'
+  ...
+# Subtest: reported incomplete unchangedEntityIds predicate explains both semantic defects and remains correctable
+ok 13 - reported incomplete unchangedEntityIds predicate explains both semantic defects and remains correctable
+  ---
+  duration_ms: 0.675054
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2281.63216

@@ -1,0 +1,160 @@
+TAP version 13
+# Subtest: G11 projects an approved evidence-backed task and replays the same terminal summary after restart
+ok 1 - G11 projects an approved evidence-backed task and replays the same terminal summary after restart
+  ---
+  duration_ms: 2207.041383
+  type: 'test'
+  ...
+# Subtest: G11 converts a crash-interrupted task into an explicit resumable checkpoint
+ok 2 - G11 converts a crash-interrupted task into an explicit resumable checkpoint
+  ---
+  duration_ms: 610.419325
+  type: 'test'
+  ...
+# Subtest: G11 restores retained projections through bounded sequence windows when the journal exceeds the scan budget
+ok 3 - G11 restores retained projections through bounded sequence windows when the journal exceeds the scan budget
+  ---
+  duration_ms: 284.4124
+  type: 'test'
+  ...
+# Subtest: turn completion preserves the specific terminal evaluation diagnostic
+ok 4 - turn completion preserves the specific terminal evaluation diagnostic
+  ---
+  duration_ms: 2003.234707
+  type: 'test'
+  ...
+# Subtest: same-tick mismatch triggers bounded recapture and completes the original approved task
+ok 5 - same-tick mismatch triggers bounded recapture and completes the original approved task
+  ---
+  duration_ms: 2830.621485
+  type: 'test'
+  ...
+# Subtest: unfinished acceptance reports the actual failed authoring tool instead of a generic evidence error
+ok 6 - unfinished acceptance reports the actual failed authoring tool instead of a generic evidence error
+  ---
+  duration_ms: 1096.608332
+  type: 'test'
+  ...
+# Subtest: a successful tool retry clears its failure so missing acceptance is not blamed on a resolved error
+ok 7 - a successful tool retry clears its failure so missing acceptance is not blamed on a resolved error
+  ---
+  duration_ms: 3459.441449
+  type: 'test'
+  ...
+# Subtest: an early completed turn continues the same approved task through real evaluation
+ok 8 - an early completed turn continues the same approved task through real evaluation
+  ---
+  duration_ms: 2432.386351
+  type: 'test'
+  ...
+# Subtest: a persisted unfinished checkpoint starts fresh execution instead of replaying old tool requests
+ok 9 - a persisted unfinished checkpoint starts fresh execution instead of replaying old tool requests
+  ---
+  duration_ms: 953.299701
+  type: 'test'
+  ...
+# Subtest: automatic incomplete-acceptance continuation stops at two attempts without inventing evidence
+ok 10 - automatic incomplete-acceptance continuation stops at two attempts without inventing evidence
+  ---
+  duration_ms: 2445.463305
+  type: 'test'
+  ...
+# Subtest: terminal evaluation clears an earlier queued repair and permits inspection without restarting a blocked task
+ok 11 - terminal evaluation clears an earlier queued repair and permits inspection without restarting a blocked task
+  ---
+  duration_ms: 2443.220762
+  type: 'test'
+  ...
+# Subtest: query quantity query-expand continues successfully and reuses this task's choice
+ok 12 - query quantity query-expand continues successfully and reuses this task's choice
+  ---
+  duration_ms: 2113.040014
+  type: 'test'
+  ...
+# Subtest: query quantity query-cap continues successfully and reuses this task's choice
+ok 13 - query quantity query-cap continues successfully and reuses this task's choice
+  ---
+  duration_ms: 2220.111123
+  type: 'test'
+  ...
+# Subtest: query preferences are dynamic and omitted limit uses the configured threshold
+ok 14 - query preferences are dynamic and omitted limit uses the configured threshold
+  ---
+  duration_ms: 660.059318
+  type: 'test'
+  ...
+# Subtest: query allowance query-expand survives host/session restart and resumes the pending read
+ok 15 - query allowance query-expand survives host/session restart and resumes the pending read
+  ---
+  duration_ms: 2556.562687
+  type: 'test'
+  ...
+# Subtest: query allowance query-cap survives host/session restart and resumes the pending read
+ok 16 - query allowance query-cap survives host/session restart and resumes the pending read
+  ---
+  duration_ms: 2498.010167
+  type: 'test'
+  ...
+# Subtest: cancelling an unanswered query allowance never executes the read
+ok 17 - cancelling an unanswered query allowance never executes the read
+  ---
+  duration_ms: 764.884315
+  type: 'test'
+  ...
+# Subtest: parallel queries share one allowance question while preserving each query
+ok 18 - parallel queries share one allowance question while preserving each query
+  ---
+  duration_ms: 1076.608877
+  type: 'test'
+  ...
+# Subtest: documentation continuation preserves the stored search allowance without injecting a new limit
+ok 19 - documentation continuation preserves the stored search allowance without injecting a new limit
+  ---
+  duration_ms: 632.408652
+  type: 'test'
+  ...
+# Subtest: query confirmation displays its actual task and search context (visible explanation)
+ok 20 - query confirmation displays its actual task and search context (visible explanation)
+  ---
+  duration_ms: 958.205914
+  type: 'test'
+  ...
+# Subtest: query confirmation displays its actual task and search context (no invented reason)
+ok 21 - query confirmation displays its actual task and search context (no invented reason)
+  ---
+  duration_ms: 896.374068
+  type: 'test'
+  ...
+# Subtest: compound plan criteria are expanded before approval and persist as individual pending checks
+ok 22 - compound plan criteria are expanded before approval and persist as individual pending checks
+  ---
+  duration_ms: 1303.47576
+  type: 'test'
+  ...
+# Subtest: checkpoint context retains requirements within a UTF-8 budget and identifies omitted criteria
+ok 23 - checkpoint context retains requirements within a UTF-8 budget and identifies omitted criteria
+  ---
+  duration_ms: 5.064303
+  type: 'test'
+  ...
+# Subtest: continuation includes only current same-Play evidence and routes effects to their producer
+ok 24 - continuation includes only current same-Play evidence and routes effects to their producer
+  ---
+  duration_ms: 2.573059
+  type: 'test'
+  ...
+# Subtest: checkpoint carries the recent diagnostic with its observed revision, within the same budget
+ok 25 - checkpoint carries the recent diagnostic with its observed revision, within the same budget
+  ---
+  duration_ms: 0.61946
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 42018.264754

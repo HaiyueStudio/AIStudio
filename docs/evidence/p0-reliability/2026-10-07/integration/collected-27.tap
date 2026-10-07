@@ -1,0 +1,17 @@
+TAP version 13
+# G06 resource module evidence: /private/tmp/haiyue-m14-resources-QWo5s5
+# Subtest: G06 isolated resource module uses real service, tools and History in sandboxed Electron with bounded accessible UI
+ok 1 - G06 isolated resource module uses real service, tools and History in sandboxed Electron with bounded accessible UI
+  ---
+  duration_ms: 73366.709916
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 73902.67994

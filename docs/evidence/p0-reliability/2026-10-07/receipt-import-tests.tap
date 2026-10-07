@@ -1,0 +1,244 @@
+TAP version 13
+# Subtest: official tools share discovery, exact schema/version validation, preparation, approval and durable results
+ok 1 - official tools share discovery, exact schema/version validation, preparation, approval and durable results
+  ---
+  duration_ms: 2423.826325
+  type: 'test'
+  ...
+# Subtest: official reject never reaches provider and cannot be reused
+ok 2 - official reject never reaches provider and cannot be reused
+  ---
+  duration_ms: 1320.459101
+  type: 'test'
+  ...
+# Subtest: official cancel never reaches provider and cannot be reused
+ok 3 - official cancel never reaches provider and cannot be reused
+  ---
+  duration_ms: 1061.654811
+  type: 'test'
+  ...
+# Subtest: official exact authorization becomes stale after document change and cannot join a Document transaction
+ok 4 - official exact authorization becomes stale after document change and cannot join a Document transaction
+  ---
+  duration_ms: 1087.570459
+  type: 'test'
+  ...
+# Subtest: official cancel drains the provider without late success
+ok 5 - official cancel drains the provider without late success
+  ---
+  duration_ms: 1400.338825
+  type: 'test'
+  ...
+# Subtest: official timeout drains the provider without late success
+ok 6 - official timeout drains the provider without late success
+  ---
+  duration_ms: 1937.565734
+  type: 'test'
+  ...
+# Subtest: official dispose drains the provider without late success
+ok 7 - official dispose drains the provider without late success
+  ---
+  duration_ms: 1066.511102
+  type: 'test'
+  ...
+# Subtest: official schemas reject forged policy/credentials; outputs are bounded and redacted before delivery
+ok 8 - official schemas reject forged policy/credentials; outputs are bounded and redacted before delivery
+  ---
+  duration_ms: 1126.130093
+  type: 'test'
+  ...
+# Subtest: cancelling an official call while queued prevents its body after the prior operation drains
+ok 9 - cancelling an official call while queued prevents its body after the prior operation drains
+  ---
+  duration_ms: 1592.886446
+  type: 'test'
+  ...
+# Subtest: official log failure releases acquired effect locks without executing the provider
+ok 10 - official log failure releases acquired effect locks without executing the provider
+  ---
+  duration_ms: 999.614076
+  type: 'test'
+  ...
+# Subtest: official large output fails safely before model-visible completion
+ok 11 - official large output fails safely before model-visible completion
+  ---
+  duration_ms: 1507.724429
+  type: 'test'
+  ...
+# Subtest: official error output fails safely before model-visible completion
+ok 12 - official error output fails safely before model-visible completion
+  ---
+  duration_ms: 1103.219393
+  type: 'test'
+  ...
+# Subtest: official results reject non-JSON values instead of silently converting or dropping them
+ok 13 - official results reject non-JSON values instead of silently converting or dropping them
+  ---
+  duration_ms: 1132.130923
+  type: 'test'
+  ...
+# Subtest: official provider failure envelopes become failed Host executions, not completed calls
+ok 14 - official provider failure envelopes become failed Host executions, not completed calls
+  ---
+  duration_ms: 1345.645349
+  type: 'test'
+  ...
+# Subtest: script error diagnostics are bounded and redacted: repairable error
+ok 15 - script error diagnostics are bounded and redacted: repairable error
+  ---
+  duration_ms: 1383.108166
+  type: 'test'
+  ...
+# Subtest: script error diagnostics are bounded and redacted: secret
+ok 16 - script error diagnostics are bounded and redacted: secret
+  ---
+  duration_ms: 1139.035229
+  type: 'test'
+  ...
+# Subtest: reviewed MCP Draft 2020 schema accepts valid calls and rejects additional arguments
+ok 17 - reviewed MCP Draft 2020 schema accepts valid calls and rejects additional arguments
+  ---
+  duration_ms: 1326.404232
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (oversized)
+ok 18 - uncertain external receipt survives recreation and blocks repeat (oversized)
+  ---
+  duration_ms: 1348.701757
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (unsupported)
+ok 19 - uncertain external receipt survives recreation and blocks repeat (unsupported)
+  ---
+  duration_ms: 1181.665216
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (unknown)
+ok 20 - uncertain external receipt survives recreation and blocks repeat (unknown)
+  ---
+  duration_ms: 1042.54331
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (cancelled)
+ok 21 - uncertain external receipt survives recreation and blocks repeat (cancelled)
+  ---
+  duration_ms: 1133.788752
+  type: 'test'
+  ...
+# Subtest: successful external calls can be deliberately repeated, and not-started receipts release the guard
+ok 22 - successful external calls can be deliberately repeated, and not-started receipts release the guard
+  ---
+  duration_ms: 1816.65374
+  type: 'test'
+  ...
+# Subtest: a warm receipt index observes subsequently imported unresolved project history
+ok 23 - a warm receipt index observes subsequently imported unresolved project history
+  ---
+  duration_ms: 1311.08183
+  type: 'test'
+  ...
+# Subtest: concurrent append is monotonic and restart replay equals the live projection
+ok 24 - concurrent append is monotonic and restart replay equals the live projection
+  ---
+  duration_ms: 1684.598521
+  type: 'test'
+  ...
+# Subtest: sequence windows keep large retained journals within the query scan budget
+ok 25 - sequence windows keep large retained journals within the query scan budget
+  ---
+  duration_ms: 222.528714
+  type: 'test'
+  ...
+# Subtest: exact approval and tool lookups use bounded indexes across large journals and restart
+ok 26 - exact approval and tool lookups use bounded indexes across large journals and restart
+  ---
+  duration_ms: 751.188625
+  type: 'test'
+  ...
+# Subtest: source redaction, taint, immutable artifacts and bug bundle contain no secret canary
+ok 27 - source redaction, taint, immutable artifacts and bug bundle contain no secret canary
+  ---
+  duration_ms: 368.702688
+  type: 'test'
+  ...
+# Subtest: offline bug bundle verification rejects artifact tampering
+ok 28 - offline bug bundle verification rejects artifact tampering
+  ---
+  duration_ms: 214.71676
+  type: 'test'
+  ...
+# Subtest: artifact references are persist-before-reference and approved reads are capability bounded
+ok 29 - artifact references are persist-before-reference and approved reads are capability bounded
+  ---
+  duration_ms: 55.884975
+  type: 'test'
+  ...
+# Subtest: partial crash tail is quarantined, reported and recovered without losing committed events
+ok 30 - partial crash tail is quarantined, reported and recovered without losing committed events
+  ---
+  duration_ms: 337.657298
+  type: 'test'
+  ...
+# Subtest: derived index failure stays writable and the journal rebuilds the projection on restart
+ok 31 - derived index failure stays writable and the journal rebuilds the projection on restart
+  ---
+  duration_ms: 111.443288
+  type: 'test'
+  ...
+# Subtest: derived index checkpoints are amortized instead of rewriting the full projection per event
+ok 32 - derived index checkpoints are amortized instead of rewriting the full projection per event
+  ---
+  duration_ms: 1516.672037
+  type: 'test'
+  ...
+# Subtest: checksum mismatch is isolated and fails closed for future protected operations
+ok 33 - checksum mismatch is isolated and fails closed for future protected operations
+  ---
+  duration_ms: 107.985645
+  type: 'test'
+  ...
+# Subtest: cancel, oversized payload and injected disk-full produce structured failures
+ok 34 - cancel, oversized payload and injected disk-full produce structured failures
+  ---
+  duration_ms: 45.312553
+  type: 'test'
+  ...
+# Subtest: rotation and quota retire complete segments while preserving monotonic restart
+ok 35 - rotation and quota retire complete segments while preserving monotonic restart
+  ---
+  duration_ms: 581.474783
+  type: 'test'
+  ...
+# Subtest: legacy schema migrates on read and bounded correlation traversal plus cursors are deterministic
+ok 36 - legacy schema migrates on read and bounded correlation traversal plus cursors are deterministic
+  ---
+  duration_ms: 159.544582
+  type: 'test'
+  ...
+# Subtest: plugin manifest exposes only the headless service seam
+ok 37 - plugin manifest exposes only the headless service seam
+  ---
+  duration_ms: 2.751683
+  type: 'test'
+  ...
+# Subtest: project queries isolate scan budgets, correlation traversal, cursors, status and exported events across restart
+ok 38 - project queries isolate scan budgets, correlation traversal, cursors, status and exported events across restart
+  ---
+  duration_ms: 1517.84186
+  type: 'test'
+  ...
+# Subtest: legacy session-only rows get an isolated project index without rewriting their durable journal
+ok 39 - legacy session-only rows get an isolated project index without rewriting their durable journal
+  ---
+  duration_ms: 475.223548
+  type: 'test'
+  ...
+1..39
+# tests 39
+# suites 0
+# pass 39
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 35384.015731

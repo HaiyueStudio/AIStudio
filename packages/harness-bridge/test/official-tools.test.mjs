@@ -88,3 +88,33 @@ test('nested Studio wrappers from official pre-policy are rejected before they c
   assert.match(nested.error.message, /official.nested-call-denied/);
   assert.equal(f.stats.bodies, 1);
 });
+
+test('oversized native output reports completed execution with a bounded receipt', async t => {
+ const f=await officialFixture({async execute(){return {value:'x'.repeat(8000)};}});t.after(()=>f.owner.dispose());
+ await f.transport.openSession(input);const receipts=[];let previewSource;
+ await assert.rejects(f.port.execute(execution(),new AbortController().signal,async (value,source)=>{receipts.push(value);previewSource=source;}),/result-too-large/);
+ assert.equal(f.stats.bodies,1);assert.equal(receipts.length,1);assert.equal(receipts[0].execution,'completed');
+ assert.equal(receipts[0].delivery,'unavailable');assert.equal(receipts[0].preview,undefined);assert.equal(previewSource.value.length,8000);
+});
+
+test('native policy receipts distinguish preflight refusal from uncertain post-execution effects', async t => {
+ const f=await officialFixture();t.after(()=>f.owner.dispose());await f.transport.openSession(input);
+ const receipts=[];const report=async value=>{receipts.push(value);};
+ const off=f.ctx.on('tools/pre-execute',async(exec,next)=>exec.name==='fixture_read'?{kind:'deny',reason:'blocked'}:next(),{global:true});
+ await assert.rejects(f.port.execute(execution('call:pre-receipt'),new AbortController().signal,report));off();
+ assert.equal(receipts[0].execution,'not-started');assert.equal(f.stats.bodies,0);
+ f.ctx.on('tools/post-execute',async(exec,result,next)=>exec.name==='fixture_read'?{kind:'block',reason:'blocked'}:next(),{global:true});
+ await assert.rejects(f.port.execute(execution('call:post-receipt'),new AbortController().signal,report));
+ assert.equal(receipts[1].execution,'unknown');assert.equal(f.stats.bodies,1);
+});
+
+test('P1 browser model schemas omit unsupported destinations but retain native drift schema', async () => {
+ const {createHarnessExtendedTools}=await import('../dist/extended-tools.js');
+ for(const backend of ['playwright','chrome-devtools']) {
+  const provider=createHarnessExtendedTools({browser:{backend}});
+  for(const definition of provider.definitions) {
+   assert.equal(definition.inputSchema.additionalProperties,false);
+   for(const key of ['filename','filePath','initScript']) assert.equal(definition.inputSchema.properties[key],undefined);
+  }
+ }
+});

@@ -32,7 +32,11 @@
       "@deepseek-ai/dsh-scope",
       "@deepseek-ai/dsh-mcp-client",
       "@deepseek-ai/dsh-experimental-browser-use-runtime",
-      "@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp"
+      "@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp",
+      "@deepseek-ai/dsh-experimental-agent-team",
+      "@deepseek-ai/dsh-subagent",
+      "@deepseek-ai/dsh-session-persistence",
+      "@deepseek-ai/dsh-session-query"
     ],
     "requiredPackageFields": [
       "name",

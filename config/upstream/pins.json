@@ -167,6 +167,26 @@
         "name": "@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp",
         "version": "0.2.0-rc.2",
         "integrity": "sha512-i8lWa+VQAmDSY7o6/8aOxAQ/G595JBXPWneIZeJmN9IWSwWO1zeT/LVa1MBLbu7ReyV06nr/oqFQu/4FxHxfRA=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-experimental-agent-team",
+        "version": "0.2.0-rc.2",
+        "integrity": "sha512-ds9BrnyJ+BAbxaH3J81c/+JJpk8jUtnpzUCyTXxrDW2nZOnFWqdPH/TZKAI1ttCuls218+RF4PPFPbhYaXNl6g=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-subagent",
+        "version": "0.2.0-rc.2",
+        "integrity": "sha512-33izf4xhq03RzolYUjv223tKmeOBl8fMnvnRN15zZB3GWfNRcBTVUUxuu99rCN8TSRRt5A5ABTwYbObb1Isjqw=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-persistence",
+        "version": "0.2.0-rc.2",
+        "integrity": "sha512-2OoRHZYWi5Vy0+1bPU37Y/NTh6uQiZ3VdpvDmW1oCgsapQr2JS/Lbody1gXOMJ1KXglCSLmePgTMC00uKw/UIg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-query",
+        "version": "0.2.0-rc.2",
+        "integrity": "sha512-seZkaK6E+L2KVUYbzQ5O3S9kKkINul/1WujXNsE7/9vE4NSg97hJjZxCwqYs81qlEO0Ei3f27+W61EtXOYYoGw=="
       }
     ],
     "externalToolPackages": [

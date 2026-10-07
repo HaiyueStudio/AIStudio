@@ -40,7 +40,7 @@ export interface OfficialToolExecutionV1 {
 /** Existing Host policy must finish before execute. No authorization token is model-visible. */
 export interface OfficialToolProviderV1 {
   readonly definitions: readonly StudioToolDefinitionV1[];
-  execute(call: OfficialToolExecutionV1, signal: AbortSignal): Promise<JsonObject>;
+  execute(call: OfficialToolExecutionV1, signal: AbortSignal, receipt?: (value: OfficialToolReceiptV1, previewSource?: unknown) => Promise<void>): Promise<JsonObject>;
 }
 
 export function isOfficialToolBindingV1(value: unknown): value is OfficialToolBindingV1 {
@@ -70,4 +70,21 @@ function safeJson(v: unknown, depth = 0): boolean {
   if (typeof v === 'number') return Number.isFinite(v);
   if (Array.isArray(v)) return v.every(x => safeJson(x,depth+1));
   return object(v) && [Object.prototype, null].includes(Object.getPrototypeOf(v)) && Object.entries(v).every(([k,x]) => !/^(?:__proto__|constructor|prototype|apiKey|accessToken|authorization|credentials)$/i.test(k) && safeJson(x,depth+1));
+}
+
+/** Execution and result delivery are distinct. No provider diagnostic or credential is admitted. */
+export interface OfficialToolReceiptV1 {
+  readonly schemaVersion: 1;
+  readonly execution: 'completed' | 'unknown' | 'not-started';
+  readonly delivery: 'available' | 'unavailable';
+  readonly reason: 'none' | 'provider-error' | 'unsupported-result' | 'invalid-result' | 'oversized-result' | 'cancelled';
+  readonly preview?: string;
+}
+export function isOfficialToolReceiptV1(value: unknown): value is OfficialToolReceiptV1 {
+  if (!object(value) || Object.keys(value).some(k => !['schemaVersion','execution','delivery','reason','preview'].includes(k)) || value.schemaVersion !== 1
+    || !['completed','unknown','not-started'].includes(String(value.execution)) || !['available','unavailable'].includes(String(value.delivery))
+    || !['none','provider-error','unsupported-result','invalid-result','oversized-result','cancelled'].includes(String(value.reason))
+    || value.preview !== undefined && (typeof value.preview !== 'string' || value.preview.length > 8192)) return false;
+  if (value.delivery === 'available' && (value.execution !== 'completed' || value.reason !== 'none')) return false;
+  return safeJson(value);
 }

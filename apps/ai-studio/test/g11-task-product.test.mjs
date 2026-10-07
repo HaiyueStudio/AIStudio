@@ -20,14 +20,14 @@ test('G11 projects an approved evidence-backed task and replays the same termina
     const first = new StudioConversationHost({ runtime: runtimeFixture(), tools, operationLog: firstLog, projectContext: projectContext });
     await first.initialize();
     await first.dispatch({ type: 'conversation/send', backendId, prompt: 'Build a genre-neutral score interaction and prove it works.' });
-    await waitFor(() => nodes(first).some((node) => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(first, () => nodes(first).some((node) => node.kind === 'plan' && node.status === 'pending'));
     const pendingRun = first.replay().taskRuns.at(-1);
     assert.equal(pendingRun.status, 'waiting-user');
     assert.equal(pendingRun.acceptance.length, 1);
     assert.equal(pendingRun.acceptance[0].assertion, 'evidence state signal score equals 1');
     const plan = nodes(first).find((node) => node.kind === 'plan' && node.status === 'pending');
     await first.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map((item) => item.id), mode: 'approve' });
-    await waitFor(() => first.replay().busy === false);
+    await waitFor(first, () => first.replay().busy === false);
     const terminal = first.replay().taskRuns.at(-1);
     assert.equal(terminal.status, 'completed'); assert.equal(terminal.phase, 'complete');
     assert.equal(terminal.acceptance[0].status, 'pass'); assert.deepEqual(terminal.acceptance[0].evidenceIds, [evidenceId]);
@@ -60,7 +60,7 @@ test('G11 converts a crash-interrupted task into an explicit resumable checkpoin
     const restored = host.replay().taskRuns.at(-1);
     assert.equal(restored.status, 'blocked'); assert.equal(restored.phase, 'blocked'); assert.equal(restored.resumable, true); assert.equal(restored.terminalDiagnostic, 'task.interrupted-by-restart');
     await host.dispatch({ type: 'conversation/retry', backendId, sessionId, turnId });
-    await waitFor(() => nodes(host).some((node) => node.kind === 'completion'));
+    await waitFor(host, () => nodes(host).some((node) => node.kind === 'completion'));
     assert.ok(nodes(host).some((node) => node.kind === 'completion'));
     assert.equal(host.replay().taskRuns.at(-1).status, 'blocked');
     await host.dispose(); await log.close();
@@ -188,7 +188,18 @@ function digest(value) { return `sha256:${value.repeat(64)}`; }
 function projectContext() { return { projectId: 'project:g11', documentId: 'document:g11', revision: 7, manifest: {} }; }
 function nodes(host) { return host.replay().events.map((item) => item.node); }
 function openLog(root, options = {}) { return OperationLog.open({ rootDirectory: root, appVersion: 'g11-test', flushPolicy: 'always', ...options }); }
-async function waitFor(predicate) { for (let index = 0; index < 400; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for G11 task state.'); }
+// Functional state synchronization, not a latency budget: durable fsync and two
+// provider turns may exceed the old two-second polling window on a busy device.
+async function waitFor(host, predicate) {
+  if (predicate()) return;
+  await new Promise((resolve, reject) => {
+    let subscription;
+    const finish = cause => { clearTimeout(timer); subscription?.dispose(); cause ? reject(cause) : resolve(); };
+    const timer = setTimeout(() => finish(new Error('Timed out waiting for G11 task state.')), 10_000);
+    const check = () => { try { if (predicate()) finish(); } catch (cause) { finish(cause); } };
+    subscription = host.subscribe(check); check();
+  });
+}
 
  test('turn completion preserves the specific terminal evaluation diagnostic', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g11-terminal-diagnostic-'));
@@ -197,10 +208,10 @@ async function waitFor(predicate) { for (let index = 0; index < 400; index += 1)
   try {
     await host.initialize();
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Verify the composite object.' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'completion'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'completion'));
     const run = host.replay().taskRuns.at(-1);
     assert.equal(run.status, 'blocked');
     assert.equal(run.terminalDiagnostic, 'evaluation.evidence-provenance-mismatch');
@@ -215,10 +226,10 @@ async function waitFor(predicate) { for (let index = 0; index < 400; index += 1)
   try {
     await host.initialize();
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Verify the composite object.' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => host.replay().taskRuns.at(-1)?.status === 'completed');
+    await waitFor(host, () => host.replay().taskRuns.at(-1)?.status === 'completed');
     const run = host.replay().taskRuns.at(-1);
     assert.equal(tools.evaluations, 2);
     assert.equal(run.repairIteration, 1);
@@ -236,10 +247,10 @@ test('unfinished acceptance reports the actual failed authoring tool instead of 
   try {
     await host.initialize();
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create an interactive object.' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     const run = host.replay().taskRuns.at(-1);
     assert.equal(run.status, 'blocked');
     assert.equal(run.terminalDiagnostic, 'query-scan-budget-exceeded');
@@ -258,10 +269,10 @@ test('a successful tool retry clears its failure so missing acceptance is not bl
   try {
     await host.initialize();
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create an interactive object.' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     assert.equal(host.replay().taskRuns.at(-1).terminalDiagnostic, 'task.acceptance-evidence-incomplete');
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
 });
@@ -273,10 +284,10 @@ test('an early completed turn continues the same approved task through real eval
   const tools = toolsFixture(); const host = new StudioConversationHost({ runtime, tools, operationLog: log, projectContext });
   try {
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Build and verify the score interaction.' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     const run = host.replay().taskRuns.at(-1);
     assert.equal(run.status, 'completed'); assert.equal(tools.evaluations, 1);
     assert.equal(requests.length, 2); assert.equal(requests[0].taskId, requests[1].taskId);
@@ -298,7 +309,7 @@ test('a persisted unfinished checkpoint starts fresh execution instead of replay
   const host = new StudioConversationHost({ runtime: runtimeFixture({ resumeCheckpoint: true, onStart: input => requests.push(input), onResume: () => resumed++ }), tools, operationLog: log, projectContext });
   try {
     await host.initialize(); await host.dispatch({ type: 'conversation/retry', backendId, sessionId, turnId });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     assert.equal(resumed, 0); assert.equal(requests.length, 1);
     assert.equal(requests[0].taskId, run.taskId); assert.match(requests[0].prompt, /evidence state signal score equals 1/);
     assert.equal(host.replay().taskRuns.at(-1).status, 'completed');
@@ -313,10 +324,10 @@ test('automatic incomplete-acceptance continuation stops at two attempts without
   const host = new StudioConversationHost({ runtime: runtimeFixture({ stopAfterEdit: true, onStart: input => requests.push(input) }), tools: toolsFixture(), operationLog: log, projectContext });
   try {
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Finish and verify.' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     const run = host.replay().taskRuns.at(-1);
     assert.equal(requests.length, 3); assert.equal(run.status, 'blocked');
     assert.equal(run.terminalDiagnostic, 'task.acceptance-evidence-incomplete');
@@ -334,10 +345,10 @@ test('terminal evaluation clears an earlier queued repair and permits inspection
     host = new StudioConversationHost({ runtime: runtimeFixture({ terminalAfterRepair: true, onStart() { starts++; } }), tools, operationLog: log, projectContext });
     await host.initialize();
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Verify a staged game.' });
-    await waitFor(() => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(node => node.kind === 'plan' && node.status === 'pending'));
     const plan = nodes(host).find(node => node.kind === 'plan' && node.status === 'pending');
     await host.dispatch({ type: 'conversation/accept-plan', nodeId: plan.id, acceptedItemIds: plan.content.items.map(item => item.id), mode: 'approve' });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     const run = host.replay().taskRuns.at(-1);
     assert.equal(starts, 1); assert.equal(tools.evaluations, 2);
     assert.equal(run.status, 'blocked'); assert.equal(run.phase, 'blocked');
@@ -355,23 +366,23 @@ for (const choice of ['query-expand', 'query-cap']) test(`query quantity ${choic
   const host = new StudioConversationHost({ runtime: runtimeFixture({ requests }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext });
   try {
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Find pointer documentation.' });
-    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
     assert.equal(calls.length, 0);
     assert.equal(host.replay().taskRuns.at(-1).status, 'waiting-user');
     const question = nodes(host).find(n => n.kind === 'question' && n.status === 'pending');
     await assert.rejects(host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: ['option:forged'] } }));
     // A malformed answer must not grant a larger query. Use a fresh valid choice on the same barrier.
     await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(o => o.id.includes(choice)).id] } });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     assert.deepEqual(calls.map(c => c.arguments.limit), [choice === 'query-expand' ? 20 : 12, choice === 'query-expand' ? 20 : 12]);
     assert.equal(new Set(nodes(host).filter(n => n.kind === 'question').map(n => n.id)).size, 1);
     assert.ok(!nodes(host).some(n => n.kind === 'tool-result' && n.status === 'failed'));
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'A separate new task searches more docs.' });
-    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending' && n.id !== question.id));
+    await waitFor(host, () => nodes(host).some(n => n.kind === 'question' && n.status === 'pending' && n.id !== question.id));
     assert.equal(calls.length, 2, 'a previous task cannot grant the new task a query allowance');
     const nextQuestion = nodes(host).filter(n => n.kind === 'question' && n.status === 'pending' && n.id !== question.id).at(-1);
     await host.dispatch({ type: 'conversation/answer-question', nodeId: nextQuestion.id, answer: { optionIds: [nextQuestion.content.options.find(o => o.id.includes('query-cap')).id] } });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     assert.deepEqual(calls.slice(2).map(c => c.arguments.limit), [12, 12]);
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
 });
@@ -381,7 +392,7 @@ test('query preferences are dynamic and omitted limit uses the configured thresh
   const limits = { 'engine.docs.search': 25, 'tool.search': 50, 'scene.query': 100, 'scene.diff': 100 };
   const host = new StudioConversationHost({ runtime: runtimeFixture({ requests: [{ id: 'tool:query-default', toolId: 'engine.docs.search', arguments: { query: 'pointer' } }] }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext, queryLimits: () => limits });
   try {
-    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Read pointer docs.' }); await waitFor(() => !host.replay().busy);
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Read pointer docs.' }); await waitFor(host, () => !host.replay().busy);
     assert.equal(calls[0].arguments.limit, 25); assert.ok(!nodes(host).some(n => n.kind === 'question'));
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
 });
@@ -396,7 +407,7 @@ for (const choice of ['query-expand', 'query-cap']) test(`query allowance ${choi
     log = await openLog(root); sessions = new DurableSessionRuntime(log);
     host = new StudioConversationHost({ runtime: runtimeFixture({ requests, sessions, turnId: 'turn:quota:1' }), tools: toolsFixture({ onPrepare: c => calls.push(c) }), operationLog: log, projectContext, sessionRecovery: { async recover() {} } });
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Find pointer docs.' });
-    await waitFor(() => !host.replay().busy && nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    await waitFor(host, () => !host.replay().busy && nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
     const pending = nodes(host).find(n => n.kind === 'question' && n.status === 'pending');
     assert.equal(calls.length, 0);
     assert.equal(host.replay().taskRuns.at(-1).status, 'waiting-user');
@@ -412,7 +423,7 @@ for (const choice of ['query-expand', 'query-cap']) test(`query allowance ${choi
     assert.match(restored.content.prompt, /本次检索：引擎文档：pointer/);
     await assert.rejects(host.dispatch({ type: 'conversation/answer-question', nodeId: pending.id, answer: { optionIds: ['option:forged'] } }));
     await host.dispatch({ type: 'conversation/answer-question', nodeId: pending.id, answer: { optionIds: [restored.content.options.find(o => o.id.includes(choice)).id] } });
-    await waitFor(() => !host.replay().busy && calls.length === 1);
+    await waitFor(host, () => !host.replay().busy && calls.length === 1);
     assert.equal(calls[0].arguments.limit, choice === 'query-expand' ? 20 : 12);
     assert.deepEqual((await sessions.replay(sessionId)).recovery.unresolvedBarrierIds, []);
     assert.ok(!nodes(host).some(n => n.kind === 'tool-result' && n.status === 'failed'));
@@ -425,9 +436,9 @@ test('cancelling an unanswered query allowance never executes the read', async (
   const host = new StudioConversationHost({ runtime: runtimeFixture({ requests: [{ id: 'tool:query-cancel', toolId: 'engine.docs.search', arguments: { query: 'pointer', limit: 20 } }] }), tools: toolsFixture({ onPrepare: c => calls.push(c) }), operationLog: log, projectContext });
   try {
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Search docs.' });
-    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
     await host.dispatch({ type: 'conversation/cancel', backendId, sessionId, turnId });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     assert.equal(calls.length, 0);
     assert.equal(nodes(host).filter(n => n.kind === 'question').at(-1).status, 'cancelled');
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
@@ -440,12 +451,12 @@ test('parallel queries share one allowance question while preserving each query'
   const host = new StudioConversationHost({ runtime: runtimeFixture({ parallelRequests }), tools: toolsFixture({ onPrepare: c => calls.push(c) }), operationLog: log, projectContext });
   try {
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Search pointer and camera docs.' });
-    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending') && nodes(host).filter(n => n.kind === 'tool-call').length >= 2);
+    await waitFor(host, () => nodes(host).some(n => n.kind === 'question' && n.status === 'pending') && nodes(host).filter(n => n.kind === 'tool-call').length >= 2);
     const questions = nodes(host).filter(n => n.kind === 'question'); assert.equal(new Set(questions.map(n => n.id)).size, 1); assert.equal(calls.length, 0);
     const question = nodes(host).filter(n => n.kind === 'question').at(-1);
     assert.match(question.content.prompt, /pointer/); assert.match(question.content.prompt, /camera/);
     await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(o => o.id.includes('query-expand')).id] } });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     assert.deepEqual(calls.map(c => c.arguments.query).sort(), ['camera', 'pointer']);
     assert.ok(calls.every(c => c.arguments.limit === 20));
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
@@ -457,7 +468,7 @@ test('documentation continuation preserves the stored search allowance without i
   const limits = { 'engine.docs.search': 1, 'tool.search': 50, 'scene.query': 100, 'scene.diff': 100 };
   const host = new StudioConversationHost({ runtime: runtimeFixture({ requests: [{ id: 'tool:query-next', toolId: 'engine.docs.search', arguments: args }] }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext, queryLimits: () => limits });
   try {
-    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Continue the returned documentation page.' }); await waitFor(() => !host.replay().busy);
+    await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Continue the returned documentation page.' }); await waitFor(host, () => !host.replay().busy);
     assert.deepEqual(calls[0].arguments, args); assert.ok(!nodes(host).some(n => n.kind === 'question'));
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
 });
@@ -469,7 +480,7 @@ for (const beforeRequestsText of ['正在检查魔方拖拽命中与相机轨道
   const host = new StudioConversationHost({ runtime: runtimeFixture({ requests, beforeRequestsText }), tools: toolsFixture({ onPrepare: call => calls.push(call) }), operationLog: log, projectContext });
   try {
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: '修复魔方拖拽旋转，空白区域仍可调整相机。' });
-    await waitFor(() => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
+    await waitFor(host, () => nodes(host).some(n => n.kind === 'question' && n.status === 'pending'));
     const question = nodes(host).filter(n => n.kind === 'question').at(-1);
     assert.match(question.content.prompt, /当前任务：修复魔方拖拽旋转/);
     assert.match(question.content.prompt, /当前阶段：制定方案/);
@@ -480,7 +491,7 @@ for (const beforeRequestsText of ['正在检查魔方拖拽命中与相机轨道
     if (beforeRequestsText) assert.ok(question.content.prompt.includes(beforeRequestsText));
     else assert.match(question.content.prompt, /AI 尚未提供单独的查询原因/);
     await host.dispatch({ type: 'conversation/answer-question', nodeId: question.id, answer: { optionIds: [question.content.options.find(o => o.id.includes('query-cap')).id] } });
-    await waitFor(() => !host.replay().busy);
+    await waitFor(host, () => !host.replay().busy);
     assert.deepEqual(calls[0].arguments, { ...requests[0].arguments, limit: 12 });
   } finally { await host.dispose(); await log.close(); await rm(root, { recursive: true, force: true }); }
 });
@@ -495,7 +506,7 @@ test('compound plan criteria are expanded before approval and persist as individ
     log = await openLog(root); sessions = new DurableSessionRuntime(log);
     host = new StudioConversationHost({ runtime: runtimeFixture({ requests, sessions }), tools: toolsFixture(), operationLog: log, projectContext, sessionRecovery: { async recover() {} } });
     await host.initialize(); await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Create 27 rounded objects.' });
-    await waitFor(() => !host.replay().busy && nodes(host).some(n => n.kind === 'plan' && n.status === 'pending'));
+    await waitFor(host, () => !host.replay().busy && nodes(host).some(n => n.kind === 'plan' && n.status === 'pending'));
     const run = host.replay().taskRuns.at(-1);
     assert.equal(run.status, 'waiting-user');
     assert.deepEqual(run.acceptance.map(a => a.assertion), assertions);

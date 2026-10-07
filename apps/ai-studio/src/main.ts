@@ -1,3 +1,5 @@
+import { parallelBuildIdentity, loadParallelQualification } from './parallel-qualification.js';
+let parallelQualification: Awaited<ReturnType<typeof loadParallelQualification>> = { reason: 'disabled' };
 import { QueryPreferences } from './query-preferences.js';
 import { loadEngineDocumentation } from './engine-documentation.js';
 import { ProjectAgentHistory, sha256 } from '@haiyue/ai-studio-operation-log';
@@ -37,7 +39,8 @@ import { RecoveryClaimStore } from './session-orchestrator/index.js';
 import { createWorkspaceRecoveryAuthority } from './session-orchestrator/workspace-recovery.js';
 import { DeepSeekCredentialStore } from './deepseek-credential-store.js';
 import { createPocAgentGameAuthoringPlugins, POC_COMMON_PLUGIN_IDS, selectPocEditorProfile } from './profiles/agent-game-authoring.js';
-import { extendedToolsConfiguration } from './extended-tools-config.js';
+import { ToolPreferences } from './tool-preferences.js';
+let toolPreferences: ToolPreferences;
 import { installStdioErrorGuards } from './stdio-safety.js';
 import { StudioKnowledgeSourceLoader } from './knowledge-source-loader.js';
 import { DesktopNotificationService } from './desktop-notifications.js';
@@ -130,6 +133,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       const queryPreferences = new QueryPreferences(path.join(app.getPath('userData'), 'query-limits.json'));
       await queryPreferences.initialize();
       context.effects.own('query-preferences.dispose', () => queryPreferences.dispose());
+      context.effects.own('tool-preferences.dispose', () => toolPreferences.dispose());
       const conversation = new ProjectConversationController({
         resolveProject: () => {
           const snapshot = workspace.snapshot();
@@ -149,6 +153,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
             asyncQuestions: agentProfile.backend === 'harness-api-key' && process.env.AI_STUDIO_EXPERIMENTAL_ASYNC_QUESTIONS === '1',
             experimentalTeam: agentProfile.backend === 'harness-api-key' && process.env.AI_STUDIO_EXPERIMENTAL_TEAM === '1',
           tools: gameTools,
+          ...(parallelQualification.create ? { subtaskFactory: (config, facts) => parallelQualification.create!(agentRuntime, scopedLog, config, facts) } : {}),
           queryLimits: () => queryPreferences.snapshot(),
           operationLog: scopedLog,
           sessionRecovery: new StudioSessionOrchestrator(createWorkspaceRecoveryAuthority(workspace), scopedLog, new RecoveryClaimStore(path.join(app.getPath('userData'), 'operation-log', 'recovery-claims'))),
@@ -224,7 +229,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       });
       const router = new StudioIpcRouter({
         notifications,
-        queryPreferences,
+        queryPreferences, toolPreferences,
         workspace,
         scene,
         selection,
@@ -298,6 +303,13 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
 async function boot(): Promise<void> {
   await traceBoot('boot:start');
   const userDataRoot = app.getPath('userData');
+  toolPreferences = new ToolPreferences(path.join(userDataRoot, 'tool-preferences.json'));
+  await toolPreferences.initialize();
+  const extendedTools = await toolPreferences.configuration(agentProfile.backend);
+  if (agentProfile.backend === 'harness-api-key' && process.env.AI_STUDIO_EXPERIMENTAL_PARALLEL === '1') {
+    try { parallelQualification = await loadParallelQualification(path.join(userDataRoot, 'parallel-qualification.json'), await parallelBuildIdentity(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..'))); } catch { parallelQualification = { reason: 'build-identity-unavailable' }; }
+  }
+  toolPreferences.setParallelStatus(parallelQualification.reason);
   const deepSeekCredentials = new DeepSeekCredentialStore(userDataRoot, safeStorage);
   await deepSeekCredentials.importFromEnvironment(process.env);
   await traceBoot('boot:credentials-ready');
@@ -310,7 +322,7 @@ async function boot(): Promise<void> {
     createScriptPreviewPlugin(),
     ...createPocAgentGameAuthoringPlugins({
       backend: agentProfile.backend,
-      ...(agentProfile.backend === 'harness-api-key' ? { extendedTools: await extendedToolsConfiguration() } : {}),
+      ...(agentProfile.backend === 'harness-api-key' ? { extendedTools } : {}),
       documentation: await loadEngineDocumentation(),
       preview: agentPreview,
       textureRenderer: { render: renderCanvasTexture },

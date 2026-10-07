@@ -1,0 +1,136 @@
+TAP version 13
+# Subtest: W7 rejects disabled before any child request
+ok 1 - W7 rejects disabled before any child request
+  ---
+  duration_ms: 6.265479
+  type: 'test'
+  ...
+# Subtest: W7 rejects provider-mismatch before any child request
+ok 2 - W7 rejects provider-mismatch before any child request
+  ---
+  duration_ms: 0.827621
+  type: 'test'
+  ...
+# Subtest: W7 rejects small before any child request
+ok 3 - W7 rejects small before any child request
+  ---
+  duration_ms: 1.065352
+  type: 'test'
+  ...
+# Subtest: W7 rejects coupled before any child request
+ok 4 - W7 rejects coupled before any child request
+  ---
+  duration_ms: 0.765773
+  type: 'test'
+  ...
+# Subtest: W7 rejects writes before any child request
+ok 5 - W7 rejects writes before any child request
+  ---
+  duration_ms: 0.763856
+  type: 'test'
+  ...
+# Subtest: W7 rejects overlap before any child request
+ok 6 - W7 rejects overlap before any child request
+  ---
+  duration_ms: 0.695729
+  type: 'test'
+  ...
+# Subtest: W7 rejects unqualified before any child request
+ok 7 - W7 rejects unqualified before any child request
+  ---
+  duration_ms: 1.051383
+  type: 'test'
+  ...
+# Subtest: W7 rejects unapproved before any child request
+ok 8 - W7 rejects unapproved before any child request
+  ---
+  duration_ms: 0.760079
+  type: 'test'
+  ...
+# Subtest: W7 rejects budget before any child request
+ok 9 - W7 rejects budget before any child request
+  ---
+  duration_ms: 6.97251
+  type: 'test'
+  ...
+# Subtest: W7 rejects bad-facts before any child request
+ok 10 - W7 rejects bad-facts before any child request
+  ---
+  duration_ms: 4.043278
+  type: 'test'
+  ...
+# Subtest: W7 rejects secret-facts before any child request
+ok 11 - W7 rejects secret-facts before any child request
+  ---
+  duration_ms: 5.178657
+  type: 'test'
+  ...
+# Subtest: W7 runs independent work on two lanes, preserves order and minimal facts, retains unknown billing reserves
+ok 12 - W7 runs independent work on two lanes, preserves order and minimal facts, retains unknown billing reserves
+  ---
+  duration_ms: 22.743006
+  type: 'test'
+  ...
+# Subtest: W7 rejects unproven sources, stale revisions and conflicting output keys without applying anything
+ok 13 - W7 rejects unproven sources, stale revisions and conflicting output keys without applying anything
+  ---
+  duration_ms: 27.739845
+  type: 'test'
+  ...
+# Subtest: W7 cancel waits for real child exit and suppresses late publication
+ok 14 - W7 cancel waits for real child exit and suppresses late publication
+  ---
+  duration_ms: 26.714182
+  type: 'test'
+  ...
+# Subtest: W7 reservations are atomic across concurrent batches and a journal failure makes zero calls
+ok 15 - W7 reservations are atomic across concurrent batches and a journal failure makes zero calls
+  ---
+  duration_ms: 8.024188
+  type: 'test'
+  ...
+# Subtest: W7 final real ledger releases its own reservation once; missing and parent ledgers cannot release it
+ok 16 - W7 final real ledger releases its own reservation once; missing and parent ledgers cannot release it
+  ---
+  duration_ms: 17.961843
+  type: 'test'
+  ...
+# Subtest: P0 child settlement after drained port: failed-known
+ok 17 - P0 child settlement after drained port: failed-known
+  ---
+  duration_ms: 10.443017
+  type: 'test'
+  ...
+# Subtest: P0 child settlement after drained port: invalid-known
+ok 18 - P0 child settlement after drained port: invalid-known
+  ---
+  duration_ms: 11.382074
+  type: 'test'
+  ...
+# Subtest: P0 child settlement after drained port: cancelled-known
+ok 19 - P0 child settlement after drained port: cancelled-known
+  ---
+  duration_ms: 10.915091
+  type: 'test'
+  ...
+# Subtest: P0 child settlement after drained port: failed-unknown
+ok 20 - P0 child settlement after drained port: failed-unknown
+  ---
+  duration_ms: 11.963913
+  type: 'test'
+  ...
+# Subtest: P1 W7 includes global user constraints in every isolated objective and never truncates them
+ok 21 - P1 W7 includes global user constraints in every isolated objective and never truncates them
+  ---
+  duration_ms: 17.395206
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1159.304616

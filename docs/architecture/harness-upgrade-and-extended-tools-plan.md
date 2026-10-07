@@ -336,3 +336,70 @@ alpha 隔离结果：
 本轮验证：异步问答（含活动中重启和显式取消）、W7、结果压缩、UI、目录与配置定向集 **63/63** 通过；新增 UI 自由输入回归通过；问答最后补测（含答复与取消竞态）**7/7** 通过；两种真实浏览器隔离/取消/重建共 **4/4** 通过。应用构建、契约、类型、包边界、upstream pins 与 **59** 项 quick evaluation 通过。`npm run check` 仍停在历史 capability 证据的 `stale verification input binding`，未覆盖写入旧验收报告或推进 milestone。
 
 官方接口依据：[User Questions](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.0-rc.2/docs/subsystems/user-questions.md)、[Chrome provider](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.0-rc.2/packages/experimental/browser-use-chrome-devtools-mcp/README.md)、[Team](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.0-rc.2/packages/experimental/agent-team/README.md)。
+
+## 15. P0 续跑恢复与官方工具执行回执（2026-10-07）
+
+本轮修复实验入口继续推广前的可靠性问题，保持现有审批、预算、任务所有权和单一调度器。
+
+- 异步回答、持久审批、恢复后的计划和预算选择将续跑参数保存为有版本的 CAS 记录；决定与引用写在同一条 Session resolution 中，避免“已回答，但续跑只存在于内存队列”。记录保留原任务、已批准计划、补充信息和明确的预算选择。
+- 续跑开始前先写领取事实。未领取的记录在初始化完成后自动回到原队列；已领取而未确认结束的记录显示 `continuation.interrupted`，由现有检查点恢复入口接续，不自动重放可能已产生副作用的工作。并发提交同一交互只允许一个处理者，取消竞态不生成新工作。这里不宣称跨外部系统的 exactly-once。
+- 最近聊天记录仍有显示上限，但未决问题、计划和授权单独保留。恢复扫描全部仍保留的日志，按有界序列窗口处理；先归并事实，再读取近期节点和未决交互的内容。任务按最新投影恢复，兼容旧记录缺少索引字段的情况。
+- 官方工具增加 `OfficialToolReceiptV1`，分别记录 execution（completed / unknown / not-started）和 delivery（available / unavailable）。派发前先记事实；结果过大、类型不支持、Host 校验失败、执行后取消及后置策略失败均保留脱敏回执和有界文本预览，预览由 Host 从结构化结果按原字段路径脱敏后截断，不直接保存 provider 渲染文本；先保存 artifact 再发布引用。
+- 同任务、同工具版本、同参数的外部操作存在未决执行结果时，拒绝自动再次派发，重建 runtime 后仍生效；热运行时按日志序列增量读取新导入的项目历史，避免缓存漏掉未决操作。明确未启动的调用可重新准备；已成功交付的操作不被永久封锁；只读调用可重试。Node 脚本和浏览器副作用继续走原审批。
+- 错误的 summary / digest 投影保留执行状态、预览、artifact 引用和禁止自动重复的提示，不把这类结果送入参数修正重试。
+- 全量门禁越过过期能力证据后，修复 320 像素窄窗口中计划批准按钮被裁剪的问题；授权说明完整跨列显示，摘要可滚动，提交中状态在重绘后继续防止重复提交。同步纠正旧集成夹具对无条件项目读取、原尺寸分析截图及已提交计划节点复用的过时假设，保留运行视口、画面内容和审批语义断言。
+
+`delivery` 在该工具契约中表示桥接结果可被 Host 接收。更外层 Backend 投递仍使用现有 `tool.outcome-unknown` 事实和恢复流程；二进制截图附件、官方 Team 执行和 alpha 生产升级不在本轮扩展范围。
+
+验证与证据更新见 [P0 验证记录](../evidence/p0-reliability/2026-10-07/README.md)。旧 capability census 和 verification 已保存在该目录的 `before/` 下；当前证据由正式 capture 命令重新生成，未手工调整摘要或验收门槛。
+
+最终 capability capture **345/345 通过**；全量 check 越过旧 stale evidence 门禁并完成 74 文件集成清单，**408 通过 / 1 失败**，无跳过或取消。唯一失败是大项目性能验收要求指定 Windows 10 / i7-7700 基准机，当前 macOS 不匹配；保持门槛，未宣称全量验收通过。全部本轮 TAP 与汇总保存于验证记录目录，既有设备验收产物保留原版本。
+
+## 16. P1：步骤级等待、按需结果和产品入口（2026-10-07）
+
+本轮在第 15 节 P0 恢复与回执基础上实施，保留唯一 Host / Session / TaskAccount / Document History。
+
+- **问题依赖**：`studio.question.ask.blockedStepIds` 使用已批准的 plan item ID；Host 根据原有 `PlanTaskV1.dependsOn` 计算传递阻塞。依赖步骤不能被报告为开始或完成，不能参与候选委派。没有完整图时保留整项任务的写入屏障。第一批放行范围是已标记 `in_progress`、依赖已完成、实体 read/write scopes 与等待步骤不相交的 `transform.set` / `material.set`；其他修改和外部动作仍等待答复。仍需原有精确修订、工具审批和约束校验。答复入队但尚未进入下一轮时继续阻止写入，避免使用尚未读取的新约束。
+- **结果按需读取**：成功的官方工具结果超过 8 KiB 时保存完整脱敏 CAS，默认返回摘要、来源、digest、大小、修订和期限。`studio.result.read` 支持 offset / length，单段最多 8192 个 JavaScript 字符，返回 nextOffset。CAS ID 本身不是读取授权；引用必须由当前会话发放，且文档、revision、工具权限摘要与 60 秒有效期匹配。浏览器引用额外限制在原 turn。历史原件仍保留在日志产物中。不会为了获取过期外部动作结果而重做动作。
+- **跨回合复用**：先开放匿名 `official.web.fetch`；命中有效记录直接交付引用，跳过 provider 执行，但仍经过 Host 预算、调用事件和交付记录。搜索凭据、浏览器状态和 Node 副作用没有充分跨回合失效证明，因此不缓存执行。恢复查询限定 TTL 时间窗口、页数和容量，失效或查询预算不足退回正常匿名抓取。`agent/result-savings` 记录实际投递前后字节，不把字节估计标为 provider token 用量。
+- **工具设置**：设置页新增 web/browser/node 开关、Playwright / 实验 Chrome DevTools 选择、实际启用状态和环境不可用原因。偏好保存到设备 `tool-preferences.json`，重启应用生效；部署环境变量的关闭开关优先。Main 检测浏览器可执行文件及 Node 22+ permission flag / macOS sandbox；不可用工具不进入注册表。Renderer 无执行路径/秘密输入能力。浏览器模型 schema 移除 filename / filePath / initScript 并拒绝未知参数，Bridge 仍使用未修改的 native catalog 验证上游漂移。
+- **候选并行产品接入**：`AI_STUDIO_EXPERIMENTAL_PARALLEL=1` 时读取设备 userData 下的 `parallel-qualification.json`。绑定安装后 JS/JSON 与 lockfile 的 build digest，不能仅用 Git HEAD 掩盖未提交修改。成功加载与当前构建匹配且未过期的证据包后展示 delegate 入口；每次调用仍验证模型、prompt profile、tool registry、任务独立性、输入引用、预算及真实对照证据。现有调度器最多同时执行 2 个无工具子任务、每批 2–4 个；候选状态使用现有 progress 节点、候选存 CAS，取消等待真实退出。当前产品 cohort 为独立产物研究；输入使用父会话已发放且仍有效的结果产物引用，缺少引用、超出事实预算或其他任务类别均退回父任务。父任务负责核验和通过普通工具合并，子任务不能直接写 Document，候选不自动成为验收证据。费用、tokens 和取消继续归属于父 TaskAccount；未知成本保留预留，不当作零。
+
+资格文件是设备运维输入，模型和 renderer 不能写入。版本 1 的精确字段：`schemaVersion: 1, sourceRevision: <parallelBuildIdentity 返回值>, cohort: "independent-artifact-research-v1", expiresAt: <毫秒时间戳>, reportRef: <CAS ref>, artifacts: [{ref, value}]`，最大 256 KiB。每个 ref 必须等于 value 的 canonical SHA-256；整个不可变证据包留存到当前项目日志。report/value 继续执行 `subtask-qualification.ts` 的严格证据规范：至少 5 对真实 provider trials，包含 parent / children / merge 的最终 Usage/Cost、质量全部通过，延迟中位数比 ≤ 0.9，累计 tokens 与成本中位数均不回退。配置入口不代表已取得生产资格。本轮未发送付费模型请求、未生成真实 A/B 证据，因此默认仍关闭并行。
+
+验证记录见 `docs/evidence/p1-efficiency/2026-10-07/README.md`。不能用合成测试声称生产 token 或质量收益，也不替代原 Windows 指定机器性能门禁。
+
+## 17. P2 实验能力准入与 alpha 全栈验证（2026-10-07）
+
+P2 的完整目标仍是官方 Team 的单一持久任务归属、Stagehand 额外推理计费，以及隔离 alpha 的源码/应用/进程验证。以下区分已实现适配与尚未开放的原生执行，不能将门禁或只读入口记作官方插件已接入。
+
+- Team 的 `studio.team.inspect` 直接投影当前已批准计划的 step/task id、执行状态、依赖与写入范围，返回脱离原对象的只读数据。不生成另一套 Team task id、revision、owner 或任务板。`nativeAdmission: blocked` 与 W7 的 `qualification-required` 分开，配置候选端口并不代表官方 Team 已准入。
+- 固定 rc.2 的 Team 经 `TeamJournal` 向 Lead Session 写入成员、消息和任务事件，经 `subagents` 恢复并投递消息。完整挂载还需要 Studio 的 Session persistence/continuation 适配：所有恢复后请求必须重新经过父任务预算、取消和资格校验，且既有计划状态与官方任务板只能保留一个权威写入端。本轮未挂载原生 Team 服务或自动恢复调度。
+- 额外推理可按 input/output/cost 三项预留父任务预算，并绑定同一 canonical UsageLedger 与现有 PricingEngine；其他任务的 ledger、未结束的请求、缺少最终用量或未知价格均不能结算。绑定后不能通过“未发送”释放预留。任一额外推理未结算时，任务 token 总量与费用保持 unknown/null，cost.final=false；取消不会被当作零成本。已有 Web 搜索的有界输出预留保持兼容。
+- 固定 `dsh-experimental-browser-use-stagehand-native@0.2.0-rc.2` 的 Config 仅提供原生 model/credential、浏览器与 operation timeout，未暴露自定义推理回调。后续深入验证确认：底层 Stagehand 4.1.0 已提供 `ClientLLM.generate` 和操作用量，先前仅根据 Harness 声明作出的判断不完整，见第 19 节。当前仍未接入 Studio 逐请求预算、取消和账本；原生执行不注册，未知 backend 显式拒绝。
+- alpha runner 现在复制源代码及完整构建资源，排除旧 dist/node_modules/test-output。在临时 workspace 更新候选闭包，删除退役 invariants override，固定 Cordis/cosmokit/schemastery，验证单实例、版本、MIT license 和完整性。依次执行全应用构建、各 workspace 源码类型检查、bridge 测试、Session/压缩/continuation 恢复测试、真实 Electron/Playwright/DevTools/受限 Node 进程矩阵。每阶段有退出码、日志摘要与时限，缺少任一阶段不得 passed。保留源码摘要、候选 lock 摘要，并验证生产三个依赖文件未改变。
+
+验证结果与固定上游声明证据见 `docs/evidence/p2-experimental/2026-10-07/`。未调用付费模型，未将 alpha 提升为生产版本，未放宽 W7 的实测资格门槛；正式 Team/Stagehand 原生执行仍属于 P2 未完成项。
+
+## 18. Team 持久化与恢复准入适配（2026-10-07）
+
+本次补齐的是显式 opt-in 的适配层，使用固定 rc.2 官方 Team / Subagent / Session Query；不发布原生 Team 工具、不新建产品任务板，也不将 W7 的一次性候选资格当作持久 Team 资格。生产默认关闭。代码和验收范围见 [Team 恢复记录](../evidence/team-recovery/2026-10-07/README.md)。
+
+- `createTeamSessionJournal` 复用现有 Operation Log + CAS，按 Session 保存有界增量帧与前驱摘要，写入必须持有 composition 提供的独占恢复 lease。缺失日志前缀、产物、版本不匹配、并发写入及参数脱敏会拒绝恢复。使用完整保留的 journal；已轮转丢失前缀的日志不能被当作新会话。
+- `StudioTeamPersistence` 实现官方 SessionPersistence，append 在内存保持可读，flush / close 批量持久化；原生 Agent、Team flush 和冷恢复读句柄都走同一 adapter。保留原始 seq、成员、任务 CAS 与消息身份；assistant 的隐藏 reasoning 和逐 token stream 不持久化。没有另开 JSONL 或数据库。
+- `teamRecovery: { journal, admission }` 在同一 Harness transport 生命周期安装适配；打开已存在的 Session 使用官方 resume。恢复投递需要的 Session Query 只使用官方精确读取，不注册搜索或模型工具。新增依赖闭包保持 rc.2、MIT、精确 overrides / lock；依赖中出现 compaction/todo 不表示挂载它们。
+- `StudioTeamRecoveryAdmission` 将 Lead/成员身份绑定现有 parentTaskId、budgetId、planTaskId、model；保存绑定不授予执行权。每次模型请求（包括 Lead 直接 steer 和冷队友）都重新调用 Host authority，检查预算、输入字节保守上界、输出上限、已知价格及父任务取消。此阶段仅允许无工具推理；编辑仍由父任务普通工具和审批处理。
+- 请求预留及开始记录在付费调用之前落盘，使用现有父 TaskAccount / UsageLedger，保留缓存输入的正确总量。settle 只在真实 stream 退出后执行；未知费用保持预留，重启不自动重发结果不明的请求。已结算历史也要求 Host 提供已恢复的父 ledger，缺少账本时返回 reconciliation-required，不从零继续计费。
+
+产品后续接线仍需：绑定真实父会话及批准计划、恢复父任务完整账本、设备级 writer lease、Team 专属真实 provider 资格，以及确认 Lead 的普通 runtime 账本和 Team 请求账本只有一个计费 owner。当前导出的 opt-in transport 由 Team admission 负责计费，不能再将同一请求作为另一笔 runtime 费用重复入账。默认 `studio.team.inspect` 继续只读投影 Studio 计划，明确区分 adapter available 与 product mounted。
+
+## 19. Stagehand 底层推理钩子验证（2026-10-07）
+
+已在固定 Stagehand 4.1.0 发布包、真实 Chromium 扩展及 rc.2 Harness Worker 上验证 `Stagehand.create({ model: { generate } })`。这是 v4 的 `ClientLLM`，不是 v3 的顶层 `llmClient`。SDK 无需 fork；Harness Worker 需要开放回调通道。验证、源文件摘要、锁定依赖和可复现小补丁见 [Stagehand SDK 记录](../evidence/stagehand-sdk/2026-10-07/README.md)。
+
+- 自定义回调实际位于 SDK 进程，扩展通过 `llm.generate` RPC 请求；观察、点击、提取都能经过 Host。提取实测包含内容提取和完成度判断两次调用。
+- 原生结果有 `metadata.usage` 汇总。缺失 usage 会被 SDK 汇总为零，操作失败可能不返回之前成功调用的聚合，所以正式计费必须以 Host 每次生成的 provider usage 为准，汇总只核对、不得重复入账。
+- 回调没有内置 AbortSignal 或输出 token 上限；Host 必须捕获父调用身份，逐次预留预算、设置 provider 输出上限、处理取消并等待真实请求结束。费用未知不能释放预留或自动重发。
+- 隔离补丁只改 Worker 模型入口为 MessagePort 回调，保留原操作分发及校验；不复制浏览器实现、不修改 SDK。源文件摘要或替换锚点变化即拒绝应用。原生凭证路由和逐操作模型覆盖禁止回退，凭证留在 Host。
+
+当前是底层能力与补丁原型验证，生产 manifests/lock/工具注册未变。正式接入还需现有 Tool Host 精确审批、TaskAccount/UsageLedger 与持久调用记录接线、Worker 生命周期取消排空，以及实际 provider 的输出限额/用量验证。该结果解除“SDK 缺少扩展点”的技术疑问，不将模拟模型数据认定为真实费用或生产资格。

@@ -1,3 +1,4 @@
+import { mountToolSettings } from './tool-settings-ui.js';
 import { renderPreviewTestTable, type PreviewTestActivity } from './preview-test-progress.js';
 import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { mountQuerySettings } from './query-settings-ui.js';
@@ -83,6 +84,7 @@ let agentHistoryWasBusy = false;
 const agentPreviewOwnership = new AgentPreviewOwnership();
 const agentPreviewCursor = new AgentPreviewCursor();
 let previewStop: Promise<void> | null = null;
+let toolSettings: ReturnType<typeof mountToolSettings> | null = null;
 let querySettings: ReturnType<typeof mountQuerySettings> | null = null;
 let notificationSettings: ReturnType<typeof mountNotificationSettings> | null = null;
 let disposeNotificationClicked: (() => void) | null = null;
@@ -818,6 +820,7 @@ function setupUiPreferences(): void {
   theme = readStoredTheme();
   applyTheme(theme);
 
+  toolSettings = mountToolSettings(document, element('settings-dialog').querySelector('.settings-form')!, { language: () => language, invoke });
   querySettings = mountQuerySettings(document, element('settings-dialog').querySelector('.settings-form')!, { language: () => language, invoke });
   notificationSettings = mountNotificationSettings(document, element('settings-dialog').querySelector('.settings-form')!, {
     desktop: typeof window.haiyueStudio.onNotificationClicked === 'function', language: () => language, invoke,
@@ -853,6 +856,7 @@ function applyLocale(): void {
   scriptEditor?.setLanguage(language);
   notificationSettings?.refreshLocale();
   querySettings?.refreshLocale();
+  toolSettings?.refreshLocale();
   document.documentElement.lang = language;
   element<HYHistoryControls>('history-controls').setAttribute('locale', language);
   document.body.dataset.language = language;
@@ -1182,6 +1186,7 @@ function bindUi(): void {
     disposeConversationChanged?.(); disposeConversationChanged = null;
     disposeSyncWake?.(); disposeSyncWake = null;
     disposeNotificationClicked?.(); disposeNotificationClicked = null;
+    toolSettings?.dispose(); toolSettings = null;
     querySettings?.dispose(); querySettings = null;
     notificationSettings?.dispose(); notificationSettings = null;
     logViewerSubscription?.dispose(); logViewerSubscription = null;

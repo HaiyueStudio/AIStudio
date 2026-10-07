@@ -178,5 +178,5 @@ export interface GameToolRuntimeSnapshot {
 }
 
 export class GameToolProtocolError extends Error {
-  constructor(readonly code: string, message: string, readonly retryable = false) { super(message); this.name = 'GameToolProtocolError'; }
+  constructor(readonly code: string, message: string, readonly retryable = false, readonly details?: JsonObject) { super(message); this.name = 'GameToolProtocolError'; }
 }

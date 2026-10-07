@@ -123,7 +123,7 @@ export class GameAuthoringToolRuntime {
 
   constructor(private readonly options: GameAuthoringToolRuntimeOptions) {
     if (options.timeoutCeilingMs !== undefined && (!Number.isSafeInteger(options.timeoutCeilingMs) || options.timeoutCeilingMs < 1 || options.timeoutCeilingMs > 20_000)) throw new TypeError('Tool timeout ceiling must be between one millisecond and twenty seconds.');
-    this.official = options.officialTools ? new OfficialToolAdapter(options.officialTools, GAME_AUTHORING_TOOL_DEFINITIONS) : undefined;
+    this.official = options.officialTools ? new OfficialToolAdapter(options.officialTools, GAME_AUTHORING_TOOL_DEFINITIONS, options.operationLog) : undefined;
     this.allDefinitions = Object.freeze([...GAME_AUTHORING_TOOL_DEFINITIONS, ...(this.official?.definitions ?? [])]);
     this.definitionsById = new Map(this.allDefinitions.map(d => [d.id, d]));
     this.regressions = new GestureRegressions(options.operationLog);
@@ -429,7 +429,7 @@ export class GameAuthoringToolRuntime {
       await this.appendFact(stored.definition, { kind: 'tool/execution-completed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { toolId: stored.definition.id, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, resultDigest: sha256(canonicalStringify(value)), historyLabel: result.historyLabel ?? null } });
       return result;
     } catch (cause) {
-      await this.appendFact(stored.definition, { kind: 'tool/execution-failed', severity: 'error', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { toolId: stored.definition.id, code: cause instanceof GameToolProtocolError ? cause.code : 'tool.execution-failed', message: errorMessage(cause) } }).catch(() => {});
+      await this.appendFact(stored.definition, { kind: cause instanceof GameToolProtocolError && cause.details?.executionReceipt ? 'tool/result-unavailable' : 'tool/execution-failed', severity: 'error', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, stored.approval?.approvalId), payload: { toolId: stored.definition.id, code: cause instanceof GameToolProtocolError ? cause.code : 'tool.execution-failed', message: errorMessage(cause) } }).catch(() => {});
       throw cause;
     } finally {
       clearTimeout(timer); unlink(); this.active.delete(stored.call.id);

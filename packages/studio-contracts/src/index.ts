@@ -297,3 +297,6 @@ function freezeManifest(manifest: StudioPluginManifest): StudioPluginManifest {
   });
 }
 export * from './subtask.js';
+
+export { isOfficialToolReceiptV1, type OfficialToolReceiptV1 } from './official-tools.js';
+export * from './team-recovery.js';

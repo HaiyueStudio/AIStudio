@@ -5,6 +5,7 @@ import type { HarnessExtendedToolOptions } from '@haiyue/ai-studio-harness-bridg
 /** Main-process deployment settings, never model-selected paths or credentials. */
 export async function extendedToolsConfiguration(env: NodeJS.ProcessEnv = process.env): Promise<Omit<HarnessExtendedToolOptions, 'storeArtifact'>> {
   const backend = env.AI_STUDIO_BROWSER_BACKEND ?? 'playwright';
+  if (backend === 'stagehand' || backend === 'stagehand-native') throw new Error('Stagehand is unavailable: the pinned native provider exposes neither inference usage nor request token caps.');
   if (!['playwright', 'chrome-devtools'].includes(backend)) throw new Error('Unknown AI_STUDIO_BROWSER_BACKEND.');
   if (backend === 'chrome-devtools' && env.AI_STUDIO_EXPERIMENTAL_BROWSER !== '1') throw new Error('Chrome DevTools requires AI_STUDIO_EXPERIMENTAL_BROWSER=1.');
   let nodeExecutable = env.AI_STUDIO_NODE_EXECUTABLE;

@@ -1,0 +1,142 @@
+TAP version 13
+# Subtest: G11 projects an approved evidence-backed task and replays the same terminal summary after restart
+ok 1 - G11 projects an approved evidence-backed task and replays the same terminal summary after restart
+  ---
+  duration_ms: 1768.596594
+  type: 'test'
+  ...
+# Subtest: G11 converts a crash-interrupted task into an explicit resumable checkpoint
+ok 2 - G11 converts a crash-interrupted task into an explicit resumable checkpoint
+  ---
+  duration_ms: 562.139385
+  type: 'test'
+  ...
+# Subtest: G11 restores retained projections through bounded sequence windows when the journal exceeds the scan budget
+ok 3 - G11 restores retained projections through bounded sequence windows when the journal exceeds the scan budget
+  ---
+  duration_ms: 303.603007
+  type: 'test'
+  ...
+# Subtest: turn completion preserves the specific terminal evaluation diagnostic
+ok 4 - turn completion preserves the specific terminal evaluation diagnostic
+  ---
+  duration_ms: 1674.038627
+  type: 'test'
+  ...
+# Subtest: same-tick mismatch triggers bounded recapture and completes the original approved task
+ok 5 - same-tick mismatch triggers bounded recapture and completes the original approved task
+  ---
+  duration_ms: 2571.766004
+  type: 'test'
+  ...
+# Subtest: unfinished acceptance reports the actual failed authoring tool instead of a generic evidence error
+ok 6 - unfinished acceptance reports the actual failed authoring tool instead of a generic evidence error
+  ---
+  duration_ms: 1081.59053
+  type: 'test'
+  ...
+# Subtest: a successful tool retry clears its failure so missing acceptance is not blamed on a resolved error
+ok 7 - a successful tool retry clears its failure so missing acceptance is not blamed on a resolved error
+  ---
+  duration_ms: 3188.717289
+  type: 'test'
+  ...
+# Subtest: an early completed turn continues the same approved task through real evaluation
+ok 8 - an early completed turn continues the same approved task through real evaluation
+  ---
+  duration_ms: 2193.16419
+  type: 'test'
+  ...
+# Subtest: a persisted unfinished checkpoint starts fresh execution instead of replaying old tool requests
+ok 9 - a persisted unfinished checkpoint starts fresh execution instead of replaying old tool requests
+  ---
+  duration_ms: 934.058589
+  type: 'test'
+  ...
+# Subtest: automatic incomplete-acceptance continuation stops at two attempts without inventing evidence
+ok 10 - automatic incomplete-acceptance continuation stops at two attempts without inventing evidence
+  ---
+  duration_ms: 2371.457867
+  type: 'test'
+  ...
+# Subtest: terminal evaluation clears an earlier queued repair and permits inspection without restarting a blocked task
+ok 11 - terminal evaluation clears an earlier queued repair and permits inspection without restarting a blocked task
+  ---
+  duration_ms: 2220.523328
+  type: 'test'
+  ...
+# Subtest: query quantity query-expand continues successfully and reuses this task's choice
+ok 12 - query quantity query-expand continues successfully and reuses this task's choice
+  ---
+  duration_ms: 2045.549019
+  type: 'test'
+  ...
+# Subtest: query quantity query-cap continues successfully and reuses this task's choice
+ok 13 - query quantity query-cap continues successfully and reuses this task's choice
+  ---
+  duration_ms: 1999.026292
+  type: 'test'
+  ...
+# Subtest: query preferences are dynamic and omitted limit uses the configured threshold
+ok 14 - query preferences are dynamic and omitted limit uses the configured threshold
+  ---
+  duration_ms: 590.645534
+  type: 'test'
+  ...
+# Subtest: query allowance query-expand survives host/session restart and resumes the pending read
+ok 15 - query allowance query-expand survives host/session restart and resumes the pending read
+  ---
+  duration_ms: 2401.495394
+  type: 'test'
+  ...
+# Subtest: query allowance query-cap survives host/session restart and resumes the pending read
+ok 16 - query allowance query-cap survives host/session restart and resumes the pending read
+  ---
+  duration_ms: 2307.354181
+  type: 'test'
+  ...
+# Subtest: cancelling an unanswered query allowance never executes the read
+ok 17 - cancelling an unanswered query allowance never executes the read
+  ---
+  duration_ms: 726.357537
+  type: 'test'
+  ...
+# Subtest: parallel queries share one allowance question while preserving each query
+ok 18 - parallel queries share one allowance question while preserving each query
+  ---
+  duration_ms: 1002.677336
+  type: 'test'
+  ...
+# Subtest: documentation continuation preserves the stored search allowance without injecting a new limit
+ok 19 - documentation continuation preserves the stored search allowance without injecting a new limit
+  ---
+  duration_ms: 631.041116
+  type: 'test'
+  ...
+# Subtest: query confirmation displays its actual task and search context (visible explanation)
+ok 20 - query confirmation displays its actual task and search context (visible explanation)
+  ---
+  duration_ms: 910.764598
+  type: 'test'
+  ...
+# Subtest: query confirmation displays its actual task and search context (no invented reason)
+ok 21 - query confirmation displays its actual task and search context (no invented reason)
+  ---
+  duration_ms: 858.237125
+  type: 'test'
+  ...
+# Subtest: compound plan criteria are expanded before approval and persist as individual pending checks
+ok 22 - compound plan criteria are expanded before approval and persist as individual pending checks
+  ---
+  duration_ms: 1205.848401
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 34560.4924

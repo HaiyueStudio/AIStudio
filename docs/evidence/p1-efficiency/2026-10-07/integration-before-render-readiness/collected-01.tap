@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: Agent preview follows active provider turns but releases at human handoff
+ok 1 - Agent preview follows active provider turns but releases at human handoff
+  ---
+  duration_ms: 1.627336
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during planning
+ok 2 - human handoff closes Agent preview during planning
+  ---
+  duration_ms: 0.276991
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during playing
+ok 3 - human handoff closes Agent preview during playing
+  ---
+  duration_ms: 0.164357
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during evaluating
+ok 4 - human handoff closes Agent preview during evaluating
+  ---
+  duration_ms: 0.220405
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during repairing
+ok 5 - human handoff closes Agent preview during repairing
+  ---
+  duration_ms: 0.18263
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on completed, even if another task runs
+ok 6 - Agent preview closes on completed, even if another task runs
+  ---
+  duration_ms: 0.221538
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on failed, even if another task runs
+ok 7 - Agent preview closes on failed, even if another task runs
+  ---
+  duration_ms: 0.146229
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on cancelled, even if another task runs
+ok 8 - Agent preview closes on cancelled, even if another task runs
+  ---
+  duration_ms: 0.178441
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on blocked, even if another task runs
+ok 9 - Agent preview closes on blocked, even if another task runs
+  ---
+  duration_ms: 0.181456
+  type: 'test'
+  ...
+# Subtest: project changes and lost tasks release preview; stale tasks cannot close manual preview
+ok 10 - project changes and lost tasks release preview; stale tasks cannot close manual preview
+  ---
+  duration_ms: 0.774939
+  type: 'test'
+  ...
+# Subtest: renderer cleanup clears the broker only for the matching preview instance
+ok 11 - renderer cleanup clears the broker only for the matching preview instance
+  ---
+  duration_ms: 0.906941
+  type: 'test'
+  ...
+# Subtest: testing preview closes when the task advances to evaluating
+ok 12 - testing preview closes when the task advances to evaluating
+  ---
+  duration_ms: 0.150129
+  type: 'test'
+  ...
+# Subtest: testing preview closes when the task advances to repairing
+ok 13 - testing preview closes when the task advances to repairing
+  ---
+  duration_ms: 0.11099
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 129.728346

@@ -1,0 +1,33 @@
+--- upstream/lib/worker.js
++++ isolated/patched-worker.mjs
+@@ -1,7 +1,8 @@
++import { clientModel } from "./client-model.mjs";
+ import { MessagePort, parentPort, workerData } from "node:worker_threads";
+ import { z } from "zod";
+ import { StagehandClientCreateConfigSchema } from "@browserbasehq/stagehand";
+-import { assertNever } from "@deepseek-ai/dsh-util-values";
++const assertNever = () => { throw new Error("stagehand.unsupported-operation"); };
+ //#region lib/types/native.js
+ /** Native Stagehand operations run inside one isolated browser Worker. */
+ /** Explicit credentials for one model supported by the pinned Stagehand SDK. */
+@@ -67,7 +68,9 @@
+ 	});
+ 	const stagehand = await Stagehand.create({
+ 		browser,
+-		model: config.model,
++		model: clientModel(config.inferencePort),
++		cache: false,
++		telemetry: { traces: { endpoint: config.traceEndpoint, headers: {} } },
+ 		logging: { level: "off" }
+ 	});
+ 	return {
+@@ -196,7 +199,8 @@
+ const port = parentPort;
+ if (port === null) throw new Error("Stagehand attachment requires a Worker parent");
+ const { extensionId, cdpEndpoint, executablePath, ...config } = z.object({
+-	model: stagehandModelSchema,
++	inferencePort: z.instanceof(MessagePort),
++	traceEndpoint: z.url(),
+ 	mode: z.enum(["launch", "attach"]),
+ 	cdpEndpoint: z.string().optional(),
+ 	executablePath: z.string().optional(),

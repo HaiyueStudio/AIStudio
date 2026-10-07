@@ -1,0 +1,13 @@
+{
+  "files": 74,
+  "passed": 408,
+  "failed": 1,
+  "failures": [
+    {
+      "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+      "passed": 0,
+      "failed": 1
+    }
+  ],
+  "limitation": "Designated Windows 10.0.19045 / i7-7700 / 8 logical CPU acceptance attempted on macOS 25.6.0 / i7-9750H / 12 logical CPUs. Assertion retained."
+}

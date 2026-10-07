@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: closed admission accepts forward dependencies, bounds concurrency and preserves input-order results
+ok 1 - closed admission accepts forward dependencies, bounds concurrency and preserves input-order results
+  ---
+  duration_ms: 63.052452
+  type: 'test'
+  ...
+# Subtest: unknown/negative benefit stays serial; effects, versions, cycles and model authority fail closed
+ok 2 - unknown/negative benefit stays serial; effects, versions, cycles and model authority fail closed
+  ---
+  duration_ms: 9.843941
+  type: 'test'
+  ...
+# Subtest: reverse dependency chains cancel after failure without deadlock in both schedulers
+ok 3 - reverse dependency chains cancel after failure without deadlock in both schedulers
+  ---
+  duration_ms: 7.524814
+  type: 'test'
+  ...
+# Subtest: incomplete admission never executes; stop-batch drains started bodies on failure and hook failure
+ok 4 - incomplete admission never executes; stop-batch drains started bodies on failure and hook failure
+  ---
+  duration_ms: 24.513401
+  type: 'test'
+  ...
+# Subtest: Host checkpoint stops unrelated queued nodes without a model failure policy
+ok 5 - Host checkpoint stops unrelated queued nodes without a model failure policy
+  ---
+  duration_ms: 3.69484
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2893.694208

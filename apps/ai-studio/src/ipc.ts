@@ -1,3 +1,5 @@
+import { parseToolPreferences } from './tool-preferences-model.js';
+import type { ToolPreferences } from './tool-preferences.js';
 import { basicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
 import type { QueryPreferences } from './query-preferences.js';
 import { parseQueryLimits, QUERY_LIMIT_DEFAULTS } from '@haiyue/ai-studio-game-authoring-tools/query-limits';
@@ -30,6 +32,7 @@ export const STUDIO_IPC_SCHEMA_VERSION = 1 as const;
 export type StudioIpcMethod =
   | 'app/status'
   | 'queries/get' | 'queries/set'
+  | 'tools/settings' | 'tools/configure'
   | 'notifications/get' | 'notifications/set' | 'notifications/test' | 'notifications/target'
   | 'project/new'
   | 'project/open'
@@ -85,6 +88,7 @@ export interface StudioIpcResponse {
 export interface StudioIpcRouterOptions {
   readonly notifications?: DesktopNotificationService;
   readonly queryPreferences?: QueryPreferences;
+  readonly toolPreferences?: ToolPreferences;
   readonly workspace: ProjectWorkspace;
   readonly scene: SceneAuthoringService;
   readonly selection: SceneSelectionService;
@@ -169,6 +173,8 @@ export class StudioIpcRouter {
   private async dispatch(request: StudioIpcRequest, signal: AbortSignal, projectId?: StableId): Promise<JsonObject> {
     if (request.channel === 'logs/query' || request.channel === 'logs/export') projectLogQuery({ limit: 1, traverseCorrelation: false, projectId }, this.options.workspace.snapshot().document?.projectId);
     switch (request.channel) {
+      case 'tools/settings': return this.options.toolPreferences?.snapshot() ?? { unavailable: true };
+      case 'tools/configure': { if (!this.options.toolPreferences) throw new IpcDiagnosticError('tools.unavailable', 'Tool settings unavailable.'); return this.options.toolPreferences.configure(request.payload.preferences); }
       case 'queries/get': return toJson({ limits: this.options.queryPreferences?.snapshot() ?? QUERY_LIMIT_DEFAULTS });
       case 'queries/set': {
         if (!this.options.queryPreferences) throw new IpcDiagnosticError('queries.unavailable', 'Query preferences are unavailable.');
@@ -409,7 +415,8 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
   if (!allowedChannels.has(channel)) throw new IpcDiagnosticError('ipc-channel-rejected', `IPC channel ${value.channel} is not allowed.`);
   const payload = value.payload as Record<string, unknown>;
   const keys = Object.keys(payload);
-  if (channel === 'queries/set') { requireShape(payload, keys, ['limits'], { limits: 'json' }); parseQueryLimits(payload.limits); }
+  if (channel === 'tools/configure') { requireShape(payload, keys, ['preferences'], { preferences: 'json' }); parseToolPreferences(payload.preferences); }
+  else if (channel === 'queries/set') { requireShape(payload, keys, ['limits'], { limits: 'json' }); parseQueryLimits(payload.limits); }
   else if (channel === 'notifications/set') { requireShape(payload, keys, ['preferences'], { preferences: 'json' }); parseNotificationPreferences(payload.preferences); }
   else if (channel === 'project/new') requireShape(payload, keys, ['name'], { name: 'string' });
   else if (channel === 'project/command') requireShape(payload, keys, ['commandId', 'label', 'baseRevision', 'key', 'value'], {
@@ -560,7 +567,7 @@ export class IpcDiagnosticError extends Error {
 }
 
 const allowedChannels = new Set<StudioIpcMethod>([
-  'queries/get', 'queries/set',
+  'queries/get', 'queries/set', 'tools/settings', 'tools/configure',
   'notifications/get', 'notifications/set', 'notifications/test', 'notifications/target',
   'app/status', 'project/new', 'project/open', 'project/save', 'project/snapshot',
   'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: actual request gate runs before first HTTP and every tool step; rebuild shrinks the wire and preserves latest tool pairing
+ok 1 - actual request gate runs before first HTTP and every tool step; rebuild shrinks the wire and preserves latest tool pairing
+  ---
+  duration_ms: 122.942966
+  type: 'test'
+  ...
+# Subtest: provider failure after replacement restores original history and epoch without confirming a candidate
+ok 2 - provider failure after replacement restores original history and epoch without confirming a candidate
+  ---
+  duration_ms: 30.978402
+  type: 'test'
+  ...
+# Subtest: preparation failure and invalid tool-pair cut make no extra HTTP request
+ok 3 - preparation failure and invalid tool-pair cut make no extra HTTP request
+  ---
+  duration_ms: 20.734424
+  type: 'test'
+  ...
+# Subtest: cancellation during rebuilt preparation restores history before the next turn
+ok 4 - cancellation during rebuilt preparation restores history before the next turn
+  ---
+  duration_ms: 27.072481
+  type: 'test'
+  ...
+# Subtest: durable confirmation failure restores the old Surface without executing returned tools
+ok 5 - durable confirmation failure restores the old Surface without executing returned tools
+  ---
+  duration_ms: 24.444805
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 547.145029

@@ -1,0 +1,31 @@
+TAP version 13
+# Subtest: W6 pinned Harness closed DAG through Host and durable replay: reads
+ok 1 - W6 pinned Harness closed DAG through Host and durable replay: reads
+  ---
+  duration_ms: 2938.277319
+  type: 'test'
+  ...
+# {"mode":"reads","modelRequests":2,"childTools":3,"peakReadBodies":2,"transactions":0}
+# Subtest: W6 pinned Harness closed DAG through Host and durable replay: transaction
+ok 2 - W6 pinned Harness closed DAG through Host and durable replay: transaction
+  ---
+  duration_ms: 4361.064971
+  type: 'test'
+  ...
+# {"mode":"transaction","modelRequests":3,"childTools":4,"peakReadBodies":1,"transactions":1}
+# Subtest: W6 pinned Harness closed DAG through Host and durable replay: failure
+ok 3 - W6 pinned Harness closed DAG through Host and durable replay: failure
+  ---
+  duration_ms: 2736.275284
+  type: 'test'
+  ...
+# {"mode":"failure","modelRequests":2,"childTools":2,"peakReadBodies":2,"transactions":0}
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11122.157529

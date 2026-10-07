@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: an approval barrier remains actionable after process restart and resumes from its durable checkpoint
+ok 1 - an approval barrier remains actionable after process restart and resumes from its durable checkpoint
+  ---
+  duration_ms: 1034.673644
+  type: 'test'
+  ...
+# Subtest: trusted script and runtime start barriers survive a real Electron process restart
+ok 2 - trusted script and runtime start barriers survive a real Electron process restart
+  ---
+  duration_ms: 10495.917499
+  type: 'test'
+  ...
+# Subtest: a long durable plan releases the provider call and preserves task tools for its approved continuation
+ok 3 - a long durable plan releases the provider call and preserves task tools for its approved continuation
+  ---
+  duration_ms: 3129.302615
+  type: 'test'
+  ...
+# Subtest: approved plan commits validated scripts without a second human approval
+ok 4 - approved plan commits validated scripts without a second human approval
+  ---
+  duration_ms: 2563.587199
+  type: 'test'
+  ...
+# Subtest: durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
+ok 5 - durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
+  ---
+  duration_ms: 4121.273295
+  type: 'test'
+  ...
+# Subtest: durable backend question cancels the old provider turn and continues from the persisted answer
+ok 6 - durable backend question cancels the old provider turn and continues from the persisted answer
+  ---
+  duration_ms: 1611.299467
+  type: 'test'
+  ...
+# Subtest: durable budget continuation releases the completed provider tranche and preserves prior output
+ok 7 - durable budget continuation releases the completed provider tranche and preserves prior output
+  ---
+  duration_ms: 2767.227601
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (live)
+ok 8 - between-turn budget checkpoint keeps its task owner (live)
+  ---
+  duration_ms: 2922.268384
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (input-tokens)
+ok 9 - between-turn budget checkpoint keeps its task owner (input-tokens)
+  ---
+  duration_ms: 2738.531621
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (restart)
+ok 10 - between-turn budget checkpoint keeps its task owner (restart)
+  ---
+  duration_ms: 3061.179748
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (legacy-restart)
+ok 11 - between-turn budget checkpoint keeps its task owner (legacy-restart)
+  ---
+  duration_ms: 3262.197948
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (stop)
+ok 12 - between-turn budget checkpoint keeps its task owner (stop)
+  ---
+  duration_ms: 1922.933841
+  type: 'test'
+  ...
+# Subtest: host failure closes the durable topology (start)
+ok 13 - host failure closes the durable topology (start)
+  ---
+  duration_ms: 596.891754
+  type: 'test'
+  ...
+# Subtest: host failure closes the durable topology (resume)
+ok 14 - host failure closes the durable topology (resume)
+  ---
+  duration_ms: 406.905368
+  type: 'test'
+  ...
+# Subtest: host failure closes the durable topology (stream)
+ok 15 - host failure closes the durable topology (stream)
+  ---
+  duration_ms: 1069.330643
+  type: 'test'
+  ...
+# Subtest: legacy host failure repairs missing terminal topology without overriding a newer attempt (false)
+ok 16 - legacy host failure repairs missing terminal topology without overriding a newer attempt (false)
+  ---
+  duration_ms: 318.313269
+  type: 'test'
+  ...
+# Subtest: legacy host failure repairs missing terminal topology without overriding a newer attempt (true)
+ok 17 - legacy host failure repairs missing terminal topology without overriding a newer attempt (true)
+  ---
+  duration_ms: 248.897108
+  type: 'test'
+  ...
+# Subtest: between-turn inline budget approval excludes user wait and rearms the renewed wall-time budget
+ok 18 - between-turn inline budget approval excludes user wait and rearms the renewed wall-time budget
+  ---
+  duration_ms: 487.694203
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 46431.92791

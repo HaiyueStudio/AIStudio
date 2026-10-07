@@ -1,0 +1,538 @@
+TAP version 13
+# Subtest: Team inspection is a detached projection of the existing approved plan, not another task board
+ok 1 - Team inspection is a detached projection of the existing approved plan, not another task board
+  ---
+  duration_ms: 3.21383
+  type: 'test'
+  ...
+# Subtest: Team denies unknown-member before dispatch
+ok 2 - Team denies unknown-member before dispatch
+  ---
+  duration_ms: 205.440023
+  type: 'test'
+  ...
+# Subtest: Team denies tools before dispatch
+ok 3 - Team denies tools before dispatch
+  ---
+  duration_ms: 121.055986
+  type: 'test'
+  ...
+# Subtest: Team denies unqualified before dispatch
+ok 4 - Team denies unqualified before dispatch
+  ---
+  duration_ms: 174.068706
+  type: 'test'
+  ...
+# Subtest: Team denies cancelled before dispatch
+ok 5 - Team denies cancelled before dispatch
+  ---
+  duration_ms: 191.705195
+  type: 'test'
+  ...
+# Subtest: Team denies input-cap before dispatch
+ok 6 - Team denies input-cap before dispatch
+  ---
+  duration_ms: 158.192331
+  type: 'test'
+  ...
+# Subtest: Team denies output-cap before dispatch
+ok 7 - Team denies output-cap before dispatch
+  ---
+  duration_ms: 87.000514
+  type: 'test'
+  ...
+# Subtest: Team denies unknown-price before dispatch
+ok 8 - Team denies unknown-price before dispatch
+  ---
+  duration_ms: 64.265248
+  type: 'test'
+  ...
+# Subtest: Team denies budget before dispatch
+ok 9 - Team denies budget before dispatch
+  ---
+  duration_ms: 67.745821
+  type: 'test'
+  ...
+# Subtest: Team actual usage uses parent ledger and a durable receipt blocks duplicate dispatch
+ok 10 - Team actual usage uses parent ledger and a durable receipt blocks duplicate dispatch
+  ---
+  duration_ms: 295.484741
+  type: 'test'
+  ...
+# Subtest: crash after request admission blocks automatic replay and does not reset unknown cost
+ok 11 - crash after request admission blocks automatic replay and does not reset unknown cost
+  ---
+  duration_ms: 146.671862
+  type: 'test'
+  ...
+# Subtest: restored paid receipts require the reconciled parent ledger, never a fresh zero-cost account
+ok 12 - restored paid receipts require the reconciled parent ledger, never a fresh zero-cost account
+  ---
+  duration_ms: 146.459293
+  type: 'test'
+  ...
+# Subtest: cancel and disposal wait for the real provider to drain before releasing wall reservation
+ok 13 - cancel and disposal wait for the real provider to drain before releasing wall reservation
+  ---
+  duration_ms: 149.536471
+  type: 'test'
+  ...
+# Subtest: one Cordis root activates dependency order and owns services, contributions, events and effects
+ok 14 - one Cordis root activates dependency order and owns services, contributions, events and effects
+  ---
+  duration_ms: 73.582294
+  type: 'test'
+  ...
+# Subtest: partial activation failure rolls every effect back in reverse order
+ok 15 - partial activation failure rolls every effect back in reverse order
+  ---
+  duration_ms: 8.752651
+  type: 'test'
+  ...
+# Subtest: optional provider failure degrades consumer without failing profile
+ok 16 - optional provider failure degrades consumer without failing profile
+  ---
+  duration_ms: 5.28637
+  type: 'test'
+  ...
+# Subtest: invalid config and late async activation fail closed with zero resources
+ok 17 - invalid config and late async activation fail closed with zero resources
+  ---
+  duration_ms: 16.45253
+  type: 'test'
+  ...
+# Subtest: profile replacement is deterministic and 100 cycles leave no owned resources
+ok 18 - profile replacement is deterministic and 100 cycles leave no owned resources
+  ---
+  duration_ms: 239.636808
+  type: 'test'
+  ...
+# Subtest: fixed Cordis compatibility and lazy closure remain explicit
+ok 19 - fixed Cordis compatibility and lazy closure remain explicit
+  ---
+  duration_ms: 17.244421
+  type: 'test'
+  ...
+# Subtest: pinned Harness agent composition fails closed without a credential and disposes idempotently
+ok 20 - pinned Harness agent composition fails closed without a credential and disposes idempotently
+  ---
+  duration_ms: 1589.210451
+  type: 'test'
+  ...
+# Subtest: Harness maps dotted Studio tool ids to provider-safe deterministic names
+ok 21 - Harness maps dotted Studio tool ids to provider-safe deterministic names
+  ---
+  duration_ms: 0.427017
+  type: 'test'
+  ...
+# Subtest: Harness requires an existing owner and one live transport is attached to its root
+ok 22 - Harness requires an existing owner and one live transport is attached to its root
+  ---
+  duration_ms: 25.392881
+  type: 'test'
+  ...
+# Subtest: failed Harness composition rolls back already loaded plugins without disposing its owner
+ok 23 - failed Harness composition rolls back already loaded plugins without disposing its owner
+  ---
+  duration_ms: 18.783682
+  type: 'test'
+  ...
+# Subtest: root shutdown during Harness initialization drains every partially loaded child
+ok 24 - root shutdown during Harness initialization drains every partially loaded child
+  ---
+  duration_ms: 7.299982
+  type: 'test'
+  ...
+# Subtest: Studio disable owns all Harness descendants
+ok 25 - Studio disable owns all Harness descendants
+  ---
+  duration_ms: 11.036814
+  type: 'test'
+  ...
+# Subtest: Studio replace owns all Harness descendants
+ok 26 - Studio replace owns all Harness descendants
+  ---
+  duration_ms: 11.743373
+  type: 'test'
+  ...
+# Subtest: Studio rollback owns all Harness descendants
+ok 27 - Studio rollback owns all Harness descendants
+  ---
+  duration_ms: 16.466733
+  type: 'test'
+  ...
+# Subtest: root disposal joins concurrent callers and reclaims late activation results
+ok 28 - root disposal joins concurrent callers and reclaims late activation results
+  ---
+  duration_ms: 5.388835
+  type: 'test'
+  ...
+# Subtest: Harness request recovery executes the upstream retry contract with a Studio hard bound
+ok 29 - Harness request recovery executes the upstream retry contract with a Studio hard bound
+  ---
+  duration_ms: 0.446518
+  type: 'test'
+  ...
+# Subtest: official search uses credential resolver, independent Messages route, bounded sources and turn-local cache
+ok 30 - official search uses credential resolver, independent Messages route, bounded sources and turn-local cache
+  ---
+  duration_ms: 263.597321
+  type: 'test'
+  ...
+# Subtest: missing credentials never dispatch; HTTP provider rejects private URLs and credentials
+ok 31 - missing credentials never dispatch; HTTP provider rejects private URLs and credentials
+  ---
+  duration_ms: 91.373263
+  type: 'test'
+  ...
+# Subtest: search errors omit raw provider text and cancellation drains
+ok 32 - search errors omit raw provider text and cancellation drains
+  ---
+  duration_ms: 53.748343
+  type: 'test'
+  ...
+# Subtest: capability configuration is frozen and browser schemas are reviewed without starting processes
+ok 33 - capability configuration is frozen and browser schemas are reviewed without starting processes
+  ---
+  duration_ms: 3.036879
+  type: 'test'
+  ...
+# Subtest: Web provider loads on first use and concurrent equivalent searches use one HTTP request
+ok 34 - Web provider loads on first use and concurrent equivalent searches use one HTTP request
+  ---
+  duration_ms: 36.580055
+  type: 'test'
+  ...
+# Subtest: a reused provider installs fresh services and cache under a new owner
+ok 35 - a reused provider installs fresh services and cache under a new owner
+  ---
+  duration_ms: 73.515371
+  type: 'test'
+  ...
+# Subtest: Messages streams and tool results keep their session and turn across repeated calls
+ok 36 - Messages streams and tool results keep their session and turn across repeated calls
+  ---
+  duration_ms: 353.409962
+  type: 'test'
+  ...
+# Subtest: stream cancellation settles one turn and permits a fresh turn on the same session
+ok 37 - stream cancellation settles one turn and permits a fresh turn on the same session
+  ---
+  duration_ms: 47.925734
+  type: 'test'
+  ...
+# Subtest: owner disposal drains an in-flight Studio tool and rejects late results
+ok 38 - owner disposal drains an in-flight Studio tool and rejects late results
+  ---
+  duration_ms: 37.439338
+  type: 'test'
+  ...
+# Subtest: model defaults are explicit and only the official endpoint inherits catalog capacity
+ok 39 - model defaults are explicit and only the official endpoint inherits catalog capacity
+  ---
+  duration_ms: 52.551234
+  type: 'test'
+  ...
+# Subtest: request-error recovery stays bounded and new stream attempts keep the original turn
+ok 40 - request-error recovery stays bounded and new stream attempts keep the original turn
+  ---
+  duration_ms: 3043.083933
+  type: 'test'
+  ...
+# Subtest: native schemas are hidden; only selected Studio wrappers reach the model and execute the full official pipeline once
+ok 41 - native schemas are hidden; only selected Studio wrappers reach the model and execute the full official pipeline once
+  ---
+  duration_ms: 320.401939
+  type: 'test'
+  ...
+# Subtest: raw, unknown, nested and schema-drift dispatch cannot bypass the Host
+ok 42 - raw, unknown, nested and schema-drift dispatch cannot bypass the Host
+  ---
+  duration_ms: 33.781959
+  type: 'test'
+  ...
+# Subtest: cancel drains official work and prevents late success
+ok 43 - cancel drains official work and prevents late success
+  ---
+  duration_ms: 44.788479
+  type: 'test'
+  ...
+# Subtest: closeSession drains official work and prevents late success
+ok 44 - closeSession drains official work and prevents late success
+  ---
+  duration_ms: 35.123574
+  type: 'test'
+  ...
+# Subtest: dispose drains official work and prevents late success
+ok 45 - dispose drains official work and prevents late success
+  ---
+  duration_ms: 34.534601
+  type: 'test'
+  ...
+# Subtest: official pre/post policies remain authoritative and errors expose no raw provider diagnostics
+ok 46 - official pre/post policies remain authoritative and errors expose no raw provider diagnostics
+  ---
+  duration_ms: 30.824993
+  type: 'test'
+  ...
+# Subtest: nested Studio wrappers from official pre-policy are rejected before they can wait on the Host
+ok 47 - nested Studio wrappers from official pre-policy are rejected before they can wait on the Host
+  ---
+  duration_ms: 27.988348
+  type: 'test'
+  ...
+# Subtest: oversized native output reports completed execution with a bounded receipt
+ok 48 - oversized native output reports completed execution with a bounded receipt
+  ---
+  duration_ms: 18.646441
+  type: 'test'
+  ...
+# Subtest: native policy receipts distinguish preflight refusal from uncertain post-execution effects
+ok 49 - native policy receipts distinguish preflight refusal from uncertain post-execution effects
+  ---
+  duration_ms: 23.737712
+  type: 'test'
+  ...
+# Subtest: P1 browser model schemas omit unsupported destinations but retain native drift schema
+ok 50 - P1 browser model schemas omit unsupported destinations but retain native drift schema
+  ---
+  duration_ms: 4.843948
+  type: 'test'
+  ...
+# Subtest: unadmitted browser backends never silently fall back to another provider
+ok 51 - unadmitted browser backends never silently fall back to another provider
+  ---
+  duration_ms: 5.840952
+  type: 'test'
+  ...
+# Subtest: real pinned Harness dispatch is bounded at 1 and commits out-of-order finishes in call order
+ok 52 - real pinned Harness dispatch is bounded at 1 and commits out-of-order finishes in call order
+  ---
+  duration_ms: 449.499476
+  type: 'test'
+  ...
+# Subtest: real pinned Harness dispatch is bounded at 2 and commits out-of-order finishes in call order
+ok 53 - real pinned Harness dispatch is bounded at 2 and commits out-of-order finishes in call order
+  ---
+  duration_ms: 119.71789
+  type: 'test'
+  ...
+# Subtest: real pinned Harness dispatch is bounded at 4 and commits out-of-order finishes in call order
+ok 54 - real pinned Harness dispatch is bounded at 4 and commits out-of-order finishes in call order
+  ---
+  duration_ms: 86.046892
+  type: 'test'
+  ...
+# Subtest: mutation and unknown tools are exclusive barriers between parallel reads
+ok 55 - mutation and unknown tools are exclusive barriers between parallel reads
+  ---
+  duration_ms: 160.342223
+  type: 'test'
+  ...
+# Subtest: invoke classifies exact targets; stale, forged, recursive and unknown targets stay exclusive
+ok 56 - invoke classifies exact targets; stale, forged, recursive and unknown targets stay exclusive
+  ---
+  duration_ms: 215.695857
+  type: 'test'
+  ...
+# Subtest: cancelling four in-flight reads drains the pool, skips queued calls and rejects late results
+ok 57 - cancelling four in-flight reads drains the pool, skips queued calls and rejects late results
+  ---
+  duration_ms: 31.998857
+  type: 'test'
+  ...
+# Subtest: owner disposal drains all simultaneous pending reads
+ok 58 - owner disposal drains all simultaneous pending reads
+  ---
+  duration_ms: 20.028495
+  type: 'test'
+  ...
+# Subtest: parallel hints are bound into the provider session signature and cap validation releases no owner
+ok 59 - parallel hints are bound into the provider session signature and cap validation releases no owner
+  ---
+  duration_ms: 31.560426
+  type: 'test'
+  ...
+# Subtest: actual request gate runs before first HTTP and every tool step; rebuild shrinks the wire and preserves latest tool pairing
+ok 60 - actual request gate runs before first HTTP and every tool step; rebuild shrinks the wire and preserves latest tool pairing
+  ---
+  duration_ms: 319.741584
+  type: 'test'
+  ...
+# Subtest: provider failure after replacement restores original history and epoch without confirming a candidate
+ok 61 - provider failure after replacement restores original history and epoch without confirming a candidate
+  ---
+  duration_ms: 63.150377
+  type: 'test'
+  ...
+# Subtest: preparation failure and invalid tool-pair cut make no extra HTTP request
+ok 62 - preparation failure and invalid tool-pair cut make no extra HTTP request
+  ---
+  duration_ms: 36.369191
+  type: 'test'
+  ...
+# Subtest: cancellation during rebuilt preparation restores history before the next turn
+ok 63 - cancellation during rebuilt preparation restores history before the next turn
+  ---
+  duration_ms: 72.204045
+  type: 'test'
+  ...
+# Subtest: durable confirmation failure restores the old Surface without executing returned tools
+ok 64 - durable confirmation failure restores the old Surface without executing returned tools
+  ---
+  duration_ms: 40.387632
+  type: 'test'
+  ...
+# Subtest: Session V4 awaits serial initialization before publishing a handle or making its first Messages request
+ok 65 - Session V4 awaits serial initialization before publishing a handle or making its first Messages request
+  ---
+  duration_ms: 225.716061
+  type: 'test'
+  ...
+# Subtest: cancel aborts asynchronous initialization and permits clean recreation
+ok 66 - cancel aborts asynchronous initialization and permits clean recreation
+  ---
+  duration_ms: 58.415485
+  type: 'test'
+  ...
+# Subtest: closeSession aborts asynchronous initialization and permits clean recreation
+ok 67 - closeSession aborts asynchronous initialization and permits clean recreation
+  ---
+  duration_ms: 44.840798
+  type: 'test'
+  ...
+# Subtest: failed initialization releases its scope and pre-aborted requests never create a Session
+ok 68 - failed initialization releases its scope and pre-aborted requests never create a Session
+  ---
+  duration_ms: 36.436435
+  type: 'test'
+  ...
+# Subtest: owner disposal aborts an initializing Session without publishing a late handle or request
+ok 69 - owner disposal aborts an initializing Session without publishing a late handle or request
+  ---
+  duration_ms: 25.025675
+  type: 'test'
+  ...
+# Subtest: official legacy URL migrates to Messages, custom Chat Completions and retired models require explicit migration
+ok 70 - official legacy URL migrates to Messages, custom Chat Completions and retired models require explicit migration
+  ---
+  duration_ms: 38.815519
+  type: 'test'
+  ...
+# Subtest: official Team journal survives transport restart; stale task CAS is rejected
+ok 71 - official Team journal survives transport restart; stale task CAS is rejected
+  ---
+  duration_ms: 697.247902
+  type: 'test'
+  ...
+# Subtest: Lead direct steering and restored sessions cannot bypass the request admission gate
+ok 72 - Lead direct steering and restored sessions cannot bypass the request admission gate
+  ---
+  duration_ms: 276.599732
+  type: 'test'
+  ...
+# Subtest: allowed inference settles actual usage once, after the provider stream exits
+ok 73 - allowed inference settles actual usage once, after the provider stream exits
+  ---
+  duration_ms: 305.419202
+  type: 'test'
+  ...
+# Subtest: receipt durable before Lead acknowledgement survives cold recovery without redelivery
+ok 74 - receipt durable before Lead acknowledgement survives cold recovery without redelivery
+  ---
+  duration_ms: 645.663987
+  type: 'test'
+  ...
+# Subtest: the official transport and Host gate share canonical parent usage including cached input
+ok 75 - the official transport and Host gate share canonical parent usage including cached input
+  ---
+  duration_ms: 1300.679977
+  type: 'test'
+  ...
+# Subtest: pending mailbox cold-resumes the official child through the same admission boundary
+ok 76 - pending mailbox cold-resumes the official child through the same admission boundary
+  ---
+  duration_ms: 368.503279
+  type: 'test'
+  ...
+# Subtest: Session handles expose buffered appends, enforce one writer and flush on close
+ok 77 - Session handles expose buffered appends, enforce one writer and flush on close
+  ---
+  duration_ms: 107.82797
+  type: 'test'
+  ...
+# Subtest: hidden model reasoning and stream chunks do not enter durable Team replay
+ok 78 - hidden model reasoning and stream chunks do not enter durable Team replay
+  ---
+  duration_ms: 350.407732
+  type: 'test'
+  ...
+# Subtest: concurrent identical reads share one request; a cancelled waiter does not cancel another
+ok 79 - concurrent identical reads share one request; a cancelled waiter does not cancel another
+  ---
+  duration_ms: 6.713459
+  type: 'test'
+  ...
+# Subtest: last cancellation drains actual exit, does not cache late success, and permits a fresh retry
+ok 80 - last cancellation drains actual exit, does not cache late success, and permits a fresh retry
+  ---
+  duration_ms: 1.470891
+  type: 'test'
+  ...
+# Subtest: owner disposal aborts all distinct reads and waits for cleanup; errors are not cached
+ok 81 - owner disposal aborts all distinct reads and waits for cleanup; errors are not cached
+  ---
+  duration_ms: 3.721043
+  type: 'test'
+  ...
+# Subtest: frames replay from disk with exclusive write leases and contiguous immutable prefixes
+ok 82 - frames replay from disk with exclusive write leases and contiguous immutable prefixes
+  ---
+  duration_ms: 208.110505
+  type: 'test'
+  ...
+# Subtest: refuse version before journal writes
+ok 83 - refuse version before journal writes
+  ---
+  duration_ms: 83.673717
+  type: 'test'
+  ...
+# Subtest: refuse secret before journal writes
+ok 84 - refuse secret before journal writes
+  ---
+  duration_ms: 80.504121
+  type: 'test'
+  ...
+# Subtest: refuse reasoning before journal writes
+ok 85 - refuse reasoning before journal writes
+  ---
+  duration_ms: 27.716144
+  type: 'test'
+  ...
+# Subtest: refuse oversize before journal writes
+ok 86 - refuse oversize before journal writes
+  ---
+  duration_ms: 34.225704
+  type: 'test'
+  ...
+# Subtest: missing or truncated frames refuse recovery instead of creating a different state
+ok 87 - missing or truncated frames refuse recovery instead of creating a different state
+  ---
+  duration_ms: 276.287082
+  type: 'test'
+  ...
+# Subtest: Team frames validate their version and bounded structural envelope
+ok 88 - Team frames validate their version and bounded structural envelope
+  ---
+  duration_ms: 3.842965
+  type: 'test'
+  ...
+1..88
+# tests 88
+# suites 0
+# pass 88
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4737.361654

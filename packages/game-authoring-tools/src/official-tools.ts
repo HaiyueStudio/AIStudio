@@ -1,14 +1,18 @@
 import { Ajv, type ValidateFunction } from 'ajv';
 import { Ajv2020 } from 'ajv/dist/2020.js';
-import { isOfficialToolBindingV1, type OfficialToolProviderV1, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
-import { redactObject } from '@haiyue/ai-studio-operation-log';
+import { isOfficialToolBindingV1, isOfficialToolReceiptV1, type OfficialToolProviderV1, type OfficialToolReceiptV1, type JsonObject, type StableId } from '@haiyue/ai-studio-contracts';
+import { redactObject, type ConversationOperationLog } from '@haiyue/ai-studio-operation-log';
 import { GameToolProtocolError, type GameToolCall, type GameToolDefinition, type GameToolPreview } from './types.js';
+
+import { OfficialReceiptJournal, resultPreview } from './official-receipts.js';
 
 /** Handlers added to the existing catalog/runtime; this adapter owns no approval or scheduler. */
 export class OfficialToolAdapter {
   readonly definitions: readonly GameToolDefinition[];
   private readonly validators = new Map<string, { input: ValidateFunction; output: ValidateFunction }>();
-  constructor(private readonly provider: OfficialToolProviderV1, builtins: readonly GameToolDefinition[]) {
+  private readonly receipts: OfficialReceiptJournal;
+  constructor(private readonly provider: OfficialToolProviderV1, builtins: readonly GameToolDefinition[], log?: ConversationOperationLog) {
+    this.receipts = new OfficialReceiptJournal(log);
     if (!provider || typeof provider.execute !== 'function' || !Array.isArray(provider.definitions) || provider.definitions.length > 64) throw invalid('official.provider-invalid');
     const ids = new Set(builtins.map(d => String(d.id)));
     const ajv = new Ajv({ strict: false, allErrors: false, validateFormats: false });
@@ -36,8 +40,20 @@ export class OfficialToolAdapter {
   }
   async execute(definition: GameToolDefinition, call: GameToolCall, args: JsonObject, signal: AbortSignal): Promise<JsonObject> {
     signal.throwIfAborted();
+    const key = this.receipts.key(definition, call, args);
+    await this.receipts.begin(key, definition, call);
+    let receipt: JsonObject | undefined, returned = false, raw: unknown;
+    const record = async (value: OfficialToolReceiptV1) => { receipt = await this.receipts.record(key, definition, call, value); };
     try {
-      const raw: unknown = await this.provider.execute({ callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: definition.id, arguments: args }, signal);
+      raw = await this.provider.execute({ callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: definition.id, arguments: args }, signal, async (value, previewSource) => {
+        const clean = redactObject(value as unknown as JsonObject, { fields: definition.redactedFields }).value;
+        if (!isOfficialToolReceiptV1(clean)) throw invalid('official.receipt-invalid');
+        const { preview: _unstructuredPreview, ...metadata } = clean;
+        const preview = jsonValue(previewSource) ? resultPreview(previewSource, definition) : undefined;
+        if (clean.delivery === 'available') receipt = metadata;
+        else await record({ ...metadata, ...(preview ? { preview } : {}) });
+      });
+      returned = true;
       signal.throwIfAborted();
       if (!jsonValue(raw)) throw invalid('official.result-invalid');
       const serialized = JSON.stringify(raw);
@@ -50,8 +66,15 @@ export class OfficialToolAdapter {
         const detail = code.startsWith('official.node.') && typeof result.message === 'string' ? result.message.split('\n')[0]!.slice(0, 512) : '';
         throw new GameToolProtocolError(code, detail ? `${code}: ${detail}` : code);
       }
+      await record({ schemaVersion: 1, execution: 'completed', delivery: 'available', reason: 'none' });
       return freeze(result);
     } catch (cause) {
+      if (!receipt || receipt.delivery === 'available') {
+        const preview = returned && jsonValue(raw) ? resultPreview(raw, definition) : undefined;
+        await record({ schemaVersion: 1, execution: returned || receipt?.execution === 'completed' ? 'completed' : 'unknown', delivery: 'unavailable',
+          reason: signal.aborted ? 'cancelled' : returned ? 'invalid-result' : 'provider-error', ...(preview ? { preview } : {}) });
+      }
+      if (!signal.aborted && definition.effect !== 'observe' && receipt?.execution !== 'not-started') throw this.receipts.failure(receipt!, 'official.result-unavailable');
       if (signal.aborted) throw signal.reason;
       if (cause instanceof GameToolProtocolError) throw cause;
       // Provider diagnostics can contain URLs with credentials, headers or process output.

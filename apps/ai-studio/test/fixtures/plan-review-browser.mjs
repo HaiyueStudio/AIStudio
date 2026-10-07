@@ -19,8 +19,8 @@ const contents = {
   approval: { approvalId: 'approval:review', toolCallId: 'call:review', toolId: 'script.apply', toolVersion: '1.0.0', target: 'script:review', effect: 'trusted-code', risk: 'high', argumentsSummary: 'Write the approved game controller', previewDiff: '+ controller', baseRevision: 1, argsDigest: digest, previewDigest: digest, scope: 'operation', decision: 'pending' },
 };
 window.reviewIntents = [];
-window.showReview = (kind = 'plan', status = 'pending', details = true) => {
-  const event = { schemaVersion: 1, sequence: 1, source: 'replay', node: { schemaVersion: 1, id: `node:${kind}`, kind, status, createdAt: stamp, provenance, content: contents[kind] } };
+window.showReview = (kind = 'plan', status = 'pending', details = true, nodeId = `node:${kind}`) => {
+  const event = { schemaVersion: 1, sequence: 1, source: 'replay', node: { schemaVersion: 1, id: nodeId, kind, status, createdAt: stamp, provenance, content: contents[kind] } };
   const snapshot = { revision: 1, connection: 'connected', busy: false, backendId: backend.id, backends: [backend], taskAccounting: details ? accounting : null, taskRuns: details ? [run] : [], executionGraphs: details ? [graph] : [], events: [event] };
   renderChatPanel(root, presentChatPanel(new ConversationProjector().reset(snapshot)), intent => window.reviewIntents.push(intent));
 };

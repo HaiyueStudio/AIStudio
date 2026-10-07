@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: workflow contracts validate versions, bounded budgets, graph identity and secret-bearing extra fields
+ok 1 - workflow contracts validate versions, bounded budgets, graph identity and secret-bearing extra fields
+  ---
+  duration_ms: 8.366791
+  type: 'test'
+  ...
+# Subtest: published workflow schemas stay identical to the provider schemas
+ok 2 - published workflow schemas stay identical to the provider schemas
+  ---
+  duration_ms: 21.848998
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 503.551371

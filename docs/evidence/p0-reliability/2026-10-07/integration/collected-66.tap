@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: actual M12 document and registry project complete hierarchy, components and the same public Selection/History
+ok 1 - actual M12 document and registry project complete hierarchy, components and the same public Selection/History
+  ---
+  duration_ms: 859.047332
+  type: 'test'
+  ...
+# Subtest: manual component edits, rename, hierarchy and Transform use actual tools and exactly one existing History transaction each
+ok 2 - manual component edits, rename, hierarchy and Transform use actual tools and exactly one existing History transaction each
+  ---
+  duration_ms: 2919.231236
+  type: 'test'
+  ...
+# Subtest: unknown authority, versions, component owners, exact revisions, selection and reopen epoch fail closed
+ok 3 - unknown authority, versions, component owners, exact revisions, selection and reopen epoch fail closed
+  ---
+  duration_ms: 724.058668
+  type: 'test'
+  ...
+# Subtest: registry validation and withheld approval reject edits without changing Document or History
+ok 4 - registry validation and withheld approval reject edits without changing Document or History
+  ---
+  duration_ms: 674.281951
+  type: 'test'
+  ...
+# Subtest: runtime inspection projects persisted ObservationArtifactV2 and separates previous run/revision/project without authoring writes
+ok 5 - runtime inspection projects persisted ObservationArtifactV2 and separates previous run/revision/project without authoring writes
+  ---
+  duration_ms: 653.020228
+  type: 'test'
+  ...
+# Subtest: Basic optional transparency fields appear and edits retain boolean values
+ok 6 - Basic optional transparency fields appear and edits retain boolean values
+  ---
+  duration_ms: 1002.250019
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10006.022399

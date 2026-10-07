@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "scope": "isolated SDK and patched Harness Worker verification; product disabled; fixture model only",
+  "focused": {
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "capability": {
+    "groups": 18,
+    "passed": 345,
+    "failed": 0,
+    "inputDigest": "sha256:17cd58cda054d92ca94fbadef5b9549a603fe85a389597e910d80bc860d48fca"
+  },
+  "check": {
+    "command": "TMPDIR=/private/tmp npm run check",
+    "exitCode": 1,
+    "executedFiles": 74,
+    "collectedFiles": 74,
+    "passed": 408,
+    "failed": 1,
+    "skipped": 0,
+    "cancelled": 0,
+    "failures": [
+      {
+        "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+        "log": "collected-20.tap",
+        "elapsedMs": 72780,
+        "exitCode": 1,
+        "tests": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0,
+        "cancelled": 0
+      }
+    ]
+  },
+  "limitation": "Only final failure: designated Windows 10.0.19045 / i7-7700 / 8 logical CPU acceptance attempted on macOS 25.6.0 / i7-9750H / 12 logical CPUs; original assertion retained.",
+  "earlierAttempts": [
+    "Executable probe moved into harness-bridge boundary; no boundary rule changed.",
+    "Initial capability capture: 1000-tool graph layout 100.1ms exceeds 100ms. Isolated 27/27 recheck and final capability 345/345 pass; no threshold changed.",
+    "Check before successful capture stopped at stale input binding."
+  ]
+}

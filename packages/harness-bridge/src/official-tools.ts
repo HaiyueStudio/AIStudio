@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { isOfficialToolBindingV1, type OfficialToolBindingV1, type OfficialToolProviderV1, type OfficialToolExecutionV1, type JsonObject } from '@haiyue/ai-studio-contracts';
+import { isOfficialToolBindingV1, type OfficialToolReceiptV1, type OfficialToolBindingV1, type OfficialToolProviderV1, type OfficialToolExecutionV1, type JsonObject } from '@haiyue/ai-studio-contracts';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
@@ -21,8 +21,8 @@ export function prepareOfficialNative(port: OfficialToolProviderV1, prepare: Nat
 }
 
 /** A main-process capability port. Only the existing Host tool runtime receives it. */
-export function createHarnessOfficialToolProvider(values: readonly OfficialToolBindingV1[]): OfficialToolProviderV1 {
-  const gateway = new OfficialToolGateway(values);
+export function createHarnessOfficialToolProvider(values: readonly OfficialToolBindingV1[], nativeParameters: Readonly<Record<string, JsonObject>> = {}): OfficialToolProviderV1 {
+  const gateway = new OfficialToolGateway(values, nativeParameters);
   const port: OfficialToolProviderV1 = Object.freeze({ definitions: Object.freeze(gateway.bindings.map(b => b.definition)), execute: gateway.execute.bind(gateway) });
   owners.set(port, gateway);
   return port;
@@ -44,7 +44,7 @@ class OfficialToolGateway {
   private readonly nested = new AsyncLocalStorage<boolean>();
   private readonly active = new Map<AbortController, string>();
   private readonly draining = new Map<Promise<unknown>, string>();
-  constructor(values: readonly OfficialToolBindingV1[]) {
+  constructor(values: readonly OfficialToolBindingV1[], private readonly nativeParameters: Readonly<Record<string, JsonObject>>) {
     if (!Array.isArray(values) || values.length > 64 || values.some(v => !isOfficialToolBindingV1(v))) throw failure('official.binding-invalid');
     this.bindings = freeze(JSON.parse(JSON.stringify(values)));
     if (new Set(values.map(v => v.definition.id)).size !== values.length || new Set(values.map(v => v.nativeName)).size !== values.length) throw failure('official.binding-duplicate');
@@ -84,13 +84,13 @@ class OfficialToolGateway {
     }, 'studio.official-tools.dispose');
     return { release: () => { this.binding = undefined; for (const controller of this.active.keys()) controller.abort(failure('official.provider-disposed')); }, cancelSession: async id => { for (const [controller, session] of this.active) if (session === id) controller.abort(failure('official.session-cancelled')); await Promise.allSettled([...this.draining].filter(([,session]) => session === id).map(([promise]) => promise)); } };
   }
-  execute(call: OfficialToolExecutionV1, signal: AbortSignal): Promise<JsonObject> {
-    const promise = this.run(call, signal);
+  execute(call: OfficialToolExecutionV1, signal: AbortSignal, receipt?: (value: OfficialToolReceiptV1, previewSource?: unknown) => Promise<void>): Promise<JsonObject> {
+    const promise = this.run(call, signal, receipt);
     this.draining.set(promise, call.sessionId);
     void promise.finally(() => this.draining.delete(promise)).catch(() => {});
     return promise;
   }
-  private async run(call: OfficialToolExecutionV1, signal: AbortSignal): Promise<JsonObject> {
+  private async run(call: OfficialToolExecutionV1, signal: AbortSignal, receipt?: (value: OfficialToolReceiptV1, previewSource?: unknown) => Promise<void>): Promise<JsonObject> {
     signal.throwIfAborted();
     const owner = this.binding, spec = this.bindings.find(b => b.definition.id === call.toolId);
     const agent = owner?.agent(call.sessionId);
@@ -104,21 +104,32 @@ class OfficialToolGateway {
     const id = `official:${randomUUID()}`;
     const controller = new AbortController(); this.active.set(controller, call.sessionId);
     const combined = AbortSignal.any([signal, controller.signal]);
+    let reported = false;
+    const report = async (value: OfficialToolReceiptV1, previewSource?: unknown) => { reported = true; await receipt?.(value, previewSource); };
     try {
       await this.prepare?.(call, agent, combined);
       combined.throwIfAborted();
       // Reconnect or replacement must not silently change approved schemas.
       const native = owner.context.tools.get(spec.nativeName, agent);
-      if (!native || digest(native.parameters) !== digest(spec.definition.inputSchema) || digest(native.output.schema) !== digest(spec.definition.outputSchema)) throw failure('official.schema-drift');
+      if (!native || digest(native.parameters) !== digest(this.nativeParameters[spec.nativeName] ?? spec.definition.inputSchema) || digest(native.output.schema) !== digest(spec.definition.outputSchema)) throw failure('official.schema-drift');
       this.tickets.set(id, { call, agent, name: spec.nativeName, digest: digest(call.arguments), started: false });
       const result = await executions.run(call, () => this.nested.run(true, () => owner.context.tools.execute({ callId: ToolCallId(id), rootCallId: ToolCallId(call.callId), name: spec.nativeName, arguments: call.arguments, agent, signal: combined })));
+      const reason: OfficialToolReceiptV1['reason'] = combined.aborted ? 'cancelled' : result.isError ? 'provider-error'
+        : result.additionalContexts?.length || result.concludesTurn || result.content.some(b => b.type !== 'text') ? 'unsupported-result'
+        : !result.value || typeof result.value !== 'object' || Array.isArray(result.value) ? 'invalid-result'
+        : Buffer.byteLength(JSON.stringify(result.value)) > spec.definition.maxResultBytes ? 'oversized-result' : 'none';
+      const execution = result.isError ? (this.tickets.get(id)?.started ? 'unknown' : 'not-started') : 'completed';
+      // Persist a bounded receipt even if cancellation arrived after the provider finished.
+      // Rendered text loses field boundaries. Only the Host may turn structured
+      // values into a bounded preview after applying its redaction policy.
+      await report({ schemaVersion: 1, execution, delivery: reason === 'none' ? 'available' : 'unavailable', reason }, reason !== 'none' && !result.isError ? result.value : undefined);
       combined.throwIfAborted();
       if (result.isError) throw failure('official.execution-failed');
-      // Context/turn-control side channels and raw image content need explicit future attachment mappings.
-      if (result.additionalContexts?.length || result.concludesTurn || result.content.some(b => b.type !== 'text')) throw failure('official.result-unsupported');
-      if (!result.value || typeof result.value !== 'object' || Array.isArray(result.value)) throw failure('official.result-invalid');
-      if (Buffer.byteLength(JSON.stringify(result.value)) > spec.definition.maxResultBytes) throw failure('official.result-too-large');
+      if (reason !== 'none') throw failure(reason === 'oversized-result' ? 'official.result-too-large' : reason === 'unsupported-result' ? 'official.result-unsupported' : 'official.result-invalid');
       return result.value as JsonObject;
+    } catch (cause) {
+      if (!reported) await report({ schemaVersion: 1, execution: this.tickets.get(id)?.started ? 'unknown' : 'not-started', delivery: 'unavailable', reason: combined.aborted ? 'cancelled' : 'provider-error' });
+      throw cause;
     } finally { this.tickets.delete(id); this.active.delete(controller); }
   }
 }

@@ -1,0 +1,280 @@
+TAP version 13
+# Subtest: official native tool through real Host: read
+ok 1 - official native tool through real Host: read
+  ---
+  duration_ms: 6658.917165
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: approve
+ok 2 - official native tool through real Host: approve
+  ---
+  duration_ms: 7253.206592
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: reject
+ok 3 - official native tool through real Host: reject
+  ---
+  duration_ms: 5226.316239
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: budget
+ok 4 - official native tool through real Host: budget
+  ---
+  duration_ms: 4941.851382
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: cancel
+ok 5 - official native tool through real Host: cancel
+  ---
+  duration_ms: 4905.350728
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: auxiliary
+ok 6 - official native tool through real Host: auxiliary
+  ---
+  duration_ms: 7317.672194
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: auxiliary-budget
+ok 7 - official native tool through real Host: auxiliary-budget
+  ---
+  duration_ms: 6881.049953
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: deduplicate
+ok 8 - official native tool through real Host: deduplicate
+  ---
+  duration_ms: 8040.75873
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: deduplicate-off
+ok 9 - official native tool through real Host: deduplicate-off
+  ---
+  duration_ms: 8661.992687
+  type: 'test'
+  ...
+# Subtest: official native tool through real Host: oversized
+ok 10 - official native tool through real Host: oversized
+  ---
+  duration_ms: 6739.814483
+  type: 'test'
+  ...
+# Subtest: official tools share discovery, exact schema/version validation, preparation, approval and durable results
+ok 11 - official tools share discovery, exact schema/version validation, preparation, approval and durable results
+  ---
+  duration_ms: 2540.142567
+  type: 'test'
+  ...
+# Subtest: official reject never reaches provider and cannot be reused
+ok 12 - official reject never reaches provider and cannot be reused
+  ---
+  duration_ms: 3013.45763
+  type: 'test'
+  ...
+# Subtest: official cancel never reaches provider and cannot be reused
+ok 13 - official cancel never reaches provider and cannot be reused
+  ---
+  duration_ms: 2036.87773
+  type: 'test'
+  ...
+# Subtest: official exact authorization becomes stale after document change and cannot join a Document transaction
+ok 14 - official exact authorization becomes stale after document change and cannot join a Document transaction
+  ---
+  duration_ms: 1370.799858
+  type: 'test'
+  ...
+# Subtest: official cancel drains the provider without late success
+ok 15 - official cancel drains the provider without late success
+  ---
+  duration_ms: 1280.23598
+  type: 'test'
+  ...
+# Subtest: official timeout drains the provider without late success
+ok 16 - official timeout drains the provider without late success
+  ---
+  duration_ms: 1930.161088
+  type: 'test'
+  ...
+# Subtest: official dispose drains the provider without late success
+ok 17 - official dispose drains the provider without late success
+  ---
+  duration_ms: 1719.2822
+  type: 'test'
+  ...
+# Subtest: official schemas reject forged policy/credentials; outputs are bounded and redacted before delivery
+ok 18 - official schemas reject forged policy/credentials; outputs are bounded and redacted before delivery
+  ---
+  duration_ms: 1463.120645
+  type: 'test'
+  ...
+# Subtest: cancelling an official call while queued prevents its body after the prior operation drains
+ok 19 - cancelling an official call while queued prevents its body after the prior operation drains
+  ---
+  duration_ms: 1306.703574
+  type: 'test'
+  ...
+# Subtest: official log failure releases acquired effect locks without executing the provider
+ok 20 - official log failure releases acquired effect locks without executing the provider
+  ---
+  duration_ms: 1241.538438
+  type: 'test'
+  ...
+# Subtest: official large output fails safely before model-visible completion
+ok 21 - official large output fails safely before model-visible completion
+  ---
+  duration_ms: 1164.66241
+  type: 'test'
+  ...
+# Subtest: official error output fails safely before model-visible completion
+ok 22 - official error output fails safely before model-visible completion
+  ---
+  duration_ms: 1309.004149
+  type: 'test'
+  ...
+# Subtest: official results reject non-JSON values instead of silently converting or dropping them
+ok 23 - official results reject non-JSON values instead of silently converting or dropping them
+  ---
+  duration_ms: 1429.889741
+  type: 'test'
+  ...
+# Subtest: official provider failure envelopes become failed Host executions, not completed calls
+ok 24 - official provider failure envelopes become failed Host executions, not completed calls
+  ---
+  duration_ms: 1474.312032
+  type: 'test'
+  ...
+# Subtest: script error diagnostics are bounded and redacted: repairable error
+ok 25 - script error diagnostics are bounded and redacted: repairable error
+  ---
+  duration_ms: 1916.108294
+  type: 'test'
+  ...
+# Subtest: script error diagnostics are bounded and redacted: secret
+ok 26 - script error diagnostics are bounded and redacted: secret
+  ---
+  duration_ms: 2085.762341
+  type: 'test'
+  ...
+# Subtest: reviewed MCP Draft 2020 schema accepts valid calls and rejects additional arguments
+ok 27 - reviewed MCP Draft 2020 schema accepts valid calls and rejects additional arguments
+  ---
+  duration_ms: 2244.76148
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (oversized)
+ok 28 - uncertain external receipt survives recreation and blocks repeat (oversized)
+  ---
+  duration_ms: 1500.258185
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (unsupported)
+ok 29 - uncertain external receipt survives recreation and blocks repeat (unsupported)
+  ---
+  duration_ms: 1526.93315
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (unknown)
+ok 30 - uncertain external receipt survives recreation and blocks repeat (unknown)
+  ---
+  duration_ms: 1580.635129
+  type: 'test'
+  ...
+# Subtest: uncertain external receipt survives recreation and blocks repeat (cancelled)
+ok 31 - uncertain external receipt survives recreation and blocks repeat (cancelled)
+  ---
+  duration_ms: 1773.002196
+  type: 'test'
+  ...
+# Subtest: successful external calls can be deliberately repeated, and not-started receipts release the guard
+ok 32 - successful external calls can be deliberately repeated, and not-started receipts release the guard
+  ---
+  duration_ms: 1952.22821
+  type: 'test'
+  ...
+# Subtest: a warm receipt index observes subsequently imported unresolved project history
+ok 33 - a warm receipt index observes subsequently imported unresolved project history
+  ---
+  duration_ms: 1922.782677
+  type: 'test'
+  ...
+# Subtest: receipt previews redact original credential keys and configured fields before flattening
+ok 34 - receipt previews redact original credential keys and configured fields before flattening
+  ---
+  duration_ms: 1426.654756
+  type: 'test'
+  ...
+# Subtest: native schemas are hidden; only selected Studio wrappers reach the model and execute the full official pipeline once
+ok 35 - native schemas are hidden; only selected Studio wrappers reach the model and execute the full official pipeline once
+  ---
+  duration_ms: 850.617842
+  type: 'test'
+  ...
+# Subtest: raw, unknown, nested and schema-drift dispatch cannot bypass the Host
+ok 36 - raw, unknown, nested and schema-drift dispatch cannot bypass the Host
+  ---
+  duration_ms: 170.088082
+  type: 'test'
+  ...
+# Subtest: cancel drains official work and prevents late success
+ok 37 - cancel drains official work and prevents late success
+  ---
+  duration_ms: 135.170348
+  type: 'test'
+  ...
+# Subtest: closeSession drains official work and prevents late success
+ok 38 - closeSession drains official work and prevents late success
+  ---
+  duration_ms: 101.85909
+  type: 'test'
+  ...
+# Subtest: dispose drains official work and prevents late success
+ok 39 - dispose drains official work and prevents late success
+  ---
+  duration_ms: 62.314204
+  type: 'test'
+  ...
+# Subtest: official pre/post policies remain authoritative and errors expose no raw provider diagnostics
+ok 40 - official pre/post policies remain authoritative and errors expose no raw provider diagnostics
+  ---
+  duration_ms: 101.436825
+  type: 'test'
+  ...
+# Subtest: nested Studio wrappers from official pre-policy are rejected before they can wait on the Host
+ok 41 - nested Studio wrappers from official pre-policy are rejected before they can wait on the Host
+  ---
+  duration_ms: 58.166521
+  type: 'test'
+  ...
+# Subtest: oversized native output reports completed execution with a bounded receipt
+ok 42 - oversized native output reports completed execution with a bounded receipt
+  ---
+  duration_ms: 74.651371
+  type: 'test'
+  ...
+# Subtest: native policy receipts distinguish preflight refusal from uncertain post-execution effects
+ok 43 - native policy receipts distinguish preflight refusal from uncertain post-execution effects
+  ---
+  duration_ms: 69.714096
+  type: 'test'
+  ...
+# Subtest: official mappings require complete versioned policy and reject escalation, unknown fields and secrets
+ok 44 - official mappings require complete versioned policy and reject escalation, unknown fields and secrets
+  ---
+  duration_ms: 44.224054
+  type: 'test'
+  ...
+# Subtest: official receipts separate execution/delivery and reject unknown versions, fields and credentials
+ok 45 - official receipts separate execution/delivery and reject unknown versions, fields and credentials
+  ---
+  duration_ms: 9.177815
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 122799.508408

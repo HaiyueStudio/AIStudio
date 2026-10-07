@@ -1,0 +1,65 @@
+TAP version 13
+# Subtest: fixed SDK exposes ClientLLM and rejects obsolete v3 llmClient; patch rejects source drift
+ok 1 - fixed SDK exposes ClientLLM and rejects obsolete v3 llmClient; patch rejects source drift
+  ---
+  duration_ms: 8.894012
+  type: 'test'
+  ...
+# Subtest: host rejects unowned/oversized requests and missing usage never becomes zero
+ok 2 - host rejects unowned/oversized requests and missing usage never becomes zero
+  ---
+  duration_ms: 14.039516
+  type: 'test'
+  ...
+# Subtest: patched official Worker + real extension route inference to Host, retain usage and drain cancellation
+    # Subtest: observe and extract traverse SDK/extension/Worker/Host; aggregate equals individual requests
+    ok 1 - observe and extract traverse SDK/extension/Worker/Host; aggregate equals individual requests
+      ---
+      duration_ms: 120.110152
+      type: 'test'
+      ...
+    # Subtest: act uses the same callback and performs a real click
+    ok 2 - act uses the same callback and performs a real click
+      ---
+      duration_ms: 591.999867
+      type: 'test'
+      ...
+    # Subtest: denied admission and forged per-call model cannot bypass Host
+    ok 3 - denied admission and forged per-call model cannot bypass Host
+      ---
+      duration_ms: 31.009981
+      type: 'test'
+      ...
+    # Subtest: per-operation request cap bounds repeated internal inference
+    ok 4 - per-operation request cap bounds repeated internal inference
+      ---
+      duration_ms: 86.434776
+      type: 'test'
+      ...
+    # Subtest: failure of extract second request preserves first request usage and unknown receipt
+    ok 5 - failure of extract second request preserves first request usage and unknown receipt
+      ---
+      duration_ms: 36.028431
+      type: 'test'
+      ...
+    # Subtest: cancel uses Host signal, rejects concurrent owner, waits for late provider usage
+    ok 6 - cancel uses Host signal, rejects concurrent owner, waits for late provider usage
+      ---
+      duration_ms: 27.371811
+      type: 'test'
+      ...
+    1..6
+ok 3 - patched official Worker + real extension route inference to Host, retain usage and drain cancellation
+  ---
+  duration_ms: 7516.615997
+  type: 'test'
+  ...
+1..3
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8384.018626

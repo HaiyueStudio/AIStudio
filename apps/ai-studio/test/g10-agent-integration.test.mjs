@@ -351,7 +351,9 @@ test('G10 conversation host gives project-missing turns recovery instructions th
   await waitFor(() => host.replay().busy === false);
   assert.match(startedInput.prompt, /"state":"not-required"/);
   assert.match(startedInput.prompt, /No Studio project is currently open/);
-  assert.match(startedInput.tools.find((tool) => tool.id === 'project.snapshot').description, /Inspect this before planning/);
+  const snapshotDescription = startedInput.tools.find((tool) => tool.id === 'project.snapshot').description;
+  assert.match(snapshotDescription, /Read when project identity or revision is missing or invalidated/);
+  assert.match(snapshotDescription, /reuse confirmed context and commit results otherwise/);
   await host.dispose();
 });
 

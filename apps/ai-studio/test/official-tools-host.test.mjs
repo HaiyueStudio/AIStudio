@@ -9,10 +9,10 @@ import { AgentBackendRegistry, AgentTurnRuntime, DurableSessionRuntime, PromptCo
 import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 import { normalizeConversationNode } from '@haiyue/ai-studio-shell/conversation';
 
-for (const mode of ['read','approve','reject','budget','cancel','auxiliary','auxiliary-budget','deduplicate','deduplicate-off']) test(`official native tool through real Host: ${mode}`, { timeout: 30000 }, async t => {
+for (const mode of ['read','approve','reject','budget','cancel','auxiliary','auxiliary-budget','deduplicate','deduplicate-off','oversized']) test(`official native tool through real Host: ${mode}`, { timeout: 30000 }, async t => {
   const entered = Promise.withResolvers(); let drained = false;
   const deduplicate = mode.startsWith('deduplicate');
-  const external = ['approve','reject'].includes(mode);
+  const external = ['approve','reject','oversized'].includes(mode);
   const toolId = deduplicate ? 'official.web.fetch' : mode.startsWith('auxiliary') ? 'official.web.search' : 'official.fixture.read';
   const binding = officialBinding(external ? 'external-side-effect' : 'observe'); binding.definition.id = toolId; if (deduplicate) binding.definition.maxResultBytes = 65536;
   const bridge = await officialFixture({ binding, async execute(args, exec) {
@@ -21,6 +21,7 @@ for (const mode of ['read','approve','reject','budget','cancel','auxiliary','aux
       await new Promise(resolve => { if (exec.signal.aborted) resolve(); else exec.signal.addEventListener('abort', resolve, { once: true }); });
       await delay(10); drained = true;
     }
+    if (mode === 'oversized') return { value: 'Created resource 42; Bearer SECRET_CANARY ' + 'x'.repeat(6000) };
     return deduplicate ? { value: args.query, status:'completed',url:'https://example.com',content:'bounded evidence '.repeat(900),retrievedAt:'2026-10-06',untrusted:true } : { value: args.query };
   } });
   const f = await behaviorFixture({ runtimeOptions: { officialTools: bridge.port } });
@@ -39,9 +40,17 @@ for (const mode of ['read','approve','reject','budget','cancel','auxiliary','aux
     if (requests > 2) {
       finalResult = JSON.parse(resultText(results(body).at(-1)));
       if (deduplicate) {
-        const first=JSON.parse(resultText(results(body).at(-2)));assert.ok(first.value.content);
-        assert.equal(finalResult.value.content === undefined, mode==='deduplicate');
-        if (mode==='deduplicate') {assert.ok(finalResult.value.duplicateOf.toolCallId);const raw=await log.readArtifact(finalResult.artifactRef.id);assert.equal(raw.value.value.content,first.value.content);}
+        const first=JSON.parse(resultText(results(body).at(-2)));
+        if (mode==='deduplicate') {
+          assert.equal(first.projection,'artifact-summary');
+          assert.ok(['artifact-summary','retained-reference'].includes(finalResult.projection));
+          const [raw, original]=await Promise.all([log.readArtifact(finalResult.artifactRef.id),log.readArtifact(first.artifactRef.id)]);
+          assert.equal(raw.value.value.content,original.value.value.content);
+          assert.equal(raw.value.value.content,'bounded evidence '.repeat(900));
+          assert.ok(JSON.stringify(first).length < JSON.stringify(raw.value).length/2);
+          const page=await host.resultArtifacts.read({artifactId:first.artifactRef.id,offset:0,length:128},host.resultScope(host.active.sessionId,host.active.turnId));
+          assert.equal(page.nextOffset,128);
+        } else { assert.ok(first.value.content);assert.equal(finalResult.value.content,first.value.content); }
       }
       return response({ text: 'Bounded operation finished.' });
     }
@@ -78,20 +87,27 @@ for (const mode of ['read','approve','reject','budget','cancel','auxiliary','aux
     await delay(5);
   }
   assert.equal(host.replay().busy, false, JSON.stringify(host.replay().events.slice(-5)));
-  assert.equal(bridge.stats.bodies, ['reject','budget','auxiliary-budget'].includes(mode) ? 0 : deduplicate ? 2 : 1, JSON.stringify(host.replay().events.slice(-8)));
+  assert.equal(bridge.stats.bodies, ['reject','budget','auxiliary-budget'].includes(mode) ? 0 : mode==='deduplicate-off' ? 2 : 1, JSON.stringify(host.replay().events.slice(-8)));
   assert.equal(f.workspace.snapshot().document.revision, originalRevision);
   const facts = (await log.query({ kinds: ['tool/call-received','tool/execution-completed','tool/execution-skipped','tool/execution-failed','approval/allow-once','approval/reject'], limit: 100 })).events.filter(e => e.payload.toolId === toolId);
   if (mode === 'auxiliary') { assert.equal(accounting.snapshots().at(-1).cost.status, 'unknown'); assert.match(accounting.snapshots().at(-1).cost.explanation, /Auxiliary/); }
   if (mode === 'budget') assert.equal(facts.length, 0, 'Budget rejection precedes tool preparation.');
   else if (mode === 'auxiliary-budget') { assert.equal(facts.filter(e => e.kind === 'tool/execution-completed').length, 0); assert.equal(finalResult.status, 'cancelled'); }
   else {
-    assert.equal(facts.filter(e => e.kind === 'tool/call-received').length, deduplicate ? 2 : 1);
+    assert.equal(facts.filter(e => e.kind === 'tool/call-received').length, mode==='deduplicate-off' ? 2 : 1);
     const received = facts.find(e => e.kind === 'tool/call-received'); provenance ??= received.correlation;
     const replay = await (await sessions.open(provenance.sessionId)).snapshot();
     const started = replay.ops.filter(op => op.kind === 'tool.started' && op.payload.toolId === toolId);
     assert.equal(started.length, deduplicate ? 2 : 1);
     assert.equal(replay.ops.filter(op => op.kind === 'document.committed').length, 0);
     if (mode === 'cancel') { assert.equal(drained, true); assert.equal(facts.filter(e => e.kind === 'tool/execution-completed').length, 0); }
-    else assert.equal(finalResult.status, mode === 'reject' ? 'rejected' : 'completed', JSON.stringify(finalResult));
+    else if (mode === 'oversized') {
+      assert.equal(finalResult.status,'failed');assert.equal(finalResult.error.code,'official.result-unavailable');
+      assert.equal(finalResult.error.retryable,false);const receipt=finalResult.error.details.executionReceipt;
+      assert.equal(receipt.execution,'completed');assert.equal(receipt.delivery,'unavailable');assert.ok(receipt.artifactRef.id);
+      assert.doesNotMatch(JSON.stringify(finalResult),/SECRET_CANARY/);
+      assert.equal(facts.filter(e=>e.kind==='tool/execution-completed').length,0);
+      assert.ok((await log.readArtifact(receipt.artifactRef.id)).value.preview);
+    } else assert.equal(finalResult.status, mode === 'reject' ? 'rejected' : 'completed', JSON.stringify(finalResult));
   }
 });

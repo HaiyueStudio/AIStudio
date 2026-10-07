@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: desktop serves the same version-bound documentation as the tool release resource
+ok 1 - desktop serves the same version-bound documentation as the tool release resource
+  ---
+  duration_ms: 1117.026903
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2071.984681

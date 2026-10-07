@@ -1,0 +1,77 @@
+TAP version 13
+# Subtest: installed SDK artifacts match reviewed release hashes
+ok 1 - installed SDK artifacts match reviewed release hashes
+  ---
+  duration_ms: 15.046216
+  type: 'test'
+  ...
+# Subtest: fixed SDK exposes ClientLLM and rejects obsolete v3 llmClient; patch rejects source drift
+ok 2 - fixed SDK exposes ClientLLM and rejects obsolete v3 llmClient; patch rejects source drift
+  ---
+  duration_ms: 3.429599
+  type: 'test'
+  ...
+# Subtest: host rejects unowned/oversized requests and missing usage never becomes zero
+ok 3 - host rejects unowned/oversized requests and missing usage never becomes zero
+  ---
+  duration_ms: 6.776555
+  type: 'test'
+  ...
+# Subtest: invalid response and output overrun keep actual usage in failure settlement
+ok 4 - invalid response and output overrun keep actual usage in failure settlement
+  ---
+  duration_ms: 2.733874
+  type: 'test'
+  ...
+# Subtest: patched official Worker + real extension route inference to Host, retain usage and drain cancellation
+    # Subtest: observe and extract traverse SDK/extension/Worker/Host; aggregate equals individual requests
+    ok 1 - observe and extract traverse SDK/extension/Worker/Host; aggregate equals individual requests
+      ---
+      duration_ms: 113.586443
+      type: 'test'
+      ...
+    # Subtest: act uses the same callback and performs a real click
+    ok 2 - act uses the same callback and performs a real click
+      ---
+      duration_ms: 589.263231
+      type: 'test'
+      ...
+    # Subtest: denied admission and forged per-call model cannot bypass Host
+    ok 3 - denied admission and forged per-call model cannot bypass Host
+      ---
+      duration_ms: 29.623996
+      type: 'test'
+      ...
+    # Subtest: per-operation request cap bounds repeated internal inference
+    ok 4 - per-operation request cap bounds repeated internal inference
+      ---
+      duration_ms: 62.320392
+      type: 'test'
+      ...
+    # Subtest: failure of extract second request preserves first request usage and unknown receipt
+    ok 5 - failure of extract second request preserves first request usage and unknown receipt
+      ---
+      duration_ms: 23.491385
+      type: 'test'
+      ...
+    # Subtest: cancel uses Host signal, rejects concurrent owner, waits for late provider usage
+    ok 6 - cancel uses Host signal, rejects concurrent owner, waits for late provider usage
+      ---
+      duration_ms: 19.643759
+      type: 'test'
+      ...
+    1..6
+ok 5 - patched official Worker + real extension route inference to Host, retain usage and drain cancellation
+  ---
+  duration_ms: 5764.335468
+  type: 'test'
+  ...
+1..5
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6347.594004

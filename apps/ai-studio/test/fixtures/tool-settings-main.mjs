@@ -1,0 +1,23 @@
+import { app,BrowserWindow } from 'electron';
+import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
+const root=process.env.HAIYUE_TOOL_SETTINGS_ROOT;
+app.setPath('userData',path.join(root,'user-data'));
+app.whenReady().then(async()=>{
+ const window=new BrowserWindow({width:420,height:680,show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
+ await window.loadFile(path.join(root,'index.html'));window.showInactive();
+ const run=code=>window.webContents.executeJavaScript(code);
+ await run('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
+ assert.equal(await run('document.querySelector("[data-tool-capability=web]").checked'),true);
+ assert.match(await run('document.querySelector("#tool-settings").textContent'),/未检测到可执行的浏览器/);
+ await run('document.querySelector("[data-tool-capability=browser]").click();document.querySelector("select").value="chrome-devtools";document.querySelector("button").click()');
+ await run('new Promise(r=>requestAnimationFrame(r))');
+ const request=await run('window.toolRequests.at(-1)');assert.equal(request.method,'tools/configure');assert.equal(request.payload.preferences.browser,true);assert.equal(request.payload.preferences.browserBackend,'chrome-devtools');
+ assert.match(await run('document.querySelector("[role=status]").textContent'),/重启/);
+ assert.equal(await run('document.documentElement.scrollWidth<=innerWidth'),true);
+ await writeFile(path.join(root,'settings.png'),(await window.webContents.capturePage()).toPNG());
+ await run('window.toolEnglish()');assert.match(await run('document.querySelector("legend").textContent'),/Agent extended tools/);
+ await run('window.toolDispose()');assert.equal(await run('document.querySelector("#tool-settings")'),null);
+ console.log('[p1-tool-settings] passed '+root);window.close();app.exit(0);
+}).catch(error=>{console.error(error);app.exit(1);});

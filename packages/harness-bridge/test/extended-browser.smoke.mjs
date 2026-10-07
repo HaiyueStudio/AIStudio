@@ -13,7 +13,7 @@ test('real isolated Chromium starts lazily, navigates, interacts and cleans up',
  const ctx=harnessOwnerContext(owner),agent=ctx.agents.get(input.sessionId);assert.equal(ctx.tools.schemas(agent).filter(t=>t.name.startsWith('mcp__')).length,0);
  let i=0;const run=(toolId,args={})=>port.execute({sessionId:input.sessionId,turnId:'turn:browser',callId:`call:browser-${++i}`,toolId:`official.browser.${toolId}`,arguments:args},new AbortController().signal);
  await assert.rejects(run('navigate',{url:'file:///etc/passwd'}),/url-denied/);
- await assert.rejects(run('snapshot',{filename:'/private/tmp/unauthorized'}),/file-destination-denied/);
+ await assert.rejects(run('snapshot',{filename:'/private/tmp/unauthorized'}),/arguments-invalid/);
  const nav=await run('navigate',{url:`http://127.0.0.1:${server.address().port}/`});assert.match(JSON.stringify(nav),/Page URL/);
  const snapshot=await run('snapshot');assert.match(JSON.stringify(snapshot),/Try/);
  const click=await run('click',{target:'button'});assert.ok(click.content.length); assert.match(JSON.stringify(await run('snapshot')),/Clicked/);

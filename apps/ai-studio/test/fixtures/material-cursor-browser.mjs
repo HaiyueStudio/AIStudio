@@ -39,7 +39,7 @@ window.materialTest = {
   const canvas=document.createElement('canvas');canvas.width=640;canvas.height=480;const c=canvas.getContext('2d');c.drawImage(image,0,0,640,480);image.close();
   const values=c.getImageData(160,100,320,280).data;let yellow=0,dark=0,blue=0;const colors=new Map();
   for(let i=0;i<values.length;i+=4){const [r,g,b]=values.slice(i,i+3);if(r>90&&r>g*1.05&&g>b*1.15){yellow++;const key=[r,g,b].join(',');colors.set(key,(colors.get(key)??0)+1);}if(r<90&&g<90&&b<90)dark++;if(b>r*1.2&&b>80)blue++;}
-  return {yellow,dark,blue,dominant:[...colors].sort((a,b)=>b[1]-a[1])[0][0].split(',').map(Number)};
+  return {yellow,dark,blue,dominant:[...colors].sort((a,b)=>b[1]-a[1])[0]?.[0].split(',').map(Number)??[]};
  },
  cursor() {
   const frame=document.querySelector('iframe');const host=document.getElementById('cursor-test');

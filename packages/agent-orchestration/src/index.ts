@@ -17,3 +17,5 @@ export type { SubtaskOptions, SubtaskPort, SubtaskFact } from './subtasks.js';
 export { createRuntimeSubtaskPort } from './subtask-runtime-port.js';
 export { qualifySubtasks } from './subtask-qualification.js';
 export type { SubtaskQualification, QualificationIdentity } from './subtask-qualification.js';
+export { StudioTeamRecoveryAdmission } from './team-recovery.js';
+export type { TeamSessionBinding, TeamRecoveryAuthority } from './team-recovery.js';

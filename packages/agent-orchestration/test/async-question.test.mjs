@@ -17,9 +17,9 @@ test('question validation and Team admission never manufacture an answer or qual
  assert.throws(()=>validateAsyncAnswer({text:'',optionIds:[]},[]));
  assert.equal(teamAdmission().status,'unavailable');assert.equal(teamAdmission().upstreamTeamMounted,false);
 });
-for(const mode of ['live','late','restart','cancel','active-restart','cancel-race'])test(`nonblocking question continues reads and resumes exact owner once (${mode})`,async t=>{
+for(const mode of ['live','late','restart','cancel','active-restart','cancel-race','queued-restart','resolution-crash','claimed-crash','long-history','duplicate-answer'])test(`nonblocking question continues reads and resumes exact owner once (${mode})`,async t=>{
  const directory=await mkdtemp(path.join(tmpdir(),'studio-async-question-'));
- const log=await OperationLog.open({rootDirectory:directory,appVersion:'test'});
+ let log=await OperationLog.open({rootDirectory:directory,appVersion:'test',...(mode==='long-history'?{flushPolicy:'manual'}:{})});
  let sessions=new DurableSessionRuntime(log), runtime=runtimeFixture(sessions), host;
  t.after(async()=>{await host?.dispose();await sessions.dispose();await log.close();await rm(directory,{recursive:true,force:true});});
  const tools=observeTools();let inputs=[], results=[], releaseRead;const gate=new Promise(r=>releaseRead=r);t.after(()=>releaseRead());
@@ -65,16 +65,54 @@ for(const mode of ['live','late','restart','cancel','active-restart','cancel-rac
   assert.deepEqual((await sessions.replay(sessionId)).recovery.unresolvedBarrierIds,[]);return;
  }
  if(mode==='active-restart'){runtime.turns.cancel=async()=>releaseRead();}
- if(mode!=='live' && mode!=='active-restart'){releaseRead();await until(()=>!host.replay().busy);assert.equal(host.replay().taskRuns[0].status,'waiting-user');}
- if(mode==='restart' || mode==='active-restart'){
-  await host.flushRecords();await host.dispose();await sessions.dispose();sessions=new DurableSessionRuntime(log);
+ if(!['live','active-restart','queued-restart','duplicate-answer'].includes(mode)){releaseRead();await until(()=>!host.replay().busy);assert.equal(host.replay().taskRuns[0].status,'waiting-user');}
+ if(mode==='long-history'){
+  for(let i=0;i<2100;i++) host.project(`noise:${i}`,'diagnostic','completed',question.provenance,{code:'fixture.noise',message:'Old unrelated transcript',severity:'info',retryable:false});
+  await host.flushRecords();
+  for(let i=0;i<3100;i++) await log.append({kind:'fixture/noise',severity:'info',source:'fixture.long-history',correlation:{},payload:{index:i}});
+  await log.flush();
+  assert.ok(host.replay().events.some(event=>event.node.id===question.id&&event.node.status==='pending'));
+ }
+ if(mode==='restart' || mode==='active-restart' || mode==='long-history'){
+  await host.flushRecords();await host.dispose();await sessions.dispose();await log.close();log=await OperationLog.open({rootDirectory:directory,appVersion:'test'});sessions=new DurableSessionRuntime(log);
   const old=runtime;runtime=runtimeFixture(sessions);runtime.turns.start=old.turns.start;host=make();await host.initialize();
   assert.equal(latest(host,'question').content.taskId,taskId);
  }
- await host.dispatch({type:'conversation/answer-question',nodeId:question.id,answer:{optionIds:[question.content.options[0].id]}});
+ const answerIntent={type:'conversation/answer-question',nodeId:question.id,answer:{optionIds:[question.content.options[0].id]}};
+ if(mode==='resolution-crash'){
+  const original=host.appendContinuationResolution.bind(host);
+  host.appendContinuationResolution=async(...args)=>{await original(...args);throw new Error('fixture crash after durable resolution');};
+  await assert.rejects(host.dispatch(answerIntent),/fixture crash/);
+ }else if(mode==='duplicate-answer'){
+  const gate=Promise.withResolvers(), entered=Promise.withResolvers(), original=host.appendContinuationResolution.bind(host);
+  host.appendContinuationResolution=async(...args)=>{entered.resolve();await gate.promise;return original(...args);};
+  const first=host.dispatch(answerIntent);await entered.promise;
+  await assert.rejects(host.dispatch(answerIntent),/already in progress/);gate.resolve();await first;
+ }else{
+  if(mode==='claimed-crash') host.startRecoveredContinuation=async()=>{throw new Error('fixture crash after claim');};
+  await host.dispatch(answerIntent);
+ }
+ if(['queued-restart','resolution-crash','claimed-crash'].includes(mode)){
+  runtime.turns.cancel=async()=>releaseRead();
+  if(mode==='claimed-crash') await until(()=>!host.replay().busy);
+  await host.dispose();await sessions.dispose();await log.close();log=await OperationLog.open({rootDirectory:directory,appVersion:'test'});sessions=new DurableSessionRuntime(log);
+  const old=runtime;runtime=runtimeFixture(sessions);runtime.turns.start=old.turns.start;host=make();await host.initialize();
+  if(mode==='claimed-crash'){
+   assert.equal(inputs.length,1);assert.equal(host.replay().taskRuns[0].terminalDiagnostic,'continuation.interrupted');
+   assert.equal(host.replay().taskRuns[0].resumable,true);
+   const run=host.replay().taskRuns[0];
+   await host.dispatch({type:'conversation/retry',backendId,sessionId:run.sessionId,turnId:run.turnId});
+  }
+ }
  releaseRead();await until(()=>inputs.length===2&&!host.replay().busy);
  assert.equal(inputs[1].taskId,taskId);assert.match(inputs[1].prompt,/Blue/);assert.equal(host.replay().taskRuns.length,1);
  await assert.rejects(host.dispatch({type:'conversation/answer-question',nodeId:question.id,answer:{text:'Again'}}),/stale/);
+ const continuationOps=(await log.query({kinds:['agent/session-op'],limit:200,afterSequence:Math.max(0,log.status().nextSequence-500)})).events.filter(e=>e.payload.sessionOp?.payload?.continuationId);
+ assert.equal(continuationOps.length,1);
+ // Reopening after completion must not replay the continuation again.
+ await host.dispose();await sessions.dispose();await log.close();log=await OperationLog.open({rootDirectory:directory,appVersion:'test'});sessions=new DurableSessionRuntime(log);
+ const old=runtime;runtime=runtimeFixture(sessions);runtime.turns.start=old.turns.start;host=make();await host.initialize();
+ assert.notEqual(host.replay().taskRuns[0].terminalDiagnostic,'continuation.interrupted');
  assert.equal(inputs.length,2);assert.deepEqual((await sessions.replay(sessionId)).recovery.unresolvedBarrierIds,[]);
 });
 function runtimeFixture(sessions) {
@@ -87,3 +125,22 @@ function runtimeFixture(sessions) {
 function observeTools() {
   const tools = { executeCalls: 0, definitions: () => ['project.snapshot', 'diagnostics.query'].map((id) => ({ id, description: id, effect: 'observe', risk: 'low', inputSchema: {} })), async prepare(call) { return { id: `preparation:${call.id}`, callId: call.id, sessionId: call.sessionId, turnId: call.turnId, toolId: call.toolId, toolVersion: '1.0.0', effect: 'observe', risk: 'low', documentId: 'document:g07-release', baseRevision: 1, argumentsDigest: `sha256:${'4'.repeat(64)}`, previewDigest: `sha256:${'5'.repeat(64)}`, preview: { title: 'Read', target: 'Project', summary: 'Read only', diff: '' }, status: 'ready' }; }, async execute(preparationId) { tools.executeCalls += 1; return { schemaVersion: 1, callId: preparationId.replace('preparation:', ''), toolId: 'diagnostics.query', status: 'completed', value: { retained: true }, documentId: 'document:g07-release', beforeRevision: 1, afterRevision: 1 }; } }; return tools;
 }
+
+test('P1 pending question binds approved dependency steps through Host, preserves the barrier after answer until continuation',async t=>{
+ const directory=await mkdtemp(path.join(tmpdir(),'studio-scoped-question-'));const log=await OperationLog.open({rootDirectory:directory,appVersion:'test'}),sessions=new DurableSessionRuntime(log),runtime=runtimeFixture(sessions),tools=observeTools();
+ let host;const hold=Promise.withResolvers();t.after(async()=>{hold.resolve();await host?.dispose();await sessions.dispose();await log.close();await rm(directory,{recursive:true,force:true});});
+ const item=(id,deps=[])=>({id:`item:${id}`,label:id,executionStatus:'in_progress',execution:{schemaVersion:1,id:`task:${id}`,dependsOn:deps,inputs:[],artifacts:[],readScopes:[`entity:${id}`],writeScopes:[`entity:${id}`],verification:[],budget:{toolCalls:5,wallTimeMs:1000},estimatedWorkMs:1000}});
+ const plan={title:'Approved',summary:'Three independent scopes',items:[item('one'),item('two',['task:one']),item('three')],acceptance:[],assemblies:[]};
+ runtime.turns.start=async function*(_id,input,signal){yield{schemaVersion:1,backendId,sessionId,turnId,kind:'status',payload:{status:'running'}};host.active.approvedPlan=plan;await hold.promise;yield{schemaVersion:1,backendId,sessionId,turnId,kind:'completed',payload:{status:'completed'}};};
+ host=new StudioConversationHost({runtime,tools,operationLog:log,asyncQuestions:true,sessionRecovery:{async recover(){}}});await host.initialize();await host.dispatch({type:'conversation/send',backendId,prompt:'Inspect logs'});await until(()=>host.active?.approvedPlan===plan);
+ const answer=await host.askAsyncQuestion({prompt:'Choose color',options:['Blue','Green'],blockedStepIds:['item:one']},{backendId,sessionId,turnId},new AbortController().signal);
+ assert.deepEqual(answer.blockedStepIds,['item:one','item:two']);const taskId=host.active.taskId;
+ assert.doesNotThrow(()=>host.assertQuestionAllows(taskId,'material.set',{entityId:'entity:three'}));
+ assert.throws(()=>host.assertQuestionAllows(taskId,'material.set',{entityId:'entity:two'}));
+ assert.throws(()=>host.assertQuestionAllows(taskId,'task.evaluate',{}));
+ assert.throws(()=>host.assertQuestionAllows(taskId,'official.code.run',{code:'return 1'}));
+ assert.deepEqual(latest(host,'question').content.blockedStepIds,['item:one']);
+ await host.dispatch({type:'conversation/answer-question',nodeId:answer.questionId,answer:{text:'Blue'}});
+ assert.throws(()=>host.assertQuestionAllows(taskId,'material.set',{entityId:'entity:three'}),'queued answer may change constraints before the next turn');
+ hold.resolve();await until(()=>!host.replay().busy);
+});

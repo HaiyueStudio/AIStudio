@@ -1,0 +1,997 @@
+TAP version 13
+# Subtest: Agent polling coalesces push hints and never overlaps requests
+ok 1 - Agent polling coalesces push hints and never overlaps requests
+  ---
+  duration_ms: 22.96466
+  type: 'test'
+  ...
+# Subtest: Agent polling recovers after a failed request
+ok 2 - Agent polling recovers after a failed request
+  ---
+  duration_ms: 5.801144
+  type: 'test'
+  ...
+# Subtest: push-only refresh is idle after success, coalesces events, and retries only failures
+ok 3 - push-only refresh is idle after success, coalesces events, and retries only failures
+  ---
+  duration_ms: 3.157488
+  type: 'test'
+  ...
+# Subtest: Agent preview follows active provider turns but releases at human handoff
+ok 4 - Agent preview follows active provider turns but releases at human handoff
+  ---
+  duration_ms: 5.318371
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during planning
+ok 5 - human handoff closes Agent preview during planning
+  ---
+  duration_ms: 0.430561
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during playing
+ok 6 - human handoff closes Agent preview during playing
+  ---
+  duration_ms: 0.3089
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during evaluating
+ok 7 - human handoff closes Agent preview during evaluating
+  ---
+  duration_ms: 0.338605
+  type: 'test'
+  ...
+# Subtest: human handoff closes Agent preview during repairing
+ok 8 - human handoff closes Agent preview during repairing
+  ---
+  duration_ms: 0.397458
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on completed, even if another task runs
+ok 9 - Agent preview closes on completed, even if another task runs
+  ---
+  duration_ms: 0.435772
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on failed, even if another task runs
+ok 10 - Agent preview closes on failed, even if another task runs
+  ---
+  duration_ms: 0.295734
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on cancelled, even if another task runs
+ok 11 - Agent preview closes on cancelled, even if another task runs
+  ---
+  duration_ms: 0.347379
+  type: 'test'
+  ...
+# Subtest: Agent preview closes on blocked, even if another task runs
+ok 12 - Agent preview closes on blocked, even if another task runs
+  ---
+  duration_ms: 0.424227
+  type: 'test'
+  ...
+# Subtest: project changes and lost tasks release preview; stale tasks cannot close manual preview
+ok 13 - project changes and lost tasks release preview; stale tasks cannot close manual preview
+  ---
+  duration_ms: 1.670748
+  type: 'test'
+  ...
+# Subtest: renderer cleanup clears the broker only for the matching preview instance
+ok 14 - renderer cleanup clears the broker only for the matching preview instance
+  ---
+  duration_ms: 2.020064
+  type: 'test'
+  ...
+# Subtest: testing preview closes when the task advances to evaluating
+ok 15 - testing preview closes when the task advances to evaluating
+  ---
+  duration_ms: 0.329825
+  type: 'test'
+  ...
+# Subtest: testing preview closes when the task advances to repairing
+ok 16 - testing preview closes when the task advances to repairing
+  ---
+  duration_ms: 0.2307
+  type: 'test'
+  ...
+# [agent-preview-ui] evidence: /private/tmp/haiyue-preview-owner-ui-mZJsCF
+# Subtest: production preview controls distinguish Agent ownership and restore manual input
+ok 17 - production preview controls distinguish Agent ownership and restore manual input
+  ---
+  duration_ms: 6444.741631
+  type: 'test'
+  ...
+# Subtest: late durable snapshot responses cannot replace a newer pending or displayed execution graph
+ok 18 - late durable snapshot responses cannot replace a newer pending or displayed execution graph
+  ---
+  duration_ms: 288.64469
+  type: 'test'
+  ...
+# Subtest: public assistant output is persisted once per model/tool boundary and streams into the current node
+ok 19 - public assistant output is persisted once per model/tool boundary and streams into the current node
+  ---
+  duration_ms: 416.093153
+  type: 'test'
+  ...
+# Subtest: manual context compaction is durable and replayed into the execution graph without deleting Transcript
+ok 20 - manual context compaction is durable and replayed into the execution graph without deleting Transcript
+  ---
+  duration_ms: 6003.303964
+  type: 'test'
+  ...
+# Subtest: G09 real Electron renders an accessible replayed graph and bounded large-graph layout
+ok 21 - G09 real Electron renders an accessible replayed graph and bounded large-graph layout
+  ---
+  duration_ms: 8368.443513
+  type: 'test'
+  ...
+# Subtest: an approval barrier remains actionable after process restart and resumes from its durable checkpoint
+ok 22 - an approval barrier remains actionable after process restart and resumes from its durable checkpoint
+  ---
+  duration_ms: 834.401668
+  type: 'test'
+  ...
+# Subtest: trusted script and runtime start barriers survive a real Electron process restart
+ok 23 - trusted script and runtime start barriers survive a real Electron process restart
+  ---
+  duration_ms: 8470.03131
+  type: 'test'
+  ...
+# Subtest: a long durable plan releases the provider call and preserves task tools for its approved continuation
+ok 24 - a long durable plan releases the provider call and preserves task tools for its approved continuation
+  ---
+  duration_ms: 3373.308249
+  type: 'test'
+  ...
+# Subtest: approved plan commits validated scripts without a second human approval
+ok 25 - approved plan commits validated scripts without a second human approval
+  ---
+  duration_ms: 2503.953345
+  type: 'test'
+  ...
+# Subtest: durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
+ok 26 - durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation
+  ---
+  duration_ms: 3904.186016
+  type: 'test'
+  ...
+# Subtest: durable backend question cancels the old provider turn and continues from the persisted answer
+ok 27 - durable backend question cancels the old provider turn and continues from the persisted answer
+  ---
+  duration_ms: 1546.907811
+  type: 'test'
+  ...
+# Subtest: durable budget continuation releases the completed provider tranche and preserves prior output
+ok 28 - durable budget continuation releases the completed provider tranche and preserves prior output
+  ---
+  duration_ms: 2611.153253
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (live)
+ok 29 - between-turn budget checkpoint keeps its task owner (live)
+  ---
+  duration_ms: 2568.434567
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (input-tokens)
+ok 30 - between-turn budget checkpoint keeps its task owner (input-tokens)
+  ---
+  duration_ms: 3124.633091
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (restart)
+ok 31 - between-turn budget checkpoint keeps its task owner (restart)
+  ---
+  duration_ms: 3273.838736
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (legacy-restart)
+ok 32 - between-turn budget checkpoint keeps its task owner (legacy-restart)
+  ---
+  duration_ms: 3196.154923
+  type: 'test'
+  ...
+# Subtest: between-turn budget checkpoint keeps its task owner (stop)
+ok 33 - between-turn budget checkpoint keeps its task owner (stop)
+  ---
+  duration_ms: 2205.733527
+  type: 'test'
+  ...
+# Subtest: host failure closes the durable topology (start)
+ok 34 - host failure closes the durable topology (start)
+  ---
+  duration_ms: 676.811771
+  type: 'test'
+  ...
+# Subtest: host failure closes the durable topology (resume)
+ok 35 - host failure closes the durable topology (resume)
+  ---
+  duration_ms: 392.834949
+  type: 'test'
+  ...
+# Subtest: host failure closes the durable topology (stream)
+ok 36 - host failure closes the durable topology (stream)
+  ---
+  duration_ms: 1064.162987
+  type: 'test'
+  ...
+# Subtest: legacy host failure repairs missing terminal topology without overriding a newer attempt (false)
+ok 37 - legacy host failure repairs missing terminal topology without overriding a newer attempt (false)
+  ---
+  duration_ms: 282.066668
+  type: 'test'
+  ...
+# Subtest: legacy host failure repairs missing terminal topology without overriding a newer attempt (true)
+ok 38 - legacy host failure repairs missing terminal topology without overriding a newer attempt (true)
+  ---
+  duration_ms: 232.452007
+  type: 'test'
+  ...
+# Subtest: between-turn inline budget approval excludes user wait and rearms the renewed wall-time budget
+ok 39 - between-turn inline budget approval excludes user wait and rearms the renewed wall-time budget
+  ---
+  duration_ms: 489.295759
+  type: 'test'
+  ...
+# Subtest: IPC validator is versioned, allowlisted and never accepts renderer paths
+ok 40 - IPC validator is versioned, allowlisted and never accepts renderer paths
+  ---
+  duration_ms: 15.29974
+  type: 'test'
+  ...
+# Subtest: scene IPC exposes immutable JSON projections and routes typed intents through shared services
+ok 41 - scene IPC exposes immutable JSON projections and routes typed intents through shared services
+  ---
+  duration_ms: 28.68851
+  type: 'test'
+  ...
+# Subtest: new-project IPC stays untitled until first save selects a directory
+ok 42 - new-project IPC stays untitled until first save selects a directory
+  ---
+  duration_ms: 2.2169
+  type: 'test'
+  ...
+# Subtest: project replacement clears project-scoped Agent work without cancelling a dismissed picker
+ok 43 - project replacement clears project-scoped Agent work without cancelling a dismissed picker
+  ---
+  duration_ms: 1.87698
+  type: 'test'
+  ...
+# Subtest: history IPC is project-bound, paged and preserves complete structured details
+ok 44 - history IPC is project-bound, paged and preserves complete structured details
+  ---
+  duration_ms: 12.93279
+  type: 'test'
+  ...
+# Subtest: project IPC drains the old conversation before Document replacement and relocates on first save
+ok 45 - project IPC drains the old conversation before Document replacement and relocates on first save
+  ---
+  duration_ms: 4.358568
+  type: 'test'
+  ...
+# Subtest: script preview IPC discloses risk before one-shot code delivery and logs no source text
+ok 46 - script preview IPC discloses risk before one-shot code delivery and logs no source text
+  ---
+  duration_ms: 4.567185
+  type: 'test'
+  ...
+# Subtest: cancel and renderer disposal invalidate late IPC responses
+ok 47 - cancel and renderer disposal invalidate late IPC responses
+  ---
+  duration_ms: 2.885553
+  type: 'test'
+  ...
+# Subtest: rounded-box IPC validates and forwards parameters to the shared scene service
+ok 48 - rounded-box IPC validates and forwards parameters to the shared scene service
+  ---
+  duration_ms: 2.164391
+  type: 'test'
+  ...
+# Subtest: log IPC binds reads and exports to the current project and keeps late facts with their request owner
+ok 49 - log IPC binds reads and exports to the current project and keeps late facts with their request owner
+  ---
+  duration_ms: 3.112784
+  type: 'test'
+  ...
+# Subtest: query settings persist validated counts across restart and IPC refuses unknown limits
+ok 50 - query settings persist validated counts across restart and IPC refuses unknown limits
+  ---
+  duration_ms: 1713.911049
+  type: 'test'
+  ...
+# [pointer-placement] validating example
+# [pointer-placement] preview ready
+# [pointer-placement] started orthographic azimuth=0
+# [pointer-placement] started orthographic azimuth=28
+# [pointer-placement] started perspective azimuth=0
+# [pointer-placement] started perspective azimuth=28
+# [pointer-placement] native object/background drags, capture outside target, same-tick gesture and blur cancellation passed
+# [pointer-placement] {"clicks":40,"output":"/private/tmp/haiyue-pointer-placement-05LzFa"}
+# Subtest: native Play clicks snap to rendered grid points across projection, camera movement and resize
+ok 51 - native Play clicks snap to rendered grid points across projection, camera movement and resize
+  ---
+  duration_ms: 28798.669836
+  type: 'test'
+  ...
+# Subtest: local hybrid retrieval returns current cited knowledge and keeps exact context before semantic hits
+ok 52 - local hybrid retrieval returns current cited knowledge and keeps exact context before semantic hits
+  ---
+  duration_ms: 737.203187
+  type: 'test'
+  ...
+# Subtest: permission, version, revision, conflict and secret boundaries fail closed
+ok 53 - permission, version, revision, conflict and secret boundaries fail closed
+  ---
+  duration_ms: 313.892153
+  type: 'test'
+  ...
+# Subtest: content hash updates create tombstones, graph traversal recalls related decisions, and replay rebuilds the same index digest
+ok 54 - content hash updates create tombstones, graph traversal recalls related decisions, and replay rebuilds the same index digest
+  ---
+  duration_ms: 378.372181
+  type: 'test'
+  ...
+# Subtest: long Chinese requests and approved-plan repair continuations keep full model instructions while bounding retrieval
+ok 55 - long Chinese requests and approved-plan repair continuations keep full model instructions while bounding retrieval
+  ---
+  duration_ms: 2539.557235
+  type: 'test'
+  ...
+# Subtest: hybrid retrieval covers distinct relevant sources before repeating chunks of a long guide
+ok 56 - hybrid retrieval covers distinct relevant sources before repeating chunks of a long guide
+  ---
+  duration_ms: 366.671069
+  type: 'test'
+  ...
+# Subtest: bounded tool catalog exposes registry-driven component authoring
+ok 57 - bounded tool catalog exposes registry-driven component authoring
+  ---
+  duration_ms: 10.996895
+  type: 'test'
+  ...
+# Subtest: entity.create-many creates mixed scene roles in one revision and rejects material on non-geometry
+ok 58 - entity.create-many creates mixed scene roles in one revision and rejects material on non-geometry
+  ---
+  duration_ms: 693.895934
+  type: 'test'
+  ...
+# Subtest: plane creation, batch creation and repair persist local geometry orientation through Undo/Redo and reopen
+ok 59 - plane creation, batch creation and repair persist local geometry orientation through Undo/Redo and reopen
+  ---
+  duration_ms: 1405.177925
+  type: 'test'
+  ...
+# Subtest: Canvas texture discovery, approval, PNG persistence, material assignment and Undo/Redo share document history
+ok 60 - Canvas texture discovery, approval, PNG persistence, material assignment and Undo/Redo share document history
+  ---
+  duration_ms: 1572.658976
+  type: 'test'
+  ...
+# Subtest: Canvas late results cannot write into a changed or cancelled project
+ok 61 - Canvas late results cannot write into a changed or cancelled project
+  ---
+  duration_ms: 3502.770615
+  type: 'test'
+  ...
+# Subtest: Canvas rolls back newly staged bytes on command failure in saved and unsaved projects
+ok 62 - Canvas rolls back newly staged bytes on command failure in saved and unsaved projects
+  ---
+  duration_ms: 777.127022
+  type: 'test'
+  ...
+# Subtest: camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically
+ok 63 - camera.author creates, switches, frames, orbits, follows and configures gameplay cameras atomically
+  ---
+  duration_ms: 2940.016753
+  type: 'test'
+  ...
+# Subtest: tool.search and component.configure expose registry defaults as partial semantic upserts
+ok 64 - tool.search and component.configure expose registry defaults as partial semantic upserts
+  ---
+  duration_ms: 2007.598234
+  type: 'test'
+  ...
+# Subtest: asset.dependencies and script symbols/patch provide exact incremental context without whole-script retransmission
+ok 65 - asset.dependencies and script symbols/patch provide exact incremental context without whole-script retransmission
+  ---
+  duration_ms: 9336.4564
+  type: 'test'
+  ...
+# Subtest: scene.get-many and recoverable hierarchy operations clone, reparent and restore complete subtrees
+ok 66 - scene.get-many and recoverable hierarchy operations clone, reparent and restore complete subtrees
+  ---
+  duration_ms: 2057.900503
+  type: 'test'
+  ...
+# Subtest: prefab.manage captures, instantiates and removes reusable subtrees while history.query stays bounded and source-redacted
+ok 67 - prefab.manage captures, instantiates and removes reusable subtrees while history.query stays bounded and source-redacted
+  ---
+  duration_ms: 5612.834072
+  type: 'test'
+  ...
+# Subtest: transform.batch applies set, align, distribute, snap and look-at as bounded single-revision edits
+ok 68 - transform.batch applies set, align, distribute, snap and look-at as bounded single-revision edits
+  ---
+  duration_ms: 2281.438419
+  type: 'test'
+  ...
+# Subtest: main project camera persists through History and supports a distortion-free top-down board view
+ok 69 - main project camera persists through History and supports a distortion-free top-down board view
+  ---
+  duration_ms: 1373.537426
+  type: 'test'
+  ...
+# Subtest: runtime executes a prepared mutation batch through one Scene transaction and one undoable History entry
+ok 70 - runtime executes a prepared mutation batch through one Scene transaction and one undoable History entry
+  ---
+  duration_ms: 997.306998
+  type: 'test'
+  ...
+# Subtest: scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary
+ok 71 - scene.query and scene.diff expose paged exact context while project.snapshot stays an identity summary
+  ---
+  duration_ms: 1758.360576
+  type: 'test'
+  ...
+# Subtest: planned entity creation is low risk while later scoped edits retain one-shot approval and History
+ok 72 - planned entity creation is low risk while later scoped edits retain one-shot approval and History
+  ---
+  duration_ms: 885.981775
+  type: 'test'
+  ...
+# Subtest: controlled project assets import, search, assign, undo and survive project reopen
+ok 73 - controlled project assets import, search, assign, undo and survive project reopen
+  ---
+  duration_ms: 1630.434239
+  type: 'test'
+  ...
+# Subtest: controlled asset import rejects decode-budget and kind/format violations without mutation
+ok 74 - controlled asset import rejects decode-budget and kind/format violations without mutation
+  ---
+  duration_ms: 626.987354
+  type: 'test'
+  ...
+# Subtest: diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload
+ok 75 - diagnostics query returns redacted bounded pages with a query-bound cursor and no raw payload
+  ---
+  duration_ms: 981.692577
+  type: 'test'
+  ...
+# Subtest: allow always auto-approves only the same tool, version, target and project session scope
+ok 76 - allow always auto-approves only the same tool, version, target and project session scope
+  ---
+  duration_ms: 1313.964213
+  type: 'test'
+  ...
+# Subtest: unchanged preview consent is reused but revocation and new code require authorization
+ok 77 - unchanged preview consent is reused but revocation and new code require authorization
+  ---
+  duration_ms: 18001.486086
+  type: 'test'
+  ...
+# Subtest: script proposal, trusted apply and runtime start preserve separate approvals
+ok 78 - script proposal, trusted apply and runtime start preserve separate approvals
+  ---
+  duration_ms: 11284.507802
+  type: 'test'
+  ...
+# Subtest: AI-generated engine imports and update wrappers are normalized before apply
+ok 79 - AI-generated engine imports and update wrappers are normalized before apply
+  ---
+  duration_ms: 5950.674527
+  type: 'test'
+  ...
+# Subtest: unsupported module entry points remain fail closed
+ok 80 - unsupported module entry points remain fail closed
+  ---
+  duration_ms: 8568.739724
+  type: 'test'
+  ...
+# Subtest: scene capability is inferred from api.scene source and survives proposal and preview validation
+ok 81 - scene capability is inferred from api.scene source and survives proposal and preview validation
+  ---
+  duration_ms: 9319.897174
+  type: 'test'
+  ...
+# Subtest: preview validation rejects scenes that contain only logic entities
+ok 82 - preview validation rejects scenes that contain only logic entities
+  ---
+  duration_ms: 5938.742634
+  type: 'test'
+  ...
+# Subtest: preview validation rejects lit materials without a light and recovers after lighting is added
+ok 83 - preview validation rejects lit materials without a light and recovers after lighting is added
+  ---
+  duration_ms: 8953.023518
+  type: 'test'
+  ...
+# Subtest: Agent tools create Engine primitives and lights and can change built-in materials
+ok 84 - Agent tools create Engine primitives and lights and can change built-in materials
+  ---
+  duration_ms: 1521.996411
+  type: 'test'
+  ...
+# Subtest: registry-driven component tools preserve schema, risk, Scene projection and History
+ok 85 - registry-driven component tools preserve schema, risk, Scene projection and History
+  ---
+  duration_ms: 2343.339009
+  type: 'test'
+  ...
+# Subtest: Agent can author distinct material colors for snake, food and board entities
+ok 86 - Agent can author distinct material colors for snake, food and board entities
+  ---
+  duration_ms: 1250.563186
+  type: 'test'
+  ...
+# Subtest: model-facing mutations require the observed revision and create with an initial Transform
+ok 87 - model-facing mutations require the observed revision and create with an initial Transform
+  ---
+  duration_ms: 938.460995
+  type: 'test'
+  ...
+# Subtest: every revision-bound tool publishes a required version and rejects omission at its input boundary
+ok 88 - every revision-bound tool publishes a required version and rejects omission at its input boundary
+  ---
+  duration_ms: 1865.143078
+  type: 'test'
+  ...
+# Subtest: missing, invalid and stale revisions never adopt a newer manual edit
+ok 89 - missing, invalid and stale revisions never adopt a newer manual edit
+  ---
+  duration_ms: 1511.629576
+  type: 'test'
+  ...
+# Subtest: manual UI service and Agent tool serialize the same entity, revision and undoable History state
+ok 90 - manual UI service and Agent tool serialize the same entity, revision and undoable History state
+  ---
+  duration_ms: 1332.848092
+  type: 'test'
+  ...
+# Subtest: schema spoof, rejection and revision drift fail closed without mutation
+ok 91 - schema spoof, rejection and revision drift fail closed without mutation
+  ---
+  duration_ms: 1098.181766
+  type: 'test'
+  ...
+# Subtest: schema fuzz rejects duplicate, nested unknown, non-finite and malformed structured fields before mutation
+ok 92 - schema fuzz rejects duplicate, nested unknown, non-finite and malformed structured fields before mutation
+  ---
+  duration_ms: 833.383101
+  type: 'test'
+  ...
+# Subtest: same-document mutations serialize and a queued stale preparation never enters the editor service
+ok 93 - same-document mutations serialize and a queued stale preparation never enters the editor service
+  ---
+  duration_ms: 1041.431208
+  type: 'test'
+  ...
+# Subtest: tool, approval, Document and History correlation remains traversable after the journal restarts
+ok 94 - tool, approval, Document and History correlation remains traversable after the journal restarts
+  ---
+  duration_ms: 869.188671
+  type: 'test'
+  ...
+# Subtest: cancelled calls reject a late result even when the injected runtime ignores AbortSignal
+ok 95 - cancelled calls reject a late result even when the injected runtime ignores AbortSignal
+  ---
+  duration_ms: 841.526009
+  type: 'test'
+  ...
+# Subtest: tool timeout aborts execution, emits a terminal failure and cannot produce a late completion
+ok 96 - tool timeout aborts execution, emits a terminal failure and cannot produce a late completion
+  ---
+  duration_ms: 1156.445922
+  type: 'test'
+  ...
+# Subtest: observe tools degrade when journal append fails while every mutation remains fail closed
+ok 97 - observe tools degrade when journal append fails while every mutation remains fail closed
+  ---
+  duration_ms: 351.9323
+  type: 'test'
+  ...
+# Subtest: pending approvals have no wall-clock expiry while revision drift still invalidates them
+ok 98 - pending approvals have no wall-clock expiry while revision drift still invalidates them
+  ---
+  duration_ms: 1108.962511
+  type: 'test'
+  ...
+# Subtest: fake backend deterministic E2E creates, transforms, scripts and starts preview through one tool seam
+ok 99 - fake backend deterministic E2E creates, transforms, scripts and starts preview through one tool seam
+  ---
+  duration_ms: 9388.415041
+  type: 'test'
+  ...
+# Subtest: coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval
+ok 100 - coordinator recovers a validated script proposal after provider transport interruption through normal one-shot approval
+  ---
+  duration_ms: 4670.867743
+  type: 'test'
+  ...
+# Subtest: agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam
+ok 101 - agent queries a pre-restart runtime fault and applies one approved repair through the bounded tool seam
+  ---
+  duration_ms: 11367.937839
+  type: 'test'
+  ...
+# Subtest: coordinator rejects malformed provider arguments instead of coercing them to an empty observe call
+ok 102 - coordinator rejects malformed provider arguments instead of coercing them to an empty observe call
+  ---
+  duration_ms: 161.761252
+  type: 'test'
+  ...
+# Subtest: coordinator can route backend turns and tool output accounting through AgentTurnRuntime
+ok 103 - coordinator can route backend turns and tool output accounting through AgentTurnRuntime
+  ---
+  duration_ms: 373.544584
+  type: 'test'
+  ...
+# Subtest: coordinator can expose a bounded tool profile and compact only the provider-facing result
+ok 104 - coordinator can expose a bounded tool profile and compact only the provider-facing result
+  ---
+  duration_ms: 1067.077971
+  type: 'test'
+  ...
+# Subtest: a search-only coordinator invokes a discovered edit through real Document History without exposing all schemas
+ok 105 - a search-only coordinator invokes a discovered edit through real Document History without exposing all schemas
+  ---
+  duration_ms: 1226.009116
+  type: 'test'
+  ...
+# Subtest: coordinator automatically takes over backend questions through an explicit policy
+ok 106 - coordinator automatically takes over backend questions through an explicit policy
+  ---
+  duration_ms: 193.53535
+  type: 'test'
+  ...
+# Subtest: coordinator cancels a non-converging turn at its tool request boundary
+ok 107 - coordinator cancels a non-converging turn at its tool request boundary
+  ---
+  duration_ms: 1043.83562
+  type: 'test'
+  ...
+# Subtest: coordinator preserves completed tool results when the host budget observer blocks the next request
+ok 108 - coordinator preserves completed tool results when the host budget observer blocks the next request
+  ---
+  duration_ms: 943.570864
+  type: 'test'
+  ...
+# Subtest: coordinator can preserve completed tool results when a bounded host timebox aborts the caller
+ok 109 - coordinator can preserve completed tool results when a bounded host timebox aborts the caller
+  ---
+  duration_ms: 1005.778465
+  type: 'test'
+  ...
+# Subtest: disposing the coordinator aborts an active backend turn and is idempotent
+ok 110 - disposing the coordinator aborts an active backend turn and is idempotent
+  ---
+  duration_ms: 181.424887
+  type: 'test'
+  ...
+# Subtest: rounded boxes support single/batch creation, cube conversion, bounded parameters and durable History
+ok 111 - rounded boxes support single/batch creation, cube conversion, bounded parameters and durable History
+  ---
+  duration_ms: 2774.704026
+  type: 'test'
+  ...
+# Subtest: composite prefab preserves six independent rounded face parts through replication and History/reopen
+ok 112 - composite prefab preserves six independent rounded face parts through replication and History/reopen
+  ---
+  duration_ms: 1983.410766
+  type: 'test'
+  ...
+# Subtest: AI diagnostics excludes other projects and application facts even with correlation traversal
+ok 113 - AI diagnostics excludes other projects and application facts even with correlation traversal
+  ---
+  duration_ms: 862.151765
+  type: 'test'
+  ...
+# Subtest: pointer gesture validates ordering and executes every input before persisting final state
+ok 114 - pointer gesture validates ordering and executes every input before persisting final state
+  ---
+  duration_ms: 904.581968
+  type: 'test'
+  ...
+# Subtest: initialization-only script proposals recommend persisted properties without altering source
+ok 115 - initialization-only script proposals recommend persisted properties without altering source
+  ---
+  duration_ms: 4608.27623
+  type: 'test'
+  ...
+# Subtest: large-scene pointer gesture returns bounded evidence, hit targets and real effects without losing persisted state
+ok 116 - large-scene pointer gesture returns bounded evidence, hit targets and real effects without losing persisted state
+  ---
+  duration_ms: 961.607849
+  type: 'test'
+  ...
+# Subtest: unsaved Canvas textures preview immediately, survive failed save and Undo/Redo across first save, and stay project-scoped
+ok 117 - unsaved Canvas textures preview immediately, survive failed save and Undo/Redo across first save, and stay project-scoped
+  ---
+  duration_ms: 2288.867971
+  type: 'test'
+  ...
+# Subtest: manual and Agent material edits update the effective PBR component and retain maps through undo
+ok 118 - manual and Agent material edits update the effective PBR component and retain maps through undo
+  ---
+  duration_ms: 1594.212287
+  type: 'test'
+  ...
+# Subtest: assembly root part keys are distinct from the implicit root and failed batches leave no reservations
+ok 119 - assembly root part keys are distinct from the implicit root and failed batches leave no reservations
+  ---
+  duration_ms: 1838.251907
+  type: 'test'
+  ...
+# Subtest: composite prototypes enforce real structure before replication and survive History and reopen
+ok 120 - composite prototypes enforce real structure before replication and survive History and reopen
+  ---
+  duration_ms: 2577.664283
+  type: 'test'
+  ...
+# Subtest: assembly blueprints reject lost requirements, invalid hierarchy and unknown slots atomically
+ok 121 - assembly blueprints reject lost requirements, invalid hierarchy and unknown slots atomically
+  ---
+  duration_ms: 805.314237
+  type: 'test'
+  ...
+# Subtest: approved assembly plan cannot be bypassed with a bulk primitive or missing structure
+ok 122 - approved assembly plan cannot be bypassed with a bulk primitive or missing structure
+  ---
+  duration_ms: 169.213588
+  type: 'test'
+  ...
+# Subtest: replication preserves configured pointer components and rejects stale prototype inspection
+ok 123 - replication preserves configured pointer components and rejects stale prototype inspection
+  ---
+  duration_ms: 2627.203299
+  type: 'test'
+  ...
+# Subtest: assembly inspection detects pointer configured only after cloning and reports the affected instance
+ok 124 - assembly inspection detects pointer configured only after cloning and reports the affected instance
+  ---
+  duration_ms: 2114.413741
+  type: 'test'
+  ...
+# Subtest: scoped Play data verifies the target beyond a large scene projection without any capture
+ok 125 - scoped Play data verifies the target beyond a large scene projection without any capture
+  ---
+  duration_ms: 1390.295551
+  type: 'test'
+  ...
+# Subtest: incremental script proposal reports its actual owner and missing local pointer configuration
+ok 126 - incremental script proposal reports its actual owner and missing local pointer configuration
+  ---
+  duration_ms: 3885.634405
+  type: 'test'
+  ...
+# Subtest: gesture evidence evaluates actual color changes and retained clicks after settle, not script claims
+ok 127 - gesture evidence evaluates actual color changes and retained clicks after settle, not script claims
+  ---
+  duration_ms: 1456.971782
+  type: 'test'
+  ...
+# Subtest: gesture diagnostics survive settle and prevent repeated failed probes before injecting more input
+ok 128 - gesture diagnostics survive settle and prevent repeated failed probes before injecting more input
+  ---
+  duration_ms: 2022.278285
+  type: 'test'
+  ...
+# Subtest: dense gesture routing and many script references fit the result budget while full effects remain evidence
+ok 129 - dense gesture routing and many script references fit the result budget while full effects remain evidence
+  ---
+  duration_ms: 818.965
+  type: 'test'
+  ...
+# Subtest: prepared registry reads survive same-project edits, state reads and project switches remain stale
+ok 130 - prepared registry reads survive same-project edits, state reads and project switches remain stale
+  ---
+  duration_ms: 1575.700359
+  type: 'test'
+  ...
+# Subtest: gesture regression roundtrip replays original expectation after a repair, with exact world transforms
+ok 131 - gesture regression roundtrip replays original expectation after a repair, with exact world transforms
+  ---
+  duration_ms: 2335.890356
+  type: 'test'
+  ...
+# Subtest: decorative meshes can persist ray penetration with no subscribed events or script resource
+ok 132 - decorative meshes can persist ray penetration with no subscribed events or script resource
+  ---
+  duration_ms: 1231.638598
+  type: 'test'
+  ...
+# Subtest: regression replay preserves a failed prelude even when its last gesture passes
+ok 133 - regression replay preserves a failed prelude even when its last gesture passes
+  ---
+  duration_ms: 2226.251511
+  type: 'test'
+  ...
+# Subtest: independent script proposals revalidate retained source at current revision, changed targets conflict
+ok 134 - independent script proposals revalidate retained source at current revision, changed targets conflict
+  ---
+  duration_ms: 13820.948969
+  type: 'test'
+  ...
+# Subtest: material.set exposes validated Basic transparency and color-only edits preserve policy
+ok 135 - material.set exposes validated Basic transparency and color-only edits preserve policy
+  ---
+  duration_ms: 1719.800294
+  type: 'test'
+  ...
+# Subtest: transactional material.set preserves Basic policy and one History entry
+ok 136 - transactional material.set preserves Basic policy and one History entry
+  ---
+  duration_ms: 1526.216471
+  type: 'test'
+  ...
+# Subtest: one turn exposes stable model rounds for repeated tool exchanges and the final reply
+ok 137 - one turn exposes stable model rounds for repeated tool exchanges and the final reply
+  ---
+  duration_ms: 190.088928
+  type: 'test'
+  ...
+# Subtest: projects a deterministic graph, transcript and modification evidence chain
+ok 138 - projects a deterministic graph, transcript and modification evidence chain
+  ---
+  duration_ms: 22.582341
+  type: 'test'
+  ...
+# Subtest: shows actual overlapping tool intervals as parallel and preserves dependency order
+ok 139 - shows actual overlapping tool intervals as parallel and preserves dependency order
+  ---
+  duration_ms: 5.949202
+  type: 'test'
+  ...
+# Subtest: keeps barriers, compaction and outcome-unknown visible in graph and transcript
+ok 140 - keeps barriers, compaction and outcome-unknown visible in graph and transcript
+  ---
+  duration_ms: 9.906894
+  type: 'test'
+  ...
+# Subtest: reports sequence gaps and dangling references without crashing
+ok 141 - reports sequence gaps and dangling references without crashing
+  ---
+  duration_ms: 2.98778
+  type: 'test'
+  ...
+# Subtest: projects a 1000-tool graph within a bounded unit-test budget
+ok 142 - projects a 1000-tool graph within a bounded unit-test budget
+  ---
+  duration_ms: 1097.606053
+  type: 'test'
+  ...
+# Subtest: session history orders actual execution time instead of unrelated operation counts
+ok 143 - session history orders actual execution time instead of unrelated operation counts
+  ---
+  duration_ms: 66.850672
+  type: 'test'
+  ...
+# Subtest: a task retains its full chain when an approval continuation starts a new provider session
+ok 144 - a task retains its full chain when an approval continuation starts a new provider session
+  ---
+  duration_ms: 32.547336
+  type: 'test'
+  ...
+# Subtest: task membership separates different requests that reuse one provider session, even with identical titles
+ok 145 - task membership separates different requests that reuse one provider session, even with identical titles
+  ---
+  duration_ms: 24.031679
+  type: 'test'
+  ...
+# Subtest: legacy sessions stay inspectable and invalid task membership is rejected
+ok 146 - legacy sessions stay inspectable and invalid task membership is rejected
+  ---
+  duration_ms: 9.486245
+  type: 'test'
+  ...
+# Subtest: current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors
+ok 147 - current frontier follows concurrent tools, human barriers and model continuation without lighting ancestors
+  ---
+  duration_ms: 17.576145
+  type: 'test'
+  ...
+# Subtest: plan answers without barrierKind finish the original review and release the active frontier on replay
+ok 148 - plan answers without barrierKind finish the original review and release the active frontier on replay
+  ---
+  duration_ms: 22.924743
+  type: 'test'
+  ...
+# Subtest: answers only resolve the matching question and retain genuinely pending user input
+ok 149 - answers only resolve the matching question and retain genuinely pending user input
+  ---
+  duration_ms: 3.410539
+  type: 'test'
+  ...
+# Subtest: terminal details retain explicit causes and aggregate only matching structural children on replay
+ok 150 - terminal details retain explicit causes and aggregate only matching structural children on replay
+  ---
+  duration_ms: 21.454362
+  type: 'test'
+  ...
+# Subtest: terminal detail handles structured diagnostics, missing historical causes and successful retry
+ok 151 - terminal detail handles structured diagnostics, missing historical causes and successful retry
+  ---
+  duration_ms: 7.804076
+  type: 'test'
+  ...
+# Subtest: a late budget answer cannot reopen a released turn; only turn.started can resume execution
+ok 152 - a late budget answer cannot reopen a released turn; only turn.started can resume execution
+  ---
+  duration_ms: 11.411087
+  type: 'test'
+  ...
+# Subtest: assistant text does not finish a turn before the explicit terminal event
+ok 153 - assistant text does not finish a turn before the explicit terminal event
+  ---
+  duration_ms: 3.207775
+  type: 'test'
+  ...
+# Subtest: blocked acceptance keeps the goal active while its current turn works, then shows the actual blocker
+ok 154 - blocked acceptance keeps the goal active while its current turn works, then shows the actual blocker
+  ---
+  duration_ms: 24.540318
+  type: 'test'
+  ...
+# Subtest: blocked goal shows its current human barrier, without treating a released provider as active work
+ok 155 - blocked goal shows its current human barrier, without treating a released provider as active work
+  ---
+  duration_ms: 25.8975
+  type: 'test'
+  ...
+# Subtest: old or unrelated active turns cannot revive a stopped task, and explicit host failure remains failed
+ok 156 - old or unrelated active turns cannot revive a stopped task, and explicit host failure remains failed
+  ---
+  duration_ms: 33.495582
+  type: 'test'
+  ...
+# Subtest: persisted confirmation checkpoints project waiting, approved continuation, completion and rejection
+ok 157 - persisted confirmation checkpoints project waiting, approved continuation, completion and rejection
+  ---
+  duration_ms: 104.387091
+  type: 'test'
+  ...
+# Subtest: legacy checkpoint marker requires a correlated barrier and never masks an explicit cancellation or failure
+ok 158 - legacy checkpoint marker requires a correlated barrier and never masks an explicit cancellation or failure
+  ---
+  duration_ms: 9.658797
+  type: 'test'
+  ...
+# Subtest: PNG storage errors keep their concrete cause while active acceptance stays in progress
+ok 159 - PNG storage errors keep their concrete cause while active acceptance stays in progress
+  ---
+  duration_ms: 6.301472
+  type: 'test'
+  ...
+# Subtest: siblings align with their first child and reserve all rows of preceding branches
+ok 160 - siblings align with their first child and reserve all rows of preceding branches
+  ---
+  duration_ms: 7.370032
+  type: 'test'
+  ...
+# Subtest: branch layout handles shared dependencies, filtering and collapsed tools without overlap
+ok 161 - branch layout handles shared dependencies, filtering and collapsed tools without overlap
+  ---
+  duration_ms: 5.715318
+  type: 'test'
+  ...
+# Subtest: model rounds show their public explanation and exact tool intent/results without cross-turn leakage
+ok 162 - model rounds show their public explanation and exact tool intent/results without cross-turn leakage
+  ---
+  duration_ms: 9.143733
+  type: 'test'
+  ...
+# Subtest: node content accepts legacy projections and rejects malformed or unbounded detail fields
+ok 163 - node content accepts legacy projections and rejects malformed or unbounded detail fields
+  ---
+  duration_ms: 13.434869
+  type: 'test'
+  ...
+1..163
+# tests 163
+# suites 0
+# pass 163
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 331539.804969

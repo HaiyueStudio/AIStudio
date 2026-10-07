@@ -1,0 +1,106 @@
+TAP version 13
+# Subtest: failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=false)
+ok 1 - failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=false)
+  ---
+  duration_ms: 2844.570539
+  type: 'test'
+  ...
+# Subtest: failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=true)
+ok 2 - failed Play inspection can revalidate without losing results or allowing edits outside repair (transaction=true)
+  ---
+  duration_ms: 2679.50723
+  type: 'test'
+  ...
+# Subtest: a malformed request closes an empty batch after its delayed start and retains the original error
+ok 3 - a malformed request closes an empty batch after its delayed start and retains the original error
+  ---
+  duration_ms: 667.574131
+  type: 'test'
+  ...
+# Subtest: cancellation before a durable tool start waits for it and cannot execute a late tool body
+ok 4 - cancellation before a durable tool start waits for it and cannot execute a late tool body
+  ---
+  duration_ms: 818.70029
+  type: 'test'
+  ...
+# Subtest: cleanup does not complete a batch twice when its completion audit fails
+ok 5 - cleanup does not complete a batch twice when its completion audit fails
+  ---
+  duration_ms: 849.905951
+  type: 'test'
+  ...
+# Subtest: W6 batch keeps per-member plan authorization and rejects invalid envelopes before execution (false)
+ok 6 - W6 batch keeps per-member plan authorization and rejects invalid envelopes before execution (false)
+  ---
+  duration_ms: 1294.409504
+  type: 'test'
+  ...
+# Subtest: W6 batch keeps per-member plan authorization and rejects invalid envelopes before execution (true)
+ok 7 - W6 batch keeps per-member plan authorization and rejects invalid envelopes before execution (true)
+  ---
+  duration_ms: 701.70975
+  type: 'test'
+  ...
+# Subtest: W6 dependencies observe failed mutation execution, never merely successful preparation
+ok 8 - W6 dependencies observe failed mutation execution, never merely successful preparation
+  ---
+  duration_ms: 1906.711159
+  type: 'test'
+  ...
+# Subtest: W6 explicit provider step survives interleaved text and closes exactly once
+ok 9 - W6 explicit provider step survives interleaved text and closes exactly once
+  ---
+  duration_ms: 1182.223964
+  type: 'test'
+  ...
+# Subtest: W6 cancelled closed admission drains all members without preparing or leaving pending UI
+ok 10 - W6 cancelled closed admission drains all members without preparing or leaving pending UI
+  ---
+  duration_ms: 1161.795741
+  type: 'test'
+  ...
+# Subtest: W6 durable query checkpoint stops pending members and releases provider only after outer result delivery
+ok 11 - W6 durable query checkpoint stops pending members and releases provider only after outer result delivery
+  ---
+  duration_ms: 1291.448329
+  type: 'test'
+  ...
+# Subtest: W6 ambiguous outer delivery preserves completed member receipts and blocks automatic replay
+ok 12 - W6 ambiguous outer delivery preserves completed member receipts and blocks automatic replay
+  ---
+  duration_ms: 947.471106
+  type: 'test'
+  ...
+# Subtest: W7 Host only delegates approved plan items, caches candidate receipts and never calls editor tools
+ok 13 - W7 Host only delegates approved plan items, caches candidate receipts and never calls editor tools
+  ---
+  duration_ms: 2507.749459
+  type: 'test'
+  ...
+# Subtest: P1 Host enforces read-only constraints before preparation despite an approved plan (transaction=false)
+ok 14 - P1 Host enforces read-only constraints before preparation despite an approved plan (transaction=false)
+  ---
+  duration_ms: 1410.321234
+  type: 'test'
+  ...
+# Subtest: P1 Host enforces read-only constraints before preparation despite an approved plan (transaction=true)
+ok 15 - P1 Host enforces read-only constraints before preparation despite an approved plan (transaction=true)
+  ---
+  duration_ms: 1451.655341
+  type: 'test'
+  ...
+# Subtest: P1 Host retains original constraints, submission selection and plan amendments on restart
+ok 16 - P1 Host retains original constraints, submission selection and plan amendments on restart
+  ---
+  duration_ms: 1671.740125
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 25431.065297

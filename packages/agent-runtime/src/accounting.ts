@@ -97,12 +97,29 @@ export class TaskAccount {
     this.settledTurns.add(turnId); this.reservationTurns.delete(id); this.workTurns.delete(id); return this.reservations.delete(id);
   }
   releaseUnstartedWork(id: string): void { if (this.workTurns.has(id)) return; this.reservations.delete(id); this.reservationTurns.delete(id); }
-  /** Auxiliary providers without usage reporting retain their known output cap as a reservation. */
-  reserveAuxiliary(id: string, outputTokens: number): boolean {
-    if (!this.reserveWork(id, { outputTokens })) return false;
+  /** Auxiliary inference shares the parent budget. Caps are reservations, never provider usage. */
+  reserveAuxiliary(id: string, caps: number | Readonly<{ inputTokens: number; outputTokens: number; estimatedCostMicros: number }>): boolean {
+    const reservation = typeof caps === 'number' ? { outputTokens: caps } : caps;
+    if (Object.values(reservation).some(value => !Number.isSafeInteger(value) || value <= 0)) return false;
+    if (!this.reserveWork(id, reservation)) return false;
     this.unknownAuxiliary.add(id); return true;
   }
-  releaseUnsentAuxiliary(id: string): void { this.unknownAuxiliary.delete(id); this.releaseUnstartedWork(id); }
+  /** A reported auxiliary request uses the same canonical ledger and pricing as ordinary turns. */
+  bindAuxiliary(id: string, turnId: StableId, context: TurnBillingContext): boolean {
+    const previous = this.turns.get(turnId);
+    if (previous && (previous.provider !== context.provider || previous.model !== context.model || previous.billingMode !== context.billingMode)) return false;
+    if (!this.unknownAuxiliary.has(id) || !this.bindWork(id, turnId)) return false;
+    this.bindTurn(turnId, context); return true;
+  }
+  settleAuxiliary(id: string, turnId: StableId): boolean {
+    if (!this.unknownAuxiliary.has(id) || !this.settleWork(id, turnId)) return false;
+    this.unknownAuxiliary.delete(id); return true;
+  }
+  releaseUnsentAuxiliary(id: string): void {
+    // A live/failed request is not "unsent". Its unknown cost must survive cancellation.
+    if (this.workTurns.has(id)) return;
+    this.unknownAuxiliary.delete(id); this.releaseUnstartedWork(id);
+  }
   /** One wall-time commitment for the scheduler's entire bounded batch, not one per lane. */
   reserveWallTime(id: string, cap: number): (() => void) | null {
     if (!this.reserveWork(id, { wallTimeMs: cap })) return null;
@@ -198,8 +215,8 @@ export class TaskAccount {
     const ledgers = this.taskLedgers(); const usage = Object.freeze({ ...aggregateUsage(ledgers), wallTimeMs: this.taskWallTime(ledgers) });
     this.controller.reconcileWallTime(usage.wallTimeMs);
     const incomplete = this.unknownAuxiliary.size > 0;
-    const cost = incomplete ? Object.freeze({ ...this.lastCost, status: 'unknown' as const, amountMicros: null, cacheSavingMicros: null, explanation: 'Auxiliary search usage/cost is not reported by the provider; task totals are incomplete.' }) : this.lastCost;
-    return Object.freeze({ taskId: this.options.taskId, budget: this.controller.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage: incomplete ? Object.freeze({ ...usage, inputTokens: null, outputTokens: null }) : usage, cost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
+    const cost = incomplete ? Object.freeze({ ...this.lastCost, status: 'unknown' as const, amountMicros: null, cacheSavingMicros: null, final: false, explanation: 'Auxiliary inference usage/cost is incomplete; reservations are retained until final priced usage is reported.' }) : this.lastCost;
+    return Object.freeze({ taskId: this.options.taskId, budget: this.controller.budget, budgetDecision: this.controller.state(), consumption: this.controller.consumption(), usage: incomplete ? Object.freeze({ ...usage, inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, reasoningTokens: null }) : usage, cost, turnIds: Object.freeze(ledgers.map((entry) => entry.turnId)) });
   }
   costRecords(): readonly CostRecordV2[] { return Object.freeze([...this.costHistory.values()].sort((a, b) => a.id.localeCompare(b.id))); }
   latestCostRecord(turnId: StableId): CostRecordV2 | undefined { return this.latestCosts.get(turnId)?.record; }

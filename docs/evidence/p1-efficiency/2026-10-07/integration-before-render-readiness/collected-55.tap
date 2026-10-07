@@ -1,0 +1,23 @@
+TAP version 13
+# Subtest: resource category queries reuse exact-version rows and references; refresh and project edits invalidate
+ok 1 - resource category queries reuse exact-version rows and references; refresh and project edits invalidate
+  ---
+  duration_ms: 1761.076235
+  type: 'test'
+  ...
+# {"coldMs":343.9531850000001,"fiveWarmQueriesMs":195.69940799999995,"referenceQueries":1}
+# Subtest: failed reference reads retry instead of poisoning the cache
+ok 2 - failed reference reads retry instead of poisoning the cache
+  ---
+  duration_ms: 637.069305
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3435.957265

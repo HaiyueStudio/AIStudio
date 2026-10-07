@@ -213,3 +213,38 @@ test('auxiliary searches reserve bounded output and keep missing usage/cost unkn
   account.releaseUnsentAuxiliary('search:one');assert.equal(account.reservedWork().outputTokens,undefined);
   assert.equal(account.reconcile().usage.outputTokens,2);
 });
+
+test('auxiliary inference uses exact parent ledger ownership, reserves cost and settles only final priced usage', () => {
+ const store=new UsageLedgerStore(),taskId=asStableId('task:aux-billing'),turnId=asStableId('turn:aux-billing');
+ const account=new TaskAccountingRegistry(store).open({taskId,budget:{...budget('hard'),limits:{...budget('hard').limits,inputTokens:10000,outputTokens:10000,estimatedCostMicros:10000}},pricingCatalog:M12_DEFAULT_PRICING_CATALOG});
+ assert.equal(account.reserveAuxiliary('stagehand:invalid',{inputTokens:1,outputTokens:0,estimatedCostMicros:1}),false);
+ assert.equal(account.reserveAuxiliary('stagehand:one',{inputTokens:1000,outputTokens:1000,estimatedCostMicros:500}),true);
+ assert.equal(account.reservedWork().estimatedCostMicros,500);
+ assert.equal(account.snapshot().cost.final,false);
+ const foreign=store.open({taskId:asStableId('task:other'),sessionId:asStableId('session:other'),turnId:asStableId('turn:other'),providerRequestDigest:null,startedAtMs:0});
+ assert.equal(account.bindAuxiliary('stagehand:one',foreign.snapshot().turnId,{provider:'deepseek',model:'deepseek-flash',billingMode:'api'}),false);
+ const ledger=store.open({taskId,sessionId:asStableId('session:aux-billing'),turnId,providerRequestDigest:null,startedAtMs:0});
+ assert.equal(account.bindAuxiliary('stagehand:one',turnId,{provider:'deepseek',model:'deepseek-flash',billingMode:'api'}),true);
+ account.releaseUnsentAuxiliary('stagehand:one');assert.equal(account.snapshot().cost.status,'unknown');
+ assert.equal(account.settleAuxiliary('stagehand:one',turnId),false);
+ ledger.reconcile({eventId:'usage:aux',sequence:1,mode:'cumulative',inputTokens:20,cachedInputTokens:0,cacheWriteTokens:0,outputTokens:10,reasoningTokens:0,observedAtMs:1,final:true});
+ assert.equal(account.settleAuxiliary('stagehand:one',turnId),false,'live provider must drain');
+ ledger.markTerminal('stop',2);
+ assert.equal(account.settleAuxiliary('stagehand:one',turnId),true);assert.deepEqual(account.reservedWork(),{});
+ assert.equal(account.reconcile().usage.inputTokens,20);assert.ok(account.snapshot().cost.amountMicros>0);
+ assert.equal(account.settleAuxiliary('stagehand:one',turnId),false);
+});
+
+test('unknown-price auxiliary inference keeps reservations and every aggregate token total unknown', () => {
+ const store=new UsageLedgerStore(),taskId=asStableId('task:aux-unknown'),turnId=asStableId('turn:aux-unknown');
+ const account=new TaskAccountingRegistry(store).open({taskId,budget:budget('hard'),pricingCatalog:M12_DEFAULT_PRICING_CATALOG});
+ assert.equal(account.reserveAuxiliary('aux:unknown',{inputTokens:20,outputTokens:20,estimatedCostMicros:20}),true);
+ const ledger=store.open({taskId,sessionId:asStableId('session:aux-unknown'),turnId,providerRequestDigest:null,startedAtMs:0});
+ assert.equal(account.bindAuxiliary('aux:unknown',turnId,{provider:'unpriced',model:'unpriced',billingMode:'api'}),true);
+ assert.equal(account.bindAuxiliary('aux:unknown',turnId,{provider:'deepseek',model:'deepseek-flash',billingMode:'api'}),false,'billing route cannot change after dispatch');
+ ledger.reconcile({eventId:'usage:unknown',sequence:1,mode:'cumulative',inputTokens:1,outputTokens:1,observedAtMs:1,final:true});ledger.markTerminal('cancelled',2);
+ assert.equal(account.settleAuxiliary('aux:unknown',turnId),false);
+ account.releaseUnsentAuxiliary('aux:unknown');const view=account.reconcile();
+ assert.equal(account.reservedWork().estimatedCostMicros,20);assert.equal(view.cost.amountMicros,null);assert.equal(view.cost.final,false);
+ for(const key of ['inputTokens','outputTokens','cachedInputTokens','cacheWriteTokens','reasoningTokens'])assert.equal(view.usage[key],null);
+});

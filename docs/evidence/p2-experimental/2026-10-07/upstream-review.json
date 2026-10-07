@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "productionInstalled": false,
+  "packages": [
+    {
+      "name": "@deepseek-ai/dsh-experimental-agent-team",
+      "version": "0.2.0-rc.2",
+      "integrity": "sha512-ds9BrnyJ+BAbxaH3J81c/+JJpk8jUtnpzUCyTXxrDW2nZOnFWqdPH/TZKAI1ttCuls218+RF4PPFPbhYaXNl6g==",
+      "shasum": "cfdd539e1353cba8df9189f5fc85a55b30a08357",
+      "license": "MIT",
+      "declarations": [
+        {
+          "file": "team-index.d.ts.txt",
+          "sha256": "6f6ea76dbec1792439aa9758fc2527e58a74aef98529ae3b154b58d5e870847b"
+        },
+        {
+          "file": "team-journal.d.ts.txt",
+          "sha256": "726dd057e6a1085ad3dca2293f09eed3b235019df78846bf831e79f7fee479f0"
+        },
+        {
+          "file": "team-types.d.ts.txt",
+          "sha256": "9473f0d5d4770379641cad99fa2943460176751d3f987801f3520863b08b9962"
+        }
+      ]
+    },
+    {
+      "name": "@deepseek-ai/dsh-experimental-browser-use-stagehand-native",
+      "version": "0.2.0-rc.2",
+      "integrity": "sha512-PoK1pMyJyY8JTeVieDysOvgQ6238S/uUQK1Gy0fKQM5hniTqp/ZWu3OHqGll1U96gZrSzNpY01yLVW/+XMkdcw==",
+      "shasum": "b4dd7f826eba7ef8b5ccc3f8863df586f0c1428d",
+      "license": "MIT",
+      "declarations": [
+        {
+          "file": "stagehand-index.d.ts.txt",
+          "sha256": "78d9fb1ea7bdf0a0ae807837a66a5311a7171734fc74c618f898d379ef2d9e9a"
+        },
+        {
+          "file": "stagehand-native.d.ts.txt",
+          "sha256": "9d0b39a1a5b62515caf00f40cd51aa4b4f523fe5ab0497f21a581fa57a79929d"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "matchedSourceFiles": 276,
+  "sourceDigest": "55bd39ee25e7cda8aee13a05111b61e53dc67d6bb9ab69fccb17ba0dfb71740d",
+  "alphaCodeMatchesFinalProductionSource": true,
+  "stageLogDigestsVerified": true,
+  "note": "Dependency manifests intentionally differ in the isolated alpha workspace. Source comparison covers packages/*/src and apps/*/src."
+}
