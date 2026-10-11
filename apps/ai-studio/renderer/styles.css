@@ -393,6 +393,12 @@ body[data-page="play"] #app { display: none; }
 }
 
 #agent-history-viewer { height: 100%; overflow: auto; padding: 10px; box-sizing: border-box; }
+#agent-review-viewer { height: 100%; overflow: auto; padding: 10px; box-sizing: border-box; font-size: 12px; overflow-wrap: anywhere; }
+#agent-review-viewer p { line-height: 1.6; }
+#agent-review-viewer button { margin-right: 6px; }
+.agent-review-finding { border: 1px solid var(--border-color, #383838); border-radius: 6px; padding: 8px 10px; margin: 10px 0; }
+.agent-review-finding h4 { margin: 0 0 6px; }
+.agent-review-finding pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; user-select: text; }
 .agent-history-toolbar { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 10px; }
 .agent-history-storage, .agent-history-timing { color: var(--text-muted, #999); font-size: 11px; overflow-wrap: anywhere; }
 .agent-history-record { border-bottom: 1px solid var(--border-color, #383838); padding: 10px 0; }
@@ -586,3 +592,11 @@ body[data-page="play"] #app { display: none; }
 #tool-settings input[type="checkbox"] { width: 18px; }
 .settings-form #tool-settings .tool-backend-setting { display: grid; grid-template-columns: minmax(0, 1fr); }
 #tool-settings p, #tool-settings span { overflow-wrap: anywhere; }
+.agent-experience-form { display: grid; gap: 8px; margin: 10px 0; }
+.agent-experience-form label { display: grid; gap: 4px; }
+.agent-experience-form input, .agent-experience-form textarea { box-sizing: border-box; width: 100%; min-width: 0; font: inherit; }
+.agent-optimization-results { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+.agent-optimization-results th, .agent-optimization-results td { padding: 6px; text-align: left; overflow-wrap: anywhere; border-bottom: 1px solid var(--border-color, #444); }
+[data-optimizations] p { overflow-wrap: anywhere; }
+[data-optimizations] > input { max-width: 100%; box-sizing: border-box; }
+[data-optimizations] fieldset { min-width: 0; margin: 8px 0; }

@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "feature": "Automatic evidence-grounded project experience candidates",
+  "verifiedAt": "2026-10-11T08:43:32.972Z",
+  "gitHead": "a2146ced2b79e32cca4937d287b07cdae558cc90",
+  "committed": false,
+  "inputDigest": "sha256:2090aabdf41dc147a3fd7a1b933cf7aa0935c968e2e1f256bce15f9584bc4d84",
+  "behavior": {
+    "entry": "任务复盘 → 候选优化与发布 → AI 自动整理",
+    "trigger": "After a new terminal-task rule review is saved, analyze complete evidence with cited findings. Existing historical reports before feature activation are not bulk-analyzed. Pending evidence is retained by project; an existing candidate defers processing.",
+    "ownership": "Event-driven workflow owned and aborted by the existing project conversation scope. Uses an isolated current-backend/current-model analysis turn, shared bounded analysis transport and existing accounting contracts. No editor mutation tools, code edits or automatic publication.",
+    "output": "At most three candidate-only advice entries, applicability, keywords, original review/finding references and positive/negative matching cases. Atomic candidate commit; current state and source library revisions checked. Existing regression expectations are preserved. Empty suggestions are supported.",
+    "persistence": "Project journal stores activation boundary, durable per-evidence attempt status, structured suggestion artifacts and independent accounting. Restart/discard cannot silently retry the same task revision and evidence digest. Backlog retains only artifact references, hydrates one report at a time, and skips already-attempted evidence.",
+    "lifecycle": "New task dispatch, manual deep review, cancellation, project switch and disposal cancel background analysis. Late results cannot replace user candidates or activate advice. Published AI-only advice remains editable, disableable and archivable through the existing workflow.",
+    "limits": {
+      "wallTimeMs": 90000,
+      "inputTokens": 40000,
+      "outputTokens": 4096,
+      "turns": 1,
+      "toolCalls": 1,
+      "maxProposals": 3,
+      "maxPromptBytes": 23000
+    },
+    "limitations": [
+      "Uses current model quota. Per-request backends enforce hard output limits; other backends retain single-turn/time bounds and report the missing hard output cap.",
+      "Generated suggestions and test cases require human review and offline validation before publication; matching validation is not proof of real-task quality improvement.",
+      "No automatic retry on identical evidence after failure, cancellation or restart. Missing or partial evidence does not produce candidates.",
+      "Deterministic fake-backend and isolated Electron fixtures verify behavior; no live paid-provider quality benchmark was run."
+    ]
+  },
+  "validation": {
+    "focused": {
+      "passed": 74,
+      "failed": 0
+    },
+    "capability": {
+      "command": "npm run m14:capability:capture",
+      "exitCode": 0,
+      "groups": 18,
+      "passed": 350
+    },
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "files": 81,
+      "passed": 487,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 837,
+      "bytes": 398980782,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:2090aabdf41dc147a3fd7a1b933cf7aa0935c968e2e1f256bce15f9584bc4d84"
+    },
+    "uiSecretScan": "ui-secret-scan.json",
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "finalBindingCheck": {
+      "exitCode": 0
+    }
+  },
+  "screenshots": [
+    "experience-ai-candidate.png"
+  ],
+  "archive": "D:/HaiyueStudio/_diagnostics/experience-ai-20261011-084309"
+}

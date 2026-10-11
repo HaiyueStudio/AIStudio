@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DesktopNotificationService } from '../dist/desktop-notifications.js';
 import { DEFAULT_NOTIFICATION_PREFERENCES as defaults } from '../dist/notification-settings.js';
 import { validateStudioIpcRequest } from '../dist/ipc.js';
@@ -87,7 +88,7 @@ test('Electron adapter uses macOS sound/Dock bounce and Windows flash with focus
     }
     globalThis.notificationElectronFixture = { Notification, app: { dock: { bounce: type => { events.push(['bounce', type]); return 42; }, cancelBounce: id => events.push(['cancel', id]) } }, shell: { beep: () => events.push(['beep']) } };
     try {
-      const result = await build({ entryPoints: [new URL('../dist/electron-notifications.js', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', define: { 'process.platform': JSON.stringify(platform) }, plugins: [{ name: 'electron-fixture', setup(build) {
+      const result = await build({ entryPoints: [fileURLToPath(new URL('../dist/electron-notifications.js', import.meta.url))], bundle: true, write: false, format: 'esm', platform: 'node', define: { 'process.platform': JSON.stringify(platform) }, plugins: [{ name: 'electron-fixture', setup(build) {
         build.onResolve({ filter: /^electron$/ }, () => ({ path: 'electron', namespace: 'fixture' }));
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const {app, Notification, shell} = globalThis.notificationElectronFixture;' }));
       } }] });

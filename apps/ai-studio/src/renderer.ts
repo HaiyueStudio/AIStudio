@@ -18,6 +18,7 @@ import { hasDeclarativeGameplay, parseBehaviorRuntimePlan, type BehaviorRuntimeP
 import type { JsonObject, StableId, BehaviorManifestV1, EditorLocationV1 } from '@haiyue/ai-studio-contracts';
 import {
   AgentHistoryViewer,
+  AgentReviewViewer,
   IntentWorkspace,
   LogicExplorerPanel,
   type LogicPanelData,
@@ -78,6 +79,8 @@ import { defineTabsComponents, type HYTabs } from '@haiyue/ui/tabs';
 import { defineTreeComponents, type HYTree } from '@haiyue/ui/tree';
 
 let agentHistoryViewer: AgentHistoryViewer | null = null;
+let agentReviewViewer: AgentReviewViewer | null = null;
+let agentReviewRevision = -1;
 let intentWorkspace: IntentWorkspace | null = null;
 let editorPanels: IntegratedEditorPanels | null = null;
 let agentHistoryWasBusy = false;
@@ -868,7 +871,7 @@ function applyLocale(): void {
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) node.title = t(node.dataset.i18nTitle ?? '');
 
   const rightTabs = element<HYTabs>('right-tabs');
-  rightTabs.options = [{ label: t('agent'), value: 'agent' }, { label: t('history'), value: 'history' }, { label: t('logs'), value: 'logs' }];
+  rightTabs.options = [{ label: t('agent'), value: 'agent' }, { label: t('history'), value: 'history' }, { label: '任务复盘', value: 'reviews' }, { label: t('logs'), value: 'logs' }];
   const resourceTabs = element<HYTabs>('resource-tabs');
   resourceTabs.options = [
     { label: t('geometry'), value: 'geometry' }, { label: t('lights'), value: 'lights' }, { label: t('materials'), value: 'materials' },
@@ -1182,6 +1185,7 @@ function bindUi(): void {
     editorPanels?.dispose(); editorPanels = null;
     intentWorkspace?.dispose(); intentWorkspace = null;
     agentHistoryViewer?.dispose(); agentHistoryViewer = null;
+    agentReviewViewer?.dispose(); agentReviewViewer = null;
     agentPoll?.stop(); agentPoll = null;
     disposeConversationChanged?.(); disposeConversationChanged = null;
     disposeSyncWake?.(); disposeSyncWake = null;
@@ -1220,11 +1224,14 @@ async function pollAgent(): Promise<void> {
 }
 
 async function refreshConversation(force: boolean): Promise<boolean> {
-  const replay = await invoke<ConversationReplaySnapshot & JsonObject & { projectId?: StableId | null; historyStorage?: string }>('conversation/replay');
+  const replay = await invoke<ConversationReplaySnapshot & JsonObject & { projectId?: StableId | null; historyStorage?: string; reviewRevision?: number }>('conversation/replay');
   // Push polling, locale refresh and notification navigation may have overlapping IPC requests.
   if (replay.revision < conversationRevision) return false;
   if (!force && replay.revision === conversationRevision) return false;
   agentHistoryViewer?.setProject(replay.projectId ?? null, replay.historyStorage);
+  agentReviewViewer?.setProject(replay.projectId ?? null, replay.historyStorage);
+  agentReviewViewer?.setBusy(replay.busy);
+  if (replay.reviewRevision !== undefined && replay.reviewRevision !== agentReviewRevision) { agentReviewRevision = replay.reviewRevision; agentReviewViewer?.refresh(); }
   conversationRevision = replay.revision;
   const snapshot = conversationProjector.reset(replay);
   if (replay.revision >= previewOwnershipRevision) {
@@ -1279,6 +1286,25 @@ async function dispatchConversation(intent: ConversationIntent): Promise<boolean
 }
 
 function setupLogViewer(): void {
+  agentReviewViewer = new AgentReviewViewer(element('agent-review-viewer'), {
+    list:(projectId,signal,cursor) => invoke('conversation/reviews',{projectId,...(cursor ? {cursor} : {})},signal),
+    read:(projectId,taskId,signal) => invoke('conversation/review',{projectId,taskId},signal),
+    deepen:(projectId,taskId,signal) => invoke('conversation/review-deep',{projectId,taskId},signal),
+    evidence:(projectId,id,signal) => invoke('conversation/history-detail',{projectId,id},signal),
+    experiences:{
+      archiveList:(projectId,signal,cursor) => invoke('conversation/experience-archive',{projectId,...(cursor ? {cursor} : {})},signal),
+      archive:(input,signal) => invoke('conversation/experience-archive-change',input as unknown as JsonObject,signal),
+      setReuse:(input,signal) => invoke('conversation/experience-reuse',input as unknown as JsonObject,signal),
+      list:(projectId,signal) => invoke('conversation/experiences',{projectId},signal),
+      adopt:(input,signal) => invoke('conversation/experience-adopt',input as unknown as JsonObject,signal),
+      update:(projectId,experience,draft,enabled,signal) => invoke('conversation/experience-update',{projectId,id:experience.id,revision:experience.revision,enabled,draft:draft as unknown as JsonObject},signal),
+    },
+    optimizations:{
+      effects:(projectId,signal,cursor) => invoke('conversation/experience-effects',{projectId,...(cursor ? {cursor} : {})},signal),
+      list:(projectId,signal,releaseId,cursor) => invoke('conversation/optimizations',{projectId,...(releaseId ? {releaseId} : {}),...(cursor ? {cursor} : {})},signal),
+      command:(input,signal) => invoke('conversation/optimization-command',input as unknown as JsonObject,signal),
+    },
+  });
   agentHistoryViewer = new AgentHistoryViewer(element('agent-history-viewer'), {
     query: (projectId, cursor, signal) => invoke('conversation/history', { projectId, ...(cursor ? { cursor } : {}), limit: 50 }, signal),
     detail: (projectId, id, signal) => invoke('conversation/history-detail', { projectId, id }, signal),

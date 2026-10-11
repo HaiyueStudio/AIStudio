@@ -14,6 +14,49 @@ const agentOwners = {
   versions: { app: 'test', schema: 'test', upstream: {} },
 };
 
+test('review IPC accepts stable task identities only, never model prompts, files or tool arguments', () => {
+  assert.equal(validateStudioIpcRequest(request('conversation/reviews',{projectId:'project:a'})).channel,'conversation/reviews');
+  for(const channel of ['conversation/review','conversation/review-deep']) {
+    assert.equal(validateStudioIpcRequest(request(channel,{projectId:'project:a',taskId:'task:a'})).channel,channel);
+    assert.throws(()=>validateStudioIpcRequest(request(channel,{projectId:'project:a',taskId:'task:a',prompt:'execute this'})));
+    assert.throws(()=>validateStudioIpcRequest(request(channel,{projectId:null,taskId:'task:a'})));
+  }
+});
+
+test('experience IPC validates applicability and exact revision without admitting filesystem or tool execution',()=>{
+  const draft={title:'经验',condition:'创建棋盘时',recommendation:'检查坐标平面',keywords:['棋盘']};
+  const payload={projectId:'project:a',id:'experience:a',revision:1,enabled:false,draft};
+  assert.equal(validateStudioIpcRequest(request('conversation/experiences',{projectId:'project:a'})).channel,'conversation/experiences');
+  assert.equal(validateStudioIpcRequest(request('conversation/experience-update',payload)).payload.revision,1);
+  for(const invalid of [{...payload,revision:0},{...payload,revision:1.5},{...payload,enabled:'true'},{...payload,path:'C:/project'},{...payload,draft:{...draft,keywords:[]}},{...payload,draft:{...draft,recommendation:'api_key=SECRET'}}])assert.throws(()=>validateStudioIpcRequest(request('conversation/experience-update',invalid)));
+  const adoption={schemaVersion:1,projectId:'project:a',taskId:'task:a',reviewDigest:'a'.repeat(64),findingSource:'rules',finding:{code:'tool-failure',severity:'warning',title:'坐标错误',detail:'XY 面',recommendation:'检查方向',recordIds:['record:a']},draft};
+  assert.equal(validateStudioIpcRequest(request('conversation/experience-adopt',adoption)).payload.schemaVersion,1);
+  assert.throws(()=>validateStudioIpcRequest(request('conversation/experience-adopt',{...adoption,tool:'scene.create'})));
+});
+
+test('experience pause IPC routes project-bound revision-checked switches while the host is busy',async()=>{
+  const payload={schemaVersion:1,projectId:'project:a',expectedRevision:0,paused:true};
+  assert.deepEqual(validateStudioIpcRequest(request('conversation/experience-reuse',payload)).payload,payload);
+  for(const patch of [{schemaVersion:2},{paused:'true'},{expectedRevision:-1},{projectId:'SECRET_CANARY'},{path:'C:/unsafe'}])assert.throws(()=>validateStudioIpcRequest(request('conversation/experience-reuse',{...payload,...patch})));
+  const calls=[];const router=new StudioIpcRouter({...agentOwners,workspace:{snapshot:()=>({document:{projectId:'project:a'}}),cancelAll(){}},operationLog:{async append(){}},conversation:{...agentOwners.conversation,replay:()=>({...agentOwners.conversation.replay(),busy:true}),async setExperienceReuse(projectId,value,signal){calls.push({projectId,value,aborted:signal.aborted});return {paused:true};}}});
+  assert.equal((await router.handle(request('conversation/experience-reuse',payload))).ok,true);assert.deepEqual(calls,[{projectId:'project:a',value:payload,aborted:false}]);router.dispose();
+});
+
+test('optimization IPC validates exact revision and routes only project-bound structured commands',async()=>{
+  const payload={schemaVersion:1,projectId:'project:a',expectedRevision:2,action:'publish'};
+  assert.equal(validateStudioIpcRequest(request('conversation/optimization-command',payload)).payload.action,'publish');
+  for(const patch of [{expectedRevision:-1},{action:'execute'},{evaluation:{status:'pass'}},{path:'C:/project'},{schemaVersion:2}])assert.throws(()=>validateStudioIpcRequest(request('conversation/optimization-command',{...payload,...patch})));
+  assert.throws(()=>validateStudioIpcRequest(request('conversation/optimizations',{projectId:'project:a',path:'C:/project'})));
+  assert.equal(validateStudioIpcRequest(request('conversation/optimizations',{projectId:'project:a',releaseId:'release:a'})).payload.releaseId,'release:a');
+  for(const releaseId of [null,9,'../outside'])assert.throws(()=>validateStudioIpcRequest(request('conversation/optimizations',{projectId:'project:a',releaseId})));
+  const calls=[];const router=new StudioIpcRouter({...agentOwners,workspace:{snapshot:()=>({document:{projectId:'project:a'}}),cancelAll(){}},operationLog:{async append(){}},conversation:{...agentOwners.conversation,
+    async queryOptimizations(id,releaseId){calls.push(releaseId?{id,releaseId}:id);return {projectId:id};},async optimizeExperiences(id,value,signal){calls.push({id,value,aborted:signal.aborted});return {projectId:id,ok:true};}}});
+  assert.equal((await router.handle(request('conversation/optimizations',{projectId:'project:a'}))).ok,true);
+  assert.equal((await router.handle(request('conversation/optimization-command',payload))).ok,true);
+  assert.equal(calls[0],'project:a');assert.deepEqual(calls[1],{id:'project:a',value:payload,aborted:false});
+  assert.equal((await router.handle(request('conversation/optimizations',{projectId:'project:a',releaseId:'release:a'}))).ok,true);assert.deepEqual(calls[2],{id:'project:a',releaseId:'release:a'});router.dispose();
+});
+
 test('IPC validator is versioned, allowlisted and never accepts renderer paths', () => {
   assert.equal(validateStudioIpcRequest(request('app/status')).channel, 'app/status');
   assert.equal(validateStudioIpcRequest(request('asset/read', { assetId: 'asset:0123456789abcdef01234567' })).channel, 'asset/read');
@@ -336,4 +379,21 @@ test('query settings persist validated counts across restart and IPC refuses unk
     assert.throws(() => validateStudioIpcRequest(request('queries/get', { path: '/secret' })));
     assert.deepEqual(reopened.snapshot(), larger); await reopened.dispose();
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('experience archive IPC validates revision-checked actions and scoped historical cursors',async()=>{
+ const payload={schemaVersion:1,projectId:'project:a',id:'experience:a',expectedRevision:1,libraryRevision:7,action:'archive'};
+ assert.deepEqual(validateStudioIpcRequest(request('conversation/experience-archive-change',payload)).payload,payload);
+ for(const patch of [{schemaVersion:2},{action:'delete'},{expectedRevision:0},{libraryRevision:-1},{projectId:'SECRET_CANARY'},{file:'C:/project'}])assert.throws(()=>validateStudioIpcRequest(request('conversation/experience-archive-change',{...payload,...patch})));
+ for(const channel of ['conversation/experience-effects','conversation/experience-archive','conversation/reviews','conversation/optimizations']){
+  assert.equal(validateStudioIpcRequest(request(channel,{projectId:'project:a',cursor:'7:20'})).payload.cursor,'7:20');
+  for(const cursor of ['../file','SECRET_CANARY',null,4])assert.throws(()=>validateStudioIpcRequest(request(channel,{projectId:'project:a',cursor})));
+ }
+ const calls=[];const router=new StudioIpcRouter({...agentOwners,workspace:{snapshot:()=>({document:{projectId:'project:a'}}),cancelAll(){}},operationLog:{async append(){}},conversation:{...agentOwners.conversation,
+ async queryExperienceEffects(projectId,cursor,signal){calls.push({projectId,cursor});assert.equal(signal.aborted,false);return {projectId};},async queryExperienceArchive(projectId,cursor){calls.push({projectId,cursor});return {projectId};},async archiveExperience(projectId,value,signal){calls.push({projectId,value,aborted:signal.aborted});return {projectId};},async queryReviews(projectId,cursor){calls.push({projectId,cursor});return {projectId};}}});
+ assert.equal((await router.handle(request('conversation/experience-archive',{projectId:'project:a',cursor:'7:20'}))).ok,true);
+ assert.equal((await router.handle(request('conversation/experience-archive-change',payload))).ok,true);
+ assert.equal((await router.handle(request('conversation/reviews',{projectId:'project:a',cursor:'3:50'}))).ok,true);
+ assert.equal((await router.handle(request('conversation/experience-effects',{projectId:'project:a',cursor:'9:20'}))).ok,true);
+ assert.deepEqual(calls,[{projectId:'project:a',cursor:'7:20'},{projectId:'project:a',value:payload,aborted:false},{projectId:'project:a',cursor:'3:50'},{projectId:'project:a',cursor:'9:20'}]);router.dispose();
 });

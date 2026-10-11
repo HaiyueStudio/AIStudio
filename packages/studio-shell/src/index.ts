@@ -148,4 +148,5 @@ function panel(id: StableId, title: string, region: StudioPanelDescriptor['regio
 }
 
 export { AgentHistoryViewer, normalizeHistoryPage } from './panels/history/index.js';
+export { AgentReviewViewer, type AgentReviewViewerPort } from './panels/history/reviews.js';
 export type { AgentHistoryViewerPort } from './panels/history/index.js';

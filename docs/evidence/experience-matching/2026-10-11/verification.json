@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "feature": "Precise project experience triggering",
+  "verifiedAt": "2026-10-11T09:34:31.517Z",
+  "committed": false,
+  "gitHead": "a2146ced2b79e32cca4937d287b07cdae558cc90",
+  "inputDigest": "sha256:baf7aca90b7498eea6230ecd0a1a19109be4fa66a7316239ac7b96022ec1ece0",
+  "behavior": {
+    "entry": "任务复盘 → 项目经验 → 编辑经验；或候选优化与发布 → 编辑候选",
+    "rules": "Versioned minimum independent matches, required keywords and exclusions; normalized duplicate/conflict/secret checks. Legacy advice remains readable. Structured rules persist through edit, toggle, restart, publication and rollback.",
+    "matching": "English whole-word/phrase/tool-identifier boundaries, Chinese phrases, NFKC/case/whitespace normalization, bounded explicit local negation, overlapping-term deduplication, specificity ranking discounted by keyword-list size. The same selector runs live and in regression validation.",
+    "candidates": "AI candidate prompt/schema supports structured applicability and hard negative cases with shared keywords. Candidate-only; user review and validation still required before publication.",
+    "evaluation": "Evaluator 1.1.0. Historical 1.0.0 reports remain readable; unpublished candidates require new validation after matcher upgrade.",
+    "limits": "Project/source/current-revision guards, pause/archive, max three entries, context byte limits and provider-session reset remain enforced.",
+    "limitations": [
+      "Deterministic lexical rules, not full semantic understanding. Descriptive condition text is not executable; configure structured rules to narrow existing broad advice.",
+      "No real-task improvement percentage or live-provider quality benchmark is claimed."
+    ]
+  },
+  "validation": {
+    "focused": {
+      "passed": 81,
+      "failed": 0,
+      "log": "logs/experience-matching-focused.log"
+    },
+    "electron": {
+      "passed": 2,
+      "failed": 0,
+      "log": "logs/experience-matching-ui.log"
+    },
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 1,
+      "status": "blocked",
+      "completed": "Contracts, type checks, boundaries, upstream/candidate checks, spike checks and M12 quick regression passed.",
+      "blocker": "Capability input binding could not be refreshed because the existing pointer-placement Electron fixture failed on blur-reset input. No verification bypass or generated record edits.",
+      "log": "logs/experience-matching-check.log"
+    },
+    "capabilityCapture": {
+      "exitCode": 1,
+      "log": "logs/experience-matching-focus-failed-capture.log"
+    },
+    "desktopInvestigation": {
+      "originalFixtureRepeatedlyFailed": "Native click receives blur reset and no placement.",
+      "temporaryFocusEmulation": "Allowed initial clicks but later orbit replay assertion failed. Experiment reverted; existing fixture/assertions unchanged by this task.",
+      "logs": [
+        "logs/experience-matching-pointer-recheck.log",
+        "logs/experience-matching-pointer-stable.log",
+        "logs/experience-matching-pointer-final.log"
+      ]
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "uiSecretScan": "ui-secret-scan.json"
+  },
+  "screenshots": [
+    "experience-matching.png"
+  ],
+  "logs": [
+    {
+      "file": "logs/experience-matching-check.log",
+      "sha256": "43fa7b3dcd5959d03bf151c5de54a25f09e58669beaff5a77f53264a77fa445b"
+    },
+    {
+      "file": "logs/experience-matching-focus-failed-capture.log",
+      "sha256": "67a40f65ddd548c04435e90ae61f35b115a360849103e56def32efde4cdf015b"
+    },
+    {
+      "file": "logs/experience-matching-focused.log",
+      "sha256": "a34c4218390d23e0c79d9887f27a28dfeccfcb5179fc84acb657ffcfea7bc72a"
+    },
+    {
+      "file": "logs/experience-matching-initial-capture.log",
+      "sha256": "5276c6e41d9829fa4a5b85219c38e14f3278ba86d845b6b4caa3b2e4b5b96396"
+    },
+    {
+      "file": "logs/experience-matching-pointer-final.log",
+      "sha256": "93a78cf7c8dbcfa608a250c1b5b0375007b48bced165db3d79629d7baf13d8ae"
+    },
+    {
+      "file": "logs/experience-matching-pointer-recheck.log",
+      "sha256": "7608e867f6362ed3431b746a8f5b8d4c342c6607a780a36538c0c87e2b0710f8"
+    },
+    {
+      "file": "logs/experience-matching-pointer-stable.log",
+      "sha256": "b0886f7e71d75f348a6d1a501c2295f6f08525fda3eea88fa3c0420708547e32"
+    },
+    {
+      "file": "logs/experience-matching-ui.log",
+      "sha256": "2cb7cf2bd044d222e1dfbfacf64c84e54a08450f619be7356da5b0b1bd525447"
+    }
+  ]
+}

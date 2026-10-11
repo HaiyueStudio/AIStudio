@@ -186,6 +186,7 @@ export class WebStudioHost {
       case 'conversation/intent': throw new WebHostError('web-agent-unavailable', 'AI Agent backends require the Electron desktop app.');
       case 'conversation/history': return json({ schemaVersion: 1, projectId: null, records: [], total: 0, nextCursor: null, storage: 'none' });
       case 'conversation/history-detail': throw new WebHostError('web-agent-unavailable', 'Project execution records require the Electron desktop app.');
+      case 'conversation/reviews': case 'conversation/review': case 'conversation/review-deep': case 'conversation/experiences': case 'conversation/experience-adopt': case 'conversation/experience-update': case 'conversation/experience-reuse': case 'conversation/experience-archive': case 'conversation/experience-archive-change': case 'conversation/experience-effects': case 'conversation/optimizations': case 'conversation/optimization-command': throw new WebHostError('web-agent-unavailable', 'Task reviews and experience reuse require the Electron desktop app.');
       case 'logs/query': {
         const query = payload.query as Record<string, unknown>; const limit = Math.min(200, Math.max(1, Number(query.limit) || 80));
         const cursorSequence = typeof query.cursor === 'string' && /^web:\d+$/u.test(query.cursor) ? Number(query.cursor.slice(4)) : undefined;

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "feature": "RSI step 2: reviewed project experience reuse",
+  "verifiedAt": "2026-10-11T02:04:28.719Z",
+  "gitHead": "a2146ced2b79e32cca4937d287b07cdae558cc90",
+  "committed": false,
+  "inputDigest": "sha256:fc9c15531ae3c4474ef350ff4907c34f00c55ed5f4346392e3c215fb4167ae94",
+  "behavior": {
+    "entry": "任务复盘 → 整理为经验",
+    "storage": ".aistudio/agent/ immutable library snapshots and source review artifacts",
+    "scope": "current project",
+    "adoption": "explicit human review of applicability, keywords and advice; exact review evidence match",
+    "retrieval": "offline explicit keyword matching; at most 3 entries and 12000 UTF-8 bytes; no same-task feedback",
+    "invalidation": "disabled advice, changed source task revisions, missing provenance and corruption excluded; provider session renewed when selection changes",
+    "authority": "advisory context only; tool schemas, project revisions and approvals retain authority",
+    "audit": "context preparation and source snapshot references; not a claim of execution or effectiveness"
+  },
+  "validation": {
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "files": 79,
+      "passed": 437,
+      "failed": 0,
+      "skipped": 0
+    },
+    "capability": {
+      "groups": 18,
+      "passed": 347
+    },
+    "secretScan": {
+      "passed": true,
+      "files": 835,
+      "bytes": 398968381
+    },
+    "realElectronUI": true,
+    "liveModelEffectivenessVerified": false
+  },
+  "archive": "D:\\HaiyueStudio\\_diagnostics\\experience-reuse-20261011-100356",
+  "artifacts": [
+    "integration-summary.json",
+    "secret-scan.json",
+    "experience-panel.png"
+  ]
+}

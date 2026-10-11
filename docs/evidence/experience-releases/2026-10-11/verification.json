@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "feature": "RSI step 3: project experience/strategy candidates and releases",
+  "verifiedAt": "2026-10-11T02:42:55.009Z",
+  "gitHead": "a2146ced2b79e32cca4937d287b07cdae558cc90",
+  "committed": false,
+  "inputDigest": "sha256:a5e1bdb5a995a3847fc88535c688525bdbcc08f22b308f5d47af0b67fece1fea",
+  "behavior": {
+    "entry": "任务复盘 → 候选优化与发布",
+    "scope": "project-local reviewed experience and advisory strategy snapshots; no executable source modification",
+    "storage": ".aistudio/agent/ immutable artifacts and append-only version events",
+    "workflow": "freeze baseline → create/edit candidate → inspect difference → enter positive/negative matching cases → validate → explicitly publish",
+    "isolation": "starting version management freezes current advice; working-library edits and candidate changes are inactive until publication",
+    "gates": "exact project/state revision, current source-library revision, unchanged candidate validation, complete current review provenance, changed advice, positive/negative coverage and exact matching expectations",
+    "evaluation": "existing TaskSpecV2 and EvaluationResultV2; deterministic offline matching, not model effectiveness",
+    "activation": "publication activates one immutable snapshot; subsequent context includes release identity and renews provider context when selection changes",
+    "rollback": "new append-only version pointing to retained prior snapshot; current source evidence revalidated",
+    "audit": "last 20 versions and last 50 cited release/task pairs in retained event window; links to task reviews; context preparation is not execution or efficacy proof",
+    "limits": {
+      "candidateCases": 24,
+      "libraryEntries": 100,
+      "contextEntries": 3,
+      "contextEntryBytes": 12000
+    }
+  },
+  "validation": {
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "files": 81,
+      "passed": 447,
+      "failed": 0,
+      "skipped": 0
+    },
+    "capability": {
+      "command": "npm run m14:capability:capture",
+      "exitCode": 0,
+      "groups": 18,
+      "passed": 348
+    },
+    "focusedPassed": 35,
+    "realElectronChecksPassed": 3,
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 837,
+      "bytes": 398959708,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:a5e1bdb5a995a3847fc88535c688525bdbcc08f22b308f5d47af0b67fece1fea"
+    },
+    "uiSecretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "scope": "Generated test project, global journal, isolated Electron user-data",
+      "scans": {
+        "project": {
+          "schemaVersion": 1,
+          "passed": true,
+          "files": 15,
+          "bytes": 26541,
+          "crashDumps": 0,
+          "rules": [
+            "configured-secret-utf8-and-utf16",
+            "credential-token-patterns",
+            "credential-store-path"
+          ],
+          "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated."
+        },
+        "global": {
+          "schemaVersion": 1,
+          "passed": true,
+          "files": 14,
+          "bytes": 26441,
+          "crashDumps": 0,
+          "rules": [
+            "configured-secret-utf8-and-utf16",
+            "credential-token-patterns",
+            "credential-store-path"
+          ],
+          "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated."
+        },
+        "user-data": {
+          "schemaVersion": 1,
+          "passed": true,
+          "files": 50,
+          "bytes": 4341061,
+          "crashDumps": 0,
+          "rules": [
+            "configured-secret-utf8-and-utf16",
+            "credential-token-patterns",
+            "credential-store-path"
+          ],
+          "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated."
+        }
+      },
+      "excludedStaticInputs": [
+        "index.html",
+        "app.js",
+        "preload.cjs"
+      ],
+      "wholeFixtureAttempt": {
+        "passed": false,
+        "falsePositive": {
+          "file": "index.html",
+          "source": "apps/ai-studio/renderer/styles.css:543",
+          "selector": ".task-status-awaiting-acceptance",
+          "reason": "Unanchored sk- credential heuristic matches the suffix of this existing CSS class; no credential is present."
+        }
+      }
+    },
+    "liveModelEffectivenessVerified": false,
+    "postCleanupBinding": {
+      "command": "npm run m14:capability:check",
+      "exitCode": 0
+    },
+    "diffCheck": {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  },
+  "archive": "D:\\HaiyueStudio\\_diagnostics\\experience-releases-20261011-104136",
+  "artifacts": [
+    "integration-summary.json",
+    "secret-scan.json",
+    "ui-secret-scan.json",
+    "optimization-panel.png",
+    "optimization-candidate.png"
+  ],
+  "screenshotNote": "The candidate screenshot includes literal HTML-like test input to verify safe text rendering."
+}

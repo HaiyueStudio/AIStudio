@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "feature": "Persistent project regression cases and historical experience-release validation reports",
+  "verifiedAt": "2026-10-11T04:10:55.092Z",
+  "gitHead": "a2146ced2b79e32cca4937d287b07cdae558cc90",
+  "committed": false,
+  "inputDigest": "sha256:3865fb77a585b4ebc1b871438729eff0aa82634bcbf49747860e785197f8577e",
+  "behavior": {
+    "entry": "任务复盘 → 候选优化与发布 → 版本记录 → 查看验证报告",
+    "regressionCases": "Saved to the existing project optimization state and inherited by new candidates; publish, discard, restart and rollback preserve the suite. Users can explicitly edit or remove cases.",
+    "validation": "Each candidate starts unvalidated. Changed or disabled advice retains previous expectations until the user edits them; regressions block publication.",
+    "legacy": "Legacy candidates retain their saved cases. Legacy releases recover cases from immutable published evaluation/comparison evidence without changing old records.",
+    "history": "Read-only original evaluation timestamp, evaluator and candidate revision, checks, expected and actual citations, before/after results and context sizes. Rollbacks show the restored original report, not a new validation.",
+    "isolation": "Project/release identity and artifact relationship checked; invalid/missing report yields a local error while version history remains available. Disposed/project-switched UI drops late responses.",
+    "scope": "Offline matching and source evidence validation only; no model efficacy evaluation or automatic publication."
+  },
+  "validation": {
+    "build": {
+      "command": "npm run build -w @haiyue/ai-studio",
+      "exitCode": 0
+    },
+    "focused": {
+      "headless": 31,
+      "electron": 1,
+      "passed": 32
+    },
+    "capability": {
+      "command": "npm run m14:capability:capture",
+      "exitCode": 0,
+      "groups": 18,
+      "passed": 348
+    },
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "files": 81,
+      "passed": 451,
+      "failed": 0,
+      "skipped": 0
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 837,
+      "bytes": 398970935,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:3865fb77a585b4ebc1b871438729eff0aa82634bcbf49747860e785197f8577e"
+    },
+    "uiSecretScan": "ui-secret-scan.json",
+    "finalBindingCheck": {
+      "command": "npm run m14:capability:check",
+      "exitCode": 0
+    },
+    "diffCheck": {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  },
+  "screenshots": [
+    "optimization-history-report.png",
+    "optimization-panel.png",
+    "optimization-candidate.png"
+  ],
+  "archive": "D:\\HaiyueStudio\\_diagnostics\\experience-regression-history-20261011-121056"
+}

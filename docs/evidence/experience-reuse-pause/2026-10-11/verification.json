@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "feature": "Project-scoped immediate experience reuse pause and resume",
+  "verifiedAt": "2026-10-11T05:05:33.751Z",
+  "gitHead": "a2146ced2b79e32cca4937d287b07cdae558cc90",
+  "committed": false,
+  "inputDigest": "sha256:a9c8a631f579112d397cd3bc3bcbf96bcace605e17491a68503d9fd571ce348a",
+  "behavior": {
+    "entry": "任务复盘顶部 → 立即暂停经验复用 / 恢复经验复用",
+    "activation": "Available while a task is running or advice draft is being edited. Stops future turn experience selection; already submitted model context cannot be retracted. An in-flight source lookup rechecks the switch before returning advice.",
+    "persistence": "Revision-guarded project journal event and portable artifact, separate from draft library and released strategies. Survives restart and project copying; other projects remain independent.",
+    "preservation": "Drafts, releases, regression cases and historical validation reports remain intact. Publishing or rolling back a release never resumes reuse.",
+    "context": "An empty selection resets the provider session when prior experience context differs, so a new turn does not inherit paused advice.",
+    "failure": "Malformed/unknown-version/foreign/secret-bearing inputs rejected. A corrupt newest switch record stops reuse. Cancelled and disposed writes cannot append a late switch; disposed UI drops late results."
+  },
+  "validation": {
+    "build": {
+      "command": "npm run build -w @haiyue/ai-studio",
+      "exitCode": 0
+    },
+    "focused": {
+      "headless": 45,
+      "electron": 2,
+      "passed": 47,
+      "note": "An existing 5 ms timer fixture intermittently completed below its asserted duration; increased its delay to 20 ms and reran all 45 focused logic cases successfully."
+    },
+    "capability": {
+      "command": "npm run m14:capability:capture",
+      "exitCode": 0,
+      "groups": 18,
+      "passed": 349
+    },
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "files": 81,
+      "passed": 457,
+      "failed": 0,
+      "skipped": 0
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 837,
+      "bytes": 398974409,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:a9c8a631f579112d397cd3bc3bcbf96bcace605e17491a68503d9fd571ce348a"
+    },
+    "uiSecretScan": "ui-secret-scan.json",
+    "finalBindingCheck": {
+      "command": "npm run m14:capability:check",
+      "exitCode": 0
+    },
+    "diffCheck": {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  },
+  "screenshots": [
+    "experience-reuse-control.png"
+  ],
+  "archive": "D:\\HaiyueStudio\\_diagnostics\\experience-reuse-pause-20261011-130448"
+}

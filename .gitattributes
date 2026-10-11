@@ -1,0 +1,6 @@
+# Candidate checks bind these files to exact bytes; preserve their committed line endings.
+vendor/patches/*.patch -text
+vendor/haiyue-engine-reference-docs.json -text
+docs/upstream/deepseek-harness/*.snapshot -text
+docs/upstream/codex/app-server-schema-*/** -text
+docs/upstream/codex/app-server-types-*/** -text

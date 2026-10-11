@@ -2,6 +2,7 @@ export * from './official-tools.js';
 export * from './request-context.js';
 export * from './workflow.js';
 export type JsonPrimitive = null | boolean | number | string;
+export { parseAgentReview, parseReviewFindings, type AgentReviewV1, type AgentReviewFindingV1 } from './agent-review.js';
 export { isToolConcurrencyHintV1, type ToolConcurrencyHintV1 } from './tool-concurrency.js';
 export type * from './m14.js';
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
@@ -300,3 +301,6 @@ export * from './subtask.js';
 
 export { isOfficialToolReceiptV1, type OfficialToolReceiptV1 } from './official-tools.js';
 export * from './team-recovery.js';
+export * from './agent-experience.js';
+export * from './agent-optimization.js';
+export * from './experience-effects.js';

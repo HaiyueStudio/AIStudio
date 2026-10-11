@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { OperationLog } from '@haiyue/ai-studio-operation-log';
 import { PromptContextRuntime } from '../dist/index.js';
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const base={conversationKey:'conversation:p1',backendId:'backend:p1',taskId:'task:p1',request:'Inspect selected object',tools:[]};
 async function fixture(t,retrieval) {
- const root=await mkdtemp('/private/tmp/aistudio-p1-context-'),log=await OperationLog.open({rootDirectory:root,appVersion:'p1-test'});
+ const root=await mkdtemp(path.join(tmpdir(),'aistudio-p1-context-')),log=await OperationLog.open({rootDirectory:root,appVersion:'p1-test'});
  t.after(async()=>{await log.close();await rm(root,{recursive:true,force:true});});
  return {log,runtime:new PromptContextRuntime(log,undefined,retrieval)};
 }

@@ -11,7 +11,10 @@ let window, controller, finishing = false;
 const deadline = setTimeout(() => finish(1, 'Resource module deadline exceeded'), 95000);
 app.whenReady().then(async () => {
   controller = await createResourceTestController();
-  window = new BrowserWindow({ width: 1060, height: 940, show: false, webPreferences: { preload: fileURLToPath(new URL('./preload.cjs', import.meta.url)), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, backgroundThrottling: false } });
+  // Offscreen rendering keeps requestAnimationFrame active on Windows even when
+  // the test window is hidden; the same DOM, keyboard and screenshot checks run.
+  window = new BrowserWindow({ width: 1060, height: 940, show: false, webPreferences: { preload: fileURLToPath(new URL('./preload.cjs', import.meta.url)), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, backgroundThrottling: false, offscreen: true } });
+  window.webContents.setFrameRate(60);
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' })); window.webContents.on('will-navigate', event => event.preventDefault());
   const sender = event => { assert.equal(event.sender, window.webContents); assert.equal(event.senderFrame, window.webContents.mainFrame); };
   ipcMain.handle('g06-resource-current', event => { sender(event); return controller.display(); });

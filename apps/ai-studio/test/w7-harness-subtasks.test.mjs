@@ -3,6 +3,8 @@ import { qualificationFixture } from '../../../packages/agent-orchestration/test
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { createHarnessStudioRoot } from '@haiyue/ai-studio-harness-bridge';
 import { createPinnedHarnessAgentTransport } from '@haiyue/ai-studio-harness-bridge/agent';
 import { HarnessApiKeyBackend } from '@haiyue/ai-studio-agent-backends';
@@ -11,7 +13,7 @@ import { OperationLog, sha256 } from '@haiyue/ai-studio-operation-log';
 import { runSubtasks, createRuntimeSubtaskPort } from '@haiyue/ai-studio-agent-orchestration';
 import { DEFAULT_TASK_BUDGET } from '../../../packages/agent-orchestration/dist/budget-policy.js';
 for (const mode of ['candidate', 'over-budget', 'no-structured-result']) test(`W7 pinned Harness isolated requests and cleanup: ${mode}`, {timeout:20000},async t=>{
- const directory=await mkdtemp('/private/tmp/aistudio-w7-'); const root=createHarnessStudioRoot();
+ const directory=await mkdtemp(path.join(tmpdir(),'aistudio-w7-')); const root=createHarnessStudioRoot();
  const transport=await createPinnedHarnessAgentTransport({owner:root,resolveApiKey:async()=> 'fixture-only',contextWindow:200000});
  const backend=new HarnessApiKeyBackend({transport,clearApiKey:async()=>{}}),registry=new AgentBackendRegistry();registry.register(backend);
  const log=await OperationLog.open({rootDirectory:directory,appVersion:'w7-test'}),context=new PromptContextRuntime(log),turns=new AgentTurnRuntime(registry,log,context),accounting=new TaskAccountingRegistry(turns.usage);

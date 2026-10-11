@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "feature": "Observed real-task effectiveness comparison of project experience versions",
+  "verifiedAt": "2026-10-11T06:47:57.514Z",
+  "gitHead": "a2146ced2b79e32cca4937d287b07cdae558cc90",
+  "committed": false,
+  "inputDigest": "sha256:f3eb39d312eead38000c6fd57fe15f81aafc4f55396bd41fa855ec811748cb04",
+  "behavior": {
+    "entry": "任务复盘 → 候选优化与发布 → 真实任务版本效果对比",
+    "ownership": "Read-only headless projection of the existing project journal; shell renders validated projections and emits typed navigation/query intents.",
+    "attribution": "A task-turn binding is appended after durable session/project ownership is established, retaining the existing AgentTurnConfigV2. Context commit cites the exact experience context artifact only after a matching provider-started turn. Retained same-session advice remains attributed even when omitted from the current envelope by its byte budget.",
+    "cohorts": "Published release, unpublished library revision, or explicitly no advice; separated by backend, model, reasoning effort, output limit and prompt profile digest. Cross-release, advice/no-advice mixed, cross-model/config, stale/nonterminal or incomplete evidence is excluded and explained.",
+    "metrics": "Task status completion rate, failed/blocked/cancelled counts, tool calls/failure rate, repeated failures, repairs, elapsed time including waits, final input/output token means with their own known-sample denominator, and environmental-diagnostic counts.",
+    "history": "Latest review per task, complete retained history scan with bounded query windows, 20 sample rows per page, sequence-bound cursor. Immutable source references remain in .aistudio/agent and reconstruct after restart.",
+    "interaction": "Lazy collapsed panel, baseline/comparison selectors, original task-review navigation, refresh and sample pagination; cancellation/generation guards prevent delayed responses after project switch/disposal.",
+    "limitations": [
+      "Observational task mix, not controlled A/B or proof that advice caused an improvement.",
+      "Old tasks without reliable actual-turn attribution remain excluded, not inferred from publication time.",
+      "Prepared context is not proof that the model followed advice; no automatic ranking, publication or paid model task execution.",
+      "No cost conversion or imputed missing token values."
+    ],
+    "validationFixtures": "Synthetic deterministic tasks and isolated Electron project fixtures test implementation; they are not presented as measured production-game quality."
+  },
+  "validation": {
+    "focused": {
+      "passed": 46,
+      "failed": 0
+    },
+    "electron": {
+      "passed": 1,
+      "failed": 0
+    },
+    "capability": {
+      "command": "npm run m14:capability:capture",
+      "exitCode": 0,
+      "groups": 18,
+      "passed": 350
+    },
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 0,
+      "files": 81,
+      "passed": 469,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 837,
+      "bytes": 398984330,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:f3eb39d312eead38000c6fd57fe15f81aafc4f55396bd41fa855ec811748cb04"
+    },
+    "uiSecretScan": "ui-secret-scan.json",
+    "finalBindingCheck": {
+      "exitCode": 0
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "transientFailure": {
+      "test": "pointer-placement-electron.test.mjs",
+      "detail": "First capability capture failed an existing native/replayed camera assertion. No assertion or product code was changed for it. Standalone rerun and subsequent full capability capture passed.",
+      "log": "D:/HaiyueStudio/_diagnostics/experience-effects-20261011-064637/logs/experience-effects-capture-first-failure.log"
+    }
+  },
+  "screenshots": [
+    "experience-effects.png"
+  ],
+  "archive": "D:/HaiyueStudio/_diagnostics/experience-effects-20261011-064637"
+}

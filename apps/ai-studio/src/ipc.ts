@@ -1,4 +1,5 @@
 import { parseToolPreferences } from './tool-preferences-model.js';
+import { parseExperienceAdoption, parseExperienceDraft, parseExperienceOptimizationCommand, parseExperienceArchiveChange, parseExperienceHistoryQuery, parseExperienceReuseChange } from '@haiyue/ai-studio-contracts';
 import type { ToolPreferences } from './tool-preferences.js';
 import { basicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
 import type { QueryPreferences } from './query-preferences.js';
@@ -66,6 +67,9 @@ export type StudioIpcMethod =
   | 'conversation/intent'
   | 'conversation/history'
   | 'conversation/history-detail'
+  | 'conversation/reviews' | 'conversation/review' | 'conversation/review-deep'
+  | 'conversation/experiences' | 'conversation/experience-adopt' | 'conversation/experience-update' | 'conversation/experience-reuse' | 'conversation/experience-archive' | 'conversation/experience-archive-change'
+  | 'conversation/experience-effects' | 'conversation/optimizations' | 'conversation/optimization-command'
   | 'logs/query'
   | 'logs/export';
 
@@ -94,7 +98,7 @@ export interface StudioIpcRouterOptions {
   readonly selection: SceneSelectionService;
   readonly scripts: ScriptPreviewStudioService;
   readonly operationLog: OperationLog;
-  readonly conversation: Pick<StudioConversationHost, 'dispatch' | 'replay' | 'cancelPending'> & Partial<Pick<ProjectConversationController, 'prepareProjectChange' | 'syncProject' | 'queryHistory' | 'readHistory' | 'previewOwnership'>>;
+  readonly conversation: Pick<StudioConversationHost, 'dispatch' | 'replay' | 'cancelPending'> & Partial<Pick<ProjectConversationController, 'prepareProjectChange' | 'syncProject' | 'queryHistory' | 'readHistory' | 'previewOwnership' | 'queryReviews' | 'readReview' | 'deepenReview' | 'queryExperiences' | 'adoptExperience' | 'updateExperience' | 'queryExperienceEffects' | 'queryOptimizations' | 'optimizeExperiences' | 'setExperienceReuse' | 'queryExperienceArchive' | 'archiveExperience'>>;
   readonly agentPreview: AgentPreviewBroker;
   readonly behavior?: ProjectBehaviorController;
   readonly editor?: ProjectEditorController;
@@ -361,6 +365,55 @@ export class StudioIpcRouter {
         if (!this.options.conversation.readHistory) throw new Error('项目执行记录不可用。');
         return toJson(await this.options.conversation.readHistory(request.payload.projectId as StableId, request.payload.id as StableId));
       }
+      case 'conversation/reviews': {
+        if (!this.options.conversation.queryReviews) throw new Error('任务复盘不可用。');
+        return toJson(await this.options.conversation.queryReviews(request.payload.projectId as StableId,request.payload.cursor as string | undefined));
+      }
+      case 'conversation/experiences': {
+        if (!this.options.conversation.queryExperiences) throw new Error('项目经验不可用。');
+        return toJson(await this.options.conversation.queryExperiences(request.payload.projectId as StableId));
+      }
+      case 'conversation/experience-archive': {
+        if (!this.options.conversation.queryExperienceArchive) throw new Error('经验归档不可用。');
+        return toJson(await this.options.conversation.queryExperienceArchive(request.payload.projectId as StableId,request.payload.cursor as string | undefined));
+      }
+      case 'conversation/experience-archive-change': {
+        if (!this.options.conversation.archiveExperience) throw new Error('经验归档不可用。');
+        return toJson(await this.options.conversation.archiveExperience(request.payload.projectId as StableId,request.payload,signal));
+      }
+      case 'conversation/experience-reuse': {
+        if (!this.options.conversation.setExperienceReuse) throw new Error('经验复用开关不可用。');
+        return toJson(await this.options.conversation.setExperienceReuse(request.payload.projectId as StableId,request.payload,signal));
+      }
+      case 'conversation/experience-effects': {
+        if (!this.options.conversation.queryExperienceEffects) throw new Error('真实任务对比不可用。');
+        return toJson(await this.options.conversation.queryExperienceEffects(request.payload.projectId as StableId,request.payload.cursor as string | undefined,signal));
+      }
+      case 'conversation/optimizations': {
+        if (!this.options.conversation.queryOptimizations) throw new Error('候选优化不可用。');
+        return toJson(await this.options.conversation.queryOptimizations(request.payload.projectId as StableId,request.payload.releaseId as StableId | undefined,request.payload.cursor as string | undefined));
+      }
+      case 'conversation/optimization-command': {
+        if (!this.options.conversation.optimizeExperiences) throw new Error('候选优化不可用。');
+        return toJson(await this.options.conversation.optimizeExperiences(request.payload.projectId as StableId,request.payload,signal));
+      }
+      case 'conversation/experience-adopt': {
+        if (!this.options.conversation.adoptExperience) throw new Error('项目经验不可用。');
+        return toJson(await this.options.conversation.adoptExperience(request.payload.projectId as StableId,request.payload,signal));
+      }
+      case 'conversation/experience-update': {
+        if (!this.options.conversation.updateExperience) throw new Error('项目经验不可用。');
+        const p = request.payload;
+        return toJson(await this.options.conversation.updateExperience(p.projectId as StableId,p.id as StableId,p.revision as number,p.enabled as boolean,p.draft,signal));
+      }
+      case 'conversation/review': {
+        if (!this.options.conversation.readReview) throw new Error('任务复盘不可用。');
+        return toJson(await this.options.conversation.readReview(request.payload.projectId as StableId,request.payload.taskId as StableId));
+      }
+      case 'conversation/review-deep': {
+        if (!this.options.conversation.deepenReview) throw new Error('任务复盘不可用。');
+        return toJson(await this.options.conversation.deepenReview(request.payload.projectId as StableId,request.payload.taskId as StableId,signal));
+      }
       case 'logs/query': return toJson(await this.options.operationLog.logViewer(projectLogQuery(logQuery(request.payload.query), projectId)));
       case 'logs/export': return toJson(await this.options.operationLog.exportBugBundle({
         destinationRoot: this.options.bugBundleRoot,
@@ -548,6 +601,26 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     requireShape(payload, keys, ['projectId', 'id'], { projectId: 'string', id: 'string' });
     asStableId(payload.projectId as string, 'history project id'); asStableId(payload.id as string, 'history record id');
   }
+  else if (channel === 'conversation/experience-adopt') { parseExperienceAdoption(payload); }
+  else if (channel === 'conversation/experience-archive-change') { parseExperienceArchiveChange(payload); }
+  else if (channel === 'conversation/experience-effects' || channel === 'conversation/experience-archive' || channel === 'conversation/reviews') { parseExperienceHistoryQuery(payload); }
+  else if (channel === 'conversation/experience-reuse') { parseExperienceReuseChange(payload); }
+  else if (channel === 'conversation/optimization-command') { parseExperienceOptimizationCommand(payload); }
+  else if (channel === 'conversation/optimizations') {
+    requireShape(payload,keys,['projectId',...('releaseId' in payload ? ['releaseId'] : []),...('cursor' in payload ? ['cursor'] : [])],{projectId:'string',...('releaseId' in payload ? {releaseId:'string' as const} : {}),...('cursor' in payload ? {cursor:'string' as const} : {})}); asStableId(payload.projectId as string);
+    if ('releaseId' in payload) asStableId(payload.releaseId as string);
+    parseExperienceHistoryQuery({projectId:payload.projectId,...('cursor' in payload ? {cursor:payload.cursor} : {})});
+  }
+  else if (channel === 'conversation/experience-update') {
+    requireShape(payload,keys,['projectId','id','revision','enabled','draft'],{projectId:'string',id:'string',revision:'number',enabled:'json',draft:'json'});
+    asStableId(payload.projectId as string); asStableId(payload.id as string); parseExperienceDraft(payload.draft);
+    if (!Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1 || typeof payload.enabled !== 'boolean') throw new IpcDiagnosticError('ipc-payload-rejected','Experience revision or status is invalid.');
+  }
+  else if (channel === 'conversation/review' || channel === 'conversation/review-deep' || channel === 'conversation/experiences') {
+    if (channel === 'conversation/experiences') requireShape(payload,keys,['projectId'],{projectId:'string'});
+    else { requireShape(payload,keys,['projectId','taskId'],{projectId:'string',taskId:'string'}); asStableId(payload.taskId as string); }
+    asStableId(payload.projectId as string);
+  }
   else if (channel === 'logs/query' || channel === 'logs/export') {
     requireShape(payload, keys, ['query'], { query: 'json' });
     logQuery(payload.query);
@@ -573,7 +646,7 @@ const allowedChannels = new Set<StudioIpcMethod>([
   'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',
   'scene/snapshot', 'asset/read', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',
   'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
-  'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'conversation/history', 'conversation/history-detail', 'logs/query', 'logs/export',
+  'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'conversation/history', 'conversation/history-detail', 'conversation/reviews', 'conversation/review', 'conversation/review-deep', 'conversation/experiences', 'conversation/experience-adopt', 'conversation/experience-update', 'conversation/experience-reuse', 'conversation/experience-archive', 'conversation/experience-archive-change', 'conversation/experience-effects', 'conversation/optimizations', 'conversation/optimization-command', 'logs/query', 'logs/export',
   'behavior/snapshot', 'behavior/refresh', 'behavior/explain', 'behavior/locate', 'behavior/history', 'behavior/read', 'behavior/capture', 'behavior/cancel', 'behavior/related',
   'editor/advanced', 'editor/advanced-intent', 'editor/resources', 'editor/resource-intent', 'editor/resource-import', 'editor/cancel',
 ]);

@@ -40,6 +40,10 @@ try {
   });
   await window.loadURL('pointerhost://app/host.html');
   window.webContents.debugger.attach('1.3');
+  // Windows can clamp a 2x-DPI native window to the physical display height.
+  // Keep the entire tall iframe inside a deterministic CSS viewport for CDP input.
+  await window.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 900, height: 850, deviceScaleFactor: 2, mobile: false });
+  assert.deepEqual(await window.webContents.executeJavaScript('({width:innerWidth,height:innerHeight,dpr:devicePixelRatio})'), { width: 900, height: 850, dpr: 2 });
   const control = new BrowserWindowPreviewControl(window);
   await control.ready();
   console.log('[pointer-placement] preview ready');

@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import electronPath from 'electron';
 import { build } from 'esbuild';
@@ -11,11 +12,11 @@ test('G09 real Electron renders an accessible replayed graph and bounded large-g
   const output = process.env.HAIYUE_G09_FIXTURE_ROOT ?? await mkdtemp(path.join(tmpdir(), 'haiyue-g09-execution-graph-'));
   await mkdir(output, { recursive: true });
   const screenshot = process.env.HAIYUE_G09_SCREENSHOT_OUT ?? path.join(output, 'execution-graph.png');
-  const shellEntry = path.resolve(new URL('../../../packages/studio-shell/dist/index.js', import.meta.url).pathname.replace(/^\/(.:\/)/u, '$1'));
+  const shellEntry = fileURLToPath(new URL('../../../packages/studio-shell/dist/index.js', import.meta.url));
   await build({ stdin: { contents: appSource(shellEntry), resolveDir: path.dirname(shellEntry), sourcefile: 'g09-execution-graph-app.ts' }, outfile: path.join(output, 'app.js'), bundle: true, format: 'esm', platform: 'browser', target: 'chrome132' });
   const studioStyles = await readFile(new URL('../renderer/styles.css', import.meta.url), 'utf8');
   await writeFile(path.join(output, 'host.html'), `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>html,body{height:100%;box-sizing:border-box;margin:0;background:#080d18;color:#e8eefc;font:14px system-ui}body{padding:18px}.chat-content{max-width:1400px;margin:auto}${studioStyles}</style></head><body><main id="root" class="chat-content"></main><script type="module" src="./app.js"></script></body></html>`);
-  const fixture = new URL('./fixtures/g09-execution-graph-main.mjs', import.meta.url).pathname.replace(/^\/(.:\/)/u, '$1');
+  const fixture = fileURLToPath(new URL('./fixtures/g09-execution-graph-main.mjs', import.meta.url));
   const result = await run(electronPath, [fixture], { ...process.env, HAIYUE_G09_GRAPH_ROOT: output, HAIYUE_G09_USER_DATA: path.join(output, 'user-data'), HAIYUE_G09_SCREENSHOT_OUT: screenshot });
   assert.equal(result.code, 0, result.output);
   assert.match(result.output, /\[g09-execution-graph-smoke\].*"graph":true.*"transcript":true.*"keyboard":true.*"idempotent":true.*"accessible":true/u);
@@ -26,7 +27,7 @@ test('G09 real Electron renders an accessible replayed graph and bounded large-g
 
 function appSource(shellEntry) { return `
 import { ConversationProjector, layoutExecutionGraph, presentChatPanel, projectExecutionGraph, groupExecutionGraphsByTask, renderChatPanel } from ${JSON.stringify(shellEntry.replaceAll('\\', '/'))};
-import { verifyChatReading } from ${JSON.stringify(new URL('./fixtures/chat-reading-browser.mjs', import.meta.url).pathname)};
+import { verifyChatReading } from ${JSON.stringify(fileURLToPath(new URL('./fixtures/chat-reading-browser.mjs', import.meta.url)).replaceAll('\\', '/'))};
 import { defineBorderBeamComponents, HYBorderBeam } from '@haiyue/ui/border-beam';
 import { defineTabsComponents } from '@haiyue/ui/tabs';
 defineTabsComponents();

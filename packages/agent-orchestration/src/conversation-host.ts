@@ -1,3 +1,5 @@
+import { suggestExperiences } from './experience-suggestions.js';
+import type { AgentExperienceV1 } from '@haiyue/ai-studio-contracts';
 import { ResultArtifacts, RESULT_READ_TOOL, type ResultScope } from './result-artifacts.js';
 import { independentQuestionEdit, questionBlockedSteps, validateQuestionSteps } from './question-dependencies.js';
 import { parseContinuationRecord, type ContinuationRecord } from './continuation-record.js';
@@ -5,6 +7,8 @@ import { TEAM_STATUS_TOOL, teamAdmission } from './team-admission.js';
 import { ASYNC_QUESTION_TOOL, parseAsyncQuestion, validateAsyncAnswer } from './async-question.js';
 import { taskIntent, isTaskIntent, questionAmendment, intentRequirements, intentConstraints, intentContext, assertIntentAllows, type TaskIntent } from './task-intent.js';
 import { compactExternalResult } from './external-result-projection.js';
+import { deepenTaskReview } from './task-review-deep.js';
+import type { AgentReviewV1, AgentExperienceSelectionV1 } from '@haiyue/ai-studio-contracts';
 import { runSubtasks, SUBTASK_TOOL, type SubtaskOptions } from './subtasks.js';
 import { matchesRecoveredApproval } from './approval-recovery.js';
 import { toolConcurrencyHint, invocationConcurrencyHint } from './tool-concurrency.js';
@@ -153,6 +157,7 @@ export interface ConversationHostOptions {
   /** Best-effort local retrieval refresh. Failure degrades to exact context and must never block a turn. */
   readonly prepareKnowledge?: (project: ContextProjectSnapshot | null, signal?: AbortSignal) => Promise<void>;
   readonly knowledgeRefreshTimeoutMs?: number;
+  readonly selectExperiences?: (request: string, taskId: StableId, signal: AbortSignal) => Promise<AgentExperienceSelectionV1>;
   /** Disable W4 result deduplication without changing execution or approval policy. */
   readonly compactToolResults?: boolean;
   readonly batchTextWrites?: boolean;
@@ -248,6 +253,19 @@ export class StudioConversationHost {
 
   settings(): ConversationHostSettings {
     return Object.freeze({ backendId: this.backendId, budget: this.budgetTemplate, selections: Object.freeze([...this.backendSelections].map(([backendId, selection]) => Object.freeze({ backendId, ...selection }))) });
+  }
+
+  reviewTasks(): readonly ConversationTaskRunReadModel[] { return [...this.taskRuns.values()].sort((a,b) => a.updatedAt.localeCompare(b.updatedAt)).slice(-50); }
+  reviewTask(taskId: StableId): ConversationTaskRunReadModel | null { return this.taskRuns.get(taskId) ?? null; }
+
+  async deepenReview(report: AgentReviewV1, signal: AbortSignal): Promise<NonNullable<AgentReviewV1['deep']>> {
+    if (!this.backendId || this.replay().busy) throw new Error('请先选择可用模型，并等待当前任务结束。');
+    return deepenTaskReview(this.options.runtime, this.options.operationLog, report, this.turnConfig(this.backendId, report.taskId), signal);
+  }
+
+  async suggestExperiences(report: AgentReviewV1, entries: readonly AgentExperienceV1[], signal: AbortSignal) {
+    if (!this.backendId || this.replay().busy) throw new Error('请先选择可用模型，并等待当前任务结束。');
+    return suggestExperiences(this.options.runtime,this.options.operationLog,report,entries,this.turnConfig(this.backendId,report.taskId),signal);
   }
 
   async flushRecords(): Promise<void> {
@@ -498,7 +516,8 @@ export class StudioConversationHost {
     try {
       const knowledgeReady = this.prepareKnowledge(project, controller.signal);
       tools = await this.taskModelTools(taskId, backendId, prompt, project);
-      context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request: prompt, requirements: intentContext(intent), tools, project, knowledgeReady, signal: controller.signal });
+      const experiences = await this.prepareExperiences(prompt,taskId,project,controller.signal);
+      context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request: prompt, requirements: intentContext(intent), tools, project, knowledgeReady, experiences, signal: controller.signal });
     } finally { this.preparingControllers.delete(controller); }
     controller.signal.throwIfAborted();
     if (this.stopping) return;
@@ -583,7 +602,8 @@ export class StudioConversationHost {
       assertBudgetAllowed(beginDecision);
       wallTimeBudget.resetAfterContinuation(); wallTimeBudget.resume();
       const knowledgeReady = this.prepareKnowledge(project, controller.signal);
-      const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project, knowledgeReady, signal: controller.signal,
+      const experiences = await this.prepareExperiences(goal,taskId,project,controller.signal);
+      const context = await this.options.runtime.context.prepare({ conversationKey, backendId, taskId, request, tools, project, knowledgeReady, experiences, signal: controller.signal,
         ...(this.taskIntents.has(taskId) ? { requirements: intentContext(this.taskIntents.get(taskId)!) } : {}) });
       if (this.stopping) { wallTimeBudget.dispose(); return; }
       const playtest = this.playtestTasks.get(taskId);
@@ -1280,6 +1300,8 @@ export class StudioConversationHost {
       await this.ensureBackendSessionBinding(event, handle, snapshot);
       await this.captureSessionContextFrame(event);
     } else await handle.append({ kind: 'turn.started', turnId: event.turnId, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { status: 'running' } });
+    // Bind only after the durable session has established project ownership.
+    if (this.active) await this.options.operationLog.append({kind:'agent/task-turn-bound',severity:'info',source:asStableId('studio.conversation-host'),correlation:{sessionId:event.sessionId,turnId:event.turnId,...(this.active.projectId ? {projectId:this.active.projectId} : {})},payload:{schemaVersion:1,taskId:this.active.taskId,backendId:event.backendId,config:this.active.config as unknown as JsonObject}});
     this.initializedSessionTurns.add(key);
   }
 
@@ -2532,6 +2554,8 @@ export class StudioConversationHost {
   }
 
   private persistProjection(node: ConversationNodeReadModel, rawContent: JsonObject = node.content): void {
+    const taskId = this.options.runtime.usage?.get(node.provenance.turnId)?.snapshot().taskId
+      ?? (this.active && [this.active.turnId, this.active.localTurnId].includes(node.provenance.turnId) ? this.active.taskId : this.taskRunFor(node.provenance.sessionId, node.provenance.turnId)?.taskId);
     if (!this.projectionPersistenceAvailable()) return;
     const projectedAt = new Date().toISOString();
     const write = async (): Promise<void> => {
@@ -2544,7 +2568,7 @@ export class StudioConversationHost {
         const startedAt = typeof node.content.executionStartedAt === 'string' ? node.content.executionStartedAt : node.createdAt;
         await this.options.operationLog.append({ kind: 'agent/execution-record', severity: node.status === 'failed' ? 'error' : 'info', source: asStableId('studio.conversation-host'),
           correlation: { projectId: this.options.recordProjectId, sessionId: node.provenance.sessionId, turnId: node.provenance.turnId },
-          payload: { record: { schemaVersion: 1, id: node.id, projectId: this.options.recordProjectId, kind: node.kind, status: node.status, sessionId: node.provenance.sessionId, turnId: node.provenance.turnId, toolId: typeof node.content.toolId === 'string' ? node.content.toolId : null, startedAt, finishedAt, durationMs, dataArtifactId: data.id } }, artifactRefs: [data.id] });
+          payload: { ...(taskId ? { taskId } : {}), record: { schemaVersion: 1, id: node.id, projectId: this.options.recordProjectId, kind: node.kind, status: node.status, sessionId: node.provenance.sessionId, turnId: node.provenance.turnId, toolId: typeof node.content.toolId === 'string' ? node.content.toolId : null, startedAt, finishedAt, durationMs, dataArtifactId: data.id } }, artifactRefs: [data.id] });
       }
       const artifact = await this.options.operationLog.putArtifact(node as unknown as JsonObject, { schemaVersion: 'conversation-node/1', backendId: node.provenance.backendId });
       await this.options.operationLog.append({
@@ -2957,6 +2981,16 @@ export class StudioConversationHost {
     return Object.freeze(tools);
   }
 
+  private async prepareExperiences(request: string, taskId: StableId, project: ContextProjectSnapshot | null, signal: AbortSignal): Promise<AgentExperienceSelectionV1 | undefined> {
+    if (!project || !this.options.selectExperiences) return undefined;
+    try { return await this.options.selectExperiences(request,taskId,signal); }
+    catch {
+      signal.throwIfAborted();
+      await this.options.operationLog.append({kind:'agent/experience-unavailable',severity:'warning',source:asStableId('studio.experience'),correlation:{projectId:project.projectId},payload:{taskId,message:'Project experience unavailable; continuing with current authoritative context.'}}, {signal});
+      return {schemaVersion:1,projectId:project.projectId,libraryRevision:0,libraryArtifactId:null,entries:[]};
+    }
+  }
+
   private async prepareKnowledge(project: ContextProjectSnapshot | null, signal: AbortSignal): Promise<void> {
     if (signal.aborted) return;
     if (!this.options.prepareKnowledge) return;
@@ -3013,7 +3047,7 @@ export class StudioConversationHost {
       ...(typeof result.documentId === 'string' ? { documentId: result.documentId } : {}),
       ...(typeof result.afterRevision === 'number' ? { documentRevision: result.afterRevision } : {}) });
     if (!this.options.recordProjectId) return content;
-    return Object.freeze({ ...content, parameters: context.args, result: body.backendResult, executionStartedAt: new Date(Date.parse(body.finishedAt) - body.latencyMs).toISOString(), executionFinishedAt: body.finishedAt, durationMs: body.latencyMs });
+    return Object.freeze({ ...content, toolCallId: context.toolCallId, parameters: context.args, result: body.backendResult, executionStartedAt: new Date(Date.parse(body.finishedAt) - body.latencyMs).toISOString(), executionFinishedAt: body.finishedAt, durationMs: body.latencyMs });
   }
   private assertActive(): void { if (this.disposed) throw new Error('Conversation host is disposed.'); }
 }
