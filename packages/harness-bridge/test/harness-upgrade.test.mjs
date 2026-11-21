@@ -103,7 +103,7 @@ test('model defaults are explicit and only the official endpoint inherits catalo
   const { transport } = await transportFor(t, { model: 'deepseek-flash' });
   assert.equal(transport.modelCatalog()[0].id, 'deepseek-flash');
   assert.equal(transport.modelCatalog()[0].maxTokens, 256_000);
-  assert.equal(transport.sessionCapabilities('deepseek-flash').maxInputTokens, 1_000_000);
+  assert.equal(transport.sessionCapabilities('deepseek-flash').maxInputTokens, 1_048_576);
   await transport.dispose();
   const custom = await transportFor(t, { baseURL: 'https://custom.invalid/v1' });
   assert.equal(custom.transport.modelCatalog()[0].id, 'deepseek-flash');

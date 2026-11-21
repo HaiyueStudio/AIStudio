@@ -44,11 +44,11 @@
     },
     {
       "name": "@haiyue/editor-shell",
-      "version": "0.1.1",
+      "version": "0.1.2-ui.0.2.3",
       "license": "MIT",
-      "tarball": "vendor/haiyue-editor-shell-0.1.1.tgz",
-      "tarballSha256": "b051f6e9afcd1efce1c06a6ad2958e8d219b59548ab3614ae511f9b8f81cd0e5",
-      "integrity": "sha512-RqAU5zkbDsl2jdRFv9iv7CvTrWq2VONjcouaZtqOGNouqrx53oywI20D4/BcgMwfFTfu1dmUlGhkNOGknC9npA==",
+      "tarball": "vendor/haiyue-editor-shell-0.1.2-ui.0.2.3.tgz",
+      "tarballSha256": "80e1e7ed01707c79068d73aaf11996c6ae0d69dcee0d12a71d0a5f9e0afb0ae3",
+      "integrity": "sha512-rkaCTD+uUma9zR/TIxOBdRM3xYkkW4NBO0TBiBJkdJ0RCyLn9JNJOFJJ5VQunXTJeGwuZFej0q+NFceXPSJ2MQ==",
       "requiredExports": [
         ".",
         "./advanced-authoring",
@@ -134,6 +134,158 @@
           }
         ],
         "sourceFilesDigestAlgorithm": "sha256-json-source-files-v1"
+      },
+      "sourcePatch": {
+        "path": "vendor/patches/editor-shell-ui-02.patch",
+        "sha256": "7fec0020de6b42571c148e71698731b92be0733c3057bee503efd51f223c867d",
+        "baseTarball": "vendor/haiyue-editor-shell-0.1.1.tgz",
+        "baseSha256": "b051f6e9afcd1efce1c06a6ad2958e8d219b59548ab3614ae511f9b8f81cd0e5",
+        "version": "0.1.1",
+        "candidateVersion": "0.1.2-ui.0.2.3",
+        "uiRange": ">=0.2.2 <0.3.0",
+        "unchangedFiles": [
+          {
+            "path": "dist/advanced-authoring/advanced-authoring.css",
+            "sha256": "41f480a89508c2aeb14c05e3aab7d5d989903118d7ad221bbce2679db672b4b3"
+          },
+          {
+            "path": "dist/advanced-authoring/gizmo.d.ts",
+            "sha256": "572ebdec7b0e8557c76ccad97ef3f2de6d85f948e3d72224f72360c374a6a8ce"
+          },
+          {
+            "path": "dist/advanced-authoring/gizmo.js",
+            "sha256": "4fd25b585e3f04b942feecc8ebf98d40e75ba31d8c9d8255f3f2cd38bdad1dbf"
+          },
+          {
+            "path": "dist/advanced-authoring/gizmo.js.map",
+            "sha256": "f727cf374cc09bc898686fdb32c49c29853663dcfc0d6a0511f1acbe45c31bab"
+          },
+          {
+            "path": "dist/advanced-authoring/hierarchy.d.ts",
+            "sha256": "80ed8f8e09378f4d14d94fed15f1213ccb49e26cb5b39649d89fdb6dbc40003a"
+          },
+          {
+            "path": "dist/advanced-authoring/hierarchy.js",
+            "sha256": "8a59dcc5fc278263df5f54d333dfd5cb3613fef60f6f5c225fc9d983886fd84a"
+          },
+          {
+            "path": "dist/advanced-authoring/hierarchy.js.map",
+            "sha256": "ee0b35b31ce9faa20870c4d8aa491e3424a16b0fb07db49d1244089e7d93172f"
+          },
+          {
+            "path": "dist/advanced-authoring/index.d.ts",
+            "sha256": "6ffcdf2e132e8bfe7d2481abb5a22d3c9c4b9eaeca8b7568e8330fab1c92d983"
+          },
+          {
+            "path": "dist/advanced-authoring/index.js",
+            "sha256": "3cc46cb28b6638d44a06765d1cad6a671d37d28b2cbf842a15d379d4f1ce7671"
+          },
+          {
+            "path": "dist/advanced-authoring/index.js.map",
+            "sha256": "ef48d926b63dcbd659461f8ae66f93ca35864b9ea3c084c223ed160f31b0e3e5"
+          },
+          {
+            "path": "dist/advanced-authoring/panel.d.ts",
+            "sha256": "130fe69f2b2ce246bea3a409190bf065d38848565f28ded4c8ae22548e7e16c2"
+          },
+          {
+            "path": "dist/advanced-authoring/panel.js",
+            "sha256": "1a4c51aa2e9ed838f40a66cde89f1ca2437327741ffd41dba02bc826d4a17cae"
+          },
+          {
+            "path": "dist/advanced-authoring/panel.js.map",
+            "sha256": "cacb8bd1cdbdbe41069a845d41b1ffcca1e1841515e84897835ca3a6dfa1b340"
+          },
+          {
+            "path": "dist/advanced-authoring/transform.d.ts",
+            "sha256": "b8a896d08224b13b4874bbf9558cfe4c05b1f41e7d05fc1118eb128dd4b3a0c7"
+          },
+          {
+            "path": "dist/advanced-authoring/transform.js",
+            "sha256": "05a4187ac3db40548ec4c08c552f13896eb1aed3aff9efd8093307fc61aad430"
+          },
+          {
+            "path": "dist/advanced-authoring/transform.js.map",
+            "sha256": "acfbbde134f8736e74a33a6fb19a832ca6b23f8a261eda4fa99be62850ac452c"
+          },
+          {
+            "path": "dist/advanced-authoring/types.d.ts",
+            "sha256": "7e0c3554a306c5e93216d7020c44d95cfd49844777e3b88711709189a92bf412"
+          },
+          {
+            "path": "dist/advanced-authoring/types.js",
+            "sha256": "01ae2a5b120382f9a648ced7ee8507493a134f216d100fc61600c6c9738235d2"
+          },
+          {
+            "path": "dist/advanced-authoring/types.js.map",
+            "sha256": "715a4193a4d90794ef5fb6a6a892abf6ca14092548bf15eda1bb5ee130fe0adc"
+          },
+          {
+            "path": "dist/advanced-authoring/validation.d.ts",
+            "sha256": "2487f6a89604039f571b92a7d6a6566b7ca4f430b84ccf57a168c4ec68f72749"
+          },
+          {
+            "path": "dist/advanced-authoring/validation.js",
+            "sha256": "e53e13741c8d0669eba748bd6f649c21af7aa2aef65fa6201db79ca8241abb89"
+          },
+          {
+            "path": "dist/advanced-authoring/validation.js.map",
+            "sha256": "b384588b1d5be28d4d5847abd436056bfd8852eee403c549e1aa34cf60e39de6"
+          },
+          {
+            "path": "dist/index.d.ts",
+            "sha256": "d6df935c35e1278d0b8cb2c12d8c4924ba89d498cd62eed47031291ab9f11f5b"
+          },
+          {
+            "path": "dist/index.js",
+            "sha256": "641998dc9eb80b2f265a721dfb60d678f286069b79a1e6d750ec0ae2413274aa"
+          },
+          {
+            "path": "dist/index.js.map",
+            "sha256": "f20074e0a4813930c728d39870b331a049833596cbf65366f87be6a2a14c36a1"
+          },
+          {
+            "path": "README.md",
+            "sha256": "daed674939f7e9167c638c8374916893d7fc94aa4517ddcce57727471fb01cda"
+          },
+          {
+            "path": "src/advanced-authoring/advanced-authoring.css",
+            "sha256": "41f480a89508c2aeb14c05e3aab7d5d989903118d7ad221bbce2679db672b4b3"
+          },
+          {
+            "path": "src/advanced-authoring/gizmo.ts",
+            "sha256": "f01727e166724c977bbe506131402625a89bc599daa1ae3bab2bf2e0d6bd6785"
+          },
+          {
+            "path": "src/advanced-authoring/hierarchy.ts",
+            "sha256": "41ce1aa6fb5a5e5e824d8c383fabb12083a9a70287839f01881f3aeb78fd8633"
+          },
+          {
+            "path": "src/advanced-authoring/index.ts",
+            "sha256": "d4c7c5ed151fdaf3807dbcfdd45348a5a78dd4f7854df26e94e11c1aa28c1c1c"
+          },
+          {
+            "path": "src/advanced-authoring/panel.ts",
+            "sha256": "a6c9a0b7434cff04c616f944c8bd425c56581445a8f2ecbd9c296723ce825364"
+          },
+          {
+            "path": "src/advanced-authoring/transform.ts",
+            "sha256": "10bb5db89a4cb9321e5a0b54ae66b24c14f1c420f86bba01a4cd5904f67298cf"
+          },
+          {
+            "path": "src/advanced-authoring/types.ts",
+            "sha256": "005e6c69109d07b3efa51edf7b30ed3fef30947b45a9e7a826c0f97e58280940"
+          },
+          {
+            "path": "src/advanced-authoring/validation.ts",
+            "sha256": "f85f6ed79d5ec9bb0915b579f3b38d22c322619492becd38cab73ecd80e3d9b6"
+          },
+          {
+            "path": "src/index.ts",
+            "sha256": "b106c6d229f5105fc7d2d999e80effabce4fb78917af096b57dd1771a0f727e6"
+          }
+        ],
+        "review": "Consumer compatibility overlay on the accepted public candidate. Only package version and UI dependency range change; all other package files are byte-identical to the base."
       }
     },
     {

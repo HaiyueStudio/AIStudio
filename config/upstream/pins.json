@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "deepseekHarness": {
     "repository": "https://github.com/deepseek-ai/deepseek-harness",
-    "release": "https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2",
-    "tag": "dsh-v0.2.0-rc.2",
-    "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "release": "https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.5",
+    "tag": "dsh-v0.2.2-rc.5",
+    "commit": "9c2670d3bce5275e0d1610272958121af87787bb",
     "license": "MIT",
-    "node": "^22.19.0 || >=24",
+    "node": ">=24.9.0",
     "snapshots": [
       {
         "path": "docs/upstream/deepseek-harness/LICENSE.snapshot",
@@ -14,179 +14,189 @@
       },
       {
         "path": "docs/upstream/deepseek-harness/THIRD_PARTY_NOTICES.md.snapshot",
-        "sha256": "c120aadac50ca6679ec5abe51eb94178fd038b29a1237d7a748dd0095a110670"
+        "sha256": "4bd8832885ca31daf3e480fb950b9e849446438c0089b05fab67d6c2673fa2ef"
       }
     ],
     "packages": [
       {
         "name": "@deepseek-ai/cordis",
-        "version": "4.0.4",
-        "integrity": "sha512-obgyxqWAmFn3Re8kvsuUnyW+ihrz6eJCnJO4fh1cQzDtmPYz/zzVeUkH9R94I0OwSVOocK67Kgakm04j/oQXzg=="
+        "version": "4.1.0",
+        "integrity": "sha512-CJrjNyBkKn1SfvBQUcgFYKFnLjS+uKrhdMsbHU60xabvi12d+xQ+IQSNlME5Z+B+4Zi6n4BDknKY94tEPeo47w=="
       },
       {
         "name": "@deepseek-ai/dsh-agent",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-CUkbU+c1G0ETXkpoLkpAFo5midz66FQGtlgQOP9pzvU9H3zJQVl4H5LrhhGVbEXKLFgdbtQiOynEW8hpWn3y0Q=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-nT7dv7OyNmtkGe50RfSlNp8QwbaP66LHr83sZ3wb9J6LJQINZHPhjxVamQ1h2JhnFfi8RSkajl6l2Kdp6GCGqw=="
       },
       {
         "name": "@deepseek-ai/dsh-agent-loop",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-Ayi1L7s1LIJAq3iCCRFDCGM9Y2lriGlV6nblIYXhKrq+J8bUFQtOdfBYNE1N39WcYb3CwSvTNHDtzZ4oW6MZ6A=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-k/WGOe8J81AlqTaG0t+p3AGB+TnQg8TZTEaBRC5eG6F6/zsszDVxycHprqGCwHsn0echFjZtS7V1ft4c1B6kbQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-agent-team",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-nwURKbpy4Fxz5KUTEX/dRM3L25p86NAb3kBrvJH0nGKmt9G1Eh6ebn/Sa4vcGsDhr1dA8xad1WiofuI5oYAj7Q=="
       },
       {
         "name": "@deepseek-ai/dsh-anonymous-user-id",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-/VDAUjcv/xj+iPDrTTt6rC/+jo8r/H8WXEQPmjbB8W9q/cDnlp3KzM87Dy/6jT085G7a3BjsXTk0K6Bol0AcTg=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-5/TTDPOgA+HVIddOKyUL4CQ1/hZLFqY/5RJwVLvJ/djKiGSaQhw6/0PjjaDxrnzThvENF3/U/sVDvqrhf+4YEA=="
       },
       {
         "name": "@deepseek-ai/dsh-browser-use",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-B2J31SjeHOZIssee4XwmGSDG8lKx++AeQ6JqmmzlTvCh2Robz48NIlnz1FxROR8Mk10xLojsFnafpuTL/LahvQ=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-Y1YHV6RS2YSPpYYHsIvmnR/Kk1wFJg7w4NXKorMd5lJKXKQqlAlGH1mUFWo8oi7VX6ACW5ecOaCZNWVYKoFlMA=="
       },
       {
         "name": "@deepseek-ai/dsh-credentials",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-TQlvP0jxXYGy1ZNzh4nVsiCzb8FR9iGarD6BfIZ3LwJC8lDtjSxQHWE8//NYjpn10TIMxmaR4s6niHuJ3JkTOw=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-experimental-browser-use-playwright-mcp",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-KuiUwuRF2ZB+4rpNsQZ6vxR0xqHRt+pUWM9mrv/VLHsw/puuBeKmyK0cEi1kQMuD0C2+rh3K4ZFFXaHEXt6Tow=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-fs",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-PuVcI7drTwa19Key54DROoqnDFTTFkl8TPlyrTnS3BSnykm+jKbB13ES/PQEJoRunNdQkNZa12jtbUI4BP/EHw=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-fs-local",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-lDzh5VlQsXf3nI+E0+T0weYdH1VAoo+htj6Kwc62P7/Lx+xjnYSLQYTeGeaJR1d8H2iQv2FvlwaDKv60AorKdA=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-llm",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-6QFrQn/h0iNqCfPpgQidnHtLSpA99A7ZND/uYKaGSd/4BGP8KBhuRd0w63e9s4u+hfW8jc3j29WKcNLIOeUfcA=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-llm-deepseek",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-Vk0oz0qAXYLC/tKoGfhRioank4FNX0Xdx8oDYduKL1HDf2tO72X+Nrq7hZaJp9nwvXCcg5TnPRIvE8ETZ98C5g=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-ptc-runtime",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-HR/3h1VFRcNlAAjCtCAxZ4V3F5pViYicXcLBuYLGjzXWpOhr4zKzeFKh9+UMLjsc9XWIarJMoSvxl662nDV/xQ=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-ptc-runtime-node",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-MYGTCOBFYuD8568j0hm4ChOTX/cBOUk0H1s+xuioRy9NAjjpTz+ybNZUJTYP3+noN5nzinDZfeiRdHqVoFh6YQ=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-sandbox",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-luKF7ey6HRZkGhImqLCB5Npt4f4omDRk1r+x5qQNqqdNOuN9LXciKDMNPfnSbHfKCcqSZbH3sK+APOmKzRAhVA=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-sandbox-local",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-fM1QtkRxeQ498isBeotl0lW+oK/GS0G63cBNvwJJn6686Qzdl+gqwTDPS61L8pFzxRnqhqcXFxzu2tIV3o2zbg=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-sandbox-policy",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-0xXVqWw908/V6scohMyyU9SZSiQJYji+S1hMPulcUNLb3iew89d+WPWMIkWQBJRvcJzdQ2ghHwCESRkONXTJnQ=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-session",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-wj+6MeqCYbDcbEvKH3puHyEGdjyu51JwBoN6Ua2tz6griLufDgLM5HpSU40L5xgpbOfrYVhXZs4vRgOrMlFY2g=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-session-projection",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-caJ+XGjmR8ouws0LrvuXrabrzi21akB2l8CniUHdx4IpT6GkLapFYlWLbjZlDYqEWB3ktR+q32nxW2s+f27GSA=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-subprocess",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-81ULZG0xg2ZKgrs+R+JY8okUwLp8jjsboR+QsMUMf5WFaJ2PueJ+krbhODB2enLx3MUyMX/wR6msnzi14ZNSAA=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-subprocess-local",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-RKEhReGv6bAOHNeMd9kBwY1mQSuhm0OEiK+wnXkOD8CvesYaYXNUmtoIf9VJdrRhG5DF35gVNQAN79Si9d/BHw=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-system-prompt",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-ZZNk2gkXFV8CIT0IOZXS+pFaxNVJaRknYyH2vc4ZgZAiHKT+RqUYNr8e1F5Kp0AaN0DNlcTkjOGP5MCxeXfDjg=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-tools",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-vquUz8PjHWE4zaS3wH70IpYjL441p2UlUcG8TN2yJZN1RhDkuiHum4bWCsjEPyWLS/aB1QJvzdXC2EK/PRkbsQ=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-user-approval",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-fZMfDp4IeWZMwAKEQkuAYCiGRrwoVWNObvAbpdmQNUavjfYCtwwduWqYQz+5lMQq8vENdczBj7cxnO/pOQ1oZQ=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-web",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-d44eM9mMqGnQUGsjqUc6k1G9QrC0w+TWx6Cw6I1iXJkVw5LZ/hpVVzsuCqck8GGS8+GK20kqjGUJSyomfEgd1A=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-web-fetch-http",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-PJLMAXv0nGdi/wdbzjcEIoaADvUNiGEXnQuF3vaeUzyplal0W1fou4r4klMsHf6aXwMZSXOdkKBocTlIk1U4uw=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-web-search-deepseek",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-WZUPkdO80qbwPatgl5TfRvMRm02L2UELjRYhizNF8Z0RszO85UJdB04PSKXfKxOvjMKRwTPBsbG0JAdBbLpkqg=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-scope",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-066p7Wv74GNWt4xA5Cyvl+7c/i9KrNEDALYh2/hu0VsJPLb4T9He+TY7y1bld9OgungmqyTy1n/cB2ZrVskvxA=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-mcp-client",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-UqP2sY1r6qAhBPFeuclqrXiMBBxPaCNrXlXRqKxAON7uI1wmZZ0B3/1GmBviQ3/WjjTQlOOkj0su2v4e5DMkug=="
-      },
-      {
-        "name": "@deepseek-ai/dsh-experimental-browser-use-runtime",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-QCGXGZK9xrJX22mNVUFx8LjeJkAHOn4A2l1JCoKzRKO4e4m/H90v82SdIBxIxiEljsHJ+TpFyFY1GHWPucTobg=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-9CtHdRHGE5onqKF2e9PB2HwPf1aNTVr/3UATWPdyLEs9f5YhyKbFRnZmL4GfcMjOZmAJhlsfMa+D+sQ0xb3lCQ=="
       },
       {
         "name": "@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-i8lWa+VQAmDSY7o6/8aOxAQ/G595JBXPWneIZeJmN9IWSwWO1zeT/LVa1MBLbu7ReyV06nr/oqFQu/4FxHxfRA=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-7Cbq8pExJ/YIV33j/R3hUnfRaMVThOHboQljKZ9CnpBjtpkPLLX3s8k75GKfum+XIGPYtFMc8j4GhMfQveWHsA=="
       },
       {
-        "name": "@deepseek-ai/dsh-experimental-agent-team",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-ds9BrnyJ+BAbxaH3J81c/+JJpk8jUtnpzUCyTXxrDW2nZOnFWqdPH/TZKAI1ttCuls218+RF4PPFPbhYaXNl6g=="
+        "name": "@deepseek-ai/dsh-experimental-browser-use-playwright-mcp",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-TIj07mpdLw040M8ZM0yZ2kWgJH4vk/1CzoCxMRBoazu5wwSBT9btIRNLJgZL3+HPwpTqIGiplZvwYt5ZjrAcdw=="
       },
       {
-        "name": "@deepseek-ai/dsh-subagent",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-33izf4xhq03RzolYUjv223tKmeOBl8fMnvnRN15zZB3GWfNRcBTVUUxuu99rCN8TSRRt5A5ABTwYbObb1Isjqw=="
+        "name": "@deepseek-ai/dsh-experimental-browser-use-runtime",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-vQET+79eBEjWpHH5U+OlpRlasrObvcuW6I907xYYN1aQ2yR85XtzmcmXXZ0ahc1xGBzK7MGLvBKjtq/+WzDpjg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-fs",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-c2cNcamLwoXEYKR6/63S3LixoCTrVoSoHIpDgNCPNGQ+kcHD0+IiOPBuWBHsqqddUymr9NiXa62JJqgrgRXV/w=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-fs-local",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-O8W28R3fOLAVLnExgT04R/RF7q9edN+KfFEm1tdm0g9KmTpnHVbHtDJ2lb/NSSJcTfTGsm3fhgSGCI+AqQ6isQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-llm",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-zT/KCq/lQ5H/wqOaZH8sa6Uq+9x8du1w4MvbbCgdsK3JA2kxh0T5GEcWcvIvU5s7h0L43tnOV7Df5hZNZ+Sj0A=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-llm-deepseek",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-DkbksxKGJPVAak4lUDBU8Yj3mrgEA2wOeSEWKyFp/hp3wyQjdbgnltt1LMfV0PCYPMkYM+jGKBx2hClvxMBlhg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-mcp-client",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-XDDdZFcWMtxcyKHnrjxj4AxbKSdePFg81YxgGSREhO9XL8HLovr6sO026isiPiZP4IPDetfaqPhfBVhkpuQKsQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-ptc-runtime",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-cGuKWW0ZlHcwtEslRn4kx09WwLK/tc1YDrGt5eW1mhOl4uyJQxBjMrf3KG9MK9jSrwIP0J7jTlwLRRJQ+XakQA=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-ptc-runtime-node",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-ThrYHZ3mtB4gjgSslBLrpbYEMfaKsaEFVGWUSzlDT2B/TE6HqNOuWP8IfwTfyBYVsfjHr+DRJpIeFUNAH+Mvug=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-sandbox",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-TSxc+HBxWXUYNak5e9h+qL0AmjJSTsTe8kxJEKbAoRhZTVZqE+QfMRF8AGmt+ULM9fottd21Los5wgckJpjftg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-sandbox-local",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-EKmElhxjE6gW/ERykjPyiiyZ/7JOGl/Ckubmt63pqofdaBPe9FZKMHCLVhduPaVIzDShf8N69I3rAzLzciwRlg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-sandbox-policy",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-tk68JV2em5UOkVlXUrfcZJbSp12ncQJZ5nuJbBrLtNIr5tbnVBx3Hkc6EBCnBLNeRaK1QvMaca+OA3GG4YglEw=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-scope",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-iRmkbchma2F3nhrOgh9ss3D3NPYv0FZRfwyM6wt0MhJMd9R4u1dIbrvlhRNBglF+Nr5rD3yiA4PQjpWclb8XUQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-session",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-77+MOBnQgwjfR1yPkLrnS2nlRECa0gfUt0jwMuTg9FniTz5ca8854m2jmi2F3iHDnQUt3lTwzmy0BLIrok+lZA=="
       },
       {
         "name": "@deepseek-ai/dsh-session-persistence",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-2OoRHZYWi5Vy0+1bPU37Y/NTh6uQiZ3VdpvDmW1oCgsapQr2JS/Lbody1gXOMJ1KXglCSLmePgTMC00uKw/UIg=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-YqvB0p4VbHol+CDxH5ZOOd0qwzJL69MgbaF+srobkvq7Mu8IF0Q7lBLIYSMfeFvmrZgKwsKMV9YJjdAJl25yRQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-session-projection",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-dzkbwhFy5AXFu+FhT6QBLb3lQAozb9Vkuh2zujita6iceFtsQtxXBGiXYl4D9Oy1eLRuOQdlUCmW6M/h+LxoxQ=="
       },
       {
         "name": "@deepseek-ai/dsh-session-query",
-        "version": "0.2.0-rc.2",
-        "integrity": "sha512-seZkaK6E+L2KVUYbzQ5O3S9kKkINul/1WujXNsE7/9vE4NSg97hJjZxCwqYs81qlEO0Ei3f27+W61EtXOYYoGw=="
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-/OglsJXtmthSSE/LPX7CgUFDA23IcTA+EDPbCZAdb/lG5/CxcK4Az1jaL8SESIWVC3v6o5RJgGpVxwBG8c9+Fg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-subagent",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-ZuQK0hMB23fimxN+fmpzn4XE6cKYU2QxALxD08bCXNm9ZUooE+ohrr/DBfa3aEuEFQ4rlVDhLoMLyLRHMScYuA=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-subprocess",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-WFbHIqc+Ug5SH7ulRaNr66JWM7CY/N//znvCsOVXlUYYmShbuagwOz2K9ia2i7TfMbV9pV5+wJQzS2XarKjYuQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-subprocess-local",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-jEdSw9lQPfMkfnxnzEIJQv+4u+LdojXxiAksVTuGzyN5xxssRIVu82gb9xBZCjJjWAAKtcysbVk6ez7+kV1YLQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-system-prompt",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-XeKC54+m2N/euS/PoHpkTpE2Hp32NkFd+nlNeUzoyC+SKdIvo1RTcTQWY6DZcJm51znnd8B92V+mhfnppGbb6Q=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-tool-executor-native",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-l7Lvt8Y8Q1B9Sz8bCM0Oi4sKi05z/IK40BnGvBBwocf5adl19suSSZ2unBIe1qWGw5TfsWokCKOIBWBR9x4shA=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-tools",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-Zowk7V8KjdJBaE9d6l7q782lre69SI29XP8/ZloVhbyo9+3CH/U7LRmEECDXA3OFN3O0abwm1aZEOAcRGEh4mg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-user-approval",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-Im2bB8oYnl0A2CnqmI7qT9JmpVgwArlI07r8aAIPhaG4QfdIFS/uP0X7Q8Xc6ZAS85AelFNdEUm9Ms6YuYzjnQ=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-web",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-qH9Hut1lh0DQ3OV5HoCQadyUYChe3iWkx+MCCmpDVbbFYIxtpK8ZD9OyPvK/JAB/KXb9RM54tPRFyLsUfkPK/w=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-web-fetch-http",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-mesbGo5CFaJJGDs/MuTsqI4G8W5GsiauCe62i/+tm+B01xiC4uxDdDM6cfWXBKT3qZf54QTD3iepH2ayFgjzUg=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-web-search-deepseek",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-yNtmi+EZ5xhFhKSTJLnb/Dk83IzbGM4Yo/l7sgxaGeg6JRSXnneFP+7IDf80RPdWzI2dxGnB3mttO79zEY4maA=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-working-directory",
+        "version": "0.2.2-rc.5",
+        "integrity": "sha512-TN8imwwu4AzYQVahJh5OKs1xFD5xqia71+85tyDQiGoz7s934pxZW1nUKRk3mmWS7wxge6SwrUXyau+UODxLmA=="
       }
     ],
     "externalToolPackages": [
@@ -210,14 +220,14 @@
       },
       {
         "name": "@modelcontextprotocol/client",
-        "version": "2.0.0",
-        "integrity": "sha512-8f1OghQ2rjzIOfqgUCP+8GiUWqRs89njoWLNqAe8kWmDePv3s1fZXseej+QXemssEuuOvLLmLO/kqM3IQHtISw==",
+        "version": "2.2.0",
+        "integrity": "sha512-LxCou/CSYQ6dwEnjhLZY0KnEuc8V4UJ3IEQCl/uR2yHobSQIEdJKUlKLRYRF5i5FqRGHy1eK7une3aAWDHLtig==",
         "license": "MIT"
       },
       {
         "name": "@modelcontextprotocol/core",
-        "version": "2.0.0",
-        "integrity": "sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==",
+        "version": "2.2.0",
+        "integrity": "sha512-iLhmprRmWI8EcosOA3wVvww22z02NkgqhV4fBH6f/odQBsi7xnJc0HGmi21yWO+/iKw2yzqVE127Zhna5/+JXw==",
         "license": "MIT"
       },
       {
@@ -230,12 +240,6 @@
         "name": "undici",
         "version": "8.11.2",
         "integrity": "sha512-u4UB2/IrKdU6lFxumHmmo1a3fCQO5tzQllRorfoRS63txhrB7xTpSn1PftwC4qEHkOaqP95fCWW4lJzwErwzhQ==",
-        "license": "MIT"
-      },
-      {
-        "name": "ipaddr.js",
-        "version": "2.5.0",
-        "integrity": "sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w==",
         "license": "MIT"
       },
       {
@@ -260,17 +264,17 @@
   },
   "codex": {
     "package": "@openai/codex",
-    "version": "0.148.0",
-    "integrity": "sha512-bh5kH9+BMrFaHGmLeoSansPdfRksvr4UXzjQInns/KRO7r8VJ+6AAW+SqUsE8XcG3+OW/mI4EEy8Gpo9UDXGvQ==",
+    "version": "0.171.0",
+    "integrity": "sha512-1IOFzL2Xg86tLdw6kDo3GoKbkQENgQi7TI6rlEvN132R7ngSw7SNOIQoTcnKzSZZ8kf9N9GynCweSoaFbqk2Eg==",
     "license": "Apache-2.0",
     "transport": "stdio-json-rpc",
     "toolSeam": "dynamic-tools",
     "toolSeamStability": "experimental-pinned-adapter",
-    "schemaPath": "docs/upstream/codex/app-server-schema-0.148.0",
-    "schemaFileCount": 380,
-    "schemaTreeSha256": "dc3613ce823c95087e660f8d12dac89856863eff653f2c8dd8f1ad0cac98ef11",
-    "typeScriptPath": "docs/upstream/codex/app-server-types-0.148.0",
-    "typeScriptFileCount": 752,
-    "typeScriptTreeSha256": "108e2f7edfe4747dc55902765801eacf829a7f45edcd03a1a24f1d42a4ff7d8b"
+    "schemaPath": "docs/upstream/codex/app-server-schema-0.171.0",
+    "schemaFileCount": 483,
+    "schemaTreeSha256": "834e838a488b36b7feca97dba640c64ee0e9fa358cdf9e968bac301afd2114d7",
+    "typeScriptPath": "docs/upstream/codex/app-server-types-0.171.0",
+    "typeScriptFileCount": 968,
+    "typeScriptTreeSha256": "e79362eb7e2b138ea1f64531b5ae02e4cd0767f4f56e8c9eb37b4f260919be6d"
   }
 }

@@ -26,6 +26,7 @@ export class PricingEngine {
     if (options.billingMode !== 'api') return unknown(id, options.usage.id, options.billingMode === 'subscription' ? 'Subscription limits are not API billing amounts.' : 'Billing mode is unknown.');
     const entry = this.catalog.entries.find((candidate) => candidate.provider === options.provider && candidate.model === options.model);
     if (!entry) return unknown(id, options.usage.id, `No pricing entry exists for ${options.provider}/${options.model}.`);
+    if (entry.estimation === 'requires-request-metadata') return unknown(id, options.usage.id, 'Request-level service tier, input length and cache retention evidence is required for this model; cumulative turn usage cannot determine its billed rate.');
     const usage = options.usage;
     // Messages may report total output without a reasoning breakdown. When
     // reasoning is included in output, that unknown split is not a missing billable quantity.
@@ -62,6 +63,7 @@ export function validatePricingCatalog(value: unknown): PricingCatalogV1 {
   for (const source of value.sources) if (!isRecord(source) || typeof source.provider !== 'string' || typeof source.url !== 'string' || !/^https:\/\//u.test(source.url) || typeof source.retrievedAt !== 'string' || !timestamp.test(source.retrievedAt)) throw new PricingError('pricing.source-invalid', 'Pricing source is invalid.');
   for (const entry of value.entries) {
     if (!isRecord(entry) || typeof entry.provider !== 'string' || typeof entry.model !== 'string' || !['included-in-output', 'separate-as-output'].includes(String(entry.reasoningBilling))) throw new PricingError('pricing.entry-invalid', 'Pricing entry is invalid.');
+    if (entry.estimation !== undefined && entry.estimation !== 'requires-request-metadata') throw new PricingError('pricing.entry-invalid', 'Pricing estimation policy is invalid.');
     for (const key of ['inputMicrosPerMillion', 'outputMicrosPerMillion']) assertNonNegativeSafeInteger(entry[key], key);
     for (const key of ['cachedInputMicrosPerMillion', 'cacheWriteMicrosPerMillion']) if (entry[key] !== null) assertNonNegativeSafeInteger(entry[key], key);
     const compound = `${entry.provider}\0${entry.model}`; if (keys.has(compound)) throw new PricingError('pricing.entry-duplicate', `Duplicate pricing entry ${entry.provider}/${entry.model}.`); keys.add(compound);

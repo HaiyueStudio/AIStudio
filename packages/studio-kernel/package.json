@@ -9,7 +9,7 @@
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./conformance": { "types": "./dist/conformance.d.ts", "import": "./dist/conformance.js" }
   },
-  "engines": { "node": ">=22.19.0" },
+  "engines": { "node": ">=24.9.0" },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

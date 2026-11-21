@@ -1,0 +1,20 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@haiyue/editor-shell",
+-  "version": "0.1.1",
++  "version": "0.1.2-ui.0.2.3",
+   "private": false,
+   "license": "MIT",
+   "type": "module",
+@@ -37,7 +37,7 @@
+   "dependencies": {
+     "@haiyue/editor-plugin-sdk": "0.1.0",
+     "@haiyue/editor-platform": "0.1.0",
+-    "@haiyue/ui": ">=0.1.0 <0.2.0"
++    "@haiyue/ui": ">=0.2.2 <0.3.0"
+   },
+   "devDependencies": {
+     "typescript": "^5.2.0"

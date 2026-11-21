@@ -40,12 +40,24 @@ try {
   });
   await window.loadURL('pointerhost://app/host.html');
   window.webContents.debugger.attach('1.3');
+  // Keep trusted CDP gestures independent of other desktop windows taking OS focus.
+  // The explicit reset/blur cancellation assertions below still exercise input teardown.
+  await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
   // Windows can clamp a 2x-DPI native window to the physical display height.
   // Keep the entire tall iframe inside a deterministic CSS viewport for CDP input.
   await window.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 900, height: 850, deviceScaleFactor: 2, mobile: false });
   assert.deepEqual(await window.webContents.executeJavaScript('({width:innerWidth,height:innerHeight,dpr:devicePixelRatio})'), { width: 900, height: 850, dpr: 2 });
   const control = new BrowserWindowPreviewControl(window);
   await control.ready();
+  const startPreview = async (scene, plan) => {
+    await control.start(scene, plan);
+    const frame = window.webContents.mainFrame.frames.find(item => item.url.includes('haiyue-preview:'));
+    assert.ok(frame);
+    // Replacing the runtime canvas can enqueue blur/reset after start resolves.
+    // Settle that transition before injecting either native or replay gestures.
+    await frame.executeJavaScript("document.querySelector('canvas').focus(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+    assert.equal(await frame.executeJavaScript("document.hasFocus() && document.activeElement === document.querySelector('canvas')"), true);
+  };
   console.log('[pointer-placement] preview ready');
   for (const projection of ['orthographic', 'perspective']) {
     for (const pose of [{ target: { x: 0, y: 0, z: 0 }, azimuthDegrees: 0, elevationDegrees: 90 }, { target: { x: 1, y: 0, z: -1 }, azimuthDegrees: 28, elevationDegrees: 68 }]) {
@@ -55,7 +67,7 @@ try {
         { id: 'entity:marker', name: 'Marker', kind: 'cube', parentId: null, order: 1, transform: { position: { x: 30, y: 0, z: 30 }, rotationDegrees: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }, appearance: { material: 'basic', color: [0.05, 0.9, 0.95, 1] } },
       ] };
       const plan = { id: 'preview-plan:placement', documentId: scene.documentId, documentRevision: 1, selection: 'all-enabled', scriptSetDigest: `sha256:${'b'.repeat(64)}`, scripts: [{ scriptId: 'script:placement', entityId: 'entity:marker', order: 0, textRevision: 1, digest: 'a'.repeat(64), capabilities: validation.capabilities, emittedText: validation.emittedText, diagnostics: [] }], capabilities: validation.capabilities, runtimeConfig: { schemaVersion: 1, mode: 'fixed-step', tickRateHz: 60, maxSubSteps: 1000, seed: 'haiyue-play' }, risk: 'trusted-project', diagnostics: [] };
-      await control.start(scene, plan);
+      await startPreview(scene, plan);
       console.log(`[pointer-placement] started ${projection} azimuth=${pose.azimuthDegrees}`);
       await control.step(1);
       let placements = 0;
@@ -67,6 +79,7 @@ try {
         const previewFrame = window.webContents.mainFrame.frames.find(frame => frame.url.includes('haiyue-preview:'));
         assert.ok(previewFrame);
         await previewFrame.executeJavaScript("document.querySelector('canvas').focus()");
+        assert.equal(await previewFrame.executeJavaScript("document.hasFocus() && document.activeElement === document.querySelector('canvas')"), true, 'preview owns gesture focus');
         await delay(100);
         await control.step(1); // Drain focus/blur transitions before the gesture.
         for (const [column, row] of [[7, 7], [0, 0], [14, 0], [0, 14], [14, 14]]) {
@@ -110,7 +123,7 @@ try {
   const dragPlan = { id:'preview-plan:drag',documentId:dragScene.documentId,documentRevision:1,selection:'all-enabled',scriptSetDigest:`sha256:${'c'.repeat(64)}`,scripts:[{scriptId:'script:drag',entityId:'entity:drag-target',order:0,textRevision:1,digest:`sha256:${'d'.repeat(64)}`,capabilities:dragValidation.capabilities,emittedText:dragValidation.emittedText,diagnostics:[]}],capabilities:dragValidation.capabilities,runtimeConfig:{schemaVersion:1,mode:'fixed-step',tickRateHz:60,maxSubSteps:1000,seed:'haiyue-play'},risk:'trusted-project',diagnostics:[] };
   dragScene.entities.push({id:'entity:zz-camera-controller',name:'Camera controller',kind:'empty',parentId:null,order:1,transform:{position:{x:0,y:0,z:0},rotationDegrees:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},components:[]});
   dragPlan.scripts.push({...dragPlan.scripts[0],scriptId:'script:camera-controller',entityId:'entity:zz-camera-controller',order:1,emittedText:'api.scene.orbitControls({mode:"background"});',capabilities:['scene','input']});
-  await control.start(dragScene, dragPlan); await control.step(1);
+  await startPreview(dragScene, dragPlan); await control.step(1);
   const nativePointer = async (type, x, y) => { await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,x:31+x*640,y:23+y*480,...(type==='mouseMoved'?{buttons:1}:{button:'left',buttons:type==='mousePressed'?1:0,clickCount:1})}); await delay(30); return control.step(1); };
   await nativePointer('mousePressed', .5,.5);
   const moved = await nativePointer('mouseMoved', .92,.5);
@@ -135,12 +148,12 @@ try {
   for (const projection of ['perspective','orthographic']) for (const authored of [false,true]) {
     const cameraEntity = {id:'entity:viewer-camera',name:'Gameplay camera',kind:'empty',parentId:null,order:1,transform:{position:{x:0,y:0,z:8},rotationDegrees:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},components:[{id:'component:viewer-camera',type:'haiyue.camera.3d',version:'1.0.0',enabled:true,value:{active:true,projection,fovDegrees:45,orthographicHeight:10,near:.01,far:100,reverseZ:false,viewport:{x:0,y:0,width:1,height:1}}}]};
     const viewer = {...dragScene,camera:{...dragScene.camera,projection},entities:[...dragScene.entities,...(authored?[cameraEntity]:[])]};
-    await control.stop();await control.start(viewer,orbitPlan);const baseline=await control.step(1);
+    await control.stop();await startPreview(viewer,orbitPlan);const baseline=await control.step(1);
     await nativePointer('mousePressed',.5,.5);await nativePointer('mouseMoved',.7,.6);const nativeOrbit=await nativePointer('mouseReleased',.7,.6);
     assert.notEqual(nativeOrbit.value.state.camera.theta,baseline.value.state.camera.theta);
     assert.deepEqual(nativeOrbit.value.state.entities.filter(e=>e.id!==cameraEntity.id),baseline.value.state.entities.filter(e=>e.id!==cameraEntity.id),'camera orbit leaves all noncamera transforms unchanged');
     assert.equal(nativeOrbit.value.runtimeErrorCount,0);
-    await control.stop();await control.start(viewer,orbitPlan);await control.step(1);
+    await control.stop();await startPreview(viewer,orbitPlan);await control.step(1);
     for (const e of [{phase:'down',x:.5,y:.5},{phase:'move',x:.7,y:.6},{phase:'up',x:.7,y:.6}]) await control.input({kind:'pointer',source:'synthetic',tick:2,pointerId:7,...e});
     const replay=await control.step(1);
     assert.ok(Math.abs(replay.value.state.camera.theta-nativeOrbit.value.state.camera.theta)<.015,JSON.stringify({replay:replay.value.state.camera,native:nativeOrbit.value.state.camera}));
@@ -148,9 +161,9 @@ try {
     assert.equal(replay.value.runtimeErrorCount,0);
     results.push({orbitProjection:projection,authoredCamera:authored,nativeAndReplay:true,cubeUnchanged:true});
   }
-  await control.stop();await control.start(dragScene,dragPlan);
+  await control.stop();await startPreview(dragScene,dragPlan);
   // Synthetic down/move/up in one tick must still see an active drag (not the final released snapshot).
-  await control.stop(); await control.start(dragScene, dragPlan);
+  await control.stop(); await startPreview(dragScene, dragPlan);
   for (const event of [{phase:'down',x:.5,y:.5},{phase:'move',x:.92,y:.5},{phase:'up',x:.92,y:.5}]) await control.input({kind:'pointer',source:'synthetic',tick:1,pointerId:5,...event});
   const sameTick = await control.step(1);
   assert.ok(sameTick.value.interactions.some(hit=>hit.type==='drag'));
@@ -163,7 +176,7 @@ try {
   await control.stop();
   // A selectable child must resolve to its composite owner, not fall into camera control.
   const child = { ...dragScene.entities[0], id:'entity:face-tile', name:'Child surface', parentId:'entity:drag-target', order:1, transform:{position:{x:0,y:0,z:.55},rotationDegrees:{x:0,y:0,z:0},scale:{x:.75,y:.75,z:.05}}, appearance:{material:'basic',color:[1,.2,.1,1]}, components:[{...dragScene.entities[0].components[0],id:'component:tile-pointer'}] };
-  await control.start({...dragScene,entities:[...dragScene.entities,child]},dragPlan); await control.step(1);
+  await startPreview({...dragScene,entities:[...dragScene.entities,child]},dragPlan); await control.step(1);
   const tileDown = await nativePointer('mousePressed',.5,.5);
   assert.ok(tileDown.value.interactions.some(hit=>hit.type==='down' && hit.entityId===child.id), JSON.stringify(tileDown.value.interactions));
   assert.equal(tileDown.value.routing.hits.find(h=>h.phase==='down').hitEntityId,child.id);
@@ -179,7 +192,7 @@ try {
   await control.stop();
   // Reproduce an opaque decoration hiding a correctly configured body, then fix
   // the decoration explicitly instead of mistaking a missing interaction for background.
-  await control.start({...dragScene,entities:[...dragScene.entities,{...child,components:[]}]},dragPlan);await control.step(1);
+  await startPreview({...dragScene,entities:[...dragScene.entities,{...child,components:[]}]},dragPlan);await control.step(1);
   const occluded = await nativePointer('mousePressed',.5,.5);
   assert.equal(occluded.value.interactions.some(hit=>hit.type==='down'),false);
   assert.equal(occluded.value.routing.hits.find(h=>h.phase==='down').hitEntityId,child.id);
@@ -190,7 +203,7 @@ try {
   await nativePointer('mouseReleased',.9,.5);await control.stop();
   // A configured surface that only subscribes click must also retain object ownership.
   const clickOnly={...child,components:[{...child.components[0],value:{...child.components[0].value,events:['click']}}]};
-  await control.start({...dragScene,entities:[...dragScene.entities,clickOnly]},dragPlan);await control.step(1);
+  await startPreview({...dragScene,entities:[...dragScene.entities,clickOnly]},dragPlan);await control.step(1);
   const filteredDown=await nativePointer('mousePressed',.5,.5);
   assert.equal(filteredDown.value.interactions.length,0);
   assert.ok(filteredDown.value.routing.hits.some(h=>h.suppressed.some(s=>s.reason==='event-not-subscribed')));
@@ -199,7 +212,7 @@ try {
   assert.deepEqual(filteredMove.value.state.camera,filteredDown.value.state.camera);
   await nativePointer('mouseReleased',.9,.5);await control.stop();
   const decoration={...child,components:[{...child.components[0],value:{...child.components[0].value,events:[],penetrable:true}}]};
-  await control.start({...dragScene,entities:[...dragScene.entities,decoration]},dragPlan);await control.step(1);
+  await startPreview({...dragScene,entities:[...dragScene.entities,decoration]},dragPlan);await control.step(1);
   const throughDecoration=await nativePointer('mousePressed',.5,.5);
   assert.ok(throughDecoration.value.interactions.some(hit=>hit.type==='down'&&hit.entityId==='entity:drag-target'));
   const cameraBeforeDecoration=throughDecoration.value.state.camera.theta;
@@ -216,7 +229,7 @@ try {
   const cameraEntity={id:'entity:color-camera',name:'Color camera',kind:'empty',parentId:null,order:1,transform:{position:{x:0,y:0,z:8},rotationDegrees:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},components:[{id:'component:color-camera',type:'haiyue.camera.3d',version:'1.0.0',enabled:true,value:{active:true,projection:'perspective',fovDegrees:45,orthographicHeight:10,near:.01,far:100,reverseZ:false,viewport:{x:0,y:0,width:1,height:1}}}]};
   const colorScene={...dragScene,entities:[{...dragScene.entities[0],appearance:{material:'pbr',color:[.16,.58,1,1]}},cameraEntity,{id:'entity:color-light',name:'Color light',kind:'ambient-light',parentId:null,order:2,transform:cameraEntity.transform,light:{color:[1,1,1],intensity:1}}]};
   const colorPlan={...dragPlan,scripts:[{...dragPlan.scripts[0],scriptId:'script:color-camera',entityId:cameraEntity.id,emittedText:orbitValidation.emittedText,capabilities:orbitValidation.capabilities},{...dragPlan.scripts[0],scriptId:'script:color-target',order:1,emittedText:clickValidation.emittedText,capabilities:clickValidation.capabilities}],capabilities:['read','scene','input']};
-  await control.start(colorScene,colorPlan);let colorObservation=await control.step(1);
+  await startPreview(colorScene,colorPlan);let colorObservation=await control.step(1);
   const actualColor=o=>o.value.state.entities.find(e=>e.id==='entity:drag-target').materialColor;
   const initialCamera=colorObservation.value.state.camera;
   for(let i=0;i<3;i++){
@@ -232,7 +245,7 @@ try {
   await nativePointer('mousePressed',.5,.5);await nativePointer('mouseMoved',.7,.6);colorObservation=await nativePointer('mouseReleased',.7,.6);
   assert.notEqual(colorObservation.value.state.camera.theta,initialCamera.theta,'original orbit still works');
   assert.deepEqual(actualColor(colorObservation),priorColor,'drag does not fire click');
-  await control.stop();await control.start(colorScene,colorPlan);colorObservation=await control.step(1);
+  await control.stop();await startPreview(colorScene,colorPlan);colorObservation=await control.step(1);
   const original=actualColor(colorObservation);
   for(const phase of ['down','up']) {await control.input({kind:'pointer',source:'synthetic',tick:colorObservation.tick+1,pointerId:81,button:0,phase,x:.5,y:.5});colorObservation=await control.step(1);}
   assert.notDeepEqual(actualColor(colorObservation),original,'Agent replay triggers the same local click behavior');

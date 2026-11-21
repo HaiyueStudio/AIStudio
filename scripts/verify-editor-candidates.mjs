@@ -35,6 +35,19 @@ for (const candidate of requirements.packages) {
   assert.equal(manifest.name, candidate.name);
   assert.equal(manifest.version, candidate.version);
   assert.equal(manifest.license, candidate.license);
+  if (candidate.sourcePatch) {
+    const patch = candidate.sourcePatch;
+    for (const [relative, digest] of [[patch.path, patch.sha256], [patch.baseTarball, patch.baseSha256]]) {
+      assert.equal(createHash('sha256').update(await readFile(path.join(root, relative))).digest('hex'), digest);
+    }
+    assert.equal(manifest.dependencies['@haiyue/ui'], patch.uiRange);
+    for (const file of patch.unchangedFiles) {
+      assert.ok(!file.path.includes('..') && !path.isAbsolute(file.path));
+      const bytes = await readFile(path.join(root, 'node_modules', candidate.name, file.path));
+      assert.equal(createHash('sha256').update(bytes).digest('hex'), file.sha256,
+        `${candidate.name}/${file.path} changed in a manifest-only overlay`);
+    }
+  }
   assert.deepEqual(Object.keys(manifest.exports ?? {}).sort(), [...candidate.requiredExports].sort());
   await verifyEditorCandidateSurface(candidate, requirements.forbiddenRuntimeExports,
     specifier => import(specifier), specifier => readFile(fileURLToPath(import.meta.resolve(specifier))));

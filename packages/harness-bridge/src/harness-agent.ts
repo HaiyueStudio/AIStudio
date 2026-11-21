@@ -10,7 +10,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Context, Fiber } from '@deepseek-ai/cordis';
 import { isToolConcurrencyHintV1, type ToolConcurrencyHintV1, type StudioKernelHost, type StudioPluginActivationContext } from '@haiyue/ai-studio-contracts';
 import { harnessOwnerContext } from './ownership.js';
-import AgentRegistry, { installModelSelection, type AgentHandle, type AssistantStreamFrame, type ModelSelectionRef, type CreateAgentOptions } from '@deepseek-ai/dsh-agent';
+import AgentRegistry, { installModelSelection, type AgentHandle, type AssistantStreamFrame, type CreateAgentOptions } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id';
 import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
@@ -19,6 +19,7 @@ import SessionStore, { SessionId, type SessionEvent } from '@deepseek-ai/dsh-ses
 import SessionProjections from '@deepseek-ai/dsh-session-projection';
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import ToolRuntime, { type ToolDefinition } from '@deepseek-ai/dsh-tools';
+import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native';
 
 export interface HarnessBridgeTool { readonly id: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>; readonly concurrency?: ToolConcurrencyHintV1; }
 export type HarnessReasoningEffort = 'off' | 'low' | 'high' | 'max';
@@ -60,7 +61,7 @@ export type HarnessBridgeEvent =
   | Readonly<{ type: 'turn-end'; sessionId: string; turnId: string; status: 'completed' | 'cancelled' | 'failed' | 'interrupted'; finishReason: 'stop' | 'length' | 'cancelled' | 'error' | 'unknown'; diagnostic?: Readonly<{ code: string; message: string }> }>;
 
 export interface HarnessAgentTransport {
-  readonly upstream: Readonly<{ tag: 'dsh-v0.2.0-rc.2'; commit: '639ed015397290b3745d163aafe02ffee4aa3f84' }>;
+  readonly upstream: Readonly<{ tag: 'dsh-v0.2.2-rc.5'; commit: '9c2670d3bce5275e0d1610272958121af87787bb' }>;
   modelCatalog(): readonly Readonly<{ id: string; name: string; description: string; maxTokens: number }>[];
   configured(): Promise<boolean>;
   sessionCapabilities(model: string): HarnessBridgeSessionCapabilities;
@@ -131,7 +132,10 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
     await context.plugin(SessionProjections);
     await context.plugin(LlmRuntime);
     await context.plugin(SystemPrompt, { includeRuntimeContext: false });
-    await context.plugin(ToolRuntime, { mode: 'native', maxParallelSubCalls: maxParallelToolCalls });
+    await context.plugin(ToolRuntime);
+    await context.plugin({ name: 'studio:native-tool-executor', inject: ['tools'], apply(ctx) {
+      ctx.tools.setExecutor(new NativeToolExecutor(ctx, () => maxParallelToolCalls));
+    } });
     const selectedModel = options.model ?? 'deepseek-flash';
     const resolved = resolveAdapterOptions({
       baseURL: messagesBaseURL(options.baseURL), thinking: 'enabled', reasoningEffort: 'high',
@@ -160,9 +164,10 @@ export async function createPinnedHarnessAgentTransport(options: PinnedHarnessAg
       await installTeamRecovery(context, options.teamRecovery);
     }
     let transport: PinnedHarnessTransport | undefined;
+    const legacyTeamRecovery = options.teamRecovery ? (await import('./team-recovery.js')).recoverLegacyTeamMessages : undefined;
     await context.plugin({
-      name: 'studio:harness-agent-client', inject: ['agents', 'sessions', 'llm', 'systemPrompt', 'tools', 'agentLoop'],
-      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, resolved.baseURL === PUBLIC_BASE_URL, options.resolveApiKey, () => disposeHarnessScope(scope), maxParallelToolCalls, options.contextWindow); },
+      name: 'studio:harness-agent-client', inject: ['agents', 'sessions', 'llm', 'systemPrompt', 'tools', 'agentLoop', ...(legacyTeamRecovery ? ['sessionPersistence'] : [])],
+      apply(ctx) { transport = new PinnedHarnessTransport(ctx, selectedModel, resolved.models, resolved.baseURL === PUBLIC_BASE_URL, options.resolveApiKey, () => disposeHarnessScope(scope), maxParallelToolCalls, options.contextWindow, legacyTeamRecovery); },
     });
     harnessOwnerContext(options.owner);
     if (!transport) throw new Error('Harness transport did not activate.');
@@ -182,11 +187,10 @@ async function disposeHarnessScope(scope: Fiber): Promise<void> {
 }
 
 class PinnedHarnessTransport implements HarnessAgentTransport {
-  readonly upstream = Object.freeze({ tag: 'dsh-v0.2.0-rc.2' as const, commit: '639ed015397290b3745d163aafe02ffee4aa3f84' as const });
+  readonly upstream = Object.freeze({ tag: 'dsh-v0.2.2-rc.5' as const, commit: '9c2670d3bce5275e0d1610272958121af87787bb' as const });
   private readonly requestContexts = new Map<string, HarnessRequestContext>();
   private readonly handles = new Map<string, AgentHandle>();
   private readonly initializing = new Map<string, { readonly abort: AbortController; readonly settled: Promise<void> }>();
-  private readonly selections = new Map<string, ModelSelectionRef>();
   private readonly sessionModels = new Map<string, string>();
   private readonly sessionBoundaries = new Map<string, string>();
   private readonly sessionToolSignatures = new Map<string, string>();
@@ -196,7 +200,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
   private disposed = false;
   private disposal?: Promise<void>;
   private readonly assistantAttempts = new Map<string, Readonly<{ attemptId: string; revision: number; turn: number }>>();
-  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number; contextWindow?: number }>[], private readonly officialEndpoint: boolean, private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>, private readonly maxParallelToolCalls: number, private readonly contextWindow?: number) {
+  constructor(private readonly context: Context, private readonly model: string, private readonly models: readonly Readonly<{ id: string; name?: string; description?: string; maxTokens?: number; contextWindow?: number }>[], private readonly officialEndpoint: boolean, private readonly resolveApiKey: () => Promise<string | null>, private readonly disposeScope: () => Promise<void>, private readonly maxParallelToolCalls: number, private readonly contextWindow?: number, private readonly recoverLegacyTeam?: (context: Context, agent: import('@deepseek-ai/dsh-agent').Agent, signal: AbortSignal) => Promise<void>) {
     if (!models.some((entry) => entry.id === model)) throw new Error(`Harness default model ${model} is not in the pinned catalog.`);
     context.effect(() => () => this.release(), 'studio.harness-transport.dispose');
     const contexts = this.requestContexts;
@@ -269,7 +273,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     await this.officialLifecycle?.cancelSession(sessionId);
     await handle.dispose();
     this.assistantAttempts.delete(sessionId);
-    this.stepBatches.delete(sessionId); this.requestContexts.delete(sessionId); this.studioToolNames.delete(sessionId); this.handles.delete(sessionId); this.selections.delete(sessionId); this.sessionModels.delete(sessionId); this.sessionBoundaries.delete(sessionId); this.sessionToolSignatures.delete(sessionId);
+    this.stepBatches.delete(sessionId); this.requestContexts.delete(sessionId); this.studioToolNames.delete(sessionId); this.handles.delete(sessionId); this.sessionModels.delete(sessionId); this.sessionBoundaries.delete(sessionId); this.sessionToolSignatures.delete(sessionId);
   }
   async *start(input: HarnessBridgeTurnInput, signal?: AbortSignal): AsyncIterable<HarnessBridgeEvent> {
     this.assertActive();
@@ -279,7 +283,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     this.assertActive();
     signal?.throwIfAborted();
     if (this.streams.has(sessionId)) throw new Error(`Harness session ${sessionId} already has an active turn.`);
-    const selection = this.selections.get(sessionId); if (selection) selection.current = { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) };
+    handle.agent.model.select({ provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) });
     handle.agent.options.maxTokens = input.maxTokens;
     this.requestContexts.get(sessionId)!.port = input.requestContext;
     const queue = new AsyncEventQueue<HarnessBridgeEvent>(); this.streams.set(sessionId, queue);
@@ -309,7 +313,7 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
     for (const pending of this.results.values()) pending.reject(new Error('Harness transport disposed.'));
     this.results.clear();
     this.streams.forEach((queue) => queue.fail(new Error('Harness transport disposed.')));
-    this.streams.clear(); this.stepBatches.clear(); this.requestContexts.clear(); this.handles.clear(); this.selections.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear();
+    this.streams.clear(); this.stepBatches.clear(); this.requestContexts.clear(); this.handles.clear(); this.sessionModels.clear(); this.sessionBoundaries.clear(); this.sessionToolSignatures.clear();
     this.assistantAttempts.clear();
   }
   private async ensureHandle(sessionId: string, input: Pick<HarnessBridgeSessionOpenInput, 'model' | 'reasoningEffort' | 'maxTokens' | 'tools'>, signal?: AbortSignal): Promise<AgentHandle> {
@@ -322,7 +326,6 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
       if (this.sessionToolSignatures.get(sessionId) !== harnessToolSetSignature(input.tools)) throw new Error(`Harness Session ${sessionId} cannot change its Studio tool allowlist without rebinding.`);
       return handle;
     }
-    const selection: ModelSelectionRef = { current: { provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) }, assembled: undefined };
     const abort = new AbortController();
     const settled = deferred<void>();
     this.initializing.set(sessionId, { abort, settled: settled.promise });
@@ -334,7 +337,8 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
           const requestContext = new HarnessRequestContext(agent.session, model => this.sessionCapabilities(model).maxInputTokens, (requestId, turnId, confirmed) => this.streams.get(sessionId)?.push({ type: confirmed ? 'request-confirmed' : 'request-prepared', sessionId, turnId, requestId }));
           for (const event of agent.session.snapshotEvents()) requestContext.observe(event);
           this.requestContexts.set(sessionId, requestContext);
-          installModelSelection(agentContext, selection);
+          installModelSelection(agentContext);
+          agent.model.select({ provider: 'deepseek-official', model: input.model, reasoningEffort: ReasoningEffortId(input.reasoningEffort) });
           const failedAttempts = new Map<string, number>();
           agentContext.on('agent/request-error', async (payload, next) => {
             if (payload.failure.code === REQUEST_REBUILD && requestContext.rebuild()) return Object.freeze({ kind: 'retry' as const });
@@ -346,15 +350,23 @@ class PinnedHarnessTransport implements HarnessAgentTransport {
             await abortableDelay(delayMs, payload.signal);
             return Object.freeze({ kind: 'retry' as const });
           });
-          this.studioToolNames.set(sessionId, new Set(input.tools.map((tool, index) => harnessToolName(tool.id, index))));
+          const names = new Set(input.tools.map((tool, index) => harnessToolName(tool.id, index)));
+          this.studioToolNames.set(sessionId, names);
+          const native = new NativeToolExecutor(agentContext, () => this.maxParallelToolCalls);
+          // Schemas are executor-owned in rc.5. A session advertises only its exact Studio allowlist,
+          // including after MCP registers additional native tools. Ticketed Host dispatch still uses the pipeline.
+          agentContext.tools.setExecutor({
+            describe: definitions => native.describe(definitions.filter(definition => names.has(definition.name))),
+            execute: batch => native.execute(batch),
+          });
           input.tools.forEach((tool, index) => agentContext.tools.register(this.toolDefinition(tool, index)));
         },
       };
       const stored = await this.context.get('sessionPersistence')?.stat(SessionId(sessionId), { signal: creationSignal });
       handle = stored ? await this.context.agents.resume({ resumeSessionId: SessionId(sessionId), agentOptions: creation.agentOptions, setup: creation.setup, signal: creationSignal }) : await this.context.agents.create(creation);
-      try { this.assertActive(); creationSignal.throwIfAborted(); }
+      try { await this.recoverLegacyTeam?.(this.context, handle.agent, creationSignal); this.assertActive(); creationSignal.throwIfAborted(); }
       catch (cause) { await handle.dispose(); throw cause; }
-      this.handles.set(sessionId, handle); this.selections.set(sessionId, selection); this.sessionModels.set(sessionId, input.model); this.sessionToolSignatures.set(sessionId, harnessToolSetSignature(input.tools));
+      this.handles.set(sessionId, handle); this.sessionModels.set(sessionId, input.model); this.sessionToolSignatures.set(sessionId, harnessToolSetSignature(input.tools));
       return handle;
     } catch (cause) {
       this.requestContexts.delete(sessionId); this.studioToolNames.delete(sessionId);

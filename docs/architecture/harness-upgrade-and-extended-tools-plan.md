@@ -1,5 +1,7 @@
 # Harness 升级与外部工具接入规划
 
+2026-11-21 更新：最新 Engine / Harness / UI 与 GPT 6.2 的升级目标、代码影响和实施顺序见 [依赖与模型升级方案](dependency-and-model-upgrade-plan-2026-11-21.md)。本文保留 10 月实现及验证记录。
+
 日期：2026-10-06。代码基线：`c4fa2477d58ad89f7b1e5223e3f00f7b65918c38`。
 
 状态：H1–H7 已实现并通过本地定向回归，生产依赖为 `0.2.0-rc.2` / Cordis `4.0.4`。Web、Playwright、Node 已接入；P2 异步问答和 Chrome DevTools 为默认关闭的实验能力，Team 仅有准入检查入口。alpha 单独验证通过，不切换生产依赖。H8 真实任务验收仍待完成，不推进现有 milestone。见第 12–14 节。

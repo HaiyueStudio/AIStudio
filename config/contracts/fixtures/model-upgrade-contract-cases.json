@@ -1,0 +1,27 @@
+{
+  "valid": [
+    {
+      "schemaId": "haiyue://contracts/agent-turn-config/v2",
+      "value": { "schemaVersion": 2, "backendId": "backend:codex", "model": "gpt-6.2-astra", "reasoningEffort": "max", "outputTokenLimit": 128000, "taskBudgetId": "budget:models", "promptProfile": { "id": "prompt:models", "version": "1.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "requestedCapabilities": ["agent.model-config"] }
+    },
+    {
+      "schemaId": "haiyue://contracts/pricing-catalog/v1",
+      "value": { "schemaVersion": 1, "id": "pricing:models", "version": "1.2.0", "effectiveAt": "2026-11-21T00:00:00.000Z", "currency": "USD", "sources": [{ "provider": "openai", "url": "https://developers.openai.com/api/docs/models/gpt-6.2-sol", "retrievedAt": "2026-11-21T00:00:00.000Z" }], "entries": [{ "provider": "openai", "model": "gpt-6.2-sol", "inputMicrosPerMillion": 2000000, "cachedInputMicrosPerMillion": 100000, "cacheWriteMicrosPerMillion": 2500000, "outputMicrosPerMillion": 10000000, "reasoningBilling": "included-in-output", "estimation": "requires-request-metadata" }] }
+    }
+  ],
+  "invalid": [
+    {
+      "schemaId": "haiyue://contracts/agent-turn-config/v2",
+      "value": { "schemaVersion": 2, "backendId": "backend:codex", "model": "gpt-6.2-astra", "reasoningEffort": "ultra", "outputTokenLimit": 8192, "taskBudgetId": "budget:models", "promptProfile": { "id": "prompt:models", "version": "1.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "requestedCapabilities": [] }
+    },
+    {
+      "schemaId": "haiyue://contracts/agent-turn-config/v2",
+      "value": { "schemaVersion": 3, "backendId": "backend:codex", "model": "gpt-6.2-sol", "reasoningEffort": "max", "outputTokenLimit": 8192, "taskBudgetId": "budget:models", "promptProfile": { "id": "prompt:models", "version": "1.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "requestedCapabilities": [] }
+    },
+    {
+      "schemaId": "haiyue://contracts/agent-turn-config/v2",
+      "rejectSecrets": true,
+      "value": { "schemaVersion": 2, "backendId": "backend:codex", "model": "gpt-6.2-sol", "reasoningEffort": "max", "outputTokenLimit": 8192, "taskBudgetId": "budget:models", "promptProfile": { "id": "prompt:models", "version": "1.0.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "requestedCapabilities": [], "authorization": "fixture-only" }
+    }
+  ]
+}

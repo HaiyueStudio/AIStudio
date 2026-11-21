@@ -19,7 +19,7 @@
           "required": ["model", "reasoningEffort", "outputTokenLimit", "capabilities"],
           "properties": {
             "model": { "type": "string", "minLength": 1, "maxLength": 128 },
-            "reasoningEffort": { "enum": ["backend-default", "off", "low", "medium", "high", "xhigh"] },
+            "reasoningEffort": { "enum": ["backend-default", "off", "low", "medium", "high", "xhigh", "max"] },
             "outputTokenLimit": { "type": "integer", "minimum": 1, "maximum": 1000000 },
             "capabilities": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "$ref": "haiyue://contracts/m12-capability-id/v2" } }
           }

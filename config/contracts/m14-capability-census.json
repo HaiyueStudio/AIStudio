@@ -3,32 +3,32 @@
   "purpose": "offline-derived-census-not-runtime-registry",
   "binding": {
     "algorithm": "sha256",
-    "fileCount": 853,
-    "sourceDigest": "sha256:b1fd625087d7ed195047e735d23d31cd6a28b38352e90c6e74b649862509fd16",
-    "packageDigest": "sha256:1aca9d2240c993739cc2219a7c041a581ccfb1dc126690581940966a850c0200",
-    "digest": "sha256:2090aabdf41dc147a3fd7a1b933cf7aa0935c968e2e1f256bce15f9584bc4d84"
+    "fileCount": 866,
+    "sourceDigest": "sha256:38b272a7f1e7840636e6fff300698e7b4430a9f435f51bae3501a1b5c63492fa",
+    "packageDigest": "sha256:9394c5a7b2c901ff92351ee49561c90e447214bc59f5e6e522d745b30535d9c9",
+    "digest": "sha256:713330a8e1555944b897c935f768031922657b80590865fe9f6327aad4a22369"
   },
   "packages": [
     {
       "name": "@haiyue/animation-spec",
-      "version": "0.1.0",
-      "integrity": "sha512-4RuqxC8fVGxQSviit53DgCY70ffbTkqC0ocFqRu2UzS1bT7H4ioCRVTmuR29wv13JVUcqHIjPVlKCAQi7x9+7w==",
-      "manifestDigest": "sha256:b07d901e0c1f8b361c5e5124ef50b531865df0f2c8f1e6a355b5025a7e258290",
-      "contentDigest": "sha256:e089011eb4e77661a625af623b0139ceb00e9494184acfb434535637e5acd641",
-      "installedFileCount": 61,
-      "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
-      "candidate": "vendor/haiyue-animation-spec-0.1.0.tgz",
+      "version": "0.2.2",
+      "integrity": "sha512-hYUAlmKtfGd+GaO9d5qBa0ykU7AR1sR3+pyzyUqnPzTVOUtdlS+Zph2yIPRNcnj33LIdShdVY5NN1lDeydIsLA==",
+      "manifestDigest": "sha256:5f4d5fd357c8a1f24a3f2d607cfbdda20ca83ee3da3ffb59c21d64077348c8b4",
+      "contentDigest": "sha256:b8c3f96321518930e8be77c2d91faa75e30a251bafac5028080471fc3ac95e9e",
+      "installedFileCount": 51,
+      "sourceRevision": "4beb46f6a88fccd8630033bed3cf61ae99087855",
+      "candidate": "vendor/haiyue-animation-spec-0.2.2.tgz",
       "exports": [
         {
           "subpath": ".",
           "targets": [
             {
               "path": "./dist/index.d.ts",
-              "sha256": "sha256:3ccea8dac4042fe3f4e66543855a4e21bf495b0eb6248dbb1886b198537936f9"
+              "sha256": "sha256:32ad7d3237f566a03a96439dfeeb83feaa573890eb4084d431e510eb750153b8"
             },
             {
               "path": "./dist/index.js",
-              "sha256": "sha256:6e5e8853126de6c2d00133e919e8aeec93bc2644a92d39e9a2bab08870f05d1c"
+              "sha256": "sha256:abf20f8bc9f215e29a20c3b35a6d866371656459c4f87ad1f26a99dbe07ff6be"
             }
           ]
         },
@@ -54,7 +54,7 @@
             },
             {
               "path": "./dist/cubism.js",
-              "sha256": "sha256:b682b0a055e792536eb91fb5a4664bb38f0f2e511af30131f3baf36467318f8d"
+              "sha256": "sha256:ab2a3b40b21a415d77314dad53756d3705f108ff8f3cc3ea419690565c988b41"
             }
           ]
         },
@@ -72,6 +72,19 @@
           ]
         },
         {
+          "subpath": "./hya-production",
+          "targets": [
+            {
+              "path": "./dist/hya-production.d.ts",
+              "sha256": "sha256:758531871242e9c9b55b3d7de64cbf4143b76a9b631eadbba8465a52d400c8e0"
+            },
+            {
+              "path": "./dist/hya-production.js",
+              "sha256": "sha256:3334f117df0a00668b4331d11cc7c1a5bdf657595632830f0fc1fca37040342a"
+            }
+          ]
+        },
+        {
           "subpath": "./live2d",
           "targets": [
             {
@@ -80,7 +93,7 @@
             },
             {
               "path": "./dist/live2d.js",
-              "sha256": "sha256:4ec0d6162c4d4a30bb265e65562064a2ed180ea4ed2c943c30576b580db9bc14"
+              "sha256": "sha256:db162c60bb0c52678e251b90356e34833295454931717b385228e3d23411c4b2"
             }
           ]
         },
@@ -93,7 +106,7 @@
             },
             {
               "path": "./dist/live2d/clip-baked.js",
-              "sha256": "sha256:795392d9cb32d73fc5ecff93c37656f002c65fb4c9ce0d5fee6c7c96135ddd7f"
+              "sha256": "sha256:d8cc563565ddbf7d4f511af2823b130425ee5b9b4682e909a11c0281801d4478"
             }
           ]
         },
@@ -102,7 +115,7 @@
           "targets": [
             {
               "path": "./dist/lottie.d.ts",
-              "sha256": "sha256:5dc030e6f661d94685d90f537f74ac9b6cc1955b3f6caf6869f1555e17b775e4"
+              "sha256": "sha256:9ca3f82a41dea8c349cf7d0335fac12c797db9977eec7816152dbd438f463c4e"
             },
             {
               "path": "./dist/lottie.js",
@@ -115,11 +128,11 @@
           "targets": [
             {
               "path": "./dist/native3d.d.ts",
-              "sha256": "sha256:e0a23b472acbe874b790c3c31f4f7f77e5b3026d8eecb7fbdb79d4f5644260a7"
+              "sha256": "sha256:63a17e17d02c905953c6d812dea6a23b88265342011704fc3368806af74af366"
             },
             {
               "path": "./dist/native3d.js",
-              "sha256": "sha256:95799d131c0288a23d4f6834cf4c97f60ed336cfe3aae0fba99ad986c3fb0917"
+              "sha256": "sha256:e5cb21c4090259e0d43ac2acc708a1abe9aaad43fa224148fb724b13ff4ae06a"
             }
           ]
         }
@@ -224,13 +237,13 @@
     },
     {
       "name": "@haiyue/editor-shell",
-      "version": "0.1.1",
-      "integrity": "sha512-RqAU5zkbDsl2jdRFv9iv7CvTrWq2VONjcouaZtqOGNouqrx53oywI20D4/BcgMwfFTfu1dmUlGhkNOGknC9npA==",
-      "manifestDigest": "sha256:1b99bcd14cb670512c59bc8985122133fd5150beeb2f766c7eb2c9c72c92bb9d",
-      "contentDigest": "sha256:9192f197ea86e33bd56a3febe4ef32cc38cfbe6944f4e816e95008b4b8c44222",
+      "version": "0.1.2-ui.0.2.3",
+      "integrity": "sha512-rkaCTD+uUma9zR/TIxOBdRM3xYkkW4NBO0TBiBJkdJ0RCyLn9JNJOFJJ5VQunXTJeGwuZFej0q+NFceXPSJ2MQ==",
+      "manifestDigest": "sha256:b24bb4a2b5ac0b437630ec81f837866cdabb95e5cc3acd46d5fe8d99cfb8b1c8",
+      "contentDigest": "sha256:c0af4022b6e3468bcb29f1dcdc7eca227034aef5236aa0b64c2485e5c5305aec",
       "installedFileCount": 36,
       "sourceRevision": null,
-      "candidate": "vendor/haiyue-editor-shell-0.1.1.tgz",
+      "candidate": "vendor/haiyue-editor-shell-0.1.2-ui.0.2.3.tgz",
       "exports": [
         {
           "subpath": ".",
@@ -271,13 +284,13 @@
     },
     {
       "name": "@haiyue/engine",
-      "version": "0.1.0",
-      "integrity": "sha512-oRFHDLfR3G6aaTGQ9klJ40uUE0fTxUoMdspfCbMhuucpRtAwkFXatyPwDLtoMKe4rm+Ms3AU+OoEXYoHGMixnA==",
-      "manifestDigest": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
-      "contentDigest": "sha256:5f53941887f579482f2df16383c61d91c7ca79ae386f01e6d3bc5b9c11a7a255",
-      "installedFileCount": 569,
-      "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
-      "candidate": "vendor/haiyue-engine-0.1.0-orthographic-picking.tgz",
+      "version": "0.2.3",
+      "integrity": "sha512-p0Bil2Q8L5ABKPVkXwuZSaFUjws4mVa2/AEML6jD9sVusbGsIrshQOfRNVLf09J0N94zfLqNNsqT7HzRH7H6rQ==",
+      "manifestDigest": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
+      "contentDigest": "sha256:2dd36802b2feb4e09a47d1dccb16e8a094690be7b6aa2a989dc6443addea97f4",
+      "installedFileCount": 551,
+      "sourceRevision": "4beb46f6a88fccd8630033bed3cf61ae99087855",
+      "candidate": "vendor/haiyue-engine-0.2.3.tgz",
       "exports": [
         {
           "subpath": ".",
@@ -288,7 +301,7 @@
             },
             {
               "path": "./dist/index.js",
-              "sha256": "sha256:936c75fd9fb0b30f61bd241a8cc0a15055e0ca360a4ffb4ae1162eed10b1ec8c"
+              "sha256": "sha256:4435e8a766636bbbeffca28a265eabc519975bc7d3f29fbf884eb26de6add2a4"
             }
           ]
         },
@@ -301,7 +314,20 @@
             },
             {
               "path": "./dist/assets.js",
-              "sha256": "sha256:9d16467f1ecf0923b0594dad8f68a0983a621e2bbd5aa06c8041924999b86803"
+              "sha256": "sha256:87e780c02ef0b6362ec60e9eee4feb66df63e4a8bd05739c525877d4ff9802ce"
+            }
+          ]
+        },
+        {
+          "subpath": "./audio",
+          "targets": [
+            {
+              "path": "./dist/audio.d.ts",
+              "sha256": "sha256:99c6203fff9ca4dec5fc5a54bea28b38aef9d2091c06d5fc48b2751679282421"
+            },
+            {
+              "path": "./dist/audio.js",
+              "sha256": "sha256:fb63fae72b57a0b0cc693e545a0b8bb401cc6f14e331d6f8501e6aca2af779a4"
             }
           ]
         },
@@ -314,7 +340,7 @@
             },
             {
               "path": "./dist/color.js",
-              "sha256": "sha256:332d043fe4bad5a9de29162bbd977be746dd8ebdc57b12d253858928d550dd22"
+              "sha256": "sha256:5bd8f5a9a3907a71b14660a81d791d1ae8478947e7c58797aa5f43026ea4d1ab"
             }
           ]
         },
@@ -327,7 +353,7 @@
             },
             {
               "path": "./dist/components.js",
-              "sha256": "sha256:2bb77abed71fe234190afc241fc4cd5f369776e2f14573fad8101a783b549df8"
+              "sha256": "sha256:f31a3c76f8897cad4abbca10222f2b1743024025c89cd7cf9d083e855d8346b4"
             }
           ]
         },
@@ -340,7 +366,7 @@
             },
             {
               "path": "./dist/compute.js",
-              "sha256": "sha256:85e980ea546b397d92dcddada8e54acbba6d69f3aec358920a439247384ab9b7"
+              "sha256": "sha256:6f2bcf958d0d05dc9f75b74a8bb798157df975e7e0ce96c0ca9e3e1abdf621a8"
             }
           ]
         },
@@ -353,7 +379,7 @@
             },
             {
               "path": "./dist/controls.js",
-              "sha256": "sha256:c0c35a0554f8d07432705c4e911e0e15b19d2584ad21e9a24ccb680cb6caf72c"
+              "sha256": "sha256:9ffdb4c6f9d421c43bd792306203693ddd05b8ed8c9b4fd3625b4e59c5dd6c11"
             }
           ]
         },
@@ -362,11 +388,11 @@
           "targets": [
             {
               "path": "./dist/core.d.ts",
-              "sha256": "sha256:0eaf9aeaf7965f350268d650b9e9dd309be59176d07e654180bdc567741ae158"
+              "sha256": "sha256:9cbc10447362191e35b8579cdc7c9b09a6a756bfc15e45dd8eb29abb3502cc55"
             },
             {
               "path": "./dist/core.js",
-              "sha256": "sha256:58d9b43da6729ba17f35484dce4055df6161cf127ae3bfc051d550dd7eb16c9f"
+              "sha256": "sha256:6dd994a59911034925c2f4d6df155692e3bc6290427552f5efb95dcd35e2eff7"
             }
           ]
         },
@@ -392,7 +418,7 @@
             },
             {
               "path": "./dist/ecs.js",
-              "sha256": "sha256:2c4329e5a75fa2b7dc607804d8fe34265140376b25b95db542a909943bb256e7"
+              "sha256": "sha256:40cedcede568a2c9a77fa86596f643b9e00b37a4c485d64abd3c39f922d2d940"
             }
           ]
         },
@@ -401,11 +427,11 @@
           "targets": [
             {
               "path": "./dist/experimental.d.ts",
-              "sha256": "sha256:4a65cc70960221fb838c4e708eb53b64a3e029b093a2fe5e6f15c0f568f0de96"
+              "sha256": "sha256:3c963419c7748d5ee9e3d680cfa74fb1f26e4b9d375756c0294e6760a519b2ff"
             },
             {
               "path": "./dist/experimental.js",
-              "sha256": "sha256:d043a3a0638600bd88a28ca87b05b61efaee5eaee53d7d31e1913acbc191c105"
+              "sha256": "sha256:3631001173dcd2d6b7d9a5fc72065b6f4f1b9d78ac314992f7d40f6e85188878"
             }
           ]
         },
@@ -418,7 +444,7 @@
             },
             {
               "path": "./dist/experimental/assets.js",
-              "sha256": "sha256:49204e6d517657803c567d8921f8a1619e25675827369b799fa242f443a417a7"
+              "sha256": "sha256:b513c1a8baf661c4ea88eceb6d1f5259d4367e52a5abf8eb40f3bb48d995e7c7"
             }
           ]
         },
@@ -431,7 +457,20 @@
             },
             {
               "path": "./dist/experimental/async.js",
-              "sha256": "sha256:a9ee561a00a54a8fbe1a3e4b8dd46d93826b95fb9deed0af075d4f35d4c14a38"
+              "sha256": "sha256:7f6b6a43fc40317f81c40401473d41ac55506a651405f20633dda494aa90323b"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/audio",
+          "targets": [
+            {
+              "path": "./dist/experimental/audio.d.ts",
+              "sha256": "sha256:7cbc60aa453d8be3b7e0887cb10da30755e9b6405d0bb5ce3ba21286745b4bdd"
+            },
+            {
+              "path": "./dist/experimental/audio.js",
+              "sha256": "sha256:f8147c9b4dbd505f60bc4bbfe1a7e4a5c59e0a4ee6966e36ef650ecf37b59a10"
             }
           ]
         },
@@ -440,11 +479,11 @@
           "targets": [
             {
               "path": "./dist/experimental/diagnostics.d.ts",
-              "sha256": "sha256:78e2540744869e0e7a1f359ca9095868d1dc91d2150d5ca01c66bed2dd9fc8e1"
+              "sha256": "sha256:ba8a1524e708500cfabb940d8a46ef6a077be55752d9a605274c50e0a9e83046"
             },
             {
               "path": "./dist/experimental/diagnostics.js",
-              "sha256": "sha256:371e96e91d7bb2428e7bf706a9f391b857a331365e4131c1fa0ef2eabc8ab9e1"
+              "sha256": "sha256:f3090c524e8ec92fdf8d0b38ca22ae5ad64697060d48344fba62245337da5683"
             }
           ]
         },
@@ -453,11 +492,11 @@
           "targets": [
             {
               "path": "./dist/experimental/gpu-driven.d.ts",
-              "sha256": "sha256:3b535ea530b33615e94ce71057cbde42c182fe3844dd89edc6617df38fe56aea"
+              "sha256": "sha256:39734119d1b96eef044821ad814ec22aa25869aeb1be474452fe2e1af4a91632"
             },
             {
               "path": "./dist/experimental/gpu-driven.js",
-              "sha256": "sha256:5861a5d4b0f8375f1498bb3b2d06521df95f44184e965a04aeed1784858b0b93"
+              "sha256": "sha256:423984e0d36cbc73927bed5faadc394b15afa4172e2c12a29f0b1026e615135b"
             }
           ]
         },
@@ -470,7 +509,7 @@
             },
             {
               "path": "./dist/experimental/ktx2-worker-runtime.js",
-              "sha256": "sha256:e5a49d4d1be5b128ebb07e8b7df85e6b9924521a42cc475973df65287fce08bd"
+              "sha256": "sha256:84ee5f68db1b56c907d7f0b093aaab434d6b6831cd6eb4dd0b6fdfa77853c319"
             }
           ]
         },
@@ -479,11 +518,11 @@
           "targets": [
             {
               "path": "./dist/experimental/renderer.d.ts",
-              "sha256": "sha256:cca45c3f426b9c6a07f34e4b899e29eaa5ef5e6526d24e8be212f435c553a2df"
+              "sha256": "sha256:1fa6aa05d759d34cf2e8803901b208d528deb564912bc14f7ef8ed569310e128"
             },
             {
               "path": "./dist/experimental/renderer.js",
-              "sha256": "sha256:8b637ee3c57b8b087e07c76d4451e12441fe10a8c778df369d1a65749435f579"
+              "sha256": "sha256:3d8fbb5fd7cadc056c0c699884c106c56008877a8cfc7c2b87c1962b059b31b0"
             }
           ]
         },
@@ -492,11 +531,11 @@
           "targets": [
             {
               "path": "./dist/experimental/simulation.d.ts",
-              "sha256": "sha256:20b3b0afc3d916fab09f9268f6efba2c242920ecbced71389bea46e6d0fa5eba"
+              "sha256": "sha256:5ee66c4215d84201f31b984598c56eaf7a5b1fa6db25aa5566fdbfdd1729e98b"
             },
             {
               "path": "./dist/experimental/simulation.js",
-              "sha256": "sha256:aadf7e8bf2657aeee9c33eaddce0e29b637b38ebc8f85764e820eafe759a44bc"
+              "sha256": "sha256:b3ea00f76b631c1adf45efe4a4e879cec8a3939bcbdbbe503d0977eeda751b23"
             }
           ]
         },
@@ -509,7 +548,7 @@
             },
             {
               "path": "./dist/extension-authoring.js",
-              "sha256": "sha256:15759fd56cd90edf4f93b5c4fc5d13960f513aaca8de316ceb70ee91b931b424"
+              "sha256": "sha256:f0aa24759c3e35cd0602068fdea6e57932ae5844b3f6adee8dad6c279f66e751"
             }
           ]
         },
@@ -522,7 +561,7 @@
             },
             {
               "path": "./dist/font.js",
-              "sha256": "sha256:0e90e32bf292db977a5682b20e4699973eb1538f86414bab1f3a7b2aa2a655ca"
+              "sha256": "sha256:b366c1fe360d4f75d825170ce03fe5cf111fc46ea3f50e5f50efaa61ccf8d348"
             }
           ]
         },
@@ -535,7 +574,7 @@
             },
             {
               "path": "./dist/geometry.js",
-              "sha256": "sha256:2c51847470b4a8b615ae561250acaf8265831114e80137c6080ccc03a3aae7e7"
+              "sha256": "sha256:522122d7cb203e1a8d2e693814ea324f3b74e3eafb9dba98582f17a069f6c7d8"
             }
           ]
         },
@@ -544,11 +583,11 @@
           "targets": [
             {
               "path": "./dist/gui.d.ts",
-              "sha256": "sha256:b4150eb7490c74a6a59d9b0a1464fcf4d064952933703ecd752a7619342cbfce"
+              "sha256": "sha256:58e6f5db388673952f2b530bd0be37ac9d8f94ab923f0f6456d743454d89d925"
             },
             {
               "path": "./dist/gui.js",
-              "sha256": "sha256:3b927155c636612ef2a2abe7223900ef6117711045d655b35244af2282595900"
+              "sha256": "sha256:d5cfe44a94f7998a2da2748d476b80b929be4f87d34216c34ea09e01821dbd35"
             }
           ]
         },
@@ -557,11 +596,11 @@
           "targets": [
             {
               "path": "./dist/input.d.ts",
-              "sha256": "sha256:867f50d688c3fbba7b66f64887c75eed704fe5b2525db9961cd5d7c16d3d731b"
+              "sha256": "sha256:109aa2e73f522dd53e6f7bdfdc10a8b9aea78702913cf8feb46d74f8c7970eb6"
             },
             {
               "path": "./dist/input.js",
-              "sha256": "sha256:fe114fc7ac9e07841d8f7ca830160df4b0ab620a256463a7099bed70544f5781"
+              "sha256": "sha256:1ab46a4ebf9f8225c74b5cc8293f4c5fd8878ce6f84c4c980d8301447ccf2c3c"
             }
           ]
         },
@@ -574,7 +613,7 @@
             },
             {
               "path": "./dist/lighting.js",
-              "sha256": "sha256:263f431cc5152b8ce2f1b4c8ca61f85e95a5558f68cff7a9549d1481ecaf58cf"
+              "sha256": "sha256:889a46288611f37dc10a41c62dbf61f4d5b1096cb8aa4d7d8bd581d5a80b4028"
             }
           ]
         },
@@ -587,7 +626,7 @@
             },
             {
               "path": "./dist/material.js",
-              "sha256": "sha256:230fa9c6b9cede41ebd636ac2d179062e109254d170608d3edd053d5a8cd3670"
+              "sha256": "sha256:3d00998b5635685a21802c8aec252c01e991e065d92d7848557899f3c3818cab"
             }
           ]
         },
@@ -600,7 +639,7 @@
             },
             {
               "path": "./dist/math.js",
-              "sha256": "sha256:4a94a0b047706a1c741d5d7cda527f2c0f2387f72899f304e14eb23d4af4de61"
+              "sha256": "sha256:0dd1d24232f317bcc89b6623ae5f33dd56f4c0a5479744b8caab897efa62c723"
             }
           ]
         },
@@ -613,7 +652,7 @@
             },
             {
               "path": "./dist/navigation.js",
-              "sha256": "sha256:4d8235ef4980ffda4f037618a82c587f1d165862710b17b1f977725f8722a6de"
+              "sha256": "sha256:9f0ffe283abfb2e95d9d754c075359a2aa22bd2e69715ebcd2fd2b2a4ee66d27"
             }
           ]
         },
@@ -622,11 +661,11 @@
           "targets": [
             {
               "path": "./dist/physics.d.ts",
-              "sha256": "sha256:736cd0025b9fe0ab080fed9ed86e8dc80d65ef784a8fa8c38c22fdcca6e1ffe0"
+              "sha256": "sha256:21baff9f79ade27c7b6535c85a4dbd4d3f5bc810f8d92378a2fc3759174181b8"
             },
             {
               "path": "./dist/physics.js",
-              "sha256": "sha256:3c01338073b640792286e9811167126c97caf25ab75f87700920d613eef6e9d3"
+              "sha256": "sha256:8e101a0fea4044a0b220ae4c969997fab06edd969f01ef4bc2dd069828ace8dd"
             }
           ]
         },
@@ -635,11 +674,11 @@
           "targets": [
             {
               "path": "./dist/physics/backend.d.ts",
-              "sha256": "sha256:beb5d9c3de27103259fe09887bbf186371da71b8945e8ea14653fc2fcd0b0271"
+              "sha256": "sha256:b6bda5f213a08f030ce2a0214045c91e7ebead4ccbaa7ace1c5d63a25279d886"
             },
             {
               "path": "./dist/physics/backend.js",
-              "sha256": "sha256:e72063a50239aa3de4413e66e77f767d1d03c5508583d6fe8235be064b94eba9"
+              "sha256": "sha256:4f9d8dae6534228a804dee3dcc83c58355108e093c0f721b6858566cf08cd2db"
             }
           ]
         },
@@ -652,7 +691,7 @@
             },
             {
               "path": "./dist/physics-components.js",
-              "sha256": "sha256:bcd209b46b3c26e714db1c0d30f0f461af4a09b3e2cf207f86eb1946ff305d62"
+              "sha256": "sha256:804b38848b9479ea1a89b5824422e6faf089d6313ee1125725a457a080d46900"
             }
           ]
         },
@@ -665,7 +704,7 @@
             },
             {
               "path": "./dist/postprocess.js",
-              "sha256": "sha256:2ea93fa8d4f93ddad649e02305951beed881d5d6c038261840984db32fd3e4e7"
+              "sha256": "sha256:e6a5affde16aa04421c92c7a2307ae357d02fb9cba78c8348e9e9fd3dc426e09"
             }
           ]
         },
@@ -678,7 +717,7 @@
             },
             {
               "path": "./dist/rtt.js",
-              "sha256": "sha256:f845c7d82854e3672a38820359c00aaa48467f91a02cd69b78430bcd94826ff0"
+              "sha256": "sha256:50301a4f2b1424500c6260644b21a393571ac49ef2cf35079d7ae1e90b6efa3f"
             }
           ]
         },
@@ -704,7 +743,7 @@
             },
             {
               "path": "./dist/scene.js",
-              "sha256": "sha256:1ea313d2f2afe22b92b8d4128a162d700901d02e921e47d1a739f542ddd9433d"
+              "sha256": "sha256:d46991ff81ebc3940c3221619a62db047ee85422440fdda3c9e79dd4a3756288"
             }
           ]
         },
@@ -717,7 +756,7 @@
             },
             {
               "path": "./dist/serialization.js",
-              "sha256": "sha256:565c0a3233d0d6a1b92a870cb2ddf24ff06954fff8dcd340c946a69f990afdc4"
+              "sha256": "sha256:30aa6c457c4de0bead375be0457d26e59bf99121f800553ab1b4ab323eb0e3f0"
             }
           ]
         },
@@ -730,7 +769,20 @@
             },
             {
               "path": "./dist/systems.js",
-              "sha256": "sha256:eeb4f1c4028024220346e729b0f6a96728d774e444ee8b953d8393b7c1584f61"
+              "sha256": "sha256:e7c610ec61e4816dc6758643a989d08f7f89b95a6cd206b388447c217dfc103e"
+            }
+          ]
+        },
+        {
+          "subpath": "./text",
+          "targets": [
+            {
+              "path": "./dist/text.d.ts",
+              "sha256": "sha256:11dceabde9f8c17ad47a0ad3efff8e36a77ca25b24c5aa5d416c4350321ca094"
+            },
+            {
+              "path": "./dist/text.js",
+              "sha256": "sha256:9611c709dcbc6e7283605096f1b46fc4eb3b9ed93c70777ec310cc1120206570"
             }
           ]
         },
@@ -743,7 +795,7 @@
             },
             {
               "path": "./dist/tween.js",
-              "sha256": "sha256:bd42a0cbac0d7bf9936e4583363dc87c05f27242b164ad1da0a6e147ab0e2ffa"
+              "sha256": "sha256:b770c2399d1f5619a12428219db7168373e7c955f140a17159bad603abc5a91d"
             }
           ]
         }
@@ -751,13 +803,13 @@
     },
     {
       "name": "@haiyue/extensions",
-      "version": "0.1.0",
-      "integrity": "sha512-dbtWJtq3kUzGCyO8Z/o19JMwTlYP7XhhVrUI6zMiexARuBMzqX9mOp4rBb5bUXQxKKnOfhih52H9TIQl2N3AaQ==",
-      "manifestDigest": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
-      "contentDigest": "sha256:27e8e92e732e03f5df31721368cdd3fa33b75bc73527e9bc55f59e28ac310b5d",
-      "installedFileCount": 176,
-      "sourceRevision": "10a21e64b32315bf88ed48066d806071e0f17bf0",
-      "candidate": "vendor/haiyue-extensions-0.1.0.tgz",
+      "version": "0.2.3",
+      "integrity": "sha512-R5pX5webScxd2ZbjUfvH99e9fKgQkoF8PgkKRidNK/rnHFUa4iLs9wotrWKIuDbGJce2qN1gBJ4UJOinntwL/Q==",
+      "manifestDigest": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
+      "contentDigest": "sha256:2c6f25b3cdad36fc9a527c346c942ddcfd089028225d7a5a9eca4ae2a026fb06",
+      "installedFileCount": 283,
+      "sourceRevision": "4beb46f6a88fccd8630033bed3cf61ae99087855",
+      "candidate": "vendor/haiyue-extensions-0.2.3.tgz",
       "exports": [
         {
           "subpath": ".",
@@ -768,7 +820,20 @@
             },
             {
               "path": "./dist/index.js",
-              "sha256": "sha256:a13214afa3ece95bfa0afa5f8c99fd5b265bb430407130573d729cad930fde44"
+              "sha256": "sha256:354daa074ee6eeae75e61fadc19d30a8112a95b1efa7f6ffecc48032def432be"
+            }
+          ]
+        },
+        {
+          "subpath": "./achievements",
+          "targets": [
+            {
+              "path": "./dist/achievements.d.ts",
+              "sha256": "sha256:e61fd6102768d341fe07d9dfd80ea1afc2fadd68ac23e6176d3b7009eab1cea9"
+            },
+            {
+              "path": "./dist/achievements.js",
+              "sha256": "sha256:70c30379367e43dde9001c336b49ae8f759131fe844d81f3f826fb6bb52cc12a"
             }
           ]
         },
@@ -777,11 +842,11 @@
           "targets": [
             {
               "path": "./dist/animation.d.ts",
-              "sha256": "sha256:3c449296bf4c4e9e374b4468f1a68b49b1ce041cdcf30c0747d60a69296b5edf"
+              "sha256": "sha256:84943b146a74e704cb53ab0b62ce0b42cb75bddac93e5c498b978b482ba2681f"
             },
             {
               "path": "./dist/animation.js",
-              "sha256": "sha256:5a4c22168a11c4d2d60657b49dbd8913826d71eca03ab625162bef0fd13a1e04"
+              "sha256": "sha256:b5f001b69f9421ba75fd8bd399fa158b51065f07c5a6eb338340b9fc56727e81"
             }
           ]
         },
@@ -794,7 +859,33 @@
             },
             {
               "path": "./dist/animation3d.js",
-              "sha256": "sha256:3e87a5c7bfb53b0f9202be51413f29a09db18bc6916ce002ba627a08677c7f20"
+              "sha256": "sha256:ba999f4d807d4e719b8d823bbcd991f78db33973c28c65b5916510fe5e1790a2"
+            }
+          ]
+        },
+        {
+          "subpath": "./audio",
+          "targets": [
+            {
+              "path": "./dist/audio.d.ts",
+              "sha256": "sha256:13d8a42713461909e57b916286892dd65c1c0b5ff913d46150ecac999271d0af"
+            },
+            {
+              "path": "./dist/audio.js",
+              "sha256": "sha256:4039f5c3b744cc8c6a7bcd401b2b9b114a61e8af23f13fde5744d686b6ec1144"
+            }
+          ]
+        },
+        {
+          "subpath": "./camera2d",
+          "targets": [
+            {
+              "path": "./dist/camera2d.d.ts",
+              "sha256": "sha256:4b9df6dcbfb026f0b0e9022fde652577f18f739cbed05f63b948ed4968ee524f"
+            },
+            {
+              "path": "./dist/camera2d.js",
+              "sha256": "sha256:cccfe776a781d9692718a99af0627fdb2f00ad70713c751e514e26614a4bb3bf"
             }
           ]
         },
@@ -807,7 +898,33 @@
             },
             {
               "path": "./dist/canvas-text.js",
-              "sha256": "sha256:3d73a2ed60e5ae125f3bed5042756af09166359e84ffefa572f8b277855cb382"
+              "sha256": "sha256:9e800ac860e3b1b6a576ca7ba2719ce9cad230983edc792bbaa600f57463bb99"
+            }
+          ]
+        },
+        {
+          "subpath": "./character2d",
+          "targets": [
+            {
+              "path": "./dist/character2d.d.ts",
+              "sha256": "sha256:f18a5c57a3d142c48563d3919f8700069faaf839755e9180e67ecde66eab2c37"
+            },
+            {
+              "path": "./dist/character2d.js",
+              "sha256": "sha256:1bbdc6891d70a10a9d3bc1cfc02d5c8ee94daa7ec354f8442daa358121f7e76e"
+            }
+          ]
+        },
+        {
+          "subpath": "./controls",
+          "targets": [
+            {
+              "path": "./dist/controls.d.ts",
+              "sha256": "sha256:fd6dab0fc4b110be8fb62d73e9e6a95a051e61c7a16b9e287383d0e61977dc33"
+            },
+            {
+              "path": "./dist/controls.js",
+              "sha256": "sha256:f7b3fffe5aed98c867ef36795135b323c1be6335cbb67851f498f3e9f656cfc9"
             }
           ]
         },
@@ -820,7 +937,7 @@
             },
             {
               "path": "./dist/deformable-animation.js",
-              "sha256": "sha256:aeb27981bf50797972f0145ae55667f831a50102b33e3f423023d9a67298097d"
+              "sha256": "sha256:c00f343c252e897dd089ec59f717bfd80ef7e8604215a55f5baf772b5054a34a"
             }
           ]
         },
@@ -833,7 +950,20 @@
             },
             {
               "path": "./dist/experimental-gltf-worker.js",
-              "sha256": "sha256:71d8c476e0de65001dfd4d33c48223e8a038e5bb1bbf2e15f927813df8b9eda5"
+              "sha256": "sha256:ef2851b901a3a9882cc9f50a0345b7373b96ad48850312848c69207221983f90"
+            }
+          ]
+        },
+        {
+          "subpath": "./experimental/indexed-sprite",
+          "targets": [
+            {
+              "path": "./dist/experimental-indexed-sprite.d.ts",
+              "sha256": "sha256:2c3bd1ff799c124bfff54699dbc394677f370f36bf7499c67867a32134e8324b"
+            },
+            {
+              "path": "./dist/experimental-indexed-sprite.js",
+              "sha256": "sha256:ac799824392030769d8139efac89fe45198a51b2c5d92147ef220c5e2675042a"
             }
           ]
         },
@@ -846,7 +976,7 @@
             },
             {
               "path": "./dist/experimental-spine-worker.js",
-              "sha256": "sha256:cd8fc0e317cdb35d204b8f55ddeaea9ce685af107615ee91fd475313c411277c"
+              "sha256": "sha256:0de6de46bfe56eb8f7a540d3f136bb91f5a34f3c6d96edef06939890daabc395"
             }
           ]
         },
@@ -859,7 +989,7 @@
             },
             {
               "path": "./dist/gltf.js",
-              "sha256": "sha256:292e89ed9feea786c25b941a73e4a5617141e3fa7e282031a88db242a2071d08"
+              "sha256": "sha256:56ca4f44380bd584a0b23dc8d97ed74f890c5dacdc889bee88014a0158c28d87"
             }
           ]
         },
@@ -872,7 +1002,7 @@
             },
             {
               "path": "./dist/gltf-animation3d.js",
-              "sha256": "sha256:24113ea745684802d61e651b4fc95759143e6f0b7a9622b4d3347f67464a96e2"
+              "sha256": "sha256:9e5711622d4a72fd064ce70a76572648178d22a6d329fbe987373767a8abb759"
             }
           ]
         },
@@ -885,7 +1015,98 @@
             },
             {
               "path": "./dist/grid.js",
-              "sha256": "sha256:541fd484fb6feb87329935e510ac2375f5b323d856002e6e31ceb569312d9dcd"
+              "sha256": "sha256:95631a8c64052becee3b3bf5d344b7ecbc1fb0a53eba69446c3e9d41a451aaf2"
+            }
+          ]
+        },
+        {
+          "subpath": "./gui-collections",
+          "targets": [
+            {
+              "path": "./dist/gui-collections.d.ts",
+              "sha256": "sha256:9719857e839e8d819bd731eb52be25f44c55fbe54e821bc6d386c7f3d079a70a"
+            },
+            {
+              "path": "./dist/gui-collections.js",
+              "sha256": "sha256:13994819891337fad8c2b1b9fb8164596ed2740cd44b346bab0de611c8daa928"
+            }
+          ]
+        },
+        {
+          "subpath": "./gui-controls",
+          "targets": [
+            {
+              "path": "./dist/gui-controls.d.ts",
+              "sha256": "sha256:2ae69ddc43e28529eab790d502692118bbf38a67b0529d5258089fb79163d46c"
+            },
+            {
+              "path": "./dist/gui-controls.js",
+              "sha256": "sha256:49ab7b98df14c6ad4a2808122e3fc71dca958c7847806ce57ac5035957b8615d"
+            }
+          ]
+        },
+        {
+          "subpath": "./gui-layout",
+          "targets": [
+            {
+              "path": "./dist/gui-layout.d.ts",
+              "sha256": "sha256:788cfe021a503db031b5e9347a624d87a7480480ee071553d6b25d91689dc215"
+            },
+            {
+              "path": "./dist/gui-layout.js",
+              "sha256": "sha256:7fddc909cafd7027a229f5b3ca6937830fa5ed7e2aefb9801a578da9fd7f78ab"
+            }
+          ]
+        },
+        {
+          "subpath": "./hya-audio",
+          "targets": [
+            {
+              "path": "./dist/hya-audio.d.ts",
+              "sha256": "sha256:ef527f3d508d36de36410ed30466b78fd2e24543cc7e7df4d8c8c991d06601b3"
+            },
+            {
+              "path": "./dist/hya-audio.js",
+              "sha256": "sha256:ad68f6c5357a12004631418b2ceffbd4e7fb8213d9135a0ccc4c2d91a5cf9b24"
+            }
+          ]
+        },
+        {
+          "subpath": "./hya-data",
+          "targets": [
+            {
+              "path": "./dist/hya-data.d.ts",
+              "sha256": "sha256:daa263b5eab89f241bd3346e7b7620bef06b50e663135a59f067a452c6df28e3"
+            },
+            {
+              "path": "./dist/hya-data.js",
+              "sha256": "sha256:d6d6026650ec5b8275da791b32516949b78b9e471bafb64e260a364d6e2947e5"
+            }
+          ]
+        },
+        {
+          "subpath": "./hya-layout",
+          "targets": [
+            {
+              "path": "./dist/hya-layout.d.ts",
+              "sha256": "sha256:db76ae445632ced161494fa1ddf6673454f7a485b73d0defec460dac3fe49a30"
+            },
+            {
+              "path": "./dist/hya-layout.js",
+              "sha256": "sha256:1abe85c336b839cc40cefc9e74ea86a8f873925e45461a2bb48a77a49ebcb2f9"
+            }
+          ]
+        },
+        {
+          "subpath": "./hya-player",
+          "targets": [
+            {
+              "path": "./dist/hya-player.d.ts",
+              "sha256": "sha256:b1ba866613fe82ce10aff72dc8464840dad0d7ee1fe39d466179920c4f41d324"
+            },
+            {
+              "path": "./dist/hya-player.js",
+              "sha256": "sha256:fdc4b55484531cae40505b77dab3d8a21b6be4db35c5b6e65771eef8df29b6f2"
             }
           ]
         },
@@ -898,7 +1119,72 @@
             },
             {
               "path": "./dist/hya-state-machine.js",
-              "sha256": "sha256:5bd8335545930b2a80d5cbc1148555373ba650617933fbc8be091fdfe88a580d"
+              "sha256": "sha256:755924f0e6ab8029a6a443ea13f13a0b0b5d864516816b042f0d040f6fdc3d98"
+            }
+          ]
+        },
+        {
+          "subpath": "./hya-text",
+          "targets": [
+            {
+              "path": "./dist/hya-text.d.ts",
+              "sha256": "sha256:8f91118cfca0d67bdcc977e55cbe2bddb0f9d0f363c6c97983982ad056b9f9e8"
+            },
+            {
+              "path": "./dist/hya-text.js",
+              "sha256": "sha256:00667a136cdbcb11f2d64176fa0560d28994b48dcd550643a4b69e49eb640eba"
+            }
+          ]
+        },
+        {
+          "subpath": "./i18n",
+          "targets": [
+            {
+              "path": "./dist/i18n.d.ts",
+              "sha256": "sha256:e746d7c98a19a810f82c8f509b286de3c0252649a0396f73c89479e63e18c337"
+            },
+            {
+              "path": "./dist/i18n.js",
+              "sha256": "sha256:951f5ec21e86b57cdf7aed2611d1be5b9b70a6d1b5ffcd2a40e0135a3110a26b"
+            }
+          ]
+        },
+        {
+          "subpath": "./input-actions",
+          "targets": [
+            {
+              "path": "./dist/input-actions.d.ts",
+              "sha256": "sha256:1a02d5ba0c9b80b3be727e126cc79b47e3fc28df0113b9ee68a38bda054e75a9"
+            },
+            {
+              "path": "./dist/input-actions.js",
+              "sha256": "sha256:22c90f32a2d0be084fe08c2629a7e01295cb8d917c81bb003efe8dffa72d56e7"
+            }
+          ]
+        },
+        {
+          "subpath": "./layout",
+          "targets": [
+            {
+              "path": "./dist/layout.d.ts",
+              "sha256": "sha256:d2e08281fa3e05fdf52877945e69eec5e059fad2db52985e3ac10adc3702d511"
+            },
+            {
+              "path": "./dist/layout.js",
+              "sha256": "sha256:d71bd8f9907c0a9b297b5def9ed78a78d06cf7a7255b436a41c831f913517982"
+            }
+          ]
+        },
+        {
+          "subpath": "./narrative",
+          "targets": [
+            {
+              "path": "./dist/narrative.d.ts",
+              "sha256": "sha256:35d6c1bfa159f09138f9f2dbbcc31348141720eedebc1128854ed5aa3e6ffa74"
+            },
+            {
+              "path": "./dist/narrative.js",
+              "sha256": "sha256:690bdad844f4570f7eeb484573821d38a0385c76eb9ec7204159e0b20c246fa4"
             }
           ]
         },
@@ -911,7 +1197,33 @@
             },
             {
               "path": "./dist/ray-tracing.js",
-              "sha256": "sha256:ec9640d186090d30964fd28d3262caf52aead48a875f082bd1b7910986b15e8a"
+              "sha256": "sha256:09759ac6fd7c3caaa76716743d1a226b522278702d5fdd8081b8664d9e66e6af"
+            }
+          ]
+        },
+        {
+          "subpath": "./scene-flow",
+          "targets": [
+            {
+              "path": "./dist/scene-flow.d.ts",
+              "sha256": "sha256:396ceaaf210f536c4c840d6cb6f93453d64609f68484e4a3d736d8e86afdf121"
+            },
+            {
+              "path": "./dist/scene-flow.js",
+              "sha256": "sha256:28470e7a48a5684a462b1e2b05f7ea5066d886a5dd00ae95080aece2a530b126"
+            }
+          ]
+        },
+        {
+          "subpath": "./share-content",
+          "targets": [
+            {
+              "path": "./dist/share-content.d.ts",
+              "sha256": "sha256:39ff688b0d960fbfe2d54379d79fc97d20d6da164fae4e020326128ba30a51ce"
+            },
+            {
+              "path": "./dist/share-content.js",
+              "sha256": "sha256:04b8ab9e36c7c336393d62d792f3304582c433dbba8e582fef2bb8a46f0a32dd"
             }
           ]
         },
@@ -924,7 +1236,7 @@
             },
             {
               "path": "./dist/spine.js",
-              "sha256": "sha256:b95d80168c10b774996649c4c5852f74d841fbf57295e2787649e560cdbaed70"
+              "sha256": "sha256:72cf00556d2d57ae24f5e201b759dac98659d0223a192baae60fe5367d5e8fed"
             }
           ]
         },
@@ -933,11 +1245,11 @@
           "targets": [
             {
               "path": "./dist/tilemap.d.ts",
-              "sha256": "sha256:c7839aa39807fd4d3ea3f13e2d1e11cc3f068d7e58830b949041b6fde60d1a79"
+              "sha256": "sha256:eb904a5a92c2a88f35221e0cb30013144617bf6a5c8f878ddc527952600d78cc"
             },
             {
               "path": "./dist/tilemap.js",
-              "sha256": "sha256:e9708afffa76ada418c6940c872e4b6f60e0eaac233682f7fb0fb9e156e2e600"
+              "sha256": "sha256:7b5152a16219c423fc042f971631d6151126d081e2d2234caf0248aafc874424"
             }
           ]
         },
@@ -950,7 +1262,7 @@
             },
             {
               "path": "./dist/tween.js",
-              "sha256": "sha256:2b6aa19cf97d9712ec2f6cdc9935f08e466257f8fac05db8b3df343ff5685bc9"
+              "sha256": "sha256:aad4af47cdceaed212d67d025f940d336798a2f0bb833f5c2228ac96d30189ec"
             }
           ]
         }
@@ -958,24 +1270,89 @@
     },
     {
       "name": "@haiyue/ui",
-      "version": "0.1.4",
-      "integrity": "sha512-OWJcV0xd4z9RnN7JoZ4D5J+Jk+Adckh0jNXIAwBPpGLOaBuHDHiQeCjEniPOX6iWTwiyLx8WLAZ4WHvq+wTFNQ==",
-      "manifestDigest": "sha256:04841bf513eab692f0683551d270a01298ef681eb17414280e3a9003601b0dcc",
-      "contentDigest": "sha256:62113e638f180d8e7b5198546b173c8dc7b2e57cc4dc34734f55515215b634e6",
-      "installedFileCount": 53,
-      "sourceRevision": "7ea819e772c28fcbe15887126e31371accb8d044",
-      "candidate": "vendor/haiyue-ui-0.1.4-expandable.tgz",
+      "version": "0.2.3",
+      "integrity": "sha512-6osgpdSJXOaeKtdq0TfpXDsc06RNKlCwtRrQw9ojntvNXUEhzLOYbCHlHN9d0qTyJU6Qh8+8GOJH1c9/wdjXtA==",
+      "manifestDigest": "sha256:dd3ef5473a6832344014b58ad7f697ddee28dae8cc079d4089224d6d69b4bf5c",
+      "contentDigest": "sha256:68a5f4721f785643262eee421380a923cc9ff322798822dd4765a6d61f19585a",
+      "installedFileCount": 154,
+      "sourceRevision": "f0f838af44a5f5dc86aa441cf517d7128d4e3f57",
+      "candidate": "vendor/haiyue-ui-0.2.3-f0f838af.tgz",
       "exports": [
         {
           "subpath": ".",
           "targets": [
             {
               "path": "./dist/index.d.ts",
-              "sha256": "sha256:9b175dde52ee310e7cd96899e60c50051da93d5397dc73ff8f06fa3a80f0752d"
+              "sha256": "sha256:c9613c87fcdf01e9f92094a723f509e1b46158d6e66b1a1ae790a115f51860cb"
             },
             {
               "path": "./dist/index.js",
-              "sha256": "sha256:db0ff3afff98a4df4328782f450033f609cbcaebb6e5483c9aae6840bf0163ca"
+              "sha256": "sha256:5c01cb38442010221ca1851dbc3814a9a117023757ee39357e766a3e9ceb933d"
+            }
+          ]
+        },
+        {
+          "subpath": "./adapters/web",
+          "targets": [
+            {
+              "path": "./dist/adapters/web/index.d.ts",
+              "sha256": "sha256:aa69a6a86faa75661ca703c62e1cb0d7727e014e2ea1d2a8b64a84d4e812ddf4"
+            },
+            {
+              "path": "./dist/adapters/web/index.js",
+              "sha256": "sha256:1b1f73d94ab4e604acde6ec2090d7135fb39afd6c68ed3f23af32d04af37c4be"
+            }
+          ]
+        },
+        {
+          "subpath": "./affix",
+          "targets": [
+            {
+              "path": "./dist/affix.d.ts",
+              "sha256": "sha256:479651fa834138a0b4840aab2f83be9fe1e5a5301764bf62c4f02d8cf1b855e3"
+            },
+            {
+              "path": "./dist/affix.js",
+              "sha256": "sha256:81dfd867bc0af31f4fafbe0d17fbe7bc2db3d1f9bab63142cde1b2fccdf4ef96"
+            }
+          ]
+        },
+        {
+          "subpath": "./alert",
+          "targets": [
+            {
+              "path": "./dist/alert.d.ts",
+              "sha256": "sha256:512aba6c4993858f5bf5e3deade7611ebc9cfd81b896509c382a2dcc61a95f82"
+            },
+            {
+              "path": "./dist/alert.js",
+              "sha256": "sha256:0d894d225d02adcc5949df5d2c84299277dd8e63917f0f5e4ea837bee11a4091"
+            }
+          ]
+        },
+        {
+          "subpath": "./anchor",
+          "targets": [
+            {
+              "path": "./dist/anchor.d.ts",
+              "sha256": "sha256:d8834f70f5723a2ce12390c1c813001253006bafdade7e31cb58c48c714d8f37"
+            },
+            {
+              "path": "./dist/anchor.js",
+              "sha256": "sha256:eb36fe2beba9105cba6777e4a560226251a3c4d027acafdabbbab38d236be6bf"
+            }
+          ]
+        },
+        {
+          "subpath": "./badge",
+          "targets": [
+            {
+              "path": "./dist/badge.d.ts",
+              "sha256": "sha256:ee704bc67a6ccccdcbd307d533de0a14d2446fdfeee7b02b3c8d5785ee40ff87"
+            },
+            {
+              "path": "./dist/badge.js",
+              "sha256": "sha256:9e5aafd2b126580248ea6744472effe143345159252deabb99f02691ed60e4c6"
             }
           ]
         },
@@ -988,7 +1365,20 @@
             },
             {
               "path": "./dist/border-beam.js",
-              "sha256": "sha256:ab58b4145bfa3b185bc65255dae48a2c6f4ec860471e603b48034d18e66fc25b"
+              "sha256": "sha256:52b4aae285e0323981c5e50314db750dc821682854a2f222984f323ca2cdeecc"
+            }
+          ]
+        },
+        {
+          "subpath": "./breadcrumb",
+          "targets": [
+            {
+              "path": "./dist/breadcrumb.d.ts",
+              "sha256": "sha256:16134290c05106b1f536e6ecf1007f7fa2ce3f29fc168bd6718511126509fae0"
+            },
+            {
+              "path": "./dist/breadcrumb.js",
+              "sha256": "sha256:8c85d5b9023f18cb2e9b5984cffd3673a688730108ae6cecd4e8e1546875e244"
             }
           ]
         },
@@ -997,11 +1387,50 @@
           "targets": [
             {
               "path": "./dist/button.d.ts",
-              "sha256": "sha256:e798bfe1e56ba3e4a58c98d6c084aa54c882f16485097b35d37d19300114e8a5"
+              "sha256": "sha256:15570a777cfb051c8cf8a0c0d27d4ef2233fd694f0b3e70cfe2d10518ee00dd8"
             },
             {
               "path": "./dist/button.js",
-              "sha256": "sha256:16c9094577da5dcb1df269f21c36c6143e8fa1a83009ee4f033b4d784b469e34"
+              "sha256": "sha256:188fd3fc32e2576db97bf7a2300124830eaf4a9f3e8685caae148efd0787d372"
+            }
+          ]
+        },
+        {
+          "subpath": "./button-group",
+          "targets": [
+            {
+              "path": "./dist/button-group.d.ts",
+              "sha256": "sha256:929fd944d854b90ce0c6448b58d328c4feebeb6e5216d4b330086a62ca828194"
+            },
+            {
+              "path": "./dist/button-group.js",
+              "sha256": "sha256:d2e28eac7559b12e6f89ad4b0af106167f2d573ee65e2c677984b9b99670503e"
+            }
+          ]
+        },
+        {
+          "subpath": "./carousel",
+          "targets": [
+            {
+              "path": "./dist/carousel.d.ts",
+              "sha256": "sha256:71ddce36f28bd07768d46a08eb70ddc704505b81d5749d12a6953263013fd06f"
+            },
+            {
+              "path": "./dist/carousel.js",
+              "sha256": "sha256:2328a44c9304b68475512a60ed67e083414c7af00440d65f0403f5c10b2ef808"
+            }
+          ]
+        },
+        {
+          "subpath": "./cascader",
+          "targets": [
+            {
+              "path": "./dist/cascader.d.ts",
+              "sha256": "sha256:297c67fbd588bf02f5dcf836ca0c1ae3418f5d2f0f8983aa73a9178649f61305"
+            },
+            {
+              "path": "./dist/cascader.js",
+              "sha256": "sha256:abb88a2061c3d93cb51eb432781c4c8b19a4c33eb6a87a5b09fca5f7543491ec"
             }
           ]
         },
@@ -1014,7 +1443,20 @@
             },
             {
               "path": "./dist/checkbox.js",
-              "sha256": "sha256:0c409d19bad437ff7c87042b6edc455bf0f2e132ca058e90cda25cebe8ef8631"
+              "sha256": "sha256:34f17d5b8edaee74e705c302eb9ff93b2232164b092031e7d682b343f7197f7b"
+            }
+          ]
+        },
+        {
+          "subpath": "./collapse",
+          "targets": [
+            {
+              "path": "./dist/collapse.d.ts",
+              "sha256": "sha256:0e78b085484adf7b4b509bba3fe86a5472dff0e8a26dc1f76d35fd9403d4f615"
+            },
+            {
+              "path": "./dist/collapse.js",
+              "sha256": "sha256:9e31a2306aba719916e6a2d2d0c5801378df27a04ebe65bf5ed53685be208c4a"
             }
           ]
         },
@@ -1027,7 +1469,33 @@
             },
             {
               "path": "./dist/context-menu.js",
-              "sha256": "sha256:34611bc1a77a2437ca718ad7364d51238ea982acf9491670df45e0ac178e3174"
+              "sha256": "sha256:3ad9cda7fba20a3d847285828f022c3624e344ed60de74655740574c0dd3eb67"
+            }
+          ]
+        },
+        {
+          "subpath": "./core",
+          "targets": [
+            {
+              "path": "./dist/core/index.d.ts",
+              "sha256": "sha256:ae4344368e092a977110b5cb67bb9c790174b7bc4505852738a86eb7b13a079d"
+            },
+            {
+              "path": "./dist/core/index.js",
+              "sha256": "sha256:c10b0226de3c5068de3565ee835629a24b494d5c6c42afdd6102367808b06ebe"
+            }
+          ]
+        },
+        {
+          "subpath": "./date-picker",
+          "targets": [
+            {
+              "path": "./dist/date-picker.d.ts",
+              "sha256": "sha256:dfb68426f631f5a58da9fa689b03bf298890f1597a02934d766e49dbf1cfb63d"
+            },
+            {
+              "path": "./dist/date-picker.js",
+              "sha256": "sha256:99c0fcff033a515a17472a1297aa51b37e15786bf3cb2133c7c35d3e3725583f"
             }
           ]
         },
@@ -1036,11 +1504,37 @@
           "targets": [
             {
               "path": "./dist/dialog.d.ts",
-              "sha256": "sha256:633c0bf58452f495a4e72eaaaa619ebc3335cc038cce57506d4ffc1b9e3e018a"
+              "sha256": "sha256:247a48a6327014b4d163b24a7a6bb29c2794dcd56126a2eaf28825eae723e07c"
             },
             {
               "path": "./dist/dialog.js",
-              "sha256": "sha256:072fde541638300f0b966b36fa8a968d22405cb49122f0af4a9632666bf15384"
+              "sha256": "sha256:fccd499c7d1c2b97751990f98ab0e14bab7738c92a7ea846f97d7db906f6a8a0"
+            }
+          ]
+        },
+        {
+          "subpath": "./divider",
+          "targets": [
+            {
+              "path": "./dist/divider.d.ts",
+              "sha256": "sha256:73234f61c8be4d4014f57b34ebf542cc053221c669699c577d077644e61b030f"
+            },
+            {
+              "path": "./dist/divider.js",
+              "sha256": "sha256:a6c0344b38eeb709bc6095a61638bf04b5751cfe60b628ddb7b19e86a595b6e6"
+            }
+          ]
+        },
+        {
+          "subpath": "./draggable",
+          "targets": [
+            {
+              "path": "./dist/draggable.d.ts",
+              "sha256": "sha256:3cfe8d641d14ec2a26729c54c735473cf0a3b460972a420789f2c8379e5f166a"
+            },
+            {
+              "path": "./dist/draggable.js",
+              "sha256": "sha256:b48c02b97e9ed1872c96f3c39ed448ebf76d37c3741eb29861d5bc2e0b98d966"
             }
           ]
         },
@@ -1053,7 +1547,7 @@
             },
             {
               "path": "./dist/drawer.js",
-              "sha256": "sha256:8a8bc8ae0f982c45d6af55271abdff0d07a57438b90f84264f9afa1fc5dec71f"
+              "sha256": "sha256:3759b76821f7735d36924110553d948b767b99f61f8398f15118b6415d07aab9"
             }
           ]
         },
@@ -1066,7 +1560,7 @@
             },
             {
               "path": "./dist/dropdown.js",
-              "sha256": "sha256:212cf8befd58e4b5383f162ec173e41887108df1572a497c29e5f58bbaf9b7fe"
+              "sha256": "sha256:be67c26b44495b625d2feadb620f98a73def126d5afb9b82e1b238e911c4b1bd"
             }
           ]
         },
@@ -1079,7 +1573,7 @@
             },
             {
               "path": "./dist/expandable.js",
-              "sha256": "sha256:9553e113242b745da7e1050652c6c52178ff3464455085c69dde972e83cf417b"
+              "sha256": "sha256:b3e274729866aab53d4058bcdd6de58002e0da333e1ecb402da10ea2357a460f"
             }
           ]
         },
@@ -1092,7 +1586,7 @@
             },
             {
               "path": "./dist/history-controls.js",
-              "sha256": "sha256:ed4677a8d68861328e23ec7fe4605b6a5252719b34d8f26b414230d48184ac98"
+              "sha256": "sha256:a36e1c64ba5cd4a2b1fcef8ee7fb5e05915bfebbc33a1b035379c69abbf353ab"
             }
           ]
         },
@@ -1101,11 +1595,37 @@
           "targets": [
             {
               "path": "./dist/input.d.ts",
-              "sha256": "sha256:7ffa352bcd1312805a6f6b24ec5ffb98be4d650b537b0654f597c42b83227600"
+              "sha256": "sha256:2305f21773ad50ccabaaf9cfde54337d299be2f82f7f220f0f77b9ff768fe9cb"
             },
             {
               "path": "./dist/input.js",
-              "sha256": "sha256:5a2e81821af8a366c72c651c9437c1fbda83de3d00e6f440260dfc33d595a7eb"
+              "sha256": "sha256:ac0ef7c6ffc04a3fabb365934c052d1f5139271f094ff24971e71fff4ca07c58"
+            }
+          ]
+        },
+        {
+          "subpath": "./masonry",
+          "targets": [
+            {
+              "path": "./dist/masonry.d.ts",
+              "sha256": "sha256:0dcc3b3ba5c49f074f39ef0a1f9177780b374d8dbc48eb4bf33ecdd233cefd2c"
+            },
+            {
+              "path": "./dist/masonry.js",
+              "sha256": "sha256:501a293cbcdd6318af3a35477319ec6f37f5fd4a2a12ea6ee41ed15691abde61"
+            }
+          ]
+        },
+        {
+          "subpath": "./modal",
+          "targets": [
+            {
+              "path": "./dist/modal.d.ts",
+              "sha256": "sha256:3ed12a081a9774bde924faf13ebc6fc2e04c79632cdc09b9672ecbf75c015709"
+            },
+            {
+              "path": "./dist/modal.js",
+              "sha256": "sha256:978ba66965439945e2cd72b433c14a2d20743b5266d72a3be31185432c052893"
             }
           ]
         },
@@ -1118,7 +1638,7 @@
             },
             {
               "path": "./dist/notification.js",
-              "sha256": "sha256:5e527b43ae522e3a810c9efdd3932199d6b563e565df96a2e633cf23b53687ae"
+              "sha256": "sha256:0e58dbb1dc1d0faba0aee76934a184178be5e83774741cd035e4478e385e6b00"
             }
           ]
         },
@@ -1127,7 +1647,33 @@
           "targets": [
             {
               "path": "./package.json",
-              "sha256": "sha256:04841bf513eab692f0683551d270a01298ef681eb17414280e3a9003601b0dcc"
+              "sha256": "sha256:dd3ef5473a6832344014b58ad7f697ddee28dae8cc079d4089224d6d69b4bf5c"
+            }
+          ]
+        },
+        {
+          "subpath": "./portable",
+          "targets": [
+            {
+              "path": "./dist/portable/index.d.ts",
+              "sha256": "sha256:871b99cd394b1a447fdacdcbce4cbd8c5ef1ee5ac6efa118a6a4580c69b4b4c8"
+            },
+            {
+              "path": "./dist/portable/index.js",
+              "sha256": "sha256:44aa45310014bd9ac3897a37ff292cf21bc747bcd773aeae96429ba58e97e25f"
+            }
+          ]
+        },
+        {
+          "subpath": "./qr-code",
+          "targets": [
+            {
+              "path": "./dist/qr-code.d.ts",
+              "sha256": "sha256:a00de71782fa05e80394c963ffb34985852ad5eccea5cef1ec6834abdc6552be"
+            },
+            {
+              "path": "./dist/qr-code.js",
+              "sha256": "sha256:dd26e4bc894359878fb22152f050a9a2eb957ebac9ab62bad60baaed1b470343"
             }
           ]
         },
@@ -1140,7 +1686,7 @@
             },
             {
               "path": "./dist/radio.js",
-              "sha256": "sha256:2fbf59e81548689d825d718ef8bb714202a72b1656fd0bd7f8a310b9074c8277"
+              "sha256": "sha256:5ab3d333b3473580592e28ad5aaef9be2420348b4636110422c58c50b8e34259"
             }
           ]
         },
@@ -1149,11 +1695,50 @@
           "targets": [
             {
               "path": "./dist/range.d.ts",
-              "sha256": "sha256:7272ba51522ae490052bc8b8cbd7d5e7f7efe96b4636eba1062f6b43bb83373c"
+              "sha256": "sha256:ff9a2eca76fd033a90b06fcc611dc2d45daf604430679c1c0c00d434da37f2d3"
             },
             {
               "path": "./dist/range.js",
-              "sha256": "sha256:e6f71a2f10a548e3c592d1e536a7e8d93e3ca703aa5929aa893af650c13f39d0"
+              "sha256": "sha256:c0c437ec805e57edd9e4de87798db76b8e7193e4b4bff749061c02b95d5f68bf"
+            }
+          ]
+        },
+        {
+          "subpath": "./rate",
+          "targets": [
+            {
+              "path": "./dist/rate.d.ts",
+              "sha256": "sha256:382db768c819d41b1904b7f67be1e5af5b62ead9837d00cc7783617702df6301"
+            },
+            {
+              "path": "./dist/rate.js",
+              "sha256": "sha256:6f1ef52f4a92f0ed87c4db8647dda7a5e2a3acbc2a8c07a89c7fb5c4a07c75d9"
+            }
+          ]
+        },
+        {
+          "subpath": "./resizable",
+          "targets": [
+            {
+              "path": "./dist/resizable.d.ts",
+              "sha256": "sha256:14aae6288b022868525a84c3bd49a2a127ab8bf1faab6013a158f780e6403afa"
+            },
+            {
+              "path": "./dist/resizable.js",
+              "sha256": "sha256:4abd55cbb71381b5b066452c4bea54291de1adc31318010a3db0206723d6a910"
+            }
+          ]
+        },
+        {
+          "subpath": "./segmented",
+          "targets": [
+            {
+              "path": "./dist/segmented.d.ts",
+              "sha256": "sha256:bb824161a4802533ee45c911907194af996afa028f34c995440905b8c1f29293"
+            },
+            {
+              "path": "./dist/segmented.js",
+              "sha256": "sha256:1609cba11f9cddf947f7305878f21a8aaf93ed729117119fcf7fc92b9e485424"
             }
           ]
         },
@@ -1166,7 +1751,20 @@
             },
             {
               "path": "./dist/select.js",
-              "sha256": "sha256:97c43335fd0f2abc653687c1ebfe712284ae15de4b71f236f86655d10541ad81"
+              "sha256": "sha256:ed552b82a8c20d51fe63e900c91232c335f142871f7a816a053e3462ef62ba88"
+            }
+          ]
+        },
+        {
+          "subpath": "./skeleton",
+          "targets": [
+            {
+              "path": "./dist/skeleton.d.ts",
+              "sha256": "sha256:684bb5c4665668a875bb43e1018c13b05d404d7586ff4548f55ba6b5e033651c"
+            },
+            {
+              "path": "./dist/skeleton.js",
+              "sha256": "sha256:61233af6b0ec9817c82607421343653f10016b2db0ffbf02523cbc369a3004bd"
             }
           ]
         },
@@ -1184,15 +1782,54 @@
           ]
         },
         {
+          "subpath": "./steps",
+          "targets": [
+            {
+              "path": "./dist/steps.d.ts",
+              "sha256": "sha256:e36b05045982d64513e117885cf65c8b9b0af64be89f0979e268d7f2440639a3"
+            },
+            {
+              "path": "./dist/steps.js",
+              "sha256": "sha256:df62350a49e2c9cb451205abf6adf528e97efb2865d5280b41f7528a9ecbae0b"
+            }
+          ]
+        },
+        {
+          "subpath": "./table",
+          "targets": [
+            {
+              "path": "./dist/table.d.ts",
+              "sha256": "sha256:009ececb0c4716de53ef4438feda194df0e04211450e2f3a37781026cdfb4482"
+            },
+            {
+              "path": "./dist/table.js",
+              "sha256": "sha256:c4e9752c2f82a4a0b0cad9e5b3a629429a34b74085ae657d8604406a6550d1c9"
+            }
+          ]
+        },
+        {
           "subpath": "./tabs",
           "targets": [
             {
               "path": "./dist/tabs.d.ts",
-              "sha256": "sha256:5ef1a569b4f89cb80badd5a8fd99924b813555554465c48c06dac41bb469b561"
+              "sha256": "sha256:66682c5c11d7d9c091df61c8b5c6b7440796e3fc42fd9bc53a644bdcb27991eb"
             },
             {
               "path": "./dist/tabs.js",
-              "sha256": "sha256:016269614146267f70a41b7353115c40080c4a6b766331cdbe6c568105eb048e"
+              "sha256": "sha256:31885f23361074dfae295dad9bb341f5dfba0aaae7bfcbb5546e8d64bd15fc8c"
+            }
+          ]
+        },
+        {
+          "subpath": "./tag",
+          "targets": [
+            {
+              "path": "./dist/tag.d.ts",
+              "sha256": "sha256:77b828015c3ec38e762688dbf300d1cb5033496981fa77a81d1006ed8d62f379"
+            },
+            {
+              "path": "./dist/tag.js",
+              "sha256": "sha256:42e9a47fb62c6b7c443704ebc9bd4970169b5705e32350e0c93c023261c736c9"
             }
           ]
         },
@@ -1201,7 +1838,7 @@
           "targets": [
             {
               "path": "./themes/haiyue-dark.css",
-              "sha256": "sha256:cfe4977d9885298935a49fb614c7b0ddfa47e6d50563b00ebc108ef061552db9"
+              "sha256": "sha256:6597f6ba7b35318b9a38f266ad54faccd3fe240c374bae240a42ea01551490bd"
             }
           ]
         },
@@ -1210,7 +1847,46 @@
           "targets": [
             {
               "path": "./themes/haiyue-light.css",
-              "sha256": "sha256:1ddae18ce350636a6c0784a3752b4bb5a05d052b38a6b840b2c930048ed33dbe"
+              "sha256": "sha256:b6a81dabf18df60f9f8b88544170a0b652206ccc524ea98927c6317857f551e2"
+            }
+          ]
+        },
+        {
+          "subpath": "./time-picker",
+          "targets": [
+            {
+              "path": "./dist/time-picker.d.ts",
+              "sha256": "sha256:a955716d18842101073d63238928fb1c01aefe9514c40e2fea102be532f0d0a6"
+            },
+            {
+              "path": "./dist/time-picker.js",
+              "sha256": "sha256:153c75888f866bc18dd80976622163d5d57d517be8abbb5f56b98549d3f42431"
+            }
+          ]
+        },
+        {
+          "subpath": "./timeline",
+          "targets": [
+            {
+              "path": "./dist/timeline.d.ts",
+              "sha256": "sha256:486f1b1e6ec6c550b40e7fa86721ca1a50d4c290160704dd01bf57bb6e432ac1"
+            },
+            {
+              "path": "./dist/timeline.js",
+              "sha256": "sha256:e3152536a916de2bd74f46afb17773cf5258ea7aed091926e63b76503d9ffbec"
+            }
+          ]
+        },
+        {
+          "subpath": "./toast",
+          "targets": [
+            {
+              "path": "./dist/toast.d.ts",
+              "sha256": "sha256:28d4542fdb080de769e8e9c136348da54243bd8b4a96da3b09617854c18da903"
+            },
+            {
+              "path": "./dist/toast.js",
+              "sha256": "sha256:770a06b1eba2bc77629c3893ae0425c219d6d3a55211b039afb0df7aba0356e2"
             }
           ]
         },
@@ -1223,7 +1899,20 @@
             },
             {
               "path": "./dist/tooltip.js",
-              "sha256": "sha256:749389cefbac4875895eba567d83b67d89e293ce96b184e339458d077576d2a4"
+              "sha256": "sha256:8c524c6815e333cdd855d39a44e0650d2fa5927df42a2bc09f7f30eb5cd105a7"
+            }
+          ]
+        },
+        {
+          "subpath": "./tour",
+          "targets": [
+            {
+              "path": "./dist/tour.d.ts",
+              "sha256": "sha256:e86995542cb2937d022038dd0593d2e5a261f6622503ecfc8aafb0498597db96"
+            },
+            {
+              "path": "./dist/tour.js",
+              "sha256": "sha256:2afbf795f867e57f73e55d13bd0b6d43814f2477b7becd4917ffb92d2624b05c"
             }
           ]
         },
@@ -1236,7 +1925,20 @@
             },
             {
               "path": "./dist/tree.js",
-              "sha256": "sha256:eb195a957ae20bba6d1c54f866cedb165d0e216b9e81017b9615b6be2085d9ca"
+              "sha256": "sha256:4700d34971392e0d838d5176658e70d9db852da8497318aec547e624bbebf2e7"
+            }
+          ]
+        },
+        {
+          "subpath": "./virtual-keyboard",
+          "targets": [
+            {
+              "path": "./dist/virtual-keyboard.d.ts",
+              "sha256": "sha256:81d0cc88e3ecd2d4b2ed96f7715bbf5ce11b10622b1ff657c2f7c4691c14ae6c"
+            },
+            {
+              "path": "./dist/virtual-keyboard.js",
+              "sha256": "sha256:41e00a54225a239f6c085c823040582ecfab513ed0505da6fea88e9db87f3b8e"
             }
           ]
         },
@@ -1249,7 +1951,33 @@
             },
             {
               "path": "./dist/virtual-list.js",
-              "sha256": "sha256:a3bf16f8225ce76f65e37851edfbf8b7cdf3c5629579606e9b6f81c226c6ab07"
+              "sha256": "sha256:eb27e288dd1d427af0113990084f6fbaddba726ae0e4217364801754b82a1e59"
+            }
+          ]
+        },
+        {
+          "subpath": "./virtual-mouse",
+          "targets": [
+            {
+              "path": "./dist/virtual-mouse.d.ts",
+              "sha256": "sha256:bfd3fafe62ac4d3b3cc7727b9ff1e8ef352a41fc5de855d1f72dab84c875229c"
+            },
+            {
+              "path": "./dist/virtual-mouse.js",
+              "sha256": "sha256:b3ca307d68bc267ecdf4929ae0617e28fcb408a680bc2a5c38b981f8ff774fad"
+            }
+          ]
+        },
+        {
+          "subpath": "./watermark",
+          "targets": [
+            {
+              "path": "./dist/watermark.d.ts",
+              "sha256": "sha256:05d5669f4234725176aedf27d84299d357e7cca326345f13a83db38533a2cb07"
+            },
+            {
+              "path": "./dist/watermark.js",
+              "sha256": "sha256:2b8410407a893a197565b2b4e155d948a58883e664a1698aad39c15b321bad29"
             }
           ]
         }
@@ -2708,7 +3436,7 @@
           "references": [
             {
               "path": "packages/agent-runtime/src/model-controls.ts",
-              "sha256": "sha256:e1889b0f312b2fc693b52533e02618f01a3952a09e2bb5a00ca39836c7918a92",
+              "sha256": "sha256:cc3bea54199126ce23d6c20864dc50b39190ec1ca50e77106d1a824e9c5772c0",
               "kind": "source",
               "locator": ""
             },
@@ -2720,13 +3448,13 @@
             },
             {
               "path": "packages/agent-runtime/src/backends/cache.ts",
-              "sha256": "sha256:719bbe1826d469beaa52b4f9fb2f5023798810c2955c00f61d341ea65e9debeb",
+              "sha256": "sha256:be0bee6b7dcc33574d7c6968f77fa6f745848ce7ffb45b4f14a738aff110625a",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "packages/agent-runtime/src/context/runtime.ts",
-              "sha256": "sha256:b50302e99f1f136b05f98beb0993180df09323f4e4e354f036dbfea718f56a2f",
+              "sha256": "sha256:d124a1f33de996d7341be97e6d3b18b057c7bdab03a440fa745800a4d87ea1d8",
               "kind": "source",
               "locator": ""
             }
@@ -2745,7 +3473,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -2764,7 +3492,7 @@
           "references": [
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "agent.cache"
             }
@@ -2805,7 +3533,7 @@
           "references": [
             {
               "path": "packages/agent-runtime/src/model-controls.ts",
-              "sha256": "sha256:e1889b0f312b2fc693b52533e02618f01a3952a09e2bb5a00ca39836c7918a92",
+              "sha256": "sha256:cc3bea54199126ce23d6c20864dc50b39190ec1ca50e77106d1a824e9c5772c0",
               "kind": "source",
               "locator": ""
             },
@@ -2817,13 +3545,13 @@
             },
             {
               "path": "packages/agent-runtime/src/backends/cache.ts",
-              "sha256": "sha256:719bbe1826d469beaa52b4f9fb2f5023798810c2955c00f61d341ea65e9debeb",
+              "sha256": "sha256:be0bee6b7dcc33574d7c6968f77fa6f745848ce7ffb45b4f14a738aff110625a",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "packages/agent-runtime/src/context/runtime.ts",
-              "sha256": "sha256:b50302e99f1f136b05f98beb0993180df09323f4e4e354f036dbfea718f56a2f",
+              "sha256": "sha256:d124a1f33de996d7341be97e6d3b18b057c7bdab03a440fa745800a4d87ea1d8",
               "kind": "source",
               "locator": ""
             }
@@ -2842,7 +3570,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -2861,7 +3589,7 @@
           "references": [
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "agent.context"
             }
@@ -2902,7 +3630,7 @@
           "references": [
             {
               "path": "packages/agent-runtime/src/model-controls.ts",
-              "sha256": "sha256:e1889b0f312b2fc693b52533e02618f01a3952a09e2bb5a00ca39836c7918a92",
+              "sha256": "sha256:cc3bea54199126ce23d6c20864dc50b39190ec1ca50e77106d1a824e9c5772c0",
               "kind": "source",
               "locator": ""
             },
@@ -2914,13 +3642,13 @@
             },
             {
               "path": "packages/agent-runtime/src/backends/cache.ts",
-              "sha256": "sha256:719bbe1826d469beaa52b4f9fb2f5023798810c2955c00f61d341ea65e9debeb",
+              "sha256": "sha256:be0bee6b7dcc33574d7c6968f77fa6f745848ce7ffb45b4f14a738aff110625a",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "packages/agent-runtime/src/context/runtime.ts",
-              "sha256": "sha256:b50302e99f1f136b05f98beb0993180df09323f4e4e354f036dbfea718f56a2f",
+              "sha256": "sha256:d124a1f33de996d7341be97e6d3b18b057c7bdab03a440fa745800a4d87ea1d8",
               "kind": "source",
               "locator": ""
             }
@@ -2939,7 +3667,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -2958,7 +3686,7 @@
           "references": [
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "agent.model-config"
             }
@@ -2999,7 +3727,7 @@
           "references": [
             {
               "path": "packages/agent-runtime/src/model-controls.ts",
-              "sha256": "sha256:e1889b0f312b2fc693b52533e02618f01a3952a09e2bb5a00ca39836c7918a92",
+              "sha256": "sha256:cc3bea54199126ce23d6c20864dc50b39190ec1ca50e77106d1a824e9c5772c0",
               "kind": "source",
               "locator": ""
             },
@@ -3011,13 +3739,13 @@
             },
             {
               "path": "packages/agent-runtime/src/backends/cache.ts",
-              "sha256": "sha256:719bbe1826d469beaa52b4f9fb2f5023798810c2955c00f61d341ea65e9debeb",
+              "sha256": "sha256:be0bee6b7dcc33574d7c6968f77fa6f745848ce7ffb45b4f14a738aff110625a",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "packages/agent-runtime/src/context/runtime.ts",
-              "sha256": "sha256:b50302e99f1f136b05f98beb0993180df09323f4e4e354f036dbfea718f56a2f",
+              "sha256": "sha256:d124a1f33de996d7341be97e6d3b18b057c7bdab03a440fa745800a4d87ea1d8",
               "kind": "source",
               "locator": ""
             }
@@ -3036,7 +3764,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -3055,7 +3783,7 @@
           "references": [
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "agent.usage"
             }
@@ -3100,19 +3828,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./animation"
             },
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./animation3d"
             },
             {
               "path": "node_modules/@haiyue/animation-spec/package.json",
-              "sha256": "sha256:b07d901e0c1f8b361c5e5124ef50b531865df0f2c8f1e6a355b5025a7e258290",
+              "sha256": "sha256:5f4d5fd357c8a1f24a3f2d607cfbdda20ca83ee3da3ffb59c21d64077348c8b4",
               "kind": "public-export",
               "locator": "."
             }
@@ -3125,7 +3853,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -3137,7 +3865,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.animation.2d"
             }
@@ -3156,7 +3884,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -3188,7 +3916,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -3207,19 +3935,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "animation.2d"
             }
@@ -3265,19 +3993,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./animation"
             },
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./animation3d"
             },
             {
               "path": "node_modules/@haiyue/animation-spec/package.json",
-              "sha256": "sha256:b07d901e0c1f8b361c5e5124ef50b531865df0f2c8f1e6a355b5025a7e258290",
+              "sha256": "sha256:5f4d5fd357c8a1f24a3f2d607cfbdda20ca83ee3da3ffb59c21d64077348c8b4",
               "kind": "public-export",
               "locator": "."
             }
@@ -3290,7 +4018,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -3302,7 +4030,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.animation.state,haiyue.animation.transform-clips"
             }
@@ -3321,7 +4049,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -3353,7 +4081,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -3372,19 +4100,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "animation.3d"
             }
@@ -3439,13 +4167,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./assets"
             },
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./gltf"
             }
@@ -3458,7 +4186,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -3470,7 +4198,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.asset.reference,haiyue.model.gltf"
             }
@@ -3483,25 +4211,25 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/assets/catalog.ts",
-              "sha256": "sha256:56c26a7f4990dbe31cdf6bfd214a8e017eab0996bf8c0262e71072df6634d485",
+              "sha256": "sha256:d63d2fd4bb76c91e29445f3cd4b561af832b84cc086befeb2a15d38293997c28",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "packages/game-authoring-tools/src/canvas-texture.ts",
-              "sha256": "sha256:20792444ddeee016d06e13c100491dc81d89358f39682643d019778c7da7edf4",
+              "sha256": "sha256:4d62f39d1f82560e5dca9cec1ccf49cb2f53457bd9eb89419d0668c198784296",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "apps/ai-studio/src/canvas-texture-renderer.ts",
-              "sha256": "sha256:51260ce62e92e8e5ec29c02544745afe14c2f4fc86ef58cd941d3e70160332d6",
+              "sha256": "sha256:38ea445d020a54e9707d0b555f439d7235cff6a8dcffd8615f20d03077b20983",
               "kind": "source",
               "locator": ""
             }
@@ -3533,7 +4261,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -3552,19 +4280,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "tools"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "asset.import"
             }
@@ -3611,19 +4339,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./animation"
             },
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./animation3d"
             },
             {
               "path": "node_modules/@haiyue/animation-spec/package.json",
-              "sha256": "sha256:b07d901e0c1f8b361c5e5124ef50b531865df0f2c8f1e6a355b5025a7e258290",
+              "sha256": "sha256:5f4d5fd357c8a1f24a3f2d607cfbdda20ca83ee3da3ffb59c21d64077348c8b4",
               "kind": "public-export",
               "locator": "."
             }
@@ -3636,7 +4364,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -3648,7 +4376,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.audio.listener,haiyue.audio.mixer,haiyue.audio.source"
             }
@@ -3667,7 +4395,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -3699,7 +4427,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -3718,19 +4446,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "audio.playback"
             }
@@ -3778,13 +4506,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./systems"
             }
@@ -3797,7 +4525,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -3854,7 +4582,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -3873,13 +4601,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "camera"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "camera.2d"
             }
@@ -3927,13 +4655,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./systems"
             }
@@ -3946,7 +4674,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4003,7 +4731,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -4022,13 +4750,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "camera"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "camera.3d"
             }
@@ -4076,13 +4804,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./systems"
             }
@@ -4095,7 +4823,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4152,7 +4880,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -4171,13 +4899,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "camera"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "camera.follow"
             }
@@ -4233,7 +4961,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4252,7 +4980,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4290,7 +5018,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -4309,19 +5037,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "tools"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "component.registry"
             }
@@ -4355,7 +5083,7 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             }
@@ -4368,7 +5096,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4399,7 +5127,7 @@
             },
             {
               "path": "packages/operation-log/src/project-agent-history.ts",
-              "sha256": "sha256:2d1b3e919ad43a13a545c9c988f6af7026bffba01dbbe226c95ecee3ff60bfb4",
+              "sha256": "sha256:c19e60a3769f79a645aa00116b7a66607d9f0467c4ebb1f55ede088cedaa0022",
               "kind": "source",
               "locator": ""
             }
@@ -4431,7 +5159,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -4450,37 +5178,37 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "diagnostics.query"
             }
@@ -4552,7 +5280,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4577,7 +5305,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4615,7 +5343,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -4634,19 +5362,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "tools"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "document.v2"
             }
@@ -4678,13 +5406,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./experimental/simulation"
             }
@@ -4697,7 +5425,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4722,7 +5450,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -4754,7 +5482,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -4773,13 +5501,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "input.inject"
             }
@@ -4826,13 +5554,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./experimental/simulation"
             }
@@ -4845,7 +5573,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -4876,7 +5604,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -4908,7 +5636,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -4927,13 +5655,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "input.keyboard"
             }
@@ -4965,13 +5693,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./experimental/simulation"
             }
@@ -4984,7 +5712,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -5009,7 +5737,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -5041,7 +5769,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -5060,13 +5788,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "input.pointer"
             }
@@ -5113,13 +5841,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./experimental/simulation"
             }
@@ -5132,7 +5860,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -5163,7 +5891,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -5195,7 +5923,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -5214,13 +5942,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "interaction.pointer"
             }
@@ -5270,19 +5998,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./lighting"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./material"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./postprocess"
             }
@@ -5295,7 +6023,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -5313,7 +6041,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.light.environment,haiyue.render.fog"
             }
@@ -5364,7 +6092,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -5383,19 +6111,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "lighting"
             }
@@ -5443,19 +6171,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./lighting"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./material"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./postprocess"
             }
@@ -5468,7 +6196,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -5480,7 +6208,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.material.pbr,haiyue.render.profile"
             },
@@ -5537,7 +6265,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -5556,19 +6284,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "material.pbr"
             }
@@ -5614,19 +6342,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./lighting"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./material"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./postprocess"
             }
@@ -5639,7 +6367,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -5651,7 +6379,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.particles.2d"
             }
@@ -5702,7 +6430,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -5721,19 +6449,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "particles.2d"
             }
@@ -5779,19 +6507,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./lighting"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./material"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./postprocess"
             }
@@ -5804,7 +6532,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -5816,7 +6544,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.particles.3d"
             }
@@ -5867,7 +6595,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -5886,19 +6614,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "particles.3d"
             }
@@ -5948,13 +6676,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./physics"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./physics/backend"
             }
@@ -5967,7 +6695,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -5992,7 +6720,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/physics-play-runtime.ts",
-              "sha256": "sha256:46aef4567379e73d48b6b470243b94c38a4b4756587b089283e48df6a7a6a6ff",
+              "sha256": "sha256:ace681cea86555707824d602fef155f3aaa2b4e6abfbba9aa6480432cb37837a",
               "kind": "source",
               "locator": ""
             }
@@ -6024,7 +6752,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -6043,13 +6771,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "physics"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "physics.2d"
             }
@@ -6099,13 +6827,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./physics"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./physics/backend"
             }
@@ -6118,7 +6846,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -6143,7 +6871,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/physics-play-runtime.ts",
-              "sha256": "sha256:46aef4567379e73d48b6b470243b94c38a4b4756587b089283e48df6a7a6a6ff",
+              "sha256": "sha256:ace681cea86555707824d602fef155f3aaa2b4e6abfbba9aa6480432cb37837a",
               "kind": "source",
               "locator": ""
             }
@@ -6175,7 +6903,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -6194,13 +6922,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "physics"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "physics.3d"
             }
@@ -6246,13 +6974,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./physics"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./physics/backend"
             }
@@ -6265,7 +6993,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -6290,7 +7018,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/physics-play-runtime.ts",
-              "sha256": "sha256:46aef4567379e73d48b6b470243b94c38a4b4756587b089283e48df6a7a6a6ff",
+              "sha256": "sha256:ace681cea86555707824d602fef155f3aaa2b4e6abfbba9aa6480432cb37837a",
               "kind": "source",
               "locator": ""
             }
@@ -6322,7 +7050,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -6341,13 +7069,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "physics"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "physics.raycast"
             }
@@ -6396,7 +7124,7 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             }
@@ -6409,7 +7137,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -6421,7 +7149,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.ui.hud"
             }
@@ -6446,7 +7174,7 @@
             },
             {
               "path": "packages/operation-log/src/project-agent-history.ts",
-              "sha256": "sha256:2d1b3e919ad43a13a545c9c988f6af7026bffba01dbbe226c95ecee3ff60bfb4",
+              "sha256": "sha256:c19e60a3769f79a645aa00116b7a66607d9f0467c4ebb1f55ede088cedaa0022",
               "kind": "source",
               "locator": ""
             }
@@ -6478,7 +7206,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -6497,37 +7225,37 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "play.capture"
             }
@@ -6583,7 +7311,7 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             }
@@ -6596,7 +7324,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -6608,7 +7336,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.gameplay.state"
             }
@@ -6633,7 +7361,7 @@
             },
             {
               "path": "packages/operation-log/src/project-agent-history.ts",
-              "sha256": "sha256:2d1b3e919ad43a13a545c9c988f6af7026bffba01dbbe226c95ecee3ff60bfb4",
+              "sha256": "sha256:c19e60a3769f79a645aa00116b7a66607d9f0467c4ebb1f55ede088cedaa0022",
               "kind": "source",
               "locator": ""
             }
@@ -6665,7 +7393,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -6684,37 +7412,37 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "play.inspect"
             }
@@ -6769,13 +7497,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./systems"
             }
@@ -6788,7 +7516,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -6851,7 +7579,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -6870,19 +7598,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "scripts"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "tools"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "play.multi-script"
             }
@@ -6928,19 +7656,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./lighting"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./material"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./postprocess"
             }
@@ -6953,7 +7681,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -6965,7 +7693,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.render.postprocess-stack"
             }
@@ -7016,7 +7744,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -7035,19 +7763,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "postprocess"
             }
@@ -7101,13 +7829,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./assets"
             },
             {
               "path": "node_modules/@haiyue/extensions/package.json",
-              "sha256": "sha256:6d790bfb1a3b76a712308f5322c21b01ee98edbe4464c36fe519300fdc717a49",
+              "sha256": "sha256:edb90b4e83f80f2956ed8be01bcd4bed6eb44c2f6c24bf2427664754df078674",
               "kind": "public-export",
               "locator": "./gltf"
             }
@@ -7120,7 +7848,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -7132,7 +7860,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.gameplay.pool"
             }
@@ -7145,25 +7873,25 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/assets/catalog.ts",
-              "sha256": "sha256:56c26a7f4990dbe31cdf6bfd214a8e017eab0996bf8c0262e71072df6634d485",
+              "sha256": "sha256:d63d2fd4bb76c91e29445f3cd4b561af832b84cc086befeb2a15d38293997c28",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "packages/game-authoring-tools/src/canvas-texture.ts",
-              "sha256": "sha256:20792444ddeee016d06e13c100491dc81d89358f39682643d019778c7da7edf4",
+              "sha256": "sha256:4d62f39d1f82560e5dca9cec1ccf49cb2f53457bd9eb89419d0668c198784296",
               "kind": "source",
               "locator": ""
             },
             {
               "path": "apps/ai-studio/src/canvas-texture-renderer.ts",
-              "sha256": "sha256:51260ce62e92e8e5ec29c02544745afe14c2f4fc86ef58cd941d3e70160332d6",
+              "sha256": "sha256:38ea445d020a54e9707d0b555f439d7235cff6a8dcffd8615f20d03077b20983",
               "kind": "source",
               "locator": ""
             }
@@ -7195,7 +7923,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -7214,19 +7942,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "tools"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "prefab"
             }
@@ -7282,7 +8010,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -7301,7 +8029,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -7339,7 +8067,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -7358,19 +8086,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "tools"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "scene.transaction"
             }
@@ -7401,19 +8129,19 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./lighting"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./material"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./postprocess"
             }
@@ -7426,7 +8154,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -7483,7 +8211,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -7502,19 +8230,19 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "render"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "documents"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "shadow.directional"
             }
@@ -7563,13 +8291,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./experimental/simulation"
             }
@@ -7582,7 +8310,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -7594,7 +8322,7 @@
             },
             {
               "path": "packages/editor-plugins/src/render/components.ts",
-              "sha256": "sha256:bc11d0fda07af4490947e5961464295a54d1d86c7431ad50606af03608064ab3",
+              "sha256": "sha256:6bae383c103dbb37e6506fac60056066c8e9bd492d7ca76f6b1aa0339c09a4a3",
               "kind": "source",
               "locator": "haiyue.gameplay.rules,haiyue.gameplay.timers"
             },
@@ -7619,7 +8347,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -7651,7 +8379,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -7670,13 +8398,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "simulation.fixed-step"
             }
@@ -7708,13 +8436,13 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             },
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./experimental/simulation"
             }
@@ -7727,7 +8455,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -7752,7 +8480,7 @@
             },
             {
               "path": "apps/ai-studio/src/declarative-play-components.ts",
-              "sha256": "sha256:42f8e140824709a9fb5964a79994d02fc9ef320e5ab016f0ef856a9855144ca7",
+              "sha256": "sha256:4ab60450648953856551d76eb9e0f23ac3e23c35eaddf147d8aad4625e1b80cf",
               "kind": "source",
               "locator": ""
             }
@@ -7784,7 +8512,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -7803,13 +8531,13 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "simulation.replay"
             }
@@ -7843,7 +8571,7 @@
           "references": [
             {
               "path": "node_modules/@haiyue/engine/package.json",
-              "sha256": "sha256:046116866b68287385ac3307a9c29d07efe7fb8ef38dc5f25697f9b577e146f2",
+              "sha256": "sha256:b0febed0ce8477f54cb41880dadfe46fab0d41609cabe7007ea9bb82508f629e",
               "kind": "public-export",
               "locator": "./components"
             }
@@ -7856,7 +8584,7 @@
           "references": [
             {
               "path": "packages/editor-plugins/src/project/game-document.ts",
-              "sha256": "sha256:d2a8198e156bfb3c1005005b34d3205add0adbba2515860ec69b14ef643922a7",
+              "sha256": "sha256:dd70ac12d47e45c7ab7dfea7156fb4df8498992d4f9e334bb911d92e819568b4",
               "kind": "source",
               "locator": ""
             },
@@ -7887,7 +8615,7 @@
             },
             {
               "path": "packages/operation-log/src/project-agent-history.ts",
-              "sha256": "sha256:2d1b3e919ad43a13a545c9c988f6af7026bffba01dbbe226c95ecee3ff60bfb4",
+              "sha256": "sha256:c19e60a3769f79a645aa00116b7a66607d9f0467c4ebb1f55ede088cedaa0022",
               "kind": "source",
               "locator": ""
             }
@@ -7919,7 +8647,7 @@
           "references": [
             {
               "path": "apps/ai-studio/src/renderer.ts",
-              "sha256": "sha256:cf4e79c2e0cf7c3fa725df97930520bf2d10fb3ede3f226b0185dea16132b226",
+              "sha256": "sha256:2ecf28330a9bf0d74405dc88661096827c7e50f22b318af49a51a851594463a6",
               "kind": "source",
               "locator": ""
             },
@@ -7938,37 +8666,37 @@
           "references": [
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "observations"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "simulation"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-project-flow"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-panel-window"
             },
             {
               "path": "config/contracts/m14-capability-verification.json",
-              "sha256": "sha256:bffab124e45fe427a3235bf4c38aaa2d56c8c0da5487c1f1cad5a86f0af4bfbf",
+              "sha256": "sha256:0473f743060e43f0622bc4373882a727e55ba162cf685e0536fdacafc58360e9",
               "kind": "local-check",
               "locator": "behavior-product-window"
             },
             {
               "path": "config/contracts/m12-capability-census.json",
-              "sha256": "sha256:72a01c3bd8eb3b9947a0595946a06f2d9ebbdc3ed104a3383bcee6b814d39aac",
+              "sha256": "sha256:16ffe92b8ed502ee7603c829e442e31eb448c8653753ad8c5e02f62bcfff16fe",
               "kind": "historical",
               "locator": "task.evaluate"
             }

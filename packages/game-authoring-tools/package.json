@@ -18,7 +18,7 @@
     }
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.9.0"
   },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts && npm run build -w @haiyue/ai-studio-agent-runtime && npm run build -w @haiyue/ai-studio-editor-plugins && npm run build -w @haiyue/ai-studio-operation-log && npm run build -w @haiyue/ai-studio-script-preview",

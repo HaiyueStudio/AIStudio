@@ -112,6 +112,17 @@ test('packaged pricing catalog cannot drift from the reviewed JSON source', asyn
   assert.deepEqual(M12_DEFAULT_PRICING_CATALOG, raw);
 });
 
+test('GPT 6.2 base prices never become false bills without request-level pricing evidence', () => {
+  const engine = new PricingEngine(M12_DEFAULT_PRICING_CATALOG);
+  const usage = { schemaVersion: 2, id: 'usage:62', taskId: 'task:62', sessionId: 'session:62', turnId: 'turn:62', inputTokens: 500_000, cachedInputTokens: 400_000, cacheWriteTokens: 0, outputTokens: 100, reasoningTokens: 20, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 1, providerRequestDigest: null, final: true };
+  for (const model of ['gpt-6.2-sol', 'gpt-6.2-astra']) {
+    const result = engine.estimate({ provider: 'openai', model, usage, billingMode: 'api' });
+    assert.equal(result.record.status, 'unknown'); assert.equal(result.record.amountMicros, null); assert.match(result.explanation, /Request-level/);
+    assert.match(engine.estimate({ provider: 'openai', model, usage, billingMode: 'subscription' }).explanation, /Subscription/);
+    assert.equal(engine.estimate({ provider: 'openai', model, usage, billingMode: 'api', actualAmountMicros: 17 }).record.amountMicros, 17);
+  }
+});
+
 test('Messages output remains priceable without inventing reasoning usage; separately billed reasoning stays unknown', () => {
   const usage = Object.freeze({ schemaVersion: 2, id: 'usage:messages', taskId: 'task:messages', sessionId: 'session:messages', turnId: 'turn:messages', inputTokens: 1_000_000, cachedInputTokens: 400_000, cacheWriteTokens: 0, outputTokens: 100_000, reasoningTokens: null, toolInputBytes: 0, toolOutputBytes: 0, wallTimeMs: 1, providerRequestDigest: null, final: true });
   const request = { provider: 'deepseek', model: 'deepseek-flash', usage, billingMode: 'api' };

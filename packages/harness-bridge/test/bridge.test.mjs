@@ -162,7 +162,7 @@ test('profile replacement is deterministic and 100 cycles leave no owned resourc
 test('fixed Cordis compatibility and lazy closure remain explicit', async () => {
   const result = await runHarnessBridgeUpstreamConformance();
   assert.deepEqual(result.disposed, ['second', 'first']);
-  assert.deepEqual(result.identity, { cordis: '4.0.4', harness: '0.2.0-rc.2' });
+  assert.deepEqual(result.identity, { cordis: '4.1.0', harness: '0.2.2-rc.5' });
   const source = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /dsh-agent|dsh-llm|dsh-tools|agent-backends/);
   const declarations = await readFile(new URL('../dist/index.d.ts', import.meta.url), 'utf8');
@@ -184,7 +184,7 @@ test('pinned Harness agent composition fails closed without a credential and dis
   );
   assert.equal(await transport.configured(), false);
   const capabilities = transport.sessionCapabilities('deepseek-flash');
-  assert.deepEqual({ maxInputTokens: capabilities.maxInputTokens, nativeCompaction: capabilities.nativeCompaction, transport: capabilities.nativeCompactionTransport, mirror: capabilities.nativeCompactionMirror }, { maxInputTokens: 1_000_000, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
+  assert.deepEqual({ maxInputTokens: capabilities.maxInputTokens, nativeCompaction: capabilities.nativeCompaction, transport: capabilities.nativeCompactionTransport, mirror: capabilities.nativeCompactionMirror }, { maxInputTokens: 1_048_576, nativeCompaction: false, transport: 'unavailable', mirror: 'fallback-required' });
   const opened = await transport.openSession({ model: 'deepseek-flash', reasoningEffort: 'high', maxTokens: 8_192, tools: [], lastConfirmedOpId: 'op:harness-root' });
   assert.equal((await transport.inspectSession(opened.sessionId)).lastConfirmedOpId, 'op:harness-root');
   await transport.confirmSessionBoundary(opened.sessionId, 'op:harness-next');

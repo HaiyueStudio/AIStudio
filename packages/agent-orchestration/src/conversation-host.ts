@@ -374,7 +374,7 @@ export class StudioConversationHost {
         if (this.active) throw new Error('An Agent turn is already active.');
         this.track(this.retryTask(intent.backendId, intent.sessionId, intent.turnId).catch((cause) => this.captureFailure(intent.backendId, cause, intent.sessionId, intent.turnId)));
         return;
-      case 'conversation/reconnect': await this.refreshBackends(); return;
+      case 'conversation/reconnect': await this.refreshBackends(true); return;
       case 'conversation/answer-question': {
         if (this.nodes.get(intent.nodeId)?.content.asyncQuestion === true) { await this.resolveAsyncQuestion(intent.nodeId, intent.answer); return; }
         const pending = this.questions.get(intent.nodeId);
@@ -419,11 +419,11 @@ export class StudioConversationHost {
           if (!this.options.openLoginHandoff) throw new Error('Backend login handoff is unavailable in this host.');
           await this.options.openLoginHandoff(intent.backendId, handoff);
         }
-        await this.refreshBackends(); return;
+        await this.refreshBackends(true); return;
       }
       case 'backend/logout': {
         const backend = this.options.runtime.registry.get(intent.backendId);
-        await backend.logout(signal); await this.refreshBackends(); return;
+        await backend.logout(signal); await this.refreshBackends(true); return;
       }
       case 'agent/configure': {
         if (this.active) throw new Error('Cannot change Agent settings during an active task.');
@@ -2406,7 +2406,7 @@ export class StudioConversationHost {
     } finally { this.approvals.delete(approvalId); }
   }
 
-  private async refreshBackends(): Promise<void> {
+  private async refreshBackends(refreshCatalog = false): Promise<void> {
     const values: ConversationBackendReadModel[] = [];
     for (const descriptor of this.options.runtime.registry.descriptors()) {
       const backend = this.options.runtime.registry.get(descriptor.id);
@@ -2414,14 +2414,20 @@ export class StudioConversationHost {
       try {
         const status = await backend.status();
         let catalog: Awaited<ReturnType<AgentBackend['modelCatalog']>>;
-        try { catalog = await backend.modelCatalog(); }
+        try { catalog = await (refreshCatalog && backend.refreshModelCatalog ? backend.refreshModelCatalog() : backend.modelCatalog()); }
         catch (cause) {
           if (status.state !== 'auth-required') throw cause;
           values.push(Object.freeze({ id: descriptor.id, label: descriptor.kind === 'harness-api-key' ? 'DeepSeek Harness' : 'Local Codex', kind: descriptor.kind, ...product, ...status, models: Object.freeze([]), selectedModel: null, selectedReasoningEffort: null, outputTokenLimit: null, diagnostic: Object.freeze({ code: errorCode(cause), message: errorMessage(cause) }) }));
           continue;
         }
         const previous = this.backendSelections.get(descriptor.id);
-        const selectedModel = catalog.models.find((item) => item.id === previous?.model) ?? catalog.models.find((item) => item.isDefault) ?? catalog.models[0];
+        const selectedModel = previous ? catalog.models.find((item) => item.id === previous.model) : catalog.models.find((item) => item.isDefault) ?? catalog.models[0];
+        if (previous && !selectedModel) {
+          values.push(Object.freeze({ id: descriptor.id, label: descriptor.kind === 'harness-api-key' ? 'DeepSeek Harness' : 'Local Codex', kind: descriptor.kind, ...product, ...status,
+            state: 'unavailable', models: catalog.models, selectedModel: null, selectedReasoningEffort: null, outputTokenLimit: null,
+            diagnostic: Object.freeze({ code: 'agent.model-unavailable', message: `Previously selected model ${previous.model} is unavailable. Choose an advertised model before starting another task.`, retryable: false }) }));
+          continue;
+        }
         const selectedReasoningEffort = previous?.reasoningEffort && selectedModel?.reasoningEfforts.includes(previous.reasoningEffort) ? previous.reasoningEffort : selectedModel?.defaultReasoningEffort ?? null;
         const outputTokenLimit = selectedModel ? Math.min(previous?.outputTokenLimit ?? selectedModel.maxOutputTokens, selectedModel.maxOutputTokens) : null;
         if (selectedModel && selectedReasoningEffort && outputTokenLimit) this.backendSelections.set(descriptor.id, Object.freeze({ model: selectedModel.id, reasoningEffort: selectedReasoningEffort, outputTokenLimit }));
@@ -2668,7 +2674,9 @@ export class StudioConversationHost {
   }
 
   private turnConfig(backendId: StableId, taskId: StableId, promptProfile: PromptProfileSnapshot = this.options.runtime.context.prompts.profile): AgentTurnConfigV2 {
-    const selection = this.backendSelections.get(backendId); if (!selection) throw new Error('The selected backend has no usable model configuration.');
+    const selection = this.backendSelections.get(backendId);
+    const available = this.backends.find(item => item.id === backendId);
+    if (!selection || !available?.models.some(item => item.id === selection.model)) throw new Error('The selected backend has no usable model configuration.');
     return Object.freeze({ schemaVersion: 2, backendId, model: selection.model, reasoningEffort: selection.reasoningEffort, outputTokenLimit: selection.outputTokenLimit,
       taskBudgetId: asStableId(`budget:${taskId}`), promptProfile: Object.freeze({ id: promptProfile.id, version: promptProfile.version, digest: promptProfile.digest }),
       requestedCapabilities: Object.freeze(['agent.model-config', 'agent.usage', 'agent.cache', 'agent.context'] as const) });

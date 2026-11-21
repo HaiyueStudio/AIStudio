@@ -36,7 +36,7 @@ contractKey('Home'); assert(contractTabs.value === 'one', 'Home selects first en
 contractKey('ArrowLeft'); assert(contractTabs.value === 'two', 'left arrow wraps');
 contractButton('two').click(); contractButton('disabled').click(); assert(changes.length === 5, 'same or disabled tab emits no change');
 contractTabs.remove(); document.body.append(contractTabs);
-assert(contractTabs.options.length === 3 && contractTabs.value === 'two' && contractTabs.firstElementChild === content && contractTabs.shadowRoot.querySelector('slot').assignedElements()[0] === content, 'reconnection preserves property options and live panel identity');
+assert(contractTabs.options.length === 3 && contractTabs.value === 'two' && contractTabs.firstElementChild === content && contractTabs.shadowRoot.querySelector('slot[name="two"]').assignedElements()[0] === content, 'reconnection preserves property options and live panel identity');
 assert(contractButton('one').textContent === '<b>One</b>' && !contractButton('one').querySelector('b'), 'labels remain text');
 assert(contractTabs.shadowRoot.querySelector('[role="tablist"]').getAttribute('aria-label') === 'Component contract', 'named tablist');
 contractTabs.remove();

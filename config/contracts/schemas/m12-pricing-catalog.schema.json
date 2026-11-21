@@ -38,7 +38,8 @@
           "cachedInputMicrosPerMillion": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/micros" }] },
           "cacheWriteMicrosPerMillion": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/micros" }] },
           "outputMicrosPerMillion": { "$ref": "#/definitions/micros" },
-          "reasoningBilling": { "enum": ["included-in-output", "separate-as-output"] }
+          "reasoningBilling": { "enum": ["included-in-output", "separate-as-output"] },
+          "estimation": { "const": "requires-request-metadata" }
         }
       }
     }

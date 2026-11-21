@@ -1,0 +1,380 @@
+{
+  "schemaVersion": 1,
+  "evidenceClass": "static-dependency-upgrade-audit",
+  "auditedOn": "2026-11-21",
+  "timezone": "Asia/Shanghai",
+  "retrievedAt": "2026-11-21T02:29:44.107Z",
+  "upgradeApplied": false,
+  "realModelCallsPerformed": false,
+  "baseline": {
+    "aiStudioRevision": "357d108da40b34b43c121e276bc1fda815add161",
+    "dependencies": {
+      "@haiyue/animation-spec": "file:vendor/haiyue-animation-spec-0.1.0.tgz",
+      "@haiyue/editor-app-kit": "file:vendor/haiyue-editor-app-kit-0.1.0.tgz",
+      "@haiyue/editor-platform": "file:vendor/haiyue-editor-platform-0.1.0.tgz",
+      "@haiyue/editor-plugin-sdk": "file:vendor/haiyue-editor-plugin-sdk-0.1.0.tgz",
+      "@haiyue/editor-shell": "file:vendor/haiyue-editor-shell-0.1.1.tgz",
+      "@haiyue/engine": "file:vendor/haiyue-engine-0.1.0-orthographic-picking.tgz",
+      "@haiyue/extensions": "file:vendor/haiyue-extensions-0.1.0.tgz",
+      "@haiyue/ui": "file:vendor/haiyue-ui-0.1.4-expandable.tgz"
+    },
+    "harnessTag": "dsh-v0.2.0-rc.2",
+    "cordis": "4.0.4",
+    "codex": "0.148.0",
+    "nodeDeclared": ">=22.19.0",
+    "nodeObserved": "v24.21.0"
+  },
+  "targets": {
+    "engine": "0.2.3",
+    "extensions": "0.2.3",
+    "animationSpec": "0.2.2",
+    "shaderLanguage": {
+      "version": "0.2.3",
+      "aiStudioCurrentlyConsumes": false
+    },
+    "harness": {
+      "tag": "dsh-v0.2.2-rc.5",
+      "commit": "9c2670d3bce5275e0d1610272958121af87787bb",
+      "prerelease": true,
+      "cordis": "4.1.0",
+      "nodeMinimum": "24.9.0"
+    },
+    "codex": {
+      "version": "0.171.0",
+      "models": [
+        "gpt-6.2-sol",
+        "gpt-6.2-astra"
+      ]
+    },
+    "ui": {
+      "published": "0.2.2",
+      "githubRelease": "0.2.3",
+      "exactNpm023Status": 404,
+      "preferredSourceCandidate": "0.2.3",
+      "candidateGenerated": false
+    }
+  },
+  "localUpstreams": [
+    {
+      "repository": "Engine",
+      "revision": "1090368abf688a0d60bd54632b45000fa048336d7",
+      "manifestVersion": "0.2.2",
+      "dirty": false,
+      "suitableAsLatestPublishedArtifact": false
+    },
+    {
+      "repository": "UI",
+      "revision": "f0f838af44a5f5dc86aa441cf517d7128d4e3f57",
+      "manifestVersion": "0.2.3",
+      "dirty": false,
+      "sourceAfterReleaseTag": true,
+      "requiresFreshCandidateAdmission": true
+    }
+  ],
+  "integrityVerifiedPackages": [
+    {
+      "name": "@haiyue/engine",
+      "version": "0.2.3",
+      "sha256": "205be4307a2241a78937b2117468c7871dadc09f83861fcbf7b69c20d9d916d2",
+      "integrity": "sha512-p0Bil2Q8L5ABKPVkXwuZSaFUjws4mVa2/AEML6jD9sVusbGsIrshQOfRNVLf09J0N94zfLqNNsqT7HzRH7H6rQ==",
+      "bytes": 2049392,
+      "repository": {
+        "url": "git+https://github.com/HaiyueStudio/Engine.git",
+        "type": "git",
+        "directory": "engine"
+      },
+      "engines": {
+        "node": ">=22"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40haiyue%2Fengine/0.2.3"
+    },
+    {
+      "name": "@haiyue/extensions",
+      "version": "0.2.3",
+      "sha256": "0ae1c524d5e40eaccc613fbf13547be626e4c0ed0a221321364939cc9b4add66",
+      "integrity": "sha512-R5pX5webScxd2ZbjUfvH99e9fKgQkoF8PgkKRidNK/rnHFUa4iLs9wotrWKIuDbGJce2qN1gBJ4UJOinntwL/Q==",
+      "bytes": 566259,
+      "repository": {
+        "url": "git+https://github.com/HaiyueStudio/Engine.git",
+        "type": "git",
+        "directory": "extensions"
+      },
+      "engines": {
+        "node": ">=22"
+      },
+      "peerDependencies": {
+        "@haiyue/engine": ">=0.2.3 <0.3.0",
+        "@haiyue/animation-spec": ">=0.2.2 <0.3.0"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40haiyue%2Fextensions/0.2.3"
+    },
+    {
+      "name": "@haiyue/animation-spec",
+      "version": "0.2.2",
+      "sha256": "71eb24b81b1a07f081138610869c11b759def56aa5853a3030e7a714ad385876",
+      "integrity": "sha512-hYUAlmKtfGd+GaO9d5qBa0ykU7AR1sR3+pyzyUqnPzTVOUtdlS+Zph2yIPRNcnj33LIdShdVY5NN1lDeydIsLA==",
+      "bytes": 170719,
+      "repository": {
+        "url": "git+https://github.com/HaiyueStudio/Engine.git",
+        "type": "git",
+        "directory": "animation-spec"
+      },
+      "engines": {
+        "node": ">=22"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40haiyue%2Fanimation-spec/0.2.2"
+    },
+    {
+      "name": "@haiyue/shader-language",
+      "version": "0.2.3",
+      "sha256": "f6d6c43653c9c2f94eb93848a729fff63ae64f70d027d9d5a4698d78266f9463",
+      "integrity": "sha512-4DysyHPd+HPUPNiU1XI6yFyQSviIHO08fnzqhLnOS/kF5lac0TuKdRrpN1/sX7gFu5QPcxXsoqXaU3Mncm+fvA==",
+      "bytes": 148545,
+      "repository": {
+        "url": "git+https://github.com/HaiyueStudio/Engine.git",
+        "type": "git",
+        "directory": "shader-language"
+      },
+      "engines": {
+        "node": ">=22"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40haiyue%2Fshader-language/0.2.3"
+    },
+    {
+      "name": "@haiyue/ui",
+      "version": "0.2.2",
+      "sha256": "09a7251bb51012435b50e5993fb8e5c731a960b020ea9af2296a6907984aaa9d",
+      "integrity": "sha512-W8DUkVqjKIAxWJ0esG0kRdYaIETgwsRf0HemjBNCUTyI4Xqsc5pQmI9TyoJUGqHtNVbnf01hI0Fgef0Ind8YVA==",
+      "bytes": 218888,
+      "repository": {
+        "url": "git+https://github.com/HaiyueStudio/UI.git",
+        "type": "git"
+      },
+      "engines": {
+        "node": ">=22"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40haiyue%2Fui/0.2.2"
+    },
+    {
+      "name": "@deepseek-ai/dsh-tools",
+      "version": "0.2.2-rc.5",
+      "sha256": "4653b0a18d0c2dd393f420ee3a8edf481a7b7bffe9675f0a18bb9e686eab9cf3",
+      "integrity": "sha512-Zowk7V8KjdJBaE9d6l7q782lre69SI29XP8/ZloVhbyo9+3CH/U7LRmEECDXA3OFN3O0abwm1aZEOAcRGEh4mg==",
+      "bytes": 131579,
+      "repository": {
+        "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+        "type": "git",
+        "directory": "packages/core/tools"
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.1.0",
+        "@deepseek-ai/dsh-llm": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-agent": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-user-approval": "0.2.2-rc.5"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40deepseek-ai%2Fdsh-tools/0.2.2-rc.5"
+    },
+    {
+      "name": "@deepseek-ai/dsh-agent",
+      "version": "0.2.2-rc.5",
+      "sha256": "40ef23426fea6d923f1a1e8c571a571c679ae005116b81d67cb12e10f8d62d08",
+      "integrity": "sha512-nT7dv7OyNmtkGe50RfSlNp8QwbaP66LHr83sZ3wb9J6LJQINZHPhjxVamQ1h2JhnFfi8RSkajl6l2Kdp6GCGqw==",
+      "bytes": 71462,
+      "repository": {
+        "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+        "type": "git",
+        "directory": "packages/core/agent"
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.1.0",
+        "@deepseek-ai/dsh-llm": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-workspace": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-util-values": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-system-prompt": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-session-projection": "0.2.2-rc.5"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40deepseek-ai%2Fdsh-agent/0.2.2-rc.5"
+    },
+    {
+      "name": "@deepseek-ai/dsh-session",
+      "version": "0.2.2-rc.5",
+      "sha256": "5129d653831dade9f21663fc18cd416e92e37ea47fd04cde81ee2066de8fddb3",
+      "integrity": "sha512-77+MOBnQgwjfR1yPkLrnS2nlRECa0gfUt0jwMuTg9FniTz5ca8854m2jmi2F3iHDnQUt3lTwzmy0BLIrok+lZA==",
+      "bytes": 153948,
+      "repository": {
+        "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+        "type": "git",
+        "directory": "packages/core/session"
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.1.0",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.5"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40deepseek-ai%2Fdsh-session/0.2.2-rc.5"
+    },
+    {
+      "name": "@deepseek-ai/dsh-session-projection",
+      "version": "0.2.2-rc.5",
+      "sha256": "f507451a20291d8e20fc959c43d7067f01084f0d63c290b96a8a8f2219d2973e",
+      "integrity": "sha512-dzkbwhFy5AXFu+FhT6QBLb3lQAozb9Vkuh2zujita6iceFtsQtxXBGiXYl4D9Oy1eLRuOQdlUCmW6M/h+LxoxQ==",
+      "bytes": 51529,
+      "repository": {
+        "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+        "type": "git",
+        "directory": "packages/session/session-projection"
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.1.0",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.5"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40deepseek-ai%2Fdsh-session-projection/0.2.2-rc.5"
+    },
+    {
+      "name": "@deepseek-ai/dsh-web-search-deepseek",
+      "version": "0.2.2-rc.5",
+      "sha256": "37ad301772394a11d6e4b46ef7cf0b809d7c914fc3437716a87c985c0cdce3b4",
+      "integrity": "sha512-yNtmi+EZ5xhFhKSTJLnb/Dk83IzbGM4Yo/l7sgxaGeg6JRSXnneFP+7IDf80RPdWzI2dxGnB3mttO79zEY4maA==",
+      "bytes": 38710,
+      "repository": {
+        "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+        "type": "git",
+        "directory": "packages/web/web-search-deepseek"
+      },
+      "peerDependencies": {
+        "@deepseek-ai/cordis": "~4.1.0",
+        "@deepseek-ai/dsh-web": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-agent": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-credentials": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-llm-deepseek": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-deepseek-account": "0.2.2-rc.5",
+        "@deepseek-ai/dsh-launch-environment": "0.2.2-rc.5"
+      },
+      "integrityMatch": true,
+      "source": "https://registry.npmjs.org/%40deepseek-ai%2Fdsh-web-search-deepseek/0.2.2-rc.5"
+    }
+  ],
+  "publicImportSurface": {
+    "method": "Static named-import scan and recursive public declaration export resolution; not TypeScript assignability checking.",
+    "scannedRoots": [
+      "apps/ai-studio/src",
+      "packages"
+    ],
+    "excludedDirectories": [
+      "node_modules",
+      "dist",
+      "test",
+      "spikes"
+    ],
+    "importDeclarations": 65,
+    "namedImportReferences": 215,
+    "missing": [],
+    "targetUi": "0.2.2",
+    "ui023CandidateCovered": false
+  },
+  "confirmedIntegrationChanges": [
+    {
+      "area": "editor-shell",
+      "version": "0.1.1",
+      "dependency": "@haiyue/ui",
+      "range": ">=0.1.0 <0.2.0",
+      "compatibleWithTargetUi": false,
+      "action": "Obtain a reviewed compatible Editor Shell candidate."
+    },
+    {
+      "area": "harness-agent",
+      "removedReference": "ModelSelectionRef",
+      "oldCall": "installModelSelection(agentContext, selection)",
+      "newCall": "installModelSelection(agentContext)",
+      "modelSelection": "agent.model.select()"
+    },
+    {
+      "area": "harness-tools",
+      "oldExecuteShape": "single call",
+      "newExecuteShape": "ToolBatchInput -> ToolBatchResult",
+      "executors": [
+        "@deepseek-ai/dsh-tool-executor-native",
+        "@deepseek-ai/dsh-tool-executor-ptc"
+      ]
+    },
+    {
+      "area": "harness-team",
+      "oldPackage": "@deepseek-ai/dsh-experimental-agent-team",
+      "targetVersionStatus": 404,
+      "newPackage": "@deepseek-ai/dsh-agent-team"
+    },
+    {
+      "area": "codex-catalog",
+      "dynamicModelListAlreadyImplemented": true,
+      "paginationImplemented": false,
+      "cachedUntilBackendTeardown": true
+    },
+    {
+      "area": "codex-effort",
+      "collapsedValues": [
+        "xhigh",
+        "max",
+        "ultra"
+      ],
+      "collapsedTo": "xhigh",
+      "ultraAdmissionRequired": true
+    },
+    {
+      "area": "codex-capacity",
+      "currentMaxOutputTokens": 1000000,
+      "gpt62PublishedApiMaxOutputTokens": 128000,
+      "remotePerTurnHardOutputCapVerified": false
+    },
+    {
+      "area": "engine-picking",
+      "targetContainsOrthographicPatchBranch": true,
+      "runtimeRegressionPerformed": false
+    }
+  ],
+  "checks": [
+    {
+      "command": "npm run boundaries:check",
+      "exitCode": 1,
+      "completed": false,
+      "reason": "Missing installed typescript; orchestration boundary tests could not load."
+    },
+    {
+      "command": "npm run check",
+      "exitCode": 1,
+      "completed": false,
+      "reason": "Missing installed ajv at contracts:check; later stages did not run."
+    }
+  ],
+  "limitations": [
+    "AIStudio node_modules is absent; no dependency installation or application build was performed.",
+    "Published tarballs were read without executing package code or lifecycle scripts.",
+    "No GPU, Electron, provider login, real model request, or persistence migration qualification was performed.",
+    "M06 contracts.md, integration.md, active Goal originals, and the local Editor workspace were not available in this checkout.",
+    "No milestone status was changed; historical acceptance records remain historical."
+  ],
+  "sources": [
+    "https://github.com/HaiyueStudio/Engine/releases/tag/v0.2.3",
+    "https://github.com/HaiyueStudio/UI/releases/tag/v0.2.3",
+    "https://registry.npmjs.org/@haiyue%2Fui",
+    "https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.5",
+    "https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1",
+    "https://github.com/openai/codex/releases/tag/rust-v0.171.0",
+    "https://developers.openai.com/api/docs/models/gpt-6.2-astra",
+    "https://developers.openai.com/api/docs/models/gpt-6.2-sol"
+  ]
+}

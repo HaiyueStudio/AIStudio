@@ -28,12 +28,12 @@ export interface CodexAppServerBackendOptions {
 }
 
 export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapter {
-  readonly upstream = Object.freeze({ package: '@openai/codex', version: '0.148.0', schemaSha256: 'dc3613ce823c95087e660f8d12dac89856863eff653f2c8dd8f1ad0cac98ef11' });
+  readonly upstream = Object.freeze({ package: '@openai/codex', version: '0.171.0', schemaSha256: '834e838a488b36b7feca97dba640c64ee0e9fa358cdf9e968bac301afd2114d7' });
   readonly descriptor: AgentBackendDescriptor = Object.freeze({
     schemaVersion: 1,
     id: asStableId('backend:codex-app-server'),
     kind: 'codex-app-server',
-    protocolVersion: '0.148.0',
+    protocolVersion: '0.171.0',
     capabilities: Object.freeze({ resume: true, questions: true, structuredTools: true, backendApprovals: true, usage: true, rateLimits: true }),
   });
 
@@ -54,6 +54,9 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
   private readonly cleanupTasks = new Set<Promise<void>>();
   private readonly lastRateLimits = new Map<string, AgentRateLimitSnapshot>();
   private modelCatalogPromise?: Promise<AgentModelCatalog>;
+  private modelCatalogExpiresAt = 0;
+  private modelCatalogEpoch = 0;
+  private modelCatalogAbort?: AbortController;
   private readonly wireEfforts = new Map<string, ReadonlyMap<M12ReasoningEffort, string>>();
   private readonly usageSequences = new Map<StableId, number>();
   private readonly threadUsageTotals = new Map<string, RpcObject>();
@@ -72,6 +75,8 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
   readonly provider = 'openai-codex';
 
   async authenticate(signal?: AbortSignal): Promise<AgentLoginHandoff | null> {
+    this.assertActive(); signal?.throwIfAborted();
+    this.invalidateModelCatalog();
     await this.ensureInitialized(signal);
     const mode = this.options.loginMode ?? 'browser';
     const result = await this.request('account/login/start', mode === 'device-code' ? { type: 'chatgptDeviceCode' } : { type: 'chatgpt', codexStreamlinedLogin: true, useHostedLoginSuccessPage: true }, signal);
@@ -120,12 +125,42 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
     }
   }
 
-  async logout(signal?: AbortSignal): Promise<void> { await this.ensureInitialized(signal); await this.request('account/logout', {}, signal); }
+  async logout(signal?: AbortSignal): Promise<void> {
+    this.invalidateModelCatalog(); this.lastRateLimits.clear();
+    await this.ensureInitialized(signal); await this.request('account/logout', {}, signal);
+    this.invalidateModelCatalog();
+  }
 
   async modelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog> {
-    this.assertActive(); await this.ensureInitialized(signal);
-    this.modelCatalogPromise ??= this.loadModelCatalog(signal).catch((cause) => { this.modelCatalogPromise = undefined; throw cause; });
-    return this.modelCatalogPromise;
+    this.assertActive(); signal?.throwIfAborted(); await this.ensureInitialized(signal);
+    if (this.modelCatalogExpiresAt && Date.now() >= this.modelCatalogExpiresAt) this.invalidateModelCatalog();
+    if (!this.modelCatalogPromise) {
+      const epoch = this.modelCatalogEpoch;
+      const controller = new AbortController(); this.modelCatalogAbort = controller;
+      this.modelCatalogPromise = this.loadModelCatalog(controller.signal, epoch).then(catalog => {
+        this.assertActive(); controller.signal.throwIfAborted();
+        if (epoch !== this.modelCatalogEpoch) throw this.protocol('codex.model-catalog-superseded', 'Codex model catalog belongs to a previous account generation.');
+        this.modelCatalogExpiresAt = Date.now() + 60_000;
+        return catalog;
+      }).catch(cause => {
+        if (epoch === this.modelCatalogEpoch) this.modelCatalogPromise = undefined;
+        throw cause;
+      });
+    }
+    // One caller cancelling its wait must not cancel a shared account catalog fetch.
+    return waitForCatalog(this.modelCatalogPromise, signal);
+  }
+
+  async refreshModelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog> {
+    this.assertActive(); signal?.throwIfAborted(); this.invalidateModelCatalog();
+    return this.modelCatalog(signal);
+  }
+
+  private invalidateModelCatalog(): void {
+    this.modelCatalogEpoch += 1;
+    this.modelCatalogAbort?.abort(this.protocol('codex.model-catalog-superseded', 'Codex account model catalog was refreshed.'));
+    this.modelCatalogAbort = undefined; this.modelCatalogPromise = undefined; this.modelCatalogExpiresAt = 0;
+    this.wireEfforts.clear();
   }
 
   async negotiate(config: AgentTurnConfigV2, signal?: AbortSignal): Promise<BackendCapabilityNegotiationV2> {
@@ -260,6 +295,7 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
 
   async dispose(): Promise<void> {
     if (this.disposed) return; this.disposed = true;
+    this.invalidateModelCatalog();
     const error = new AgentBackendProtocolError('codex.backend-disposed', 'Codex backend was disposed.');
     for (const item of this.pending.values()) item.reject(error); this.pending.clear();
     for (const channel of this.turns.values()) channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(error), 'interrupted');
@@ -317,29 +353,51 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
     } catch (cause) { if (unownedTempCwd) await removeOwnedTemporaryCwd(unownedTempCwd).catch(() => {}); channel.terminalFailure(this.descriptor.id, normalizeBackendFailure(cause)); }
   }
 
-  private async loadModelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog> {
-    const response = await this.request('model/list', { limit: 100, includeHidden: false }, signal);
-    if (!isRecord(response) || !Array.isArray(response.data)) throw this.protocol('codex.model-catalog-malformed', 'Codex model/list response is malformed.');
-    const models = [];
-    for (const value of response.data) {
-      if (!isRecord(value) || typeof value.model !== 'string' || typeof value.displayName !== 'string' || !Array.isArray(value.supportedReasoningEfforts) || typeof value.defaultReasoningEffort !== 'string') {
-        throw this.protocol('codex.model-catalog-schema-drift', 'Codex model catalog no longer matches the pinned schema fixture.');
+  private async loadModelCatalog(signal: AbortSignal, epoch: number): Promise<AgentModelCatalog> {
+    const models: AgentModelCatalog['models'][number][] = [];
+    const maps = new Map<string, ReadonlyMap<M12ReasoningEffort, string>>();
+    const cursors = new Set<string>(); const ids = new Set<string>();
+    let cursor: string | undefined;
+    for (let page = 0; ; page += 1) {
+      if (page >= 10) throw this.protocol('codex.model-catalog-too-large', 'Codex model catalog exceeded ten pages.');
+      signal.throwIfAborted();
+      const response = await this.request('model/list', { limit: 100, includeHidden: false, ...(cursor ? { cursor } : {}) }, signal);
+      if (!isRecord(response) || !Array.isArray(response.data) || response.data.length > 100) throw this.protocol('codex.model-catalog-malformed', 'Codex model/list response is malformed.');
+      for (const value of response.data) {
+        if (!isRecord(value) || typeof value.model !== 'string' || !/^[^\s\x00-\x1f]{1,128}$/u.test(value.model)
+          || typeof value.displayName !== 'string' || !value.displayName.length || value.displayName.length > 256
+          || !Array.isArray(value.supportedReasoningEfforts) || value.supportedReasoningEfforts.length > 32
+          || typeof value.defaultReasoningEffort !== 'string'
+          || (value.hidden !== undefined && typeof value.hidden !== 'boolean')
+          || (value.description !== undefined && (typeof value.description !== 'string' || value.description.length > 4096))) {
+          throw this.protocol('codex.model-catalog-schema-drift', 'Codex model catalog no longer matches the pinned schema fixture.');
+        }
+        if (ids.has(value.model)) throw this.protocol('codex.model-catalog-duplicate', 'Codex model catalog repeated a model id.');
+        ids.add(value.model);
+        if (value.hidden === true) continue;
+        const effortMap = new Map<M12ReasoningEffort, string>();
+        for (const raw of value.supportedReasoningEfforts) {
+          if (!isRecord(raw) || typeof raw.reasoningEffort !== 'string') throw this.protocol('codex.model-catalog-schema-drift', 'Codex reasoning effort option is malformed.');
+          const normalized = normalizeCodexEffort(raw.reasoningEffort);
+          if (normalized && !(normalized === 'off' && Object.hasOwn(CODEX_MODEL_OUTPUT_LIMITS, value.model)) && !effortMap.has(normalized)) effortMap.set(normalized, raw.reasoningEffort);
+        }
+        const defaultEffort = normalizeCodexEffort(value.defaultReasoningEffort);
+        if (!defaultEffort || !effortMap.has(defaultEffort) || effortMap.size === 0) throw this.protocol('codex.model-catalog-schema-drift', `Codex model ${value.model} has no admitted reasoning effort mapping.`);
+        maps.set(value.model, effortMap);
+        models.push(Object.freeze({
+          id: value.model, label: value.displayName, description: typeof value.description === 'string' ? value.description : value.displayName,
+          reasoningEfforts: Object.freeze([...effortMap.keys()]), defaultReasoningEffort: defaultEffort,
+          maxOutputTokens: CODEX_MODEL_OUTPUT_LIMITS[value.model] ?? 32_768, isDefault: value.isDefault === true,
+        }));
       }
-      const effortMap = new Map<M12ReasoningEffort, string>();
-      for (const raw of value.supportedReasoningEfforts) {
-        if (!isRecord(raw) || typeof raw.reasoningEffort !== 'string') throw this.protocol('codex.model-catalog-schema-drift', 'Codex reasoning effort option is malformed.');
-        const normalized = normalizeCodexEffort(raw.reasoningEffort); if (normalized && !effortMap.has(normalized)) effortMap.set(normalized, raw.reasoningEffort);
-      }
-      const defaultEffort = normalizeCodexEffort(value.defaultReasoningEffort);
-      if (!defaultEffort || !effortMap.has(defaultEffort) || effortMap.size === 0) throw this.protocol('codex.model-catalog-schema-drift', `Codex model ${value.model} has no supported M12 reasoning effort mapping.`);
-      this.wireEfforts.set(value.model, effortMap);
-      models.push(Object.freeze({
-        id: value.model, label: value.displayName, description: typeof value.description === 'string' ? value.description : value.displayName,
-        reasoningEfforts: Object.freeze([...effortMap.keys()]), defaultReasoningEffort: defaultEffort, maxOutputTokens: 1_000_000,
-        isDefault: value.isDefault === true,
-      }));
+      if (response.nextCursor === undefined || response.nextCursor === null) break;
+      if (typeof response.nextCursor !== 'string' || !response.nextCursor.length || response.nextCursor.length > 4096 || cursors.has(response.nextCursor)) throw this.protocol('codex.model-catalog-cursor', 'Codex model catalog pagination cursor is invalid or repeated.');
+      cursor = response.nextCursor; cursors.add(cursor);
     }
     if (!models.length) throw this.protocol('codex.model-catalog-empty', 'Codex advertised no selectable models.');
+    this.assertActive(); signal.throwIfAborted();
+    if (epoch !== this.modelCatalogEpoch) throw this.protocol('codex.model-catalog-superseded', 'Codex model catalog belongs to a previous account generation.');
+    this.wireEfforts.clear(); for (const [id, efforts] of maps) this.wireEfforts.set(id, efforts);
     return Object.freeze({ schemaVersion: 1, backendId: this.descriptor.id, protocolVersion: this.descriptor.protocolVersion, source: 'provider', models: Object.freeze(models) });
   }
 
@@ -449,6 +507,7 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
   }
 
   private async onNotification(method: string, params: RpcObject): Promise<void> {
+    if (method === 'account/login/completed' || method === 'account/updated') { this.invalidateModelCatalog(); this.lastRateLimits.clear(); return; }
     if (method === 'account/rateLimits/updated') { this.captureRateLimits({ rateLimits: params.rateLimits }, true); for (const [turnId, channel] of this.turns) { const threadId = [...this.threadTurns].find(([, candidate]) => candidate === turnId)?.[0]; if (threadId) channel.emit(backendEvent(this.descriptor.id, threadId, turnId, 'usage', { rateLimits: [...this.lastRateLimits.values()] as unknown as JsonValue })); } return; }
     const turnIdValue = typeof params.turnId === 'string' ? params.turnId : isRecord(params.turn) && typeof params.turn.id === 'string' ? params.turn.id : undefined;
     const threadId = typeof params.threadId === 'string' ? params.threadId : undefined;
@@ -514,6 +573,7 @@ export class CodexAppServerBackend implements AgentBackend, BackendSessionAdapte
   }
 
   private failAll(cause: unknown): void {
+    this.invalidateModelCatalog();
     const failure = normalizeBackendFailure(cause); for (const item of this.pending.values()) item.reject(cause); this.pending.clear();
     for (const channel of this.turns.values()) channel.terminalFailure(this.descriptor.id, failure, 'interrupted');
     this.pendingTools.clear(); this.pendingQuestions.clear(); for (const cleanup of this.turnAbortCleanups.values()) cleanup(); this.turnAbortCleanups.clear(); for (const threadId of this.ownedCwds.keys()) this.scheduleCwdCleanup(threadId); void this.transport?.dispose();
@@ -590,8 +650,21 @@ function normalizeCodexEffort(value: string): M12ReasoningEffort | null {
   const normalized = value.toLowerCase();
   if (normalized === 'none' || normalized === 'minimal' || normalized === 'off') return 'off';
   if (normalized === 'low' || normalized === 'medium' || normalized === 'high') return normalized;
-  if (normalized === 'xhigh' || normalized === 'max' || normalized === 'ultra') return 'xhigh';
+  if (normalized === 'xhigh' || normalized === 'max') return normalized;
   return null;
+}
+
+/** Public model limits, reviewed 2026-11-21. Unknown models use a conservative local cap. */
+const CODEX_MODEL_OUTPUT_LIMITS: Readonly<Record<string, number>> = Object.freeze({ 'gpt-6.2-sol': 128_000, 'gpt-6.2-astra': 128_000 });
+
+function waitForCatalog<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const aborted = (): void => { signal!.removeEventListener('abort', aborted); reject(signal!.reason); };
+    signal!.addEventListener('abort', aborted, { once: true });
+    void promise.then(value => { signal!.removeEventListener('abort', aborted); resolve(value); }, cause => { signal!.removeEventListener('abort', aborted); reject(cause); });
+  });
 }
 function diagnosticMessage(value: RpcObject): string { if (typeof value.message === 'string') return value.message; if (isRecord(value.error) && typeof value.error.message === 'string') return value.error.message; return 'Codex App Server reported an error.'; }
 function classifyTurnError(value: RpcObject): JsonObject {
@@ -627,8 +700,8 @@ function codexThreadStartParams(cwd: string, model: string, dynamicTools: Return
   return {
     cwd, runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user', sandbox: 'read-only', ephemeral: true, environments: [], selectedCapabilityRoots: [], model, allowProviderModelFallback: false,
     config: { web_search: 'disabled', mcp_servers: {} },
-    baseInstructions: 'You are the AIStudio game-authoring agent. Use only the supplied dynamic Studio tools and the versioned context envelope in each turn.',
-    developerInstructions: 'Never invoke shell, command execution, file mutation, patching, direct filesystem access, network access, MCP, apps, or web search. Use only the supplied dynamic Studio tools. If no suitable Studio tool exists, explain the limitation.',
+    baseInstructions: 'You are the AIStudio game-authoring agent. Use the supplied dynamic Studio tools for authoring and the versioned context envelope in each turn. Use request_user_input when a structured question is needed.',
+    developerInstructions: 'Never invoke shell, command execution, file mutation, patching, direct filesystem access, network access, MCP, apps, or web search. Use the supplied dynamic Studio tools for authoring. The separate request_user_input tool is allowed for structured questions. If no suitable Studio tool exists, explain the limitation.',
     dynamicTools,
   };
 }
@@ -637,7 +710,7 @@ const forbiddenServerMethods = new Set(['account/chatgptAuthTokens/refresh', 'at
 const codexTokenUsageKeys = Object.freeze(['inputTokens', 'outputTokens', 'cachedInputTokens', 'cacheWriteInputTokens', 'reasoningOutputTokens']);
 export const CODEX_DISABLED_FEATURES = Object.freeze([
   'apps', 'auth_elicitation', 'browser_use', 'browser_use_external', 'browser_use_full_cdp_access', 'computer_use',
-  'hooks', 'image_generation', 'in_app_browser', 'multi_agent', 'plugins', 'plugin_sharing', 'shell_snapshot', 'shell_tool',
+  'hooks', 'image_generation', 'in_app_browser', 'multi_agent', 'multi_agent_v2', 'multi_agent_v2_dynamic_tools', 'plugins', 'plugin_sharing', 'shell_snapshot', 'shell_tool',
   'skill_env_var_dependency_prompt', 'skill_mcp_dependency_install', 'skill_search', 'tool_call_mcp_elicitation', 'tool_suggest',
   'unified_exec', 'view_image', 'workspace_dependencies',
 ]);

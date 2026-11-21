@@ -11,6 +11,7 @@ const deadline = setTimeout(() => finish(1, `layout deadline exceeded: ${stage}`
 let finished = false;
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 960, show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, backgroundThrottling: false } });
+  window.webContents.on('console-message', event => console.log(`[renderer] ${event.message}`));
   window.webContents.session.protocol.handle('workspacetest', async request => {
     const target = path.resolve(root, '.' + new URL(request.url).pathname);
     if (!target.startsWith(path.resolve(root) + path.sep)) return new Response('Forbidden', { status: 403 });

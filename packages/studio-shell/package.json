@@ -37,7 +37,7 @@
     }
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.9.0"
   },
   "scripts": {
     "pretypecheck": "npm run build -w @haiyue/ai-studio-contracts",
@@ -60,7 +60,7 @@
   "peerDependencies": {
     "@haiyue/editor-app-kit": "0.1.0",
     "@haiyue/editor-plugin-sdk": "0.1.0",
-    "@haiyue/editor-shell": "0.1.1",
-    "@haiyue/ui": ">=0.1.4 <0.2.0"
+    "@haiyue/editor-shell": "0.1.2-ui.0.2.3",
+    "@haiyue/ui": ">=0.2.3 <0.3.0"
   }
 }

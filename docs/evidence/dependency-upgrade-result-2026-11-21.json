@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "verifiedOn": "2026-11-21",
+  "scope": "dependency-upgrade-local-verification",
+  "versions": {
+    "codex": "0.171.0",
+    "models": [
+      "gpt-6.2-astra",
+      "gpt-6.2-sol"
+    ],
+    "engine": "0.2.3",
+    "ui": "0.2.3",
+    "editorShell": "0.1.2-ui.0.2.3",
+    "harness": "dsh-v0.2.2-rc.5",
+    "cordis": "4.1.0",
+    "node": "v24.21.0"
+  },
+  "lockDigest": "sha256:6c9fb7df0f2b6d48714b7b74e69c701f9bcd7bf5943924d3131be3ea0e33073a",
+  "installedHarnessPackages": 67,
+  "checks": {
+    "root": {
+      "command": "npm run check",
+      "exitCode": 1,
+      "status": "failed-frozen-performance-host-mismatch"
+    },
+    "capability": {
+      "groups": 18,
+      "passed": 350,
+      "inputDigest": "sha256:713330a8e1555944b897c935f768031922657b80590865fe9f6327aad4a22369"
+    },
+    "integration": {
+      "files": 81,
+      "passed": 493,
+      "failed": 1,
+      "skipped": 0,
+      "cancelled": 0,
+      "failedFile": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+      "evidenceArchive": ".cache/dependency-upgrade-audit/integration-output"
+    },
+    "performanceHost": {
+      "required": {
+        "platform": "win32",
+        "release": "10.0.19045",
+        "arch": "x64",
+        "cpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+        "logicalCpus": 8
+      },
+      "actual": {
+        "platform": "win32",
+        "release": "10.0.19045",
+        "arch": "x64",
+        "cpu": "Intel(R) Core(TM) i7-14700KF",
+        "logicalCpus": 28
+      },
+      "gateUnchanged": true,
+      "largePhaseMeasurements": "not-admitted"
+    },
+    "focused": {
+      "backend": 28,
+      "runtime": 118,
+      "orchestration": 238,
+      "shell": 83,
+      "harness": 72,
+      "engineEditor": 62,
+      "scriptPreview": 41,
+      "engineRuntimeAndElectron": 19,
+      "chromeBrowserSmoke": 4,
+      "windowsNodeUnavailable": 1
+    },
+    "realCodex": {
+      "models": 2,
+      "cases": 8,
+      "evidence": "docs/evidence/dependency-upgrade-codex-2026-11-21.json"
+    },
+    "generatedEvidenceSecretScan": {
+      "passed": true,
+      "files": 672,
+      "inputDigest": "sha256:713330a8e1555944b897c935f768031922657b80590865fe9f6327aad4a22369"
+    }
+  },
+  "limitations": [
+    "Full root gate remains failed: fixed Windows/i7-7700/8-CPU benchmark cannot run on this i7-14700KF/28-CPU host. Original hardware and performance assertions are retained.",
+    "Real DeepSeek API smoke not run: declared test credential unavailable.",
+    "Windows restricted Node execution remains unavailable; no unrestricted fallback.",
+    "UI 0.2.3 and Editor Shell compatibility overlay are reviewed local candidates, not new npm releases.",
+    "Formal M13/M14 multi-game acceptance and milestone status are not advanced."
+  ],
+  "logs": [
+    {
+      "path": ".cache/dependency-upgrade-audit/final-clean-install.log",
+      "sha256": "sha256:74410cee2c41c146b83d104b7917eefffb87bb45e170aaf23b3ae6fa9609233d"
+    },
+    {
+      "path": ".cache/dependency-upgrade-audit/harness-final-clean.log",
+      "sha256": "sha256:d1497330824506ba3b28c94640c0a894f5aab1671e9b9c552cd43474fed13bb3"
+    },
+    {
+      "path": ".cache/dependency-upgrade-audit/harness-browser-smoke.log",
+      "sha256": "sha256:b8e67c082afa9d0edc6e899286fc0e4d51b13d6626963c944d9978ff3b31255b"
+    },
+    {
+      "path": ".cache/dependency-upgrade-audit/runtime-final.log",
+      "sha256": "sha256:c5c8f923af0ae3ecf309a3431446293a5de8c2621951852093766a10872e6553"
+    },
+    {
+      "path": ".cache/dependency-upgrade-audit/orchestration-final.log",
+      "sha256": "sha256:8c698446dcc360851e8de9140d6e76c1f2e9717e4b0e2dbcd9bc4111721b1d7f"
+    },
+    {
+      "path": ".cache/dependency-upgrade-audit/backends-final.log",
+      "sha256": "sha256:b5a64dc72eb8320a5e5632c753ae599e6a48bd0740dcf9226383a29b192f104c"
+    },
+    {
+      "path": ".cache/dependency-upgrade-audit/capability-capture.log",
+      "sha256": "sha256:cf15409dc2d408287889801ea234e2cae42d14734d53ff3e3d9c7d38cd83f9f6"
+    },
+    {
+      "path": ".cache/dependency-upgrade-audit/root-check-final.log",
+      "sha256": "sha256:ad359fcfbfe6d8476b6a388adbdd04e3e6894e3d557e5cdc91b6876fd7a47887"
+    }
+  ]
+}

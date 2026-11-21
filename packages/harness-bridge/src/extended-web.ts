@@ -3,15 +3,19 @@ import { createHash } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import WebRuntime from '@deepseek-ai/dsh-web';
 import { DeepSeekSearchProvider } from '@deepseek-ai/dsh-web-search-deepseek';
-import * as HttpFetch from '@deepseek-ai/dsh-web-fetch-http';
+import { PublicHttpFetchProvider } from './public-http-fetch.js';
 import type { JsonObject } from '@haiyue/ai-studio-contracts';
 import { WEB_BINDINGS, type HarnessExtendedToolOptions } from './extended-tools.js';
 import { currentOfficialExecution } from './official-tools.js';
 import { WebReadCache } from './web-read-cache.js';
 
 export async function installWebTools(ctx: Context, options: HarnessExtendedToolOptions, resolveApiKey: () => Promise<string | null>): Promise<void> {
-  await ctx.plugin(WebRuntime, { searchProvider: 'deepseek-official', fetchProvider: 'http' });
-  await ctx.plugin(HttpFetch, { maxResponseBytes: 262144, maxBodyChars: 16000, timeoutMs: 15000, maxRedirects: 3, userAgent: 'Haiyue-AIStudio/0.0.0' });
+  await ctx.plugin(WebRuntime, { searchProvider: 'deepseek-official', fetchProvider: 'studio-public-http' });
+  await ctx.plugin({ name: 'studio:public-http', inject: ['web'], apply(inner) {
+    const provider = new PublicHttpFetchProvider();
+    inner.web.registerFetchProvider(provider);
+    inner.effect(() => () => provider.dispose(), 'studio.public-http.dispose');
+  } });
   await ctx.plugin({ name: 'studio:official-web', inject: ['web', 'tools'], apply: inner => registerWebTools(inner, options, resolveApiKey) });
 }
 

@@ -1,4 +1,4 @@
-// Reviewed schemas from @playwright/mcp 0.0.80 through dsh-mcp-client 0.2.0-rc.2.
+// Reviewed schemas from @playwright/mcp 0.0.80 through dsh-mcp-client 0.2.2-rc.5.
 // Unchanged native schemas are rechecked before every execution.
 import type { JsonObject } from "@haiyue/ai-studio-contracts";
 export const BROWSER_CATALOG: readonly { name: string; description: string; parameters: JsonObject; output: JsonObject }[] = [

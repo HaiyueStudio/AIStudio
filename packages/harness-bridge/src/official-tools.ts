@@ -69,13 +69,6 @@ class OfficialToolGateway {
       ticket.started = true;
       return this.nested.run(true, next);
     });
-    // Native plugin tools stay behind Studio's selected wrappers / discovery route.
-    context.on('system-prompt/assemble', async (_assembly, input, next) => {
-      const assembly = await next();
-      if (!input.scope) return assembly;
-      const names = studioNames(String('id' in input.scope ? input.scope.id : ''));
-      return { ...assembly, tools: assembly.tools.filter(tool => names.has(tool.name)) };
-    });
     context.effect(() => async () => {
       this.binding = undefined;
       for (const controller of this.active.keys()) controller.abort(failure('official.provider-disposed'));
@@ -113,9 +106,14 @@ class OfficialToolGateway {
       const native = owner.context.tools.get(spec.nativeName, agent);
       if (!native || digest(native.parameters) !== digest(this.nativeParameters[spec.nativeName] ?? spec.definition.inputSchema) || digest(native.output.schema) !== digest(spec.definition.outputSchema)) throw failure('official.schema-drift');
       this.tickets.set(id, { call, agent, name: spec.nativeName, digest: digest(call.arguments), started: false });
-      const result = await executions.run(call, () => this.nested.run(true, () => owner.context.tools.execute({ callId: ToolCallId(id), rootCallId: ToolCallId(call.callId), name: spec.nativeName, arguments: call.arguments, agent, signal: combined })));
+      const batch = await executions.run(call, () => this.nested.run(true, () => owner.context.tools.execute({
+        calls: [{ type: 'tool-call', id: ToolCallId(id), name: spec.nativeName, arguments: JSON.stringify(call.arguments) }],
+        agent, signal: combined, maxParallelToolCalls: 1,
+      })));
+      if (batch.results.length !== 1 || batch.results[0]?.callId !== id) throw failure('official.batch-invalid');
+      const result = batch.results[0].result;
       const reason: OfficialToolReceiptV1['reason'] = combined.aborted ? 'cancelled' : result.isError ? 'provider-error'
-        : result.additionalContexts?.length || result.concludesTurn || result.content.some(b => b.type !== 'text') ? 'unsupported-result'
+        : batch.additionalContexts.length || batch.concluded || result.additionalContexts?.length || result.concludesTurn || result.content.some(b => b.type !== 'text') ? 'unsupported-result'
         : !result.value || typeof result.value !== 'object' || Array.isArray(result.value) ? 'invalid-result'
         : Buffer.byteLength(JSON.stringify(result.value)) > spec.definition.maxResultBytes ? 'oversized-result' : 'none';
       const execution = result.isError ? (this.tickets.get(id)?.started ? 'unknown' : 'not-started') : 'completed';

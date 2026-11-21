@@ -110,9 +110,20 @@ test('pending mailbox cold-resumes the official child through the same admission
  child.append('user/message',createUserMessage({content:[{type:'text',text:'Initial facts'}],source:{kind:'user'}}),{surfaceOp:'append'});
  child.append('turn/end',{turn:1,reason:{kind:'completed'}});
  for(const session of [lead,child]){const lease=await f.journal.acquire(session.id);await f.journal.append({schemaVersion:1,sessionId:session.id,header:session.header,inheritedEventCount:0,offset:0,events:session.snapshotEvents()});await lease.release();}
- const a=await f.open();await a.transport.openSession(input);const request=await checked.promise;
+ const a=await f.open();
+ a.ctx.tools.register({name:'mcp__fixture__unreviewed',description:'Unreviewed native tool',parameters:{type:'object'},output:{schema:{},render:()=>[]},async execute(){throw Error('must not run');}});
+ await a.transport.openSession(input);const request=await checked.promise;
  assert.equal(request.sessionId,childId);assert.equal(request.leadSessionId,lead.id);assert.equal(requests,0);
+ assert.deepEqual(request.toolNames,[],'restored children cannot advertise native service tools');
  await a.owner.dispose();assert.equal(f.locks.size,0);
+ const childEvents=(await f.journal.read(childId)).flatMap(frame=>frame.events);
+ assert.equal(childEvents.filter(event=>event.type==='user/message'&&event.data.source.kind==='team-message'&&event.data.source.messageId==='team-message-cold').length,1,'accepted legacy input is durable');
+ const original=(await f.journal.read(lead.id)).flatMap(frame=>frame.events);
+ assert.equal(original.filter(event=>event.type==='team/message/queued').length,1,'migration retains the original queued fact');
+ assert.equal(original.filter(event=>event.type==='team/message/delivered').length,1);
+ const b=await f.open();await b.transport.openSession(input);
+ assert.equal((await f.journal.read(childId)).flatMap(frame=>frame.events).filter(event=>event.type==='user/message'&&event.data.source.kind==='team-message'&&event.data.source.messageId==='team-message-cold').length,1,'restart never redelivers an acknowledged legacy input');
+
 });
 
 test('Session handles expose buffered appends, enforce one writer and flush on close',async t=>{

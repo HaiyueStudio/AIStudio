@@ -74,6 +74,8 @@ export interface AgentBackend {
   readonly descriptor: AgentBackendDescriptor;
   readonly upstream?: Readonly<Record<string, string>>;
   modelCatalog(signal?: AbortSignal): Promise<AgentModelCatalog>;
+  /** Refresh account-scoped model availability without exposing provider wire data. */
+  refreshModelCatalog?(signal?: AbortSignal): Promise<AgentModelCatalog>;
   negotiate(config: AgentTurnConfigV2, signal?: AbortSignal): Promise<BackendCapabilityNegotiationV2>;
   authenticate(signal?: AbortSignal): Promise<AgentLoginHandoff | null>;
   status(signal?: AbortSignal): Promise<AgentBackendStatus>;

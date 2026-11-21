@@ -407,7 +407,7 @@ function normalizeBudget(value: unknown): TaskBudgetV2 {
   }) });
 }
 
-function reasoningEffort(value: unknown): M12ReasoningEffort | null { return ['backend-default', 'off', 'low', 'medium', 'high', 'xhigh'].includes(String(value)) ? value as M12ReasoningEffort : null; }
+function reasoningEffort(value: unknown): M12ReasoningEffort | null { return ['backend-default', 'off', 'low', 'medium', 'high', 'xhigh', 'max'].includes(String(value)) ? value as M12ReasoningEffort : null; }
 function safeInteger(value: unknown, minimum: number, maximum: number): number | null { return Number.isSafeInteger(value) && (value as number) >= minimum && (value as number) <= maximum ? value as number : null; }
 
 function isApprovalContent(value: Record<string, unknown>): boolean {

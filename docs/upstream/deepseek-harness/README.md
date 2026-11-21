@@ -1,11 +1,11 @@
 # DeepSeek Harness upstream pin
 
 - Repository: <https://github.com/deepseek-ai/deepseek-harness>
-- Release/tag: `dsh-v0.2.0-rc.2`
-- Commit: `639ed015397290b3745d163aafe02ffee4aa3f84`
+- Release/tag: `dsh-v0.2.2-rc.5`
+- Commit: `9c2670d3bce5275e0d1610272958121af87787bb`
 - License: MIT
-- Runtime declaration: Node `^22.19.0 || >=24`
-- Cordis: `4.0.4`
+- Runtime declaration: Node `>=24.9.0`
+- Cordis: `4.1.0`
 
 AIStudio 只在 `packages/harness-bridge` 直接依赖固定版本的 Cordis、agent、loop、LLM、session、tools、approval
 及 Web、Browser、PTC 服务和 providers。精确 npm integrity、license/third-party snapshot digest 记录在 `config/upstream/pins.json`，lockfile 是实际解析
@@ -13,6 +13,12 @@ AIStudio 只在 `packages/harness-bridge` 直接依赖固定版本的 Cordis、a
 
 `LICENSE.snapshot` 与 `THIRD_PARTY_NOTICES.md.snapshot` 由 `node scripts/capture-upstream-snapshots.mjs` 从 pin 中的固定 commit
 生成，不手工编辑。
+
+## 2026-11-21 升级
+
+当前依赖、许可和完整单实例闭包由 pins 与 lockfile 绑定。工具改用独立 NativeToolExecutor；模型选择改用 Agent.model 公共接口。原生工具描述由执行器过滤，审批票据和有界批执行保持有效。Web Fetch 改用 Studio 的公开地址 provider，保留字节、字符、重定向和超时上限，并在真实连接 DNS 解析时拒绝非公开地址。旧 Team V2 邮箱通过受门禁保护的恢复适配追加收据，历史日志不重写；Team 产品准入仍关闭。
+
+以下各节保留为历史接入记录；其旧版本和历史测试数不代表当前准入结果。
 
 ## 2026-10-06 Web / Browser / Node 接入
 

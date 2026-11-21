@@ -68,7 +68,13 @@ export async function collectPackages() {
         const patch = candidate.sourcePatch;
         assert.equal(await fileDigest(patch.path), `sha256:${patch.sha256}`, `${name} source patch mismatch`);
         assert.equal(await fileDigest(patch.baseTarball), `sha256:${patch.baseSha256}`, `${name} patch baseline mismatch`);
-        assert.equal(await fileDigest(`${folder}/${patch.compiledModule}`), `sha256:${patch.compiledModuleSha256}`, `${name} patched runtime mismatch`);
+        if (Array.isArray(patch.unchangedFiles)) {
+          assert.ok(patch.unchangedFiles.length > 0, `${name} manifest-only overlay must bind its payload`);
+          assert.equal(installed.dependencies['@haiyue/ui'], patch.uiRange);
+          for (const file of patch.unchangedFiles) {
+            assert.equal(await fileDigest(`${folder}/${file.path}`), `sha256:${file.sha256}`, `${name}/${file.path} overlay payload mismatch`);
+          }
+        } else assert.equal(await fileDigest(`${folder}/${patch.compiledModule}`), `sha256:${patch.compiledModuleSha256}`, `${name} patched runtime mismatch`);
       }
       for (const entry of candidate.requiredExports) assert.ok(Object.hasOwn(installed.exports, entry), `${name} missing export ${entry}`);
     } else assert.equal(app.dependencies[name], installed.version, `${name} app pin mismatch`);

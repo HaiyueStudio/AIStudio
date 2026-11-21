@@ -7,7 +7,7 @@ import { createPinnedHarnessAgentTransport, createHarnessExtendedTools } from '.
 test('experimental DevTools uses lazy isolated Chrome and reviewed native tools', { timeout: 60000 }, async t => {
  const server=createServer((_req,res)=>res.end('<html><body><button onclick="this.textContent=\'Clicked\'">Try</button></body></html>'));
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
- const owner=createHarnessStudioRoot(), port=createHarnessExtendedTools({browser:{backend:'chrome-devtools',executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}});
+ const owner=createHarnessStudioRoot(), port=createHarnessExtendedTools({browser:{backend:'chrome-devtools',executablePath:process.env.HAIYUE_STUDIO_BROWSER_EXECUTABLE ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}});
  const transport=await createPinnedHarnessAgentTransport({owner,officialTools:port,resolveApiKey:async()=>null});t.after(()=>owner.dispose());
  const input={sessionId:'session:devtools',model:'deepseek-flash',reasoningEffort:'off',maxTokens:1024,tools:[],prompt:'Inspect controlled fixture.',lastConfirmedOpId:'op:devtools'};
  await transport.openSession(input);
@@ -20,6 +20,7 @@ test('experimental DevTools uses lazy isolated Chrome and reviewed native tools'
  await assert.rejects(run('list_pages',{unknown:true}),/arguments-invalid/);
  const pages=await run('list_pages');assert.ok(pages.content.length);
  const nav=await run('new_page',{url:`http://127.0.0.1:${server.address().port}/`});
+ assert.equal((await ctx.systemPrompt.assemble({scope:agent})).tools.length,0,'DevTools native registrations remain hidden from the model after lazy startup');
  const pageId=Number(/(\d+): http/.exec(JSON.stringify(nav))?.[1]);assert.ok(Number.isInteger(pageId),JSON.stringify(nav));
  const snapshot=await run('snapshot',{pageId});assert.match(JSON.stringify(snapshot),/Try/);
  const uid=/uid=([^\s]+) button/.exec(snapshot.content.map(b=>b.text).join('\n'))?.[1];assert.ok(uid,JSON.stringify(snapshot));
@@ -31,7 +32,7 @@ test('experimental DevTools uses lazy isolated Chrome and reviewed native tools'
  await transport.closeSession(input.sessionId);assert.equal(ctx.agents.get(input.sessionId),undefined);
 });
 test('DevTools initialization cancellation drains and can recreate the session resource',{timeout:30000},async t=>{
- const owner=createHarnessStudioRoot(),port=createHarnessExtendedTools({browser:{backend:'chrome-devtools',executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}});
+ const owner=createHarnessStudioRoot(),port=createHarnessExtendedTools({browser:{backend:'chrome-devtools',executablePath:process.env.HAIYUE_STUDIO_BROWSER_EXECUTABLE ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}});
  const transport=await createPinnedHarnessAgentTransport({owner,officialTools:port,resolveApiKey:async()=>null});t.after(()=>owner.dispose());
  const sessionId='session:devtools-cancel';await transport.openSession({sessionId,model:'deepseek-flash',reasoningEffort:'off',maxTokens:1024,tools:[],prompt:'Fixture.'});
  const controller=new AbortController();const call={sessionId,turnId:'turn:init',callId:'call:init',toolId:'official.browser.list_pages',arguments:{}};

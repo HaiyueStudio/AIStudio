@@ -89,5 +89,5 @@ function rejected(config: AgentTurnConfigV2, policy: BackendNegotiationPolicy, c
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function isStableId(value: unknown): value is StableId { return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/u.test(value); }
 function deepFreeze<T>(value: T): T { if (value && typeof value === 'object' && !Object.isFrozen(value)) { for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child); Object.freeze(value); } return value; }
-const reasoningEfforts = new Set(['backend-default', 'off', 'low', 'medium', 'high', 'xhigh']);
+const reasoningEfforts = new Set(['backend-default', 'off', 'low', 'medium', 'high', 'xhigh', 'max']);
 const digest = /^sha256:[a-f0-9]{64}$/u;

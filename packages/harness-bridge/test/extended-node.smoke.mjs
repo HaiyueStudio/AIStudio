@@ -5,6 +5,11 @@ import { createHarnessStudioRoot } from '../dist/index.js';
 import { createPinnedHarnessAgentTransport, createHarnessExtendedTools } from '../dist/harness-agent.js';
 const input={sessionId:'session:node',model:'deepseek-flash',reasoningEffort:'off',maxTokens:1024,tools:[],prompt:'Run isolated calculations.',lastConfirmedOpId:'op:node'};
 async function fixture(t){const owner=createHarnessStudioRoot(),port=createHarnessExtendedTools({node:{...(process.env.AI_STUDIO_NODE_EXECUTABLE ? {executablePath:process.env.AI_STUDIO_NODE_EXECUTABLE}: {})}});const transport=await createPinnedHarnessAgentTransport({owner,officialTools:port,resolveApiKey:async()=>null});t.after(()=>owner.dispose());await transport.openSession(input);let i=0;return {transport,run:(code,other={},signal=new AbortController().signal)=>port.execute({sessionId:input.sessionId,turnId:'turn:node',callId:`call:node-${++i}`,toolId:'official.code.run',arguments:{code,...other}},signal)};}
+
+if (process.platform === 'win32') test('Windows Node execution reports unavailable without starting unconfined code', async t => {
+ const f=await fixture(t);
+ assert.deepEqual(await f.run('throw new Error("must not execute")'),{status:'unavailable',code:'official.node.restricted-runtime-unavailable'});
+});
 test('official Node PTC computes, captures bounded files and clears the environment', {timeout:20000},async t=>{
  const f=await fixture(t); const result=await f.run('const input = await inputs.read({}); const fs = await import("node:fs/promises"); await fs.writeFile("answer.txt", String(input.a+input.b)); console.log("calculated"); return {sum:input.a+input.b, env:Object.keys(process.env)};', {input:{a:2,b:3}});
  assert.equal(result.status,'completed',JSON.stringify(result)); assert.deepEqual(result.value,{sum:5,env:[]}); assert.equal(result.files[0].content,'5');

@@ -5,14 +5,20 @@ import { response } from './fixtures/messages.mjs';
 import { harnessToolName } from '../dist/harness-agent.js';
 
 const input = { sessionId: 'session:official', model: 'deepseek-flash', reasoningEffort: 'off', maxTokens: 1024, tools: [], prompt: 'Read official evidence.', lastConfirmedOpId: 'op:official' };
+const nativeCall = async (tools, call) => (await tools.execute({ calls: [{ type: 'tool-call', id: call.callId, name: call.name, arguments: JSON.stringify(call.arguments) }], agent: call.agent, signal: call.signal })).results[0].result;
 const execution = (id = 'call:official') => ({ callId: id, sessionId: input.sessionId, turnId: 'turn:official', toolId: 'official.fixture.read', arguments: { query: 'evidence' } });
 
 test('native schemas are hidden; only selected Studio wrappers reach the model and execute the full official pipeline once', async t => {
   const f = await officialFixture(); t.after(() => f.owner.dispose());
   const tools = [f.binding.definition]; let requests = 0;
+  let unreviewedCalls = 0;
+  const registerUnreviewed = name => f.ctx.tools.register({ name, description: 'Unreviewed native service', parameters: { type: 'object' },
+    output: { schema: {}, render: () => [] }, async execute() { unreviewedCalls++; return {}; } });
+  registerUnreviewed('mcp__fixture__unreviewed_file_read');
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const body = JSON.parse(init.body); requests++;
     assert.deepEqual(body.tools.map(tool => tool.name), [harnessToolName(tools[0].id, 0)]);
+    if (requests === 1) registerUnreviewed('mcp__fixture__late_unreviewed_execute');
     return response(requests === 1 ? { calls: [{ id: 'call:official', name: body.tools[0].name, arguments: { query: 'evidence' } }] } : { text: 'Done.' });
   });
   const events = [];
@@ -29,16 +35,18 @@ test('native schemas are hidden; only selected Studio wrappers reach the model a
   assert.equal(events.at(-1).status, 'completed');
   assert.deepEqual(f.stats, { bodies: 1, results: 1, around: 1, post: 1 });
   assert.equal(requests, 2);
+  const denied = await nativeCall(f.ctx.tools, { callId: 'call:unreviewed', name: 'mcp__fixture__late_unreviewed_execute', arguments: {}, agent: f.ctx.agents.get(input.sessionId), signal: new AbortController().signal });
+  assert.equal(denied.isError, true); assert.equal(unreviewedCalls, 0);
 });
 
 test('raw, unknown, nested and schema-drift dispatch cannot bypass the Host', async t => {
   let nested;
   const f = await officialFixture({ async execute(_args, exec, ctx) {
-    nested = await ctx.tools.execute({ callId: 'call:nested', name: 'fixture_read', arguments: { query: 'recursive' }, agent: exec.agent, signal: exec.signal });
+    nested = await nativeCall(ctx.tools, { callId: 'call:nested', name: 'fixture_read', arguments: { query: 'recursive' }, agent: exec.agent, signal: exec.signal });
     return { value: 'outer' };
   } }); t.after(() => f.owner.dispose());
   await f.transport.openSession(input);
-  const raw = await f.ctx.tools.execute({ callId: 'call:raw', name: 'fixture_read', arguments: { query: 'raw' }, signal: new AbortController().signal });
+  const raw = await nativeCall(f.ctx.tools, { callId: 'call:raw', name: 'fixture_read', arguments: { query: 'raw' }, signal: new AbortController().signal });
   assert.equal(raw.isError, true); assert.equal(f.stats.bodies, 0);
   await f.port.execute(execution(), new AbortController().signal);
   assert.equal(nested.isError, true); assert.equal(f.stats.bodies, 1);
@@ -80,7 +88,7 @@ test('nested Studio wrappers from official pre-policy are rejected before they c
   await f.transport.openSession({ ...input, tools: [wrapper] });
   let nested;
   f.ctx.on('tools/pre-execute', async (exec, next) => {
-    if (exec.name === 'fixture_read') nested = await f.ctx.tools.execute({ callId: 'call:pre-nested', name: harnessToolName(wrapper.id, 0), arguments: {}, agent: exec.agent, signal: exec.signal });
+    if (exec.name === 'fixture_read') nested = await nativeCall(f.ctx.tools, { callId: 'call:pre-nested', name: harnessToolName(wrapper.id, 0), arguments: {}, agent: exec.agent, signal: exec.signal });
     return next();
   }, { global: true });
   await f.port.execute(execution(), new AbortController().signal);

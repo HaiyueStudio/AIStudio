@@ -45,7 +45,7 @@ export class HarnessRequestContext {
       requestBytes, previousUsage: this.usage,
       tools: (request.tools ?? []) as unknown as readonly JsonObject[],
       messages: request.messages.map(message => {
-        if (!message.id || !message.source) throw new LlmError('Studio context requires identified session messages.', 'context.unidentified-message');
+        if (!message.id || !message.source) throw LlmError.fromFailure({ message: 'Studio context requires identified session messages.', code: 'context.unidentified-message' });
         return { id: String(message.id), requestBytes: Buffer.byteLength(JSON.stringify(message)), failed: failedToolResult(message), role: message.role === 'developer' ? 'system' : message.role,
         text: message.content.filter(block => block.type !== 'reasoning').map(block => block.type === 'text' ? block.text : JSON.stringify(block)).join('\n'),
         toolCallIds: message.content.flatMap(block => block.type === 'tool-call' ? [String(block.id)] : []),
@@ -84,7 +84,7 @@ export class HarnessRequestContext {
       if (this.port) this.prepared(prepared.id, projection.turnId, true);
     } catch (cause) {
       this.rollback();
-      if (cause instanceof Error && 'code' in cause && typeof cause.code === 'string' && /^context\.[a-z-]+$/u.test(cause.code)) throw new LlmError(cause.message, cause.code, { cause });
+      if (cause instanceof Error && 'code' in cause && typeof cause.code === 'string' && /^context\.[a-z-]+$/u.test(cause.code)) throw LlmError.fromFailure({ message: cause.message, code: cause.code }, { cause });
       throw cause;
     }
   }

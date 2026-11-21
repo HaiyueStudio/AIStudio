@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "evidenceClass": "real-provider-smoke",
+  "verifiedOn": "2026-11-21",
+  "backend": "codex-app-server",
+  "protocolVersion": "0.171.0",
+  "authMode": "chatgpt",
+  "rateLimitBuckets": 0,
+  "summaries": [
+    {
+      "model": "gpt-6.2-sol",
+      "reasoningEffort": "low",
+      "name": "text",
+      "terminal": "completed",
+      "toolCalls": 0,
+      "questions": 0
+    },
+    {
+      "model": "gpt-6.2-sol",
+      "reasoningEffort": "low",
+      "name": "tool",
+      "terminal": "completed",
+      "toolCalls": 1,
+      "questions": 0
+    },
+    {
+      "model": "gpt-6.2-sol",
+      "reasoningEffort": "low",
+      "name": "question",
+      "terminal": "completed",
+      "toolCalls": 0,
+      "questions": 1
+    },
+    {
+      "model": "gpt-6.2-sol",
+      "reasoningEffort": "low",
+      "name": "cancel",
+      "terminal": "cancelled",
+      "toolCalls": 0,
+      "questions": 0
+    },
+    {
+      "model": "gpt-6.2-astra",
+      "reasoningEffort": "low",
+      "name": "text",
+      "terminal": "completed",
+      "toolCalls": 0,
+      "questions": 0
+    },
+    {
+      "model": "gpt-6.2-astra",
+      "reasoningEffort": "low",
+      "name": "tool",
+      "terminal": "completed",
+      "toolCalls": 1,
+      "questions": 0
+    },
+    {
+      "model": "gpt-6.2-astra",
+      "reasoningEffort": "low",
+      "name": "question",
+      "terminal": "completed",
+      "toolCalls": 0,
+      "questions": 1
+    },
+    {
+      "model": "gpt-6.2-astra",
+      "reasoningEffort": "low",
+      "name": "cancel",
+      "terminal": "cancelled",
+      "toolCalls": 0,
+      "questions": 0
+    }
+  ],
+  "sourceBinding": {
+    "generatedSchemas": "834e838a488b36b7feca97dba640c64ee0e9fa358cdf9e968bac301afd2114d7"
+  },
+  "corrections": [
+    "Explicitly permit structured request_user_input questions alongside dynamic authoring tools."
+  ],
+  "limitations": [
+    "Standard speed and low reasoning effort only.",
+    "Optional rate-limit metadata was unavailable.",
+    "This is not formal cross-genre milestone acceptance."
+  ]
+}

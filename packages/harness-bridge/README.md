@@ -13,7 +13,7 @@ History owner.
 
 ## Current upstream
 
-The runtime now uses Harness `dsh-v0.2.0-rc.2` and Cordis `4.0.4`.
+The runtime now uses Harness `dsh-v0.2.2-rc.5` and Cordis `4.1.0`.
 See [the upgrade record](../../docs/upstream/deepseek-harness/README.md) for the exact pin,
 stream/session adaptations, model capacities, pricing assumptions and regression coverage.
 The G02 record below describes the original milestone baseline.
@@ -59,7 +59,7 @@ and profile reactivation creates fresh readiness hooks and caches.
 Browser support currently covers 11 reviewed text/interaction tools; image
 attachments, screenshots, uploads and arbitrary output paths are not exposed.
 Restricted Node execution currently requires macOS and a supported standalone
-Node binary (upstream requires `^22.19.0 || >=24`; tested with 24.19.0).
+Node binary (upstream requires `>=24.9.0`; tested with 24.19.0).
 The adapter adds OS read/network restrictions and Node permissions to the
 official file sandbox; unsupported enforcement fails closed. Scripts receive
 JSON through `await inputs.read({})`, run in fresh scratch directories and cannot

@@ -16,7 +16,7 @@ const packageKey = (name) => `node_modules/${name}`;
 
 assert.match(pins.deepseekHarness.tag, /^dsh-v\d+\.\d+\.\d+-rc\.\d+$/);
 assert.match(pins.deepseekHarness.commit, /^[0-9a-f]{40}$/);
-assert.equal(pins.deepseekHarness.commit, '639ed015397290b3745d163aafe02ffee4aa3f84');
+assert.equal(pins.deepseekHarness.commit, '9c2670d3bce5275e0d1610272958121af87787bb');
 assert.equal(pins.deepseekHarness.license, 'MIT');
 assert.deepEqual(new Set(compatibility.deepseekHarness.requiredPackages), new Set(pins.deepseekHarness.packages.map(({ name }) => name)));
 assert.deepEqual(new Set(pins.deepseekHarness.packages.map(({ name }) => name)), new Set(Object.keys(bridgePackage.dependencies).filter((name) => name.startsWith('@deepseek-ai/'))));
@@ -59,7 +59,7 @@ for (const [location, installed] of Object.entries(lock.packages)) {
   const name = match[1];
   assert.equal(location, packageKey(name), `${name} has a second runtime instance`);
   assert.equal(installed.version, rootPackage.overrides[name], `${name} transitive version is not pinned`);
-  assert.equal(installed.version, name === '@deepseek-ai/cordis' ? '4.0.4' : pins.deepseekHarness.tag.slice(5));
+  assert.equal(installed.version, name === '@deepseek-ai/cordis' ? '4.1.0' : pins.deepseekHarness.tag.slice(5));
 }
 
 assert.equal(rootPackage.devDependencies[pins.codex.package], pins.codex.version);

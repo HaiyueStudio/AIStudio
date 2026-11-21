@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/main.js",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.9.0"
   },
   "scripts": {
     "start": "node scripts/start-desktop.mjs",
@@ -30,10 +30,10 @@
     "@haiyue/ai-studio-shell": "0.0.0",
     "@haiyue/editor-app-kit": "0.1.0",
     "@haiyue/editor-platform": "0.1.0",
-    "@haiyue/engine": "0.1.0",
-    "@haiyue/ui": "0.1.4",
+    "@haiyue/engine": "0.2.3",
+    "@haiyue/ui": "0.2.3",
     "@haiyue/ai-studio-agent-orchestration": "0.0.0",
-    "@haiyue/editor-shell": "0.1.1"
+    "@haiyue/editor-shell": "0.1.2-ui.0.2.3"
   },
   "devDependencies": {
     "@types/node": "22.19.13",

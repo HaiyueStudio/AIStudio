@@ -2,11 +2,13 @@ import type { PricingCatalogV1 } from '@haiyue/ai-studio-contracts';
 
 /** Packaged copy of config/pricing/m12-pricing-catalog-v1.json; a test prevents drift. */
 export const M12_DEFAULT_PRICING_CATALOG: PricingCatalogV1 = Object.freeze({
-  schemaVersion: 1, id: 'pricing:haiyue-m12-usd', version: '1.1.0', effectiveAt: '2026-09-10T04:00:00.000Z', currency: 'USD',
+  schemaVersion: 1, id: 'pricing:haiyue-m12-usd', version: '1.2.0', effectiveAt: '2026-11-21T00:00:00.000Z', currency: 'USD',
   sources: Object.freeze([
     Object.freeze({ provider: 'deepseek', url: 'https://api-docs.deepseek.com/quick_start/pricing/', retrievedAt: '2026-08-24T00:00:00.000Z' }),
     Object.freeze({ provider: 'openai', url: 'https://platform.openai.com/pricing', retrievedAt: '2026-08-24T00:00:00.000Z' }),
     Object.freeze({ provider: 'deepseek', url: 'https://www.deepseek.com/en/news/deepseek-v4-1-flash/', retrievedAt: '2026-09-11T00:00:00.000Z' }),
+    Object.freeze({ provider: 'openai', url: 'https://developers.openai.com/api/docs/models/gpt-6.2-sol', retrievedAt: '2026-11-21T00:00:00.000Z' }),
+    Object.freeze({ provider: 'openai', url: 'https://developers.openai.com/api/docs/models/gpt-6.2-astra', retrievedAt: '2026-11-21T00:00:00.000Z' }),
   ]),
   entries: Object.freeze([
     // Conservative published peak rates. Off-peak discounts are not inferred
@@ -16,6 +18,8 @@ export const M12_DEFAULT_PRICING_CATALOG: PricingCatalogV1 = Object.freeze({
     entry('deepseek', 'deepseek-v4-flash-vision-exp', 300_000, 6_000, 300_000, 1_200_000),
     entry('deepseek', 'deepseek-v4-pro', 435_000, 3_625, 435_000, 870_000),
     entry('openai', 'gpt-5.6-sol', 2_500_000, 250_000, 3_125_000, 15_000_000),
+    entry('openai', 'gpt-6.2-sol', 2_000_000, 100_000, 2_500_000, 10_000_000, 'requires-request-metadata'),
+    entry('openai', 'gpt-6.2-astra', 8_000_000, 400_000, 10_000_000, 40_000_000, 'requires-request-metadata'),
     entry('openai', 'gpt-5.6-terra', 1_250_000, 125_000, 1_562_500, 7_500_000),
     entry('openai', 'gpt-5.6-luna', 500_000, 50_000, 625_000, 3_000_000),
     entry('openai', 'gpt-5.5', 2_500_000, 250_000, null, 15_000_000),
@@ -24,6 +28,6 @@ export const M12_DEFAULT_PRICING_CATALOG: PricingCatalogV1 = Object.freeze({
   ]),
 });
 
-function entry(provider: string, model: string, inputMicrosPerMillion: number, cachedInputMicrosPerMillion: number | null, cacheWriteMicrosPerMillion: number | null, outputMicrosPerMillion: number): PricingCatalogV1['entries'][number] {
-  return Object.freeze({ provider, model, inputMicrosPerMillion, cachedInputMicrosPerMillion, cacheWriteMicrosPerMillion, outputMicrosPerMillion, reasoningBilling: 'included-in-output' });
+function entry(provider: string, model: string, inputMicrosPerMillion: number, cachedInputMicrosPerMillion: number | null, cacheWriteMicrosPerMillion: number | null, outputMicrosPerMillion: number, estimation?: 'requires-request-metadata'): PricingCatalogV1['entries'][number] {
+  return Object.freeze({ provider, model, inputMicrosPerMillion, cachedInputMicrosPerMillion, cacheWriteMicrosPerMillion, outputMicrosPerMillion, reasoningBilling: 'included-in-output', ...(estimation ? { estimation } : {}) });
 }

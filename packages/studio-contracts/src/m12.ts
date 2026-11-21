@@ -22,7 +22,7 @@ export type M12CapabilityId =
   | 'audio.playback' | 'asset.import' | 'prefab'
   | 'play.multi-script' | 'play.capture' | 'play.inspect' | 'diagnostics.query';
 
-export type M12ReasoningEffort = 'backend-default' | 'off' | 'low' | 'medium' | 'high' | 'xhigh';
+export type M12ReasoningEffort = 'backend-default' | 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface AgentTurnConfigV2 {
   readonly schemaVersion: M12SchemaVersion;
@@ -109,6 +109,8 @@ export interface PricingEntryV1 {
   readonly cacheWriteMicrosPerMillion: number | null;
   readonly outputMicrosPerMillion: number;
   readonly reasoningBilling: 'included-in-output' | 'separate-as-output';
+  /** Published base rates are insufficient without request-specific billing dimensions. */
+  readonly estimation?: 'requires-request-metadata';
 }
 
 export interface TaskBudgetV2 {
