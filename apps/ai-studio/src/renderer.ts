@@ -1,4 +1,5 @@
 import { mountToolSettings } from './tool-settings-ui.js';
+import { mountMobilePreviewSharing } from './mobile-preview-ui.js';
 import { updateToolbarButton } from './toolbar.js';
 import { renderPreviewTestTable, type PreviewTestActivity } from './preview-test-progress.js';
 import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
@@ -91,9 +92,12 @@ let agentHistoryWasBusy = false;
 const agentPreviewOwnership = new AgentPreviewOwnership();
 const agentPreviewCursor = new AgentPreviewCursor();
 let previewStop: Promise<void> | null = null;
+let previewRestarting = false;
 let toolSettings: ReturnType<typeof mountToolSettings> | null = null;
 let querySettings: ReturnType<typeof mountQuerySettings> | null = null;
 let notificationSettings: ReturnType<typeof mountNotificationSettings> | null = null;
+let mobileSharing: ReturnType<typeof mountMobilePreviewSharing> | null = null;
+let sharingPlanId: StableId | null = null;
 let disposeNotificationClicked: (() => void) | null = null;
 
 declare global {
@@ -198,6 +202,7 @@ let currentStatusKey: string | null = document.body.dataset.shell === 'web' ? 's
 
 const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>> = Object.freeze({
   'zh-CN': Object.freeze({
+    applySizeTooltip: '应用尺寸', pauseTooltip: '暂停', resumeTooltip: '继续', restartPreview: '重新运行',
     newProject: '新建', openProject: '打开', saveProject: '保存', run: '▶ 运行', stop: '■ 停止', runTitle: '运行项目', stopTitle: '停止运行', settings: '设置',
     agentPreviewNotice: 'Agent 正在操作预览，请勿直接关闭或操作画面。测试结束或需要你确认时会自动返回编辑器。', agentPreviewRunning: 'Agent 测试中', stopAgentPreview: '停止任务并退出', playPage: '独立运行预览', playRunning: '运行中', playPaused: '已暂停', playStarting: '正在启动…', device: '设备', devicePreset: '设备预设', responsive: '自适应', custom: '自定义', width: '宽', height: '高', customWidth: '自定义宽度', customHeight: '自定义高度', applySize: '应用', rotateDevice: '旋转设备', pause: '⏸ 暂停', resume: '▶ 继续', fullscreen: '全屏', exitFullscreen: '退出全屏', exitPlay: '退出运行',
     scene: '场景', createEmpty: '+ 空物体', createCube: '+ 立方体', inspector: '检查器', noSelection: '未选择物体',
@@ -218,6 +223,7 @@ const UI_COPY: Readonly<Record<StudioLanguage, Readonly<Record<string, string>>>
     allowOnce: '仅允许一次', allowAlways: '始终允许', reject: '拒绝', agentBackend: 'AI 后端', jumpLatest: '跳到最新 AI 消息', noProject: '未打开项目',
   }),
   en: Object.freeze({
+    applySizeTooltip: 'Apply size', pauseTooltip: 'Pause', resumeTooltip: 'Resume', restartPreview: 'Restart game',
     newProject: 'New', openProject: 'Open', saveProject: 'Save', run: '▶ Run', stop: '■ Stop', runTitle: 'Run project', stopTitle: 'Stop project', settings: 'Settings',
     agentPreviewNotice: 'Agent is testing this preview. Please leave it open and avoid interacting. It will return to the editor automatically when testing finishes or your approval is needed.', agentPreviewRunning: 'Agent testing', stopAgentPreview: 'Stop task and exit', playPage: 'Standalone play preview', playRunning: 'Running', playPaused: 'Paused', playStarting: 'Starting…', device: 'Device', devicePreset: 'Device preset', responsive: 'Responsive', custom: 'Custom', width: 'W', height: 'H', customWidth: 'Custom width', customHeight: 'Custom height', applySize: 'Apply', rotateDevice: 'Rotate device', pause: '⏸ Pause', resume: '▶ Resume', fullscreen: 'Fullscreen', exitFullscreen: 'Exit fullscreen', exitPlay: 'Exit play',
     scene: 'Scene', createEmpty: '+ Empty', createCube: '+ Cube', inspector: 'Inspector', noSelection: 'No entity selected',
@@ -775,7 +781,7 @@ async function boot(): Promise<void> {
   element('workspace-logic').querySelector('.workspace-manual-links')!.after(logicHost);
   logicPanel = new LogicExplorerPanel(document, logicHost, dispatchLogicIntent); logicPanel.setLanguage(language);
   const playLogic = document.createElement('button'); playLogic.id = 'play-logic'; playLogic.type = 'button'; playLogic.textContent = language === 'zh-CN' ? '行为轨迹' : 'Behavior trace';
-  element('play-pause').after(playLogic);
+  element('play-pause').closest('hy-tooltip')!.after(playLogic);
   playLogic.addEventListener('click', () => { logicPanel?.openExpanded(); void dispatchLogicIntent({ type: 'capture' }); });
   if (editorPanels) {
     const runtimeInspect = document.createElement('button'); runtimeInspect.id = 'play-runtime-inspect'; runtimeInspect.type = 'button'; runtimeInspect.textContent = language === 'zh-CN' ? '运行检查' : 'Runtime inspector';
@@ -841,6 +847,11 @@ function setupUiPreferences(): void {
   notificationSettings = mountNotificationSettings(document, element('settings-notifications'), {
     desktop: typeof window.haiyueStudio.onNotificationClicked === 'function', language: () => language, invoke,
   });
+  mobileSharing = mountMobilePreviewSharing(document, {
+    desktop:document.body.dataset.shell!=='web',language:()=>language,
+    game:()=>playing&&!agentPreviewOwnership.active&&sharingPlanId?{planId:sharingPlanId,viewport:{width:Math.max(240,Math.min(3840,element('play-device-screen').clientWidth)),height:Math.max(240,Math.min(3840,element('play-device-screen').clientHeight))}}:null,
+    invoke:(method,payload,signal)=>invoke(method,payload as JsonObject,signal),
+  });
 
   const languageSelect = element<HYSelect>('language-select');
   const themeSelect = element<HYSelect>('theme-select');
@@ -869,6 +880,7 @@ function setupUiPreferences(): void {
 }
 
 function applyLocale(): void {
+  mobileSharing?.refresh();
   scriptEditor?.setLanguage(language);
   notificationSettings?.refreshLocale();
   querySettings?.refreshLocale();
@@ -1005,6 +1017,7 @@ function setupPlayPageControls(): void {
     input.addEventListener('keydown', (event) => { if (event.key === 'Enter') applyCustomPlayViewport(); });
   }
   element('play-pause').addEventListener('click', () => void action(togglePreviewPause));
+  element('play-restart').addEventListener('click', () => void action(restartPreviewFromUser));
   element('play-exit').addEventListener('click', () => void action(exitPreviewFromUser));
   element('play-fullscreen').addEventListener('click', () => void action(togglePlayFullscreen));
   document.addEventListener('fullscreenchange', () => { updatePlayControls(); updatePlayViewportScale(); });
@@ -1104,7 +1117,7 @@ async function hidePlayPage(): Promise<void> {
 }
 
 async function togglePreviewPause(): Promise<void> {
-  if (!playing || !previewFrame) return;
+  if (!playing || !previewFrame || previewRestarting) return;
   const button = element<HTMLButtonElement>('play-pause');
   button.disabled = true;
   try {
@@ -1123,6 +1136,7 @@ async function togglePlayFullscreen(): Promise<void> {
 }
 
 function updatePlayControls(): void {
+  mobileSharing?.refresh();
   const state = element('play-state');
   const agentOwned = agentPreviewOwnership.active;
   renderPreviewTestProgress();
@@ -1130,18 +1144,25 @@ function updatePlayControls(): void {
   element('play-agent-notice').textContent = t('agentPreviewNotice');
   element('play-page').dataset.owner = agentOwned ? 'agent' : 'user';
   element('play-device-screen').inert = agentOwned;
-  element('play-exit').textContent = t(agentOwned ? 'stopAgentPreview' : 'exitPlay');
-  element<HTMLButtonElement>('play-exit').disabled = agentOwned && !playing;
+  updateToolbarButton(element<HTMLButtonElement>('play-exit'), t(agentOwned ? 'stopAgentPreview' : 'exitPlay'), 'exit');
+  element<HTMLButtonElement>('play-exit').disabled = previewRestarting || agentOwned && !playing;
   for (const id of ['play-device-preset', 'play-custom-width', 'play-custom-height', 'play-apply-size', 'play-rotate']) {
-    element<HTMLInputElement>(id).disabled = agentOwned;
+    element<HTMLInputElement>(id).disabled = agentOwned || previewRestarting;
   }
+  updateToolbarButton(element<HTMLButtonElement>('play-apply-size'), t('applySizeTooltip'), 'apply');
+  updateToolbarButton(element<HTMLButtonElement>('play-rotate'), t('rotateDevice'), 'rotate');
   state.textContent = agentOwned ? t('agentPreviewRunning') : !playing ? t('playStarting') : previewPaused ? t('playPaused') : t('playRunning');
   state.classList.toggle('is-paused', previewPaused);
   const pause = element<HTMLButtonElement>('play-pause');
-  pause.disabled = !playing || agentOwned;
-  pause.textContent = t(previewPaused ? 'resume' : 'pause');
+  pause.disabled = !playing || agentOwned || previewRestarting;
+  updateToolbarButton(pause, t(previewPaused ? 'resumeTooltip' : 'pauseTooltip'), previewPaused ? 'play' : 'pause');
+  const restart = element<HTMLButtonElement>('play-restart');
+  restart.disabled = !playing || agentOwned || previewRestarting;
+  restart.setAttribute('aria-busy', String(previewRestarting));
+  updateToolbarButton(restart, t(previewRestarting ? 'playStarting' : 'restartPreview'), previewRestarting ? 'busy' : 'restart');
   const fullscreen = element<HTMLButtonElement>('play-fullscreen');
-  fullscreen.textContent = t(document.fullscreenElement === element('play-page') ? 'exitFullscreen' : 'fullscreen');
+  const isFullscreen = document.fullscreenElement === element('play-page');
+  updateToolbarButton(fullscreen, t(isFullscreen ? 'exitFullscreen' : 'fullscreen'), isFullscreen ? 'exit-fullscreen' : 'fullscreen');
 }
 
 function bindUi(): void {
@@ -1203,6 +1224,7 @@ function bindUi(): void {
   element('run-approve').addEventListener('click', () => void approveProjectRun());
   element('run-fix-agent').addEventListener('click', () => void requestAgentScriptFix());
   window.addEventListener('beforeunload', () => {
+    mobileSharing?.dispose();mobileSharing=null;
     rendererDisposed = true;
     previewPoll?.stop(); previewPoll = null;
     disposePreviewPending?.(); disposePreviewPending = null;
@@ -1553,17 +1575,38 @@ async function toggleProjectRun(): Promise<void> {
       setStatus('Project stopped');
       return;
     }
-    setStatus('Preparing isolated preview…');
-    const valid = await prepareProjectRun();
-    if (valid && previewDisclosure?.approvalReusable) {
-      await approveAndStartPreview(true);
-      setStatus('Project is running');
-      return;
-    }
-    element<HYDialog>('run-dialog').showModal();
-    setStatus(valid ? 'Ready' : runScriptContext?.kind === 'missing-script' ? t('runMissingScriptHeading') : 'Script validation failed');
+    await prepareAndRunProject();
   } catch (cause) { setStatus(errorMessage(cause)); }
   finally { button.removeAttribute('aria-busy'); updateRunButton(); }
+}
+
+async function prepareAndRunProject(): Promise<void> {
+  setStatus('Preparing isolated preview…');
+  const valid = await prepareProjectRun();
+  if (valid && previewDisclosure?.approvalReusable) {
+    await approveAndStartPreview(true);
+    setStatus('Project is running');
+    return;
+  }
+  element<HYDialog>('run-dialog').showModal();
+  setStatus(valid ? 'Ready' : runScriptContext?.kind === 'missing-script' ? t('runMissingScriptHeading') : 'Script validation failed');
+}
+
+async function restartPreviewFromUser(): Promise<void> {
+  const run = element<HTMLButtonElement>('run-project');
+  if (!playing || agentPreviewOwnership.active || previewRestarting || run.disabled) return;
+  previewRestarting = true;
+  run.setAttribute('aria-busy', 'true');
+  updateRunButton();updatePlayControls();
+  try {
+    await stopPreview();
+    await refresh();
+    await prepareAndRunProject();
+  } finally {
+    previewRestarting = false;
+    run.removeAttribute('aria-busy');
+    updateRunButton();updatePlayControls();
+  }
 }
 
 async function prepareProjectRun(): Promise<boolean> {
@@ -2047,7 +2090,7 @@ async function startPreview(plan: ConsumedPreviewPlan, sourceScene: SceneSnapsho
     viewport.apply(sourceScene, selection.activeEntityId);
     throw cause;
   }
-  playing = true;
+  playing = true;sharingPlanId=plan.id;
   renderLogicPanel();
   previewPaused = agentPreviewOwnership.active;
   element('viewport-empty-state').hidden = true;
@@ -2094,7 +2137,7 @@ async function disposePreview(): Promise<void> {
   document.body.dataset.smokeStage = 'preview-realm-disposed';
   previewFrame = null;
   await reportPreview('stopped', 'Preview stopped.', disposedSideEffects, previewId, selection.activeEntityId).catch(cause => setStatus(errorMessage(cause)));
-  playing = false;
+  playing = false;sharingPlanId=null;
   renderLogicPanel();
   previewPaused = false;
   document.body.dataset.preview = 'stopped';

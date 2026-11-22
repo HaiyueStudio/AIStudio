@@ -11,8 +11,7 @@ export interface PreviewAssetTransferPlatform {
   decodeText(bytes: Uint8Array): string;
 }
 
-export async function loadPreviewAssets(snapshot: PreviewAssetScene, read: (assetId: StableId) => Promise<PreviewAssetReadResult>, platform: PreviewAssetTransferPlatform = browserPlatform(), signal?: AbortSignal): Promise<readonly PreviewRuntimeAsset[]> {
-  throwIfAborted(signal);
+export function referencedPreviewAssets(snapshot: PreviewAssetScene): readonly PreviewAssetManifestEntry[] {
   const manifest = new Map((snapshot.assets ?? []).map((entry) => [entry.id, entry]));
   const referenced = new Set<StableId>();
   let visited = 0;
@@ -25,10 +24,16 @@ export async function loadPreviewAssets(snapshot: PreviewAssetScene, read: (asse
   };
   for (const entity of snapshot.entities) for (const component of entity.components ?? []) if (component.enabled) visit(component.value, 0);
   if (referenced.size > 128) throw new Error('Preview references more than 128 controlled assets.');
-  const descriptors = [...referenced].map((id) => manifest.get(id)!);
+  const descriptors = [...referenced].map((id) => { const entry=manifest.get(id)!;return Object.freeze({id:entry.id,kind:entry.kind,mimeType:entry.mimeType,byteLength:entry.byteLength,decodedBytes:entry.decodedBytes}); });
   const totalBytes = descriptors.reduce((sum, entry) => sum + entry.byteLength, 0);
   const totalDecodedBytes = descriptors.reduce((sum, entry) => sum + entry.decodedBytes, 0);
   if (totalBytes > 64 * 1024 * 1024 || totalDecodedBytes > 256 * 1024 * 1024) throw new Error('Preview assets exceed the aggregate source or decode budget.');
+  return Object.freeze(descriptors);
+}
+
+export async function loadPreviewAssets(snapshot: PreviewAssetScene, read: (assetId: StableId) => Promise<PreviewAssetReadResult>, platform: PreviewAssetTransferPlatform = browserPlatform(), signal?: AbortSignal): Promise<readonly PreviewRuntimeAsset[]> {
+  throwIfAborted(signal);
+  const descriptors=referencedPreviewAssets(snapshot);
   const loaded: PreviewRuntimeAsset[] = [];
   try {
     for (const entry of descriptors) {

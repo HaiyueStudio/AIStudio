@@ -9,6 +9,7 @@ const result = await build({
     renderer: path.join(root, 'src', 'renderer.ts'),
     web: path.join(root, 'src', 'web-entry.ts'),
     'preview-runtime': path.join(root, 'src', 'preview-runtime.ts'),
+    'mobile-player': path.join(root, 'src', 'mobile-player.ts'),
   },
   outdir: path.join(root, 'dist'),
   bundle: true,

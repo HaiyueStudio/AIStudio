@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "inputDigest": "sha256:2c454e6d649bd80e4b9d69c0e688970bd3bfb61fe82485413becec217f19fba7",
+  "scope": {
+    "network": "same Wi-Fi / LAN (user confirmed)",
+    "https": "built-in main-owned server; explicit share only",
+    "qr": "@haiyue/ui/qr-code@0.2.3",
+    "certificate": "device CA private key encrypted with Electron safeStorage; public certificate + fingerprint only in renderer",
+    "expiryMinutes": 30,
+    "physicalPhoneValidation": false
+  },
+  "minesweeper": {
+    "projectRevision": 10,
+    "entities": 112,
+    "scriptTextRevision": 2,
+    "originalProjectSha256": "583b141d692e238e45d255982af7e822194ac08705f6c3ccd994f53d9ce0a468",
+    "originalUnchanged": true,
+    "readOnlyCopy": ".cache/mobile-preview/minesweeper-run/project",
+    "domInputIssue": "intermediate DOM pointermove button edges were dropped",
+    "evaluationIssue": {
+      "actual": "entities.0.materialColor.0",
+      "required": "state.entities.0.materialColor.0",
+      "diagnostic": "evaluation.signal-missing:entities.0.materialColor.0",
+      "approvedSpecStillUsedOnRetry": true
+    },
+    "nativeCases": [
+      {
+        "first": "left",
+        "releaseFirst": "left",
+        "target": 31,
+        "mismatch": "chord-mismatch",
+        "flags": 3,
+        "before": 72,
+        "after": 73,
+        "followingRightClick": true
+      },
+      {
+        "first": "left",
+        "releaseFirst": "right",
+        "target": 21,
+        "mismatch": "chord-mismatch",
+        "flags": 1,
+        "before": 78,
+        "after": 79,
+        "followingRightClick": true
+      },
+      {
+        "first": "right",
+        "releaseFirst": "left",
+        "target": 24,
+        "mismatch": "chord-mismatch",
+        "flags": 1,
+        "before": 65,
+        "after": 68,
+        "followingRightClick": true
+      },
+      {
+        "first": "right",
+        "releaseFirst": "right",
+        "target": 18,
+        "mismatch": "chord-mismatch",
+        "flags": 1,
+        "before": 70,
+        "after": 71,
+        "followingRightClick": true
+      }
+    ],
+    "secureContext": true,
+    "webgpu": true,
+    "revoked": true
+  },
+  "verification": {
+    "focusedOrdinary": {
+      "passed": 30,
+      "failed": 0
+    },
+    "native": {
+      "desktopSmoke": true,
+      "httpsPlayer": true,
+      "publicQrDialog": true,
+      "pointerPlacement": true
+    },
+    "capabilities": {
+      "groups": 20,
+      "passed": 394,
+      "failed": 0
+    },
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 1,
+      "preIntegrationChecks": "passed",
+      "collectedFiles": 89,
+      "executedFiles": 89,
+      "tests": 526,
+      "passed": 525,
+      "failed": 1,
+      "skipped": 0,
+      "cancelled": 0,
+      "failedFiles": [
+        {
+          "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+          "log": "collected-22.tap",
+          "failed": 1
+        }
+      ],
+      "diagnostic": "Timed out: one native gesture history transaction",
+      "standaloneRecheck": "same failure; matches diagnostic already retained in HEAD test-output/product/author/author-failure.json",
+      "hardwareFreezeGateReached": false,
+      "recheckLog": ".cache/mobile-preview/product-recheck.log"
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 688,
+      "bytes": 407402328,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:2c454e6d649bd80e4b9d69c0e688970bd3bfb61fe82485413becec217f19fba7"
+    }
+  },
+  "evidence": {
+    "screenshots": ".cache/mobile-preview/screenshots",
+    "integration": ".cache/mobile-preview/integration-output",
+    "checkLog": ".cache/mobile-preview/check.log",
+    "capabilityLog": ".cache/mobile-preview/capability-capture.log"
+  },
+  "milestoneAdvanced": false
+}

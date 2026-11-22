@@ -2,7 +2,7 @@ import { build } from 'esbuild';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const entryPoints = ['renderer.js', 'web.js', 'preview-runtime.js']
+const entryPoints = ['renderer.js', 'web.js', 'preview-runtime.js', 'mobile-player.js']
   .map((entry) => path.join(root, 'dist', entry));
 
 await build({

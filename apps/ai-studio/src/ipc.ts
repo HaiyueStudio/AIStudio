@@ -1,4 +1,6 @@
 import { parseToolPreferences } from './tool-preferences-model.js';
+import type { MobilePreviewServer } from './mobile-preview-server.js';
+import { referencedPreviewAssets } from './preview-asset-transfer.js';
 import { parseExperienceAdoption, parseExperienceDraft, parseExperienceOptimizationCommand, parseExperienceArchiveChange, parseExperienceHistoryQuery, parseExperienceReuseChange } from '@haiyue/ai-studio-contracts';
 import type { ToolPreferences } from './tool-preferences.js';
 import { basicTransparencyOptions } from '@haiyue/ai-studio-editor-plugins/render';
@@ -57,6 +59,7 @@ export type StudioIpcMethod =
   | 'preview/prepare'
   | 'preview/authorize'
   | 'preview/consume'
+  | 'preview/share-start' | 'preview/share-stop'
   | 'preview/report'
   | 'preview/agent-command'
   | 'preview/agent-result'
@@ -90,6 +93,7 @@ export interface StudioIpcResponse {
 }
 
 export interface StudioIpcRouterOptions {
+  readonly mobilePreview?: MobilePreviewServer;
   readonly notifications?: DesktopNotificationService;
   readonly queryPreferences?: QueryPreferences;
   readonly toolPreferences?: ToolPreferences;
@@ -109,6 +113,8 @@ export interface StudioIpcRouterOptions {
 }
 
 export class StudioIpcRouter {
+  private mobilePlan: PreviewPlan | null = null;
+  private mobileShareKey: string | null = null;
   private readonly active = new Map<string, AbortController>();
   private generation = 0;
   private disposed = false;
@@ -162,6 +168,7 @@ export class StudioIpcRouter {
   }
 
   cancelPending(): void {
+    this.mobilePlan=null;void this.options.mobilePreview?.stop();
     this.generation += 1;
     for (const controller of this.active.values()) controller.abort(new Error('Renderer or window owner disposed.'));
     this.active.clear();
@@ -303,9 +310,34 @@ export class StudioIpcRouter {
         const grant = await this.options.scripts.decide(request.payload.planId as StableId, request.payload.approved as boolean);
         return grant ? toJson(grant) : Object.freeze({ denied: true });
       }
-      case 'preview/consume': return this.observedPlan(this.options.scripts.consume(request.payload.grantId as StableId), request, signal);
+      case 'preview/consume': {
+        const plan=this.options.scripts.consume(request.payload.grantId as StableId);this.mobilePlan=plan;
+        return this.observedPlan(plan, request, signal);
+      }
+      case 'preview/share-stop': { await this.options.mobilePreview?.stop();return Object.freeze({stopped:true}); }
+      case 'preview/share-start': {
+        const server=this.options.mobilePreview,plan=this.mobilePlan,current=this.options.scene.snapshot();
+        if(!server)throw new IpcDiagnosticError('mobile-preview.unavailable','局域网扫码预览需要桌面版。');
+        if(!plan||plan.id!==request.payload.planId||plan.documentId!==current.documentId||plan.documentRevision!==current.revision)throw new IpcDiagnosticError('mobile-preview.stale-plan','请先运行当前修订的游戏，再生成二维码。');
+        const viewport=request.payload.viewport as unknown as {width:number;height:number};
+        const key=JSON.stringify([plan.id,current.documentId,current.revision]);
+        const running=server.current();if(running&&this.mobileShareKey===key)return toJson(running);
+        const descriptors=referencedPreviewAssets(current),assets=[];
+        for(const descriptor of descriptors){
+          const entry=current.assets.find(asset=>asset.id===descriptor.id)!;
+          const bytes=await this.options.workspace.readControlledAsset(entry.projectPath,entry.byteLength,signal);
+          if(bytes.byteLength!==entry.byteLength||`sha256:${await sha256Bytes(bytes)}`!==entry.digest)throw new IpcDiagnosticError('asset-integrity-failed','预览资源已改变，请重新运行。');
+          assets.push({assetId:entry.id,kind:entry.kind,mimeType:entry.mimeType,byteLength:entry.byteLength,base64:Buffer.from(bytes).toString('base64')});
+        }
+        if(this.options.scene.snapshot().revision!==current.revision||this.mobilePlan!==plan||signal.aborted)throw new IpcDiagnosticError('mobile-preview.stale-plan','工程已改变，请重新运行后分享。');
+        const info=await server.start({name:this.options.workspace.snapshot().document?.name??'Haiyue Game',scene:{documentId:current.documentId,revision:current.revision,entities:current.entities,...(current.camera?{camera:current.camera}:{}),assets:descriptors},plan,assets,viewport},signal);
+        if(this.options.scene.snapshot().revision!==current.revision||this.mobilePlan!==plan||signal.aborted){await server.stop();throw new IpcDiagnosticError('mobile-preview.stale-plan','工程已改变，分享已撤销。');}
+        this.mobileShareKey=key;return toJson(info);
+      }
       case 'preview/report': {
         const event = request.payload.event as string;
+        if(event==='stopped')this.mobilePlan=null;
+        if(event==='stopped'||event==='hot-reloaded')await this.options.mobilePreview?.stop();
         if (event === 'stopped' || event === 'cleanup-complete') this.options.agentPreview.observeStopped(request.payload.previewId as StableId | undefined);
         await this.options.operationLog.append({
           kind: `preview/${event}`, severity: event === 'runtime-error' ? 'error' : 'info', source: asStableId('studio.preview.renderer'),
@@ -431,6 +463,7 @@ export class StudioIpcRouter {
   }
 
   private cancelProjectAgentState(reason: string): void {
+    this.mobilePlan=null;void this.options.mobilePreview?.stop();
     this.options.editor?.replaceProject();
     this.options.conversation.cancelPending(reason);
     this.options.agentPreview.cancelPending();
@@ -539,6 +572,11 @@ export function validateStudioIpcRequest(value: unknown): StudioIpcRequest {
     if (typeof payload.approved !== 'boolean') throw new IpcDiagnosticError('ipc-payload-rejected', 'preview/authorize decision is invalid.');
   }
   else if (channel === 'preview/consume') requireShape(payload, keys, ['grantId'], { grantId: 'string' });
+  else if (channel === 'preview/share-start') {
+    requireAllowedShape(payload,keys,['planId','viewport'],[]);
+    if(typeof payload.planId!=='string'||payload.planId.length>256||!isRecord(payload.viewport)||Object.keys(payload.viewport).sort().join(',')!=='height,width'||!['width','height'].every(key=>Number.isSafeInteger((payload.viewport as Record<string,unknown>)[key])&&Number((payload.viewport as Record<string,unknown>)[key])>=240&&Number((payload.viewport as Record<string,unknown>)[key])<=3840))throw new IpcDiagnosticError('ipc-payload-rejected','Mobile preview arguments are invalid.');
+  }
+  else if (channel === 'preview/share-stop') requireShape(payload,keys,[],{});
   else if (channel === 'preview/report') {
     requireAllowedShape(payload, keys, ['event', 'message', 'disposableCount'], ['previewId', 'entityId']);
     if (!previewReportEvents.has(payload.event as string) || typeof payload.message !== 'string' || payload.message.length > 2_000
@@ -645,7 +683,7 @@ const allowedChannels = new Set<StudioIpcMethod>([
   'app/status', 'project/new', 'project/open', 'project/save', 'project/snapshot',
   'project/command', 'history/undo', 'history/redo', 'project/close', 'project/reopen',
   'scene/snapshot', 'asset/read', 'scene/create', 'scene/select', 'scene/transform', 'scene/material', 'viewport/report',
-  'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/report',
+  'script/snapshot', 'script/propose', 'script/commit', 'preview/prepare', 'preview/authorize', 'preview/consume', 'preview/share-start', 'preview/share-stop', 'preview/report',
   'preview/agent-command', 'preview/agent-result', 'conversation/replay', 'conversation/intent', 'conversation/history', 'conversation/history-detail', 'conversation/reviews', 'conversation/review', 'conversation/review-deep', 'conversation/experiences', 'conversation/experience-adopt', 'conversation/experience-update', 'conversation/experience-reuse', 'conversation/experience-archive', 'conversation/experience-archive-change', 'conversation/experience-effects', 'conversation/optimizations', 'conversation/optimization-command', 'logs/query', 'logs/export',
   'behavior/snapshot', 'behavior/refresh', 'behavior/explain', 'behavior/locate', 'behavior/history', 'behavior/read', 'behavior/capture', 'behavior/cancel', 'behavior/related',
   'editor/advanced', 'editor/advanced-intent', 'editor/resources', 'editor/resource-intent', 'editor/resource-import', 'editor/cancel',

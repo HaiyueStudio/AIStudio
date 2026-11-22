@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@haiyue/ai-studio-agent-backends": "0.0.0",
+    "@haiyue/ai-studio-agent-orchestration": "0.0.0",
     "@haiyue/ai-studio-agent-runtime": "0.0.0",
     "@haiyue/ai-studio-contracts": "0.0.0",
     "@haiyue/ai-studio-editor-plugins": "0.0.0",
@@ -30,10 +31,11 @@
     "@haiyue/ai-studio-shell": "0.0.0",
     "@haiyue/editor-app-kit": "0.1.0",
     "@haiyue/editor-platform": "0.1.0",
+    "@haiyue/editor-shell": "0.1.2-ui.0.2.3",
     "@haiyue/engine": "0.2.3",
     "@haiyue/ui": "0.2.3",
-    "@haiyue/ai-studio-agent-orchestration": "0.0.0",
-    "@haiyue/editor-shell": "0.1.2-ui.0.2.3"
+    "@peculiar/x509": "3.1.0",
+    "reflect-metadata": "0.2.2"
   },
   "devDependencies": {
     "@types/node": "22.19.13",

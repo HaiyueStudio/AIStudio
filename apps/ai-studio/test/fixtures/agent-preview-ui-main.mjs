@@ -33,7 +33,10 @@ try {
   const scriptPanel = await win.webContents.executeJavaScript('window.scriptPanelFixture()');
   const approvedRun = await win.webContents.executeJavaScript('window.previewRunConsentFixture(true)');
   const newRun = await win.webContents.executeJavaScript('window.previewRunConsentFixture(false)');
-  await writeFile(path.join(root, 'result.json'), JSON.stringify({ agent, manual, independentLane, editorInvalidation, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table }, null, 2));
+  const toolbar = await win.webContents.executeJavaScript('window.previewToolbarFixture()');
+  await writeFile(path.join(root,'preview-toolbar.png'),(await win.webContents.capturePage()).toPNG());
+  const restarts={};for(const mode of ['normal','changed','failure','agent'])restarts[mode]=await win.webContents.executeJavaScript(`window.previewRestartFixture(${JSON.stringify(mode)})`);
+  await writeFile(path.join(root, 'result.json'), JSON.stringify({ agent, manual, independentLane, editorInvalidation, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table, toolbar, restarts }, null, 2));
   app.exit(0);
 } catch (error) { console.error(error); app.exit(1); }
 

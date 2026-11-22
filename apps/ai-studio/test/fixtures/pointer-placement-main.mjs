@@ -30,7 +30,8 @@ try {
     validation = await validator.validate({ scriptId: 'script:placement', textRevision: 1, sourcePath: 'scripts/grid-placement.ts', text: await readFile(example, 'utf8'), capabilities: ['scene', 'input'] });
     assert.deepEqual(validation.diagnostics, []);
   } finally { await validator.dispose(); }
-  const window = new BrowserWindow({ width: 900, height: 850, show: true, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  // CDP needs a composited window on Windows; place it beyond physical mouse coordinates.
+  const window = new BrowserWindow({ x: -10000, y: -10000, width: 900, height: 850, show: true, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, backgroundThrottling: false } });
   const host = (await readFile(new URL('./g12-preview-host.html', import.meta.url), 'utf8')).replace('width:393px;height:852px;border:0', 'width:640px;height:480px;border:0;margin:23px 31px');
   window.webContents.session.protocol.handle('pointerhost', () => new Response(host, { headers: { 'content-type': 'text/html' } }));
   window.webContents.session.protocol.handle('haiyue-preview', async request => {
@@ -51,11 +52,12 @@ try {
   await control.ready();
   const startPreview = async (scene, plan) => {
     await control.start(scene, plan);
+    window.focus();window.webContents.focus();
     const frame = window.webContents.mainFrame.frames.find(item => item.url.includes('haiyue-preview:'));
     assert.ok(frame);
     // Replacing the runtime canvas can enqueue blur/reset after start resolves.
     // Settle that transition before injecting either native or replay gestures.
-    await frame.executeJavaScript("document.querySelector('canvas').focus(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+    await frame.executeJavaScript("document.querySelector('canvas').focus(); new Promise((resolve,reject) => {const end=Date.now()+2000;const poll=()=>document.hasFocus()&&document.activeElement===document.querySelector('canvas')?requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))):Date.now()>end?reject(Error('Native input canvas did not receive focus')):setTimeout(poll,20);poll();})");
     assert.equal(await frame.executeJavaScript("document.hasFocus() && document.activeElement === document.querySelector('canvas')"), true);
   };
   console.log('[pointer-placement] preview ready');
@@ -156,7 +158,7 @@ try {
     await control.stop();await startPreview(viewer,orbitPlan);await control.step(1);
     for (const e of [{phase:'down',x:.5,y:.5},{phase:'move',x:.7,y:.6},{phase:'up',x:.7,y:.6}]) await control.input({kind:'pointer',source:'synthetic',tick:2,pointerId:7,...e});
     const replay=await control.step(1);
-    assert.ok(Math.abs(replay.value.state.camera.theta-nativeOrbit.value.state.camera.theta)<.015,JSON.stringify({replay:replay.value.state.camera,native:nativeOrbit.value.state.camera}));
+    assert.ok(Math.abs(replay.value.state.camera.theta-nativeOrbit.value.state.camera.theta)<.015,JSON.stringify({replay:replay.value.state.camera,native:nativeOrbit.value.state.camera,input:replay.value.input,routing:replay.value.routing}));
     assert.ok(Math.abs(replay.value.state.camera.phi-nativeOrbit.value.state.camera.phi)<.015);
     assert.equal(replay.value.runtimeErrorCount,0);
     results.push({orbitProjection:projection,authoredCamera:authored,nativeAndReplay:true,cubeUnchanged:true});

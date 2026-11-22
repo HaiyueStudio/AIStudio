@@ -22,7 +22,7 @@ test('production preview controls distinguish Agent ownership and restore manual
       showPlayPage();
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const notice = element('play-agent-notice');
-      return { progress: !element('play-agent-progress').hidden, progressText: element('play-agent-progress').textContent, owner: element('play-page').dataset.owner, notice: !notice.hidden, text: notice.textContent, exit: element('play-exit').textContent, pauseDisabled: element('play-pause').disabled, resizeDisabled: element('play-device-preset').disabled, input: getComputedStyle(element('play-device-screen')).pointerEvents, stageHeight: element('play-stage').getBoundingClientRect().height, toolbarBottom: element('play-page').querySelector('.play-toolbar').getBoundingClientRect().bottom, stageTop: element('play-stage').getBoundingClientRect().top };
+      return { progress: !element('play-agent-progress').hidden, progressText: element('play-agent-progress').textContent, owner: element('play-page').dataset.owner, notice: !notice.hidden, text: notice.textContent, exit: element('play-exit').getAttribute('aria-label'), restartDisabled: element('play-restart').disabled, pauseDisabled: element('play-pause').disabled, resizeDisabled: element('play-device-preset').disabled, input: getComputedStyle(element('play-device-screen')).pointerEvents, stageHeight: element('play-stage').getBoundingClientRect().height, toolbarBottom: element('play-page').querySelector('.play-toolbar').getBoundingClientRect().bottom, stageTop: element('play-stage').getBoundingClientRect().top };
     };
     window.previewTableFixture = async () => {
       await window.previewUiFixture('agent');
@@ -153,7 +153,41 @@ test('production preview controls distinguish Agent ownership and restore manual
         return { empty, bound: text };
       } finally { scriptEditor = originalEditor; scripts = originalScripts; loadedScriptIdentity = ''; }
     };
-    setupPlayPageControls();
+    window.previewToolbarFixture = async () => {
+      await window.previewUiFixture('manual');
+      const ids=['play-apply-size','play-rotate','play-pause','play-restart','play-fullscreen','play-exit'];
+      const controls=()=>ids.map(id=>{const b=element(id),tip=b.closest('hy-tooltip');return {id,icon:b.dataset.icon,text:b.textContent,svg:!!b.querySelector('svg'),label:b.getAttribute('aria-label'),tooltip:tip.label,delay:tip.delay,title:b.hasAttribute('title')};});
+      const normal=controls();previewPaused=true;updatePlayControls();const paused=controls();
+      Object.defineProperty(document,'fullscreenElement',{configurable:true,value:element('play-page')});updatePlayControls();const fullscreen=controls();delete document.fullscreenElement;
+      language='en';updatePlayControls();const english=controls();language='zh-CN';previewPaused=false;updatePlayControls();
+      const tip=element('play-restart').closest('hy-tooltip');
+      document.activeElement?.blur();tip.dispatchEvent(new PointerEvent('pointerleave'));const start=performance.now();tip.dispatchEvent(new PointerEvent('pointerenter'));
+      await new Promise(resolve=>setTimeout(resolve,800));const early=tip.shadowRoot.querySelector('[role=tooltip]').classList.contains('visible');
+      await new Promise(resolve=>setTimeout(resolve,280));const visible=tip.shadowRoot.querySelector('[role=tooltip]').classList.contains('visible'),elapsed=performance.now()-start;
+      tip.dispatchEvent(new PointerEvent('pointerleave'));
+      return {normal,paused,fullscreen,english,early,visible,elapsed};
+    };
+    window.previewRestartFixture = async mode => {
+      const original={stopPreview,refresh,prepareProjectRun,startPreview,project};
+      const calls=[];let releaseStop;
+      playing=true;previewPaused=true;agentPreviewOwnership.release();
+      project={document:{projectId:'project:restart',revision:1}};element('run-project').removeAttribute('aria-busy');updateRunButton();
+      if(mode==='agent') { agentPreviewOwnership.update('project:test',[fixtureTask]);agentPreviewOwnership.claim('project:test'); }
+      const dimensions={mode:playViewportMode,size:playViewportSize};
+      stopPreview=async()=>{calls.push('stop');await new Promise(resolve=>{releaseStop=resolve;});playing=false;};
+      refresh=async()=>{calls.push('refresh');};
+      prepareProjectRun=async()=>{calls.push('prepare');if(mode==='failure')throw Error('Restart fixture failure');previewDisclosure={id:'plan:restart',approvalReusable:mode!=='changed'};return true;};
+      startPreview=async()=>{calls.push('start');playing=true;previewPaused=false;};
+      const dialog=element('run-dialog'),originalShow=dialog.showModal;dialog.showModal=()=>calls.push('dialog');
+      window.haiyueStudio={async invoke(request){calls.push(request.channel);return {ok:true,payload:request.channel==='preview/authorize'?{id:'grant:restart'}:{}};},cancel(){}};
+      try{
+        const pending=restartPreviewFromUser();await Promise.resolve();await restartPreviewFromUser();
+        const busy={disabled:element('play-restart').disabled,icon:element('play-restart').dataset.icon,exitDisabled:element('play-exit').disabled};
+        releaseStop?.();let error=null;try{await pending;}catch(cause){error=cause.message;}
+        return {calls,busy,error,playing,paused:previewPaused,reset:!previewRestarting&&element('run-project').getAttribute('aria-busy')===null,preservedSize:playViewportSize===dimensions.size&&playViewportMode===dimensions.mode};
+      }finally{stopPreview=original.stopPreview;refresh=original.refresh;prepareProjectRun=original.prepareProjectRun;startPreview=original.startPreview;project=original.project;dialog.showModal=originalShow;previewRestarting=false;agentPreviewOwnership.release();}
+    };
+    defineDialogComponents();defineTooltipComponents();setupPlayPageControls();
   `;
   await build({ stdin: { contents: source + hook, sourcefile: 'renderer-fixture.ts', resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' }, outfile: path.join(root, 'fixture.js'), bundle: true, platform: 'browser', format: 'esm', target: 'chrome142' });
   const html = await readFile(new URL('../renderer/index.html', import.meta.url), 'utf8');
@@ -168,7 +202,16 @@ test('production preview controls distinguish Agent ownership and restore manual
     child.once('exit', code => { clearTimeout(timer); resolve({ code, output }); });
   });
   assert.equal(result.code, 0, result.output);
-  const { agent, manual, independentLane, editorInvalidation, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
+  const { agent, manual, independentLane, editorInvalidation, handoff, manualHandoff, refreshFailure, exits, approvedRun, newRun, scriptPanel, table, toolbar, restarts } = JSON.parse(await readFile(path.join(root, 'result.json'), 'utf8'));
+  for(const button of toolbar.normal){assert.equal(button.text,'');assert.equal(button.svg,true);assert.equal(button.tooltip,button.label);assert.equal(button.delay,1000);assert.equal(button.title,false);}
+  assert.equal(toolbar.paused.find(b=>b.id==='play-pause').icon,'play');assert.equal(toolbar.paused.find(b=>b.id==='play-pause').label,'继续');
+  assert.equal(toolbar.fullscreen.find(b=>b.id==='play-fullscreen').icon,'exit-fullscreen');assert.equal(toolbar.english.find(b=>b.id==='play-restart').label,'Restart game');
+  assert.equal(toolbar.early,false);assert.equal(toolbar.visible,true);assert.ok(toolbar.elapsed>=1000);
+  assert.deepEqual(restarts.normal.calls,['stop','refresh','prepare','preview/authorize','preview/consume','start']);assert.equal(restarts.normal.playing,true);assert.equal(restarts.normal.paused,false);
+  assert.deepEqual(restarts.normal.busy,{disabled:true,icon:'busy',exitDisabled:true});
+  assert.deepEqual(restarts.agent.calls,[]);assert.deepEqual(restarts.changed.calls,['stop','refresh','prepare','dialog']);assert.equal(restarts.changed.playing,false);
+  assert.match(restarts.failure.error,/Restart fixture failure/);assert.equal(restarts.failure.playing,false);
+  for(const result of Object.values(restarts)){assert.equal(result.reset,true);assert.equal(result.preservedSize,true);}
   assert.deepEqual(table.headers, ['测试用例', '期望效果', '状态']);
   assert.equal(table.retained, true); assert.equal(table.columns, true); assert.equal(table.narrow, true);
   assert.deepEqual(table.rows.map(row => row[2]), ['待验证', '通过', '未通过', '待验证', '进行中', '通过']);
@@ -180,6 +223,7 @@ test('production preview controls distinguish Agent ownership and restore manual
   assert.deepEqual(approvedRun, { starts: 1, dialogs: 0, reuse: true });
   assert.deepEqual(newRun, { starts: 0, dialogs: 1, reuse: false });
   assert.equal(agent.owner, 'agent'); assert.equal(agent.notice, true); assert.match(agent.text, /Agent.*自动返回/);
+  assert.equal(agent.restartDisabled,true);assert.equal(manual.restartDisabled,false);
   assert.equal(agent.exit, '停止任务并退出'); assert.equal(agent.pauseDisabled, true); assert.equal(agent.resizeDisabled, true); assert.equal(agent.input, 'none'); assert.ok(agent.stageHeight > 300); assert.ok(agent.stageTop > agent.toolbarBottom);
   assert.equal(agent.progress, true); assert.match(agent.progressText, /模拟拖拽/); assert.match(agent.progressText, /拖拽后实体旋转/); assert.match(agent.progressText, /tick 12/);
   assert.equal(manual.progress, false);

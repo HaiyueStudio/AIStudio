@@ -162,6 +162,14 @@
         "packages/agent-orchestration/test/p1-intent.test.mjs",
         "apps/ai-studio/test/plane-geometry.test.mjs"
       ]
+    },
+    {
+      "id": "mobile-preview",
+      "files": [
+        "apps/ai-studio/test/mobile-preview.test.mjs",
+        "apps/ai-studio/test/mobile-preview-electron.test.mjs",
+        "apps/ai-studio/test/mobile-preview-ui-electron.test.mjs"
+      ]
     }
   ],
   "groups": [
@@ -336,7 +344,8 @@
         }
       ],
       "checkIds": [
-        "simulation"
+        "simulation",
+        "mobile-preview"
       ],
       "ui": [
         "apps/ai-studio/src/renderer.ts",

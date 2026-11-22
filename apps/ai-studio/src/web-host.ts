@@ -184,6 +184,7 @@ export class WebStudioHost {
         backends: [{ id: 'backend:web-unavailable', label: 'Desktop Agent required', kind: 'codex-app-server', state: 'unavailable', authMode: 'none', rateLimits: [], diagnostic: { code: 'web-agent-unavailable', message: 'Local Codex and API-key backends require Electron.' } }],
       });
       case 'conversation/intent': throw new WebHostError('web-agent-unavailable', 'AI Agent backends require the Electron desktop app.');
+      case 'preview/share-start': case 'preview/share-stop': throw new WebHostError('mobile-preview.unavailable','局域网 HTTPS 分享需要桌面版。');
       case 'conversation/history': return json({ schemaVersion: 1, projectId: null, records: [], total: 0, nextCursor: null, storage: 'none' });
       case 'conversation/history-detail': throw new WebHostError('web-agent-unavailable', 'Project execution records require the Electron desktop app.');
       case 'conversation/reviews': case 'conversation/review': case 'conversation/review-deep': case 'conversation/experiences': case 'conversation/experience-adopt': case 'conversation/experience-update': case 'conversation/experience-reuse': case 'conversation/experience-archive': case 'conversation/experience-archive-change': case 'conversation/experience-effects': case 'conversation/optimizations': case 'conversation/optimization-command': throw new WebHostError('web-agent-unavailable', 'Task reviews and experience reuse require the Electron desktop app.');

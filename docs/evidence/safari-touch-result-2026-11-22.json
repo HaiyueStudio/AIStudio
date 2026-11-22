@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "inputDigest": "sha256:087954705a58498137afd698b1c40f96ac786f428f4572e5fc3d839382aa46ef",
+  "reportedDevice": "iPhone 15 Plus / Safari",
+  "diagnostic": "pointerId must be an integer from 0 to 1000000.",
+  "fix": "DOM pointer ids mapped to bounded stable runtime ids; Engine validation unchanged",
+  "oldBundleReproduced": true,
+  "focusedPassed": 11,
+  "nativeTrustedTouch": {
+    "largeIds": true,
+    "multipleContacts": true,
+    "cancellation": true,
+    "mouseCompatibility": true
+  },
+  "physicalPhone": {
+    "testedByAgent": false,
+    "confirmedWorkingByUser": true
+  },
+  "capabilities": {
+    "groups": 20,
+    "passed": 395
+  },
+  "fullCheck": {
+    "exitCode": 1,
+    "files": 89,
+    "tests": 527,
+    "passed": 526,
+    "failed": 1,
+    "diagnostic": "Existing frozen hardware identity mismatch: i7-7700 / 8 versus i7-14700KF / 28"
+  },
+  "secretScan": {
+    "schemaVersion": 1,
+    "passed": true,
+    "files": 688,
+    "bytes": 406280005,
+    "crashDumps": 0,
+    "rules": [
+      "configured-secret-utf8-and-utf16",
+      "credential-token-patterns",
+      "credential-store-path"
+    ],
+    "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+    "inputDigest": "sha256:087954705a58498137afd698b1c40f96ac786f428f4572e5fc3d839382aa46ef"
+  },
+  "milestoneAdvanced": false
+}

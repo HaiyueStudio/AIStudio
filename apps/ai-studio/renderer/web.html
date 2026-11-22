@@ -41,13 +41,15 @@
         <label class="play-size-control"><span data-i18n="width">宽</span><input id="play-custom-width" type="number" min="240" max="3840" step="1" value="393" aria-label="自定义宽度" data-i18n-aria="customWidth"></label>
         <span class="play-size-separator">×</span>
         <label class="play-size-control"><span data-i18n="height">高</span><input id="play-custom-height" type="number" min="240" max="3840" step="1" value="852" aria-label="自定义高度" data-i18n-aria="customHeight"></label>
-        <button id="play-apply-size" type="button" data-i18n="applySize">应用</button>
-        <button id="play-rotate" type="button" data-i18n-title="rotateDevice" title="旋转设备" aria-label="旋转设备" data-i18n-aria="rotateDevice">↻</button>
+        <hy-tooltip label="应用尺寸" delay="1000" placement="bottom"><button id="play-apply-size" class="icon-button" type="button" aria-label="应用尺寸"></button></hy-tooltip>
+        <hy-tooltip label="旋转设备" delay="1000" placement="bottom"><button id="play-rotate" class="icon-button" type="button" aria-label="旋转设备"></button></hy-tooltip>
         <span id="play-size-label" class="play-size-label">自适应</span>
         <span class="spacer"></span>
-        <button id="play-pause" type="button" data-i18n="pause">⏸ 暂停</button>
-        <button id="play-fullscreen" type="button" data-i18n="fullscreen">全屏</button>
-        <button id="play-exit" class="play-exit" type="button" data-i18n="exitPlay">退出运行</button>
+        <hy-tooltip label="暂停" delay="1000" placement="bottom"><button id="play-pause" class="icon-button" type="button" aria-label="暂停"></button></hy-tooltip>
+        <hy-tooltip label="重新运行" delay="1000" placement="bottom"><button id="play-restart" class="icon-button" type="button" aria-label="重新运行" disabled></button></hy-tooltip>
+        <hy-tooltip label="全屏" delay="1000" placement="bottom"><button id="play-fullscreen" class="icon-button" type="button" aria-label="全屏"></button></hy-tooltip>
+        <hy-tooltip label="扫码运行" delay="1000" placement="bottom" hidden><button id="play-share" class="icon-button" type="button" aria-label="扫码运行" disabled hidden></button></hy-tooltip>
+        <hy-tooltip label="退出运行" delay="1000" placement="bottom"><button id="play-exit" class="play-exit icon-button" type="button" aria-label="退出运行"></button></hy-tooltip>
       </div>
       <div id="play-agent-notice" role="status" hidden></div>
       <div id="play-stage">

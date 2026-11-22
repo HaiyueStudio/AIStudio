@@ -1,0 +1,10 @@
+import {defineDialogComponents} from '@haiyue/ui/dialog';
+import {defineTooltipComponents} from '@haiyue/ui/tooltip';
+import {mountMobilePreviewSharing} from '../../dist/mobile-preview-ui.js';
+defineDialogComponents();defineTooltipComponents();
+let game={planId:'preview-plan:qr',viewport:{width:393,height:852}},pending=null,mode='normal';const calls=[];
+const info={urls:[{label:'Wi-Fi · 192.168.1.2',url:'https://192.168.1.2:4321/s/'+'a'.repeat(32)+'/'},{label:'Ethernet · 192.168.2.2',url:'https://192.168.2.2:4321/s/'+'a'.repeat(32)+'/'}],expiresAt:Date.now()+60000,documentRevision:1,fingerprint:'TEST PUBLIC CERTIFICATE FINGERPRINT',certificateBase64:'MA=='};
+const ui=mountMobilePreviewSharing(document,{desktop:true,language:()=> 'zh-CN',game:()=>game,async invoke(method,payload,signal){calls.push({method,payload});if(method==='preview/share-stop')return {stopped:true};if(mode==='stale')throw Error('请先运行当前修订的游戏，再生成二维码。');if(mode==='pending')return new Promise(resolve=>{pending={resolve,signal};});return info;}});ui.refresh();
+const settle=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+window.fixture={calls,info,get pending(){return pending;},async open(){document.querySelector('#play-share').click();await settle();},async close(){document.querySelector('hy-dialog').close('action');await settle();},mode(value){mode=value;},qr(){const qr=document.querySelector('hy-qr-code');return {status:qr.status,value:qr.value,modules:qr.shadowRoot.querySelectorAll('path').length,svg:!!qr.shadowRoot.querySelector('svg'),input:document.querySelector('#mobile-share-url').value};},stopGame(){game=null;ui.refresh();},dispose(){ui.dispose();},settle};
+document.body.dataset.ready='true';

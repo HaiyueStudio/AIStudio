@@ -14,6 +14,8 @@ await Promise.all([
   copyFile(path.resolve(root, '..', '..', 'node_modules', '@haiyue', 'ui', 'themes', 'haiyue-dark.css'), path.join(root, 'dist', 'haiyue-dark.css')),
   copyFile(path.join(root, 'renderer', 'preview.html'), path.join(root, 'dist', 'preview.html')),
   copyFile(path.join(root, 'renderer', 'preview.css'), path.join(root, 'dist', 'preview.css')),
+  copyFile(path.join(root, 'renderer', 'mobile-player.html'), path.join(root, 'dist', 'mobile-player.html')),
+  copyFile(path.join(root, 'renderer', 'mobile-player.css'), path.join(root, 'dist', 'mobile-player.css')),
   copyFile(path.join(root, 'renderer', 'preload.cjs'), path.join(root, 'dist', 'preload.cjs')),
   copyFile(path.join(root, 'renderer', 'startup-guard.js'), path.join(root, 'dist', 'startup-guard.js')),
 ]);

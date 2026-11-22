@@ -1,4 +1,6 @@
 import { createPlayTransforms, playWorldMatrix } from './play-transforms.js';
+import { PointerButtonTracker, RuntimePointerIds } from './pointer-buttons.js';
+import { fitDeviceCamera } from './device-camera.js';
 import { inverse, multiply } from '@haiyue/ai-studio-script-preview/transforms';
 import { InteractionTrace } from './interaction-trace.js';
 import { readPlayMaterialColor, setPlayMaterialColor } from './play-material-color.js';
@@ -80,6 +82,7 @@ let disposed = false;
 const textureUrls = new Set<string>();
 let textureLoad = new AbortController();
 let paused = false;
+let fitCameraToDevice = false;
 let lifecycleGeneration = 0;
 let renderedFrame = 0;
 let runtimeErrorCount = 0;
@@ -91,7 +94,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
     const request = parseStartRequest(event.data);
     if (!request) { startFailed(new Error('Preview start request failed schema validation.')); return; }
     const generation = ++lifecycleGeneration;
-    void start(request.scene, request.plan, request.assets, generation, request.behavior, request.paused).catch((cause) => {
+    void start(request.scene, request.plan, request.assets, generation, request.behavior, request.paused, request.fitDeviceCamera).catch((cause) => {
       if (generation !== lifecycleGeneration) return;
       stop('start-failed'); startFailed(cause);
     });
@@ -120,8 +123,11 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
   else if (event.data.type === 'stop' && exactKeys(event.data, ['protocol', 'type'])) stop('parent-request');
 });
 
-async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonly PreviewAsset[], generation: number, behavior: BehaviorRuntimePlan | null, initiallyPaused: boolean): Promise<void> {
+async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonly PreviewAsset[], generation: number, behavior: BehaviorRuntimePlan | null, initiallyPaused: boolean, deviceCamera: boolean): Promise<void> {
   if (engine) stop('restart', false);
+  fitCameraToDevice = deviceCamera;
+  const badge = document.querySelector<HTMLElement>('#badge');
+  if (badge) badge.hidden = deviceCamera;
   if (snapshot.documentId !== plan.documentId || snapshot.revision !== plan.documentRevision) throw new Error('Preview plan does not match the Scene document revision.');
   if (!snapshot.entities.some((item) => isRenderableSceneKind(item.kind))) throw new Error('Preview scene has no renderable geometry. Create at least one primitive before Play.');
   behaviorRecorder = behavior ? new BehaviorRuntimeRecorder(behavior) : null;
@@ -139,6 +145,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   scene = ownedScene;
   activeCamera = snapshot.camera ?? DEFAULT_PROJECT_CAMERA;
   applyProjectCamera(ownedScene, activeCamera, canvasAspect(canvas));
+  fitDeviceCamera(ownedScene.cameraEntity.getComponent(Camera3D)!, canvasAspect(canvas), fitCameraToDevice);
   const entities = new Map<string, Entity>();
   const geometryPool = new SharedGeometryPool();
   for (const item of snapshot.entities) {
@@ -244,7 +251,10 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   ownedEngine.switchScene(ownedScene);
   resizeObserver = new ResizeObserver(() => {
     ownedEngine.resizeToDisplaySize();
-    if (activeCamera && scene === ownedScene) applyProjectCameraProjection(ownedScene, activeCamera, canvasAspect(canvas));
+    if (activeCamera && scene === ownedScene) {
+      applyProjectCameraProjection(ownedScene, activeCamera, canvasAspect(canvas));
+      fitDeviceCamera(ownedScene.cameraEntity.getComponent(Camera3D)!, canvasAspect(canvas), fitCameraToDevice);
+    }
     else if (gameplayCamera && scene === ownedScene) resizeGameplayCamera(gameplayCamera, ownedScene, canvas);
   });
   resizeObserver.observe(canvas);
@@ -537,6 +547,7 @@ function resizeGameplayCamera(runtime: GameplayCameraRuntime, ownedScene: Scene,
     camera.orthoTop = height / 2; camera.orthoBottom = -height / 2; camera.orthoRight = height * aspect / 2; camera.orthoLeft = -height * aspect / 2;
   }
   camera.aspect = aspect;
+  fitDeviceCamera(camera, aspect, fitCameraToDevice);
   ownedScene.renderView.reverseZ = camera.reverseZ;
   const viewport = isRecord(value.viewport) ? value.viewport : null;
   const x = finiteNumber(viewport?.x, 0, 1, 0), y = finiteNumber(viewport?.y, 0, 1, 0);
@@ -662,6 +673,8 @@ function findEntityComponent(entityId: string, type: string): SceneComponent | u
 }
 
 function installInput(canvas: HTMLCanvasElement, actionMap: InputActionMap): () => void {
+  const pointerButtons = new PointerButtonTracker();
+  const pointerIds = new RuntimePointerIds();
   const disposers: Array<() => void> = [];
   const listen = <K extends keyof WindowEventMap>(target: Window | HTMLCanvasElement, type: K, listener: (event: WindowEventMap[K]) => void, options?: AddEventListenerOptions): void => {
     target.addEventListener(type, listener as EventListener, options);
@@ -671,12 +684,12 @@ function installInput(canvas: HTMLCanvasElement, actionMap: InputActionMap): () 
     try { simulation?.injectNext({ kind: 'action', action, phase, source, ...(value === undefined ? {} : { value }) }); }
     catch (cause) { fail(cause); }
   };
-  const queuePointer = (phase: 'move' | 'down' | 'up' | 'cancel' | 'wheel', event: PointerEvent | WheelEvent): void => {
+  const queuePointer = (phase: 'move' | 'down' | 'up' | 'cancel' | 'wheel', event: PointerEvent | WheelEvent, pointerId: number, button?: number): void => {
     const rect = canvas.getBoundingClientRect();
     const x = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
     const y = clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
     try {
-      simulation?.injectNext({ kind: 'pointer', phase, source: 'pointer', pointerId: event instanceof PointerEvent ? event.pointerId : 1, x, y, ...('button' in event && phase !== 'move' && phase !== 'wheel' ? { button: Math.max(0, event.button) } : {}), ...(event instanceof WheelEvent ? { wheelX: event.deltaX, wheelY: event.deltaY } : {}) });
+      simulation?.injectNext({ kind: 'pointer', phase, source: 'pointer', pointerId, x, y, ...(button === undefined ? {} : {button}), ...(event instanceof WheelEvent ? { wheelX: event.deltaX, wheelY: event.deltaY } : {}) });
     } catch (cause) { fail(cause); }
   };
   canvas.tabIndex = 0;
@@ -690,22 +703,37 @@ function installInput(canvas: HTMLCanvasElement, actionMap: InputActionMap): () 
     const actions = new Set([event.code, ...actionMap.actionsForKey(event.code)]);
     for (const action of actions) queueAction(action, 'up', 'keyboard');
   });
-  listen(canvas, 'pointermove', (event) => queuePointer('move', event as PointerEvent));
+  const routePointer = (phase: 'move' | 'down' | 'up' | 'cancel', pointer: PointerEvent): void => {
+    const pointerId = pointerIds.resolve(pointer.pointerId);
+    if (pointerId === null) return;
+    // Release mapped actions without turning cancellation into a game click.
+    if (phase === 'cancel') for (const button of pointerButtons.pressed(pointer.pointerId)) for (const action of actionMap.actionsForPointerButton(button)) queueAction(action, 'up', 'pointer');
+    for (const edge of pointerButtons.translate(phase, pointer)) {
+      queuePointer(edge.phase, pointer, pointerId, edge.button);
+      if (edge.button !== undefined && (edge.phase === 'down' || edge.phase === 'up')) for (const action of actionMap.actionsForPointerButton(edge.button)) queueAction(action, edge.phase, 'pointer');
+    }
+    if (!pointerButtons.has(pointer.pointerId)) pointerIds.release(pointer.pointerId);
+  };
+  listen(canvas, 'contextmenu', (event) => event.preventDefault());
+  listen(canvas, 'pointermove', (event) => routePointer('move', event as PointerEvent));
   listen(canvas, 'pointerdown', (event) => {
     const pointer = event as PointerEvent;
     canvas.focus({ preventScroll: true });
     canvas.setPointerCapture?.(pointer.pointerId);
-    queuePointer('down', pointer);
-    for (const action of actionMap.actionsForPointerButton(pointer.button)) queueAction(action, 'down', 'pointer');
+    routePointer('down', pointer);
   });
   listen(window, 'pointerup', (event) => {
     const pointer = event as PointerEvent;
-    queuePointer('up', pointer);
-    for (const action of actionMap.actionsForPointerButton(pointer.button)) queueAction(action, 'up', 'pointer');
+    routePointer('up', pointer);
   });
-  listen(window, 'pointercancel', (event) => queuePointer('cancel', event as PointerEvent));
-  listen(canvas, 'wheel', (event) => { event.preventDefault(); queuePointer('wheel', event as WheelEvent); }, { passive: false });
-  listen(window, 'blur', () => { try { simulation?.injectNext({ kind: 'reset', source: 'system', reason: 'blur' }); } catch (cause) { fail(cause); } });
+  listen(window, 'pointercancel', (event) => routePointer('cancel', event as PointerEvent));
+  listen(canvas, 'lostpointercapture', (event) => { const pointer = event as PointerEvent; if (pointerButtons.has(pointer.pointerId)) routePointer('cancel', pointer); });
+  listen(canvas, 'wheel', (event) => {
+    event.preventDefault(); const pointerId = pointerIds.resolve(1);
+    if (pointerId !== null) queuePointer('wheel', event as WheelEvent, pointerId);
+    if (!pointerButtons.has(1)) pointerIds.release(1);
+  }, { passive: false });
+  listen(window, 'blur', () => { pointerButtons.clear(); pointerIds.clear(); try { simulation?.injectNext({ kind: 'reset', source: 'system', reason: 'blur' }); } catch (cause) { fail(cause); } });
 
   const gamepadValues = new Map<string, number>();
   pollGamepadInput = () => {
@@ -720,7 +748,7 @@ function installInput(canvas: HTMLCanvasElement, actionMap: InputActionMap): () 
     gamepadValues.clear(); for (const [action, value] of next) gamepadValues.set(action, value);
   };
   listen(window, 'gamepaddisconnected', () => { gamepadValues.clear(); try { simulation?.injectNext({ kind: 'reset', source: 'system', reason: 'disconnect' }); } catch (cause) { fail(cause); } });
-  return () => { pollGamepadInput = null; for (const dispose of disposers.splice(0).reverse()) dispose(); };
+  return () => { pointerButtons.clear(); pointerIds.clear(); pollGamepadInput = null; for (const dispose of disposers.splice(0).reverse()) dispose(); };
 }
 
 function findEnabledComponent(entities: readonly SceneEntity[], type: string): SceneComponent | undefined {
@@ -729,6 +757,7 @@ function findEnabledComponent(entities: readonly SceneEntity[], type: string): S
 }
 
 function stop(reason: string, invalidatePendingStart = true): void {
+  fitCameraToDevice = false;
   if (invalidatePendingStart) lifecycleGeneration += 1;
   finishBehavior(reason === 'restart' ? 'restart' : 'stop');
   const disposableCount = totalDisposableCount();
@@ -791,9 +820,10 @@ function exactKeys(value: Record<string, unknown>, allowed: readonly string[]): 
   const expected = new Set(allowed);
   return Object.keys(value).length === expected.size && Object.keys(value).every((key) => expected.has(key));
 }
-function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: SceneSnapshot; plan: PreviewPlan; assets: readonly PreviewAsset[]; behavior: BehaviorRuntimePlan | null; paused: boolean }> | null {
-  if (!exactKeys(value, ['protocol', 'type', 'scene', 'plan', 'assets', ...(Object.hasOwn(value, 'behavior') ? ['behavior'] : []), ...(Object.hasOwn(value, 'paused') ? ['paused'] : [])])
+function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: SceneSnapshot; plan: PreviewPlan; assets: readonly PreviewAsset[]; behavior: BehaviorRuntimePlan | null; paused: boolean; fitDeviceCamera: boolean }> | null {
+  if (!exactKeys(value, ['protocol', 'type', 'scene', 'plan', 'assets', ...(Object.hasOwn(value, 'behavior') ? ['behavior'] : []), ...(Object.hasOwn(value, 'paused') ? ['paused'] : []), ...(Object.hasOwn(value, 'cameraFit') ? ['cameraFit'] : [])])
     || (Object.hasOwn(value, 'paused') && typeof value.paused !== 'boolean')
+    || (Object.hasOwn(value, 'cameraFit') && value.cameraFit !== 'short-axis')
     || !isRecord(value.scene) || !isRecord(value.plan) || !Array.isArray(value.assets) || value.assets.length > 128) return null;
   const rawScene = value.scene;
   const rawPlan = value.plan;
@@ -834,7 +864,7 @@ function parseStartRequest(value: Record<string, unknown>): Readonly<{ scene: Sc
         || behavior.components.some(c => !entities.some(entity => entity.id === c.entityId && entity.components?.some(component => component.id === c.id && component.type === c.type && component.enabled)))) return null;
     }
   } catch { return null; }
-  return Object.freeze({ scene: Object.freeze({ documentId: rawScene.documentId, revision: Number(rawScene.revision), entities: rawScene.entities as SceneEntity[], ...(camera ? { camera } : {}) }), plan: rawPlan as unknown as PreviewPlan, assets: Object.freeze(value.assets as PreviewAsset[]), behavior, paused: value.paused === true });
+  return Object.freeze({ scene: Object.freeze({ documentId: rawScene.documentId, revision: Number(rawScene.revision), entities: rawScene.entities as SceneEntity[], ...(camera ? { camera } : {}) }), plan: rawPlan as unknown as PreviewPlan, assets: Object.freeze(value.assets as PreviewAsset[]), behavior, paused: value.paused === true, fitDeviceCamera: value.cameraFit === 'short-axis' });
 }
 function isPreviewScriptPlan(value: unknown): value is PreviewScriptPlan {
   return isRecord(value) && exactKeys(value, ['scriptId', 'entityId', 'order', 'textRevision', 'digest', 'capabilities', 'diagnostics', 'emittedText'])

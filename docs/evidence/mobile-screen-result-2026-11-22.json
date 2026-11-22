@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "inputDigest": "sha256:563937a5d361b6fa3b4354608c03845b9c3f3a2273f62bec5a8fc446c9ef46c0",
+  "changes": {
+    "viewport": "Device VisualViewport, with window fallback; resize, rotation and fullscreen updates",
+    "camera": "Mobile-only shorter-axis presentation, preserving configured span without project mutation",
+    "shareButton": {
+      "iconOnly": true,
+      "tooltipDelayMs": 1000
+    },
+    "desktopViewportChangesRestartShare": false
+  },
+  "focused": {
+    "ordinaryPassed": 27,
+    "electronPassed": 3,
+    "viewportSamples": [
+      [
+        393,
+        852
+      ],
+      [
+        852,
+        393
+      ],
+      [
+        430,
+        740
+      ],
+      [
+        430,
+        932
+      ]
+    ],
+    "canvasAndIframeFillViewport": true,
+    "safariSizedTrustedTouch": true,
+    "rotationAndRestart": true,
+    "orthographicAndPerspectiveCamera": true,
+    "qrTooltipTiming": true,
+    "webSmoke": true
+  },
+  "savedMinesweeper": {
+    "source": "Read-only cached copy of user game",
+    "viewport": [
+      430,
+      932
+    ],
+    "allColumnsVisible": true,
+    "touchOpenedCell": 44,
+    "runtimeErrors": 0,
+    "physicalDeviceTestedByAgent": false
+  },
+  "capabilities": {
+    "groups": 20,
+    "passed": 396,
+    "allPassed": true
+  },
+  "fullCheck": {
+    "exitCode": 1,
+    "files": 89,
+    "tests": 527,
+    "passed": 525,
+    "failed": 2,
+    "failures": [
+      {
+        "file": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs",
+        "log": ".cache/mobile-screen/integration-output/collected-19.tap"
+      },
+      {
+        "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+        "log": ".cache/mobile-screen/integration-output/collected-22.tap"
+      }
+    ],
+    "gameplayWriteFailure": "UNKNOWN opening racing.json after behavior assertions; unchanged independent rerun passed all 7 games",
+    "gameplayRecheck": {
+      "passed": 7,
+      "failed": 0,
+      "log": ".cache/mobile-screen/gameplay-recheck.log"
+    },
+    "remainingLimitation": "Existing large-scene frozen hardware identity requires i7-7700 / 8 logical CPUs; current host i7-14700KF / 28. Gate unchanged."
+  },
+  "secretScan": {
+    "schemaVersion": 1,
+    "passed": true,
+    "files": 689,
+    "bytes": 406288611,
+    "crashDumps": 0,
+    "rules": [
+      "configured-secret-utf8-and-utf16",
+      "credential-token-patterns",
+      "credential-store-path"
+    ],
+    "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+    "inputDigest": "sha256:563937a5d361b6fa3b4354608c03845b9c3f3a2273f62bec5a8fc446c9ef46c0"
+  },
+  "screenshots": [
+    {
+      "path": ".cache/mobile-screen/screenshots/minesweeper-phone.png",
+      "sha256": "28cd4063dd4d5f5829181b36f82bdd01a24a2c0f9355333ce8cf1f8c076cb158"
+    },
+    {
+      "path": ".cache/mobile-screen/screenshots/share-icon.png",
+      "sha256": "74fc4730ed331665fc0221159cf528a0ec2b4418ec4fd6790649dd778fdeab91"
+    }
+  ],
+  "artifacts": {
+    "full": ".cache/mobile-screen/integration-output",
+    "gameplayRecheck": ".cache/mobile-screen/gameplay-recheck-output",
+    "fullLog": ".cache/mobile-screen/check.log"
+  },
+  "milestoneAdvanced": false
+}

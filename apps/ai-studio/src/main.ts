@@ -1,4 +1,5 @@
 import { parallelBuildIdentity, loadParallelQualification } from './parallel-qualification.js';
+import { MobilePreviewServer } from './mobile-preview-server.js';
 let parallelQualification: Awaited<ReturnType<typeof loadParallelQualification>> = { reason: 'disabled' };
 import { QueryPreferences } from './query-preferences.js';
 import { ApprovalPreferences } from './approval-preferences.js';
@@ -56,8 +57,8 @@ const descriptor = defineEditorAppDescriptor({
   artifactName: 'haiyue-ai-studio',
   storageNamespace: 'haiyue-ai-studio-poc',
   supportTier: 'experimental',
-  entries: ['main.js', 'preload.cjs', 'renderer.js', 'preview-runtime.js', 'chunks/chunk.js', 'index.html', 'styles.css', 'preview.html', 'preview.css'],
-  staticFiles: ['engine-docs/bundle.json', 'engine-docs/binding.json', 'index.html', 'styles.css', 'resources.css', 'advanced-authoring.css', 'preview.html', 'preview.css'],
+  entries: ['main.js', 'preload.cjs', 'renderer.js', 'preview-runtime.js', 'mobile-player.js', 'chunks/chunk.js', 'index.html', 'styles.css', 'preview.html', 'preview.css', 'mobile-player.html', 'mobile-player.css'],
+  staticFiles: ['engine-docs/bundle.json', 'engine-docs/binding.json', 'index.html', 'styles.css', 'resources.css', 'advanced-authoring.css', 'preview.html', 'preview.css', 'mobile-player.html', 'mobile-player.css'],
   workers: [],
   distDirectory: 'dist',
   outputDirectory: 'release',
@@ -203,6 +204,13 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
       await conversation.initialize();
       const behaviorPorts = createWorkspaceBehaviorPorts(workspace, operationLog);
       const behavior = new ProjectBehaviorController(behaviorPorts);
+      const mobilePreview = new MobilePreviewServer({dist:import.meta.dirname,certificateDirectory:path.join(app.getPath('userData'),'mobile-preview-tls'),protector:{
+        seal(value){if(!safeStorage.isEncryptionAvailable())throw new Error('Certificate protection unavailable');return safeStorage.encryptString(value).toString('base64');},
+        open(value){if(!safeStorage.isEncryptionAvailable())throw new Error('Certificate protection unavailable');return safeStorage.decryptString(Buffer.from(value,'base64'));},
+      }});
+      context.effects.own('mobile-preview.dispose',()=>mobilePreview.dispose());
+      const mobileChanges=workspace.subscribe(snapshot=>{const share=mobilePreview.current();if(share&&snapshot.document?.revision!==share.documentRevision)void mobilePreview.stop();});
+      context.effects.own('mobile-preview-subscription.dispose',()=>mobileChanges.dispose());
       projectBehavior = behavior;
       context.effects.own('behavior.dispose', async () => { if (projectBehavior === behavior) projectBehavior = null; await behavior.dispose(); });
       const editor = new ProjectEditorController(createWorkspaceEditorPorts({ workspace, selection, behavior: behaviorPorts, tools: gameTools,
@@ -233,6 +241,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send(STUDIO_PREVIEW_PENDING_CHANNEL);
       });
       const router = new StudioIpcRouter({
+        mobilePreview,
         notifications,
         queryPreferences, toolPreferences,
         workspace,

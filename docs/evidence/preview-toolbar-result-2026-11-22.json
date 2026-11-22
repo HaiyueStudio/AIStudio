@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "inputDigest": "sha256:372d2a7e0f7af912972fbd0a5257e1d8aafa1679c11076366770277bbb32d0f1",
+  "behavior": {
+    "surfaces": [
+      "desktop",
+      "web"
+    ],
+    "iconOnly": [
+      "apply-size",
+      "rotate-device",
+      "pause-resume",
+      "restart",
+      "fullscreen",
+      "exit"
+    ],
+    "tooltipDelayMs": 1000,
+    "accessibleNames": true,
+    "localizedStateLabels": true,
+    "restart": {
+      "stopOldRuntimeBeforeNewStart": true,
+      "refreshCurrentProject": true,
+      "preserveDeviceSize": true,
+      "reuseValidAuthorization": true,
+      "changedExecutableUsesExistingConsent": true,
+      "disabledForAgentPreview": true,
+      "singleFlight": true,
+      "failureRestoresControls": true
+    }
+  },
+  "verification": {
+    "focusedPassed": 17,
+    "capability": {
+      "groups": 20,
+      "passed": 394,
+      "failed": 0
+    },
+    "fullCheck": {
+      "command": "npm run check",
+      "exitCode": 1,
+      "preIntegrationChecks": "passed",
+      "collectedFiles": 89,
+      "executedFiles": 89,
+      "tests": 526,
+      "passed": 524,
+      "failed": 2,
+      "skipped": 0,
+      "cancelled": 0,
+      "failures": [
+        {
+          "file": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs",
+          "log": "collected-19.tap"
+        },
+        {
+          "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+          "log": "collected-22.tap"
+        }
+      ]
+    },
+    "gameplayRecheck": {
+      "passed": 7,
+      "failed": 0,
+      "sourceAndAssertionsUnchanged": true
+    },
+    "product": {
+      "authorAndRestartPassed": true,
+      "gizmoPassed": true,
+      "largePhase": "blocked by existing hardware identity assertion",
+      "expected": {
+        "cpu": "i7-7700",
+        "logicalCpus": 8
+      },
+      "actual": {
+        "cpu": "i7-14700KF",
+        "logicalCpus": 28
+      }
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 689,
+      "bytes": 406410700,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:372d2a7e0f7af912972fbd0a5257e1d8aafa1679c11076366770277bbb32d0f1"
+    }
+  },
+  "evidence": {
+    "screenshots": ".cache/preview-toolbar/screenshots",
+    "full": ".cache/preview-toolbar/integration-output",
+    "gameplayRecheck": ".cache/preview-toolbar/gameplay-recheck-output"
+  },
+  "milestoneAdvanced": false
+}
