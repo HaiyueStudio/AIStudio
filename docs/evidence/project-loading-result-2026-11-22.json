@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "inputDigest": "sha256:9a5f26eef968e13933b99f16a8dbaa50610dbbe3091bbc378318d5ee1cf9f07c",
+  "benchmark": {
+    "scope": "Read-only zhuoqiu copy; one local before/after sample; empty application cache, filesystem warmed by copying; excludes file chooser, real backend connection and full renderer startup",
+    "documentBytes": 97113,
+    "journalHashes": [
+      {
+        "name": "segment-000001.jsonl",
+        "sha256": "ce976f4dbb5999e02c88f64e02546371592810bdef5320d7f01f96b17bb32132"
+      },
+      {
+        "name": "segment-000002.jsonl",
+        "sha256": "209f63d9e28120e80db7e15ab7e39000265c1af76bc9133b215ed2db34e48fdb"
+      }
+    ],
+    "inputJournalIdentical": true,
+    "documentReadMs": 9.215099999999893,
+    "portableHistoryBeforeMs": 13039.0017,
+    "portableHistoryAfterMs": 2306.2483,
+    "reductionPercent": 82.31269269640482,
+    "warmHistoryAfterMs": 115.1596999999997,
+    "offlineHostRestoreMs": 153.4145000000001,
+    "individualJournalAppends": 4764,
+    "importBatches": 38,
+    "artifactPutsBefore": 2971,
+    "artifactPutsAfter": 1440
+  },
+  "changes": {
+    "loading": "Paint before work; inert/aria-busy; deduplicated operation; restore focus/state on completion, cancellation, error and disposal",
+    "history": "Bounded durable import groups, immutable artifact deduplication and 8 transfer workers",
+    "telemetry": "project/load-performance with prepare/document/history/total timings and no paths"
+  },
+  "focused": {
+    "passed": 59,
+    "failed": 0,
+    "logs": [
+      ".cache/project-loading/focused-log.log",
+      ".cache/project-loading/focused-open.log",
+      ".cache/project-loading/other-log-tests.log",
+      ".cache/project-loading/loading-ui.log"
+    ]
+  },
+  "capabilities": {
+    "groups": 21,
+    "passed": 458,
+    "failed": 0
+  },
+  "fullCheck": {
+    "exitCode": 1,
+    "files": 96,
+    "tests": 573,
+    "passed": 570,
+    "failed": 3,
+    "failures": [
+      {
+        "file": "apps/ai-studio/test/m14-integration/gameplay-device.test.mjs",
+        "log": ".cache/project-loading/integration-output/collected-19.tap",
+        "diagnostic": "Evidence result-file write failed after behavior assertions; unchanged standalone rerun is recorded separately"
+      },
+      {
+        "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+        "log": ".cache/project-loading/integration-output/collected-22.tap",
+        "diagnostic": "Existing frozen CPU hardware identity gate (i7-7700 / 8 versus i7-14700KF / 28)"
+      }
+    ],
+    "log": ".cache/project-loading/check.log"
+  },
+  "secretScan": {
+    "schemaVersion": 1,
+    "passed": true,
+    "files": 698,
+    "bytes": 406327533,
+    "crashDumps": 0,
+    "rules": [
+      "configured-secret-utf8-and-utf16",
+      "credential-token-patterns",
+      "credential-store-path"
+    ],
+    "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+    "inputDigest": "sha256:9a5f26eef968e13933b99f16a8dbaa50610dbbe3091bbc378318d5ee1cf9f07c"
+  },
+  "desktopProjectWrites": false,
+  "milestoneAdvanced": false,
+  "gameplayRecheck": {
+    "passed": 6,
+    "failed": 1,
+    "log": ".cache/project-loading/gameplay-recheck.log",
+    "archive": ".cache/project-loading/gameplay-recheck-output",
+    "diagnostic": "Original snake and jigsaw failures passed unchanged; racing failed at final result JSON write with UNKNOWN open. No behavior assertion failed. Full check remains failed."
+  },
+  "racingRecheck": {
+    "passed": 1,
+    "failed": 0,
+    "log": ".cache/project-loading/racing-recheck.log",
+    "archive": ".cache/project-loading/racing-recheck-output",
+    "diagnostic": "Isolated racing rerun passed unchanged; does not replace the original full-check result."
+  },
+  "benchmarkSecretScan": [
+    {
+      "run": "before",
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 1445,
+      "bytes": 22468726,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated."
+    },
+    {
+      "run": "after-parallel",
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 1445,
+      "bytes": 22468726,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated."
+    }
+  ]
+}
