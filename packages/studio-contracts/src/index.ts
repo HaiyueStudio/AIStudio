@@ -1,4 +1,6 @@
 export * from './official-tools.js';
+export * from './agent-approval.js';
+export * from './parametric-array.js';
 export * from './request-context.js';
 export * from './workflow.js';
 export type JsonPrimitive = null | boolean | number | string;
@@ -21,6 +23,7 @@ export type {
   CostRecordV2,
   EvaluationResultV2,
   GameComponentInstanceV2,
+  ParametricArrayV1,
   GameDocumentBatchV2,
   GameDocumentDeltaV2,
   GameDocumentOperationV2,

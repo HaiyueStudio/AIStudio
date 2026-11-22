@@ -5,3 +5,4 @@ export * from './render/index.js';
 export * from './assets/index.js';
 export * from './scene-authoring.js';
 export * from './camera-authoring.js';
+export * from './parametric-arrays.js';

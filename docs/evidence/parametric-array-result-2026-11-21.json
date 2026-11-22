@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-21",
+  "inputDigest": "sha256:e4a6cd79085096533fcf5c01e7b13ee3d2c6b9cc088c12e08d0e05648df799d7",
+  "behavior": {
+    "tool": "scene.populate",
+    "component": "haiyue.scene.array",
+    "modes": {
+      "entities": {
+        "maxCells": 128,
+        "independentlyEditable": true
+      },
+      "instances": {
+        "maxCells": 4096,
+        "nativeGpuInstancing": true
+      }
+    },
+    "layout": "grid-xy-xz-yz",
+    "stableCellKeys": "row:column",
+    "oneUndo": true,
+    "persistence": "existing-project-document",
+    "aiSelection": "both-backends-discovery-and-approved-plan",
+    "templateSourceRetained": true
+  },
+  "verification": {
+    "capability": {
+      "groups": 19,
+      "passed": 386,
+      "failed": 0
+    },
+    "registry": {
+      "components": 45,
+      "tools": 59
+    },
+    "rootCheck": {
+      "command": "npm run check",
+      "exitCode": 1,
+      "collectedFiles": 86,
+      "tests": 518,
+      "passed": 517,
+      "failed": 1,
+      "skipped": 0,
+      "cancelled": 0,
+      "failedFiles": [
+        {
+          "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+          "log": "collected-22.tap",
+          "elapsedMs": 45328,
+          "exitCode": 1,
+          "tests": 1,
+          "passed": 0,
+          "failed": 1,
+          "skipped": 0,
+          "cancelled": 0
+        }
+      ]
+    },
+    "native": {
+      "editorCount": 400,
+      "reloadedCount": 400,
+      "playCount": 400,
+      "cleanup": 0,
+      "coloredPixels": 89601,
+      "whitePixels": 256
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 681,
+      "bytes": 406067955,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:e4a6cd79085096533fcf5c01e7b13ee3d2c6b9cc088c12e08d0e05648df799d7"
+    }
+  },
+  "limitations": {
+    "layoutV1": "bounded homogeneous geometry grid; multi-part composites use assembly/prefab",
+    "instanceComponents": false,
+    "modeSwitchDoesNotRewriteScripts": true,
+    "livePaidModelGeneration": false,
+    "formalMilestoneAcceptance": false,
+    "requiredCpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+    "actualCpu": "Intel(R) Core(TM) i7-14700KF",
+    "hardwareGateWeakened": false
+  },
+  "artifacts": {
+    "rootLog": ".cache/parametric-arrays/check-final-2.log",
+    "rootLogSha256": "7995f1450b31a86c0bfccbf967e007b1d90a0f6747af2c0c78ed76b4b2982fdf",
+    "capabilityLog": ".cache/parametric-arrays/capability-final-3.log",
+    "integrationArchive": ".cache/parametric-arrays/integration-output",
+    "archiveFiles": 155,
+    "archiveManifestSha256": "1211307350be2a7618544ad91602444cf68096ef82d7fd8c5a71b808e7c1afe3",
+    "design": "docs/adr/0005-parametric-scene-arrays.md"
+  }
+}

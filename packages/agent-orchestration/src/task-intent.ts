@@ -1,4 +1,4 @@
-import type { JsonObject } from '@haiyue/ai-studio-contracts';
+import { PARAMETRIC_ARRAY_COMPONENT, type JsonObject } from '@haiyue/ai-studio-contracts';
 import { requestRouting } from '@haiyue/ai-studio-agent-runtime';
 import { canonicalStringify, redactObject } from '@haiyue/ai-studio-operation-log';
 
@@ -83,7 +83,8 @@ export function assertIntentAllows(intent: TaskIntent, effect: string, toolId: s
   // Play owns a separate runtime document; its existing approvals remain mandatory.
   if (effect === 'runtime-start') return;
   // These authoring operations only update the named entity, through existing revision/History checks.
-  const local = ['material.set', 'entity.rename', 'transform.set', 'component.configure'].includes(toolId) && typeof args.entityId === 'string';
+  const local = ['material.set', 'entity.rename', 'transform.set', 'component.configure'].includes(toolId) && typeof args.entityId === 'string'
+    && !(toolId === 'component.configure' && args.type === PARAMETRIC_ARRAY_COMPONENT);
   if (requirements.some(r => r.predicate === 'prohibit-create') && !local) reject('Creating entities is prohibited. This operation has not been proven to preserve entity membership.');
   if (requirements.some(r => r.predicate === 'preserve-others')) {
     if (!/选中|selected|selection/iu.test(intent.request) || !intent.selection.length || !local || !intent.selection.includes(String(args.entityId))) {

@@ -8,3 +8,12 @@ export function matchesRecoveredApproval(content: JsonObject, expected: JsonObje
     && ['taskId', 'documentId', 'toolId', 'toolVersion', 'target', 'baseRevision', ...(runtimeStart ? [] : ['argsDigest']), 'previewDigest', 'effect', 'risk']
       .every(key => expected[key] !== undefined && expected[key] !== null && content[key] === expected[key]);
 }
+
+/** A new explicit project-tool grant is repeatable within its owning approved task.
+ * Legacy target/session grants retain their exact one-shot recovery semantics. */
+export function matchesProjectToolApproval(content: JsonObject, expected: JsonObject): boolean {
+  return content.scope === 'project-tool' && content.decision === 'allow-always'
+    && expected.effect === 'reversible-edit' && expected.risk === 'medium' && !String(expected.toolId).startsWith('official.')
+    && ['taskId', 'documentId', 'toolId', 'toolVersion', 'effect', 'risk', 'reusableScopeDigest']
+      .every(key => expected[key] !== undefined && expected[key] !== null && content[key] === expected[key]);
+}

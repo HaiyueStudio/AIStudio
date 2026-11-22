@@ -92,7 +92,7 @@ export class ToolCatalogRuntime {
     const named = new Set([...request.matchAll(/[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+/gu)].map(match => match[0]));
     const eligible = (id: StableId): boolean => {
       const definition = this.byId.get(id);
-      return Boolean(definition && (!id.startsWith('official.') || named.has(id) || explicit.includes(id)) && (!intent.readOnly || definition.effect === 'observe') && (!intent.noCreate || !/^(?:entity\.create|assembly\.|prefab\.)/u.test(id)));
+      return Boolean(definition && (!id.startsWith('official.') || named.has(id) || explicit.includes(id)) && (!intent.readOnly || definition.effect === 'observe') && (!intent.noCreate || !/^(?:entity\.create|scene\.populate|assembly\.|prefab\.)/u.test(id)));
     };
     for (const id of expandedIds) if (this.byId.has(id)) selected.add(id);
     // Continuations name concrete next tools. Give their registered schemas
@@ -126,7 +126,11 @@ function explicitIntentToolIds(request: string): readonly StableId[] {
   if (/\bnode(?:\.js|js)\b/u.test(lower)) ids.push(asStableId('official.code.run'));
   if (/\b(?:screenshot|screen-shot|capture)\b|截图|截屏/u.test(lower)) ids.push(asStableId('play.capture'));
   if (/\b(?:input|keyboard|pointer|touch|mouse|gamepad)\b|输入|键盘|触控|鼠标|点击|拖拽/u.test(lower)) ids.push(asStableId('play.input'));
-  if (/\b(?:physics|raycast|rigid|collision|gravity)\b|物理|碰撞|重力|刚体|射线/u.test(lower)) ids.push(asStableId('component.configure'), asStableId('play.physics-query'));
+  if (/\b(?:play|runtime)\b[\s\S]*\binspect\b|\binspect\b[\s\S]*\b(?:play|runtime)\b|检查\s*(?:play|运行)|(?:play|运行)(?:状态)?检查/u.test(lower)) ids.push(asStableId('play.inspect'));
+  if (/\b(?:physics|raycast|rigid|collision|gravity)\b|物理|碰撞|重力|刚体|射线/u.test(lower)) ids.push(asStableId('component.configure'));
+  // Collision rules alone need authoring first; reserve query schemas for explicit physical simulation/query intent.
+  if (/\b(?:physics|raycast|rigid|gravity)\b|物理|重力|刚体|射线/u.test(lower)) ids.push(asStableId('play.physics-query'));
+  if (/\b(?:array|grid|repeated|repeat|instances|tiles|lattice)\b|阵列|网格|行列|成排|重复排列|实例化|盘面|棋盘|格子/u.test(lower)) ids.push(asStableId('scene.populate'));
   if (/\b(?:create|build)\b|生成|创建|搭建/u.test(lower)) ids.push(asStableId('entity.create'));
   if (/\b(?:camera|orbit|follow)\b|相机|镜头|视角/u.test(lower)) ids.push(asStableId('camera.author'));
   if (/\b(?:drag|click|pointer|touch|mouse)\b|触控|鼠标|点击|拖拽/u.test(lower)) ids.push(asStableId('play.pointer-gesture'));

@@ -1,6 +1,7 @@
 import { parallelBuildIdentity, loadParallelQualification } from './parallel-qualification.js';
 let parallelQualification: Awaited<ReturnType<typeof loadParallelQualification>> = { reason: 'disabled' };
 import { QueryPreferences } from './query-preferences.js';
+import { ApprovalPreferences } from './approval-preferences.js';
 import { loadEngineDocumentation } from './engine-documentation.js';
 import { ProjectAgentHistory, sha256 } from '@haiyue/ai-studio-operation-log';
 import { renderCanvasTexture } from './canvas-texture-renderer.js';
@@ -132,6 +133,9 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
         : path.join(app.getPath('userData'), 'project-agent-history', sha256(binding.projectId ?? 'workspace-empty').slice(0, 32));
       const queryPreferences = new QueryPreferences(path.join(app.getPath('userData'), 'query-limits.json'));
       await queryPreferences.initialize();
+      const approvalPreferences = new ApprovalPreferences(path.join(app.getPath('userData'), 'agent-approvals.json'));
+      await approvalPreferences.initialize();
+      context.effects.own('approval-preferences.dispose', () => approvalPreferences.dispose());
       context.effects.own('query-preferences.dispose', () => queryPreferences.dispose());
       context.effects.own('tool-preferences.dispose', () => toolPreferences.dispose());
       const conversation = new ProjectConversationController({
@@ -150,6 +154,7 @@ function createElectronIpcPlugin(): StudioPluginDefinition<JsonObject> {
           });
           return ({
           runtime: agentRuntime,
+          approvalPolicy: { current: () => approvalPreferences.snapshot().mode, configure: async mode => { await approvalPreferences.configure({ schemaVersion: 1, mode }); } },
             asyncQuestions: agentProfile.backend === 'harness-api-key' && process.env.AI_STUDIO_EXPERIMENTAL_ASYNC_QUESTIONS === '1',
             experimentalTeam: agentProfile.backend === 'harness-api-key' && process.env.AI_STUDIO_EXPERIMENTAL_TEAM === '1',
           tools: gameTools,
@@ -361,6 +366,7 @@ function createWindow(): void {
     backgroundColor: descriptor.electron.backgroundColor,
     title: descriptor.productName,
     show: !smoke,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(import.meta.dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -373,7 +379,7 @@ function createWindow(): void {
   });
   mainWindow = window;
   window.on('focus', () => window.flashFrame(false));
-  installApplicationMenu();
+  installApplicationMenu(window);
   window.webContents.session.protocol.handle(previewScheme, async (request) => {
     const url = new URL(request.url);
     const asset = url.hostname === 'app'
@@ -433,7 +439,7 @@ function createWindow(): void {
           || result.workflow !== 'create-pick-transform-undo-redo-save-reopen' || result.deviceRecovery !== 'ready'
           || result.scriptWorkflow !== 'proposal-commit-approve-standalone-play-pause-resume-device-hot-reload-fault-stop-isolated' || result.agentUi !== 'ready'
           || result.agentBackend !== 'backend:codex-app-server' || !['ready', 'auth-required', 'error'].includes(result.agentBackendState)
-          || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4 || result.tabCount !== 5
+          || result.agentSync !== 'push-single-flight' || result.splitLayout !== 'ready' || result.splitCount !== 4 || result.tabCount !== 6
           || !['zh-CN', 'en'].includes(result.language) || !['light', 'dark'].includes(result.theme)
           || result.settings !== true || result.scriptHidden !== true
           || result.splitKeyboard !== true || result.splitGeometry !== true) throw new Error(JSON.stringify(result));
@@ -453,18 +459,20 @@ function createWindow(): void {
   void window.loadFile(entry);
 }
 
-function installApplicationMenu(): void {
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'File', submenu: [{ role: 'close' }, { type: 'separator' }, { role: 'quit' }] },
-    { label: 'Edit', submenu: [
-      { role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
-    ] },
-    { label: 'View', submenu: [
-      { role: 'reload' }, { role: 'forceReload' }, { type: 'separator' }, { role: 'toggleDevTools', accelerator: 'F12' },
-      { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' },
-    ] },
-    { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'close' }] },
-  ]));
+function installApplicationMenu(window: BrowserWindow): void {
+  Menu.setApplicationMenu(null);
+  window.setMenu(null);
+  window.setMenuBarVisibility(false);
+  // Keep window shortcuts available after removing Electron's native menu.
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const command = process.platform === 'darwin' ? input.meta : input.control;
+    const key = input.key.toLowerCase();
+    if (key === 'f12') { event.preventDefault(); window.webContents.toggleDevTools(); }
+    else if (key === 'f11') { event.preventDefault(); window.setFullScreen(!window.isFullScreen()); }
+    else if (command && key === 'r') { event.preventDefault(); if (input.shift) window.webContents.reloadIgnoringCache(); else window.webContents.reload(); }
+    else if (command && ['0', '+', '=', '-'].includes(key)) { event.preventDefault(); window.webContents.setZoomLevel(key === '0' ? 0 : Math.max(-5, Math.min(5, window.webContents.getZoomLevel() + (key === '-' ? -1 : 1)))); }
+  });
 }
 
 function finishSmoke(code: number, message: string): void {

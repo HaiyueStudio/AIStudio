@@ -22,6 +22,7 @@ import type {
 import type { ExecutionGraphNodeReadModel, ExecutionGraphReadModel, ExecutionGraphProductNodeStatus } from '../../conversation/execution-graph-types.js';
 
 export interface ChatPanelReadModel {
+  readonly approvalMode?: ConversationReadModel['approvalMode'];
   readonly backendId: StableId | null;
   readonly backends: readonly ConversationBackendReadModel[];
   readonly cards: readonly ChatCardReadModel[];
@@ -38,7 +39,7 @@ export function presentChatPanel(snapshot: ConversationReadModel, now = Date.now
   const selected = snapshot.backends.find((backend) => backend.id === snapshot.backendId);
   const backendReady = selected?.state === 'ready' && selected.selectedModel !== null && selected.selectedReasoningEffort !== null && selected.outputTokenLimit !== null;
   return Object.freeze({
-    backendId: snapshot.backendId, backends: snapshot.backends, cards,
+    backendId: snapshot.backendId, backends: snapshot.backends, approvalMode: snapshot.approvalMode ?? 'ask', cards,
     composer: Object.freeze({ busy: snapshot.busy, blockedReason: snapshot.composerBlockedReason ?? (backendReady ? null : backendBlockedReason(selected)), canSend: snapshot.composerBlockedReason === null && snapshot.backendId !== null && backendReady, canCancel: snapshot.busy }),
     connection: snapshot.connection, taskAccounting: snapshot.taskAccounting, taskRuns: snapshot.taskRuns, executionGraphs: groupExecutionGraphsByTask(snapshot.executionGraphs ?? [], snapshot.taskRuns).map(graph => withExecutionPlan(graph, snapshot.nodes)),
     ariaLive: cards.at(-1)?.body ?? (snapshot.connection === 'connected' ? 'Agent conversation ready.' : 'Agent conversation disconnected.'),
@@ -98,7 +99,15 @@ export function chatFeedIsNearLatest(position: ChatFeedScrollPosition, threshold
   return position.scrollHeight - position.clientHeight - position.scrollTop <= threshold;
 }
 
-export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void): void {
+export interface ChatSettingsPort {
+  readonly models: HTMLElement;
+  readonly agent: HTMLElement;
+  readonly language: 'zh-CN' | 'en';
+  readonly open: () => void;
+}
+const chatSettingsRegions = new WeakMap<HTMLElement, Readonly<{ key: string; models: HTMLElement; agent: HTMLElement }>>();
+
+export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, dispatch: (intent: ConversationIntent) => void, settingsPort?: ChatSettingsPort): void {
   const openPanels = (chatHoverControllers.get(root) ?? []).filter(item => item.className !== 'execution-detail-popover').flatMap(({ className, hover }) => { const state = hover.snapshot(); return state ? [{ className, state }] : []; });
   disposeChatRender(root);
   const renderLifetime = new AbortController(); chatRenderLifetimes.set(root, renderLifetime);
@@ -127,6 +136,9 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   const persistentSections = new Map<Node, Node>();
   const backendControls = document.createElement('div');
   backendControls.className = 'chat-backend-controls';
+  const agentControls = document.createElement('div'); agentControls.className = 'chat-agent-controls';
+  const text = (en: string, zh: string): string => settingsPort?.language === 'zh-CN' ? zh : en;
+  const dispatchSetting = (intent: ConversationIntent): void => { const current = chatSettingsRegions.get(root); if (current) chatSettingsRegions.set(root, {...current,key:''}); dispatch(intent); };
   const backendSelect = document.createElement('select');
   backendSelect.setAttribute('aria-label', 'Agent backend');
   for (const backend of model.backends) {
@@ -138,13 +150,29 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   }
   backendSelect.addEventListener('change', () => {
     const backend = model.backends.find((item) => item.id === backendSelect.value);
-    if (backend) dispatch(Object.freeze({ type: 'backend/select', backendId: backend.id }));
+    if (backend) dispatchSetting(Object.freeze({ type: 'backend/select', backendId: backend.id }));
   });
-  backendControls.append(backendSelect);
+  if (settingsPort) backendControls.append(labelled(document, text('Backend', 'AI 后端'), backendSelect));
+  else backendControls.append(backendSelect);
+  const approvalSelect = document.createElement('select');
+  approvalSelect.setAttribute('aria-label', '审批方式');
+  approvalSelect.title = '自动审批已批准任务中的工程内可撤销编辑；首次运行脚本、外部操作和预算扩张仍需确认。';
+  approvalSelect.disabled = model.composer.busy;
+  for (const [value, label] of [['auto-review', '自动审批工程编辑'], ['ask', '逐次确认']] as const) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label;
+    option.selected = value === (model.approvalMode ?? 'ask'); approvalSelect.append(option);
+  }
+  approvalSelect.addEventListener('change', () => {
+    if (approvalSelect.value === 'auto-review' || approvalSelect.value === 'ask') dispatchSetting(Object.freeze({ type: 'agent/approval-mode', mode: approvalSelect.value }));
+  });
+  (settingsPort ? agentControls : backendControls).append(settingsPort ? labelled(document, text('Approval mode', '审批方式'), approvalSelect) : approvalSelect);
+  if (settingsPort) { const hint = document.createElement('p'); hint.className = 'settings-note'; hint.textContent = text('Automatically review reversible project edits in approved plans. First script runs and external operations still ask for confirmation.', '自动审批已批准方案中的工程内可撤销编辑。首次运行脚本和外部操作仍会请求确认。'); agentControls.append(hint); }
   const selectedBackend = model.backends.find((item) => item.id === model.backendId);
-  const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh connection';
-  refresh.addEventListener('click', () => dispatch(Object.freeze({ type: 'conversation/reconnect' })));
-  backendControls.append(refresh);
+  const connectionActions = settingsPort ? document.createElement('div') : backendControls;
+  if (settingsPort) { connectionActions.className = 'settings-connection-actions'; backendControls.append(connectionActions); }
+  const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = text('Refresh connection', '刷新连接');
+  refresh.addEventListener('click', () => dispatchSetting(Object.freeze({ type: 'conversation/reconnect' })));
+  connectionActions.append(refresh);
   if (selectedBackend?.diagnostic) {
     const diagnostic = document.createElement('p'); diagnostic.className = 'chat-backend-diagnostic'; diagnostic.setAttribute('role', 'status');
     diagnostic.textContent = selectedBackend.state === 'ready' && selectedBackend.diagnostic.code === 'codex.rate-limits-unavailable'
@@ -154,13 +182,13 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   }
   if (selectedBackend?.state === 'auth-required') {
     const authenticate = document.createElement('button');
-    authenticate.type = 'button'; authenticate.textContent = selectedBackend.authMode === 'api-key' ? 'Configure API key securely' : 'Sign in with ChatGPT';
-    authenticate.addEventListener('click', () => dispatch(Object.freeze({ type: 'backend/authenticate', backendId: selectedBackend.id })));
-    backendControls.append(authenticate);
+    authenticate.type = 'button'; authenticate.textContent = selectedBackend.authMode === 'api-key' ? text('Configure API key securely', '配置 API Key') : text('Sign in with ChatGPT', '使用 ChatGPT 登录');
+    authenticate.addEventListener('click', () => dispatchSetting(Object.freeze({ type: 'backend/authenticate', backendId: selectedBackend.id })));
+    connectionActions.append(authenticate);
   } else if (selectedBackend?.state === 'ready') {
-    const logout = document.createElement('button'); logout.type = 'button'; logout.textContent = 'Sign out';
-    logout.addEventListener('click', () => dispatch(Object.freeze({ type: 'backend/logout', backendId: selectedBackend.id })));
-    backendControls.append(logout);
+    const logout = document.createElement('button'); logout.type = 'button'; logout.textContent = text('Sign out', '退出登录');
+    logout.addEventListener('click', () => dispatchSetting(Object.freeze({ type: 'backend/logout', backendId: selectedBackend.id })));
+    connectionActions.append(logout);
   }
   if (selectedBackend?.rateLimits.length) {
     const limits = document.createElement('span'); limits.className = 'chat-rate-limits';
@@ -169,16 +197,17 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
   }
   if (selectedBackend) {
     const capabilities = document.createElement('details'); capabilities.className = 'chat-backend-capabilities';
-    const summary = document.createElement('summary'); summary.textContent = `Backend capabilities · ${selectedBackend.protocolVersion}`;
+    const summary = document.createElement('summary'); summary.textContent = text('Connection details', '连接详情');
     const value = document.createElement('p'); value.textContent = Object.entries(selectedBackend.capabilities).map(([name, supported]) => `${supported ? '✓' : '—'} ${name}`).join(' · ');
     capabilities.append(summary, value); backendControls.append(capabilities);
   }
   if (selectedBackend?.models.length && selectedBackend.selectedModel && selectedBackend.selectedReasoningEffort && selectedBackend.outputTokenLimit) {
     const selectedModelInfo = selectedBackend.models.find((item) => item.id === selectedBackend.selectedModel)!;
     const settings = document.createElement('details'); settings.className = 'chat-agent-settings';
-    const summary = document.createElement('summary'); summary.textContent = 'Model, reasoning and task budget'; settings.append(summary);
+    const summary = document.createElement('summary'); summary.textContent = text('Model, reasoning and task budget', '模型与推理'); settings.append(summary);
+    settings.open = Boolean(settingsPort);
     if (selectedBackend.promptProfile) {
-      const profile = document.createElement('p'); profile.className = 'chat-prompt-profile'; profile.textContent = `Prompt profile ${selectedBackend.promptProfile.id}@${selectedBackend.promptProfile.version} · ${selectedBackend.promptProfile.digest}`; settings.append(profile);
+      const profile = document.createElement('p'); profile.className = 'chat-prompt-profile'; profile.textContent = `Prompt profile ${selectedBackend.promptProfile.id}@${selectedBackend.promptProfile.version} · ${selectedBackend.promptProfile.digest}`; (settingsPort ? backendControls.querySelector('.chat-backend-capabilities') ?? settings : settings).append(profile);
     }
     const modelSelect = document.createElement('select'); modelSelect.setAttribute('aria-label', 'Agent model');
     for (const item of selectedBackend.models) { const option = document.createElement('option'); option.value = item.id; option.selected = item.id === selectedModelInfo.id; option.textContent = item.label; modelSelect.append(option); }
@@ -193,20 +222,42 @@ export function renderChatPanel(root: HTMLElement, model: ChatPanelReadModel, di
       const selectedModel = selectedBackend.models.find((item) => item.id === modelSelect.value); if (!selectedModel) return;
       if (!selectedModel.reasoningEfforts.includes(effortSelect.value as typeof selectedModel.reasoningEfforts[number])) { effortSelect.value = selectedModel.defaultReasoningEffort; }
       const limits = Object.freeze(Object.fromEntries(Object.entries(budgetInputs).map(([key, input]) => [key, Math.max(Number(input.min), Math.floor(Number(input.value)))])) as unknown as typeof budget.limits);
-      dispatch(Object.freeze({ type: 'agent/configure', backendId: selectedBackend.id, model: selectedModel.id, reasoningEffort: effortSelect.value as typeof selectedModel.reasoningEfforts[number], outputTokenLimit: Math.min(selectedModel.maxOutputTokens, Math.max(1, Math.floor(Number(outputLimit.value)))), budget: Object.freeze({ schemaVersion: 2, id: budget.id, enforcement: enforcement.value as typeof budget.enforcement, limits }) }));
+      dispatchSetting(Object.freeze({ type: 'agent/configure', backendId: selectedBackend.id, model: selectedModel.id, reasoningEffort: effortSelect.value as typeof selectedModel.reasoningEfforts[number], outputTokenLimit: Math.min(selectedModel.maxOutputTokens, Math.max(1, Math.floor(Number(outputLimit.value)))), budget: Object.freeze({ schemaVersion: 2, id: budget.id, enforcement: enforcement.value as typeof budget.enforcement, limits }) }));
     };
     modelSelect.addEventListener('change', () => { const next = selectedBackend.models.find((item) => item.id === modelSelect.value); if (next) { effortSelect.replaceChildren(...next.reasoningEfforts.map((effort) => { const option = document.createElement('option'); option.value = effort; option.textContent = effort; option.selected = effort === next.defaultReasoningEffort; return option; })); outputLimit.max = String(next.maxOutputTokens); outputLimit.value = String(Math.min(Number(outputLimit.value), next.maxOutputTokens)); } apply(); });
     for (const input of [effortSelect, outputLimit, enforcement, ...Object.values(budgetInputs)]) input.addEventListener('change', apply);
-    settings.append(labelled(document, 'Model', modelSelect), labelled(document, 'Reasoning', effortSelect), labelled(document, 'Max output', outputLimit), labelled(document, 'Enforcement', enforcement));
-    for (const [key, input] of Object.entries(budgetInputs)) settings.append(labelled(document, budgetLabel(key), input));
+    const budgetLabels: Readonly<Record<string, string>> = {inputTokens:'新增输入 Token',outputTokens:'输出 Token',estimatedCostMicros:'费用上限（微单位）',wallTimeMs:'执行时长（毫秒）',turns:'模型回合数',toolCalls:'工具调用次数',repairIterations:'修复次数',observationBytes:'观测字节数'};
+    settings.append(labelled(document, text('Model', '模型'), modelSelect), labelled(document, text('Reasoning', '推理强度'), effortSelect), labelled(document, text('Max output', '单次输出上限'), outputLimit));
+    const budgetSettings = settingsPort ? document.createElement('section') : settings;
+    if (settingsPort) { budgetSettings.className = 'chat-task-budget-settings'; const heading = document.createElement('h3'); heading.textContent = text('Task budget', '任务预算'); budgetSettings.append(heading); agentControls.append(budgetSettings); }
+    budgetSettings.append(labelled(document, text('Enforcement', '预算策略'), enforcement));
+    for (const [key, input] of Object.entries(budgetInputs)) budgetSettings.append(labelled(document, text(budgetLabel(key), budgetLabels[key] ?? key), input));
     backendControls.append(settings);
+  }
+  let chatControls = backendControls;
+  if (settingsPort) {
+    const key = JSON.stringify([settingsPort.language, model.backendId, model.backends, model.approvalMode, model.composer.busy, model.taskAccounting?.budget]);
+    const previous = chatSettingsRegions.get(root);
+    if (!previous || previous.key !== key || previous.models !== settingsPort.models || previous.agent !== settingsPort.agent) {
+      replaceSettingsContent(settingsPort.models, backendControls);
+      replaceSettingsContent(settingsPort.agent, agentControls);
+      chatSettingsRegions.set(root, {key, models:settingsPort.models, agent:settingsPort.agent});
+    }
+    chatControls = document.createElement('div'); chatControls.className = 'chat-backend-controls chat-connection-summary';
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'chat-model-settings-button';
+    const modelLabel = selectedBackend?.models.find(item => item.id === selectedBackend.selectedModel)?.label;
+    open.textContent = selectedBackend ? `${selectedBackend.label}${modelLabel ? ` · ${modelLabel}` : ''}  ›` : text('Connect a model  ›', '连接模型  ›');
+    open.setAttribute('aria-label', text('Open model settings', '打开模型设置')); open.addEventListener('click', settingsPort.open);
+    const state = document.createElement('span'); state.className = `chat-connection-state ${selectedBackend?.state ?? 'disconnected'}`;
+    state.textContent = selectedBackend?.state === 'ready' ? text('Connected', '已连接') : selectedBackend?.state === 'auth-required' ? text('Sign in', '需登录') : selectedBackend?.state === 'authenticating' ? text('Connecting', '连接中') : text('Disconnected', '未连接');
+    chatControls.append(open, state);
   }
   if (!model.executionGraphs?.length && model.taskAccounting) {
     const usage = chatHoverPanel(root, document, 'execution-usage-popover', '上下文与任务用量');
     usage.panel.append(renderTaskCostCard(document, model.taskAccounting));
-    backendControls.append(hoverButton(document, usage, '用量', '上下文与任务用量'), usage.panel);
+    chatControls.append(hoverButton(document, usage, '用量', '上下文与任务用量'), usage.panel);
   }
-  fragment.append(backendControls);
+  fragment.append(chatControls);
   const cards = chatCardElements.get(root) ?? new Map<string, CachedChatCard>(); chatCardElements.set(root, cards);
   chatDispatchers.set(root, dispatch);
   const dispatchCard = (intent: ConversationIntent): void => chatDispatchers.get(root)?.(intent);
@@ -395,9 +446,17 @@ function disposeChatRender(root: HTMLElement): void {
   chatHoverControllers.set(root, controllers.filter(item => item.className === 'execution-detail-popover'));
 }
 export function disposeChatPanel(root: HTMLElement): void {
+  const settings = chatSettingsRegions.get(root); settings?.models.replaceChildren(); settings?.agent.replaceChildren(); chatSettingsRegions.delete(root);
   disposeChatRender(root); disposeExecutionGraph(root);
   chatCardElements.delete(root); chatTaskElements.delete(root); chatDispatchers.delete(root); chatViewStates.delete(root);
   chatHoverControllers.delete(root); executionWorkspaceElements.delete(root); currentChatModels.delete(root); chatViewActivators.delete(root);
+}
+
+function replaceSettingsContent(root: HTMLElement, content: HTMLElement): void {
+  const active = root.ownerDocument.activeElement;
+  const label = active && root.contains(active) ? active.getAttribute('aria-label') : null;
+  root.replaceChildren(content);
+  if (label) [...root.querySelectorAll<HTMLElement>('[aria-label]')].find(item => item.getAttribute('aria-label') === label)?.focus({preventScroll:true});
 }
 
 function chatHoverPanel(root: HTMLElement, document: Document, className: string, label: string): ReturnType<typeof createHoverPanel> {
@@ -992,11 +1051,11 @@ function approvalCard(base: CardBase, node: ConversationNodeReadModel, now: numb
   const enabled = Boolean(approval && node.status === 'pending' && approval.decision === 'pending' && !expired);
   const actions: ChatCardAction[] = approval ? [
     Object.freeze({ id: 'approval-allow', label: 'Allow once', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-once' }) }),
-    ...(approval.effect === 'reversible-edit' ? [Object.freeze({ id: 'approval-allow-always', label: 'Allow always', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-always' as const }) })] : []),
+    ...(approval.reusableScope === 'project-tool' && approval.effect === 'reversible-edit' && approval.risk === 'medium' ? [Object.freeze({ id: 'approval-allow-always', label: '本工程始终允许', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'allow-always' as const }) })] : []),
     Object.freeze({ id: 'approval-reject', label: 'Reject', enabled, intent: Object.freeze({ type: 'conversation/resolve-approval', approvalId: approval.approvalId, decision: 'reject' }) }),
   ] : [];
   const body = approval
-    ? `${approval.effect} on ${approval.target}; decision: ${expired && approval.decision === 'pending' ? 'expired' : approval.decision}. ${approval.expiresAt ? `Expires at ${approval.expiresAt}.` : 'No wall-clock expiry; exact revision, arguments and preview still invalidate it.'} Scope: ${approval.scope}.${approval.effect === 'reversible-edit' ? ' Allow always is limited to this tool/version and target for the current project session.' : ' Trusted code and runtime start require exact one-shot approval.'}`
+    ? `${approval.effect} on ${approval.target}; decision: ${expired && approval.decision === 'pending' ? 'expired' : approval.decision}. ${approval.expiresAt ? `Expires at ${approval.expiresAt}.` : 'No wall-clock expiry; exact revision, arguments and preview still invalidate it.'} Scope: ${approval.scope}.${approval.reusableScope === 'project-tool' ? ' “本工程始终允许”覆盖此工具在当前工程的所有实体，应用运行期间跨任务和后端会话生效；重启后仅在原任务恢复时沿用。工程位置、工具版本或组件契约变化后需重新授权。' : ' Trusted code and runtime start require exact one-shot approval.'}`
     : 'Invalid approval payload; actions are disabled.';
   return Object.freeze({ ...base, title: 'Approval required', body, tone: 'danger', actions: Object.freeze(actions), ...(approval ? { approval } : {}) });
 }

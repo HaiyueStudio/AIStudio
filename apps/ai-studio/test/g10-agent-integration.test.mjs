@@ -473,5 +473,79 @@ function contextFixture() {
   return { prompts: { profile }, commits, async prepare({ request, project }) { return { prompt: `AIStudio context envelope\n${JSON.stringify(project ? { projectRevision: project.revision } : { state: 'not-required', reason: 'No Studio project is currently open.' })}\n[current-request-tail]\n${request}`, promptDigest: `sha256:${'d'.repeat(64)}`, promptProfile: profile, contextArtifactIds: [`artifact:sha256:${'e'.repeat(64)}`], contextDigest: `sha256:${'f'.repeat(64)}`, cache: { localArtifactHits: liveSession ? 1 : 0, localArtifactMisses: liveSession ? 0 : 1, deltaReuseBytes: 0, providerCacheEligibleBytes: 128, providerReportedHitTokens: null }, reusedSessionId: liveSession }; }, async commit(value) { commits.push(value); liveSession = value.sessionId; return { id: `artifact:sha256:${'a'.repeat(64)}` }; } };
 }
 function projectContextFixture() { return { projectId: 'project:test', documentId: 'document:test', revision: 1, manifest: { schemaVersion: 1, scene: { entities: [] }, scripts: { resources: [] } } }; }
+
+test('automatic approval edits multiple entities after one plan approval without creating human barriers', async t => {
+  const value = await approvalPolicyFixture(t, 'auto-review', 'component.configure', 'reversible-edit', 'medium', 3);
+  await waitFor(() => !value.host.replay().busy);
+  assert.deepEqual(value.decisions.map(item => item.decision), ['allow-once', 'allow-once', 'allow-once']);
+  assert.equal(nodes(value.host).filter(node => node.kind === 'approval').length, 0);
+  const audit = value.events.filter(event => event.kind === 'conversation/approval-auto-reviewed');
+  assert.equal(audit.length, 3);
+  assert.ok(audit.every(event => event.payload.reason === 'approved-task-reversible-project-edit' && event.payload.policyVersion === 1));
+  assert.equal(value.executed.length, 3);
+});
+
+for (const [mode, toolId, effect, risk] of [['ask', 'component.configure', 'reversible-edit', 'medium'], ['auto-review', 'play.start', 'runtime-start', 'high'], ['auto-review', 'official.write', 'reversible-edit', 'medium']]) {
+  test(`${mode} keeps ${toolId} at an explicit approval barrier when policy requires it`, async t => {
+    const value = await approvalPolicyFixture(t, mode, toolId, effect, risk, 1);
+    await waitFor(() => nodes(value.host).some(node => node.kind === 'approval' && node.status === 'pending'));
+    assert.equal(value.decisions.length, 0); assert.equal(value.executed.length, 0);
+    const approval = nodes(value.host).findLast(node => node.kind === 'approval' && node.status === 'pending');
+    await value.host.dispatch({ type: 'conversation/resolve-approval', approvalId: approval.content.approvalId, decision: 'allow-once' });
+    await waitFor(() => !value.host.replay().busy);
+    assert.equal(value.executed.length, 1);
+    assert.equal(value.events.some(event => event.kind === 'conversation/approval-auto-reviewed'), false);
+  });
+}
+
+test('automatic review fails closed when its durable audit cannot be written', async t => {
+  const value = await approvalPolicyFixture(t, 'auto-review', 'component.configure', 'reversible-edit', 'medium', 1, true);
+  await waitFor(() => !value.host.replay().busy);
+  assert.equal(value.decisions.length, 0); assert.equal(value.executed.length, 0);
+  assert.ok(nodes(value.host).some(node => node.kind === 'tool-result' && node.status === 'failed'));
+});
+
+async function approvalPolicyFixture(t, mode, toolId, effect, risk, count, failAudit = false) {
+  const gates = new Map(), approvals = new Map(), preparations = new Map(), decisions = [], events = [], executed = [];
+  let revision = 1;
+  const backend = {
+    descriptor: { id: backendId, kind: 'harness-api-key', protocolVersion: 'fixture', capabilities: {} },
+    async modelCatalog() { return modelCatalog(); }, async status() { return { state:'ready', authMode:'api-key', rateLimits:[] }; },
+    async submitToolResult(id) { gates.get(id)?.(); }, async cancelTurn() {}, async dispose() {},
+  };
+  const runtime = { context:contextFixture(), accounting:accountingFixture(), registry:{descriptors:()=>[backend.descriptor],get:()=>backend}, turns:{
+    async *start() {
+      const plan = new Promise(resolve => gates.set(planToolCallId, resolve));
+      yield event('tool-request', { toolCallId:planToolCallId, toolId:'studio.plan.propose', arguments:{title:'Configure entities',summary:'Edit project entities and validate the scene.',items:[{label:'Configure entities and test',details:'Apply the requested component values to the scene entities, then validate the result.'}]} });
+      await plan;
+      for (let i=0;i<count;i++) {
+        const id = `call:policy:${i}`, completed = new Promise(resolve => gates.set(id, resolve));
+        yield event('tool-request', { toolCallId:id, toolId, arguments:{baseRevision:revision,entityId:`entity:${i}`} });
+        await completed;
+      }
+      yield event('completed', {status:'completed'});
+    }, async *resume() {}, async cancel() {}, async recordToolResult() {},
+  } };
+  const tools = {
+    definitions:()=>[{id:toolId,version:'1.0.0',description:'Configure an entity',effect,risk,requiresApproval:true,inputSchema:{}}],
+    async prepare(call) {
+      const id=`preparation:${call.id}`, approvalId=`approval:${call.id}`;
+      const prepared={id,callId:call.id,sessionId,turnId,toolId,toolVersion:'1.0.0',effect,risk,documentId:'document:test',baseRevision:revision,argumentsDigest:digest('a'),previewDigest:digest('b'),preview:{title:'Edit',target:call.arguments.entityId,summary:'Configure entity',diff:'+ value'},status:'approval-required',approvalId};
+      preparations.set(id, prepared);
+      approvals.set(approvalId,{schemaVersion:1,approvalId,preparationId:id,toolCallId:call.id,toolId,toolVersion:'1.0.0',effect,risk,documentId:'document:test',baseRevision:revision,argumentsDigest:digest('a'),previewDigest:digest('b'),target:call.arguments.entityId,decision:'pending',reusableScope:'project-tool',reusableScopeDigest:digest('c')});
+      return prepared;
+    }, approval:id=>approvals.get(id),
+    async decide(id, decision) { decisions.push({id,decision}); const resolved={...approvals.get(id),decision}; approvals.set(id,resolved); return resolved; },
+    async execute(id) { const prepared=preparations.get(id); assert.ok(['allow-once','allow-always'].includes(approvals.get(prepared.approvalId).decision)); executed.push(id); return {schemaVersion:1,callId:prepared.callId,toolId,status:'completed',value:{},documentId:'document:test',beforeRevision:revision,afterRevision:++revision}; },
+  };
+  const host = new StudioConversationHost({ runtime, tools, operationLog:{async append(value){if(failAudit && value.kind==='conversation/approval-auto-reviewed')throw new Error('Fixture audit unavailable'); events.push(value);}}, approvalPolicy:{current:()=>mode,async configure(){}}, isProjectOpen:()=>true, projectContext:()=>({...projectContextFixture(),revision}) });
+  t.after(()=>host.dispose()); await host.initialize();
+  assert.equal(host.replay().approvalMode, mode);
+  await host.dispatch({type:'conversation/send',backendId,prompt:'Configure entities and test the scene'});
+  await waitFor(()=>nodes(host).some(node=>node.kind==='plan'&&node.status==='pending')).catch(cause => assert.fail(`${cause.message}: ${JSON.stringify(nodes(host).filter(node => ['diagnostic','tool-result','completion'].includes(node.kind)).map(node=>node.content))}`));
+  const plan=nodes(host).findLast(node=>node.kind==='plan'&&node.status==='pending');
+  await host.dispatch({type:'conversation/accept-plan',nodeId:plan.id,acceptedItemIds:plan.content.items.map(item=>item.id),mode:'approve'});
+  return {host,decisions,events,executed};
+}
 function nodes(host) { return host.replay().events.map((entry) => entry.node); }
 async function waitFor(predicate) { for (let index = 0; index < 100; index += 1) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 5)); } throw new Error('Timed out waiting for fixture state.'); }

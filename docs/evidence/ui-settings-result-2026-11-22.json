@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "inputDigest": "sha256:c5bd03ed1faba0bee3593dd2ed5ab77e5c7eb3f5a6827a693948a8f8be539639",
+  "behavior": {
+    "toolbar": "icon-only-new-open-save-run-stop-busy",
+    "tooltipDelayMs": 1000,
+    "nativeMenuRemoved": true,
+    "windowShortcuts": [
+      "F12",
+      "F11",
+      "Ctrl/Cmd+R",
+      "Ctrl/Cmd+Shift+R",
+      "Ctrl/Cmd+0/+/-"
+    ],
+    "settingsTabs": [
+      "general",
+      "models",
+      "agent",
+      "tools",
+      "notifications"
+    ],
+    "chatEntry": "compact-backend-model-summary-opens-models-tab",
+    "settingsOwnership": "existing-conversation-intents-and-services",
+    "streamingPreservesForm": true,
+    "configurationRestoresAuthoritativeState": true,
+    "webCompatible": true
+  },
+  "verification": {
+    "focusedShellAndWebHost": {
+      "passed": 74
+    },
+    "focusedElectron": {
+      "passed": 3,
+      "includes": [
+        "ported-model-and-budget-controls",
+        "production-tooltip-tabs-menu-and-reload",
+        "web-create-save-run-stop"
+      ]
+    },
+    "desktopWorkflowSmoke": {
+      "passed": 1
+    },
+    "capability": {
+      "groups": 19,
+      "passed": 386,
+      "failed": 0
+    },
+    "rootCheck": {
+      "command": "npm run check",
+      "exitCode": 1,
+      "files": 86,
+      "tests": 518,
+      "passed": 517,
+      "failed": 1,
+      "skipped": 0,
+      "cancelled": 0,
+      "failedFiles": [
+        {
+          "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+          "log": "collected-22.tap",
+          "elapsedMs": 35374,
+          "exitCode": 1,
+          "tests": 1,
+          "passed": 0,
+          "failed": 1,
+          "skipped": 0,
+          "cancelled": 0
+        }
+      ]
+    },
+    "ui": {
+      "hoverMs": 1043,
+      "settingsTabs": 5,
+      "nativeMenuRemoved": true,
+      "reloaded": true
+    },
+    "secretScan": {
+      "schemaVersion": 1,
+      "passed": true,
+      "files": 681,
+      "bytes": 406173087,
+      "crashDumps": 0,
+      "rules": [
+        "configured-secret-utf8-and-utf16",
+        "credential-token-patterns",
+        "credential-store-path"
+      ],
+      "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+      "inputDigest": "sha256:c5bd03ed1faba0bee3593dd2ed5ab77e5c7eb3f5a6827a693948a8f8be539639"
+    }
+  },
+  "limitations": {
+    "requiredCpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+    "actualCpu": "Intel(R) Core(TM) i7-14700KF",
+    "hardwareGateWeakened": false,
+    "livePaidModelCalls": false,
+    "milestoneAdvanced": false
+  },
+  "artifacts": {
+    "screenshots": ".cache/ui-settings/screenshots",
+    "screenshotManifestSha256": "ce282ef003722fe63f4cef287c071ab987dc2f053aa5f4b0d8eeeeb4797f2980",
+    "integrationArchive": ".cache/ui-settings/integration-output",
+    "rootLog": ".cache/ui-settings/check.log",
+    "rootLogSha256": "a835924e94587ce2b573b91b6e68b0d05b0239aa2fcd883b17a569f1c2fe2241"
+  }
+}

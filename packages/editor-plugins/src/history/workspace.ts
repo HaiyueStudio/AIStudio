@@ -278,12 +278,13 @@ export class ProjectWorkspace {
     }, { signal });
     throwIfAborted(signal);
     let latest: GameDocumentDeltaV2 | undefined;
+    let forward: readonly GameDocumentOperationV2[] | undefined;
     const command: EditorCommand = {
       label: input.label,
-      estimatedBytes: JSON.stringify(input.operations).length,
-      execute: () => { latest = document.apply(input.transactionId ?? input.id, input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
-      undo: () => { if (!latest) throw new Error('Document command has no inverse.'); latest = document.apply(asStableId(`transaction:undo:${randomUUID()}`), latest.inverse); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); },
-      redo: () => { latest = document.apply(asStableId(`transaction:redo:${randomUUID()}`), input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
+      get estimatedBytes() { return latest?.metrics.historyBytes ?? JSON.stringify(input.operations).length; },
+      execute: () => { latest = document.apply(input.transactionId ?? input.id, input.operations); forward=latest.operations; this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
+      undo: () => { if (!latest) throw new Error('Document command has no inverse.'); latest = document.apply(asStableId(`transaction:undo:${randomUUID()}`), latest.inverse, false); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); },
+      redo: () => { latest = document.apply(asStableId(`transaction:redo:${randomUUID()}`), forward ?? input.operations, false); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
     };
     this.mutationProvenanceOpIds = Object.freeze([requested.eventId]);
     try {
@@ -332,12 +333,13 @@ export class ProjectWorkspace {
       throwIfAborted(signal);
       await this.resources.transactionFaultInjector?.('before-history-write', input.transactionId);
       let latest: GameDocumentDeltaV2 | undefined;
+      let forward: readonly GameDocumentOperationV2[] | undefined;
       const command: EditorCommand = {
         label: input.label,
-        estimatedBytes: JSON.stringify(input.operations).length,
-        execute: () => { latest = document.apply(input.transactionId, input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
-        undo: () => { if (!latest) throw new Error('Document transaction has no inverse.'); latest = document.apply(asStableId(`transaction:undo:${randomUUID()}`), latest.inverse); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); },
-        redo: () => { latest = document.apply(asStableId(`transaction:redo:${randomUUID()}`), input.operations); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
+        get estimatedBytes() { return latest?.metrics.historyBytes ?? JSON.stringify(input.operations).length; },
+        execute: () => { latest = document.apply(input.transactionId, input.operations); forward=latest.operations; this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
+        undo: () => { if (!latest) throw new Error('Document transaction has no inverse.'); latest = document.apply(asStableId(`transaction:undo:${randomUUID()}`), latest.inverse, false); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); },
+        redo: () => { latest = document.apply(asStableId(`transaction:redo:${randomUUID()}`), forward ?? input.operations, false); this.emitMutation(Object.freeze({ kind: 'delta', delta: latest })); return true; },
       };
       this.mutationProvenanceOpIds = Object.freeze([requested.eventId]);
       try {

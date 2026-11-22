@@ -16,6 +16,8 @@ import { canonicalStringify, sha256, projectLogQuery, type DiagnosticsQueryServi
 import type { PreviewPlan, ScriptCapabilityName, ScriptEditProposal, ScriptPreviewStudioService } from '@haiyue/ai-studio-script-preview';
 import { normalizeCanvasTextureRecipe, type CanvasTextureRenderer } from './canvas-texture.js';
 import { GAME_AUTHORING_TOOL_BY_ID, GAME_AUTHORING_TOOL_DEFINITIONS } from './definitions.js';
+import { planParametricArray } from '@haiyue/ai-studio-editor-plugins';
+import { PARAMETRIC_ARRAY_COMPONENT, parseParametricArray, parametricArrayAppearance } from '@haiyue/ai-studio-contracts';
 import { DeterministicTaskEvaluator, PlayObservationRepository } from './observations.js';
 import { classifyToolConcurrency, isProjectIndependentRead } from './scheduler/classify.js';
 import { EffectLockManager, effectLockKeys } from './scheduler/effect-locks.js';
@@ -195,12 +197,13 @@ export class GameAuthoringToolRuntime {
           args = Object.freeze({ ...args, proposalId: refreshed.id });
         }
       }
-      const preview = this.official?.has(definition.id) ? this.official.preview(definition, args) : buildPreview(definition.id, args, this.options.scene, this.proposals, this.previewPlans);
+      const population = definition.id === 'scene.populate' ? planParametricArray(this.options.workspace,args,call.id) : null;
+      const preview = population ? Object.freeze({title:'Populate parametric array',target:population.rootEntityId,summary:`${population.spec.representation}: ${population.spec.layout.rows} × ${population.spec.layout.columns} (${population.value.count})`,diff:`Regenerate array ${population.spec.arrayId} in one History entry; generated positions and appearance follow the template. Independent data blocks destructive shrink.`}) : this.official?.has(definition.id) ? this.official.preview(definition, args) : buildPreview(definition.id, args, this.options.scene, this.proposals, this.previewPlans);
       const argumentsDigest = sha256(canonicalStringify(args));
       const previewDigest = sha256(canonicalStringify(preview as unknown as JsonObject));
       const preparationId = asStableId(`tool-preparation:${randomUUID()}`);
-      const approvalScopeDigest = definition.requiresApproval && definition.effect === 'reversible-edit'
-        ? approvalGrantDigest(document.documentId, call.sessionId, definition, preview.target) : undefined;
+      const approvalScopeDigest = definition.requiresApproval && definition.effect === 'reversible-edit' && definition.risk === 'medium' && !this.official?.has(definition.id)
+        ? approvalGrantDigest(document.projectId, document.documentId, document.registryDigest, this.options.workspace.snapshot().projectRoot, definition) : undefined;
       const reusedPreviewConsent = ['play.start', 'preview.start'].includes(definition.id)
         && this.options.scripts.canReuse?.(args.planId as StableId) === true;
       const autoAllowed = reusedPreviewConsent || (approvalScopeDigest !== undefined && this.approvalGrants.has(approvalScopeDigest));
@@ -214,6 +217,7 @@ export class GameAuthoringToolRuntime {
       });
       const stored: StoredPreparation = { call, definition, arguments: args, preview, view, reusedPreviewConsent, ...(approvalScopeDigest ? { approvalScopeDigest } : {}) };
       if (approvalId) stored.approval = Object.freeze({
+        ...(approvalScopeDigest ? { reusableScope: 'project-tool' as const, reusableScopeDigest: approvalScopeDigest } : {}),
         schemaVersion: 1, approvalId, preparationId, sessionId: call.sessionId, turnId: call.turnId, toolCallId: call.id,
         toolId: definition.id, toolVersion: definition.version,
         effect: definition.effect as Exclude<GameToolDefinition['effect'], 'observe'>,
@@ -230,7 +234,7 @@ export class GameAuthoringToolRuntime {
       }, signal);
       else if (autoAllowed) await this.appendFact(definition, {
         kind: 'approval/auto-allowed', severity: 'info', source: asStableId('studio.game-tools'), correlation: correlation(call),
-        payload: { preparationId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target: preview.target, documentId: document.documentId, scope: reusedPreviewConsent ? 'preview-consent' : 'project-session', scopeDigest: approvalScopeDigest ?? null, argumentsDigest, previewDigest },
+        payload: { preparationId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target: preview.target, documentId: document.documentId, scope: reusedPreviewConsent ? 'preview-consent' : 'project-tool', scopeDigest: approvalScopeDigest ?? null, argumentsDigest, previewDigest },
       }, signal);
       this.preparations.set(preparationId, stored);
       return view;
@@ -251,7 +255,7 @@ export class GameAuthoringToolRuntime {
     if (!stored?.approval || stored.approval.decision !== 'pending') throw new GameToolProtocolError('approval.unavailable', `Approval ${approvalId} is not pending.`);
     const invalidation = await this.invalidatePendingApproval(stored);
     if (invalidation) throw new GameToolProtocolError(`approval.${invalidation}`, `Approval ${approvalId} is ${invalidation}; prepare the operation again.`, invalidation === 'stale');
-    if (decision === 'allow-always' && stored.definition.effect !== 'reversible-edit') {
+    if (decision === 'allow-always' && !stored.approvalScopeDigest) {
       await this.options.operationLog.append({
         kind: 'approval/decision-rejected', severity: 'warning', source: asStableId('studio.game-tools'), correlation: correlation(stored.call, approvalId),
         payload: { preparationId: stored.view.id, toolId: stored.definition.id, requestedDecision: decision, code: 'approval.scope-forbidden', effect: stored.definition.effect },
@@ -261,7 +265,7 @@ export class GameAuthoringToolRuntime {
     const nextDecision = decision;
     await this.options.operationLog.append({
       kind: `approval/${nextDecision}`, severity: isAllowDecision(nextDecision) ? 'info' : 'warning', source: asStableId('studio.game-tools'),
-      correlation: correlation(stored.call, approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, toolVersion: stored.definition.version, decision: nextDecision, scope: nextDecision === 'allow-always' ? 'project-session' : 'operation', scopeDigest: stored.approvalScopeDigest ?? null, target: stored.preview.target, documentId: stored.view.documentId, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest },
+      correlation: correlation(stored.call, approvalId), payload: { preparationId: stored.view.id, toolId: stored.definition.id, toolVersion: stored.definition.version, decision: nextDecision, scope: nextDecision === 'allow-always' ? 'project-tool' : 'operation', scopeDigest: stored.approvalScopeDigest ?? null, target: stored.preview.target, documentId: stored.view.documentId, argumentsDigest: stored.view.argumentsDigest, previewDigest: stored.view.previewDigest },
     });
     if (nextDecision === 'allow-always' && stored.approvalScopeDigest) this.approvalGrants.add(stored.approvalScopeDigest);
     stored.approval = Object.freeze({ ...stored.approval, decision: nextDecision });
@@ -482,6 +486,10 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
   const scene = options.scene.snapshot();
   const result = (label: string, operations: readonly GameDocumentOperationV2[], project: (afterRevision: number) => JsonObject): ReversibleTransactionMemberPlan => Object.freeze({ stored, label, operations: Object.freeze([...operations]), result: project });
   switch (stored.definition.id) {
+    case 'scene.populate': {
+      const plan=planParametricArray(options.workspace,args,stored.call.id);
+      return result('Populate Parametric Array',plan.operations,revision=>({...plan.value,revision}));
+    }
     case 'assembly.create': case 'assembly.instantiate': {
       if (planning.assemblyWrite) throw invalid('Use one assembly mutation per document transaction to preserve its registry.');
       planning.assemblyWrite = true;
@@ -561,6 +569,12 @@ async function planReversibleTransactionMember(stored: StoredPreparation, option
     case 'material.set': {
       const entityId = args.entityId as StableId; const target = requireEntity(scene, entityId);
       if (!isSceneGeometryKind(target.kind) || !target.appearance) throw new GameToolProtocolError('tool.material-target-invalid', 'Only geometry entities can use materials.');
+      const array=target.components?.find(c=>c.type===PARAMETRIC_ARRAY_COMPONENT);
+      if(array){
+        if(Object.keys(basicTransparencyOptions(args)).length)throw invalid('Array templates do not support per-material transparency overrides.');
+        const value=parametricArrayAppearance(parseParametricArray(array.value),args.material as 'basic'|'pbr'|'normal'|'blinn-phong',args.color as unknown as readonly number[]|undefined);
+        return result('Set Array Material',[{op:'component.replace',component:{...array,value:value as unknown as JsonObject}}],revision=>({entity:entitySummary(requireEntity(options.scene.snapshot(),entityId)),revision}));
+      }
       const component = ownedComponent(options.workspace, entityId, 'haiyue.render.material');
       const replacement = options.workspace.componentRegistry.validate({ ...component, value: Object.freeze({ ...(args.material === 'basic' ? { ...basicTransparencyOptions(target.appearance), ...basicTransparencyOptions(args) } : {}), material: args.material, color: args.color ?? target.appearance.color }) as JsonObject });
       const pbr = target.components?.find(item => item.type === 'haiyue.material.pbr');
@@ -1158,7 +1172,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const next = await options.scene.renameEntity({ commandId: commandId(stored.call.id), baseRevision: args.baseRevision as number, entityId: args.entityId as StableId, name: args.name as string }, signal);
       return Object.freeze({ entity: entitySummary(requireEntity(next, args.entityId as StableId)), revision: next.revision });
     }
-    case 'assembly.create': case 'assembly.instantiate': case 'camera.author': case 'entity.create-many': case 'entity.hierarchy': case 'prefab.manage': case 'transform.batch': case 'component.configure': {
+    case 'scene.populate': case 'assembly.create': case 'assembly.instantiate': case 'camera.author': case 'entity.create-many': case 'entity.hierarchy': case 'prefab.manage': case 'transform.batch': case 'component.configure': {
       const planning: TransactionPlanningContext = { createOffsets: new Map<string, number>() };
       const plan = await planReversibleTransactionMember(stored, options, planning, signal);
       const next = await options.workspace.executeBatch({ id: commandId(stored.call.id), label: plan.label, baseRevision: args.baseRevision as number, operations: plan.operations }, signal);
@@ -1433,6 +1447,9 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
   if (isBehaviorTool(toolId)) return normalizeBehaviorArguments(toolId, value);
   const raw = value as Record<string, unknown>;
   switch (toolId) {
+    case 'scene.populate':
+      exact(raw,['baseRevision','arrayId'],['representation','layout','template','templateEntityId','name','parentId'],toolId);
+      return Object.freeze({...raw,baseRevision:integer(raw.baseRevision,'baseRevision'),arrayId:boundedString(raw.arrayId,'arrayId',48,true)});
     case 'assembly.create': case 'assembly.inspect': case 'assembly.instantiate': return normalizeAssemblyArguments(toolId, value);
     case 'project.snapshot': case 'engine.capabilities.describe': case 'camera.get': case 'scene.list-entities': case 'preview.stop': case 'play.stop': case 'play.capture': exact(raw, [], [], toolId); return Object.freeze({});
     case 'play.inspect': {
@@ -1937,8 +1954,8 @@ function buildPreview(toolId: StableId, args: JsonObject, scene: SceneAuthoringS
   }
 }
 
-function approvalGrantDigest(documentId: StableId, sessionId: StableId, definition: GameToolDefinition, target: string): string {
-  return sha256(canonicalStringify({ schemaVersion: 1, documentId, sessionId, toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk, target }));
+function approvalGrantDigest(projectId: StableId, documentId: StableId, registryDigest: string, projectRoot: string | null, definition: GameToolDefinition): string {
+  return sha256(canonicalStringify({ schemaVersion: 2, projectId, documentId, registryDigest, locationDigest: sha256(projectRoot ?? 'unsaved-project'), toolId: definition.id, toolVersion: definition.version, effect: definition.effect, risk: definition.risk }));
 }
 
 function isAllowDecision(decision: GameToolApproval['decision']): boolean { return decision === 'allow-once' || decision === 'allow-always'; }
@@ -2044,7 +2061,7 @@ function textureMaterialDefaults(usage: AssetUsage, entity: Readonly<{ appearanc
   return isPbrTextureUsage(usage) ? Object.freeze({ baseColor: usage === 'texture.base-color' ? Object.freeze([1, 1, 1, 1]) : entity.appearance?.color ?? Object.freeze([1, 1, 1, 1]) }) : Object.freeze({});
 }
 
-function historyLabel(toolId: StableId): string | undefined { return ({ 'assembly.create': 'Create Composite Prototype', 'assembly.instantiate': 'Replicate Composite', 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.generate-texture': 'Draw PNG Texture', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
+function historyLabel(toolId: StableId): string | undefined { return ({ 'scene.populate': 'Populate Parametric Array', 'assembly.create': 'Create Composite Prototype', 'assembly.instantiate': 'Replicate Composite', 'camera.set': 'Set Camera', 'camera.author': 'Author Gameplay Camera', 'entity.create': 'Create Scene Entity', 'entity.create-many': 'Create Scene Entities', 'entity.rename': 'Rename Entity', 'entity.hierarchy': 'Edit Entity Hierarchy', 'prefab.manage': 'Manage Project Prefab', 'transform.set': 'Edit Transform', 'transform.batch': 'Batch Transform', 'material.set': 'Set Material', 'component.add': 'Add Component', 'component.set': 'Set Component', 'component.remove': 'Remove Component', 'component.configure': 'Configure Component', 'asset.generate-texture': 'Draw PNG Texture', 'asset.import': 'Import Asset', 'asset.assign': 'Assign Asset', 'script.apply': 'Edit Entity Script' } as Record<string, string>)[toolId]; }
 const callProjects = new WeakMap<GameToolCall, { projectId: StableId; documentId: StableId }>();
 function correlation(call: GameToolCall, approvalId?: StableId) {
   const args = call.arguments as Record<string, unknown>;

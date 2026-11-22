@@ -99,6 +99,8 @@ export interface GameToolPreparation {
 }
 
 export interface GameToolApproval {
+  readonly reusableScope?: 'project-tool';
+  readonly reusableScopeDigest?: string;
   readonly schemaVersion: 1;
   readonly approvalId: StableId;
   readonly preparationId: StableId;

@@ -17,6 +17,7 @@ import { AmbientLight, DirectionalLight, PointLight } from '@haiyue/engine/light
 import type { EditorSelectionService } from '@haiyue/editor-platform';
 import {
   asStableId,
+  PARAMETRIC_ARRAY_COMPONENT, parseParametricArray, parametricArrayAppearance,
   createStudioServiceToken,
   defineStudioPlugin,
   type JsonObject,
@@ -330,6 +331,13 @@ export class ProjectSceneAuthoringService implements SceneAuthoringService {
     try {
       if (!isSceneMaterialKind(intent.material)) throw new TypeError(`Unsupported material ${intent.material}.`);
       const target = this.sceneEntities.get(intent.entityId); if (!target) throw new Error(`Entity ${intent.entityId} does not exist.`); if (!isSceneGeometryKind(target.kind) || !target.appearance) throw new TypeError('Only geometry entities can use materials.');
+      const array=target.components?.find(c=>c.type===PARAMETRIC_ARRAY_COMPONENT);
+      if(array){
+        if(Object.keys(basicTransparencyOptions(intent)).length)throw new TypeError('Array templates do not support per-material transparency overrides.');
+        const value=parametricArrayAppearance(parseParametricArray(array.value),intent.material,intent.color);
+        await this.workspace.executeBatch({id:intent.commandId,label:'Set Array Material',baseRevision:intent.baseRevision,operations:[{op:'component.replace',component:{...array,value:value as unknown as JsonObject}}]},signal);
+        await this.appendCommandFact('scene/material-edited',intent.commandId,{entityId:intent.entityId,material:intent.material,sceneRevision:this.current.revision});return this.current;
+      }
       const component = this.entityComponent(intent.entityId, 'haiyue.render.material'); const appearance = freezeAppearance({ ...target.appearance, ...basicTransparencyOptions(intent), material: intent.material, color: intent.color ?? target.appearance.color });
       const pbr = target.components?.find(item => item.type === 'haiyue.material.pbr');
       const operations: GameDocumentOperationV2[] = [{ op: 'component.replace', component: { ...component, value: appearance as unknown as JsonObject } }];
@@ -631,8 +639,11 @@ function sceneEntityFromWorkspace(workspace: ProjectWorkspace, entityId: StableI
 function sceneEntity(entity: ReturnType<ProjectWorkspace['queryGameDocument']>['entities'][number], components: readonly GameComponentInstanceV2[]): SceneEntitySnapshot {
   const componentIds = new Set(entity.componentIds); const ownedComponents = components.filter((component) => componentIds.has(component.id)).sort((left, right) => left.id.localeCompare(right.id)); const byType = new Map(ownedComponents.map((component) => [component.type, component])); const transform = byType.get('haiyue.transform.3d'); if (!transform) throw new Error(`Entity ${entity.id} has no Transform component.`);
   const geometry = byType.get('haiyue.render.geometry'); const material = byType.get('haiyue.render.material'); const pbr = byType.get('haiyue.material.pbr'); const directional = byType.get('haiyue.light.directional'); const point = byType.get('haiyue.light.point'); const ambient = byType.get('haiyue.light.ambient');
-  const kind = geometry ? String(geometry.value.kind) : directional ? 'directional-light' : point ? 'point-light' : ambient ? 'ambient-light' : 'empty';
-  return freezeEntity({ id: asStableId(entity.id, 'entity id'), name: entity.name, kind: kind as SceneEntityKind, parentId: entity.parentId ? asStableId(entity.parentId, 'parent id') : null, order: entity.order, transform: transform.value as unknown as TransformSnapshot, components: ownedComponents, ...(geometry && material ? { appearance: pbr?.enabled ? { material: 'pbr', color: pbr.value.baseColor as unknown as SceneMaterialColor } : material.value as unknown as NonNullable<SceneEntitySnapshot['appearance']> } : {}), ...((directional ?? point ?? ambient) ? { light: (directional ?? point ?? ambient)!.value as unknown as NonNullable<SceneEntitySnapshot['light']> } : {}) });
+  const arrayComponent=byType.get(PARAMETRIC_ARRAY_COMPONENT);
+  const array=arrayComponent?.enabled?parseParametricArray(arrayComponent.value):null;
+  const instanced=array?.representation==='instances'?array:null;
+  const kind = instanced ? instanced.template.kind : geometry ? String(geometry.value.kind) : directional ? 'directional-light' : point ? 'point-light' : ambient ? 'ambient-light' : 'empty';
+  return freezeEntity({ id: asStableId(entity.id, 'entity id'), name: entity.name, kind: kind as SceneEntityKind, parentId: entity.parentId ? asStableId(entity.parentId, 'parent id') : null, order: entity.order, transform: transform.value as unknown as TransformSnapshot, components: ownedComponents, ...(instanced ? {appearance:{material:instanced.template.material,color:instanced.template.color}} : geometry && material ? { appearance: pbr?.enabled ? { material: 'pbr', color: pbr.value.baseColor as unknown as SceneMaterialColor } : material.value as unknown as NonNullable<SceneEntitySnapshot['appearance']> } : {}), ...((directional ?? point ?? ambient) ? { light: (directional ?? point ?? ambient)!.value as unknown as NonNullable<SceneEntitySnapshot['light']> } : {}) });
 }
 
 function affectedEntityIds(delta: { readonly operations: readonly GameDocumentOperationV2[] }, workspace: ProjectWorkspace): Set<StableId> {
@@ -722,7 +733,9 @@ function freezeLight(kind: SceneLightKind, value: NonNullable<SceneEntitySnapsho
   return Object.freeze({ color, intensity: value.intensity });
 }
 function createGeometry(kind: SceneGeometryKind, components: SceneEntitySnapshot['components'] | undefined, pool: SharedGeometryPool) {
-  return pool.get(kind, components?.find(c => c.type === 'haiyue.render.geometry')?.value);
+  const geometry = components?.find(c => c.type === 'haiyue.render.geometry')?.value;
+  const array = components?.find(c => c.type === PARAMETRIC_ARRAY_COMPONENT && c.enabled);
+  return pool.get(kind, geometry ?? (array ? parseParametricArray(array.value).template : undefined));
 }
 
 function createMaterial(appearance: NonNullable<SceneEntitySnapshot['appearance']>) {

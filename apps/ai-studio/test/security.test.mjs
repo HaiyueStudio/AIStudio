@@ -16,7 +16,9 @@ test('packaged desktop sources retain the Electron security and CSP invariants',
   assert.match(main, /sandbox:\s*true/);
   assert.match(main, /webSecurity:\s*true/);
   assert.match(main, /devTools:\s*true/);
-  assert.match(main, /role:\s*'toggleDevTools'/);
+  assert.match(main, /Menu\.setApplicationMenu\(null\)/);
+  assert.match(main, /setMenuBarVisibility\(false\)/);
+  assert.match(main, /before-input-event[\s\S]*key === 'f12'[\s\S]*toggleDevTools\(\)/);
   assert.match(main, /HAIYUE_OPEN_DEVTOOLS/);
   assert.match(main, /setWindowOpenHandler/);
   assert.match(main, /will-navigate/);

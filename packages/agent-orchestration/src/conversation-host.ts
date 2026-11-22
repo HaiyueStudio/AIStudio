@@ -10,7 +10,8 @@ import { compactExternalResult } from './external-result-projection.js';
 import { deepenTaskReview } from './task-review-deep.js';
 import type { AgentReviewV1, AgentExperienceSelectionV1 } from '@haiyue/ai-studio-contracts';
 import { runSubtasks, SUBTASK_TOOL, type SubtaskOptions } from './subtasks.js';
-import { matchesRecoveredApproval } from './approval-recovery.js';
+import { matchesRecoveredApproval, matchesProjectToolApproval } from './approval-recovery.js';
+import type { AgentApprovalModeV1 } from '@haiyue/ai-studio-contracts';
 import { toolConcurrencyHint, invocationConcurrencyHint } from './tool-concurrency.js';
 import { PLAN_PROGRESS_TOOL, applyPlanProgress, recordPlanOperation } from './plan-progress.js';
 import { toolCorrectionGuidance, toolFailureFeedback, interactionDiagnosticFeedback } from './tool-correction.js';
@@ -146,6 +147,8 @@ interface QueuedConversationPrompt { readonly continuationId?: StableId; readonl
 type BarrierWaitResult = 'suspended';
 
 export interface ConversationHostOptions {
+  /** Device-owned product policy. Headless integrations retain explicit approvals unless supplied. */
+  readonly approvalPolicy?: Readonly<{ current(): AgentApprovalModeV1; configure(mode: AgentApprovalModeV1): Promise<void> }>;
   readonly runtime: AgentRuntimeService;
   readonly tools: GameAuthoringToolService;
   readonly operationLog: ConversationOperationLog;
@@ -174,6 +177,7 @@ export interface ConversationHostOptions {
 }
 
 export interface ConversationHostSettings {
+  readonly approvalMode?: AgentApprovalModeV1;
   readonly backendId: StableId | null;
   readonly selections: readonly (BackendSelection & Readonly<{ backendId: StableId }>)[];
   readonly budget: TaskBudgetV2;
@@ -181,6 +185,8 @@ export interface ConversationHostSettings {
 
 /** Headless workflow owner for backend streams, tool execution, approvals and replayable read models. The composition root owns initialization and disposal. */
 export class StudioConversationHost {
+  private localApprovalMode: AgentApprovalModeV1 = 'ask';
+  private approvalMode(): AgentApprovalModeV1 { return (this.options.approvalPolicy?.current() ?? this.localApprovalMode) === 'auto-review' ? 'auto-review' : 'ask'; }
   private readonly events: ConversationProjectionEvent[] = [];
   private readonly cancelledAsyncTasks = new Set<StableId>();
   private readonly resolvingAsyncQuestions = new Set<StableId>();
@@ -246,13 +252,14 @@ export class StudioConversationHost {
   constructor(private readonly options: ConversationHostOptions) {
     this.resultArtifacts = new ResultArtifacts(options.operationLog);
     if (options.initialSettings) {
+      this.localApprovalMode = options.initialSettings.approvalMode === 'auto-review' ? 'auto-review' : 'ask';
       this.backendId = options.initialSettings.backendId; this.budgetTemplate = options.initialSettings.budget;
       for (const { backendId, ...selection } of options.initialSettings.selections) this.backendSelections.set(backendId, selection);
     }
   }
 
   settings(): ConversationHostSettings {
-    return Object.freeze({ backendId: this.backendId, budget: this.budgetTemplate, selections: Object.freeze([...this.backendSelections].map(([backendId, selection]) => Object.freeze({ backendId, ...selection }))) });
+    return Object.freeze({ backendId: this.backendId, approvalMode: this.approvalMode(), budget: this.budgetTemplate, selections: Object.freeze([...this.backendSelections].map(([backendId, selection]) => Object.freeze({ backendId, ...selection }))) });
   }
 
   reviewTasks(): readonly ConversationTaskRunReadModel[] { return [...this.taskRuns.values()].sort((a,b) => a.updatedAt.localeCompare(b.updatedAt)).slice(-50); }
@@ -297,6 +304,7 @@ export class StudioConversationHost {
     return Object.freeze({
       revision: this.stateRevision,
       connection: 'connected',
+      approvalMode: this.approvalMode(),
       busy: this.active !== null || this.queuedPromptDrainActive || this.queuedPrompts.length > 0,
       backendId: this.backendId,
       backends: this.backends,
@@ -424,6 +432,12 @@ export class StudioConversationHost {
       case 'backend/logout': {
         const backend = this.options.runtime.registry.get(intent.backendId);
         await backend.logout(signal); await this.refreshBackends(true); return;
+      }
+      case 'agent/approval-mode': {
+        if (this.active) throw new Error('Finish the active turn before changing approval mode.');
+        await this.options.operationLog.append({ kind: 'conversation/approval-policy-requested', severity: 'info', source: asStableId('studio.conversation-host'), correlation: {}, payload: { mode: intent.mode, source: 'user' } });
+        await this.options.approvalPolicy?.configure(intent.mode);
+        this.localApprovalMode = intent.mode; this.changed(); return;
       }
       case 'agent/configure': {
         if (this.active) throw new Error('Cannot change Agent settings during an active task.');
@@ -2103,17 +2117,19 @@ export class StudioConversationHost {
   private async resolveRecoveredApproval(approvalId: StableId, decision: 'allow-once' | 'allow-always' | 'reject'): Promise<void> {
     const node = [...this.nodes.values()].find((candidate) => candidate.kind === 'approval' && candidate.status === 'pending' && candidate.content.approvalId === approvalId);
     if (!node) throw new Error('Approval is stale or already resolved.');
+    if (decision === 'allow-always' && (node.content.reusableScope !== 'project-tool' || node.content.effect !== 'reversible-edit' || node.content.risk !== 'medium' || typeof node.content.reusableScopeDigest !== 'string')) throw new Error('This operation requires exact one-shot approval.');
     const handle = await this.ensureDurableSession(node.provenance.sessionId);
     const snapshot = await handle.snapshot();
     if (!snapshot.recovery.unresolvedBarrierIds.includes(approvalId)) throw new Error('Approval is stale or already resolved.');
     const run = this.taskRunFor(node.provenance.sessionId, node.provenance.turnId);
-    const resolved = { ...node, status: 'completed' as const, content: { ...node.content, documentId: node.content.documentId ?? snapshot.session.documentId ?? null, taskId: node.content.taskId ?? run?.taskId ?? null, decision } };
+    const scope = decision === 'allow-always' && node.content.reusableScope === 'project-tool' ? 'project-tool' : node.content.scope ?? 'operation';
+    const resolved = { ...node, status: 'completed' as const, content: { ...node.content, documentId: node.content.documentId ?? snapshot.session.documentId ?? null, taskId: node.content.taskId ?? run?.taskId ?? null, decision, scope } };
     const resolution = { kind: 'approval.resolved', turnId: node.provenance.turnId, nodeId: node.id, projectRevision: this.options.projectContext?.()?.revision ?? null, payload: { approvalId, resolution: decision, denied: decision === 'reject', resolvedBy: 'user-after-restart', recovered: true } };
     const continuation = decision !== 'reject' ? await this.appendContinuationResolution(handle, { ...resolution, kind: 'approval.resolved' }, resolved,
       `The user approved ${String(node.content.toolId ?? 'the pending Studio tool')} after its durable barrier. Re-inspect the authoritative project revision, retry only that pending operation with the same arguments, and continue the already approved plan without repeating completed edits.`) : null;
     if (!continuation) await handle.append({ ...resolution, kind: 'approval.resolved' });
     await handle.checkpoint();
-    this.project(node.id, 'approval', 'completed', node.provenance, Object.freeze({ ...node.content, documentId: node.content.documentId ?? snapshot.session.documentId ?? null, taskId: node.content.taskId ?? run?.taskId ?? null, decision }));
+    this.project(node.id, 'approval', 'completed', node.provenance, Object.freeze(resolved.content));
     if (run) this.updateTaskRun(run.taskId, decision === 'reject' ? { status: 'cancelled', phase: 'cancelled', resumable: false, terminalDiagnostic: 'approval.rejected-after-restart' } : { status: 'running', resumable: true, terminalDiagnostic: null }, { phase: decision === 'reject' ? 'cancelled' : run.phase, status: decision === 'reject' ? 'warning' : 'complete', title: decision === 'reject' ? '恢复后的授权已拒绝' : '恢复后的授权已确认', detail: decision === 'reject' ? '未提交工作已停止，已有产物保持不变。' : 'Studio 将从持久检查点重新校验并恢复。', turnId: node.provenance.turnId });
     if (continuation) this.queueContinuation(continuation);
   }
@@ -2304,6 +2320,19 @@ export class StudioConversationHost {
     const nodeId = this.nextNodeId('approval');
     // Plan acceptance authorizes script edits in this task, not execution of new code.
     const active = this.active;
+    const project = this.options.projectContext?.();
+    if (this.approvalMode() === 'auto-review' && active?.approvedPlan && active.projectId === project?.projectId
+      && project?.documentId === approval.documentId && this.approvedPlanTurns.has(turnKey(preparation.sessionId, preparation.turnId))
+      && approval.effect === 'reversible-edit' && approval.risk === 'medium' && approval.reusableScope === 'project-tool'
+      && typeof approval.reusableScopeDigest === 'string' && /^(?:sha256:)?[a-f0-9]{64}$/u.test(approval.reusableScopeDigest) && !approval.toolId.startsWith('official.')) {
+      signal.throwIfAborted();
+      await this.options.operationLog.append({ kind: 'conversation/approval-auto-reviewed', severity: 'info', source: asStableId('studio.conversation-host'),
+        correlation: { sessionId: preparation.sessionId, turnId: preparation.turnId, approvalId: approval.approvalId, toolCallId: preparation.callId },
+        payload: { policyVersion: 1, mode: 'auto-review', taskId: active.taskId, documentId: approval.documentId, toolId: approval.toolId, toolVersion: approval.toolVersion, effect: approval.effect, risk: approval.risk, baseRevision: approval.baseRevision, argumentsDigest: approval.argumentsDigest, previewDigest: approval.previewDigest, decision: 'allow-once', reason: 'approved-task-reversible-project-edit' } });
+      signal.throwIfAborted();
+      await this.options.tools.decide(approval.approvalId, 'allow-once');
+      return 'approved';
+    }
     if (approval.toolId === 'script.apply' && approval.effect === 'trusted-code' && active?.approvedPlan
       && this.approvedPlanTurns.has(turnKey(preparation.sessionId, preparation.turnId))
       && this.options.projectContext?.()?.documentId === approval.documentId) {
@@ -2315,7 +2344,7 @@ export class StudioConversationHost {
     }
     await this.requestApprovalBarrier(preparation, approval, nodeId);
     let durableGrant = this.findDurableApprovalGrant(approval);
-    if (durableGrant) {
+    if (durableGrant && durableGrant.content.scope !== 'project-tool') {
       const used = await this.options.operationLog.query({ kinds: ['conversation/approval-grant-consumed'], approvalId: asStableId(String(durableGrant.content.approvalId)), limit: 1, traverseCorrelation: false });
       if (used.events.some(event => event.payload.sourceApprovalId === durableGrant!.content.approvalId) || this.nodes.get(durableGrant.id)?.content.consumedBy) {
         this.project(durableGrant.id, 'approval', 'completed', durableGrant.provenance, { ...durableGrant.content, consumedBy: 'recovered-consumption' });
@@ -2323,10 +2352,13 @@ export class StudioConversationHost {
       }
     }
     if (durableGrant) {
-      const decision = durableGrant.content.decision === 'allow-always' ? 'allow-always' : 'allow-once';
+      const reusable = durableGrant.content.scope === 'project-tool';
+      const decision = reusable ? 'allow-always' : 'allow-once';
       // Reserve before awaiting so two ready calls cannot consume the same consent.
-      this.project(durableGrant.id, 'approval', 'completed', durableGrant.provenance, { ...durableGrant.content, consumedBy: approval.approvalId });
-      await this.options.operationLog.append({ kind: 'conversation/approval-grant-consumed', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: preparation.sessionId, turnId: preparation.turnId, approvalId: asStableId(String(durableGrant.content.approvalId)) }, payload: { sourceApprovalId: durableGrant.content.approvalId!, consumedBy: approval.approvalId } });
+      if (!reusable) {
+        this.project(durableGrant.id, 'approval', 'completed', durableGrant.provenance, { ...durableGrant.content, consumedBy: approval.approvalId });
+        await this.options.operationLog.append({ kind: 'conversation/approval-grant-consumed', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: preparation.sessionId, turnId: preparation.turnId, approvalId: asStableId(String(durableGrant.content.approvalId)) }, payload: { sourceApprovalId: durableGrant.content.approvalId!, consumedBy: approval.approvalId } });
+      }
       const resolved = await this.options.tools.decide(approval.approvalId, decision);
       await this.resolveApprovalBarrier(Object.freeze({ preparation, approval, nodeId, sessionId: preparation.sessionId, turnId: preparation.turnId, resolve: () => {}, reject: () => {} }), decision);
       await this.options.operationLog.append({ kind: 'conversation/approval-grant-reused', severity: 'info', source: asStableId('studio.conversation-host'), correlation: { sessionId: preparation.sessionId, turnId: preparation.turnId, approvalId: approval.approvalId, toolCallId: preparation.callId }, payload: { sourceApprovalId: durableGrant.content.approvalId, approvalId: approval.approvalId, toolId: approval.toolId, argumentsDigest: approval.argumentsDigest, decision: resolved.decision } }).catch(() => undefined);
@@ -2368,9 +2400,10 @@ export class StudioConversationHost {
     if (!this.active) return null;
     const expected = { taskId: this.active.taskId, documentId: approval.documentId, toolId: approval.toolId,
       toolVersion: approval.toolVersion, target: approval.target, baseRevision: approval.baseRevision,
-      argsDigest: presentationDigest(approval.argumentsDigest), previewDigest: presentationDigest(approval.previewDigest), effect: approval.effect, risk: approval.risk };
+      argsDigest: presentationDigest(approval.argumentsDigest), previewDigest: presentationDigest(approval.previewDigest), effect: approval.effect, risk: approval.risk,
+      ...(approval.reusableScopeDigest ? { reusableScopeDigest: presentationDigest(approval.reusableScopeDigest) } : {}) };
     return [...this.nodes.values()].filter(node => node.kind === 'approval' && node.status === 'completed'
-      && matchesRecoveredApproval(node.content, expected)).at(-1) ?? null;
+      && (node.content.scope === 'project-tool' ? matchesProjectToolApproval(node.content, expected) : matchesRecoveredApproval(node.content, expected))).at(-1) ?? null;
   }
 
   private pauseForHumanInteraction(sessionId: StableId, turnId: StableId): () => void {
@@ -2394,7 +2427,7 @@ export class StudioConversationHost {
       const resolved = await this.options.tools.decide(approvalId, decision);
       await this.resolveApprovalBarrier(pending, decision);
       const current = this.nodes.get(pending.nodeId)!;
-      this.project(pending.nodeId, 'approval', 'completed', current.provenance, approvalContent(pending.preparation, resolved));
+      this.project(pending.nodeId, 'approval', 'completed', current.provenance, { ...approvalContent(pending.preparation, resolved), taskId: current.content.taskId ?? this.active?.taskId ?? null });
       if (this.active) this.updateTaskRun(this.active.taskId, { status: 'running', resumable: false }, { phase: this.taskRuns.get(this.active.taskId)?.phase ?? 'editing', status: decision === 'reject' ? 'warning' : 'complete', title: decision === 'reject' ? '工具授权已拒绝' : '工具授权已确认', detail: `${resolved.toolId} · ${decision}`, turnId: current.provenance.turnId, toolCallId: pending.preparation.id });
       pending.resolve();
     } catch (cause) {

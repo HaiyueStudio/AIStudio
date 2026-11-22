@@ -6,6 +6,13 @@ import { taskSpecFromPlan, taskSpecFromRun, verificationRoute } from '../dist/ta
 import { structuredAssertion } from '../dist/plan-assertion.js';
 import { parseEvidenceAssertion, BoundedPlaytestTask } from '@haiyue/ai-studio-game-authoring-tools';
 
+test('array creation cannot bypass no-create or preserve-others through a component update',()=>{
+ const intent=taskIntent('把选中对象改成红色，不要创建任何实体，保持其他对象不变',['entity:selected'],1);
+ assert.throws(()=>assertIntentAllows(intent,'reversible-edit','scene.populate',{arrayId:'new'}),/preserv|prohibit/i);
+ assert.throws(()=>assertIntentAllows(intent,'reversible-edit','component.configure',{entityId:'entity:selected',type:'haiyue.scene.array'}),/preserv|prohibit/i);
+ assert.doesNotThrow(()=>assertIntentAllows(intent,'reversible-edit','material.set',{entityId:'entity:selected'}));
+});
+
 test('P1 source-bound constraints survive TaskSpec compilation and recovery beyond a shortened summary',()=>{
  const intent=taskIntent('把选中的按钮改成红色，保持其他对象不变',['entity:button'],7,['不要创建任何实体']);
  for(const r of intentRequirements(intent)) assert.equal([intent.request,...intent.amendments][r.source.messageIndex].slice(r.source.start,r.source.end),r.text);

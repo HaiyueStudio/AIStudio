@@ -228,13 +228,26 @@ test('tool results show a readable step and keep raw structured output collapsed
   assert.deepEqual(model.cards[0].details, { summary: '查看工具返回数据', body: '{"entity":{"name":"Player"}}' });
 });
 
-test('approval cards expose a validated project-session Allow always action', () => {
-  const model = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending', { toolId: 'entity.rename', target: 'entity:player', effect: 'reversible-edit', risk: 'medium' }), 'replay')])), Date.parse('2026-08-19T00:00:00.000Z'));
+test('approval cards expose project-wide consent only for a validated reusable tool scope', () => {
+  const model = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending', { toolId: 'entity.rename', target: 'entity:player', effect: 'reversible-edit', risk: 'medium', reusableScope: 'project-tool', reusableScopeDigest: digestA }), 'replay')])), Date.parse('2026-08-19T00:00:00.000Z'));
   const card = model.cards[0];
   const always = card.actions.find((action) => action.id === 'approval-allow-always');
   assert.deepEqual(always.intent, { type: 'conversation/resolve-approval', approvalId: 'approval:fixture', decision: 'allow-always' });
-  assert.match(card.body, /current project session/);
+  assert.match(card.body, /所有实体/);
+  const legacy = presentChatPanel(new ConversationProjector().reset(snapshot([projection(1, approvalNode('pending', {effect:'reversible-edit',risk:'medium'}), 'replay')]))).cards[0];
+  assert.equal(legacy.actions.some(action => action.id === 'approval-allow-always'), false);
   assert.deepEqual(validateConversationIntent(always.intent), always.intent);
+});
+
+test('approval mode accepts only a typed UI intent and projects unknown modes conservatively', () => {
+  for (const mode of ['auto-review', 'ask']) {
+    const intent = { type: 'agent/approval-mode', mode };
+    assert.deepEqual(validateConversationIntent(intent), intent);
+    const model = new ConversationProjector().reset({ ...snapshot([]), approvalMode: mode });
+    assert.equal(presentChatPanel(model).approvalMode, mode);
+  }
+  for (const value of [{type:'agent/approval-mode',mode:'allow-everything'}, {type:'agent/approval-mode',mode:'auto-review',apiKey:'fixture'}]) assert.throws(() => validateConversationIntent(value));
+  assert.equal(new ConversationProjector().reset({ ...snapshot([]), approvalMode: 'unknown' }).approvalMode, 'ask');
 });
 
 test('trusted-code and runtime-start approvals expose one-shot decisions only', () => {

@@ -179,6 +179,29 @@ export interface GameComponentInstanceV2 {
   readonly value: Readonly<Record<string, M12JsonValue>>;
 }
 
+/** Persisted, provider-neutral parameterized geometry array. Cell keys are row:column. */
+export interface ParametricArrayV1 {
+  readonly schemaVersion: 1;
+  readonly arrayId: string;
+  readonly representation: 'entities' | 'instances';
+  readonly layout: Readonly<{
+    kind: 'grid'; rows: number; columns: number; plane: 'xy' | 'xz' | 'yz';
+    origin: Readonly<{ x: number; y: number; z: number }>;
+    spacing: Readonly<{ x: number; y: number }>;
+    seed: number;
+  }>;
+  readonly template: Readonly<{
+    kind: 'cube' | 'rounded-box' | 'sphere' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'icosahedron';
+    material: 'basic' | 'pbr' | 'blinn-phong' | 'normal';
+    color: readonly [number, number, number, number];
+    palette?: readonly (readonly [number, number, number, number])[];
+    rotationDegrees: Readonly<{ x: number; y: number; z: number }>;
+    scale: Readonly<{ x: number; y: number; z: number }>;
+    plane?: 'xy' | 'xz' | 'yz'; radius?: number; segments?: number;
+    components?: readonly Readonly<{ type: string; version: string; value: Readonly<Record<string, M12JsonValue>> }>[];
+  }>;
+}
+
 export interface GameDocumentV2 {
   readonly schemaVersion: M12SchemaVersion;
   readonly id: M12StableId;

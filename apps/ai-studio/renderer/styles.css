@@ -348,6 +348,33 @@ footer { background: var(--studio-accent-strong); color: var(--studio-accent-tex
 .settings-form { display: grid; gap: 15px; min-width: 300px; }
 .settings-form label { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; align-items: center; color: var(--studio-text); }
 .settings-note { margin: 0; color: var(--studio-text-secondary); font-size: 12px; }
+header > hy-tooltip { display: inline-flex; flex: none; }
+header .icon-button { display: grid; place-items: center; width: 32px; height: 32px; min-width: 32px; padding: 6px; }
+header .icon-button svg { width: 18px; height: 18px; }
+header .icon-button:focus-visible { outline: 2px solid var(--studio-accent); outline-offset: 2px; }
+header .icon-button[data-icon="busy"] svg { animation: toolbar-spin 1s linear infinite; }
+@keyframes toolbar-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { header .icon-button[data-icon="busy"] svg { animation: none; } }
+#settings-dialog { --hy-dialog-width: 700px; --hy-dialog-body-padding: 12px 16px; }
+#settings-tabs { height: min(480px, calc(100dvh - 190px)); min-height: 180px; --hy-panel-bg-color: transparent; --hy-tabs-bar-bg-color: transparent; }
+.settings-tab { height: 100%; min-height: 0; overflow: auto; padding: 18px 6px 12px; scrollbar-gutter: stable; }
+.settings-tab .settings-form { min-width: 0; align-content: start; }
+.settings-tab .settings-form label { grid-template-columns: 170px minmax(0, 1fr); }
+.settings-tab select, .settings-tab input[type="number"] { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--studio-border-strong); border-radius: 5px; background: var(--studio-input); color: var(--studio-text); }
+.settings-tab .chat-backend-controls, .settings-tab .chat-agent-controls, .settings-tab .chat-agent-settings, .settings-tab .chat-task-budget-settings { display: grid; gap: 14px; min-width: 0; margin: 0; }
+.settings-tab .chat-backend-controls > button { justify-self: start; }
+.settings-tab .chat-agent-settings { padding: 14px; border: 1px solid var(--studio-border); border-radius: 6px; }
+.settings-tab .chat-agent-settings[open] { grid-template-columns: minmax(0, 1fr); }
+.settings-tab .chat-agent-settings label { font-size: 13px; gap: 12px; }
+.settings-connection-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-tab .chat-agent-settings summary { margin-bottom: 14px; font-weight: 600; cursor: pointer; }
+.settings-tab .chat-task-budget-settings h3 { margin: 8px 0 0; font-size: 13px; }
+.settings-tab .chat-backend-diagnostic, .settings-tab .chat-prompt-profile { overflow-wrap: anywhere; }
+.chat-content > .chat-connection-summary { display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; max-height: none; overflow: visible; }
+.chat-model-settings-button { flex: 1; min-width: 0; text-align: left; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; border-color: transparent; background: transparent; }
+.chat-connection-state { flex: none; font-size: 11px; color: var(--studio-text-secondary); }
+.chat-connection-state.ready { color: #53c58c; }
+@media (max-width: 640px) { .settings-tab .settings-form label { grid-template-columns: 130px minmax(0, 1fr); gap: 8px; } }
 #notification-settings { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--studio-border); border-radius: 6px; }
 #notification-settings label { display: flex; gap: 8px; }
 #notification-settings input { accent-color: var(--studio-accent); }

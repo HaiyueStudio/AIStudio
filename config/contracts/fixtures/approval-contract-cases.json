@@ -1,0 +1,11 @@
+{
+  "valid": [
+    { "name": "automatic project edit review", "schemaId": "haiyue://studio/agent-approval-preferences/1", "value": { "schemaVersion": 1, "mode": "auto-review" } },
+    { "name": "explicit approval", "schemaId": "haiyue://studio/agent-approval-preferences/1", "value": { "schemaVersion": 1, "mode": "ask" } }
+  ],
+  "invalid": [
+    { "name": "unknown approval preference version", "schemaId": "haiyue://studio/agent-approval-preferences/1", "value": { "schemaVersion": 2, "mode": "auto-review" } },
+    { "name": "unbounded approval mode", "schemaId": "haiyue://studio/agent-approval-preferences/1", "value": { "schemaVersion": 1, "mode": "allow-everything" } },
+    { "name": "secret-bearing approval preference", "schemaId": "haiyue://studio/agent-approval-preferences/1", "value": { "schemaVersion": 1, "mode": "ask", "apiKey": "fixture-not-a-secret" } }
+  ]
+}

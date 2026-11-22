@@ -21,8 +21,113 @@ const transform = entity.getComponent('CartesianTransform3D') as unknown as { se
 transform?.setPosition(0, 1, 0);
 `;
 
+test('parameterized entities persist, resize with stable cell ids, and undo the whole operation including manual overrides', async () => {
+  const f=await fixture();
+  try {
+    const created=await approveAndExecute(f.runtime,call('call:array-create','scene.populate',{baseRevision:1,arrayId:'tiles',representation:'entities',layout:{kind:'grid',rows:2,columns:3,plane:'xz',origin:{x:-2,y:0,z:1},spacing:{x:2,y:3},seed:7},template:{kind:'rounded-box',radius:.12,segments:3,color:[1,0,0,1],palette:[[1,0,0,1],[0,1,0,1]],scale:{x:.8,y:.8,z:.8},components:[{type:'haiyue.interaction.pointer',version:'1.0.0',value:{events:['click'],draggable:false,capturePointer:false,penetrable:false,maxEventsPerTick:16}}]}}));
+    assert.equal(created.value.count,6); assert.equal(f.scene.snapshot().entities.length,7);
+    assert.equal(f.workspace.snapshot().history.entries.length,1);
+    const rootId=created.value.rootEntityId,firstId=created.value.sample[0].entityId;
+    const cell=f.scene.snapshot().entities.find(e=>e.id===firstId);
+    assert.deepEqual(cell.transform.position,{x:-2,y:0,z:1});
+    assert.equal(cell.components.find(c=>c.type==='haiyue.render.geometry').value.radius,.12);
+    assert.equal(f.workspace.gameSnapshot().components.filter(c=>c.type==='haiyue.interaction.pointer').length,6);
+    await approveAndExecute(f.runtime,call('call:array-manual','transform.set',{baseRevision:2,entityId:firstId,transform:{...cell.transform,position:{x:9,y:2,z:4}}}));
+    const before=f.workspace.gameSnapshot();
+    const resized=await approveAndExecute(f.runtime,call('call:array-resize','scene.populate',{baseRevision:3,arrayId:'tiles',layout:{kind:'grid',rows:2,columns:2,plane:'xz',spacing:{x:2,y:3}}}));
+    assert.equal(resized.value.rootEntityId,rootId);assert.equal(resized.value.sample[0].entityId,firstId);assert.equal(f.scene.snapshot().entities.length,5);
+    assert.deepEqual(f.scene.snapshot().entities.filter(e=>e.parentId===rootId).map(e=>e.order),[0,1,2,3]);
+    await f.workspace.undo(4);
+    assert.deepEqual(f.workspace.gameSnapshot().entities,before.entities);assert.deepEqual(f.workspace.gameSnapshot().components,before.components);
+    assert.deepEqual(f.scene.snapshot().entities.find(e=>e.id===firstId).transform.position,{x:9,y:2,z:4});
+    await f.workspace.redo(5);assert.equal(f.scene.snapshot().entities.length,5);
+    await f.workspace.save();await f.workspace.reopen();
+    assert.equal(f.scene.snapshot().entities.length,5);
+    assert.equal(f.scene.snapshot().entities.find(e=>e.id===rootId).components.find(c=>c.type==='haiyue.scene.array').value.layout.columns,2);
+    const recipe=f.workspace.gameSnapshot().components.find(c=>c.type==='haiyue.scene.array').value;
+    const {components,...plainTemplate}=recipe.template;
+    await approveAndExecute(f.runtime,call('call:array-remove-generated-pointer','scene.populate',{baseRevision:f.workspace.gameSnapshot().revision,arrayId:'tiles',template:plainTemplate}));
+    assert.equal(f.workspace.gameSnapshot().components.filter(c=>c.type==='haiyue.interaction.pointer').length,0);
+    await f.workspace.undo(f.workspace.gameSnapshot().revision);
+    assert.equal(f.workspace.gameSnapshot().components.filter(c=>c.type==='haiyue.interaction.pointer').length,4);
+  } finally { await dispose(f); }
+});
+
+test('parameterized instances store one entity for a large grid and mode conversion is one undoable transaction', async()=>{
+  const f=await fixture();
+  try {
+    const a=await approveAndExecute(f.runtime,call('call:array-small','scene.populate',{baseRevision:1,arrayId:'display',representation:'entities',layout:{kind:'grid',rows:2,columns:3},template:{kind:'sphere',color:[0,0,1,1]}}));
+    const before=f.workspace.gameSnapshot();
+    const converted=await approveAndExecute(f.runtime,call('call:array-convert','scene.populate',{baseRevision:2,arrayId:'display',representation:'instances',layout:{kind:'grid',rows:20,columns:20,spacing:{x:1.2,y:1.2}}}));
+    assert.equal(converted.value.count,400);assert.equal(converted.value.rootEntityId,a.value.rootEntityId);
+    assert.equal(f.scene.snapshot().entities.length,1);assert.equal(f.scene.snapshot().entities[0].kind,'sphere');
+    assert.deepEqual(f.scene.snapshot().entities[0].appearance.color,[0,0,1,1]);
+    assert.ok(JSON.stringify(f.workspace.gameSnapshot()).length<6000,'instances must persist the compact recipe, not hundreds of entities');
+    await f.workspace.undo(3);assert.deepEqual(f.workspace.gameSnapshot().entities,before.entities);assert.deepEqual(f.workspace.gameSnapshot().components,before.components);
+    await f.workspace.redo(4);await f.workspace.save();await f.workspace.reopen();
+    assert.equal(f.scene.snapshot().entities.length,1);assert.equal(f.scene.snapshot().entities[0].components.find(c=>c.type==='haiyue.scene.array').value.layout.rows,20);
+  }finally{await dispose(f);}
+});
+
+test('ordinary component editing regenerates array members through the same History transaction',async()=>{
+  const f=await fixture();
+  try{
+    const a=await approveAndExecute(f.runtime,call('call:array-inspector','scene.populate',{baseRevision:1,arrayId:'editable',representation:'entities',layout:{kind:'grid',rows:2,columns:2},template:{kind:'cube'}}));
+    await approveAndExecute(f.runtime,call('call:array-component-edit','component.configure',{baseRevision:2,action:'upsert',entityId:a.value.rootEntityId,type:'haiyue.scene.array',patch:{layout:{columns:3}}}));
+    assert.equal(f.scene.snapshot().entities.length,7);assert.equal(f.workspace.snapshot().history.entries.length,2);
+    await f.workspace.undo(3);assert.equal(f.scene.snapshot().entities.length,5);
+    await f.workspace.redo(4);assert.equal(f.scene.snapshot().entities.length,7);
+  }finally{await dispose(f);}
+});
+
+test('array validation and destructive shrink guards leave Document and History unchanged',async()=>{
+  const f=await fixture();
+  try{
+    for(const [i,patch]of[{representation:'entities',layout:{kind:'grid',rows:20,columns:20}},{representation:'instances',layout:{kind:'grid',rows:100,columns:100}},{layout:{kind:'grid',rows:0,columns:2}},{template:{kind:'cube',password:'fixture'}}].entries())await assert.rejects(f.runtime.prepare(call(`call:array-invalid-${i}`,'scene.populate',{baseRevision:1,arrayId:'invalid',representation:'instances',layout:{kind:'grid',rows:2,columns:2},template:{kind:'cube'},...patch})));
+    assert.equal(f.workspace.snapshot().document.revision,1);assert.equal(f.workspace.snapshot().history.entries.length,0);
+    const a=await approveAndExecute(f.runtime,call('call:array-guard','scene.populate',{baseRevision:1,arrayId:'guarded',representation:'entities',layout:{kind:'grid',rows:1,columns:2},template:{kind:'cube'}}));
+    const protectedId=a.value.sample[1].entityId;
+    await executeReady(f.runtime,call('call:array-child','entity.create',{baseRevision:2,kind:'cube',parentId:protectedId,name:'Independent child'}));
+    const before=f.workspace.gameSnapshot(),history=f.workspace.snapshot().history.entries.length;
+    await assert.rejects(f.runtime.prepare(call('call:array-shrink-guard','scene.populate',{baseRevision:3,arrayId:'guarded',layout:{kind:'grid',rows:1,columns:1}})),/independent|children/);
+    assert.deepEqual(f.workspace.gameSnapshot(),before);assert.equal(f.workspace.snapshot().history.entries.length,history);
+    const prepared=await f.runtime.prepare(call('call:array-stale','scene.populate',{baseRevision:3,arrayId:'other',representation:'instances',layout:{kind:'grid',rows:3,columns:3},template:{kind:'cube'}}));
+    await f.runtime.decide(prepared.approvalId,'allow-once');await executeReady(f.runtime,call('call:array-race','entity.create',{baseRevision:3,kind:'cube'}));
+    await assert.rejects(f.runtime.execute(prepared.id),e=>e.code==='tool.stale-revision');
+  }finally{await dispose(f);}
+});
+
+test('the ordinary material controls edit an instanced array through its persisted recipe',async()=>{
+ const f=await fixture();try{
+  const created=await approveAndExecute(f.runtime,call('call:array-material','scene.populate',{baseRevision:1,arrayId:'appearance',representation:'instances',layout:{kind:'grid',rows:4,columns:4},template:{kind:'cube',palette:[[1,0,0,1],[0,1,0,1]]}}));
+  await f.scene.setMaterial({commandId:'command:array-material-ui',baseRevision:2,entityId:created.value.rootEntityId,material:'basic',color:[0,0,1,1]});
+  const value=f.scene.snapshot().entities[0].components.find(c=>c.type==='haiyue.scene.array').value;
+  assert.deepEqual(value.template.color,[0,0,1,1]);assert.equal(value.template.palette,undefined);assert.equal(f.scene.snapshot().entities.length,1);
+  await f.workspace.undo(3);assert.equal(f.scene.snapshot().entities[0].components.find(c=>c.type==='haiyue.scene.array').value.template.palette.length,2);
+ }finally{await dispose(f);}
+});
+
+test('a primitive array cannot replace a composite assembly required by the approved plan',async()=>{
+ const {assertAssemblyPlan}=await import('../dist/assemblies.js');const f=await fixture();try{
+  const args={baseRevision:1,arrayId:'parts',representation:'instances',layout:{kind:'grid',rows:2,columns:2},template:{kind:'cube'}};
+  assert.throws(()=>assertAssemblyPlan(f.workspace.gameSnapshot(),[{assemblyId:'piece',label:'Piece',partKeys:['front','back'],distinctColors:2,minimumInstances:4}],'scene.populate',args),e=>e.code==='assembly.prototype-required');
+  assert.doesNotThrow(()=>assertAssemblyPlan(f.workspace.gameSnapshot(),[],'scene.populate',args));
+ }finally{await dispose(f);}
+});
+
+test('array templates capture a current geometry without removing the source entity',async()=>{
+ const f=await fixture();try{
+  const source=await executeReady(f.runtime,call('call:array-source','entity.create',{baseRevision:1,kind:'rounded-box',radius:.2,color:[1,0,1,1],transform:{position:{x:8,y:0,z:0},rotationDegrees:{x:0,y:0,z:15},scale:{x:.5,y:.5,z:.5}}}));
+  const result=await approveAndExecute(f.runtime,call('call:array-source-capture','scene.populate',{baseRevision:2,arrayId:'copies',representation:'instances',templateEntityId:source.value.entity.id,layout:{kind:'grid',rows:3,columns:3}}));
+  assert.equal(result.value.templateSourceRetained,true);assert.equal(f.scene.snapshot().entities.length,2);
+  const spec=f.scene.snapshot().entities.find(e=>e.id===result.value.rootEntityId).components.find(c=>c.type==='haiyue.scene.array').value;
+  assert.equal(spec.template.radius,.2);assert.deepEqual(spec.template.scale,{x:.5,y:.5,z:.5});assert.deepEqual(spec.template.color,[1,0,1,1]);
+ }finally{await dispose(f);}
+});
+
 test('bounded tool catalog exposes registry-driven component authoring', () => {
   assert.deepEqual(GAME_AUTHORING_TOOL_DEFINITIONS.map((item) => item.id), [
+    'scene.populate',
     'behavior.query', 'behavior.locate', 'behavior.explain',
     'project.snapshot', 'scene.query', 'scene.diff', 'scene.get-many', 'engine.docs.search', 'engine.docs.read', 'tool.search', 'engine.capabilities.describe', 'component.describe', 'component.get',
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
@@ -528,7 +633,7 @@ test('diagnostics query returns redacted bounded pages with a query-bound cursor
   } finally { await dispose(value); }
 });
 
-test('allow always auto-approves only the same tool, version, target and project session scope', async () => {
+test('project tool consent covers entities and backend sessions while preserving exact execution checks', async () => {
   const value = await fixture();
   try {
     const created = await executeReady(value.runtime, call('call:create-always-target', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'First' }));
@@ -546,7 +651,20 @@ test('allow always auto-approves only the same tool, version, target and project
     const differentTool = await value.runtime.prepare(call('call:always-material', 'material.set', { baseRevision: 4, entityId: created.value.entity.id, material: 'pbr' }));
     assert.equal(differentTool.status, 'approval-required');
     const differentSession = await value.runtime.prepare({ ...call('call:always-other-session', 'entity.rename', { baseRevision: 4, entityId: created.value.entity.id, name: 'Other Session' }), sessionId: 'session:other' });
-    assert.equal(differentSession.status, 'approval-required');
+    assert.equal(differentSession.status, 'ready');
+    const other = await executeReady(value.runtime, call('call:always-other-entity', 'entity.create', { baseRevision: 4, kind: 'cube', name: 'Other' }));
+    await assert.rejects(value.runtime.execute(differentSession.id), error => error.code === 'tool.stale-revision');
+    const otherTarget = await value.runtime.prepare(call('call:always-other-target', 'entity.rename', { baseRevision: 5, entityId: other.value.entity.id, name: 'Other Renamed' }));
+    assert.equal(otherTarget.status, 'ready'); await value.runtime.execute(otherTarget.id);
+    const originalRoot = value.workspace.snapshot().projectRoot;
+    await value.workspace.save();
+    const newRoot = await mkdtemp(path.join(tmpdir(), 'haiyue-grant-other-project-'));
+    try {
+      await value.workspace.newProject(newRoot, 'Separate project');
+      const newEntity = await executeReady(value.runtime, call('call:always-new-project-entity', 'entity.create', { baseRevision: 1, kind: 'cube', name: 'Separate' }));
+      const separate = await value.runtime.prepare(call('call:always-new-project', 'entity.rename', { baseRevision: 2, entityId: newEntity.value.entity.id, name: 'Needs Consent' }));
+      assert.equal(separate.status, 'approval-required');
+    } finally { await value.workspace.openProject(originalRoot); await rm(newRoot, { recursive: true, force: true }); }
     const facts = await value.operationLog.query({ toolCallId: asStableId('call:always-second'), limit: 20, traverseCorrelation: false });
     assert.deepEqual(facts.events.filter((item) => item.kind.startsWith('tool/') || item.kind.startsWith('approval/')).map((item) => item.kind), [
       'tool/call-received', 'tool/pre-policy-passed', 'tool/preview-prepared', 'approval/auto-allowed', 'tool/effect-lock-acquired', 'tool/execution-started', 'tool/execution-completed', 'tool/effect-lock-released',
@@ -832,7 +950,7 @@ test('every revision-bound tool publishes a required version and rejects omissio
   const value = await fixture();
   try {
     const definitions = GAME_AUTHORING_TOOL_DEFINITIONS.filter((tool) => tool.inputSchema.properties.baseRevision && tool.id !== 'preview.validate');
-    assert.equal(definitions.length, 28);
+    assert.equal(definitions.length, 29);
     for (const definition of definitions) {
       assert.ok(definition.inputSchema.required.includes('baseRevision'), `${definition.id} must tell both providers that the version is required`);
       await assert.rejects(value.runtime.prepare(call(`call:missing-revision:${definition.id}`, definition.id, {})), (error) => {

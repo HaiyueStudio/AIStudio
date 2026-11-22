@@ -221,6 +221,10 @@ export function validateConversationIntent(value: unknown): ConversationIntent {
   if (!isRecord(value) || typeof value.type !== 'string') throw new ConversationReadModelError('conversation.intent-invalid', 'Conversation intent must be an object with a type.');
   const type = value.type;
   switch (type) {
+    case 'agent/approval-mode':
+      exactKeys(value, ['type', 'mode']);
+      if (value.mode !== 'auto-review' && value.mode !== 'ask') throw new ConversationReadModelError('conversation.intent-invalid', 'Approval mode is invalid.');
+      return Object.freeze({ type, mode: value.mode });
     case 'conversation/send': {
       exactKeys(value, ['type', 'backendId', 'prompt']);
       const prompt = boundedString(value.prompt, 'prompt', 16 * 1024).trim();
@@ -372,7 +376,9 @@ function normalizeApproval(value: Record<string, unknown>): JsonObject {
       argumentsSummary: text(value.argumentsSummary, 2_048) ?? 'No argument summary provided.', previewDiff: text(value.previewDiff, 4_096) ?? 'No preview diff provided.',
       baseRevision: Number.isInteger(value.baseRevision) && (value.baseRevision as number) >= 0 ? value.baseRevision as number : 0,
       argsDigest, previewDigest, ...(value.expiresAt === undefined ? {} : { expiresAt: timestamp(value.expiresAt, 'approval expiry') }),
-      scope: enumValue(value.scope, ['operation', 'project-session']) ?? 'operation', decision,
+      scope: enumValue(value.scope, ['operation', 'project-session', 'project-tool']) ?? 'operation', decision,
+      ...(value.reusableScope === 'project-tool' && typeof value.reusableScopeDigest === 'string' && digestPattern.test(value.reusableScopeDigest)
+        ? { reusableScope: 'project-tool', reusableScopeDigest: value.reusableScopeDigest } : {}),
     });
   } catch { return Object.freeze({ summary: 'Invalid approval payload; actions are disabled.', decision: 'unavailable' }); }
 }
@@ -412,7 +418,7 @@ function safeInteger(value: unknown, minimum: number, maximum: number): number |
 
 function isApprovalContent(value: Record<string, unknown>): boolean {
   return typeof value.approvalId === 'string' && typeof value.toolCallId === 'string' && typeof value.toolId === 'string'
-    && value.decision !== 'unavailable' && typeof value.argsDigest === 'string' && (value.scope === 'operation' || value.scope === 'project-session');
+    && value.decision !== 'unavailable' && typeof value.argsDigest === 'string' && (value.scope === 'operation' || value.scope === 'project-session' || value.scope === 'project-tool');
 }
 
 function stable(value: unknown, label: string): StableId {

@@ -1,4 +1,4 @@
-import type { ComponentDefinitionV2, JsonObject, M12CapabilityId } from '@haiyue/ai-studio-contracts';
+import { PARAMETRIC_ARRAY_SCHEMA, parseParametricArray, type ComponentDefinitionV2, type JsonObject, type M12CapabilityId } from '@haiyue/ai-studio-contracts';
 
 const COMMON = Object.freeze({
   schemaVersion: 2,
@@ -60,6 +60,8 @@ const particleCommon = {
 const particleRequired = ['maxParticles', 'emissionRate', 'burst', 'duration', 'loop', 'seed', 'lifetime', 'speed', 'startSize', 'endSize', 'startColor', 'endColor', 'blendMode', 'playing', 'emitting'];
 
 export const G08_COMPONENT_DEFINITIONS: readonly ComponentDefinitionV2[] = Object.freeze([
+  definition('haiyue.scene.array', 'prefab', 'gpu-owner', 'medium', 'Parametric Array', 'Layout', 'adapter.render.parametric-array',
+    PARAMETRIC_ARRAY_SCHEMA, parseParametricArray({schemaVersion:1,arrayId:'array',representation:'instances',layout:{kind:'grid',rows:1,columns:1},template:{kind:'cube'}}) as unknown as JsonObject),
   definition('haiyue.render.profile', 'material.pbr', 'gpu-owner', 'medium', 'Render Profile', 'Rendering', 'adapter.render.profile',
     object({ profile: { enum: ['simple', 'batched', 'gpu-driven', 'diagnostic'] }, msaaSamples: { enum: [1, 4] }, clearColor: array(4, number(0, 1)), devicePixelRatio: number(0.25, 4), maxRenderPixels: integer(65_536, 33_554_432) }, ['profile', 'msaaSamples', 'clearColor', 'devicePixelRatio', 'maxRenderPixels']),
     { profile: 'batched', msaaSamples: 1, clearColor: [0.03, 0.03, 0.03, 1], devicePixelRatio: 1, maxRenderPixels: 8_388_608 }),

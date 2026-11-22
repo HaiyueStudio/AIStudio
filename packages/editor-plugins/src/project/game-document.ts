@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import {
   asStableId,
+  PARAMETRIC_ARRAY_COMPONENT, parseParametricArray,
   type GameComponentInstanceV2,
   type GameDocumentDeltaV2,
   type GameDocumentOperationV2,
@@ -13,6 +14,7 @@ import {
 } from '@haiyue/ai-studio-contracts';
 import { canonicalStringify, sha256 } from '@haiyue/ai-studio-operation-log';
 import { ComponentRegistry } from '../components/registry.js';
+import { planParametricArray } from '../parametric-arrays.js';
 
 type Scene = GameDocumentV2['scenes'][number];
 type GameEntity = GameDocumentV2['entities'][number];
@@ -68,21 +70,40 @@ export class GameDocumentStore {
 
   settingsSnapshot(): JsonObject { return freezeObject(Object.fromEntries([...this.settings.entries()].map(([key, value]) => [key, cloneJson(value)]))); }
 
-  apply(transactionId: StableId, operations: readonly GameDocumentOperationV2[]): GameDocumentDeltaV2 {
+  apply(transactionId: StableId, operations: readonly GameDocumentOperationV2[], deriveArrays = true): GameDocumentDeltaV2 {
     if (operations.length < 1 || operations.length > 1_000) throw new GameDocumentError('document.batch-size-invalid', 'A batch must contain 1-1000 operations.');
     const started = performance.now();
     const beforeRevision = this.currentRevision;
     const inverse: GameDocumentOperationV2[] = [];
+    const applied: GameDocumentOperationV2[] = [];
+    const arrayWrites=deriveArrays?operations.filter(op=>(op.op==='component.add'||op.op==='component.replace')&&op.component.type===PARAMETRIC_ARRAY_COMPONENT):[];
+    const previousArrays=arrayWrites.length?new Map([...this.entities.values()].flatMap(entity=>entity.componentIds.flatMap(id=>{const c=this.components.get(id);return c?.type===PARAMETRIC_ARRAY_COMPONENT?[[entity.id,parseParametricArray(c.value)] as const]:[];}))):new Map();
     let projectionWork = 0;
     let structural = false;
     try {
       for (const operation of operations) {
         const result = this.mutate(operation);
+        applied.push(operation);
         inverse.unshift(result.inverse);
         projectionWork += result.projectionWork;
         structural ||= isStructuralOperation(operation);
       }
-      if (structural) this.validateRelationships();
+      const reconciled=new Set<string>();
+      for(const operation of arrayWrites){
+        if(operation.op!=='component.add'&&operation.op!=='component.replace')continue;
+        const owner=[...this.entities.values()].find(e=>e.componentIds.includes(operation.component.id));
+        const component=this.components.get(operation.component.id);
+        if(!owner||!component||reconciled.has(owner.id))continue;
+        reconciled.add(owner.id);
+        const spec=parseParametricArray(component.value);
+        if(owner.componentIds.some(id=>{const c=this.components.get(id);return c?.type==='haiyue.render.geometry'||c?.type==='haiyue.render.material';}))throw new GameDocumentError('array.root-invalid','Use an empty array root; geometry and material belong to the array template.');
+        const plan=planParametricArray({gameSnapshot:()=>this.export(),componentRegistry:this.registry,primarySceneId:()=>asStableId(owner.sceneId)}, {baseRevision:this.currentRevision,arrayId:spec.arrayId,representation:spec.representation,layout:spec.layout,template:spec.template,rootEntityId:owner.id}, transactionId, previousArrays.get(owner.id)??null);
+        for(const derived of plan.operations){
+          if(applied.length>=1000)throw new GameDocumentError('document.batch-size-invalid','Derived array operations exceed the 1000-operation atomic budget.');
+          const result=this.mutate(derived);applied.push(derived);inverse.unshift(result.inverse);projectionWork+=result.projectionWork;structural||=isStructuralOperation(derived);
+        }
+      }
+      if (structural || arrayWrites.length) this.validateRelationships();
     } catch (cause) {
       for (const operation of inverse) this.mutate(operation);
       this.currentRevision = beforeRevision;
@@ -90,7 +111,7 @@ export class GameDocumentStore {
       throw cause;
     }
     this.currentRevision += 1;
-    const frozenOperations = Object.freeze(operations.map(freezeOperation));
+    const frozenOperations = Object.freeze(applied.map(freezeOperation));
     const frozenInverse = Object.freeze(inverse.map(freezeOperation));
     const copiedBytes = jsonBytes(frozenOperations);
     return Object.freeze({
@@ -258,9 +279,17 @@ export class GameDocumentStore {
 
   private validateRelationships(): void {
     const owners = new Map<string, string>();
+    const arrayIds=new Set<string>();
     const rootsByScene = new Map([...this.scenes.values()].map((scene) => [scene.id, new Set(scene.rootEntityIds)]));
     for (const scene of this.scenes.values()) for (const rootId of scene.rootEntityIds) { const entity = required(this.entities, rootId, 'root entity'); if (entity.sceneId !== scene.id || entity.parentId !== null) throw new GameDocumentError('document.scene-root-invalid', `Scene ${scene.id} has invalid root ${rootId}.`); }
     for (const entity of this.entities.values()) {
+      const arrays=entity.componentIds.map(id=>this.components.get(id)).filter(c=>c?.type===PARAMETRIC_ARRAY_COMPONENT);
+      if(arrays.length){
+        const spec=parseParametricArray(arrays[0]!.value);
+        if(arrays.length!==1||arrayIds.has(spec.arrayId))throw new GameDocumentError('array.identity-duplicate','Array ids must be unique in the project.');
+        arrayIds.add(spec.arrayId);
+        if(entity.componentIds.some(id=>{const c=this.components.get(id);return c?.type==='haiyue.render.geometry'||c?.type==='haiyue.render.material';}))throw new GameDocumentError('array.root-invalid','Array roots keep geometry/material in the array template. Edit the array template instead.');
+      }
       required(this.scenes, entity.sceneId, 'scene');
       if (entity.parentId === null && !rootsByScene.get(entity.sceneId)!.has(entity.id)) throw new GameDocumentError('document.scene-root-missing', `Root entity ${entity.id} is not registered by scene ${entity.sceneId}.`);
       if (entity.parentId) { const parent = required(this.entities, entity.parentId, 'parent entity'); if (parent.sceneId !== entity.sceneId) throw new GameDocumentError('document.parent-cross-scene', `Entity ${entity.id} cannot parent across scenes.`); }

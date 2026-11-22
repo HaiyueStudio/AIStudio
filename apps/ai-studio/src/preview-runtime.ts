@@ -12,6 +12,7 @@ import { InputActionMap, type InputActionMapDescriptor, type InputReplayV1, type
 import { applyProjectCamera, applyProjectCameraProjection, DEFAULT_PROJECT_CAMERA, normalizeProjectCamera, type ProjectCameraSnapshot } from '@haiyue/ai-studio-editor-plugins/camera-authoring';
 import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-editor-plugins';
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isRenderableSceneKind } from './scene-entity-rendering.js';
+import { refreshParametricArrays, takeParametricArrayVisual, parametricArrayVisualState, parametricArrayCapacity } from './parametric-array-visuals.js';
 import { PlaySimulation } from './play-simulation.js';
 import { PhysicsPlayRuntime } from './physics-play-runtime.js';
 import { loadControlledMaterialTexture } from './scene-material-textures.js';
@@ -154,7 +155,7 @@ async function start(snapshot: SceneSnapshot, plan: PreviewPlan, assets: readonl
   gameplayCamera = configureGameplayCamera(snapshot.entities, ownedScene, canvas);
   if (gameplayCamera) activeCamera = null;
   installSceneEntityMaterialRenderers(ownedEngine, ownedScene);
-  ownedScene.addSystem(new InstancedMesh3DRenderSystem(ownedEngine, ownedScene.activeCameraEntity, { loadOp: 'load' }));
+  refreshParametricArrays(entitiesByStableId.values());
   interactionSystem = new InteractionSystem(ownedEngine, ownedScene.activeCameraEntity, { bindCanvas: false, continuousHover: false });
   ownedScene.addSystem(interactionSystem, false);
   textureLoad = new AbortController();
@@ -458,7 +459,7 @@ function readSimulationState(): SimulationStateValue {
     tick: simulation?.clock.tick ?? 0,
     entities: Object.freeze([...entitiesByStableId].sort((left, right) => left[0].localeCompare(right[0])).map(([id, entity]) => {
       const transform = entity.getComponent(CartesianTransform3D);
-      return Object.freeze({ id, parentId: entity.parent ? stableIdByEntityId.get(entity.parent.id) ?? null : null, worldMatrix: Object.freeze(Array.from(playWorldMatrix(entity, worldMatrices))), materialColor: readPlayMaterialColor(entity), position: transform ? Object.freeze([...transform.position]) : null, rotation: transform ? Object.freeze([...transform.rotation]) : null, scale: transform ? Object.freeze([...transform.scale]) : null });
+      return Object.freeze({ id, parentId: entity.parent ? stableIdByEntityId.get(entity.parent.id) ?? null : null, worldMatrix: Object.freeze(Array.from(playWorldMatrix(entity, worldMatrices))), materialColor: readPlayMaterialColor(entity), ...(parametricArrayVisualState(entity) ? {instances:parametricArrayVisualState(entity)} : {}), position: transform ? Object.freeze([...transform.position]) : null, rotation: transform ? Object.freeze([...transform.rotation]) : null, scale: transform ? Object.freeze([...transform.scale]) : null });
     })),
     physics: physicsRuntime?.state() ?? null,
     renderEffects: (renderEffectsRuntime?.manifest() ?? null) as unknown as SimulationStateValue,
@@ -937,7 +938,7 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
     physics: physicsRuntime?.api(),
     scene: Object.freeze({
       ...(base.scene ?? {}),
-      instances(target: Entity | number | string, capacity: number): StudioInstanceSet {
+      instances(target: Entity | number | string, capacity?: number): StudioInstanceSet {
         return getOrCreateInstanceSet(target, capacity, context.world ?? undefined);
       },
       setMaterialColor(target: Entity | string, color: readonly number[]): void {
@@ -967,22 +968,25 @@ function studioRuntimeApi(base: ScriptRuntimeApi, context: ScriptRuntimeContext,
   return Object.freeze(filtered) as unknown as ScriptRuntimeApi;
 }
 
-function getOrCreateInstanceSet(targetValue: Entity | number | string, capacity: number, world?: Readonly<{ getEntity(id: number | string): Entity | null }>): StudioInstanceSet {
+function getOrCreateInstanceSet(targetValue: Entity | number | string, capacity: number | undefined, world?: Readonly<{ getEntity(id: number | string): Entity | null }>): StudioInstanceSet {
   const entity = targetValue instanceof Entity ? targetValue : typeof targetValue === 'string' ? entitiesByStableId.get(targetValue) ?? world?.getEntity(targetValue) ?? null : world?.getEntity(targetValue) ?? null;
   if (!entity) throw new Error(`Instance target ${String(targetValue)} was not found.`);
+  capacity ??= parametricArrayCapacity(entity) ?? undefined;
+  if(typeof capacity!=='number')throw new TypeError('A non-array template requires an explicit fixed capacity. Authored arrays can omit capacity.');
   if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > 4_096) throw new RangeError('Instance capacity must be an integer from 1 to 4096.');
   const cached = instanceSets.get(entity.id);
   if (cached) { if (cached.capacity !== capacity) throw new Error(`Instance capacity for ${entity.name} is already ${cached.capacity}.`); return cached; }
+  const authoredMaterial=takeParametricArrayVisual(entity,capacity);
   const source = entity.getComponent(Mesh3D);
-  if (!source) throw new Error(`Instance target ${entity.name} must be a geometry entity.`);
+  if (!source&&!authoredMaterial) throw new Error(`Instance target ${entity.name} must be a geometry entity.`);
   const stableId = stableIdByEntityId.get(entity.id);
   const appearance = stableId ? activeSceneEntities?.find((candidate) => candidate.id === stableId)?.appearance : undefined;
   const templateColor = appearance?.color ?? [1, 1, 1, 1] as const;
   // Basic authoring materials must remain unlit in Play. Upgrading every
   // instance template to PBR makes otherwise valid scenes render black.
-  const material = appearance?.material === 'pbr' ? new InstancedPbrMaterial(capacity, { metallic: 0.05, roughness: 0.65 }) : new InstancedMaterial(capacity);
-  let activeCount = 0; material.setActiveInstanceCount(activeCount);
-  entity.removeComponent(source); entity.addComponent(new InstancedMesh3D(source.geometry, material));
+  const material = authoredMaterial ?? (appearance?.material === 'pbr' ? new InstancedPbrMaterial(capacity, { metallic: 0.05, roughness: 0.65 }) : new InstancedMaterial(capacity));
+  let activeCount = authoredMaterial?.activeInstanceCount ?? 0; material.setActiveInstanceCount(activeCount);
+  if(!authoredMaterial&&source){entity.removeComponent(source); entity.addComponent(new InstancedMesh3D(source.geometry, material));}
   const instances: StudioInstanceSet = Object.freeze({
     capacity,
     setCount(count: number): void { if (!Number.isSafeInteger(count) || count < 0 || count > capacity) throw new RangeError(`Active instance count must be from 0 to ${capacity}.`); activeCount = count; material.setActiveInstanceCount(activeCount); },

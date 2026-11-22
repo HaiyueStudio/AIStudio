@@ -8,6 +8,8 @@ import {
 } from '@haiyue/engine';
 import { BlinnPhongMaterial, BlinnPhongRenderSystem, createCone3D, createCylinder3D, createIcosahedron3D, createTorus3D, NormalMaterial } from '@haiyue/engine/experimental';
 import { AmbientLight, DirectionalLight, PointLight } from '@haiyue/engine/lighting';
+import { InstancedMesh3DRenderSystem } from '@haiyue/engine/systems';
+import { sceneParametricArray, attachParametricArrayVisual, ParametricArrayTransformSystem } from './parametric-array-visuals.js';
 import type { SceneEntityKind, SceneMaterialKind } from '@haiyue/ai-studio-editor-plugins';
 
 export interface RenderableSceneEntity {
@@ -29,9 +31,16 @@ export function installSceneEntityMaterialRenderers(engine: HaiyueEngine, scene:
   const render3DSystem = scene.render3DSystem;
   if (!render3DSystem) throw new Error('Scene entity materials require a Render3DSystem.');
   scene.addSystem(new BlinnPhongRenderSystem(engine, scene.cameraEntity, { render3DSystem }), false);
+  scene.addSystem(new ParametricArrayTransformSystem());
+  scene.addSystem(new InstancedMesh3DRenderSystem(engine,scene.activeCameraEntity,{loadOp:'load'}));
 }
 
 export function attachSceneEntityVisuals(entity: Entity, item: RenderableSceneEntity, geometryPool?: SharedGeometryPool): void {
+  const array=sceneParametricArray(item);
+  if(array?.representation==='instances'){
+    const parameters={kind:array.template.kind,...(array.template.plane?{plane:array.template.plane}:{}),...(array.template.radius===undefined?{}:{radius:array.template.radius,segments:array.template.segments!})};
+    attachParametricArrayVisual(entity,array,geometryPool?geometryPool.get(array.template.kind,parameters):createGeometry(array.template.kind,[{type:'haiyue.render.geometry',value:parameters}]));return;
+  }
   if (isRenderableSceneKind(item.kind)) {
     const appearance = item.appearance ?? { material: 'basic' as const, color: [0.16, 0.58, 1, 1] as const };
     entity.addComponent(new Mesh3D(geometryPool ? geometryPool.get(item.kind, item.components?.find(c => c.type === 'haiyue.render.geometry')?.value) : createGeometry(item.kind, item.components), createMaterial(appearance)));

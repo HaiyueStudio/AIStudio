@@ -43,7 +43,9 @@ export function approvalContent(preparation: GameToolPreparation, approval: Game
     target: approval.target, effect: approval.effect, risk: approval.risk, argumentsSummary: preparation.preview.summary,
     previewDiff: preparation.preview.diff, baseRevision: approval.baseRevision, argsDigest: presentationDigest(approval.argumentsDigest),
     previewDigest: presentationDigest(approval.previewDigest), ...(approval.expiresAt ? { expiresAt: approval.expiresAt } : {}),
-    scope: approval.decision === 'allow-always' ? 'project-session' : 'operation', decision: approval.decision,
+    scope: approval.decision === 'allow-always' && approval.reusableScope ? approval.reusableScope : 'operation', decision: approval.decision,
+    ...(approval.reusableScope === 'project-tool' && typeof approval.reusableScopeDigest === 'string' && /^(?:sha256:)?[a-f0-9]{64}$/u.test(approval.reusableScopeDigest)
+      ? { reusableScope: approval.reusableScope, reusableScopeDigest: presentationDigest(approval.reusableScopeDigest) } : {}),
   });
 }
 export function presentationDigest(value: string): string { return value.startsWith('sha256:') ? value : `sha256:${value}`; }
@@ -51,6 +53,7 @@ export function intentLogPayload(intent: ConversationIntent): JsonObject {
   if (intent.type === 'conversation/send') return Object.freeze({ type: intent.type, backendId: intent.backendId, promptDigest: sha256(intent.prompt), promptBytes: Buffer.byteLength(intent.prompt) });
   return Object.freeze({
     type: intent.type,
+      ...(intent.type === 'agent/approval-mode' ? { mode: intent.mode } : {}),
     ...('backendId' in intent ? { backendId: intent.backendId } : {}),
     ...('approvalId' in intent ? { approvalId: intent.approvalId, decision: intent.decision } : {}),
     ...('sessionId' in intent ? { sessionId: intent.sessionId } : {}),

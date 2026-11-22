@@ -1,4 +1,5 @@
 import { mountToolSettings } from './tool-settings-ui.js';
+import { updateToolbarButton } from './toolbar.js';
 import { renderPreviewTestTable, type PreviewTestActivity } from './preview-test-progress.js';
 import { SharedGeometryPool } from '@haiyue/ai-studio-editor-plugins/render';
 import { mountQuerySettings } from './query-settings-ui.js';
@@ -56,6 +57,8 @@ import {
 } from './play-device-profiles.js';
 import { loadPreviewAssets, releasePreviewAssetUrls, type PreviewAssetManifestEntry, type PreviewRuntimeAsset } from './preview-asset-transfer.js';
 import { attachSceneEntityVisuals, installSceneEntityMaterialRenderers, isLightSceneKind, isRenderableSceneKind } from './scene-entity-rendering.js';
+import { refreshParametricArrays, pickParametricArray, sceneParametricArray } from './parametric-array-visuals.js';
+import { playWorldMatrix } from './play-transforms.js';
 import {
   applyProjectCamera,
   applyProjectCameraProjection,
@@ -77,6 +80,7 @@ import { defineSplitComponents, type HYSplit, type HYSplitRatioChangeDetail } fr
 import { defineHistoryControlsComponents, type HYHistoryControls } from '@haiyue/ui/history-controls';
 import { defineTabsComponents, type HYTabs } from '@haiyue/ui/tabs';
 import { defineTreeComponents, type HYTree } from '@haiyue/ui/tree';
+import { defineTooltipComponents } from '@haiyue/ui/tooltip';
 
 let agentHistoryViewer: AgentHistoryViewer | null = null;
 let agentReviewViewer: AgentReviewViewer | null = null;
@@ -344,6 +348,7 @@ class WebGpuViewportRuntime {
       else engineScene.add(entity);
     }
     // The running engine owns scene updates so each render gets a fresh swap-chain view.
+    refreshParametricArrays(entities.values());
     void this.materials.apply(this.engine!, engineScene, snapshot, entities).then(current => {
       if (current && !this.disposed && this.authoringSnapshot === snapshot) void reportViewport('rendered', selectedEntityId ?? 'Scene rendered.', snapshot.revision, selectedEntityId);
     }).catch(cause => {
@@ -378,7 +383,14 @@ class WebGpuViewportRuntime {
     const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
     const ndcY = 1 - ((clientY - rect.top) / rect.height) * 2;
     const result = createInteractionRaycastResult();
-    return interaction.raycast(engineScene.world, ndcX, ndcY, result) && result.entity
+    const ordinary=interaction.raycast(engineScene.world,ndcX,ndcY,result)&&result.entity;
+    const array=pickParametricArray(engineScene.activeCameraEntity,ndcX,ndcY,this.entitiesByStableId.values());
+    if(array){
+      const camera=playWorldMatrix(engineScene.activeCameraEntity);
+      const ordinaryDistance=ordinary?Math.hypot(result.point[0]!-camera[12]!,result.point[1]!-camera[13]!,result.point[2]!-camera[14]!):Infinity;
+      if(array.distance<ordinaryDistance)return this.stableByEngineId.get(array.entity.id)??null;
+    }
+    return ordinary && result.entity
       ? this.stableByEngineId.get(result.entity.id) ?? null
       : null;
   }
@@ -816,6 +828,7 @@ function setupUiPreferences(): void {
   defineTabsComponents();
   defineTreeComponents();
   defineDialogComponents();
+  defineTooltipComponents();
   defineDrawerComponents();
   defineSelectComponents();
   defineHistoryControlsComponents();
@@ -823,9 +836,9 @@ function setupUiPreferences(): void {
   theme = readStoredTheme();
   applyTheme(theme);
 
-  toolSettings = mountToolSettings(document, element('settings-dialog').querySelector('.settings-form')!, { language: () => language, invoke });
-  querySettings = mountQuerySettings(document, element('settings-dialog').querySelector('.settings-form')!, { language: () => language, invoke });
-  notificationSettings = mountNotificationSettings(document, element('settings-dialog').querySelector('.settings-form')!, {
+  toolSettings = mountToolSettings(document, element('settings-tools'), { language: () => language, invoke });
+  querySettings = mountQuerySettings(document, element('settings-tools'), { language: () => language, invoke });
+  notificationSettings = mountNotificationSettings(document, element('settings-notifications'), {
     desktop: typeof window.haiyueStudio.onNotificationClicked === 'function', language: () => language, invoke,
   });
 
@@ -869,9 +882,23 @@ function applyLocale(): void {
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n]')) node.textContent = t(node.dataset.i18n ?? '');
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-aria]')) node.setAttribute('aria-label', t(node.dataset.i18nAria ?? ''));
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) node.title = t(node.dataset.i18nTitle ?? '');
+  updateToolbarButton(element<HTMLButtonElement>('new-project'), language === 'zh-CN' ? '新建项目' : 'New project', 'new');
+  updateToolbarButton(element<HTMLButtonElement>('open-project'), language === 'zh-CN' ? '打开项目' : 'Open project', 'open');
+  updateToolbarButton(element<HTMLButtonElement>('save-project'), language === 'zh-CN' ? '保存项目' : 'Save project', 'save');
+  updateToolbarButton(element<HTMLButtonElement>('settings-button'), t('settings'), 'settings');
+  updateRunButton();
+  const settingsTabs = element<HYTabs>('settings-tabs');
+  settingsTabs.options = [
+    {value:'general',label:language === 'zh-CN' ? '常规' : 'General'},
+    {value:'models',label:language === 'zh-CN' ? '模型' : 'Models'},
+    {value:'agent',label:'Agent'},
+    {value:'tools',label:language === 'zh-CN' ? '工具' : 'Tools'},
+    {value:'notifications',label:language === 'zh-CN' ? '通知' : 'Notifications'},
+  ];
+  settingsTabs.setAttribute('aria-label', language === 'zh-CN' ? '设置分类' : 'Settings categories');
 
   const rightTabs = element<HYTabs>('right-tabs');
-  rightTabs.options = [{ label: t('agent'), value: 'agent' }, { label: t('history'), value: 'history' }, { label: '任务复盘', value: 'reviews' }, { label: t('logs'), value: 'logs' }];
+  rightTabs.options = [{ label: t('agent'), value: 'agent' }, ...(document.getElementById('agent-history-panel') ? [{ label: t('history'), value: 'history' }] : []), ...(document.getElementById('agent-review-panel') ? [{ label: '任务复盘', value: 'reviews' }] : []), { label: t('logs'), value: 'logs' }];
   const resourceTabs = element<HYTabs>('resource-tabs');
   resourceTabs.options = [
     { label: t('geometry'), value: 'geometry' }, { label: t('lights'), value: 'lights' }, { label: t('materials'), value: 'materials' },
@@ -1251,7 +1278,10 @@ async function refreshConversation(force: boolean): Promise<boolean> {
       && node.content.documentRevision > documentRevision()) editorChanged = true;
     observedAgentToolResults.add(node.id);
   }
-  renderChatPanel(element('chat-content'), presentChatPanel(snapshot), (intent) => void dispatchConversation(intent));
+  renderChatPanel(element('chat-content'), presentChatPanel(snapshot), (intent) => void dispatchConversation(intent), {
+    models:element('settings-models'), agent:element('settings-agent'), language,
+    open:() => { element<HYTabs>('settings-tabs').value = 'models'; element<HYDialog>('settings-dialog').showModal(); },
+  });
   localizeChatUi(element('chat-content'));
   updateFixAgentButton();
   document.body.dataset.agentUi = 'ready';
@@ -1286,7 +1316,8 @@ async function dispatchConversation(intent: ConversationIntent): Promise<boolean
 }
 
 function setupLogViewer(): void {
-  agentReviewViewer = new AgentReviewViewer(element('agent-review-viewer'), {
+  const reviewRoot = document.getElementById('agent-review-viewer');
+  if (reviewRoot) agentReviewViewer = new AgentReviewViewer(reviewRoot, {
     list:(projectId,signal,cursor) => invoke('conversation/reviews',{projectId,...(cursor ? {cursor} : {})},signal),
     read:(projectId,taskId,signal) => invoke('conversation/review',{projectId,taskId},signal),
     deepen:(projectId,taskId,signal) => invoke('conversation/review-deep',{projectId,taskId},signal),
@@ -1305,11 +1336,12 @@ function setupLogViewer(): void {
       command:(input,signal) => invoke('conversation/optimization-command',input as unknown as JsonObject,signal),
     },
   });
-  agentHistoryViewer = new AgentHistoryViewer(element('agent-history-viewer'), {
+  const historyRoot = document.getElementById('agent-history-viewer');
+  if (historyRoot) agentHistoryViewer = new AgentHistoryViewer(historyRoot, {
     query: (projectId, cursor, signal) => invoke('conversation/history', { projectId, ...(cursor ? { cursor } : {}), limit: 50 }, signal),
     detail: (projectId, id, signal) => invoke('conversation/history-detail', { projectId, id }, signal),
   });
-  agentHistoryViewer.setProject(null);
+  agentHistoryViewer?.setProject(null);
   const viewer = new LogViewerController({
     async query(query, signal) {
       return await invoke<SafeLogPage & JsonObject>('logs/query', { query: query as unknown as JsonObject }, signal);
@@ -1513,7 +1545,7 @@ async function saveProject(): Promise<void> {
 async function toggleProjectRun(): Promise<void> {
   const button = element<HTMLButtonElement>('run-project');
   if (button.disabled) return;
-  button.disabled = true; button.setAttribute('aria-busy', 'true'); button.textContent = t(playing ? 'working' : 'playStarting');
+  button.disabled = true; button.setAttribute('aria-busy', 'true'); updateRunButton();
   try {
     if (playing) {
       setStatus('Working…');
@@ -1610,9 +1642,7 @@ function updateRunButton(): void {
   const button = element<HTMLButtonElement>('run-project');
   const pending = button.getAttribute('aria-busy') === 'true';
   button.disabled = pending || !project?.document;
-  button.textContent = t(pending ? playing ? 'working' : 'playStarting' : playing ? 'stop' : 'run');
-  button.title = t(playing ? 'stopTitle' : 'runTitle');
-  button.setAttribute('aria-label', button.title);
+  updateToolbarButton(button, t(pending ? playing ? 'working' : 'playStarting' : playing ? 'stopTitle' : 'runTitle'), pending ? 'busy' : playing ? 'stop' : 'play');
   button.classList.toggle('is-playing', playing);
 }
 
@@ -1650,9 +1680,10 @@ function renderBuiltinResources(selected: SceneEntitySnapshot | null): void {
 
 function updateMaterialResources(selected: SceneEntitySnapshot | null): void {
   const canApply = Boolean(selected && isRenderableSceneKind(selected.kind));
+  const array=selected?sceneParametricArray(selected):null;
   for (const button of element('material-resources').querySelectorAll<HTMLButtonElement>('button[data-material-kind]')) {
     const material = button.dataset.materialKind as SceneMaterialKind | undefined;
-    button.disabled = canApply === false;
+    button.disabled = canApply === false || (array?.representation==='instances'&&material!=='basic'&&material!=='pbr');
     button.classList.toggle('is-active', Boolean(material && selected?.appearance?.material === material));
   }
 }
@@ -1879,9 +1910,8 @@ function renderProjectChrome(): void {
   element<HYHistoryControls>('history-controls').canRedo = Boolean(project?.history.canRedo);
   const saveButton = element<HTMLButtonElement>('save-project');
   saveButton.disabled = !project?.document;
-  saveButton.textContent = `${t('saveProject')}${project?.document?.dirty ? ' •' : ''}`;
-  saveButton.title = t(project?.document?.dirty ? 'unsavedChanges' : 'allChangesSaved');
-  saveButton.setAttribute('aria-label', saveButton.title);
+  const saveLabel = language === 'zh-CN' ? '保存项目' : 'Save project';
+  updateToolbarButton(saveButton, project?.document ? `${saveLabel} · ${t(project.document.dirty ? 'unsavedChanges' : 'allChangesSaved')}` : saveLabel, 'save');
   updateRunButton();
   element('project-name').textContent = project?.document?.name ?? t('noProject');
   element('revision').textContent = t('revision', { document: project?.document?.revision ?? 0, scene: scene?.revision ?? 0 });

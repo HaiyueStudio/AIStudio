@@ -152,6 +152,16 @@
         "packages/game-authoring-tools/test/runtime.test.mjs",
         "packages/agent-runtime/test/g10-retrieval.test.mjs"
       ]
+    },
+    {
+      "id": "parametric-arrays",
+      "files": [
+        "packages/studio-contracts/test/parametric-array.test.mjs",
+        "apps/ai-studio/test/parametric-array-electron.test.mjs",
+        "packages/game-authoring-tools/test/g10-tool-catalog.test.mjs",
+        "packages/agent-orchestration/test/p1-intent.test.mjs",
+        "apps/ai-studio/test/plane-geometry.test.mjs"
+      ]
     }
   ],
   "groups": [
@@ -510,17 +520,21 @@
         "prefab.manage",
         "assembly.create",
         "assembly.inspect",
-        "assembly.instantiate"
+        "assembly.instantiate",
+        "scene.populate"
       ],
       "document": [
         "packages/editor-plugins/src/project/game-document.ts",
-        "packages/editor-plugins/src/project/repository.ts"
+        "packages/editor-plugins/src/project/repository.ts",
+        "packages/editor-plugins/src/parametric-arrays.ts"
       ],
       "runtime": [
         "packages/editor-plugins/src/assets/catalog.ts",
         "apps/ai-studio/src/declarative-play-components.ts",
         "packages/game-authoring-tools/src/canvas-texture.ts",
-        "apps/ai-studio/src/canvas-texture-renderer.ts"
+        "apps/ai-studio/src/canvas-texture-renderer.ts",
+        "apps/ai-studio/src/parametric-array-visuals.ts",
+        "apps/ai-studio/src/scene-entity-rendering.ts"
       ],
       "upstream": [
         {
@@ -534,11 +548,14 @@
       ],
       "checkIds": [
         "documents",
-        "tools"
+        "tools",
+        "parametric-arrays"
       ],
       "ui": [
         "apps/ai-studio/src/renderer.ts",
-        "packages/studio-shell/src/index.ts"
+        "packages/studio-shell/src/index.ts",
+        "apps/ai-studio/src/parametric-array-visuals.ts",
+        "apps/ai-studio/src/scene-entity-rendering.ts"
       ],
       "owners": {
         "upstream": "reviewed-installed-package-owner",

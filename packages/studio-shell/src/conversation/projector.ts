@@ -22,6 +22,7 @@ export class ConversationProjector {
   private lastSequence = -1;
   private connection: ConversationReadModel['connection'] = 'disconnected';
   private busy = false;
+  private approvalMode: NonNullable<ConversationReadModel['approvalMode']> = 'ask';
   private backendId: StableId | null = null;
   private backends: readonly ConversationBackendReadModel[] = Object.freeze([]);
   private taskAccounting: ConversationReadModel['taskAccounting'] = null;
@@ -35,6 +36,7 @@ export class ConversationProjector {
     this.lastSequence = -1;
     this.connection = snapshot.connection;
     this.busy = snapshot.busy;
+    this.approvalMode = snapshot.approvalMode === 'auto-review' ? 'auto-review' : 'ask';
     this.backendId = snapshot.backendId;
     this.backends = normalizeBackends(snapshot.backends);
     this.taskAccounting = normalizeTaskAccounting(snapshot.taskAccounting);
@@ -63,6 +65,7 @@ export class ConversationProjector {
     this.revision += 1;
     this.connection = value.connection;
     this.busy = value.busy;
+    this.approvalMode = value.approvalMode === 'auto-review' ? 'auto-review' : 'ask';
     this.backendId = value.backendId;
     this.backends = normalizeBackends(value.backends);
     this.taskAccounting = normalizeTaskAccounting(value.taskAccounting);
@@ -79,7 +82,7 @@ export class ConversationProjector {
     const composerBlockedReason = this.connection !== 'connected' ? 'Reconnect before sending a message.' : null;
     return Object.freeze({
       revision: this.revision, lastSequence: this.lastSequence, connection: this.connection, busy: this.busy,
-      backendId: this.backendId, backends: this.backends, taskAccounting: this.taskAccounting, taskRuns: this.taskRuns, executionGraphs: this.executionGraphs, nodes, pendingInteraction, composerBlockedReason,
+      backendId: this.backendId, backends: this.backends, approvalMode: this.approvalMode, taskAccounting: this.taskAccounting, taskRuns: this.taskRuns, executionGraphs: this.executionGraphs, nodes, pendingInteraction, composerBlockedReason,
     });
   }
 }

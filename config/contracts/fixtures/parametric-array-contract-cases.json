@@ -1,0 +1,109 @@
+{
+  "valid": [
+    {
+      "name": "compact instanced grid",
+      "schemaId": "haiyue://contracts/parametric-array/v1",
+      "value": {
+        "schemaVersion": 1,
+        "arrayId": "tiles",
+        "representation": "instances",
+        "layout": {
+          "kind": "grid",
+          "rows": 20,
+          "columns": 20
+        },
+        "template": {
+          "kind": "rounded-box"
+        }
+      }
+    },
+    {
+      "name": "editable entity grid",
+      "schemaId": "haiyue://contracts/parametric-array/v1",
+      "value": {
+        "schemaVersion": 1,
+        "arrayId": "tiles",
+        "representation": "entities",
+        "layout": {
+          "kind": "grid",
+          "rows": 2,
+          "columns": 3
+        },
+        "template": {
+          "kind": "rounded-box"
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown array version",
+      "schemaId": "haiyue://contracts/parametric-array/v1",
+      "value": {
+        "schemaVersion": 2,
+        "arrayId": "tiles",
+        "representation": "instances",
+        "layout": {
+          "kind": "grid",
+          "rows": 20,
+          "columns": 20
+        },
+        "template": {
+          "kind": "rounded-box"
+        }
+      }
+    },
+    {
+      "name": "unknown representation",
+      "schemaId": "haiyue://contracts/parametric-array/v1",
+      "value": {
+        "schemaVersion": 1,
+        "arrayId": "tiles",
+        "representation": "shared-world",
+        "layout": {
+          "kind": "grid",
+          "rows": 20,
+          "columns": 20
+        },
+        "template": {
+          "kind": "rounded-box"
+        }
+      }
+    },
+    {
+      "name": "secret-bearing array",
+      "schemaId": "haiyue://contracts/parametric-array/v1",
+      "value": {
+        "schemaVersion": 1,
+        "arrayId": "tiles",
+        "representation": "instances",
+        "layout": {
+          "kind": "grid",
+          "rows": 20,
+          "columns": 20
+        },
+        "template": {
+          "kind": "rounded-box"
+        },
+        "apiKey": "fixture-not-a-secret"
+      }
+    },
+    {
+      "name": "noninteger rows",
+      "schemaId": "haiyue://contracts/parametric-array/v1",
+      "value": {
+        "schemaVersion": 1,
+        "arrayId": "tiles",
+        "representation": "instances",
+        "layout": {
+          "kind": "grid",
+          "rows": 1.5,
+          "columns": 2
+        },
+        "template": {
+          "kind": "rounded-box"
+        }
+      }
+    }
+  ]
+}

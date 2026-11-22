@@ -22,6 +22,7 @@ app.whenReady().then(async () => {
       let saveConfirmed = false;
       const wait = (test, done) => {
         if (test()) return done();
+        if (document.body.dataset.status === 'error') return reject(new Error('web UI startup failed: ' + document.querySelector('#startup-diagnostic-detail')?.textContent));
         if (Date.now() > deadline) return reject(new Error('web UI workflow timed out: ' + document.querySelector('#status')?.textContent));
         setTimeout(() => wait(test, done), 50);
       };
@@ -37,7 +38,7 @@ app.whenReady().then(async () => {
           document.querySelector('#create-cube').click();
           wait(() => document.querySelectorAll('.entity').length === 1 && document.querySelector('#status')?.textContent === 'Ready', () => {
             document.querySelector('#save-project').click();
-            wait(() => document.querySelector('#status')?.textContent === 'Project saved' && !document.querySelector('#save-project')?.textContent.includes('•'), () => {
+            wait(() => document.querySelector('#status')?.textContent === 'Project saved' && document.querySelector('#save-project')?.getAttribute('aria-label')?.includes('All changes saved'), () => {
               saveConfirmed = true;
               document.querySelector('.entity').click();
               wait(() => document.querySelector('#selection-label')?.textContent === 'Cube', () => {
@@ -55,9 +56,9 @@ app.whenReady().then(async () => {
                   document.querySelector('#run-project').click();
                   wait(() => document.querySelector('#run-dialog')?.open === true && !document.querySelector('#run-approve').disabled, () => {
                     document.querySelector('#run-approve').click();
-                    wait(() => document.body.dataset.preview === 'playing' && document.querySelector('#run-project')?.textContent === '■ Stop', () => {
+                    wait(() => document.body.dataset.preview === 'playing' && document.querySelector('#run-project')?.getAttribute('aria-label') === 'Stop project', () => {
                       document.querySelector('#run-project').click();
-                      wait(() => document.body.dataset.preview === 'stopped' && document.querySelector('#run-project')?.textContent === '▶ Run', () => resolve({
+                      wait(() => document.body.dataset.preview === 'stopped' && document.querySelector('#run-project')?.getAttribute('aria-label') === 'Run project', () => resolve({
                         status: document.body.dataset.status,
                         shell: document.body.dataset.shell,
                         node: typeof process,

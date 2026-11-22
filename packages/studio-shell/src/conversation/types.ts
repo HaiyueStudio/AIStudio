@@ -139,6 +139,7 @@ export interface ConversationTaskRunReadModel {
 }
 
 export interface ConversationReadModel {
+  readonly approvalMode?: import('@haiyue/ai-studio-contracts').AgentApprovalModeV1;
   readonly revision: number;
   readonly lastSequence: number;
   readonly connection: 'connected' | 'reconnecting' | 'disconnected';
@@ -154,6 +155,7 @@ export interface ConversationReadModel {
 }
 
 export interface ConversationReplaySnapshot {
+  readonly approvalMode?: unknown;
   readonly revision: number;
   readonly connection: ConversationReadModel['connection'];
   readonly busy: boolean;
@@ -166,6 +168,7 @@ export interface ConversationReplaySnapshot {
 }
 
 export type ConversationIntent =
+  | Readonly<{ type: 'agent/approval-mode'; mode: import('@haiyue/ai-studio-contracts').AgentApprovalModeV1 }>
   | Readonly<{ type: 'conversation/send'; backendId: StableId; prompt: string }>
   | Readonly<{ type: 'conversation/cancel'; backendId: StableId; sessionId: StableId; turnId: StableId }>
   | Readonly<{ type: 'conversation/retry'; backendId: StableId; sessionId: StableId; turnId: StableId }>
@@ -188,7 +191,7 @@ export interface ConversationUiPort {
 
 export type ConversationUiEvent =
   | Readonly<{ type: 'conversation/event'; event: ConversationProjectionEvent }>
-  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; taskAccounting?: unknown; taskRuns?: readonly unknown[]; executionGraphs?: readonly unknown[] }>;
+  | Readonly<{ type: 'conversation/state'; revision: number; connection: ConversationReadModel['connection']; busy: boolean; backendId: StableId | null; backends: readonly unknown[]; approvalMode?: unknown; taskAccounting?: unknown; taskRuns?: readonly unknown[]; executionGraphs?: readonly unknown[] }>;
 
 export interface LogQueryIntent {
   readonly projectId?: StableId;
@@ -252,7 +255,9 @@ export interface ApprovalCardReadModel {
   readonly argsDigest: string;
   readonly previewDigest: string;
   readonly expiresAt?: string;
-  readonly scope: 'operation' | 'project-session';
+  readonly scope: 'operation' | 'project-session' | 'project-tool';
+  readonly reusableScope?: 'project-tool';
+  readonly reusableScopeDigest?: string;
   readonly decision: 'pending' | 'allow-once' | 'allow-always' | 'reject' | 'cancel' | 'expired' | 'stale' | 'unavailable';
 }
 

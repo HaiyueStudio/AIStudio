@@ -2,6 +2,7 @@ import { BASIC_TRANSPARENCY_PROPERTIES } from '../render/basic-transparency.js';
 import { ROUNDED_BOX_PROPERTIES, roundedBoxParameters } from '../render/rounded-box.js';
 import {
   asStableId,
+  PARAMETRIC_ARRAY_COMPONENT, parseParametricArray,
   createStudioServiceToken,
   type ComponentDefinitionV2,
   type GameComponentInstanceV2,
@@ -71,7 +72,8 @@ export class ComponentRegistry {
     const version = semver(instance.version, 'component version');
     if (typeof instance.enabled !== 'boolean' || !isRecord(instance.value)) throw new ComponentRegistryError('component.instance-invalid', `Component ${id} has an invalid enabled/value field.`);
     const definition = this.get(type, version);
-    const value = validateValueAgainstSchema(definition.valueSchema, instance.value, '$value');
+    let value = validateValueAgainstSchema(definition.valueSchema, instance.value, '$value');
+    if (type === PARAMETRIC_ARRAY_COMPONENT) value = parseParametricArray(value) as unknown as JsonObject;
     if (type === 'haiyue.render.geometry' && value.plane !== undefined && value.kind !== 'plane') throw new ComponentRegistryError('component.value-invalid', 'plane is valid only for plane geometry.');
     if (type === 'haiyue.render.geometry') {
       try { roundedBoxParameters(value.kind, value); } catch (cause) { throw new ComponentRegistryError('component.value-invalid', (cause as Error).message); }

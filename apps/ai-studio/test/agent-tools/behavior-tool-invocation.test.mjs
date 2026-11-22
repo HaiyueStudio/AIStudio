@@ -7,6 +7,33 @@ import { StudioConversationHost } from '@haiyue/ai-studio-agent-orchestration';
 import { behaviorFixture, timer } from '../../../../packages/game-authoring-tools/test/behavior-fixture.mjs';
 import { ProviderFixture, nodes, waitFor } from './provider-fixture.mjs';
 
+for(const kind of ['harness','codex'])for(const representation of ['entities','instances'])test(`${kind}: parameterized ${representation} arrays use discovery, one approved plan and the real Document/History path`,{timeout:20000},async t=>{
+ const f=await behaviorFixture({script:'',declarative:false}),fixture=new ProviderFixture(kind),log=f.operationLog;
+ const backend=kind==='harness'?new HarnessApiKeyBackend({transport:fixture.harnessTransport(),clearApiKey:async()=>{}}):new CodexAppServerBackend({transport:fixture,isolatedCwd:f.directory});
+ const context=new PromptContextRuntime(log);await context.initialize();const registry=new AgentBackendRegistry();registry.register(backend);
+ const turns=new AgentTurnRuntime(registry,log,context),sessions=new DurableSessionRuntime(log),runtime={registry,turns,sessions,context,usage:turns.usage,accounting:new TaskAccountingRegistry(turns.usage)};
+ const catalog=new ToolCatalogRuntime(f.runtime.definitions(),()=>f.workspace.componentRegistry.snapshot().definitions);
+ const tools=new Proxy(f.runtime,{get(target,key){if(key==='selectDefinitions')return text=>catalog.selectDefinitions(text,[],MODEL_CORE_TOOL_IDS.length);const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
+ const host=new StudioConversationHost({runtime,tools,operationLog:log,isProjectOpen:()=>true,approvalPolicy:{current:()=> 'auto-review',async configure(){}},projectContext:()=>({...f.workspace.snapshot().document,documentId:f.workspace.gameSnapshot().id,manifest:{}})});
+ t.after(async()=>{await host.dispose();await turns.dispose();await sessions.dispose();await f.close();});
+ const revision=f.workspace.snapshot().document.revision,history=f.workspace.snapshot().history.entries.length,entityCount=f.workspace.gameSnapshot().entities.length;
+ let rootId;
+ fixture.program=async request=>{
+  const search=await request('call:array-search','tool.search',{text:'scene.populate',includeSchemas:true,limit:1}),match=search.value.matches[0];assert.equal(match.id,'scene.populate');
+  const args={toolId:match.id,toolVersion:match.version,arguments:{baseRevision:revision,arrayId:'provider_array',representation,layout:{kind:'grid',rows:representation==='instances'?20:2,columns:representation==='instances'?20:3},template:{kind:'rounded-box',color:[0,1,0,1]}}};
+  const denied=await request('call:array-before-plan',match.invocation.tool,args);assert.equal(denied.error.code,'plan.approval-required');
+  await request('call:array-plan','studio.plan.propose',{title:'Create a parameterized array',summary:'Populate the repeated layout as one reversible operation.',items:[{label:'Populate and inspect',details:'Use the parameterized array tool, then inspect the exact authoritative result.'}]});
+  const result=await request('call:array-populate',match.invocation.tool,args);assert.equal(result.status,'completed');assert.equal(result.afterRevision,revision+1);assert.equal(result.value.count,representation==='instances'?400:6);rootId=result.value.rootEntityId;
+ };
+ await host.initialize();await host.dispatch({type:'conversation/send',backendId:backend.descriptor.id,prompt:'Create a parameterized grid using the approved plan.'});
+ await waitFor(()=>fixture.error||nodes(host).some(n=>n.kind==='plan'&&n.status==='pending'),t.signal);if(fixture.error)throw fixture.error;
+ const plan=nodes(host).find(n=>n.kind==='plan'&&n.status==='pending');await host.dispatch({type:'conversation/accept-plan',nodeId:plan.id,acceptedItemIds:plan.content.items.map(i=>i.id),mode:'approve'});
+ await waitFor(()=>fixture.error||!host.replay().busy,t.signal);if(fixture.error)throw fixture.error;
+ assert.equal(fixture.finished,true);assert.equal(f.workspace.snapshot().history.entries.length,history+1);assert.equal(f.workspace.gameSnapshot().entities.length,entityCount+(representation==='instances'?1:7));
+ assert.ok(f.workspace.gameSnapshot().entities.some(e=>e.id===rootId));assert.equal(nodes(host).filter(n=>n.kind==='approval').length,0);
+ const replay=await sessions.replay(fixture.sessionId);assert.ok(replay.ops.some(op=>op.kind==='tool.started'&&op.payload.toolId==='scene.populate'&&op.payload.invokedVia===MODEL_TOOL_INVOKE_DEFINITION.id));
+});
+
 // Only provider transports are simulated. Search, policy, tools, analysis workers,
 // project storage, Document/History and durable execution records are production services.
 // Multiple compiler analyses and journal writes share one bounded test lifetime.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "inputDigest": "sha256:713330a8e1555944b897c935f768031922657b80590865fe9f6327aad4a22369",
+  "inputDigest": "sha256:c5bd03ed1faba0bee3593dd2ed5ab77e5c7eb3f5a6827a693948a8f8be539639",
   "environment": {
     "node": "v24.21.0",
     "platform": "win32",
@@ -9,8 +9,8 @@
   "build": {
     "command": "npm run build -w @haiyue/ai-studio",
     "exitCode": 0,
-    "durationMs": 63185,
-    "outputDigest": "sha256:6fbed57bb58d3c42d88df368df758d4395a602d189b7711a9b8c15a09b76d923"
+    "durationMs": 55239,
+    "outputDigest": "sha256:a539612c5a344f12ee76d59325cd46f16c1c360fc8b5c20b80dda8d14a6ee308"
   },
   "checks": [
     {
@@ -23,14 +23,14 @@
         "packages/editor-plugins/test/g05-document-v2.test.mjs",
         "packages/editor-plugins/test/g08-render-asset-components.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:05:38.449Z",
-      "durationMs": 775,
+      "startedAt": "2026-11-22T02:43:08.648Z",
+      "durationMs": 698,
       "exitCode": 0,
       "passed": 10,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:7af7c708ef33a069faeb05d551f400acaa3f044ffc03e44f1dbe32ed2feee876"
+      "outputDigest": "sha256:bc6b08c38667052147843785f9d2fbcf0b193a4f9e137e969c4f85ac2a274fc4"
     },
     {
       "id": "tools",
@@ -48,14 +48,14 @@
         "packages/game-authoring-tools/test/engine-docs.test.mjs",
         "apps/ai-studio/test/engine-documentation.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:05:39.224Z",
-      "durationMs": 37448,
+      "startedAt": "2026-11-22T02:43:09.347Z",
+      "durationMs": 33688,
       "exitCode": 0,
-      "passed": 39,
+      "passed": 43,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:42ed5d26786ffd84b7a7666eb2c3783648419ef07805d0c3d4136ae826fa167c"
+      "outputDigest": "sha256:92cffacabd043ef6b1e6c590fdb0b754b0d616e23a9aec5d54fb4064dec915fb"
     },
     {
       "id": "camera",
@@ -67,14 +67,14 @@
         "packages/editor-plugins/test/camera-authoring.test.mjs",
         "apps/ai-studio/test/camera-authoring.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:16.672Z",
-      "durationMs": 437,
+      "startedAt": "2026-11-22T02:43:43.035Z",
+      "durationMs": 367,
       "exitCode": 0,
       "passed": 3,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:e16f34b0c19b3b45c555b5d804738a829c3fe1a84e094d5319ae6dd087a84042"
+      "outputDigest": "sha256:64e5b7ff60e9a03c01ff9d79ee50e404f13eaf98590fae783aac4f29d8bb45b2"
     },
     {
       "id": "simulation",
@@ -86,14 +86,14 @@
         "apps/ai-studio/test/play-simulation.test.mjs",
         "apps/ai-studio/test/declarative-play-components.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:17.109Z",
-      "durationMs": 269,
+      "startedAt": "2026-11-22T02:43:43.402Z",
+      "durationMs": 232,
       "exitCode": 0,
       "passed": 6,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:cb27c5e370edcecf2b9779b02232e6f228bd67ed6bfef623f7b76b23eaa1e92e"
+      "outputDigest": "sha256:6a2495159c4537d90a009653c485945e72b712d596a152bd0bc7de7b2fca8fb6"
     },
     {
       "id": "physics",
@@ -105,14 +105,14 @@
         "packages/editor-plugins/test/g07-physics-components.test.mjs",
         "apps/ai-studio/test/g07-physics-runtime.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:17.378Z",
-      "durationMs": 760,
+      "startedAt": "2026-11-22T02:43:43.635Z",
+      "durationMs": 648,
       "exitCode": 0,
       "passed": 10,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:e0775ecacb0168d0f44a58ed9aa3c1160b78bd2b78e729101415d13980f305ad"
+      "outputDigest": "sha256:ff56a0c19ed649c160abaa17f809808b269105e8bc1855523ff52d93feedae32"
     },
     {
       "id": "render",
@@ -124,14 +124,14 @@
         "apps/ai-studio/test/g08-render-effects-runtime.test.mjs",
         "apps/ai-studio/test/preview-asset-transfer.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:18.138Z",
-      "durationMs": 669,
+      "startedAt": "2026-11-22T02:43:44.283Z",
+      "durationMs": 571,
       "exitCode": 0,
       "passed": 15,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:c904cdc722d9cbe4bc6e868ecbd044ea197d3bf59b6f0046d8257ab2fa2b50f9"
+      "outputDigest": "sha256:1fea2a7b72246d21af29b0db0b1cbc0ec433926425a7101126b1c887781e1dcd"
     },
     {
       "id": "scripts",
@@ -142,14 +142,14 @@
         "--test-reporter=tap",
         "packages/script-preview/test/script-preview.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:18.807Z",
-      "durationMs": 16137,
+      "startedAt": "2026-11-22T02:43:44.854Z",
+      "durationMs": 13432,
       "exitCode": 0,
       "passed": 11,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:2191bb6a838e71e5f8fb3167100d6e42424f2398123e437cc3b011c9f58b34c8"
+      "outputDigest": "sha256:ff31dd805eb0c15bb1c00cd9a277670871402214be26cf87e4c106dcb777a179"
     },
     {
       "id": "observations",
@@ -161,14 +161,14 @@
         "packages/game-authoring-tools/test/g10-observations.test.mjs",
         "apps/ai-studio/test/gameplay-observation-store.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:34.944Z",
-      "durationMs": 1026,
+      "startedAt": "2026-11-22T02:43:58.287Z",
+      "durationMs": 850,
       "exitCode": 0,
       "passed": 14,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:ee53c59538f057389f21a345571ee146008b8b47af5aa769de464c1004e9b1ba"
+      "outputDigest": "sha256:38ba19847603b0928a942e8ee29ea835b487027e5c70b23a03d091f6ee0d72dd"
     },
     {
       "id": "census-guards",
@@ -179,14 +179,14 @@
         "--test-reporter=tap",
         "scripts/m14-capability-census.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:35.971Z",
-      "durationMs": 1201,
+      "startedAt": "2026-11-22T02:43:59.137Z",
+      "durationMs": 931,
       "exitCode": 0,
       "passed": 16,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:f42e5ad88ce3c621e7c281bf380edf4f4f35f5aeffd86262265c60e59d712631"
+      "outputDigest": "sha256:79669e0ee52b075862ea3268743a3fe5af83745fae14cca7193ec1ea9961bffa"
     },
     {
       "id": "behavior-project-flow",
@@ -204,14 +204,14 @@
         "apps/ai-studio/test/logic-replay.test.mjs",
         "apps/ai-studio/test/logic-m12.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:06:37.172Z",
-      "durationMs": 24124,
+      "startedAt": "2026-11-22T02:44:00.068Z",
+      "durationMs": 21500,
       "exitCode": 0,
       "passed": 30,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:37d902f30874994a497b134406989817d2f9f0477051af426b998958d5ec2bc2"
+      "outputDigest": "sha256:730a50a0f8c123ea16588d091d427e04f2255165ce8a444c4378a2a9ce3e7d85"
     },
     {
       "id": "behavior-panel-window",
@@ -222,14 +222,14 @@
         "--test-reporter=tap",
         "apps/ai-studio/test/logic-panel-electron.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:07:01.296Z",
-      "durationMs": 2959,
+      "startedAt": "2026-11-22T02:44:21.568Z",
+      "durationMs": 2459,
       "exitCode": 0,
       "passed": 1,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:16e3c42928f22c456156034a514cf20ab1f6480f3d07a131e5eb3817dbf1bcf7"
+      "outputDigest": "sha256:ef920dce7b0f94ee23198c65804807620abc7e29d92895458dff5fc081d5bdcb"
     },
     {
       "id": "behavior-product-window",
@@ -240,14 +240,14 @@
         "--test-reporter=tap",
         "apps/ai-studio/test/logic-product-electron.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:07:04.255Z",
-      "durationMs": 73521,
+      "startedAt": "2026-11-22T02:44:24.027Z",
+      "durationMs": 75872,
       "exitCode": 0,
       "passed": 1,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:0d69e02fac726d7220d3c86f528c8dde9b211d16fb110d3d70c077f7c6e8b855"
+      "outputDigest": "sha256:9ba20deab228aa9f9a48d49e3c84752650e1b0701a7ae48c3529c64860c367f9"
     },
     {
       "id": "expandable-window",
@@ -258,14 +258,14 @@
         "--test-reporter=tap",
         "apps/ai-studio/test/expandable-electron.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:08:17.777Z",
-      "durationMs": 1599,
+      "startedAt": "2026-11-22T02:45:39.898Z",
+      "durationMs": 1500,
       "exitCode": 0,
       "passed": 1,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:7382318160fdb9901a3a93a302c8d6b5138bf7414cf7d0fb193b45cf0f3bd467"
+      "outputDigest": "sha256:134701a3beddfea401ce80ae55a69b8498710b59af13ea3982ba519da8de0ee3"
     },
     {
       "id": "task-checkpoint-continuation",
@@ -277,14 +277,14 @@
         "apps/ai-studio/test/g11-task-product.test.mjs",
         "packages/agent-orchestration/test/task-continuation.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:08:19.376Z",
-      "durationMs": 4899,
+      "startedAt": "2026-11-22T02:45:41.398Z",
+      "durationMs": 4494,
       "exitCode": 0,
       "passed": 25,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:72e955c5ab077a3e4e7631ff08d2a7aa44a34cc257d107027635c28e95e23637"
+      "outputDigest": "sha256:5ef827a5f125b1ff2673f157ee0e6c6ff3202c88798b37d07afa6ba6811bb860"
     },
     {
       "id": "agent-preview-handoff",
@@ -297,14 +297,14 @@
         "apps/ai-studio/test/agent-preview-ui-electron.test.mjs",
         "apps/ai-studio/test/agent-poll-scheduler.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:08:24.275Z",
-      "durationMs": 2330,
+      "startedAt": "2026-11-22T02:45:45.893Z",
+      "durationMs": 2233,
       "exitCode": 0,
       "passed": 17,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:73863dac34a96776258ea9c97f319f3eaab2953c1f7a8b4a7cb6ee81e9c9efde"
+      "outputDigest": "sha256:9fcee6fcfbca1a18df896ec0eca8cf8440bb426e6655285cfff54002affa1529"
     },
     {
       "id": "budget-checkpoint-recovery",
@@ -315,14 +315,14 @@
         "--test-reporter=tap",
         "apps/ai-studio/test/g07-barrier-restart.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:08:26.605Z",
-      "durationMs": 5862,
+      "startedAt": "2026-11-22T02:45:48.126Z",
+      "durationMs": 5596,
       "exitCode": 0,
-      "passed": 18,
+      "passed": 19,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:0b57fb077a038effd16988f57cb50e0310c925c4c23fda236fe9b049c99ad580"
+      "outputDigest": "sha256:d8d8a52a8bd12a2082acde0d18c5fda491eb2de88b837259eb1b2fea2b10d8bf"
     },
     {
       "id": "execution-status",
@@ -335,14 +335,14 @@
         "apps/ai-studio/test/execution-graph-context-ui.test.mjs",
         "apps/ai-studio/test/execution-graph-electron.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:08:32.467Z",
-      "durationMs": 4791,
+      "startedAt": "2026-11-22T02:45:53.722Z",
+      "durationMs": 4301,
       "exitCode": 0,
       "passed": 31,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:b1e8b3ebcd51c27c141d4da493a7c1be6809722aaaebe7d53be5cb4ae1b274a0"
+      "outputDigest": "sha256:f4818b8eab12f7f5fcf28d0f8a4ec0acd12f4dc0ccaa92d3f988f3ab8ef7eeeb"
     },
     {
       "id": "pointer-gestures",
@@ -356,14 +356,36 @@
         "packages/game-authoring-tools/test/runtime.test.mjs",
         "packages/agent-runtime/test/g10-retrieval.test.mjs"
       ],
-      "startedAt": "2026-11-21T04:08:37.258Z",
-      "durationMs": 37388,
+      "startedAt": "2026-11-22T02:45:58.023Z",
+      "durationMs": 34521,
       "exitCode": 0,
-      "passed": 102,
+      "passed": 109,
       "failed": 0,
       "skipped": 0,
       "cancelled": 0,
-      "outputDigest": "sha256:511e1f1cbde82039bf471e584750b06b8c3699ed14c613c1be3b63af8d5a48f2"
+      "outputDigest": "sha256:d7c0e28578cd91d8c71998022d642ed2b91dea2ec02d85e2c97ccd6a7b40500f"
+    },
+    {
+      "id": "parametric-arrays",
+      "kind": "local-check",
+      "args": [
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "packages/studio-contracts/test/parametric-array.test.mjs",
+        "apps/ai-studio/test/parametric-array-electron.test.mjs",
+        "packages/game-authoring-tools/test/g10-tool-catalog.test.mjs",
+        "packages/agent-orchestration/test/p1-intent.test.mjs",
+        "apps/ai-studio/test/plane-geometry.test.mjs"
+      ],
+      "startedAt": "2026-11-22T02:46:32.544Z",
+      "durationMs": 23338,
+      "exitCode": 0,
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "outputDigest": "sha256:a25873a8e996ffc594b0b889dc997fa75181b6a7f4f57e98ed803ce76545585e"
     }
   ]
 }

@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import { BUILTIN_COMPONENT_DEFINITIONS } from '@haiyue/ai-studio-editor-plugins';
 import { GAME_AUTHORING_TOOL_DEFINITIONS, MODEL_CORE_TOOL_IDS, ToolCatalogRuntime, GameAuthoringToolRuntime } from '../dist/index.js';
 
+test('parameterized arrays are discovered in both languages and retain priority under a tight schema budget',()=>{
+ const catalog=new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS,()=>BUILTIN_COMPONENT_DEFINITIONS);
+ for(const request of ['Create a repeated grid with many instances.','创建一个按行列布局的实例化阵列'])assert.ok(catalog.selectDefinitions(request,[],MODEL_CORE_TOOL_IDS.length+1).selectedIds.includes('scene.populate'));
+ assert.ok(catalog.search('参数化阵列 网格 行列 实例化',{limit:12}).some(item=>item.id==='scene.populate'));
+ for(const request of ['只检查网格，不要修改项目','不要新增实体，只修改已有棋盘的外观'])assert.equal(catalog.selectDefinitions(request).selectedIds.includes('scene.populate'),false);
+ const full=catalog.selectDefinitions('Create a repeated grid with keyboard input, food collision, script behavior, camera, deterministic play input, inspect and screenshot evidence.');
+ for(const id of ['scene.populate','script.propose','play.inspect','play.input','play.capture'])assert.ok(full.selectedIds.includes(id),id);
+ assert.ok(full.selectedIds.length<=MODEL_CORE_TOOL_IDS.length+8);
+});
+
 test('registry-owned hybrid catalog finds semantic capabilities across Chinese and English queries', () => {
   const catalog = new ToolCatalogRuntime(GAME_AUTHORING_TOOL_DEFINITIONS, () => BUILTIN_COMPONENT_DEFINITIONS);
   const camera = catalog.search('修改镜头视角，让相机正交俯视并跟随目标', { limit: 12, includeSchemas: true });

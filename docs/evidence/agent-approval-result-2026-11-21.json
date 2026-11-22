@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-21",
+  "inputDigest": "sha256:20be72295adc818e7547aad58832a5d34eb8c42e4aa8ef1f913e0cdea15c6696",
+  "audit": {
+    "project": "match3",
+    "readOnly": true,
+    "events": 10357,
+    "toolPreparations": 197,
+    "approvalRequestEvents": 58,
+    "allowAlwaysDecisions": 27,
+    "componentConfigureAllowAlways": 23,
+    "distinctComponentTargets": 23,
+    "componentBackendSessions": 1,
+    "requestEventsIncludeRepreparation": true
+  },
+  "behavior": {
+    "default": "auto-review",
+    "configurationOwner": "device",
+    "automaticScope": "approved-task-local-reversible-edit-medium",
+    "explicitScopes": [
+      "first-runtime-start",
+      "changed-executable-set",
+      "external-side-effect",
+      "budget-expansion"
+    ],
+    "grantScope": "project-tool",
+    "legacyGrantsExpanded": false
+  },
+  "verification": {
+    "capability": {
+      "groups": 18,
+      "passed": 351,
+      "failed": 0
+    },
+    "rootCheck": {
+      "command": "npm run check",
+      "exitCode": 1,
+      "collectedFiles": 83,
+      "tests": 506,
+      "passed": 505,
+      "failed": 1,
+      "skipped": 0,
+      "cancelled": 0,
+      "failedFiles": [
+        {
+          "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+          "log": "collected-22.tap",
+          "elapsedMs": 32601,
+          "exitCode": 1,
+          "tests": 1,
+          "passed": 0,
+          "failed": 1,
+          "skipped": 0,
+          "cancelled": 0
+        }
+      ]
+    },
+    "secretScan": {
+      "passed": true,
+      "files": 674,
+      "bytes": 406000946,
+      "crashDumps": 0
+    },
+    "realElectronApprovalPreference": true,
+    "durableGrantRecovery": true
+  },
+  "limitation": {
+    "reason": "Existing frozen hardware assertion; performance acceptance not obtained.",
+    "requiredCpu": "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz",
+    "actualCpu": "Intel(R) Core(TM) i7-14700KF",
+    "baseline": "docs/evidence/dependency-upgrade-result-2026-11-21.md",
+    "hardwareGateWeakened": false,
+    "livePaidModelGeneration": false
+  },
+  "artifacts": {
+    "rootLog": ".cache/approval-audit/check.log",
+    "rootLogSha256": "82770edde77790131efc74fb17708db539dca7e914a79c0343a93d8b183b1c96",
+    "integrationArchive": ".cache/approval-audit/integration-output",
+    "policy": "docs/adr/0004-project-edit-approval-policy.md"
+  }
+}

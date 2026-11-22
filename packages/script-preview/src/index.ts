@@ -327,10 +327,11 @@ interface HaiyueScriptSceneApi {
    * for a root Cartesian gameplay camera. Disable camera.follow. No DOM or native constructors are exposed.
    * Actual results are in play.inspect state.camera; this never changes the persisted authoring camera. */
   orbitControls(options?: HaiyueStudioOrbitOptions): void;
-  /** Fixed maximum capacity, supplied as a literal or const-only numeric expression.
+  /** Omit capacity for an authored scene.populate instance array: its persisted recipe supplies a fixed Play capacity.
+   * Ordinary mesh templates require a capacity literal or const-only numeric expression.
    * Capacity cannot change during Play; use setCount for the active instance count.
    * Instance positions are world-space; rotationDegrees is in degrees. The source mesh supplies geometry/material, not an extra parent transform. */
-  instances(entity: Entity | number | string, capacity: number): HaiyueStudioInstanceSet;
+  instances(entity: Entity | number | string, capacity?: number): HaiyueStudioInstanceSet;
   /** Create or update responsive text in the Play HUD. Reusing id updates in place. */
   hudText(id: string, text: string, options?: HaiyueStudioHudTextOptions): void;
   removeHudText(id: string): void;

@@ -211,6 +211,7 @@ export function normalizeAssemblyExpectations(value: unknown): readonly JsonObje
   return structuredClone(rows);
 }
 export function assertAssemblyPlan(document: GameDocumentV2, expectations: readonly JsonObject[], toolId: string, args: JsonObject): void {
+  if(expectations.length&&toolId==='scene.populate')fail('prototype-required','The approved plan requires composite assemblies. Use assembly.create/inspect/instantiate or prefab, rather than flattening their parts into a primitive array.');
   normalizeAssemblyExpectations(expectations);
   if (!expectations.length) return;
   if (toolId === 'assembly.create') {

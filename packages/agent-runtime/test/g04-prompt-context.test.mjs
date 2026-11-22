@@ -16,11 +16,11 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   const second = new PromptModuleRegistry().profile;
   assert.deepEqual(first, second);
   assert.equal(first.id, 'prompt:game-authoring-general');
-  assert.equal(first.version, '3.10.0');
+  assert.equal(first.version, '3.12.0');
   assert.deepEqual(first.modules.map(({ id, version, layer }) => ({ id, version, layer })), [
     { id: 'prompt.policy.safe-authoring', version: '1.0.0', layer: 'policy' },
-    { id: 'prompt.tools.structured-effects', version: '1.1.0', layer: 'tool-contract' },
-    { id: 'prompt.workflow.general-authoring', version: '1.7.0', layer: 'workflow' },
+    { id: 'prompt.tools.structured-effects', version: '1.2.0', layer: 'tool-contract' },
+    { id: 'prompt.workflow.general-authoring', version: '1.8.0', layer: 'workflow' },
     { id: 'prompt.workflow.bounded-tool-batch', version: '1.0.0', layer: 'workflow' },
   ]);
   const production = first.modules.map((entry) => entry.content).join('\n').toLowerCase();
@@ -28,7 +28,10 @@ test('prompt profile is deterministic, versioned and genre neutral', () => {
   assert.match(production, /choose evidence per acceptance criterion/);
   assert.match(production, /instead of screenshotting every test/);
   assert.match(production, /drop visual requirements/);
-  assert.equal(first.digest, 'sha256:baf4efb35c621a19f74dd16d03f321cac75a88832db582cefe9ba08a34132f2c');
+  assert.equal(first.digest, 'sha256:3a996a423bab2225426d3f6ca3ff003cb1768b4566cc1938db5889a927cb1ba1');
+  assert.match(production,/choose instances for many homogeneous visuals/);
+  assert.match(production,/choose entities when cells need independently editable components/);
+  assert.match(production,/api.scene.instances\(rootentityid\) without a hard-coded capacity/);
 });
 
 test('same revision reuses a live session by reference, changed revision sends only a delta, and restart rebuilds the same summary/context digest', async () => {

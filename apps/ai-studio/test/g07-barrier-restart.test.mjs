@@ -87,6 +87,7 @@ test('a long durable plan releases the provider call and preserves task tools fo
     assert.equal(suspended.payload.diagnostic, 'barrier.waiting-user');
     const pausedTurn = (await sessions.replay(sessionId)).ops.find(op => op.kind === 'turn.completed');
     assert.equal(pausedTurn.payload.suspendedBarrierId, pending.id);
+    await waitFor(() => host.replay().executionGraphs.flatMap(graph => graph.nodes).find(node => node.kind === 'turn')?.status === 'waiting');
     assert.equal(host.replay().executionGraphs.flatMap(graph => graph.nodes).find(node => node.kind === 'turn').status, 'waiting');
     assert.match(suspended.payload.reason, /等待用户确认/);
     assert.match(host.replay().executionGraphs.flatMap(graph => graph.nodes).find(node => node.detail.toolId === 'studio.plan.propose').detail.reason, /等待用户确认/);
@@ -139,7 +140,7 @@ test('approved plan commits validated scripts without a second human approval', 
   }
 });
 
-test('durable mutation approval releases its turn, reuses the scoped grant, and executes once in a continuation', async () => {
+for (const decision of ['allow-once', 'allow-always']) test(`durable mutation ${decision} releases its turn and reuses only the correct scoped grant`, async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'haiyue-g07-approval-release-'));
   const log = await OperationLog.open({ rootDirectory: root, appVersion: 'g07-test', flushPolicy: 'always' });
   const sessions = new DurableSessionRuntime(log);
@@ -147,6 +148,10 @@ test('durable mutation approval releases its turn, reuses the scoped grant, and 
   try {
     const runtime = approvalReleaseRuntime(sessions);
     const tools = approvalTools();
+    if (decision === 'allow-always') {
+      const original = tools.approval;
+      tools.approval = id => { const approval = original(id); return approval ? { ...approval, reusableScope:'project-tool', reusableScopeDigest:`sha256:${'d'.repeat(64)}` } : null; };
+    }
     host = new StudioConversationHost({ runtime, tools, operationLog: log, sessionRecovery: { async recover() {} }, projectContext: () => ({ projectId: 'project:g07-release', documentId: 'document:g07-release', revision: 1, name: 'Release fixture', dirty: false, selectedEntityId: null, sceneDigest: `sha256:${'2'.repeat(64)}`, scriptDigest: `sha256:${'3'.repeat(64)}`, capabilityDigest: `sha256:${'4'.repeat(64)}`, capabilityManifest: {}, projectSummary: {} }) });
     await host.initialize();
     await host.dispatch({ type: 'conversation/send', backendId, prompt: 'Approve a plan, then create one cube.' });
@@ -156,10 +161,17 @@ test('durable mutation approval releases its turn, reuses the scoped grant, and 
     await waitFor(() => host.replay().busy === false && runtime.startCalls === 2 && latestNode(host, 'approval', 'pending'));
     const approval = latestNode(host, 'approval', 'pending');
     assert.equal(runtime.activeCalls, 0); assert.equal(tools.executeCalls, 0);
-    await host.dispatch({ type: 'conversation/resolve-approval', approvalId: approval.content.approvalId, decision: 'allow-once' });
+    if (decision === 'allow-always') {
+      await host.dispose();
+      host = new StudioConversationHost({ runtime, tools, operationLog:log, sessionRecovery:{async recover(){}}, projectContext:()=>({projectId:'project:g07-release',documentId:'document:g07-release',revision:1}) });
+      await host.initialize();
+    }
+    await host.dispatch({ type: 'conversation/resolve-approval', approvalId: approval.content.approvalId, decision });
     await waitFor(() => host.replay().busy === false && runtime.startCalls === 3 && tools.executeCalls === 1);
     assert.equal(runtime.activeCalls, 0); assert.equal(runtime.maxActiveCalls, 1); assert.equal(runtime.cancelCalls, 2);
-    assert.equal(latestNode(host, 'approval', 'completed').content.decision, 'allow-once');
+    assert.equal(latestNode(host, 'approval', 'completed').content.decision, decision);
+    const consumed = await log.query({kinds:['conversation/approval-grant-consumed'],limit:10,traverseCorrelation:false});
+    assert.equal(consumed.events.length, decision === 'allow-always' ? 0 : 1);
     const grantFacts = await log.query({ kinds: ['conversation/approval-grant-reused'], limit: 10, traverseCorrelation: false });
     assert.equal(grantFacts.events.length, 1);
     const replay = await sessions.replay('session:approval-rotated-3'); assert.deepEqual(replay.recovery.unresolvedBarrierIds, []);
