@@ -1,6 +1,12 @@
 :root { color-scheme: dark; font: 13px Inter, ui-sans-serif, system-ui; background: #0c1118; color: #dce7f2; }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
+#project-loading { position: fixed; inset: 0; z-index: 20000; display: grid; place-items: center; background: #080e18aa; cursor: wait; outline: none; }
+#project-loading[hidden] { display: none; }
+.project-loading-card { display: flex; align-items: center; gap: 14px; padding: 22px 28px; border: 1px solid #334458; border-radius: 10px; background: #151f2b; color: #e5effa; box-shadow: 0 12px 48px #0006; }
+.project-loading-spinner { width: 26px; height: 26px; border: 3px solid #334458; border-top-color: #71b7ff; border-radius: 50%; animation: project-loading-spin .8s linear infinite; }
+@keyframes project-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .project-loading-spinner { animation: none; } }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { border: 1px solid #334458; background: #192331; border-radius: 5px; padding: 6px 10px; cursor: pointer; }
 button:hover { background: #243247; }

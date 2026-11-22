@@ -24,6 +24,24 @@ test('G10 persists bounded state and PNG observations before returning reference
   assert.equal(stored.value.payload.base64, png.toString('base64'));
 });
 
+test('retained evidence reads are ranged, task scoped, restartable and keep screenshot bytes out of text',async t=>{
+ const f=await createFixture(t);
+ const state=await f.repository.persistState(call,observation({message:'中'.repeat(12000),score:3}));
+ const reader=new PlayObservationRepository(f.log);
+ const first=await reader.readEvidence(call,{artifactId:state.artifact.id,length:128},8);
+ assert.equal(first.text.length,128);assert.equal(first.nextOffset,128);assert.equal(first.provenanceStatus,'stale');
+ const next=await reader.readEvidence(call,{artifactId:state.artifact.id,offset:first.nextOffset,length:128},7);
+ assert.equal(next.provenanceStatus,'current');assert.equal(next.offset,128);
+ await assert.rejects(reader.readEvidence({...call,taskId:'task:foreign'},{artifactId:state.artifact.id},7),e=>e.code==='observation.task-mismatch');
+ await assert.rejects(reader.readEvidence(call,{artifactId:state.artifact.id,length:20000},7),e=>e.code==='observation.range-invalid');
+ const unrelated=await f.log.putArtifact({privateRecord:'not an observation'});
+ await assert.rejects(reader.readEvidence(call,{artifactId:unrelated.id},7));
+ const png=Buffer.from([137,80,78,71,13,10,26,10]);
+ const image=await f.repository.persistCapture(call,{...observation({}),mediaType:'image/png',byteLength:png.length,base64:png.toString('base64')});
+ const metadata=await reader.readEvidence(call,{artifactId:image.artifact.id},7);
+ assert.equal(metadata.image.mediaType,'image/png');assert.ok(!JSON.stringify(metadata).includes(png.toString('base64')));assert.match(metadata.instruction,/not a visual verdict/);
+});
+
 test('G10 rejects oversized, missing, stale and mixed-provenance evidence fail closed', async (t) => {
   const fixture = await createFixture(t);
   const tooLarge = { ...observation({}), mediaType: 'image/png', byteLength: 376 * 1024 + 1, base64: '' };

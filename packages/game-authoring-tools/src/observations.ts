@@ -96,6 +96,24 @@ export class PlayObservationRepository {
 
   usage(taskId: StableId): number { return this.taskBytes.get(taskId) ?? 0; }
 
+  /** Read only this task's validated observation envelope, never arbitrary CAS data. */
+  async readEvidence(call: GameToolCall, args: JsonObject, currentRevision: number): Promise<JsonObject> {
+    const { artifact, payload } = await this.read(asStableId(String(args.artifactId)));
+    if (artifact.taskId !== taskIdFor(call)) throw new GameToolProtocolError('observation.task-mismatch', 'Evidence belongs to another task; use a reference returned for the current task.');
+    const metadata: JsonObject = { artifact: artifact as unknown as JsonObject, provenanceStatus: artifact.documentRevision === currentRevision ? 'current' : 'stale', currentRevision };
+    // Binary image bytes are not meaningful text evidence. Keep the original PNG in the task viewer.
+    if (artifact.type === 'screenshot') {
+      if (!isRecord(payload) || payload.mediaType !== 'image/png' || typeof payload.base64 !== 'string') throw new GameToolProtocolError('observation.screenshot-invalid', 'Invalid stored screenshot.');
+      const bytes = decodeBase64(payload.base64);
+      const size: JsonObject = bytes.length >= 24 ? { width: new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength).getUint32(16), height: new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength).getUint32(20) } : {};
+      return { ...metadata, image: { mediaType: 'image/png', byteLength: payload.byteLength ?? bytes.length, ...size }, instruction: 'The original PNG is retained in task evidence for visual review. This is image metadata, not a visual verdict. Use state/event-trace evidence for behavior; do not read base64 as text or recapture to recover it.' };
+    }
+    const text = canonicalStringify(payload), offset = Number(args.offset ?? 0), length = Number(args.length ?? 4096);
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > text.length || !Number.isSafeInteger(length) || length < 1 || length > 8192) throw new GameToolProtocolError('observation.range-invalid', 'Use offset within the observation and length 1–8192; follow nextOffset for subsequent ranges.');
+    const end = Math.min(text.length,offset+length);
+    return {...metadata,offset,nextOffset:end<text.length?end:null,characters:text.length,text:text.slice(offset,end),untrusted:true};
+  }
+
   private async persist(taskId: StableId, envelope: StoredObservationEnvelope, projection: JsonObject | null): Promise<PersistedObservation> {
     const estimatedBytes = new TextEncoder().encode(canonicalStringify(envelope)).byteLength;
     const used = this.taskBytes.get(taskId) ?? 0;

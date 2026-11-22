@@ -456,10 +456,22 @@ export class StudioIpcRouter {
   }
 
   private async replaceProject<T>(reason: string, action: () => Promise<T>): Promise<T> {
+    const started=performance.now();
     this.cancelProjectAgentState(reason);
     await this.options.conversation.prepareProjectChange?.();
-    try { return await action(); }
-    finally { this.options.behavior?.syncProject(); await this.options.conversation.syncProject?.(); }
+    const prepared=performance.now();let outcome='failed';
+    try { const result=await action();outcome='completed';return result; }
+    finally {
+      const loaded=performance.now();
+      try { this.options.behavior?.syncProject(); await this.options.conversation.syncProject?.(); }
+      catch(cause){outcome='failed';throw cause;}
+      finally {
+        const ready=performance.now(),document=this.options.workspace.snapshot().document;
+        await this.options.operationLog.append({kind:'project/load-performance',severity:'info',source:asStableId('studio.ipc'),
+          correlation:document?{projectId:document.projectId}: {},
+          payload:{operation:reason,outcome,totalMs:Math.round(ready-started),prepareMs:Math.round(prepared-started),documentMs:Math.round(loaded-prepared),historyMs:Math.round(ready-loaded)}}).catch(()=>undefined);
+      }
+    }
   }
 
   private cancelProjectAgentState(reason: string): void {

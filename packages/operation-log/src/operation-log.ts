@@ -52,6 +52,8 @@ interface SegmentState {
   bytes: number;
 }
 
+interface PreparedAppend { readonly event: DurableOperationEvent; readonly body: string; readonly bytes: number; }
+
 interface CursorPayload {
   readonly version: 1;
   readonly queryDigest: string;
@@ -156,20 +158,39 @@ export class OperationLog {
   }
 
   append(input: OperationEventInput, options: AppendOptions = {}): Promise<DurableOperationEvent> {
-    let resolveResult!: (event: DurableOperationEvent) => void;
-    let rejectResult!: (cause: unknown) => void;
-    const result = new Promise<DurableOperationEvent>((resolve, reject) => {
-      resolveResult = resolve;
-      rejectResult = reject;
+    return this.serializeAppend(async () => {
+      const event = await this.appendInternal(input, options);
+      for (const observer of this.appendObservers) await observer(event);
+      return event;
     });
-    this.appendTail = this.appendTail.then(async () => {
-      try {
-        const event = await this.appendInternal(input, options);
-        for (const observer of this.appendObservers) await observer(event);
-        resolveResult(event);
+  }
+
+  /** Portable journal replication only. Each bounded group is synced before publication or observer delivery. */
+  importEvents(inputs: readonly DurableOperationEvent[], options: AppendOptions = {}): Promise<readonly DurableOperationEvent[]> {
+    return this.serializeAppend(async () => {
+      if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > 128 || inputs.some(input => input.schemaVersion !== 1 || !input.correlation.projectId)) throw new OperationLogError('import-batch-invalid','Import requires 1–128 validated project-scoped journal facts.');
+      const verified = new Set<StableId>(), records: PreparedAppend[] = [];
+      for (const input of inputs) records.push(await this.prepareAppend(input,options,this.nextSequence+records.length,verified));
+      const result: DurableOperationEvent[] = [];
+      let group: PreparedAppend[] = [], bytes = 0;
+      const commit = async (): Promise<void> => {
+        if (!group.length) return;
+        throwIfAborted(options.signal);
+        await this.writePrepared(group,true);
+        for (const {event} of group) { for (const observer of this.appendObservers) await observer(event); result.push(event); }
+        group = []; bytes = 0;
+      };
+      for (const record of records) {
+        if (group.length && bytes+record.bytes > Math.min(this.maxSegmentBytes,1024*1024)) await commit();
+        group.push(record); bytes+=record.bytes;
       }
-      catch (cause) { rejectResult(cause); }
+      await commit(); return Object.freeze(result);
     });
+  }
+
+  private serializeAppend<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.appendTail.then(work);
+    this.appendTail = result.then(() => undefined, () => undefined);
     return result;
   }
 
@@ -458,12 +479,17 @@ export class OperationLog {
   }
 
   private async appendInternal(input: OperationEventInput, options: AppendOptions): Promise<DurableOperationEvent> {
+    const record = await this.prepareAppend(input,options,this.nextSequence);
+    await this.writePrepared([record],this.flushPolicy === 'always');
+    return record.event;
+  }
+
+  private async prepareAppend(input: OperationEventInput, options: AppendOptions, sequence: number, verified?: Set<StableId>): Promise<PreparedAppend> {
     this.assertWritable();
     throwIfAborted(options.signal);
     assertNoHiddenReasoningKind(input.kind);
     if (!/^[a-z][a-z0-9./-]{2,95}$/.test(input.kind)) throw new OperationLogError('invalid-event-kind', `Invalid event kind ${input.kind}.`);
     asStableId(input.source, 'event source');
-    const sequence = this.nextSequence;
     const redacted = redactObject(input.payload, input.redaction);
     const payloadBody = canonicalStringify(redacted.value);
     const payloadBytes = Buffer.byteLength(payloadBody);
@@ -471,7 +497,7 @@ export class OperationLog {
       throw new OperationLogError('payload-too-large', `Payload is ${payloadBytes} bytes; maximum is ${this.maxPayloadBytes}.`);
     }
     const artifactRefs = Object.freeze([...(input.artifactRefs ?? [])]);
-    for (const artifactId of artifactRefs) await this.readArtifact(artifactId);
+    for (const artifactId of artifactRefs) if (!verified?.has(artifactId)) { await this.readArtifact(artifactId); verified?.add(artifactId); }
     throwIfAborted(options.signal);
     const event: DurableOperationEvent = Object.freeze({
       schemaVersion: 1,
@@ -494,6 +520,11 @@ export class OperationLog {
     const record: JournalRecordV1 = Object.freeze({ ...base, checksum: sha256(canonicalStringify(base as unknown as Readonly<Record<string, unknown>>)) });
     const body = `${canonicalStringify(record as unknown as Readonly<Record<string, unknown>>)}\n`;
     const bytes = Buffer.byteLength(body);
+    return {event,body,bytes};
+  }
+
+  private async writePrepared(records: readonly PreparedAppend[], sync: boolean): Promise<void> {
+    const bytes = records.reduce((sum,record)=>sum+record.bytes,0), sequence = records[0]!.event.sequence;
     await this.rotateIfNeeded(bytes);
     await this.enforceQuota(bytes);
     const segment = this.activeSegment();
@@ -501,8 +532,8 @@ export class OperationLog {
       await this.faultInjector?.('before-journal-write', bytes);
       const handle = await open(path.join(this.journalDirectory, segment.name), 'a');
       try {
-        await handle.write(body);
-        if (this.flushPolicy === 'always') await handle.sync();
+        await handle.writeFile(records.map(record=>record.body).join(''));
+        if (sync) await handle.sync();
       } finally {
         await handle.close();
       }
@@ -512,17 +543,18 @@ export class OperationLog {
       throw new OperationLogError('journal-write-failed', 'Durable journal append failed; protected operations are disabled.', { cause });
     }
     segment.bytes += bytes;
-    const stored = { segment: segment.name, event };
-    this.events.push(stored);
-    this.indexCorrelationEvent(stored);
-    if (this.learnProjectCoordinates(event)) this.rebuildProjectIndex();
-    else this.indexProjectEvent(stored);
-    this.nextSequence += 1;
+    for (const {event} of records) {
+      const stored = { segment: segment.name, event };
+      this.events.push(stored);
+      this.indexCorrelationEvent(stored);
+      if (this.learnProjectCoordinates(event)) this.rebuildProjectIndex();
+      else this.indexProjectEvent(stored);
+      this.nextSequence += 1;
+    }
     this.indexDirty = true;
-    if (this.nextSequence % INDEX_CHECKPOINT_INTERVAL === 0) {
+    if (Math.floor(this.nextSequence / INDEX_CHECKPOINT_INTERVAL) > Math.floor(sequence / INDEX_CHECKPOINT_INTERVAL)) {
       await this.checkpointIndex('index-write-failed', 'Derived index checkpoint failed after durable append', sequence, segment.name);
     }
-    return event;
   }
 
   private normalizeProvenance(value: Partial<OperationProvenance>): OperationProvenance {

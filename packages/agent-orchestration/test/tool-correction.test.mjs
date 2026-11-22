@@ -101,6 +101,30 @@ test('ending after a correctable tool failure schedules a budgeted continuation 
   assert.equal(charged(), 2);
 });
 
+test('zhuoqiu mixed read and regression errors continue within budget, including legacy untyped read failures',()=>{
+ for(const read of [{code:'result.arguments-invalid',message:'length must be at most 8192'},{code:'conversation.operation-failed',message:'result.arguments-invalid'}]){
+  const f=fixture(5);f.host.active.toolFailures.clear();
+  for(const error of [{toolId:'studio.result.read',...read},{toolId:'task.evaluate',code:'interaction.regression-incomplete',message:'Replay eight-ball-shot'}])f.host.active.toolFailures.set(error.toolId,{...error,retryable:false});
+  f.host.active.blockers=[...f.host.active.toolFailures.values()].map(e=>`${e.toolId}: ${e.code}`);
+  assert.equal(f.request(),true);assert.equal(f.charged(),1);assert.match(f.host.active.continuationInstruction,/play.evidence.read/);assert.match(f.host.active.continuationInstruction,/correct/);
+ }
+});
+
+test('corrected Play evidence read clears only a matching misrouted result read, preserving other failures',async()=>{
+ const {host}=fixture();host.active.toolFailures.clear();host.active.blockers=[];
+ host.options.runtime.turns={async recordToolResult(){}};host.recordTaskAccounting=async()=>{};host.appendToolSessionOp=async()=>{};host.project=()=>{};
+ const artifactId=`artifact:sha256:${'a'.repeat(64)}`;
+ host.active.toolFailures.set('studio.result.read',{toolId:'studio.result.read',code:'result.arguments-invalid',message:'length invalid',retryable:false,artifactId});
+ host.active.blockers=['studio.result.read: result.arguments-invalid','task.evaluate: interaction.regression-incomplete'];
+ host.active.toolFailures.set('task.evaluate',{toolId:'task.evaluate',code:'interaction.regression-incomplete',message:'pending',retryable:false});
+ const context={toolId:'play.evidence.read',toolCallId:'call:read',toolNodeId:'node:read',args:{artifactId},node:{outputProjection:'full'},event:{backendId:'backend:test',sessionId:'session:test',turnId:'turn:test'},provenance:{},backend:{async submitToolResult(){}}};
+ const body={status:'completed',backendResult:{status:'completed',value:{text:'verified'}},toolCallStatus:'completed',toolCallContent:{},resultStatus:'completed',resultContent:{summary:'read'},resultValue:{text:'verified'},fact:null,blocker:null,mutation:false,cancelTurnAfterCommit:false,latencyMs:1,finishedAt:new Date().toISOString()};
+ await host.commitToolBody({outputBytes:0,bodies:[]},{...context,args:{artifactId:`artifact:sha256:${'b'.repeat(64)}`}},body,new AbortController().signal);
+ assert.equal(host.active.toolFailures.has('studio.result.read'),true);
+ await host.commitToolBody({outputBytes:0,bodies:[]},context,body,new AbortController().signal);
+ assert.equal(host.active.toolFailures.has('studio.result.read'),false);assert.equal(host.active.toolFailures.has('task.evaluate'),true);assert.deepEqual(host.active.blockers,['task.evaluate: interaction.regression-incomplete']);
+});
+
 test('backend completion enters correction before the task is marked blocked', async () => {
   const {host}=fixture();host.commitContext=async()=>{};
   await host.captureEvent({}, {kind:'completed', backendId:'backend:test',sessionId:'session:test',turnId:'turn:test',payload:{status:'completed'}}, new AbortController().signal);

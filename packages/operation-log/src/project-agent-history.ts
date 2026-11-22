@@ -59,15 +59,26 @@ export class ProjectAgentHistory {
     // Import portable records before opening Session handles. Their per-session sequences and IDs remain intact.
     const global = await allEvents(this.options.source);
     const known = new Map(global.map(event => [event.eventId, event]));
+    const copiedArtifacts = new Set<StableId>();
+    const transfers = new Map<StableId,Promise<boolean>>(), imported: DurableOperationEvent[] = [];
     for (const event of local) {
       const existing = known.get(event.eventId);
       if (existing) {
         if (existing.payloadDigest !== event.payloadDigest || existing.kind !== event.kind) throw new OperationLogError('project-history.event-conflict', 'A project history event conflicts with the local journal.');
         continue;
       }
-      await copyArtifacts(event, this.journal, this.options.source);
-      await this.options.source.append(event);
+      imported.push(event);
       known.set(event.eventId, event);
+    }
+    for(let start=0;start<imported.length;start+=128){
+      const group=imported.slice(start,start+128);let cursor=0;
+      // Independent immutable artifacts may transfer concurrently; journal order remains exact.
+      const workers=await Promise.allSettled(Array.from({length:Math.min(8,group.length)},async()=>{
+        while(cursor<group.length)await copyArtifacts(group[cursor++]!,this.journal,this.options.source,copiedArtifacts,transfers);
+      }));
+      const failure=workers.find((result):result is PromiseRejectedResult=>result.status==='rejected');
+      if(failure)throw failure.reason;
+      await this.options.source.importEvents(group);
     }
     // Learn ownership first: a historical projection may precede its durable Session creation.
     for (const event of global) this.learnSession(event);
@@ -234,16 +245,25 @@ async function allEvents(log: OperationLog): Promise<readonly DurableOperationEv
   return events;
 }
 
-async function copyArtifacts(event: DurableOperationEvent, source: OperationLog, destination: OperationLog): Promise<void> {
+async function copyArtifacts(event: DurableOperationEvent, source: OperationLog, destination: OperationLog, copied?: Set<StableId>, transfers?: Map<StableId,Promise<boolean>>): Promise<void> {
   const visited = new Set<string>();
   async function copy(id: StableId, required: boolean): Promise<void> {
+    if(copied?.has(id))return;
     if (visited.has(id)) return; visited.add(id);
-    let artifact;
-    try { artifact = await source.readArtifact(id); }
-    catch (cause) { if (!required && cause instanceof OperationLogError && cause.code === 'artifact-missing') return; throw cause; }
-    for (const nested of artifactIds(artifact.value)) await copy(nested, false);
-    const stored = await destination.putArtifact(artifact.value, artifact.provenance);
-    if (stored.id !== id) throw new Error('Project artifact digest changed while copying.');
+    const pending=transfers?.get(id);
+    if(pending){if(!await pending&&required)throw new OperationLogError('artifact-missing',`Required project artifact ${id} is unavailable.`);return;}
+    const task=(async()=>{
+      let artifact;
+      try { artifact = await source.readArtifact(id); }
+      catch (cause) { if (!required && cause instanceof OperationLogError && cause.code === 'artifact-missing') return false; throw cause; }
+      for (const nested of artifactIds(artifact.value)) await copy(nested, false);
+      const stored = await destination.putArtifact(artifact.value, artifact.provenance);
+      if (stored.id !== id) throw new Error('Project artifact digest changed while copying.');
+      if(copied){copied.add(id);if(copied.size>8192)copied.delete(copied.values().next().value!);}
+      return true;
+    })();
+    transfers?.set(id,task);
+    try{await task;}finally{transfers?.delete(id);}
   }
   for (const id of event.artifactRefs) await copy(id, true);
   for (const id of artifactIds(event.payload)) await copy(id, false);

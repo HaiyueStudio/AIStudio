@@ -5,7 +5,9 @@ import { isRecord, stringField } from './value-utils.js';
 
 // Only errors known to precede a commit are eligible. `retryable` alone does
 // not establish that replaying a mutation is safe.
-export function toolCorrectionGuidance(code: string): string | null {
+export function toolCorrectionGuidance(code: string, message?: string): string | null {
+  // Compatibility with durable failures written before range errors had typed codes.
+  if (code === 'conversation.operation-failed' && message && ['result.arguments-invalid','result.offset-invalid','result.reference-expired-or-unavailable'].includes(message)) return toolCorrectionGuidance(message);
   switch (code) {
     case 'plan.payload-invalid':
       return 'Correct the indicated plan fields using the studio.plan.propose schema and resubmit the complete plan. For assertions prefer a structured object {type, signal, operator, expected}. A missing operator/value or nonexistent evidence field is not broken outer JSON: resolve it from the requirement and actual producer data; do not apply guessed defaults. Preserve all user requirements and required acceptance conditions; never remove checks just to pass validation. Await real user approval after the corrected plan is accepted.';
@@ -13,7 +15,17 @@ export function toolCorrectionGuidance(code: string): string | null {
       return 'Use the supplied exact tool schema to correct the reported fields and submit a new tool call. Use tool.search only if the required schema or constraints are unavailable. Copy returned references unchanged; never guess missing values or repeat successful edits.';
     case 'interaction.regression-incomplete':
     case 'interaction.regression-precondition':
-      return 'Use play.regression list/inspect to read retained cases and their original setup. Start a fresh paused Play through the normal authorized preview flow and replay each case at the current revision. Preserve its original expectations. If a case fails, inspect world-transform mismatches and repair the supported cause; do not weaken or replace the case to pass acceptance.';
+      return 'Use play.regression list/inspect for formal cases and original setup. Start fresh paused Play through normal authorization and replay pending formal cases at the current revision. Preserve expectations. If diagnostics prove a wrong target coordinate, create a passing probe with targetEntityId and identical expectations under the same setup, then use play.regression correct with both ids and a reason. Original facts remain. Genuine behavior failures require gameplay repair; never weaken expectations. Use probes while locating targets, then promote a verified test.';
+    case 'interaction.regression-correction-invalid':
+      return 'Inspect both cases and recorded checks. Replay the original formal case for current diagnostics; use a fresh Play with the same initial setup for the replacement probe. Only proven target-coordinate mistakes with identical behavior expectations can be corrected. Otherwise repair gameplay and replay the original.';
+    case 'result.arguments-invalid':
+    case 'result.offset-invalid':
+      return 'Correct the read range: length is 1–8192 characters, offset defaults to 0; follow nextOffset. Use studio.result.read only for an exact external artifactRef, and play.evidence.read for Play observation ids. Screenshot reads return metadata and retained visual evidence, not base64 text. Do not repeat successful actions or recapture images to recover output.';
+    case 'result.reference-expired-or-unavailable':
+      return 'Use play.evidence.read for a Play observation or screenshot reference belonging to this task. External result references may expire: obtain a fresh read only, never automatically replay external actions. Retained task evidence remains available after stopping Play.';
+    case 'observation.range-invalid':
+    case 'observation.missing':
+      return 'Read only an exact observation id returned for this task with play.evidence.read, length 1–8192 and offset within its characters. Follow nextOffset and preserve existing evidence. Do not repeat mutations or recapture merely to recover text.';
     case 'interaction.diagnostic-required':
       return 'Inspect the previous gesture diagnostics, actual hit entity, pointer configuration and script binding. Fix the first supported cause through normal editing approval, or state a new hypothesis and run a distinct points/expect probe. Do not repeat the same test, restart Play or capture new images as a substitute for diagnosis.';
     case 'task.preview-stop-required':
@@ -29,7 +41,7 @@ export function toolFailureFeedback(result: JsonObject, definition?: Pick<GameTo
   if (result.status !== 'failed') return {};
   const raw = isRecord(result.error) ? result.error : isRecord(result.value) ? result.value : {};
   const error = redactObject({ code: stringField(raw.code, 'tool.failed').slice(0, 160), message: stringField(raw.message, 'Tool failed without a diagnostic.').slice(0, 2048), retryable: raw.retryable === true, ...receiptFeedback(raw) }).value;
-  const instruction = toolCorrectionGuidance(String(error.code));
+  const instruction = toolCorrectionGuidance(String(error.code), String(error.message));
   const contract = error.code === 'tool.arguments-invalid' && definition ? correctionContract(definition, String(error.message)) : null;
   return { error, ...(instruction ? { correction: { action: 'revise-and-resubmit', instruction, automaticReplay: false, ...(contract ? { toolContract: contract } : {}) } } : {}) };
 }

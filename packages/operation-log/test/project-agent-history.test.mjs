@@ -76,6 +76,28 @@ test('first save relocates an unsaved project archive while preserving its live 
   const restored = await open('project:unsaved', directory); assert.equal((await restored.query()).total, 2);
 });
 
+test('portable import transfers shared nested artifacts once, then publishes journal facts in original order',async t=>{
+ const {root,source,open}=await fixture(t),directory=path.join(root,'portable');const owner=await open('project:shared',directory);
+ const nested=await source.putArtifact({value:'nested evidence'}),shared=await source.putArtifact({nested:nested.id});
+ for(let i=0;i<40;i++)await owner.log.append({kind:'agent/shared-note',source:'studio.test',severity:'info',payload:{index:i},artifactRefs:[shared.id]});
+ const original=(await owner.log.query({limit:100,traverseCorrelation:false})).events;await owner.dispose();
+ const fresh=await OperationLog.open({rootDirectory:path.join(root,'fresh'),appVersion:'test'});t.after(()=>fresh.close());let puts=0;
+ const put=fresh.putArtifact.bind(fresh);fresh.putArtifact=async(...args)=>{puts++;return put(...args);};
+ fresh.subscribeAppends(async()=>{assert.equal((await fresh.readArtifact(nested.id)).value.value,'nested evidence');});
+ const reopened=await open('project:shared',directory,fresh);assert.equal(puts,2,'shared graph is verified and transferred once per import');
+ assert.deepEqual((await fresh.query({limit:100,traverseCorrelation:false})).events.map(e=>e.eventId),original.map(e=>e.eventId));
+ assert.deepEqual((await reopened.log.query({limit:100,traverseCorrelation:false})).events.map(e=>e.eventId),original.map(e=>e.eventId));
+});
+
+test('corrupted import artifacts are rejected before any batch is published and workers finish before rejection',async t=>{
+ const {root,source,open}=await fixture(t),directory=path.join(root,'corrupt-portable');const owner=await open('project:corrupt',directory);
+ const artifact=await source.putArtifact({value:'verified data'});
+ await owner.log.append({kind:'agent/import-note',source:'studio.test',severity:'info',payload:{},artifactRefs:[artifact.id]});await owner.dispose();
+ const target=path.join(directory,'artifacts','sha256',artifact.digest+'.json'),stored=JSON.parse(await readFile(target,'utf8'));stored.value.value='changed';await writeFile(target,JSON.stringify(stored));
+ const fresh=await OperationLog.open({rootDirectory:path.join(root,'fresh-corrupt'),appVersion:'test'});t.after(()=>fresh.close());
+ await assert.rejects(open('project:corrupt',directory,fresh),e=>e.code==='artifact-checksum-mismatch');assert.equal(fresh.status().eventCount,0);
+});
+
 test('legacy project ownership is derived from durable Session identity, and unassigned global history stays unassigned', async t => {
   const { source, open } = await fixture(t);
   const artifact = await source.putArtifact({ schemaVersion: 1, id: 'node:legacy', kind: 'tool-result', status: 'completed', createdAt: time, provenance: { backendId: 'backend:test', sessionId: 'session:legacy', turnId: 'turn:legacy' }, content: { toolId: 'entity.create', details: 'old summary' } });

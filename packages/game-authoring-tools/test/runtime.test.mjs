@@ -133,7 +133,7 @@ test('bounded tool catalog exposes registry-driven component authoring', () => {
     'camera.get', 'scene.list-entities', 'entity.get', 'script.get', 'script.symbols', 'diagnostics.query', 'history.query', 'asset.search', 'asset.dependencies',
     'camera.set', 'camera.author', 'entity.create', 'entity.create-many', 'entity.rename', 'entity.hierarchy', 'assembly.create', 'assembly.inspect', 'assembly.instantiate', 'prefab.manage', 'transform.set', 'transform.batch', 'material.set',
     'component.add', 'component.set', 'component.remove', 'component.configure', 'asset.generate-texture', 'asset.import', 'asset.assign', 'script.propose', 'script.patch', 'script.apply',
-    'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.regression', 'play.pointer-gesture', 'play.input', 'play.physics-query', 'play.inspect', 'play.capture', 'task.evaluate',
+    'preview.validate', 'preview.start', 'preview.stop', 'play.start', 'play.stop', 'play.step', 'play.regression', 'play.pointer-gesture', 'play.input', 'play.physics-query', 'play.evidence.read', 'play.inspect', 'play.capture', 'task.evaluate',
   ]);
   assert.ok(GAME_AUTHORING_TOOL_DEFINITIONS.every((item) => item.version === '1.0.0' && item.timeoutMs <= (item.id === 'play.regression' ? 120_000 : 20_000) && item.maxResultBytes <= 65_536));
   assert.match(GAME_AUTHORING_TOOL_DEFINITIONS.find((item) => item.id === 'script.propose').description, /time and delta are milliseconds/);
@@ -2047,7 +2047,7 @@ test('gesture regression roundtrip replays original expectation after a repair, 
   const obs=()=>{const c=Math.cos(angle),s=Math.sin(angle);const world=[c,0,-s,0,0,1,0,0,s,0,c,0,c,0,-s,1];return {...f.preview.observation({}),playId:`play:regression-${play}`,tick,documentRevision:revision,value:{seed:'fixed',state:{camera:{position:[0,0,10]},entities:[{id,parentId:null,position:[c,0,-s],rotation:[0,angle,0],scale:[1,1,1],worldMatrix:angle?world:I}]},interactions:[]}};};
   f.preview.step=async count=>{tick+=count;return obs();};
   f.preview.input=async event=>{if(event.phase==='move')angle=(repaired?1:-1)*.4;if(event.phase==='up')angle=(repaired?1:-1)*Math.PI/2;return obs();};
-  const args={caseLabel:'Direction regression',points:[{phase:'down',x:.5,y:.5},{phase:'move',x:.6,y:.5},{phase:'up',x:.7,y:.5}],expect:{cameraChanged:false,rotation:{entityIds:[id],pivot:[0,0,0],axis:[0,1,0],angleDegrees:90,requireIntermediate:true}}};
+  const args={mode:'regression',caseLabel:'Direction regression',points:[{phase:'down',x:.5,y:.5},{phase:'move',x:.6,y:.5},{phase:'up',x:.7,y:.5}],expect:{cameraChanged:false,rotation:{entityIds:[id],pivot:[0,0,0],axis:[0,1,0],angleDegrees:90,requireIntermediate:true}}};
   const first=await executeReady(f.runtime,call('call:reg-fail','play.pointer-gesture',args));assert.equal(first.status,'completed',JSON.stringify(first));assert.equal(first.value.effects.rotationMatched,false);assert.equal(first.value.regression.saved,true);
   const listed=await executeReady(f.runtime,call('call:reg-list','play.regression',{action:'list'}));assert.equal(listed.value.count,1);assert.equal(listed.value.cases[0].passed,false);
   const taskSpec={schemaVersion:2,id:'task:session:fixture',request:'Rotate the selected member correctly',visibleConstraints:[],budgetId:'budget:test',requiredCapabilities:['play.inspect'],acceptance:[{id:'criterion:rotation',required:true,visibility:'agent',category:'functional',assertion:'evidence state signal effects.rotationMatched equals true'}]};
@@ -2055,6 +2055,31 @@ test('gesture regression roundtrip replays original expectation after a repair, 
   tick=0;angle=0;play++;repaired=true;
   const replay=await executeReady(f.runtime,call('call:reg-replay','play.regression',{action:'replay',caseId:first.value.regression.id}));assert.equal(replay.status,'completed',JSON.stringify(replay));assert.equal(replay.value.effects.rotationMatched,true);assert.equal(replay.value.regression.passed,true);assert.equal(replay.value.fromTick,first.value.fromTick);assert.equal(replay.value.toTick,first.value.toTick);
   const evaluated=await executeReady(f.runtime,call('call:reg-evaluate','task.evaluate',{taskSpec,observationIds:replay.value.observations.map(o=>o.id)}));assert.equal(evaluated.status,'completed',JSON.stringify(evaluated));assert.equal(evaluated.value.status,'pass');
+ }finally{await dispose(f);}
+});
+
+test('wrong-target formal case can be corrected through tools and retained evidence is readable after Stop',async()=>{
+ const f=await fixture();let tick=0,play=1,theta=0,moved=0,queued=null,held=false;
+ try{
+  const made=await approveAndExecute(f.runtime,call('call:probe-entities','entity.create-many',{baseRevision:1,entities:[{kind:'sphere',name:'Cue'},{kind:'cube',name:'Cloth'}]}));
+  const [cue,cloth]=f.scene.snapshot().entities.map(e=>e.id),revision=made.afterRevision;
+  const obs=(routing)=>({...f.preview.observation({}),playId:`play:probe-${play}`,tick,documentRevision:revision,value:{seed:'fixed',state:{camera:{theta},entities:[{id:cue,parentId:null,position:[moved,0,0],worldMatrix:[1,0,0,0,0,1,0,0,0,0,1,0,moved,0,0,1]},{id:cloth,parentId:null,position:[0,0,0],worldMatrix:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]}]},interactions:[],runtimeErrorCount:0,...(routing?{routing}:{})}});
+  f.preview.input=async event=>{queued=event;return obs();};
+  f.preview.step=async count=>{let routing;for(let i=0;i<count;i++){tick++;routing=undefined;if(queued){const hit=queued.y>.6?cue:cloth;if(queued.phase==='down')held=hit===cue;if(queued.phase==='up'&&held){moved++;theta++;held=false;}routing={tick,hits:[{phase:queued.phase,pointerId:1,hitEntityId:hit,receiverEntityId:hit,pointer:hit===cue?{enabled:true}:null,emitted:[],suppressed:[]}],reads:[],orbit:null};queued=null;}}return obs(routing);};
+  const args=y=>({targetEntityId:cue,caseLabel:'eight-ball-shot',points:[{phase:'down',x:.5,y},{phase:'up',x:.5,y:y+.2}],expect:{cameraChanged:true,changedTransformEntityIds:[cue],unchangedEntityIds:[cloth]}});
+  const failed=await executeReady(f.runtime,call('call:probe-wrong','play.pointer-gesture',{...args(.5734),mode:'regression'}));
+  assert.equal(failed.value.diagnostics.stage,'target-mismatch');assert.equal(failed.value.regression.passed,false);
+  tick=0;play++;theta=0;moved=0;held=false;
+  const passing=await executeReady(f.runtime,call('call:probe-right','play.pointer-gesture',args(.658)));
+  assert.equal(passing.value.regression.mode,'probe');assert.equal(passing.value.regression.passed,true);
+  const corrected=await executeReady(f.runtime,call('call:probe-correct','play.regression',{action:'correct',caseId:failed.value.regression.id,replacementCaseId:passing.value.regression.id,reason:'The original down event hit the cloth; corrected coordinates hit the cue.'}));
+  assert.equal(corrected.value.historyPreserved,true);assert.equal(corrected.value.replacement.mode,'regression');
+  await f.preview.stop();
+  const artifactId=passing.value.observations.find(o=>o.type==='state').id;
+  const evidence=await executeReady(f.runtime,call('call:probe-read','play.evidence.read',{artifactId,length:8192}));
+  assert.equal(JSON.parse(evidence.value.text).effects.cameraChanged,true);
+  const taskSpec={schemaVersion:2,id:'task:session:fixture',request:'Shoot the cue',visibleConstraints:[],budgetId:'budget:test',requiredCapabilities:['play.inspect'],acceptance:[{id:'criterion:shot',required:true,visibility:'agent',category:'functional',assertion:'evidence state signal effects.cameraChanged equals true'}]};
+  const evaluation=await executeReady(f.runtime,call('call:probe-accept','task.evaluate',{taskSpec,observationIds:passing.value.observations.map(o=>o.id)}));assert.equal(evaluation.value.status,'pass');
  }finally{await dispose(f);}
 });
 
@@ -2079,9 +2104,9 @@ test('regression replay preserves a failed prelude even when its last gesture pa
   };
   const points = [{phase:'down',x:.1,y:.1},{phase:'up',x:.2,y:.1}];
   try {
-    const prelude = await executeReady(f.runtime, call('call:sequence-prelude', 'play.pointer-gesture', { points, expect: {cameraChanged:true} }));
+    const prelude = await executeReady(f.runtime, call('call:sequence-prelude', 'play.pointer-gesture', { points, mode:'regression',caseLabel:'First camera move',expect: {cameraChanged:true} }));
     assert.equal(prelude.value.diagnostics.expectationMatched, true);
-    const failed = await executeReady(f.runtime, call('call:sequence-failed', 'play.pointer-gesture', { points, caseLabel:'Second camera move', expect:{cameraChanged:true} }));
+    const failed = await executeReady(f.runtime, call('call:sequence-failed', 'play.pointer-gesture', { points, mode:'regression',caseLabel:'Second camera move', expect:{cameraChanged:true} }));
     assert.equal(failed.value.regression.saved, true);
     tick=0; play++; gesture=0; theta=0; replaying=true;
     const replay = await executeReady(f.runtime, call('call:sequence-replay', 'play.regression', {action:'replay',caseId:failed.value.regression.id}));

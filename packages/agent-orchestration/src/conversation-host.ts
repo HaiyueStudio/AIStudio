@@ -55,7 +55,7 @@ interface ActiveTurn {
   readonly decisions: string[];
   readonly toolFacts: string[];
   readonly blockers: string[];
-  toolFailures?: Map<StableId, Readonly<{ toolId: StableId; code: string; message: string; retryable: boolean }>>;
+  toolFailures?: Map<StableId, Readonly<{ toolId: StableId; code: string; message: string; retryable: boolean; artifactId?: string }>>;
   contextCommitted: boolean;
   suspendedBarrierId: StableId | null;
 }
@@ -911,7 +911,7 @@ export class StudioConversationHost {
         active.continuationRequested || active.suspendedBarrierId || active.budgetCheckpoint ||
         run.status !== 'running' || run.terminalDiagnostic || this.hasPendingHumanBarrier()) return false;
     const failures = [...(active.toolFailures?.values() ?? [])];
-    if (!failures.length || failures.some(failure => !toolCorrectionGuidance(failure.code))) return false;
+    if (!failures.length || failures.some(failure => !toolCorrectionGuidance(failure.code, failure.message))) return false;
     if (active.blockers.some(blocker => !failures.some(failure => blocker === `${failure.toolId}: ${failure.code}`))) return false;
     const attempts = run.timeline.filter(item => item.title === '继续修正工具调用').length;
     const limit = active.account.options.budget.limits.repairIterations;
@@ -919,7 +919,7 @@ export class StudioConversationHost {
     active.continuationRequested = true;
     active.continuationInstruction = [
       'Correct the unresolved tool errors below and continue the original goal. These are failed attempts, not successful results. Inspect current state before editing; do not replay completed mutations or weaken acceptance. All existing approval and budget checks remain in force.',
-      JSON.stringify(redactObject({ failures: failures.slice(0, 8).map(failure => ({ toolId: failure.toolId, code: failure.code, message: failure.message, instruction: toolCorrectionGuidance(failure.code) })), omittedFailures: Math.max(0, failures.length - 8) }).value),
+      JSON.stringify(redactObject({ failures: failures.slice(0, 8).map(failure => ({ toolId: failure.toolId, code: failure.code, message: failure.message, instruction: toolCorrectionGuidance(failure.code, failure.message) })), omittedFailures: Math.max(0, failures.length - 8) }).value),
     ].join('\n');
     this.updateTaskRun(active.taskId, { status: 'running', resumable: false }, { phase: run.phase, status: 'active', title: '继续修正工具调用', detail: `第 ${attempts + 1}/${limit} 次，计入任务修复预算。${failures.map(failure => `${failure.toolId}：${failure.message}`).join('；').slice(0, 1200)}`, turnId });
     return true;
@@ -1786,6 +1786,12 @@ export class StudioConversationHost {
     if (this.active) {
       this.active.toolFailures ??= new Map();
       if (body.status === 'completed') {
+        const redirected = this.active.toolFailures.get(asStableId('studio.result.read'));
+        if (context.toolId === 'play.evidence.read' && redirected?.artifactId === context.args.artifactId && toolCorrectionGuidance(redirected.code,redirected.message)) {
+          this.active.toolFailures.delete(asStableId('studio.result.read'));
+          this.active.blockers.splice(0,this.active.blockers.length,...this.active.blockers.filter(item=>item!==`studio.result.read: ${redirected.code}`));
+          this.updateTaskRun(this.active.taskId,{}, {phase:this.taskRuns.get(this.active.taskId)?.phase??'planning',status:'complete',title:'证据读取已修正',detail:'同一证据已通过 Play 读取工具取得；原失败记录保留。',turnId:context.event.turnId,toolCallId:context.toolCallId});
+        }
         const resolved = this.active.toolFailures.get(context.toolId);
         if (resolved) {
           const blocker = `${context.toolId}: ${resolved.code}`;
@@ -1799,7 +1805,7 @@ export class StudioConversationHost {
         const prior = this.active.toolFailures.get(context.toolId);
         if (prior) this.active.blockers.splice(0, this.active.blockers.length, ...this.active.blockers.filter(item => item !== `${context.toolId}: ${prior.code}`));
         this.active.toolFailures.delete(context.toolId);
-        this.active.toolFailures.set(context.toolId, Object.freeze({ toolId: context.toolId, code: stringField(error.code, 'tool.failed'), message: stringField(error.message, '工具执行失败。').slice(0, 600), retryable: error.retryable === true }));
+        this.active.toolFailures.set(context.toolId, Object.freeze({ toolId: context.toolId, code: stringField(error.code, 'tool.failed'), message: stringField(error.message, '工具执行失败。').slice(0, 600), retryable: error.retryable === true, ...(typeof context.args.artifactId==='string'?{artifactId:context.args.artifactId}:{}) }));
       }
     }
     if (this.active && body.fact) this.active.toolFacts.push(body.fact);

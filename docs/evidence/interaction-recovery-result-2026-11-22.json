@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "inputDigest": "sha256:b96f7c8d252f5ca67c7f1d117cb499d10fac3d21391d969518cc8b7c09611a3b",
+  "scope": "Generic interaction tests, traceable corrections, retained evidence reads and bounded tool recovery",
+  "changes": {
+    "defaultGestureMode": "probe",
+    "formalModeExplicit": true,
+    "legacyFormalCasesPreserved": true,
+    "exploratoryAssertionsExcludedFromNewPreludes": true,
+    "formalPreludeAndFinalAssertionsRequired": true,
+    "correction": "Host-verified intended-target replacement with identical assertions, setup and revision; append-only supersession",
+    "evidenceRead": "Task-scoped Play observation ranges, stale labels, screenshot metadata and retained image reference",
+    "typedReadErrors": true,
+    "legacyReadErrorCompatibility": true,
+    "matchingMisroutedReadCanBeResolved": true
+  },
+  "focused": {
+    "passed": 140,
+    "failed": 0,
+    "log": ".cache/zhuoqiu/focused-final.log",
+    "toolFlow": "Wrong target → failed formal case → passing probe → traceable correction → read retained state after Stop → acceptance pass",
+    "durability": "Real Operation Log close/reopen; original artifacts and failed verdict retained",
+    "negativeChecks": [
+      "weakened expectations",
+      "genuine handler failure",
+      "changed setup",
+      "stale evidence",
+      "cancellation",
+      "cross-task artifact",
+      "non-observation artifact",
+      "different redirected evidence id",
+      "unknown outcomes and human barriers"
+    ]
+  },
+  "capabilities": {
+    "groups": 20,
+    "passed": 424,
+    "failed": 0,
+    "allPassed": true
+  },
+  "fullCheck": {
+    "exitCode": 1,
+    "files": 94,
+    "tests": 566,
+    "passed": 565,
+    "failed": 1,
+    "failures": [
+      {
+        "file": "apps/ai-studio/test/m14-integration/product-electron.test.mjs",
+        "log": ".cache/zhuoqiu/integration-output/collected-22.tap",
+        "diagnostic": "Existing frozen CPU identity gate: expected i7-7700 / 8 logical CPUs, actual i7-14700KF / 28; gate unchanged"
+      }
+    ],
+    "log": ".cache/zhuoqiu/check.log"
+  },
+  "secretScan": {
+    "schemaVersion": 1,
+    "passed": true,
+    "files": 694,
+    "bytes": 406295437,
+    "crashDumps": 0,
+    "rules": [
+      "configured-secret-utf8-and-utf16",
+      "credential-token-patterns",
+      "credential-store-path"
+    ],
+    "limitation": "Pattern and configured-value scan of generated files; no real credential store is read. A zero crash-dump count means no dump was generated.",
+    "inputDigest": "sha256:b96f7c8d252f5ca67c7f1d117cb499d10fac3d21391d969518cc8b7c09611a3b"
+  },
+  "agentWritesToDesktopProject": false,
+  "liveBackendGameRetryPerformed": false,
+  "milestoneAdvanced": false
+}

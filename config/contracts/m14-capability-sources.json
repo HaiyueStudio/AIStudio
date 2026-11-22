@@ -75,7 +75,11 @@
       "id": "observations",
       "files": [
         "packages/game-authoring-tools/test/g10-observations.test.mjs",
-        "apps/ai-studio/test/gameplay-observation-store.test.mjs"
+        "apps/ai-studio/test/gameplay-observation-store.test.mjs",
+        "packages/game-authoring-tools/test/gesture-probes.test.mjs",
+        "packages/game-authoring-tools/test/gesture-regressions.test.mjs",
+        "packages/agent-orchestration/test/tool-correction.test.mjs",
+        "packages/agent-orchestration/test/p1-result-dependencies.test.mjs"
       ]
     },
     {
@@ -169,6 +173,16 @@
         "apps/ai-studio/test/mobile-preview.test.mjs",
         "apps/ai-studio/test/mobile-preview-electron.test.mjs",
         "apps/ai-studio/test/mobile-preview-ui-electron.test.mjs"
+      ]
+    },
+    {
+      "id": "project-loading",
+      "files": [
+        "apps/ai-studio/test/project-loading-electron.test.mjs",
+        "packages/operation-log/test/import-events.test.mjs",
+        "packages/operation-log/test/project-agent-history.test.mjs",
+        "packages/agent-orchestration/test/project-conversation.test.mjs",
+        "apps/ai-studio/test/ipc.test.mjs"
       ]
     }
   ],
@@ -648,7 +662,8 @@
         "play.capture",
         "play.inspect",
         "diagnostics.query",
-        "task.evaluate"
+        "task.evaluate",
+        "play.evidence.read"
       ],
       "document": [
         "packages/editor-plugins/src/project/game-document.ts",
@@ -670,7 +685,8 @@
         "simulation",
         "behavior-project-flow",
         "behavior-panel-window",
-        "behavior-product-window"
+        "behavior-product-window",
+        "project-loading"
       ],
       "ui": [
         "apps/ai-studio/src/renderer.ts",

@@ -1,4 +1,5 @@
 import { mountToolSettings } from './tool-settings-ui.js';
+import { ProjectLoading } from './project-loading.js';
 import { mountMobilePreviewSharing } from './mobile-preview-ui.js';
 import { updateToolbarButton } from './toolbar.js';
 import { renderPreviewTestTable, type PreviewTestActivity } from './preview-test-progress.js';
@@ -1166,6 +1167,7 @@ function updatePlayControls(): void {
 }
 
 function bindUi(): void {
+  const projectLoading = new ProjectLoading(document);
   scriptEditor = new ScriptCodeEditor(element('script-source'), () => {
     scriptDraftGeneration++;
     pendingScriptProposal = null;
@@ -1173,12 +1175,12 @@ function bindUi(): void {
     element('script-diagnostics').textContent = t('scriptEditHint');
   }, language);
   setupPlayPageControls();
-  element('new-project').addEventListener('click', () => void action(async () => {
+  element('new-project').addEventListener('click', () => void action(() => projectLoading.run(async () => {
     project = await invoke<ProjectSnapshot & JsonObject>('project/new', { name: 'HaiYue Game' });
     selection = { activeEntityId: null, source: 'system' };
     await refresh();
-  }));
-  element('open-project').addEventListener('click', () => void action(async () => { await invoke('project/open'); await refresh(); }));
+  }, language==='zh-CN'?'正在新建工程…':'Creating project…')));
+  element('open-project').addEventListener('click', () => void action(() => projectLoading.run(async () => { await invoke('project/open'); await refresh(); },language==='zh-CN'?'正在加载工程…':'Loading project…')));
   element('save-project').addEventListener('click', () => void saveProject());
   element('run-project').addEventListener('click', () => void toggleProjectRun());
   const historyControls = element<HYHistoryControls>('history-controls');

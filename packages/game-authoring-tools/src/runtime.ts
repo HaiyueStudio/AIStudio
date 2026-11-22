@@ -1045,8 +1045,14 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
   if (isBehaviorTool(stored.definition.id)) return behavior.execute(stored.definition.id, stored.arguments, signal);
   const args = stored.arguments as Record<string, JsonValue>;
   const scene = options.scene.snapshot();
+  const assertCurrent = (): void => {
+    signal.throwIfAborted();
+    const current = requireDocument(options.workspace);
+    if (current.documentId !== stored.view.documentId || current.revision !== stored.view.baseRevision) throw new GameToolProtocolError('tool.stale-revision','Project changed during the evidence or regression operation.',true);
+  };
   if (['project.snapshot','play.pointer-gesture','play.regression','task.evaluate'].includes(stored.definition.id)) {
     const document=requireDocument(options.workspace); await regressions.sync(document.projectId,document.documentId);
+    assertCurrent();
   }
   if (['play.input','play.step'].includes(stored.definition.id)) regressions.invalidate();
   switch (stored.definition.id) {
@@ -1332,23 +1338,25 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
     }
     case 'play.regression': {
       if (args.action === 'list') return regressions.list();
+      if (args.action === 'promote') return regressions.promote(String(args.caseId), requireDocument(options.workspace).revision,assertCurrent);
+      if (args.action === 'correct') return regressions.correct(String(args.caseId), String(args.replacementCaseId), String(args.reason), requireDocument(options.workspace).revision,assertCurrent);
       const test=regressions.get(String(args.caseId));
       if (args.action === 'inspect') return regressions.inspect(String(args.caseId));
       const replayProgressKey = canonicalStringify({ regression: test.id, documentId: stored.view.documentId, revision: requireDocument(options.workspace).revision });
       const finalArgs = test.sequence.at(-1)!;
       gestureProgress.before(replayProgressKey, finalArgs);
       const before=await options.preview.step(1,signal);
-      await regressions.record({},before,false,String(args.caseId));
+      await regressions.record({},before,false,String(args.caseId),[]);
       regressions.assertBaseline(test,before);
       let result:JsonObject={}; let passed=true; const checks:JsonObject[]=[]; let firstFailure:JsonObject|null=null;
       for (const gestureArgs of test.sequence) {
         const synthetic={...stored,replayCase:true,replayBaseline:checks.length===0?before:undefined,definition:GAME_AUTHORING_TOOL_BY_ID.get(asStableId('play.pointer-gesture'))!,arguments:normalizeArguments(asStableId('play.pointer-gesture'),gestureArgs,before.documentRevision)};
         result=await executeHandler(synthetic,options,proposals,plans,observations,evaluator,catalog,behavior,gestureProgress,regressions,signal);
         const diagnostic=result.diagnostics as JsonObject;
-        checks.push({index:checks.length,expectationMatched:diagnostic.expectationMatched??null,mismatches:diagnostic.mismatches??[],observationIds:(result.observations as JsonObject[]).map(o=>o.id!)});
+        checks.push({...diagnostic,index:checks.length,observationIds:(result.observations as JsonObject[]).map(o=>o.id!)});
         if (diagnostic.expectationMatched===false) { passed=false; firstFailure??=diagnostic; }
       }
-      const regression=await regressions.record({},before,passed,String(args.caseId));
+      const regression=await regressions.record({},before,passed,String(args.caseId),checks);
       const replayDiagnostic = { ...(firstFailure ?? result.diagnostics as JsonObject), expectationMatched: passed };
       const replayResult: JsonObject = { ...result, diagnostics: { ...replayDiagnostic, repeatedFailureCount: gestureProgress.after(replayProgressKey, finalArgs, replayDiagnostic) }, regression: regression!, checks };
       if (new TextEncoder().encode(JSON.stringify(replayResult)).byteLength <= stored.definition.maxResultBytes) return replayResult;
@@ -1389,7 +1397,12 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const rotation = (args.expect as JsonObject | undefined)?.rotation as JsonObject | undefined;
       const effects = { ...gestureEffects(before.value, current.value), ...(rotation ? verifyRotation(before.value, current.value, motionSamples, rotation) : {}) };
       if (signal.aborted) throw signal.reason;
-      const diagnostic = diagnoseGesture(steps, before.value, current.value, effects, args.expect as JsonObject | undefined);
+      let diagnostic = diagnoseGesture(steps, before.value, current.value, effects, args.expect as JsonObject | undefined);
+      if (typeof args.targetEntityId === 'string' && diagnostic.hitEntityId !== args.targetEntityId) {
+        diagnostic = {...diagnostic,stage:'target-mismatch',expectationMatched:false,
+          mismatches:[...(diagnostic.mismatches as JsonValue[] ?? []), `Intended target ${args.targetEntityId}; observed ${diagnostic.hitEntityId ?? 'background'}.`].slice(0,16),
+          nextAction:'This probe missed the intended object. Inspect placement and choose a verified target point; do not change gameplay to make a different surface trigger the action. Keep exploration separate from formal regression.'};
+      }
       const diagnostics = { ...diagnostic, repeatedFailureCount: stored.replayCase ? 0 : gestureProgress.after(progressKey, args, diagnostic), ...(args.hypothesis ? { hypothesis: args.hypothesis } : {}) };
       const gesture = Object.freeze({ steps, interactions: gestureInteractions, interactionCount, interactionsTruncated: interactionCount > gestureInteractions.length, fromTick: before.tick, toTick: current.tick });
       // Persist exactly the host-computed effects shown to the model. A later
@@ -1398,7 +1411,7 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       if (signal.aborted) throw signal.reason;
       if (requireDocument(options.workspace).documentId !== stored.view.documentId) throw new GameToolProtocolError('tool.project-changed', 'Project changed while recording the gesture.');
       if (stored.replayCase) regressions.invalidate();
-      const regression=stored.replayCase ? null : await regressions.record(args,before,diagnostic.expectationMatched===true);
+      const regression=stored.replayCase ? null : await regressions.record(args,before,diagnostic.expectationMatched===true,undefined,[diagnostic]);
       const result: JsonObject = { ...(regression?{regression}:{}), baseline: baseline.artifact as unknown as JsonValue, baselineProjection: baseline.projection as JsonValue, baselineProjectionTruncated: baseline.projectionTruncated, observations: after.map(item => item.artifact) as unknown as JsonValue, projection: after[0]!.projection as JsonValue, projectionTruncated: after[0]!.projectionTruncated, steps, effects, diagnostics, executedEvents: (args.points as readonly JsonValue[]).length, fromTick: before.tick, toTick: current.tick };
       if (new TextEncoder().encode(JSON.stringify(result)).byteLength > stored.definition.maxResultBytes) {
         // Full bounded routing stays in the persisted gesture artifact. Preserve
@@ -1416,6 +1429,10 @@ async function executeHandler(stored: StoredPreparation, options: GameAuthoringT
       const observation = await options.preview.physicsQuery(args as never, signal);
       const persisted = await observations.persistState(stored.call, observation);
       return Object.freeze({ observation: persisted.artifact as unknown as JsonValue, projection: persisted.projection as JsonValue, projectionTruncated: persisted.projectionTruncated });
+    }
+    case 'play.evidence.read': {
+      const result = await observations.readEvidence(stored.call,args,requireDocument(options.workspace).revision);
+      assertCurrent(); return result;
     }
     case 'play.inspect': {
       const observation = scopePlayInspection(await options.preview.inspect(signal), args);
@@ -1594,13 +1611,23 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
     case 'preview.start': case 'play.start': exact(raw, ['baseRevision', 'planId'], [], toolId); return Object.freeze({ baseRevision: integer(raw.baseRevision, 'baseRevision'), planId: stable(raw.planId, 'plan id') });
     case 'play.step': exact(raw, ['count'], [], toolId); return Object.freeze({ count: boundedInteger(raw.count, 'count', 1, 10_000) });
     case 'play.regression': {
-      exact(raw,['action'],['caseId'],toolId);
+      exact(raw,['action'],['caseId','replacementCaseId','reason'],toolId);
+      if (raw.action==='correct') return {action:'correct',caseId:stable(raw.caseId,'case id'),replacementCaseId:stable(raw.replacementCaseId,'replacement case id'),reason:boundedString(raw.reason,'reason',500,true)};
+      if (raw.replacementCaseId!==undefined||raw.reason!==undefined) throw invalid('replacementCaseId and reason are only valid for correct.');
       if(raw.action==='list'&&raw.caseId===undefined)return {action:'list'};
-      if(raw.action==='replay'||raw.action==='inspect')return {action:raw.action,caseId:stable(raw.caseId,'case id')};
-      throw invalid('play.regression requires list, or inspect/replay with a caseId.');
+      if(raw.action==='replay'||raw.action==='inspect'||raw.action==='promote')return {action:raw.action,caseId:stable(raw.caseId,'case id')};
+      throw invalid('play.regression requires list, inspect/replay/promote with caseId, or correct with caseId, replacementCaseId and reason.');
+    }
+    case 'play.evidence.read': {
+      exact(raw,['artifactId'],['offset','length'],toolId);
+      const artifactId=boundedString(raw.artifactId,'artifactId',90,true);
+      if(!/^artifact:sha256:[a-f0-9]{64}$/.test(artifactId))throw invalid('artifactId must be an exact returned observation reference.');
+      return {artifactId,offset:raw.offset===undefined?0:boundedInteger(raw.offset,'offset',0,524288),length:raw.length===undefined?4096:boundedInteger(raw.length,'length',1,8192)};
     }
     case 'play.pointer-gesture': {
-      exact(raw, ['points'], ['pointerId', 'settleTicks', 'expect', 'hypothesis', 'caseLabel'], toolId);
+      exact(raw, ['points'], ['pointerId', 'settleTicks', 'expect', 'hypothesis', 'caseLabel','mode','targetEntityId'], toolId);
+      if(raw.mode!==undefined&&raw.mode!=='probe'&&raw.mode!=='regression')throw invalid('mode must be probe or regression; omitted mode means probe.');
+      if(raw.mode==='regression'&&(!raw.expect||!raw.caseLabel))throw invalid('Formal regression requires an explicit expect and caseLabel.');
       let expect: Record<string, JsonValue> | undefined;
       if (raw.expect !== undefined) {
         if (!isRecord(raw.expect)) throw invalid('expect must be an object.');
@@ -1627,7 +1654,7 @@ function normalizeArguments(toolId: StableId, value: JsonObject, currentRevision
         const event = normalizePlayInput({ ...point, tick: 1, kind: 'pointer', pointerId: 1 });
         return Object.freeze({ phase: point.phase, x: event.x, y: event.y }) as JsonObject;
       });
-      return Object.freeze({ points, ...(raw.caseLabel === undefined ? {} : { caseLabel: boundedString(raw.caseLabel, 'caseLabel', 240, true) }), ...(expect ? { expect } : {}), ...(hypothesis ? { hypothesis } : {}), pointerId: raw.pointerId === undefined ? 1 : boundedInteger(raw.pointerId, 'pointerId', 0, 1_000_000), settleTicks: raw.settleTicks === undefined ? 1 : boundedInteger(raw.settleTicks, 'settleTicks', 0, 600) });
+      return Object.freeze({ points,mode:raw.mode??'probe',...(raw.targetEntityId===undefined?{}:{targetEntityId:stable(raw.targetEntityId,'target entity id')}), ...(raw.caseLabel === undefined ? {} : { caseLabel: boundedString(raw.caseLabel, 'caseLabel', 240, true) }), ...(expect ? { expect } : {}), ...(hypothesis ? { hypothesis } : {}), pointerId: raw.pointerId === undefined ? 1 : boundedInteger(raw.pointerId, 'pointerId', 0, 1_000_000), settleTicks: raw.settleTicks === undefined ? 1 : boundedInteger(raw.settleTicks, 'settleTicks', 0, 600) });
     }
     case 'play.input': exact(raw, ['event'], [], toolId); return Object.freeze({ event: normalizePlayInput(raw.event) as unknown as JsonValue });
     case 'play.physics-query': return normalizePhysicsQuery(raw);
